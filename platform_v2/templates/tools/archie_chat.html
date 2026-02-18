@@ -2437,9 +2437,10 @@
    RESPONSIVE
    ============================================ */
 @media (max-width: 900px) {
-    .sidebar {
-        display: none;
-    }
+    .sidebar-hamburger{display:inline-flex;align-items:center}
+    .sidebar-close{display:block}
+    .sidebar{position:fixed;top:0;left:0;bottom:0;width:280px;z-index:999;transform:translateX(-100%);transition:transform .3s ease;overflow-y:auto}
+    .sidebar.drawer-open{transform:translateX(0)}
 
     #voice-sidebar {
         width: 100%;
@@ -2758,6 +2759,60 @@
 .summary-modal .summary-body{font-size:.85rem;white-space:pre-wrap;color:var(--archie-text,#e2e8f0)}
 .summary-modal .summary-actions{margin-top:12px;display:flex;gap:8px}
 .summary-modal button{padding:4px 12px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:none;color:var(--archie-text,#e2e8f0);cursor:pointer}
+
+/* === Phase 8: Mobile Sidebar Drawer === */
+.sidebar-hamburger{display:none;background:none;border:none;color:var(--archie-text,#e2e8f0);font-size:1.4rem;cursor:pointer;padding:4px 8px;line-height:1}
+.sidebar-backdrop{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:998}
+.sidebar-backdrop.open{display:block}
+.sidebar-close{display:none;position:absolute;top:8px;right:8px;background:none;border:none;color:var(--archie-muted,#6b7280);font-size:1.2rem;cursor:pointer;z-index:1000;padding:4px}
+.sidebar-close:hover{color:var(--archie-text,#e2e8f0)}
+
+/* === Phase 8: Settings Panel === */
+.settings-panel{padding:8px 12px;border-top:1px solid var(--archie-border,#2a3a4a)}
+.settings-toggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:6px 0;font-size:.8rem;font-weight:600;color:var(--archie-accent,#60a5fa)}
+.settings-body{display:none;padding-top:8px}
+.settings-body.open{display:block}
+.set-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:.8rem}
+.set-row label{color:var(--archie-text,#e2e8f0)}
+.set-toggle{position:relative;width:36px;height:20px;cursor:pointer}
+.set-toggle input{opacity:0;width:0;height:0}
+.set-toggle .slider{position:absolute;top:0;left:0;right:0;bottom:0;background:var(--archie-border,#2a3a4a);border-radius:10px;transition:.3s}
+.set-toggle input:checked + .slider{background:var(--archie-accent,#60a5fa)}
+.set-toggle .slider::before{content:'';position:absolute;height:16px;width:16px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.3s}
+.set-toggle input:checked + .slider::before{transform:translateX(16px)}
+.set-select{padding:2px 6px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:var(--archie-card-bg,#0a1628);color:var(--archie-text,#e2e8f0);font-size:.75rem}
+.set-more{display:block;text-align:center;margin-top:8px;font-size:.75rem;color:var(--archie-accent,#60a5fa);cursor:pointer;text-decoration:underline;background:none;border:none;width:100%}
+.settings-modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1100}
+.settings-modal-overlay.open{display:flex;align-items:center;justify-content:center}
+.settings-modal{background:var(--archie-card-bg,#0a1628);border:1px solid var(--archie-border,#2a3a4a);border-radius:8px;padding:20px;width:90%;max-width:480px;max-height:80vh;overflow-y:auto}
+.settings-modal h3{margin:0 0 16px;font-family:'Orbitron',monospace;font-size:.9rem;color:var(--archie-accent,#60a5fa)}
+.settings-modal .set-section{margin-bottom:12px}
+.settings-modal .set-section-title{font-size:.7rem;color:var(--archie-muted,#6b7280);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.settings-modal .set-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.settings-modal .set-actions button{padding:6px 14px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:none;color:var(--archie-text,#e2e8f0);cursor:pointer;font-size:.8rem}
+.settings-modal .set-actions button.primary{background:var(--archie-accent,#60a5fa);color:#0a1628;border-color:var(--archie-accent,#60a5fa)}
+body.font-small .messages-container{font-size:.82rem}
+body.font-large .messages-container{font-size:1.05rem}
+
+/* === Phase 8: Conversation Search === */
+.search-panel{padding:8px 12px;border-top:1px solid var(--archie-border,#2a3a4a)}
+.search-input-wrap{position:relative}
+.search-input{width:100%;padding:6px 8px 6px 28px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:var(--archie-card-bg,#0a1628);color:var(--archie-text,#e2e8f0);font-size:.8rem;box-sizing:border-box}
+.search-input:focus{border-color:var(--archie-accent,#60a5fa);outline:none}
+.search-icon{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:.75rem;color:var(--archie-muted,#6b7280)}
+.search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--archie-muted,#6b7280);cursor:pointer;font-size:.8rem;display:none;padding:2px}
+.search-clear.visible{display:block}
+.search-filters{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.search-chip{padding:2px 8px;border:1px solid var(--archie-border,#2a3a4a);border-radius:12px;font-size:.65rem;cursor:pointer;background:none;color:var(--archie-muted,#6b7280)}
+.search-chip.active{border-color:var(--archie-accent,#60a5fa);color:var(--archie-accent,#60a5fa)}
+.search-results{margin-top:8px;max-height:300px;overflow-y:auto}
+.search-result{padding:6px 8px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;margin-bottom:4px;cursor:pointer;font-size:.8rem}
+.search-result:hover{border-color:var(--archie-accent,#60a5fa)}
+.search-result .sr-title{font-weight:600;color:var(--archie-text,#e2e8f0);font-size:.75rem}
+.search-result .sr-snippet{color:var(--archie-muted,#6b7280);font-size:.72rem;margin-top:2px}
+.search-result .sr-snippet mark{background:rgba(96,165,250,0.2);color:var(--archie-accent,#60a5fa);padding:0 2px;border-radius:2px}
+.search-result .sr-meta{font-size:.65rem;color:var(--archie-muted,#6b7280);margin-top:2px}
+.search-empty{text-align:center;padding:12px;color:var(--archie-muted,#6b7280);font-size:.8rem}
 {% endblock %}
 
 {% block content %}
@@ -2766,6 +2821,7 @@
 <div class="command-interface">
     <!-- Left Sidebar -->
     <aside class="sidebar">
+        <button class="sidebar-close" onclick="toggleSidebar()" title="Close">&times;</button>
         <div class="sidebar-header">
             <div class="archie-branding">
                 <div class="archie-avatar">🤖</div>
@@ -2850,6 +2906,21 @@
             </div>
         </div>
 
+        <!-- Search Panel -->
+        <div class="search-panel">
+            <div class="search-input-wrap">
+                <span class="search-icon">&#128269;</span>
+                <input class="search-input" id="conv-search" placeholder="Search conversations..." oninput="onSearchInput(this.value)">
+                <button class="search-clear" id="search-clear" onclick="clearSearch()">&#10005;</button>
+            </div>
+            <div class="search-filters" id="search-filters">
+                <button class="search-chip active" data-range="0" onclick="setSearchRange(this, 0)">All Time</button>
+                <button class="search-chip" data-range="7" onclick="setSearchRange(this, 7)">This Week</button>
+                <button class="search-chip" data-range="30" onclick="setSearchRange(this, 30)">This Month</button>
+            </div>
+            <div class="search-results" id="search-results"></div>
+        </div>
+
         <!-- Analytics Panel -->
         <div class="analytics-panel">
             <div class="analytics-toggle" onclick="toggleAnalytics()">
@@ -2878,7 +2949,95 @@
                 <div id="mem-list"></div>
             </div>
         </div>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel">
+            <div class="settings-toggle" onclick="toggleSettings()">
+                <span>Settings</span>
+                <span id="set-arrow">&#9654;</span>
+            </div>
+            <div class="settings-body" id="settings-body">
+                <div class="set-row">
+                    <label>Dark Theme</label>
+                    <label class="set-toggle"><input type="checkbox" id="set-theme" onchange="updateSetting('theme', this.checked ? 'dark' : 'light')"><span class="slider"></span></label>
+                </div>
+                <div class="set-row">
+                    <label>Voice Auto-Speak</label>
+                    <label class="set-toggle"><input type="checkbox" id="set-voice" onchange="updateSetting('voiceAutoSpeak', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="set-row">
+                    <label>Notification Sound</label>
+                    <label class="set-toggle"><input type="checkbox" id="set-notif-sound" onchange="updateSetting('notifSound', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="set-row">
+                    <label>Default Mode</label>
+                    <select class="set-select" id="set-mode" onchange="updateSetting('defaultMode', this.value)">
+                        <option value="solo">Solo</option>
+                        <option value="side-by-side">Side-by-Side</option>
+                        <option value="collab">Collaborate</option>
+                    </select>
+                </div>
+                <button class="set-more" onclick="openSettingsModal()">More Settings...</button>
+            </div>
+        </div>
     </aside>
+
+    <!-- Settings Modal -->
+    <div class="settings-modal-overlay" id="settings-modal-overlay">
+        <div class="settings-modal">
+            <h3>Chat Settings</h3>
+            <div class="set-section">
+                <div class="set-section-title">Appearance</div>
+                <div class="set-row">
+                    <label>Font Size</label>
+                    <select class="set-select" id="set-font" onchange="updateSetting('fontSize', this.value)">
+                        <option value="small">Small</option>
+                        <option value="medium">Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                </div>
+                <div class="set-row">
+                    <label>Auto-open Thinking Panel</label>
+                    <label class="set-toggle"><input type="checkbox" id="set-thinking" onchange="updateSetting('thinkingAutoOpen', this.checked)"><span class="slider"></span></label>
+                </div>
+            </div>
+            <div class="set-section">
+                <div class="set-section-title">Notifications</div>
+                <div class="set-row">
+                    <label>Briefing Delivery</label>
+                    <select class="set-select" id="set-briefing" onchange="updateSetting('briefingDelivery', this.value)">
+                        <option value="chat">Chat Only</option>
+                        <option value="chat+telegram">Chat + Telegram</option>
+                    </select>
+                </div>
+                <div class="set-row">
+                    <label>Poll Interval</label>
+                    <select class="set-select" id="set-poll" onchange="updateSetting('notifPollInterval', parseInt(this.value))">
+                        <option value="15">15 seconds</option>
+                        <option value="30">30 seconds</option>
+                        <option value="60">60 seconds</option>
+                    </select>
+                </div>
+            </div>
+            <div class="set-section">
+                <div class="set-section-title">Chat</div>
+                <div class="set-row">
+                    <label>Max Memories Injected</label>
+                    <select class="set-select" id="set-memory-inject" onchange="updateSetting('maxMemoryInject', parseInt(this.value))">
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="20">20</option>
+                    </select>
+                </div>
+            </div>
+            <div class="set-actions">
+                <button onclick="closeSettingsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
 
     <!-- Main Chat Area -->
     <main class="chat-main">
@@ -2910,6 +3069,7 @@
                 </div>
             </div>
             <div class="status-right">
+                <button class="sidebar-hamburger" onclick="toggleSidebar()" title="Menu">&#9776;</button>
                 <span class="chat-activity-badge" id="chat-activity-badge" onclick="window.open('/tools/bridge#mission','_blank')" title="Agent activity">
                     <span class="cab-dot" id="cab-dot"></span>
                     <span id="cab-count">0</span> agents
@@ -4601,6 +4761,248 @@ function showToast(msg) {
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(function() { toast.remove(); }, 3000);
+}
+
+// ============================================================
+// Phase 8: Mobile Sidebar Drawer
+// ============================================================
+function toggleSidebar() {
+    var sidebar = document.querySelector('.sidebar');
+    var backdrop = document.getElementById('sidebar-backdrop');
+    if (!sidebar || !backdrop) return;
+    var isOpen = sidebar.classList.contains('drawer-open');
+    if (isOpen) {
+        sidebar.classList.remove('drawer-open');
+        backdrop.classList.remove('open');
+    } else {
+        sidebar.classList.add('drawer-open');
+        backdrop.classList.add('open');
+    }
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        var sidebar = document.querySelector('.sidebar');
+        if (sidebar && sidebar.classList.contains('drawer-open')) {
+            toggleSidebar();
+        }
+        closeSettingsModal();
+    }
+});
+
+// ============================================================
+// Phase 8: Settings Panel
+// ============================================================
+var _chatSettings = {};
+
+function toggleSettings() {
+    var body = document.getElementById('settings-body');
+    var arrow = document.getElementById('set-arrow');
+    if (!body) return;
+    if (body.classList.contains('open')) {
+        body.classList.remove('open');
+        arrow.textContent = '\u25B6';
+    } else {
+        body.classList.add('open');
+        arrow.textContent = '\u25BC';
+    }
+}
+
+function openSettingsModal() {
+    var overlay = document.getElementById('settings-modal-overlay');
+    if (overlay) overlay.classList.add('open');
+}
+
+function closeSettingsModal() {
+    var overlay = document.getElementById('settings-modal-overlay');
+    if (overlay) overlay.classList.remove('open');
+}
+
+function loadSettings() {
+    fetch('/tools/archie-chat/api/settings')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            _chatSettings = d.settings || {};
+            applySettings(_chatSettings);
+        }).catch(function() {});
+}
+
+function applySettings(s) {
+    var themeCheck = document.getElementById('set-theme');
+    if (themeCheck) themeCheck.checked = (s.theme !== 'light');
+    var voiceCheck = document.getElementById('set-voice');
+    if (voiceCheck) voiceCheck.checked = (s.voiceAutoSpeak !== false);
+    var notifCheck = document.getElementById('set-notif-sound');
+    if (notifCheck) notifCheck.checked = (s.notifSound !== false);
+    var modeSelect = document.getElementById('set-mode');
+    if (modeSelect && s.defaultMode) modeSelect.value = s.defaultMode;
+    var fontSelect = document.getElementById('set-font');
+    if (fontSelect && s.fontSize) fontSelect.value = s.fontSize;
+    document.body.classList.remove('font-small', 'font-large');
+    if (s.fontSize === 'small') document.body.classList.add('font-small');
+    if (s.fontSize === 'large') document.body.classList.add('font-large');
+    var thinkCheck = document.getElementById('set-thinking');
+    if (thinkCheck) thinkCheck.checked = !!s.thinkingAutoOpen;
+    var briefSelect = document.getElementById('set-briefing');
+    if (briefSelect && s.briefingDelivery) briefSelect.value = s.briefingDelivery;
+    var pollSelect = document.getElementById('set-poll');
+    if (pollSelect && s.notifPollInterval) pollSelect.value = String(s.notifPollInterval);
+    var memSelect = document.getElementById('set-memory-inject');
+    if (memSelect && s.maxMemoryInject) memSelect.value = String(s.maxMemoryInject);
+}
+
+function updateSetting(key, value) {
+    _chatSettings[key] = value;
+    if (key === 'fontSize') {
+        document.body.classList.remove('font-small', 'font-large');
+        if (value === 'small') document.body.classList.add('font-small');
+        if (value === 'large') document.body.classList.add('font-large');
+    }
+    var payload = {};
+    payload[key] = value;
+    fetch('/tools/archie-chat/api/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({settings: payload})
+    }).catch(function() {});
+}
+
+loadSettings();
+
+var _settingsOverlay = document.getElementById('settings-modal-overlay');
+if (_settingsOverlay) {
+    _settingsOverlay.addEventListener('click', function(e) {
+        if (e.target === _settingsOverlay) closeSettingsModal();
+    });
+}
+
+// ============================================================
+// Phase 8: Conversation Search
+// ============================================================
+var _searchTimeout = null;
+var _searchRange = 0;
+
+function onSearchInput(value) {
+    var clearBtn = document.getElementById('search-clear');
+    if (clearBtn) {
+        if (value.length > 0) {
+            clearBtn.classList.add('visible');
+        } else {
+            clearBtn.classList.remove('visible');
+            clearSearchResults();
+        }
+    }
+    if (value.length < 3) {
+        clearSearchResults();
+        return;
+    }
+    if (_searchTimeout) clearTimeout(_searchTimeout);
+    _searchTimeout = setTimeout(function() {
+        searchConversations(value);
+    }, 300);
+}
+
+function searchConversations(query) {
+    var url = '/tools/archie-chat/api/conversations/search?q=' + encodeURIComponent(query) + '&limit=20';
+    if (_searchRange > 0) url += '&range=' + _searchRange;
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            renderSearchResults(d.results || [], query);
+        }).catch(function() {
+            renderSearchResults([], query);
+        });
+}
+
+function renderSearchResults(results, query) {
+    var container = document.getElementById('search-results');
+    if (!container) return;
+    container.textContent = '';
+    if (results.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'search-empty';
+        empty.textContent = 'No conversations match your search.';
+        container.appendChild(empty);
+        return;
+    }
+    results.forEach(function(r) {
+        var item = document.createElement('div');
+        item.className = 'search-result';
+        item.onclick = function() { loadSearchResult(r.conversation_id); };
+        var title = document.createElement('div');
+        title.className = 'sr-title';
+        title.textContent = r.thread_title || 'Untitled';
+        var snippet = document.createElement('div');
+        snippet.className = 'sr-snippet';
+        var snippetText = r.snippet || '';
+        var lowerSnippet = snippetText.toLowerCase();
+        var lowerQuery = query.toLowerCase();
+        var idx = lowerSnippet.indexOf(lowerQuery);
+        if (idx >= 0) {
+            var before = document.createTextNode(snippetText.substring(0, idx));
+            var match = document.createElement('mark');
+            match.textContent = snippetText.substring(idx, idx + query.length);
+            var after = document.createTextNode(snippetText.substring(idx + query.length));
+            snippet.appendChild(before);
+            snippet.appendChild(match);
+            snippet.appendChild(after);
+        } else {
+            snippet.textContent = snippetText;
+        }
+        var meta = document.createElement('div');
+        meta.className = 'sr-meta';
+        var metaParts = [];
+        if (r.matched_in) metaParts.push('in ' + r.matched_in);
+        if (r.model) metaParts.push(r.model);
+        if (r.created_at) {
+            var d = new Date(r.created_at);
+            metaParts.push(d.toLocaleDateString());
+        }
+        meta.textContent = metaParts.join(' \u00B7 ');
+        item.appendChild(title);
+        item.appendChild(snippet);
+        item.appendChild(meta);
+        container.appendChild(item);
+    });
+}
+
+function loadSearchResult(conversationId) {
+    if (typeof loadConversation === 'function') {
+        loadConversation(conversationId);
+    } else if (typeof switchToConversation === 'function') {
+        switchToConversation(conversationId);
+    }
+    clearSearch();
+    var sidebar = document.querySelector('.sidebar');
+    if (sidebar && sidebar.classList.contains('drawer-open')) {
+        toggleSidebar();
+    }
+}
+
+function setSearchRange(chipEl, range) {
+    _searchRange = range;
+    var chips = document.querySelectorAll('.search-chip');
+    for (var i = 0; i < chips.length; i++) {
+        chips[i].classList.remove('active');
+    }
+    chipEl.classList.add('active');
+    var input = document.getElementById('conv-search');
+    if (input && input.value.length >= 3) {
+        searchConversations(input.value);
+    }
+}
+
+function clearSearch() {
+    var input = document.getElementById('conv-search');
+    if (input) input.value = '';
+    var clearBtn = document.getElementById('search-clear');
+    if (clearBtn) clearBtn.classList.remove('visible');
+    clearSearchResults();
+}
+
+function clearSearchResults() {
+    var container = document.getElementById('search-results');
+    if (container) container.textContent = '';
 }
 </script>
 <script src="/static/js/collaboration.js"></script>

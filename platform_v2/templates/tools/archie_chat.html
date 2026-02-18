@@ -360,6 +360,13 @@
     gap: 12px;
 }
 
+/* Activity badge */
+.chat-activity-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:.7rem;cursor:pointer;border:1px solid var(--archie-border,#2a3a4a);background:var(--archie-card-bg,#0a1628)}
+.chat-activity-badge:hover{border-color:var(--archie-accent,#60a5fa)}
+.cab-dot{width:6px;height:6px;border-radius:50%;background:#6b7280}
+.cab-dot.active{background:#4ade80;animation:cabPulse 2s infinite}
+@keyframes cabPulse{0%,100%{opacity:1}50%{opacity:.4}}
+
 .nav-btn {
     display: flex;
     align-items: center;
@@ -2831,6 +2838,10 @@
                 </div>
             </div>
             <div class="status-right">
+                <span class="chat-activity-badge" id="chat-activity-badge" onclick="window.open('/tools/bridge#mission','_blank')" title="Agent activity">
+                    <span class="cab-dot" id="cab-dot"></span>
+                    <span id="cab-count">0</span> agents
+                </span>
                 <button class="voice-toggle-btn active" onclick="toggleVoice()" title="Toggle Voice (Phase 64)">
                     <i data-lucide="volume-2"></i>
                 </button>
@@ -4194,6 +4205,26 @@ if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
 }
 
 document.getElementById('messageInput').focus();
+
+// Activity badge polling
+(function(){
+    function updateActivityBadge(){
+        fetch('/tools/bridge/api/dispatch/fleet-metrics')
+            .then(function(r){ return r.json(); })
+            .then(function(m){
+                var dot = document.getElementById('cab-dot');
+                var cnt = document.getElementById('cab-count');
+                if(cnt) cnt.textContent = m.active_agents || 0;
+                if(dot){
+                    if(m.tasks_this_hour > 0) dot.classList.add('active');
+                    else dot.classList.remove('active');
+                }
+            })
+            .catch(function(){});
+    }
+    updateActivityBadge();
+    setInterval(updateActivityBadge, 30000);
+})();
 </script>
 <script src="/static/js/collaboration.js"></script>
 {% endblock %}

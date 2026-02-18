@@ -428,6 +428,61 @@ body {
     text-shadow: 0 0 10px var(--archie-green-alpha-20);
 }
 
+/* ─── Password Toggle (eye icon) ─── */
+.input-wrapper {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--archie-text-disabled);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.3s ease;
+    z-index: 2;
+}
+
+.password-toggle:hover {
+    color: var(--archie-green);
+}
+
+.input-wrapper .form-input {
+    padding-right: 44px;
+}
+
+/* ─── Password Strength Indicator ─── */
+.strength-wrapper .form-input {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.5s ease;
+}
+
+.strength-bar {
+    height: 3px;
+    border-radius: 0 0 4px 4px;
+    margin-top: -1px;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.strength-bar.visible {
+    opacity: 1;
+}
+
+.strength-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 0 0 4px 4px;
+    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s ease;
+}
+
 /* Focus scan bar */
 .form-group::after {
     content: '';
@@ -858,30 +913,41 @@ body.light-mode .theme-toggle-signup:hover {
 
             <div class="form-group">
                 <label class="form-label" for="password">Password</label>
-                <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    class="form-input"
-                    placeholder="Create a password"
-                    required
-                    minlength="8"
-                    autocomplete="new-password"
-                >
-                <div class="form-note">Minimum 8 characters</div>
+                <div class="input-wrapper strength-wrapper">
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        class="form-input"
+                        placeholder="Create a password"
+                        required
+                        minlength="8"
+                        autocomplete="new-password"
+                    >
+                    <button type="button" class="password-toggle" data-target="password" title="Show password">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </div>
+                <div class="strength-bar" id="strengthBar"><div class="strength-fill" id="strengthFill"></div></div>
+                <div class="form-note" id="strengthNote">Minimum 8 characters</div>
             </div>
 
             <div class="form-group">
                 <label class="form-label" for="confirm_password">Confirm Password</label>
-                <input
-                    type="password"
-                    id="confirm_password"
-                    name="confirm_password"
-                    class="form-input"
-                    placeholder="Re-enter your password"
-                    required
-                    autocomplete="new-password"
-                >
+                <div class="input-wrapper">
+                    <input
+                        type="password"
+                        id="confirm_password"
+                        name="confirm_password"
+                        class="form-input"
+                        placeholder="Re-enter your password"
+                        required
+                        autocomplete="new-password"
+                    >
+                    <button type="button" class="password-toggle" data-target="confirm_password" title="Show password">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </div>
             </div>
 
             <button type="submit" class="signup-btn" id="signupBtn">
@@ -973,6 +1039,112 @@ document.getElementById('signupForm').addEventListener('submit', function() {
     var btn = document.getElementById('signupBtn');
     btn.classList.add('loading');
     btn.textContent = 'REGISTERING...';
+});
+
+// ─── Password Visibility Toggle ───
+function createSvgIcon(pathData) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '16');
+    svg.setAttribute('height', '16');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    pathData.forEach(function(d) {
+        var el;
+        if (d.tag === 'circle') {
+            el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            el.setAttribute('cx', d.cx); el.setAttribute('cy', d.cy); el.setAttribute('r', d.r);
+        } else if (d.tag === 'line') {
+            el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            el.setAttribute('x1', d.x1); el.setAttribute('y1', d.y1);
+            el.setAttribute('x2', d.x2); el.setAttribute('y2', d.y2);
+        } else {
+            el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            el.setAttribute('d', d.d);
+        }
+        svg.appendChild(el);
+    });
+    return svg;
+}
+var eyeOpenPaths = [
+    {d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'},
+    {tag: 'circle', cx: '12', cy: '12', r: '3'}
+];
+var eyeClosedPaths = [
+    {d: 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24'},
+    {tag: 'line', x1: '1', y1: '1', x2: '23', y2: '23'}
+];
+document.querySelectorAll('.password-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var input = document.getElementById(this.dataset.target);
+        var isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        this.replaceChildren(createSvgIcon(isHidden ? eyeClosedPaths : eyeOpenPaths));
+        this.title = isHidden ? 'Hide password' : 'Show password';
+    });
+});
+
+// ─── Password Strength Checker ───
+var strengthColors = ['#ff4444', '#ff8800', '#ffbb00', '#88cc00', '#00cc44'];
+var strengthLabels = ['Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
+var passwordInput = document.getElementById('password');
+var strengthBar = document.getElementById('strengthBar');
+var strengthFill = document.getElementById('strengthFill');
+var strengthNote = document.getElementById('strengthNote');
+
+function calcStrength(pw) {
+    var score = 0;
+    if (pw.length >= 8) score++;
+    if (pw.length >= 12) score++;
+    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+    if (/\d/.test(pw)) score++;
+    if (/[^a-zA-Z0-9]/.test(pw)) score++;
+    return Math.min(score, 5);
+}
+
+passwordInput.addEventListener('input', function() {
+    var pw = this.value;
+    if (pw.length === 0) {
+        strengthBar.classList.remove('visible');
+        strengthNote.textContent = 'Minimum 8 characters';
+        strengthNote.style.color = '';
+        this.style.borderColor = '';
+        this.style.boxShadow = '';
+        return;
+    }
+    var score = calcStrength(pw);
+    var idx = Math.max(0, score - 1);
+    var color = strengthColors[idx];
+    var pct = (score / 5) * 100;
+
+    strengthBar.classList.add('visible');
+    strengthFill.style.width = pct + '%';
+    strengthFill.style.backgroundColor = color;
+    strengthNote.textContent = strengthLabels[idx];
+    strengthNote.style.color = color;
+
+    // Subtle border tint based on strength
+    if (!this.matches(':focus')) {
+        this.style.borderColor = color + '60';
+        this.style.boxShadow = '0 0 8px ' + color + '15';
+    }
+});
+
+passwordInput.addEventListener('focus', function() {
+    this.style.borderColor = '';
+    this.style.boxShadow = '';
+});
+
+passwordInput.addEventListener('blur', function() {
+    if (this.value.length > 0) {
+        var score = calcStrength(this.value);
+        var color = strengthColors[Math.max(0, score - 1)];
+        this.style.borderColor = color + '60';
+        this.style.boxShadow = '0 0 8px ' + color + '15';
+    }
 });
 
 // ─── Theme Toggle ───

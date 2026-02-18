@@ -432,6 +432,36 @@ body {
     text-shadow: 0 0 10px var(--archie-green-alpha-20);
 }
 
+/* ─── Password Toggle (eye icon) ─── */
+.input-wrapper {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--archie-text-disabled);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.3s ease;
+    z-index: 2;
+}
+
+.password-toggle:hover {
+    color: var(--archie-green);
+}
+
+.input-wrapper .form-input {
+    padding-right: 44px;
+}
+
 /* Focus scan bar — sweeps across input top on focus */
 .form-group::after {
     content: '';
@@ -919,15 +949,20 @@ body.light-mode .login-btn.loading::after { border-top-color: var(--archie-green
 
             <div class="form-group">
                 <label class="form-label" for="password">Password</label>
-                <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    class="form-input"
-                    placeholder="Enter your password"
-                    required
-                    autocomplete="current-password"
-                >
+                <div class="input-wrapper">
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        class="form-input"
+                        placeholder="Enter your password"
+                        required
+                        autocomplete="current-password"
+                    >
+                    <button type="button" class="password-toggle" data-target="password" title="Show password">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                </div>
             </div>
 
             <button type="submit" class="login-btn" id="loginBtn">
@@ -1047,6 +1082,52 @@ document.getElementById('forgotPasswordLink').addEventListener('click', function
     e.preventDefault();
     var msg = document.getElementById('forgotPasswordMsg');
     msg.style.display = msg.style.display === 'none' || msg.style.display === '' ? 'block' : 'none';
+});
+
+// ─── Password Visibility Toggle ───
+function createSvgIcon(pathData) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '16');
+    svg.setAttribute('height', '16');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    pathData.forEach(function(d) {
+        var el;
+        if (d.tag === 'circle') {
+            el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            el.setAttribute('cx', d.cx); el.setAttribute('cy', d.cy); el.setAttribute('r', d.r);
+        } else if (d.tag === 'line') {
+            el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            el.setAttribute('x1', d.x1); el.setAttribute('y1', d.y1);
+            el.setAttribute('x2', d.x2); el.setAttribute('y2', d.y2);
+        } else {
+            el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            el.setAttribute('d', d.d);
+        }
+        svg.appendChild(el);
+    });
+    return svg;
+}
+var eyeOpenPaths = [
+    {d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'},
+    {tag: 'circle', cx: '12', cy: '12', r: '3'}
+];
+var eyeClosedPaths = [
+    {d: 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24'},
+    {tag: 'line', x1: '1', y1: '1', x2: '23', y2: '23'}
+];
+document.querySelectorAll('.password-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var input = document.getElementById(this.dataset.target);
+        var isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        this.replaceChildren(createSvgIcon(isHidden ? eyeClosedPaths : eyeOpenPaths));
+        this.title = isHidden ? 'Hide password' : 'Show password';
+    });
 });
 
 // ─── Theme Toggle ───

@@ -1146,6 +1146,22 @@ body.light-mode .footer-version {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.7);
     min-height: 120px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+/* Thin scrollbar styling */
+.briefing-card-body::-webkit-scrollbar {
+    width: 4px;
+}
+.briefing-card-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+.briefing-card-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}
+.briefing-card-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 /* Card accent colors */
@@ -2791,7 +2807,7 @@ body.light-mode .module-card {
         }
 
         // Show up to 5 items
-        var items = activities.slice(0, 5);
+        var items = activities.slice(0, 6);
         var ul = document.createElement('ul');
         ul.className = 'briefing-activity-list';
 

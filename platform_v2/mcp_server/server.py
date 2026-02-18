@@ -18,6 +18,18 @@ from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 import requests
 
+
+class MCPJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles datetime objects and other non-serializable types"""
+
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if hasattr(obj, "__str__"):
+            return str(obj)
+        return super().default(obj)
+
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -505,7 +517,17 @@ class MCPProtocolHandler:
             elif method == "tools/call":
                 tool_name = params.get("name")
                 tool_args = params.get("arguments", {})
-                result = await self.server.call_tool(tool_name, tool_args)
+                tool_result = await self.server.call_tool(tool_name, tool_args)
+                # MCP protocol requires tools/call results in content array format
+                result = {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(tool_result, cls=MCPJSONEncoder, indent=2),
+                        }
+                    ],
+                    "isError": tool_result.get("error", False),
+                }
             elif method == "resources/list":
                 result = {"resources": self.server.get_resources_list()}
             elif method == "resources/read":
@@ -593,7 +615,7 @@ class MCPProtocolHandler:
 
                 # Only send response for requests (not notifications)
                 if response is not None:
-                    sys.stdout.write(json.dumps(response) + "\n")
+                    sys.stdout.write(json.dumps(response, cls=MCPJSONEncoder) + "\n")
                     sys.stdout.flush()
 
             except asyncio.CancelledError:

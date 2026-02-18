@@ -1374,8 +1374,6 @@ async def update_project_understanding_handler(
             updates.append("key_insights = %s")
             params.append(arguments["key_insights"])
 
-        params.append(project_id)
-
         cur.execute(
             f"""
             INSERT INTO archie_project_awareness (project_id, last_interaction, interaction_count)

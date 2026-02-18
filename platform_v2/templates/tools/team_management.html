@@ -94,6 +94,32 @@
         .tm-tabs { gap: 0; }
         .tm-tab { padding: 0.45rem 0.5rem; font-size: 0.6rem; }
     }
+
+    /* === Mission Control === */
+    .mc-fleet-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .mc-fleet-card{display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--archie-border,#2a3a4a);border-radius:6px;background:var(--archie-card-bg,#0a1628);font-size:.85rem;min-width:100px}
+    .mc-fleet-card .mc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .mc-dot-idle{background:#4ade80}.mc-dot-executing{background:#fbbf24}.mc-dot-error{background:#f87171}.mc-dot-resting{background:#6b7280}
+    .mc-fleet-card .mc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px}
+    .mc-body{display:flex;gap:16px}
+    .mc-feed{flex:0 0 60%;max-height:520px;overflow-y:auto}
+    .mc-metrics{flex:1}
+    .mc-event{display:flex;gap:10px;padding:10px;border-bottom:1px solid var(--archie-border,#2a3a4a);animation:mcSlideIn .3s ease}
+    @keyframes mcSlideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+    .mc-event .mc-evt-time{font-size:.75rem;color:var(--archie-muted,#6b7280);min-width:60px}
+    .mc-event .mc-evt-agent{font-weight:600;min-width:80px}
+    .mc-evt-badge{padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;text-transform:uppercase}
+    .mc-evt-badge-executing{background:#1e40af;color:#93c5fd}
+    .mc-evt-badge-completed{background:#166534;color:#86efac}
+    .mc-evt-badge-error{background:#991b1b;color:#fca5a5}
+    .mc-evt-badge-welfare{background:#581c87;color:#d8b4fe}
+    .mc-evt-task{font-size:.85rem;color:var(--archie-text-secondary,#94a3b8);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .mc-evt-meta{font-size:.75rem;color:var(--archie-muted,#6b7280)}
+    .mc-metric-card{padding:12px;border:1px solid var(--archie-border,#2a3a4a);border-radius:8px;background:var(--archie-card-bg,#0a1628);margin-bottom:10px;text-align:center}
+    .mc-metric-card .mc-val{font-family:'Orbitron',monospace;font-size:1.6rem;color:var(--archie-accent,#60a5fa)}
+    .mc-metric-card .mc-label{font-size:.75rem;color:var(--archie-muted,#6b7280);margin-top:2px}
+    .mc-empty{text-align:center;padding:40px;color:var(--archie-muted,#6b7280)}
+    @media(max-width:768px){.mc-body{flex-direction:column}.mc-feed{flex:none;max-height:300px}}
 </style>
 {% endblock %}
 
@@ -109,7 +135,8 @@
         </div>
 
         <div class="tm-tabs" role="tablist">
-            <button class="tm-tab active" onclick="tmTab('roster',this)" role="tab">Agent Roster</button>
+            <button class="tm-tab active" onclick="tmTab('mission',this)" role="tab">Mission Control</button>
+            <button class="tm-tab" onclick="tmTab('roster',this)" role="tab">Agent Roster</button>
             <button class="tm-tab" onclick="tmTab('stations',this)" role="tab">Stations</button>
             <button class="tm-tab" onclick="tmTab('queue',this)" role="tab">Work Queue</button>
             <button class="tm-tab" onclick="tmTab('hr',this)" role="tab">HR Dashboard</button>
@@ -117,8 +144,17 @@
             <button class="tm-tab" onclick="tmTab('perf',this)" role="tab">Performance</button>
         </div>
 
+        <!-- Tab 0: Mission Control -->
+        <div class="tm-pane active" id="pane-mission">
+            <div id="mc-fleet-bar" class="mc-fleet-bar"></div>
+            <div class="mc-body">
+                <div class="mc-feed" id="mc-feed"></div>
+                <div class="mc-metrics" id="mc-metrics"></div>
+            </div>
+        </div>
+
         <!-- Tab 1: Agent Roster -->
-        <div id="pane-roster" class="tm-pane active">
+        <div id="pane-roster" class="tm-pane">
             <div id="rosterGrid" class="tm-grid">
                 <div class="tm-empty">Loading agents...</div>
             </div>
@@ -205,7 +241,7 @@
     var POLL_MS = 15000;
     var pollTimer = null;
     var charts = {};
-    var activeTab = 'roster';
+    var activeTab = 'mission';
 
     /* ============ Tabs ============ */
     window.tmTab = function(id, btn) {
@@ -216,6 +252,7 @@
         if (btn) btn.classList.add('active');
         activeTab = id;
         loadActiveTab();
+        if (id !== 'mission') { stopSSE(); }
     };
 
     /* ============ Helpers ============ */
@@ -593,9 +630,153 @@
         }
     }
 
+    /* ============ Mission Control ============ */
+    var _sseSource = null;
+    var _mcEvents = [];
+    var MC_MAX = 50;
+
+    async function loadMission() {
+        loadFleetBar();
+        loadMCMetrics();
+        loadMCFeed();
+        startSSE();
+    }
+
+    async function loadFleetBar() {
+        var data = await apiFetch('/tools/bridge/api/agents');
+        var bar = document.getElementById('mc-fleet-bar');
+        if (!bar || !data) return;
+        clearEl('mc-fleet-bar');
+        (data.agents || data || []).forEach(function(ag) {
+            var card = el('div', 'mc-fleet-card');
+            var st = (ag.status || 'active').toLowerCase();
+            var dotCls = st === 'active' ? 'mc-dot-idle' : st === 'lounge' ? 'mc-dot-resting' : st === 'error' ? 'mc-dot-error' : 'mc-dot-idle';
+            var dot = el('span', 'mc-dot ' + dotCls);
+            var name = el('span', 'mc-name');
+            name.textContent = ag.display_name || ag.name || 'Agent';
+            card.appendChild(dot);
+            card.appendChild(name);
+            bar.appendChild(card);
+        });
+    }
+
+    async function loadMCMetrics() {
+        var m = await apiFetch('/tools/bridge/api/dispatch/fleet-metrics');
+        var wrap = document.getElementById('mc-metrics');
+        if (!wrap || !m) return;
+        clearEl('mc-metrics');
+        var items = [
+            {val: (m.active_agents || 0) + ' / ' + (m.total_agents || 0), label: 'Active Agents'},
+            {val: String(m.tasks_this_hour || 0), label: 'Tasks This Hour'},
+            {val: (m.avg_duration_ms || 0) + 'ms', label: 'Avg Duration'},
+            {val: (m.error_rate || 0) + '%', label: 'Error Rate'},
+            {val: m.gpu_model || 'None', label: 'GPU Model'},
+        ];
+        if (m.top_agent) {
+            items.push({val: (m.top_agent.display_name || m.top_agent.agent_name) + ' (' + m.top_agent.task_count + ')', label: 'Top Agent Today'});
+        }
+        items.forEach(function(it) {
+            var card = el('div', 'mc-metric-card');
+            var valEl = el('div', 'mc-val');
+            valEl.textContent = it.val;
+            var labEl = el('div', 'mc-label');
+            labEl.textContent = it.label;
+            card.appendChild(valEl);
+            card.appendChild(labEl);
+            wrap.appendChild(card);
+        });
+    }
+
+    async function loadMCFeed() {
+        var events = await apiFetch('/tools/bridge/api/dispatch/activity-history');
+        var feed = document.getElementById('mc-feed');
+        if (!feed) return;
+        clearEl('mc-feed');
+        if (!events || events.length === 0) {
+            var empty = el('div', 'mc-empty');
+            empty.textContent = 'No activity events yet. Events appear as agents process tasks.';
+            feed.appendChild(empty);
+            return;
+        }
+        _mcEvents = events.slice(0, MC_MAX);
+        _mcEvents.forEach(function(evt) { feed.appendChild(buildEventCard(evt)); });
+    }
+
+    function buildEventCard(evt) {
+        var row = el('div', 'mc-event');
+        var evtType = evt.event_type || 'unknown';
+        var badgeCls = evtType === 'task_start' ? 'executing' : evtType === 'task_complete' ? 'completed' : evtType === 'task_error' ? 'error' : evtType === 'welfare_event' ? 'welfare' : 'executing';
+        var data = evt.data || {};
+        var preview = data.message_preview || data.error || evtType;
+        if (preview.length > 80) preview = preview.substring(0, 80) + '...';
+        var meta = '';
+        if (data.model) meta += data.model;
+        if (data.duration_ms) meta += (meta ? ' | ' : '') + data.duration_ms + 'ms';
+
+        var timeSpan = el('span', 'mc-evt-time');
+        timeSpan.textContent = timeAgo(evt.created_at);
+        var agentSpan = el('span', 'mc-evt-agent');
+        agentSpan.textContent = evt.display_name || evt.agent_name || 'System';
+        var badge = el('span', 'mc-evt-badge mc-evt-badge-' + badgeCls);
+        badge.textContent = evtType.replace(/_/g, ' ');
+        var taskSpan = el('span', 'mc-evt-task');
+        taskSpan.textContent = preview;
+        row.appendChild(timeSpan);
+        row.appendChild(agentSpan);
+        row.appendChild(badge);
+        row.appendChild(taskSpan);
+        if (meta) {
+            var metaSpan = el('span', 'mc-evt-meta');
+            metaSpan.textContent = meta;
+            row.appendChild(metaSpan);
+        }
+        return row;
+    }
+
+    function startSSE() {
+        if (_sseSource) return;
+        if (typeof EventSource === 'undefined') return;
+        try {
+            _sseSource = new EventSource('/tools/bridge/api/dispatch/stream');
+            _sseSource.addEventListener('task_start', handleSSE);
+            _sseSource.addEventListener('task_complete', handleSSE);
+            _sseSource.addEventListener('task_error', handleSSE);
+            _sseSource.addEventListener('welfare_event', handleSSE);
+            _sseSource.addEventListener('metrics', function() { loadMCMetrics(); });
+            _sseSource.onerror = function() {
+                console.warn('SSE connection error, will auto-reconnect');
+            };
+        } catch(e) {
+            console.warn('SSE not supported, using polling fallback');
+        }
+    }
+
+    function handleSSE(e) {
+        try {
+            var evt = JSON.parse(e.data);
+            var feed = document.getElementById('mc-feed');
+            if (!feed) return;
+            var empty = feed.querySelector('.mc-empty');
+            if (empty) empty.remove();
+            var card = buildEventCard(evt);
+            feed.insertBefore(card, feed.firstChild);
+            while (feed.children.length > MC_MAX) {
+                feed.removeChild(feed.lastChild);
+            }
+            loadFleetBar();
+        } catch(err) {
+            console.warn('SSE parse error:', err);
+        }
+    }
+
+    function stopSSE() {
+        if (_sseSource) { _sseSource.close(); _sseSource = null; }
+    }
+
     /* ============ Loader Dispatch ============ */
     function loadActiveTab() {
         var loaders = {
+            mission: loadMission,
             roster: loadRoster, stations: loadStations, queue: loadQueue,
             hr: loadHR, iaae: loadIAAE, perf: loadPerformance
         };

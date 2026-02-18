@@ -355,7 +355,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="security_network",
         name="Security & Network",
-        description="Security monitoring & network health<br>Threats • System health • Audit logs",
+        description="Security operations center<br>DNS • Surveillance • Recon • Scanning • Agent",
         icon="shield",
         category=ModuleCategory.ADMIN_OPERATIONS,
         route="/tools/security-network",
@@ -365,7 +365,7 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("security_network"),
         priority=2,
-        tags=["security", "network", "monitoring", "audit", "admin-operations"],
+        tags=["security", "network", "dns", "surveillance", "recon", "scanning", "agent", "admin-operations"],
     ),
     ModuleDefinition(
         id="account_center",

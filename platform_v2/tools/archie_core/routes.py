@@ -3,7 +3,9 @@ A.R.C.H.I.E. Chat Module - Unified Command Interface
 Your single interface for talking to ARCHIE
 """
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from datetime import datetime
+
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, Response
 from flask_login import login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -2284,3 +2286,205 @@ def briefing_config():
     except Exception as e:
         logger.error("briefing_config error: %s", e)
         return jsonify({"briefings": []})
+
+
+# ============================================================
+# Phase 7: Export Endpoints
+# ============================================================
+
+
+@archie_chat_bp.route("/api/conversations/<conversation_id>/export")
+@login_required
+def conversation_export(conversation_id):
+    """Export a conversation as Markdown or JSON."""
+    fmt = request.args.get("format", "md")
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, message, response, model, created_at, metadata
+            FROM ai_conversations
+            WHERE conversation_id = %s AND user_id = %s
+            ORDER BY created_at ASC
+        """,
+            (conversation_id, current_user.id),
+        )
+        messages = cur.fetchall()
+        cur.execute(
+            """
+            SELECT title FROM ai_conversation_threads WHERE conversation_id = %s
+        """,
+            (conversation_id,),
+        )
+        thread = cur.fetchone()
+        title = thread["title"] if thread else f"Conversation {conversation_id}"
+        cur.close()
+        conn.close()
+
+        if not messages:
+            return jsonify({"error": "No messages found"}), 404
+
+        if fmt == "json":
+            for m in messages:
+                m["created_at"] = m["created_at"].isoformat() if m.get("created_at") else None
+                if m.get("metadata") and not isinstance(m["metadata"], str):
+                    pass  # Already dict from RealDictCursor
+            return jsonify(
+                {
+                    "title": title,
+                    "messages": messages,
+                    "exported_at": datetime.utcnow().isoformat(),
+                }
+            )
+
+        # Markdown format
+        lines = [
+            f"# {title}\n",
+            f"*Exported: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}*\n",
+        ]
+        for m in messages:
+            ts = m["created_at"].strftime("%H:%M") if m.get("created_at") else ""
+            model = m.get("model") or ""
+            lines.append(f"\n---\n\n**You** ({ts}):\n{m['message']}\n")
+            lines.append(f"\n**ARCHIE** ({ts}, {model}):\n{m['response']}\n")
+        content = "\n".join(lines)
+        return Response(
+            content,
+            mimetype="text/markdown",
+            headers={"Content-Disposition": f"attachment; filename=archie-chat-{conversation_id[:8]}.md"},
+        )
+    except Exception as e:
+        logger.error("conversation_export error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@archie_chat_bp.route("/api/conversations/<conversation_id>/save-to-kb", methods=["POST"])
+@login_required
+def save_conversation_to_kb(conversation_id):
+    """Save conversation to knowledge base."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT message, response, created_at FROM ai_conversations
+            WHERE conversation_id = %s AND user_id = %s
+            ORDER BY created_at ASC
+        """,
+            (conversation_id, current_user.id),
+        )
+        messages = cur.fetchall()
+        if not messages:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "No messages found"}), 404
+        cur.execute(
+            "SELECT title FROM ai_conversation_threads WHERE conversation_id = %s",
+            (conversation_id,),
+        )
+        thread = cur.fetchone()
+        title = thread["title"] if thread else f"Chat Export: {messages[0]['message'][:60]}"
+        content_lines = []
+        for m in messages:
+            content_lines.append(f"**User:** {m['message']}")
+            content_lines.append(f"**ARCHIE:** {m['response']}\n")
+        content = "\n".join(content_lines)
+        cur.execute(
+            """
+            INSERT INTO knowledge_base (title, content, source_type, importance_score, tags)
+            VALUES (%s, %s, 'chat_export', 0.6, ARRAY['chat-export', 'conversation'])
+            RETURNING id
+        """,
+            (title, content),
+        )
+        kb_id = cur.fetchone()["id"]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"kb_id": kb_id, "title": title})
+    except Exception as e:
+        logger.error("save_to_kb error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@archie_chat_bp.route("/api/conversations/<conversation_id>/summarize", methods=["POST"])
+@login_required
+def conversation_summarize(conversation_id):
+    """Generate AI summary of a conversation."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT message, response FROM ai_conversations
+            WHERE conversation_id = %s AND user_id = %s
+            ORDER BY created_at ASC
+        """,
+            (conversation_id, current_user.id),
+        )
+        messages = cur.fetchall()
+        cur.close()
+        conn.close()
+        if not messages:
+            return jsonify({"error": "No messages found"}), 404
+        text = ""
+        for m in messages:
+            text += f"User: {m['message']}\nARCHIE: {m['response']}\n\n"
+        if len(text) > 8000:
+            text = text[:4000] + "\n...\n" + text[-4000:]
+        import requests as req
+
+        resp = req.post(
+            os.getenv("OLLAMA_URL", "http://host.docker.internal:11434") + "/api/generate",
+            json={
+                "model": "dolphin3-8k:latest",
+                "prompt": f"Summarize this conversation in 3-5 bullet points. Be concise.\n\n{text}",
+                "stream": False,
+            },
+            timeout=60,
+        )
+        if resp.ok:
+            summary = resp.json().get("response", "Summary generation failed.")
+        else:
+            summary = "Could not generate summary at this time."
+        return jsonify({"summary": summary})
+    except Exception as e:
+        logger.error("conversation_summarize error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@archie_chat_bp.route("/api/analytics/export")
+@login_required
+def analytics_export():
+    """Export analytics as CSV."""
+    range_days = request.args.get("range", 7, type=int)
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT DATE(created_at) as date, COUNT(*) as messages,
+                   AVG((metadata->>'response_time_ms')::float) as avg_response_ms
+            FROM ai_conversations
+            WHERE user_id = %s AND created_at > NOW() - make_interval(days => %s)
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        """,
+            (current_user.id, range_days),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        lines = ["date,messages,avg_response_ms"]
+        for r in rows:
+            lines.append(f"{r['date']},{r['messages']},{round(r['avg_response_ms'] or 0)}")
+        csv_content = "\n".join(lines)
+        return Response(
+            csv_content,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=archie-analytics-{range_days}d.csv"},
+        )
+    except Exception as e:
+        logger.error("analytics_export error: %s", e)
+        return jsonify({"error": str(e)}), 500

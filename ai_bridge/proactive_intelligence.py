@@ -201,9 +201,11 @@ Write the briefing:"""
             result = dispatcher.request_work(
                 "chat", prompt, "proactive_intelligence", timeout=120
             )
-            if result.success:
-                return result.response.strip()
-            return raw_summary
+            content = result.response.strip() if result.success else None
+            if not content:
+                content = raw_summary
+                logger.warning("Briefing AI formatting failed, using raw summary")
+            return content
 
         except Exception as e:
             logger.warning(f"AI formatting failed, using raw: {e}")
@@ -236,6 +238,29 @@ Write the briefing:"""
 
             except Exception as e:
                 status[channel] = f"failed: {e}"
+
+        # Also insert as chat message so it appears in the Chat tab
+        try:
+            cur.execute(
+                """
+                INSERT INTO ai_conversations
+                (user_id, tool_name, conversation_id, message, response, model, metadata)
+                VALUES (%s, 'archie-chat', %s, 'Daily Briefing', %s, 'system', %s::jsonb)
+                """,
+                (
+                    briefing.get("user_id", 2),
+                    f"briefing-{briefing['id']}-{datetime.now().strftime('%Y%m%d')}",
+                    content,
+                    json.dumps(
+                        {"chat_mode": "briefing", "source": "proactive"}
+                    ),
+                ),
+            )
+            conn.commit()
+            status["chat"] = "delivered"
+        except Exception as be:
+            logger.warning("Failed to insert briefing as chat message: %s", be)
+            status["chat"] = f"failed: {be}"
 
         return status
 

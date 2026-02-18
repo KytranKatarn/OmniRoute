@@ -2505,6 +2505,7 @@ SETTINGS_DEFAULTS = {
     "maxMemoryInject": 10,
     "briefingDelivery": "chat",
     "notifPollInterval": 30,
+    "shortcutsEnabled": True,
 }
 
 

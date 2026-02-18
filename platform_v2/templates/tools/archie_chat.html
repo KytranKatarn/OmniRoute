@@ -2179,16 +2179,28 @@
 }
 
 #voice-input-btn.listening {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: #ef4444;
-    color: #ef4444;
-    animation: mic-pulse 1.5s ease-in-out infinite;
+    background: rgba(102, 126, 234, 0.15);
+    border-color: #667eea;
+    color: #667eea;
+    animation: micPulse 1.5s ease-in-out infinite;
 }
 
-@keyframes mic-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
-    50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+@keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4); }
+    50% { box-shadow: 0 0 12px 4px rgba(102, 126, 234, 0.6); }
 }
+
+/* Phase 9: Shortcuts Help Modal */
+#shortcuts-modal{position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);opacity:0;pointer-events:none;transition:opacity .2s}
+#shortcuts-modal.open{opacity:1;pointer-events:auto}
+.shortcuts-content{background:var(--archie-card-bg,#1a1a2e);border:1px solid var(--archie-border,#333);border-radius:12px;max-width:480px;width:90%;max-height:70vh;overflow-y:auto;padding:20px}
+.shortcuts-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.shortcuts-header h3{margin:0;color:var(--archie-accent-gold,#f0c040);font-size:1.1rem}
+.shortcuts-header button{background:none;border:none;color:var(--archie-text-muted,#888);font-size:1.4rem;cursor:pointer}
+.shortcut-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
+.shortcut-row:last-child{border-bottom:none}
+.shortcut-row .desc{color:var(--archie-text,#ccc);font-size:0.9rem}
+.shortcut-key{display:inline-block;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:2px 8px;font-family:monospace;font-size:0.82rem;color:var(--archie-text,#ccc);margin-left:4px}
 
 #voice-status {
     display: none;
@@ -3031,6 +3043,13 @@ body.font-large .messages-container{font-size:1.05rem}
                     </select>
                 </div>
             </div>
+            <div class="set-section">
+                <div class="set-section-title">Shortcuts</div>
+                <div class="set-row">
+                    <label>Keyboard Shortcuts</label>
+                    <input type="checkbox" id="set-shortcuts" onchange="updateSetting('shortcutsEnabled', this.checked)">
+                </div>
+            </div>
             <div class="set-actions">
                 <button onclick="closeSettingsModal()">Close</button>
             </div>
@@ -3397,6 +3416,17 @@ body.font-large .messages-container{font-size:1.05rem}
                 </div>
             </div>
         </div>
+
+    <!-- Phase 9: Shortcuts Help Modal -->
+    <div id="shortcuts-modal">
+        <div class="shortcuts-content">
+            <div class="shortcuts-header">
+                <h3>Keyboard Shortcuts</h3>
+                <button onclick="document.getElementById('shortcuts-modal').classList.remove('open')">&times;</button>
+            </div>
+            <div id="shortcuts-list"></div>
+        </div>
+    </div>
 
     </main>
 </div>
@@ -3773,6 +3803,11 @@ async function sendMessage(message) {
                 });
             }
 
+            // Phase 9: Auto-speak on response
+            if (_chatSettings.voiceAutoSpeak !== false && voiceConfig.enabled && typeof speakResponse === 'function') {
+                speakResponse(data.response);
+            }
+
             // Update escalation status
             if (data.escalation?.requested) {
                 document.getElementById('escalationStatus').style.display = 'flex';
@@ -4080,13 +4115,10 @@ function toggleVoiceFromSidebar() {
 }
 
 function toggleAutoplay() {
-    voiceConfig.autoPlay = !voiceConfig.autoPlay;
+    var newVal = !_chatSettings.voiceAutoSpeak;
+    updateSetting('voiceAutoSpeak', newVal);
+    voiceConfig.autoPlay = newVal;
     syncVoiceSidebarToggles();
-    fetch('/tools/archie-chat/api/voice/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(voiceConfig)
-    }).catch(function() {});
 }
 
 function updateVoiceVolume(val) {
@@ -4104,7 +4136,7 @@ function syncVoiceSidebarToggles() {
     var autoplayToggle = document.getElementById('vs-autoplay-toggle');
     var volumeSlider = document.getElementById('vs-volume');
     if (voiceToggle) voiceToggle.classList.toggle('active', voiceConfig.enabled);
-    if (autoplayToggle) autoplayToggle.classList.toggle('active', voiceConfig.autoPlay);
+    if (autoplayToggle) autoplayToggle.classList.toggle('active', _chatSettings.voiceAutoSpeak !== false);
     if (volumeSlider) volumeSlider.value = voiceConfig.volume;
 }
 
@@ -4780,13 +4812,122 @@ function toggleSidebar() {
     }
 }
 
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        var sidebar = document.querySelector('.sidebar');
-        if (sidebar && sidebar.classList.contains('drawer-open')) {
-            toggleSidebar();
-        }
+// ============================================================
+// Phase 9: Keyboard Shortcut Registry
+// ============================================================
+var _shortcuts = [
+    { id: 'search', key: 'k', ctrl: true, desc: 'Focus conversation search', action: function() {
+        var inp = document.getElementById('conv-search');
+        if (inp) { inp.focus(); inp.select(); }
+    }},
+    { id: 'clear', key: 'l', ctrl: true, desc: 'Clear chat', action: function() {
+        if (typeof clearChat === 'function') clearChat();
+    }},
+    { id: 'settings', key: '/', ctrl: true, desc: 'Toggle settings', action: function() {
+        var m = document.getElementById('settings-modal');
+        if (m && m.classList.contains('open')) closeSettingsModal(); else openSettingsModal();
+    }},
+    { id: 'solo', key: '1', ctrl: true, desc: 'Solo mode', action: function() {
+        if (typeof switchChatMode === 'function') switchChatMode('solo');
+    }},
+    { id: 'sidebyside', key: '2', ctrl: true, desc: 'Side-by-Side mode', action: function() {
+        if (typeof switchChatMode === 'function') switchChatMode('side-by-side');
+    }},
+    { id: 'collab', key: '3', ctrl: true, desc: 'Collaborate mode', action: function() {
+        if (typeof switchChatMode === 'function') switchChatMode('collab');
+    }},
+    { id: 'sidebar', key: 'S', ctrl: true, shift: true, desc: 'Toggle sidebar', action: function() {
+        if (typeof toggleSidebar === 'function') toggleSidebar();
+    }},
+    { id: 'help', key: '?', desc: 'Show shortcuts help', inputExcluded: true, action: function() {
+        toggleShortcutsModal();
+    }}
+];
+
+function _isInputFocused() {
+    var el = document.activeElement;
+    if (!el) return false;
+    var tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+
+function handleEscapeKey() {
+    var interjModal = document.getElementById('interjection-modal');
+    if (interjModal && interjModal.classList.contains('visible')) {
+        if (typeof hideInterjectionModal === 'function') hideInterjectionModal();
+        return;
+    }
+    var settingsModal = document.getElementById('settings-modal');
+    if (settingsModal && settingsModal.classList.contains('open')) {
         closeSettingsModal();
+        return;
+    }
+    var shortcutsModal = document.getElementById('shortcuts-modal');
+    if (shortcutsModal && shortcutsModal.classList.contains('open')) {
+        shortcutsModal.classList.remove('open');
+        return;
+    }
+    var voiceSidebar = document.getElementById('voice-sidebar');
+    if (voiceSidebar && voiceSidebar.classList.contains('open')) {
+        if (typeof toggleVoiceSidebar === 'function') toggleVoiceSidebar();
+        return;
+    }
+    var sidebar = document.querySelector('.sidebar');
+    if (sidebar && sidebar.classList.contains('drawer-open')) {
+        toggleSidebar();
+        return;
+    }
+}
+
+function _renderShortcutsList() {
+    var list = document.getElementById('shortcuts-list');
+    if (!list) return;
+    var isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+    var mod = isMac ? 'Cmd' : 'Ctrl';
+    list.textContent = '';
+    _shortcuts.forEach(function(s) {
+        var row = document.createElement('div');
+        row.className = 'shortcut-row';
+        var desc = document.createElement('span');
+        desc.className = 'desc';
+        desc.textContent = s.desc;
+        row.appendChild(desc);
+        var keys = document.createElement('span');
+        if (s.ctrl) { var k = document.createElement('span'); k.className = 'shortcut-key'; k.textContent = mod; keys.appendChild(k); }
+        if (s.shift) { var k = document.createElement('span'); k.className = 'shortcut-key'; k.textContent = 'Shift'; keys.appendChild(k); }
+        var kv = document.createElement('span'); kv.className = 'shortcut-key'; kv.textContent = s.key === '?' ? '?' : s.key.toUpperCase(); keys.appendChild(kv);
+        row.appendChild(keys);
+        list.appendChild(row);
+    });
+    var escRow = document.createElement('div'); escRow.className = 'shortcut-row';
+    var escDesc = document.createElement('span'); escDesc.className = 'desc'; escDesc.textContent = 'Close modals / dismiss'; escRow.appendChild(escDesc);
+    var escKeys = document.createElement('span'); var escK = document.createElement('span'); escK.className = 'shortcut-key'; escK.textContent = 'Esc'; escKeys.appendChild(escK); escRow.appendChild(escKeys);
+    list.appendChild(escRow);
+}
+
+function toggleShortcutsModal() {
+    var modal = document.getElementById('shortcuts-modal');
+    if (!modal) return;
+    var isOpen = modal.classList.toggle('open');
+    if (isOpen) _renderShortcutsList();
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { handleEscapeKey(); return; }
+    if (_chatSettings.shortcutsEnabled === false) return;
+    var ctrl = e.ctrlKey || e.metaKey;
+    for (var i = 0; i < _shortcuts.length; i++) {
+        var s = _shortcuts[i];
+        if (s.inputExcluded && _isInputFocused()) continue;
+        var keyMatch = e.key === s.key || e.key.toLowerCase() === s.key.toLowerCase();
+        if (!keyMatch) continue;
+        if (s.ctrl && !ctrl) continue;
+        if (!s.ctrl && ctrl) continue;
+        if (s.shift && !e.shiftKey) continue;
+        if (!s.shift && e.shiftKey && s.ctrl) continue;
+        e.preventDefault();
+        s.action();
+        return;
     }
 });
 
@@ -4849,6 +4990,8 @@ function applySettings(s) {
     if (pollSelect && s.notifPollInterval) pollSelect.value = String(s.notifPollInterval);
     var memSelect = document.getElementById('set-memory-inject');
     if (memSelect && s.maxMemoryInject) memSelect.value = String(s.maxMemoryInject);
+    var shortcutsCheck = document.getElementById('set-shortcuts');
+    if (shortcutsCheck) shortcutsCheck.checked = (s.shortcutsEnabled !== false);
 }
 
 function updateSetting(key, value) {

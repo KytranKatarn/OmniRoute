@@ -547,7 +547,15 @@ async function stopCollaboration() {
 
 function showInterjectionModal() {
     document.getElementById('interjection-modal').classList.add('visible');
-    document.getElementById('interjection-text').focus();
+    var textEl = document.getElementById('interjection-text');
+    textEl.focus();
+    // Phase 9: Ctrl+Enter to send interjection
+    textEl.onkeydown = function(e) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            submitInterjection();
+        }
+    };
 }
 
 function hideInterjectionModal() {
@@ -1516,6 +1524,8 @@ function toggleCollabHistory() {
     if (historyVisible) {
         loadCollabHistory();
     }
+    // Phase 9: Persist history sidebar state
+    localStorage.setItem('collabHistoryVisible', historyVisible ? '1' : '0');
 }
 
 function setHistoryFilter(filter) {
@@ -1891,4 +1901,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Render collaboration templates
     renderTemplates();
+
+    // Phase 9: Restore collaboration history sidebar state
+    if (localStorage.getItem('collabHistoryVisible') === '1') {
+        toggleCollabHistory();
+    }
 });

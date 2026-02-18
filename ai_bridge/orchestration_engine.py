@@ -46,6 +46,16 @@ def _default_conversation_model():
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "platform_v2"))
 
 
+def _push_event(event_type, agent_id=None, data=None):
+    """Push activity event to SSE queue. Fails silently if bridge not loaded."""
+    try:
+        from platform_v2.tools.bridge.routes import push_agent_event
+
+        push_agent_event(event_type, agent_id, data)
+    except Exception:
+        pass  # Bridge may not be loaded in test contexts
+
+
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
@@ -287,6 +297,16 @@ class OrchestrationEngine:
             model_used = self._resolve_model(routing, gpu_info, intent)
             intent_type = intent.get("type", "conversation")
 
+            _push_event(
+                "task_start",
+                agent_id=selected_agent.get("agent_id") if selected_agent else None,
+                data={
+                    "task_type": intent_type,
+                    "model": model_used,
+                    "message_preview": (message[:80] if message else ""),
+                },
+            )
+
             # Team management intents bypass normal LLM execution
             if intent_type in (
                 "team_management",
@@ -403,6 +423,17 @@ class OrchestrationEngine:
                 outcome="success",
             )
 
+            _push_event(
+                "task_complete",
+                agent_id=selected_agent.get("agent_id") if selected_agent else None,
+                data={
+                    "duration_ms": total_ms,
+                    "success": True,
+                    "model": model_used,
+                    "message_preview": (message[:80] if message else ""),
+                },
+            )
+
             return OrchestrationResult(
                 success=True,
                 response=response_text,
@@ -426,6 +457,14 @@ class OrchestrationEngine:
                 self._fail_session(db_session_id, str(e))
             except Exception:
                 pass
+
+            _push_event(
+                "task_error",
+                data={
+                    "error": str(e)[:200],
+                    "message_preview": (message[:80] if message else ""),
+                },
+            )
 
             return OrchestrationResult(
                 success=False,
@@ -813,6 +852,16 @@ class OrchestrationEngine:
                             },
                         )
                     )
+                    _push_event(
+                        "welfare_event",
+                        agent_id=agent_id,
+                        data={
+                            "type": "welfare_intervention",
+                            "action": "skip_stressed_agent",
+                            "agent_name": agent_name,
+                            "stress_level": stress,
+                        },
+                    )
                 elif energy < 0.2:
                     healthy = False
                     governance_events.append(
@@ -826,6 +875,16 @@ class OrchestrationEngine:
                                 "energy_level": energy,
                             },
                         )
+                    )
+                    _push_event(
+                        "welfare_event",
+                        agent_id=agent_id,
+                        data={
+                            "type": "welfare_intervention",
+                            "action": "skip_exhausted_agent",
+                            "agent_name": agent_name,
+                            "energy_level": energy,
+                        },
                     )
         except Exception as e:
             logger.debug(f"Welfare check error for agent {agent_id}: {e}")

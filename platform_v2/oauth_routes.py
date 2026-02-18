@@ -13,7 +13,7 @@ from app import User, create_user_session
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
-import bcrypt
+from werkzeug.security import generate_password_hash
 
 # Create blueprint
 oauth_bp = Blueprint("oauth", __name__, url_prefix="/auth")
@@ -158,7 +158,7 @@ def google_callback():
                 (
                     username,
                     email,
-                    bcrypt.hashpw("".encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),  # Random password
+                    generate_password_hash(os.urandom(32).hex()),  # Random password (Werkzeug scrypt)
                     "user",
                     google_id,
                     "google",

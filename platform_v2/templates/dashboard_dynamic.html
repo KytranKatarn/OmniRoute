@@ -2513,11 +2513,11 @@ body.light-mode .module-card {
         }, 200);
     }, 3000);
 
-    // ── Phase 5 (3500-4000ms): Split reveal ──
+    // ── Phase 5 (5500-6000ms): Split reveal (2s pause on logo) ──
     schedule(function() {
         if (aborted) return;
         finishBoot();
-    }, 3800);
+    }, 5800);
 
 })();
 
@@ -2605,18 +2605,20 @@ body.light-mode .module-card {
     // ── Ring gauge helper ──
     var CIRCUMFERENCE = 2 * Math.PI * 25; // r=25 => 157.08
 
-    function setRing(ringId, percent) {
+    function setRing(ringId, percent, invert) {
         var ring = document.getElementById(ringId);
         if (!ring) return;
         var p = Math.max(0, Math.min(100, percent));
         var offset = CIRCUMFERENCE - (p / 100) * CIRCUMFERENCE;
         ring.setAttribute('stroke-dashoffset', offset);
-        // Color thresholds
+        // Color thresholds (invert: high=good, low=bad — for System Health)
         ring.classList.remove('warning', 'critical');
-        if (p >= 90) {
-            ring.classList.add('critical');
-        } else if (p >= 75) {
-            ring.classList.add('warning');
+        if (invert) {
+            if (p <= 25) ring.classList.add('critical');
+            else if (p <= 50) ring.classList.add('warning');
+        } else {
+            if (p >= 90) ring.classList.add('critical');
+            else if (p >= 75) ring.classList.add('warning');
         }
     }
 
@@ -2652,7 +2654,7 @@ body.light-mode .module-card {
                 // System aggregate: average of CPU and Memory health (inverse of usage)
                 var systemPct = Math.round(100 - (cpuPct + memPct) / 2);
                 if (systemPct < 0) systemPct = 0;
-                setRing('hudRingSystem', systemPct);
+                setRing('hudRingSystem', systemPct, true);
                 var sysValEl = document.getElementById('hudValSystem');
                 if (sysValEl) sysValEl.textContent = systemPct + '%';
 

@@ -79,6 +79,8 @@ class StepType(Enum):
     DECOMPOSE = "decompose"
     DELEGATE = "delegate"
     SYNTHESIZE = "synthesize"
+    MEMORY_COMMAND = "memory_command"
+    BRIEFING_COMMAND = "briefing_command"
 
 
 @dataclass
@@ -307,8 +309,22 @@ class OrchestrationEngine:
                 },
             )
 
+            # Memory intents bypass normal LLM execution
+            if intent_type in ("memory_store", "memory_forget", "memory_list"):
+                steps.append(
+                    ThinkingStep(
+                        step_type=StepType.MEMORY_COMMAND.value,
+                        label="Memory Command",
+                        data={"intent": intent_type},
+                        duration_ms=0,
+                        success=True,
+                    )
+                )
+                response_text = self._handle_memory_command(
+                    intent_type, message, user_id, steps
+                )
             # Team management intents bypass normal LLM execution
-            if intent_type in (
+            elif intent_type in (
                 "team_management",
                 "station_management",
                 "status_query",
@@ -1063,6 +1079,151 @@ Please try again or use the Team Management module directly.""",
         )
 
         return response
+
+    # =========================================================================
+    # Memory Commands (Phase 7 Intelligence Layer)
+    # =========================================================================
+
+    def _handle_memory_command(self, intent_type, message, user_id, steps):
+        """Handle memory store/forget/list commands."""
+        import re as _re
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            if intent_type == "memory_store":
+                content = _re.sub(
+                    r"^(remember\s+(that|this|my)|note\s+that|save\s+(this|that)\s+to\s+memory)\s*",
+                    "",
+                    message,
+                    flags=_re.IGNORECASE,
+                ).strip()
+                if not content:
+                    content = message
+                category = "general"
+                if any(
+                    w in content.lower()
+                    for w in [
+                        "code",
+                        "python",
+                        "javascript",
+                        "api",
+                        "function",
+                    ]
+                ):
+                    category = "technical"
+                elif any(
+                    w in content.lower()
+                    for w in ["prefer", "like", "always", "never", "style"]
+                ):
+                    category = "preference"
+                cur.execute(
+                    """
+                    INSERT INTO long_term_memory
+                    (user_id, memory_type, category, content,
+                     importance_score, source_type, source_module)
+                    VALUES (%s, 'fact', %s, %s, 0.7, 'manual', 'chat')
+                    """,
+                    (user_id, category, content),
+                )
+                conn.commit()
+                response = (
+                    f"Got it! I'll remember that. "
+                    f"Stored under '{category}' category."
+                )
+
+            elif intent_type == "memory_forget":
+                target = _re.sub(
+                    r"^(forget\s+(about|that|my)|remove\s+memory"
+                    r"|delete\s+memory|stop\s+remembering)\s*",
+                    "",
+                    message,
+                    flags=_re.IGNORECASE,
+                ).strip()
+                cur.execute(
+                    """
+                    UPDATE long_term_memory SET is_deleted = TRUE
+                    WHERE user_id = %s AND is_deleted = FALSE
+                    AND content ILIKE %s
+                    """,
+                    (user_id, f"%{target}%"),
+                )
+                affected = cur.rowcount
+                conn.commit()
+                if affected > 0:
+                    response = (
+                        f"Done. Removed {affected} memory entries "
+                        f"matching '{target}'."
+                    )
+                else:
+                    response = f"No memories found matching '{target}'."
+
+            elif intent_type == "memory_list":
+                cur.execute(
+                    """
+                    SELECT category, content, importance_score, source_type
+                    FROM long_term_memory
+                    WHERE user_id = %s AND is_deleted = FALSE
+                    ORDER BY importance_score DESC, created_at DESC
+                    LIMIT 20
+                    """,
+                    (user_id,),
+                )
+                memories = cur.fetchall()
+                if memories:
+                    lines = []
+                    current_cat = None
+                    for m in memories:
+                        cat = m["category"] or "general"
+                        if cat != current_cat:
+                            lines.append(f"\n**{cat.title()}:**")
+                            current_cat = cat
+                        src = (
+                            " (auto)"
+                            if m["source_type"] == "auto-extracted"
+                            else ""
+                        )
+                        lines.append(f"- {m['content']}{src}")
+                    response = (
+                        "Here's what I remember about you:\n"
+                        + "\n".join(lines)
+                    )
+                else:
+                    response = (
+                        "I don't have any memories stored for you yet. "
+                        "Tell me something to remember!"
+                    )
+
+                # Also check preferences
+                cur.execute(
+                    """
+                    SELECT preference_key, preference_value, confidence
+                    FROM user_memory_preferences
+                    WHERE user_id = %s AND is_active = TRUE
+                    ORDER BY confidence DESC
+                    """,
+                    (user_id,),
+                )
+                prefs = cur.fetchall()
+                if prefs:
+                    response += "\n\n**Learned Preferences:**"
+                    for p in prefs:
+                        conf = int((p["confidence"] or 0) * 100)
+                        response += (
+                            f"\n- {p['preference_key']}: "
+                            f"{p['preference_value']} ({conf}% confident)"
+                        )
+            else:
+                response = "I'm not sure what to do with that memory command."
+
+            cur.close()
+            conn.close()
+            return response
+
+        except Exception as e:
+            logger.error("Memory command error: %s", e)
+            return f"Sorry, I had trouble with that memory command: {e}"
 
     def _handle_team_management(
         self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]

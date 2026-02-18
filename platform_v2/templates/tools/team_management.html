@@ -140,6 +140,26 @@
     .tm-pill-green{background:rgba(0,255,65,0.12);color:var(--archie-green,#4ade80)}
     .tm-pill-red{background:rgba(255,65,54,0.12);color:var(--archie-red,#f87171)}
     .tm-pill-amber{background:rgba(255,170,0,0.12);color:var(--archie-orange,#fbbf24)}
+
+    /* === Multi-Agent Log === */
+    .ma-split{display:flex;gap:16px;height:520px}
+    .ma-list{flex:0 0 30%;overflow-y:auto;border-right:1px solid var(--archie-border,#2a3a4a);padding-right:12px}
+    .ma-detail{flex:1;overflow-y:auto;padding-left:12px}
+    .ma-session{padding:10px;border:1px solid var(--archie-border,#2a3a4a);border-radius:6px;margin-bottom:8px;cursor:pointer;transition:border-color .2s}
+    .ma-session:hover,.ma-session.selected{border-color:var(--archie-accent,#60a5fa)}
+    .ma-session .ma-ts{font-size:.75rem;color:var(--archie-muted,#6b7280)}
+    .ma-session .ma-msg{font-size:.85rem;margin:4px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ma-session .ma-meta{display:flex;gap:8px;align-items:center}
+    .ma-agent-count{background:var(--archie-accent,#60a5fa);color:#0a1628;border-radius:10px;padding:1px 8px;font-size:.7rem;font-weight:700}
+    .ma-step{padding:10px;margin-bottom:8px;border-left:3px solid var(--archie-border,#2a3a4a);padding-left:12px}
+    .ma-step-decompose{border-left-color:#06b6d4}
+    .ma-step-delegate{border-left-color:#a78bfa}
+    .ma-step-execute{border-left-color:#60a5fa}
+    .ma-step-synthesize{border-left-color:#4ade80}
+    .ma-step-label{font-size:.8rem;font-weight:600;margin-bottom:4px}
+    .ma-step-data{font-size:.8rem;color:var(--archie-text-secondary,#94a3b8);white-space:pre-wrap;max-height:200px;overflow-y:auto}
+    .ma-empty{text-align:center;padding:40px;color:var(--archie-muted,#6b7280)}
+    @media(max-width:768px){.ma-split{flex-direction:column;height:auto}.ma-list{flex:none;max-height:200px;border-right:none;border-bottom:1px solid var(--archie-border,#2a3a4a);padding-right:0;padding-bottom:12px}.ma-detail{padding-left:0}}
 </style>
 {% endblock %}
 
@@ -162,6 +182,7 @@
             <button class="tm-tab" onclick="tmTab('hr',this)" role="tab">HR Dashboard</button>
             <button class="tm-tab" onclick="tmTab('iaae',this)" role="tab">IAAE Governance</button>
             <button class="tm-tab" onclick="tmTab('perf',this)" role="tab">Performance</button>
+            <button class="tm-tab" onclick="tmTab('multiagent',this)" role="tab">Multi-Agent Log</button>
         </div>
 
         <!-- Tab 0: Mission Control -->
@@ -248,6 +269,16 @@
             <div class="tm-chart-wrap" style="max-width:900px;">
                 <h3>Error Rate by Agent</h3>
                 <canvas id="chartErrors" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Multi-Agent Log Pane -->
+        <div class="tm-pane" id="pane-multiagent">
+            <div class="ma-split">
+                <div class="ma-list" id="ma-session-list"></div>
+                <div class="ma-detail" id="ma-session-detail">
+                    <div class="ma-empty">Select a session to view details</div>
+                </div>
             </div>
         </div>
     </div>
@@ -942,12 +973,120 @@
         drawer.appendChild(actSection);
     }
 
+    /* ============ Multi-Agent Log ============ */
+    var _maPage = 1;
+
+    async function loadMultiAgent() {
+        var data = await apiFetch('/tools/bridge/api/dispatch/multi-agent-sessions?page=' + _maPage + '&per_page=20');
+        var list = document.getElementById('ma-session-list');
+        if (!list) return;
+        clearEl('ma-session-list');
+        if (!data || !data.sessions || data.sessions.length === 0) {
+            var empty = el('div', 'ma-empty');
+            empty.textContent = 'No multi-agent sessions yet';
+            list.appendChild(empty);
+            return;
+        }
+        data.sessions.forEach(function(s) {
+            var item = el('div', 'ma-session');
+            var ts = el('div', 'ma-ts');
+            ts.textContent = timeAgo(s.created_at);
+            var msg = el('div', 'ma-msg');
+            msg.textContent = (s.user_message || 'Session #' + s.id).substring(0, 60);
+            var meta = el('div', 'ma-meta');
+            var agentBadge = el('span', 'ma-agent-count');
+            agentBadge.textContent = (s.agent_count || 0) + ' agents';
+            var st = s.status || 'unknown';
+            var stCls = st === 'completed' ? 'tm-pill-green' : st === 'failed' ? 'tm-pill-red' : 'tm-pill-amber';
+            meta.appendChild(agentBadge);
+            meta.appendChild(pill(st, stCls));
+            if (s.total_duration_ms) {
+                var dur = el('span');
+                dur.textContent = fmtMs(s.total_duration_ms);
+                dur.style.cssText = 'font-size:.75rem;color:var(--archie-muted)';
+                meta.appendChild(dur);
+            }
+            item.appendChild(ts);
+            item.appendChild(msg);
+            item.appendChild(meta);
+            item.onclick = function() {
+                list.querySelectorAll('.ma-session').forEach(function(s){ s.classList.remove('selected'); });
+                item.classList.add('selected');
+                loadMADetail(s.session_id || s.id);
+            };
+            list.appendChild(item);
+        });
+    }
+
+    async function loadMADetail(sessionId) {
+        var detail = document.getElementById('ma-session-detail');
+        if (!detail) return;
+        detail.textContent = '';
+        var loadMsg = el('div', 'ma-empty');
+        loadMsg.textContent = 'Loading...';
+        detail.appendChild(loadMsg);
+
+        var data = await apiFetch('/tools/bridge/api/dispatch/multi-agent-sessions/' + sessionId);
+        detail.textContent = '';
+        if (!data || !data.session) {
+            var errMsg = el('div', 'ma-empty');
+            errMsg.textContent = 'Failed to load session';
+            detail.appendChild(errMsg);
+            return;
+        }
+        var s = data.session;
+
+        // Session info header
+        var infoDiv = el('div', 'drawer-section');
+        var infoTitle = el('h4');
+        infoTitle.textContent = 'Session Details';
+        infoDiv.appendChild(infoTitle);
+        var infoText = el('div');
+        infoText.style.cssText = 'font-size:.85rem;color:var(--archie-text-secondary,#94a3b8)';
+        infoText.textContent = 'Status: ' + (s.status || '?') + ' | Duration: ' + fmtMs(s.total_duration_ms) + ' | Steps: ' + (s.total_steps || 0);
+        infoDiv.appendChild(infoText);
+        detail.appendChild(infoDiv);
+
+        // Steps
+        var stepsSection = el('div', 'drawer-section');
+        var stepsTitle = el('h4');
+        stepsTitle.textContent = 'Pipeline Steps (' + (data.steps || []).length + ')';
+        stepsSection.appendChild(stepsTitle);
+        (data.steps || []).forEach(function(st) {
+            var stepType = st.step_type || 'unknown';
+            var cls = 'ma-step';
+            if (stepType === 'decompose') cls += ' ma-step-decompose';
+            else if (stepType === 'delegate') cls += ' ma-step-delegate';
+            else if (stepType === 'execute') cls += ' ma-step-execute';
+            else if (stepType === 'synthesize') cls += ' ma-step-synthesize';
+            var stepDiv = el('div', cls);
+            var labelDiv = el('div', 'ma-step-label');
+            var labelText = stepType;
+            if (st.display_name) labelText += ' (' + st.display_name + ')';
+            else if (st.agent_name) labelText += ' (' + st.agent_name + ')';
+            if (st.model_used) labelText += ' via ' + st.model_used;
+            if (st.duration_ms) labelText += ' ' + st.duration_ms + 'ms';
+            labelDiv.textContent = labelText;
+            stepDiv.appendChild(labelDiv);
+            if (st.step_data) {
+                var dataDiv = el('div', 'ma-step-data');
+                var dataStr = typeof st.step_data === 'string' ? st.step_data : JSON.stringify(st.step_data, null, 2);
+                if (dataStr.length > 500) dataStr = dataStr.substring(0, 500) + '...';
+                dataDiv.textContent = dataStr;
+                stepDiv.appendChild(dataDiv);
+            }
+            stepsSection.appendChild(stepDiv);
+        });
+        detail.appendChild(stepsSection);
+    }
+
     /* ============ Loader Dispatch ============ */
     function loadActiveTab() {
         var loaders = {
             mission: loadMission,
             roster: loadRoster, stations: loadStations, queue: loadQueue,
-            hr: loadHR, iaae: loadIAAE, perf: loadPerformance
+            hr: loadHR, iaae: loadIAAE, perf: loadPerformance,
+            multiagent: loadMultiAgent
         };
         var fn = loaders[activeTab];
         if (fn) fn();

@@ -446,14 +446,431 @@ body.light-mode #matrix-rain {
 /* ─────────────────────────────────────────────────────────────────────────────
    DASHBOARD SECTION PLACEHOLDERS
    ───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   COMMAND BAR — Fixed 48px top bar
+   ───────────────────────────────────────────────────────────────────────────── */
 .command-bar {
-    position: relative;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
     z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
 }
 
+.command-bar.scrolled {
+    border-bottom-color: rgba(0, 255, 65, 0.35);
+    box-shadow: 0 2px 20px rgba(0, 255, 65, 0.08);
+}
+
+/* Command Bar Zones */
+.cb-zone {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cb-zone-left {
+    gap: 8px;
+}
+
+.cb-zone-center {
+    flex: 0 1 340px;
+}
+
+.cb-zone-right {
+    gap: 6px;
+}
+
+/* User Avatar */
+.cb-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00FF41 0%, #00CCFF 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #000;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.cb-username {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e0e0e0;
+    white-space: nowrap;
+}
+
+.cb-badge {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.cb-badge-role {
+    background: rgba(0, 255, 65, 0.15);
+    color: #00FF41;
+    border: 1px solid rgba(0, 255, 65, 0.25);
+}
+
+.cb-badge-tier {
+    background: rgba(0, 204, 255, 0.12);
+    color: #00CCFF;
+    border: 1px solid rgba(0, 204, 255, 0.2);
+}
+
+/* Quick Search */
+.cb-search {
+    position: relative;
+    width: 100%;
+}
+
+.cb-search-input {
+    width: 100%;
+    height: 30px;
+    padding: 0 36px 0 32px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: #ccc;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.cb-search-input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+.cb-search-input:focus {
+    border-color: rgba(0, 255, 65, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.cb-search-icon {
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    color: rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+}
+
+.cb-search-hint {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+}
+
+/* Right zone icon buttons */
+.cb-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease;
+    position: relative;
+    text-decoration: none;
+}
+
+.cb-icon-btn:hover {
+    color: #00FF41;
+    background: rgba(0, 255, 65, 0.08);
+}
+
+.cb-icon-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.cb-icon-btn i[data-lucide] {
+    width: 18px;
+    height: 18px;
+}
+
+/* Notification badge */
+.cb-notif-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 15px;
+    height: 15px;
+    border-radius: 8px;
+    background: #ff3b3b;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.cb-notif-badge.hidden {
+    display: none;
+}
+
+/* Logout button specific */
+.cb-icon-btn.cb-logout:hover {
+    color: #ff5555;
+    background: rgba(255, 85, 85, 0.1);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HUD VITALS STRIP — 6 stat pods
+   ───────────────────────────────────────────────────────────────────────────── */
 .hud-vitals-strip {
     position: relative;
     z-index: 10;
+    display: flex;
+    gap: 12px;
+    padding: 0 24px;
+    margin-top: 60px;
+}
+
+.hud-pod {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hud-pod:hover {
+    border-color: rgba(0, 255, 65, 0.3);
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.06);
+}
+
+.hud-pod-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.hud-pod-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #e0e0e0;
+    line-height: 1;
+}
+
+.hud-pod-sub {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+/* Ring Gauge SVG */
+.hud-ring-wrap {
+    position: relative;
+    width: 60px;
+    height: 60px;
+}
+
+.hud-ring-wrap svg {
+    width: 60px;
+    height: 60px;
+    transform: rotate(-90deg);
+}
+
+.hud-ring-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.06);
+    stroke-width: 5;
+}
+
+.hud-ring-fg {
+    fill: none;
+    stroke: #00FF41;
+    stroke-width: 5;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s ease, stroke 0.3s ease;
+}
+
+.hud-ring-fg.warning {
+    stroke: #ffaa00;
+}
+
+.hud-ring-fg.critical {
+    stroke: #ff3b3b;
+}
+
+.hud-ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #e0e0e0;
+}
+
+/* AI Status Indicator */
+.hud-ai-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #00FF41;
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
+    animation: aiPulse 2s ease-in-out infinite;
+}
+
+.hud-ai-dot.offline {
+    background: #ff3b3b;
+    box-shadow: 0 0 8px rgba(255, 59, 59, 0.6);
+    animation: none;
+}
+
+@keyframes aiPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(0, 255, 65, 0.6); }
+    50% { box-shadow: 0 0 16px rgba(0, 255, 65, 0.9), 0 0 30px rgba(0, 255, 65, 0.3); }
+}
+
+/* Agent count icon */
+.hud-agents-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hud-agents-row svg {
+    width: 18px;
+    height: 18px;
+    color: rgba(0, 204, 255, 0.7);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LIGHT MODE OVERRIDES — Command Bar & HUD
+   ───────────────────────────────────────────────────────────────────────────── */
+[data-theme="light"] .command-bar,
+body.light-mode .command-bar {
+    background: rgba(255, 255, 255, 0.85);
+    border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .command-bar.scrolled,
+body.light-mode .command-bar.scrolled {
+    border-bottom-color: rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .cb-username,
+body.light-mode .cb-username {
+    color: #222;
+}
+
+[data-theme="light"] .cb-search-input,
+body.light-mode .cb-search-input {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+[data-theme="light"] .cb-search-input::placeholder,
+body.light-mode .cb-search-input::placeholder {
+    color: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .cb-search-icon,
+body.light-mode .cb-search-icon {
+    color: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .cb-search-hint,
+body.light-mode .cb-search-hint {
+    color: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .cb-icon-btn,
+body.light-mode .cb-icon-btn {
+    color: rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] .cb-icon-btn:hover,
+body.light-mode .cb-icon-btn:hover {
+    color: #007a20;
+    background: rgba(0, 122, 32, 0.08);
+}
+
+[data-theme="light"] .hud-pod,
+body.light-mode .hud-pod {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .hud-pod-label,
+body.light-mode .hud-pod-label {
+    color: #555;
+}
+
+[data-theme="light"] .hud-pod-value,
+body.light-mode .hud-pod-value {
+    color: #111;
+}
+
+[data-theme="light"] .hud-ring-bg,
+body.light-mode .hud-ring-bg {
+    stroke: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .hud-ring-center,
+body.light-mode .hud-ring-center {
+    color: #222;
+}
+
+[data-theme="light"] .hud-pod-sub,
+body.light-mode .hud-pod-sub {
+    color: #888;
 }
 
 .mission-briefing {
@@ -518,6 +935,53 @@ body.light-mode #matrix-rain {
 /* ─────────────────────────────────────────────────────────────────────────────
    RESPONSIVE
    ───────────────────────────────────────────────────────────────────────────── */
+/* ─── Command Bar + HUD responsive: 717px (tablet / folded) ─── */
+@media (max-width: 717px) {
+    .cb-zone-center {
+        flex: 0 1 180px;
+    }
+    .cb-username, .cb-badge {
+        display: none;
+    }
+    .hud-vitals-strip {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding: 0 12px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .hud-vitals-strip::-webkit-scrollbar {
+        display: none;
+    }
+    .hud-pod {
+        flex: 0 0 130px;
+    }
+}
+
+/* ─── Command Bar + HUD responsive: 374px (mobile) ─── */
+@media (max-width: 480px) {
+    .command-bar {
+        padding: 0 8px;
+    }
+    .cb-zone-center {
+        flex: 0 1 120px;
+    }
+    .cb-search-hint {
+        display: none;
+    }
+    .hud-vitals-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 0 12px;
+        margin-top: 56px;
+        overflow-x: visible;
+    }
+    .hud-pod {
+        flex: none;
+    }
+}
+
 @media (max-width: 768px) {
     .boot-logo-text {
         font-size: 2.5rem;
@@ -621,10 +1085,106 @@ body.light-mode #matrix-rain {
 <div class="dashboard-content" id="dashboardContent">
 
     <!-- Section 3: Command Bar -->
-    <div id="command-bar" class="command-bar"><!-- Task 3 --></div>
+    <div id="command-bar" class="command-bar">
+        <!-- Left Zone: User info -->
+        <div class="cb-zone cb-zone-left">
+            <div class="cb-avatar">{{ current_user.username[0] | upper }}</div>
+            <span class="cb-username">{{ current_user.username }}</span>
+            <span class="cb-badge cb-badge-role">{{ dashboard_data.user_role }}</span>
+            <span class="cb-badge cb-badge-tier">{{ dashboard_data.subscription_tier }}</span>
+        </div>
+        <!-- Center Zone: Search -->
+        <div class="cb-zone cb-zone-center">
+            <div class="cb-search">
+                <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search modules, commands..." autocomplete="off" />
+                <span class="cb-search-hint">Ctrl+K</span>
+            </div>
+        </div>
+        <!-- Right Zone: Actions -->
+        <div class="cb-zone cb-zone-right">
+            <!-- Notifications -->
+            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications">
+                <i data-lucide="bell"></i>
+                <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
+            </button>
+            <!-- Theme toggle -->
+            <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
+                <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
+                <i data-lucide="moon" id="cbThemeIconMoon"></i>
+            </button>
+            {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
+            <!-- Dev HQ -->
+            <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ">
+                <i data-lucide="compass"></i>
+            </a>
+            {% endif %}
+            <!-- Logout -->
+            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout">
+                <i data-lucide="log-out"></i>
+            </a>
+        </div>
+    </div>
 
     <!-- Section 3: HUD Vitals -->
-    <div id="hud-vitals" class="hud-vitals-strip"><!-- Task 3 --></div>
+    <div id="hud-vitals" class="hud-vitals-strip">
+        <!-- Pod 1: SYSTEM health -->
+        <div class="hud-pod" id="hudPodSystem">
+            <span class="hud-pod-label">SYSTEM</span>
+            <div class="hud-ring-wrap">
+                <svg viewBox="0 0 60 60">
+                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                    <circle class="hud-ring-fg" id="hudRingSystem" cx="30" cy="30" r="25"
+                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                </svg>
+                <div class="hud-ring-center" id="hudValSystem">--%</div>
+            </div>
+        </div>
+        <!-- Pod 2: CPU -->
+        <div class="hud-pod" id="hudPodCpu">
+            <span class="hud-pod-label">CPU</span>
+            <div class="hud-ring-wrap">
+                <svg viewBox="0 0 60 60">
+                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                    <circle class="hud-ring-fg" id="hudRingCpu" cx="30" cy="30" r="25"
+                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                </svg>
+                <div class="hud-ring-center" id="hudValCpu">--%</div>
+            </div>
+        </div>
+        <!-- Pod 3: MEMORY -->
+        <div class="hud-pod" id="hudPodMem">
+            <span class="hud-pod-label">MEMORY</span>
+            <div class="hud-ring-wrap">
+                <svg viewBox="0 0 60 60">
+                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                    <circle class="hud-ring-fg" id="hudRingMem" cx="30" cy="30" r="25"
+                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                </svg>
+                <div class="hud-ring-center" id="hudValMem">--%</div>
+            </div>
+            <span class="hud-pod-sub" id="hudMemDetail">--/-- GB</span>
+        </div>
+        <!-- Pod 4: AI STATUS -->
+        <div class="hud-pod" id="hudPodAi">
+            <span class="hud-pod-label">AI STATUS</span>
+            <div class="hud-ai-dot" id="hudAiDot"></div>
+            <span class="hud-pod-value" id="hudValAi" style="font-size:14px;">ONLINE</span>
+        </div>
+        <!-- Pod 5: AGENTS -->
+        <div class="hud-pod" id="hudPodAgents">
+            <span class="hud-pod-label">AGENTS</span>
+            <div class="hud-agents-row">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span class="hud-pod-value" id="hudValAgents">0</span>
+            </div>
+        </div>
+        <!-- Pod 6: UPTIME -->
+        <div class="hud-pod" id="hudPodUptime">
+            <span class="hud-pod-label">UPTIME</span>
+            <span class="hud-pod-value" id="hudValUptime">--h --m</span>
+        </div>
+    </div>
 
     <!-- Section 5: Mission Briefing -->
     <div id="mission-briefing" class="mission-briefing"><!-- Task 4 --></div>
@@ -1006,6 +1566,198 @@ body.light-mode #matrix-rain {
         }
     });
     bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMMAND BAR + HUD VITALS — Task 3
+// Scroll handler, data fetch, ring gauges, notifications, search shortcut
+// ═══════════════════════════════════════════════════════════════════════════════
+(function initCommandBarAndHUD() {
+    'use strict';
+
+    // ── Scroll handler: add .scrolled class to command bar ──
+    var cmdBar = document.getElementById('command-bar');
+    if (cmdBar) {
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 10) {
+                cmdBar.classList.add('scrolled');
+            } else {
+                cmdBar.classList.remove('scrolled');
+            }
+        }, { passive: true });
+    }
+
+    // ── Ctrl+K: focus search input ──
+    var searchInput = document.getElementById('cbSearchInput');
+    if (searchInput) {
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                searchInput.focus();
+            }
+        });
+    }
+
+    // ── Theme toggle icon sync ──
+    function syncThemeIcons() {
+        var sunIcon = document.getElementById('cbThemeIconSun');
+        var moonIcon = document.getElementById('cbThemeIconMoon');
+        if (!sunIcon || !moonIcon) return;
+        var isLight = document.documentElement.getAttribute('data-theme') === 'light' ||
+                      document.body.classList.contains('light-mode');
+        sunIcon.style.display = isLight ? 'none' : 'inline-block';
+        moonIcon.style.display = isLight ? 'inline-block' : 'none';
+    }
+    syncThemeIcons();
+    // Re-sync on theme change
+    var themeObserver = new MutationObserver(syncThemeIcons);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    // ── Lucide icons: re-render for command bar ──
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+
+    // ── Ring gauge helper ──
+    var CIRCUMFERENCE = 2 * Math.PI * 25; // r=25 => 157.08
+
+    function setRing(ringId, percent) {
+        var ring = document.getElementById(ringId);
+        if (!ring) return;
+        var p = Math.max(0, Math.min(100, percent));
+        var offset = CIRCUMFERENCE - (p / 100) * CIRCUMFERENCE;
+        ring.setAttribute('stroke-dashoffset', offset);
+        // Color thresholds
+        ring.classList.remove('warning', 'critical');
+        if (p >= 90) {
+            ring.classList.add('critical');
+        } else if (p >= 75) {
+            ring.classList.add('warning');
+        }
+    }
+
+    // ── Fetch system stats ──
+    function fetchSystemStats() {
+        fetch('/api/dashboard/system-stats')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+
+                // CPU
+                var cpuPct = Math.round(data.cpu_percent || 0);
+                setRing('hudRingCpu', cpuPct);
+                var cpuValEl = document.getElementById('hudValCpu');
+                if (cpuValEl) cpuValEl.textContent = cpuPct + '%';
+
+                // Memory
+                var memPct = Math.round(data.memory_percent || 0);
+                setRing('hudRingMem', memPct);
+                var memValEl = document.getElementById('hudValMem');
+                if (memValEl) memValEl.textContent = memPct + '%';
+                var memDetail = document.getElementById('hudMemDetail');
+                if (memDetail) {
+                    memDetail.textContent = (data.memory_used_gb || '--') + '/' + (data.memory_total_gb || '--') + ' GB';
+                }
+
+                // Uptime
+                var uptimeEl = document.getElementById('hudValUptime');
+                if (uptimeEl && data.uptime_formatted) {
+                    uptimeEl.textContent = data.uptime_formatted;
+                }
+
+                // System aggregate: average of CPU and Memory health (inverse of usage)
+                var systemPct = Math.round(100 - (cpuPct + memPct) / 2);
+                if (systemPct < 0) systemPct = 0;
+                setRing('hudRingSystem', systemPct);
+                var sysValEl = document.getElementById('hudValSystem');
+                if (sysValEl) sysValEl.textContent = systemPct + '%';
+            })
+            .catch(function(err) {
+                console.warn('HUD system-stats fetch failed:', err);
+            });
+    }
+
+    // ── Fetch AI status ──
+    function fetchAiStatus() {
+        fetch('/api/dashboard/ai-status')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+
+                // AI dot
+                var dot = document.getElementById('hudAiDot');
+                var label = document.getElementById('hudValAi');
+                if (dot) {
+                    if (data.ai_online) {
+                        dot.classList.remove('offline');
+                    } else {
+                        dot.classList.add('offline');
+                    }
+                }
+                if (label) {
+                    label.textContent = data.ai_online ? 'ONLINE' : 'OFFLINE';
+                }
+
+                // Agents count
+                var agentsEl = document.getElementById('hudValAgents');
+                if (agentsEl) {
+                    agentsEl.textContent = data.active_agents || 0;
+                }
+            })
+            .catch(function(err) {
+                console.warn('HUD ai-status fetch failed:', err);
+            });
+    }
+
+    // ── Fetch notification count ──
+    function fetchNotifCount() {
+        fetch('/api/notifications/count')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var badge = document.getElementById('cbNotifBadge');
+                if (!badge) return;
+                var count = data.unread || 0;
+                if (count > 0) {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            })
+            .catch(function(err) {
+                console.warn('Notification count fetch failed:', err);
+            });
+    }
+
+    // ── Initial fetch + interval ──
+    // Wait until dashboard is visible (boot may still be running)
+    function startHUDPolling() {
+        fetchSystemStats();
+        fetchAiStatus();
+        fetchNotifCount();
+        setInterval(fetchSystemStats, 15000);
+        setInterval(fetchAiStatus, 15000);
+        setInterval(fetchNotifCount, 60000);
+    }
+
+    // Start polling once dashboard content becomes visible
+    var dashContent = document.getElementById('dashboardContent');
+    if (dashContent && dashContent.classList.contains('visible')) {
+        startHUDPolling();
+    } else {
+        // Watch for the boot sequence to finish
+        var pollObserver = new MutationObserver(function(mutations) {
+            if (dashContent.classList.contains('visible')) {
+                pollObserver.disconnect();
+                startHUDPolling();
+            }
+        });
+        if (dashContent) {
+            pollObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
+        }
+    }
 })();
 </script>
 {% endblock %}

@@ -2488,3 +2488,157 @@ def analytics_export():
     except Exception as e:
         logger.error("analytics_export error: %s", e)
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# Phase 8: Settings Endpoints
+# ============================================================
+
+SETTINGS_DEFAULTS = {
+    "theme": "dark",
+    "fontSize": "medium",
+    "voiceAutoSpeak": True,
+    "notifSound": True,
+    "defaultMode": "solo",
+    "thinkingAutoOpen": False,
+    "defaultModel": None,
+    "maxMemoryInject": 10,
+    "briefingDelivery": "chat",
+    "notifPollInterval": 30,
+}
+
+
+@archie_chat_bp.route("/api/settings")
+@login_required
+def get_settings():
+    """Get current user's chat settings (merged with defaults)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT settings FROM user_chat_settings WHERE user_id = %s",
+            (current_user.id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        stored = row["settings"] if row else {}
+        merged = dict(SETTINGS_DEFAULTS)
+        merged.update(stored)
+        return jsonify({"settings": merged})
+    except Exception as e:
+        logger.error("get_settings error: %s", e)
+        return jsonify({"settings": dict(SETTINGS_DEFAULTS)})
+
+
+@archie_chat_bp.route("/api/settings", methods=["POST"])
+@login_required
+def update_settings():
+    """Update user's chat settings (partial merge)."""
+    data = request.get_json() or {}
+    updates = data.get("settings", {})
+    if not updates:
+        return jsonify({"error": "No settings provided"}), 400
+    valid = {k: v for k, v in updates.items() if k in SETTINGS_DEFAULTS}
+    if not valid:
+        return jsonify({"error": "No valid settings keys"}), 400
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO user_chat_settings (user_id, settings, updated_at)
+            VALUES (%s, %s::jsonb, NOW())
+            ON CONFLICT (user_id) DO UPDATE
+            SET settings = user_chat_settings.settings || %s::jsonb,
+                updated_at = NOW()
+            """,
+            (current_user.id, json.dumps(valid), json.dumps(valid)),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"ok": True, "updated": list(valid.keys())})
+    except Exception as e:
+        logger.error("update_settings error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# Phase 8: Conversation Search Endpoint
+# ============================================================
+
+
+@archie_chat_bp.route("/api/conversations/search")
+@login_required
+def conversation_search():
+    """Search across all conversations by keyword."""
+    q = request.args.get("q", "").strip()
+    if len(q) < 3:
+        return jsonify({"results": [], "total": 0})
+    range_days = request.args.get("range", 0, type=int)
+    limit = min(request.args.get("limit", 20, type=int), 50)
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        like_param = "%" + q + "%"
+        query_params = [like_param, like_param, current_user.id, like_param, like_param]
+        date_filter = ""
+        if range_days > 0:
+            date_filter = "AND c.created_at > NOW() - make_interval(days => %s)"
+            query_params.append(range_days)
+        query_params.append(limit)
+        sql = """
+            SELECT DISTINCT ON (c.conversation_id)
+                c.conversation_id,
+                t.title as thread_title,
+                CASE
+                    WHEN c.message ILIKE %s THEN 'message'
+                    ELSE 'response'
+                END as matched_in,
+                CASE
+                    WHEN c.message ILIKE %s THEN c.message
+                    ELSE c.response
+                END as matched_text,
+                c.created_at,
+                c.metadata->>'model' as model
+            FROM ai_conversations c
+            LEFT JOIN ai_conversation_threads t
+                ON t.conversation_id = c.conversation_id
+            WHERE c.user_id = %s
+            AND (c.message ILIKE %s OR c.response ILIKE %s)
+            {date_filter}
+            ORDER BY c.conversation_id, c.created_at DESC
+            LIMIT %s
+        """.format(
+            date_filter=date_filter
+        )
+        cur.execute(sql, query_params)
+        rows = cur.fetchall()
+        results = []
+        q_lower = q.lower()
+        for r in rows:
+            text = r["matched_text"] or ""
+            idx = text.lower().find(q_lower)
+            if idx >= 0:
+                start = max(0, idx - 30)
+                end = min(len(text), idx + len(q) + 30)
+                snippet = ("..." if start > 0 else "") + text[start:end] + ("..." if end < len(text) else "")
+            else:
+                snippet = text[:60] + ("..." if len(text) > 60 else "")
+            results.append(
+                {
+                    "conversation_id": r["conversation_id"],
+                    "thread_title": r["thread_title"] or "Untitled",
+                    "snippet": snippet,
+                    "matched_in": r["matched_in"],
+                    "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                    "model": r["model"],
+                }
+            )
+        cur.close()
+        conn.close()
+        return jsonify({"results": results, "total": len(results)})
+    except Exception as e:
+        logger.error("conversation_search error: %s", e)
+        return jsonify({"results": [], "total": 0, "error": str(e)})

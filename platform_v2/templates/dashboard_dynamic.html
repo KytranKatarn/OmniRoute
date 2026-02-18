@@ -1629,6 +1629,217 @@ body.light-mode .featured-pin-btn.pinned {
         letter-spacing: 3px;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CATEGORY GRID — Collapsible panels with module cards
+   Task 6 of Dashboard Rebuild
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Category accent colors ─── */
+.category-admin_operations { --cat-accent: #cc6600; }
+.category-ai_command { --cat-accent: #cc6600; }
+.category-development_tools { --cat-accent: #00808f; }
+.category-saas_services { --cat-accent: #7c3aed; }
+.category-project_knowledge { --cat-accent: #00aa33; }
+.category-media_home { --cat-accent: #db2777; }
+.category-placeholders_future { --cat-accent: #8b949e; }
+
+/* ─── Category Grid Container ─── */
+.category-grid {
+    margin-top: 16px;
+}
+
+/* ─── Category Header (LCARS framed) ─── */
+.cat-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+    position: relative;
+}
+/* Top gradient line in category color */
+.cat-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 20%; right: 20%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cat-accent), transparent);
+    border-radius: 1px;
+}
+.cat-header:hover {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: var(--cat-accent);
+}
+.cat-header-icon {
+    color: var(--cat-accent);
+    font-size: 1.1rem;
+}
+.cat-header-title {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--archie-text-secondary);
+    flex: 1;
+}
+.cat-module-count {
+    background: var(--cat-accent);
+    color: #000;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+.cat-admin-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--cat-accent);
+    border: 1px solid var(--cat-accent);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+.cat-chevron {
+    color: var(--archie-text-secondary);
+    transition: transform 0.3s ease;
+    font-size: 0.8rem;
+}
+.category-panel.collapsed .cat-chevron {
+    transform: rotate(-90deg);
+}
+
+/* ─── Module Cards Grid ─── */
+.cat-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding-bottom: 24px;
+    max-height: 2000px;
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
+}
+.category-panel.collapsed .cat-cards {
+    max-height: 0;
+    opacity: 0;
+    padding-bottom: 0;
+}
+
+/* ─── Module Card ─── */
+.module-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--archie-text-secondary);
+    transition: all 0.2s ease;
+    position: relative;
+}
+.module-card:hover {
+    border-color: var(--cat-accent);
+    background: rgba(0, 0, 0, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+.module-card.coming-soon {
+    opacity: 0.4;
+    pointer-events: none;
+}
+.module-card-icon {
+    color: var(--cat-accent);
+    font-size: 1rem;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.module-card-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.module-card-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+}
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.status-dot.checking { background: #8b949e; }
+.status-dot.online { background: #00FF41; box-shadow: 0 0 6px rgba(0, 255, 65, 0.5); }
+.status-dot.offline { background: #ff4444; }
+.status-dot.degraded { background: #ffaa00; }
+.status-text {
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    color: #8b949e;
+}
+.module-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+.module-badge.beta { background: #cc6600; color: #000; }
+.module-badge.soon { background: #8b949e; color: #000; }
+
+/* ─── Card materialize animation ─── */
+@keyframes cardMaterialize {
+    0% {
+        opacity: 0;
+        transform: translateY(12px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+.module-card.materialize {
+    animation: cardMaterialize 0.4s ease forwards;
+}
+
+/* ─── Category Grid Responsive ─── */
+@media (max-width: 1280px) {
+    .cat-cards { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 717px) {
+    .cat-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+    .cat-cards { grid-template-columns: 1fr; }
+}
+
+/* ─── Category Grid Light Mode ─── */
+[data-theme="light"] .cat-header,
+body.light-mode .cat-header {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .module-card,
+body.light-mode .module-card {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: #333;
+}
 {% endblock %}
 
 {% block content %}
@@ -1852,8 +2063,51 @@ body.light-mode .featured-pin-btn.pinned {
         </div>
     </div>
 
-    <!-- Section 7: Category Grid -->
-    <div id="category-grid" class="category-grid"><!-- Task 6 --></div>
+    <!-- Section 7: Category Grid with Collapsible Panels -->
+    <div id="category-grid" class="category-grid">
+        {% for cat_key, cat_info in dashboard_data.categories.items() %}
+        {% if cat_key in dashboard_data.modules_by_category %}
+        <div class="category-panel category-{{ cat_key }}" data-category="{{ cat_key }}">
+
+            <!-- LCARS Framed Category Header -->
+            <div class="cat-header" onclick="toggleCategory('{{ cat_key }}')">
+                <div class="cat-header-icon">
+                    <i class="{{ cat_info.icon }}"></i>
+                </div>
+                <span class="cat-header-title">{{ cat_info.name }}</span>
+                {% if cat_info.get('admin_only') %}
+                <span class="cat-admin-badge">ADMIN</span>
+                {% endif %}
+                <span class="cat-module-count">{{ dashboard_data.modules_by_category[cat_key] | length }}</span>
+                <span class="cat-chevron">&#9660;</span>
+            </div>
+
+            <!-- Module Cards Grid -->
+            <div class="cat-cards" id="cat-{{ cat_key }}">
+                {% for module in dashboard_data.modules_by_category[cat_key] %}
+                <a href="{{ module.route }}" class="module-card{% if module.coming_soon %} coming-soon{% endif %}"
+                   data-module-id="{{ module.id }}"
+                   {% if module.coming_soon %}onclick="return false;"{% endif %}>
+                    <div class="module-card-icon">
+                        <i class="{{ module.icon }}"></i>
+                    </div>
+                    <div class="module-card-info">
+                        <div class="module-card-name">{{ module.name }}</div>
+                        <div class="module-card-status" data-status-for="{{ module.id }}">
+                            <span class="status-dot checking"></span>
+                            <span class="status-text">CHECKING...</span>
+                        </div>
+                    </div>
+                    {% if module.beta %}<span class="module-badge beta">BETA</span>{% endif %}
+                    {% if module.coming_soon %}<span class="module-badge soon">COMING SOON</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
 
     <!-- Section 8: Status Footer -->
     <div id="status-footer" class="status-footer"><!-- Task 7 --></div>
@@ -2832,6 +3086,146 @@ body.light-mode .featured-pin-btn.pinned {
         });
         if (dashContent) {
             featObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
+        }
+    }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CATEGORY GRID — Collapse/Expand, Health Status, Staggered Entry
+// Task 6 of Dashboard Rebuild
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Toggle category collapse/expand ──
+function toggleCategory(catKey) {
+    'use strict';
+    var STORAGE_KEY = 'archie-dashboard-collapsed';
+    var panel = document.querySelector('.category-panel[data-category="' + catKey + '"]');
+    if (!panel) return;
+
+    panel.classList.toggle('collapsed');
+
+    // Save state to localStorage
+    var collapsed = [];
+    try {
+        collapsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch(e) { collapsed = []; }
+
+    var idx = collapsed.indexOf(catKey);
+    if (panel.classList.contains('collapsed')) {
+        if (idx === -1) collapsed.push(catKey);
+    } else {
+        if (idx !== -1) collapsed.splice(idx, 1);
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(collapsed));
+}
+
+(function initCategoryGrid() {
+    'use strict';
+
+    var STORAGE_KEY = 'archie-dashboard-collapsed';
+
+    // ── Restore collapsed state from localStorage ──
+    function restoreCollapseState() {
+        var collapsed = [];
+        try {
+            collapsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        } catch(e) { collapsed = []; }
+
+        collapsed.forEach(function(catKey) {
+            var panel = document.querySelector('.category-panel[data-category="' + catKey + '"]');
+            if (panel) {
+                panel.classList.add('collapsed');
+            }
+        });
+    }
+
+    // ── Staggered card materialize animation ──
+    function animateCards() {
+        var cards = document.querySelectorAll('.category-grid .module-card');
+        cards.forEach(function(card, index) {
+            card.style.opacity = '0';
+            card.style.animationDelay = (index * 0.05) + 's';
+            card.classList.add('materialize');
+        });
+    }
+
+    // ── Update category grid health status dots ──
+    function updateCategoryGridHealth(healthData) {
+        var cards = document.querySelectorAll('.category-grid .module-card');
+        cards.forEach(function(card) {
+            var moduleId = card.getAttribute('data-module-id');
+            var statusContainer = card.querySelector('[data-status-for="' + moduleId + '"]');
+            if (!statusContainer) return;
+
+            var dot = statusContainer.querySelector('.status-dot');
+            var text = statusContainer.querySelector('.status-text');
+            if (!dot || !text) return;
+
+            var health = healthData[moduleId];
+            var isHealthy = false;
+
+            if (health) {
+                isHealthy = health.healthy || health.status === 'active' || health.status === 'ok';
+            } else {
+                // If no specific health data, assume online
+                isHealthy = true;
+            }
+
+            dot.classList.remove('checking', 'online', 'offline', 'degraded');
+            if (isHealthy) {
+                dot.classList.add('online');
+                text.textContent = 'ONLINE';
+            } else {
+                dot.classList.add('offline');
+                text.textContent = 'OFFLINE';
+            }
+        });
+    }
+
+    // ── Fetch health data for all modules in category grid ──
+    function fetchCategoryHealth() {
+        fetch('/api/modules/health')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var modules = data.modules || data.health || {};
+                updateCategoryGridHealth(modules);
+            })
+            .catch(function(err) {
+                console.warn('Category grid health fetch failed:', err);
+                // On error, mark all as online (graceful fallback)
+                var dots = document.querySelectorAll('.category-grid .status-dot');
+                dots.forEach(function(dot) {
+                    dot.classList.remove('checking');
+                    dot.classList.add('online');
+                });
+                var texts = document.querySelectorAll('.category-grid .status-text');
+                texts.forEach(function(text) {
+                    text.textContent = 'ONLINE';
+                });
+            });
+    }
+
+    // ── Start category grid when dashboard is visible ──
+    function startCategoryGrid() {
+        restoreCollapseState();
+        animateCards();
+        // Slight delay to let featured modules health fetch finish first
+        setTimeout(fetchCategoryHealth, 500);
+    }
+
+    var dashContent = document.getElementById('dashboardContent');
+    if (dashContent && dashContent.classList.contains('visible')) {
+        startCategoryGrid();
+    } else {
+        var catObserver = new MutationObserver(function() {
+            if (dashContent && dashContent.classList.contains('visible')) {
+                catObserver.disconnect();
+                startCategoryGrid();
+            }
+        });
+        if (dashContent) {
+            catObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
         }
     }
 })();

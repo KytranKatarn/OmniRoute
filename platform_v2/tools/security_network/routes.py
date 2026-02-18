@@ -4,7 +4,7 @@ Security & Network Routes
 Dashboard for security monitoring, network health, and system status.
 """
 
-from flask import render_template, jsonify, request, redirect, url_for, flash
+from flask import render_template, jsonify, request, redirect, url_for, flash, Response
 from flask_login import login_required, current_user
 from functools import wraps
 import psycopg2
@@ -254,6 +254,56 @@ try:
     NETWORK_AVAILABLE = True
 except ImportError:
     NETWORK_AVAILABLE = False
+
+# Import AdGuard full service
+try:
+    from .adguard_service import AdGuardService
+
+    adguard_service = AdGuardService()
+    ADGUARD_SERVICE_AVAILABLE = True
+except ImportError:
+    adguard_service = None
+    ADGUARD_SERVICE_AVAILABLE = False
+
+# Import Hostinger DNS service
+try:
+    from .hostinger_service import HostingerService
+
+    hostinger_service = HostingerService()
+    HOSTINGER_SERVICE_AVAILABLE = hostinger_service.available
+except ImportError:
+    hostinger_service = None
+    HOSTINGER_SERVICE_AVAILABLE = False
+
+# Import Home Assistant Surveillance service
+try:
+    from .ha_surveillance_service import HASurveillanceService
+
+    surveillance_service = HASurveillanceService()
+    SURVEILLANCE_SERVICE_AVAILABLE = surveillance_service.available
+except ImportError:
+    surveillance_service = None
+    SURVEILLANCE_SERVICE_AVAILABLE = False
+
+# Import Argus Reconnaissance service
+try:
+    from .argus_service import ArgusService
+
+    argus_service = ArgusService()
+    ARGUS_SERVICE_AVAILABLE = True
+except ImportError:
+    argus_service = None
+    ARGUS_SERVICE_AVAILABLE = False
+
+# Import Agent Automation service
+try:
+    from .agent_automation import AgentAutomationService
+
+    agent_automation_service = AgentAutomationService()
+    AGENT_AUTOMATION_AVAILABLE = True
+except ImportError:
+    agent_automation_service = None
+    AGENT_AUTOMATION_AVAILABLE = False
 
 
 @security_network_bp.route("/api/network/overview", methods=["GET"])
@@ -572,6 +622,13 @@ def health_check():
             "module": "security_network",
             "network_available": NETWORK_AVAILABLE,
             "stack_available": STACK_AVAILABLE,
+            "security_service_available": SECURITY_SERVICE_AVAILABLE,
+            "report_service_available": REPORT_SERVICE_AVAILABLE,
+            "adguard_service_available": ADGUARD_SERVICE_AVAILABLE,
+            "hostinger_service_available": HOSTINGER_SERVICE_AVAILABLE,
+            "surveillance_service_available": SURVEILLANCE_SERVICE_AVAILABLE,
+            "argus_service_available": ARGUS_SERVICE_AVAILABLE,
+            "agent_automation_available": AGENT_AUTOMATION_AVAILABLE,
         }
     )
 
@@ -1325,5 +1382,937 @@ def api_download_report(filename):
         from flask import send_file
 
         return send_file(filepath, as_attachment=True)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# DASHBOARD AGGREGATION API
+# ============================================================================
+
+
+@security_network_bp.route("/api/dashboard/stats")
+@login_required
+@admin_required
+def api_dashboard_stats():
+    """Aggregated stats from all services for the dashboard"""
+    stats = {}
+
+    # AdGuard DNS stats
+    try:
+        if ADGUARD_SERVICE_AVAILABLE and adguard_service:
+            ag_stats = adguard_service.get_stats()
+            ag_status = adguard_service.get_status()
+            stats["dns"] = {
+                "available": True,
+                "total_queries": ag_stats.get("num_dns_queries", 0) if ag_stats else 0,
+                "blocked_queries": ag_stats.get("num_blocked_filtering", 0) if ag_stats else 0,
+                "protection_enabled": ag_status.get("protection_enabled", False) if ag_status else False,
+            }
+        else:
+            stats["dns"] = {"available": False}
+    except Exception:
+        stats["dns"] = {"available": False}
+
+    # Surveillance camera count
+    try:
+        if SURVEILLANCE_SERVICE_AVAILABLE and surveillance_service:
+            cameras = surveillance_service.get_all_cameras()
+            online_count = sum(1 for c in cameras if c.get("state") != "unavailable")
+            stats["cameras"] = {
+                "available": True,
+                "total": len(cameras),
+                "online": online_count,
+            }
+        else:
+            stats["cameras"] = {"available": False}
+    except Exception:
+        stats["cameras"] = {"available": False}
+
+    # Agent automation pending suggestions
+    try:
+        if AGENT_AUTOMATION_AVAILABLE and agent_automation_service:
+            pending = agent_automation_service.get_pending_suggestions(limit=100)
+            config = agent_automation_service.get_config()
+            stats["agent"] = {
+                "available": True,
+                "pending_suggestions": len(pending),
+                "mode": config.get("mode", "suggest"),
+                "paused": config.get("paused", False),
+            }
+        else:
+            stats["agent"] = {"available": False}
+    except Exception:
+        stats["agent"] = {"available": False}
+
+    # Argus recent scan count
+    try:
+        if ARGUS_SERVICE_AVAILABLE and argus_service:
+            history = argus_service.get_scan_history(limit=10)
+            stats["recon"] = {
+                "available": True,
+                "recent_scans": len(history),
+                "module_count": argus_service.get_module_count(),
+            }
+        else:
+            stats["recon"] = {"available": False}
+    except Exception:
+        stats["recon"] = {"available": False}
+
+    # Hostinger DNS
+    try:
+        if HOSTINGER_SERVICE_AVAILABLE and hostinger_service:
+            stats["hostinger"] = {"available": True}
+        else:
+            stats["hostinger"] = {"available": False}
+    except Exception:
+        stats["hostinger"] = {"available": False}
+
+    return jsonify({"success": True, "stats": stats})
+
+
+# ============================================================================
+# DNS MANAGEMENT - ADGUARD (Full API)
+# ============================================================================
+
+
+@security_network_bp.route("/api/dns/adguard/stats")
+@login_required
+@admin_required
+def api_dns_adguard_stats():
+    """Full AdGuard statistics"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    try:
+        stats = adguard_service.get_stats()
+        status = adguard_service.get_status()
+        if stats is None and status is None:
+            return jsonify({"success": False, "error": "Could not connect to AdGuard"}), 503
+        return jsonify(
+            {
+                "success": True,
+                "stats": stats,
+                "status": status,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/querylog")
+@login_required
+@admin_required
+def api_dns_adguard_querylog():
+    """AdGuard query log"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    limit = request.args.get("limit", 100, type=int)
+    offset = request.args.get("offset", 0, type=int)
+    search = request.args.get("search")
+    response_status = request.args.get("response_status")
+
+    try:
+        result = adguard_service.get_query_log(limit, offset, search, response_status)
+        if result is None:
+            return jsonify({"success": False, "error": "Could not fetch query log"}), 503
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/filters")
+@login_required
+@admin_required
+def api_dns_adguard_filters_get():
+    """List AdGuard filter lists"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    try:
+        result = adguard_service.get_filtering_status()
+        if result is None:
+            return jsonify({"success": False, "error": "Could not fetch filters"}), 503
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/filters", methods=["POST"])
+@login_required
+@admin_required
+def api_dns_adguard_filters_add():
+    """Add an AdGuard filter list"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    data = request.get_json() or {}
+    name = data.get("name", "")
+    url = data.get("url", "")
+    enabled = data.get("enabled", True)
+
+    if not name or not url:
+        return jsonify({"success": False, "error": "Name and URL are required"}), 400
+
+    try:
+        result = adguard_service.add_filter(name, url, enabled)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to add filter"}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/filters/<path:url>", methods=["PUT"])
+@login_required
+@admin_required
+def api_dns_adguard_filters_toggle(url):
+    """Toggle an AdGuard filter on/off"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    data = request.get_json() or {}
+    enabled = data.get("enabled", True)
+
+    try:
+        result = adguard_service.toggle_filter(url, enabled)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to toggle filter"}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/filters/<path:url>", methods=["DELETE"])
+@login_required
+@admin_required
+def api_dns_adguard_filters_remove(url):
+    """Remove an AdGuard filter list"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    try:
+        result = adguard_service.remove_filter(url)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to remove filter"}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/filters/refresh", methods=["POST"])
+@login_required
+@admin_required
+def api_dns_adguard_filters_refresh():
+    """Refresh all AdGuard filter lists"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    try:
+        result = adguard_service.refresh_filters()
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to refresh filters"}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/rewrites")
+@login_required
+@admin_required
+def api_dns_adguard_rewrites_get():
+    """List DNS rewrites"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    try:
+        result = adguard_service.get_rewrites()
+        if result is None:
+            return jsonify({"success": False, "error": "Could not fetch rewrites"}), 503
+        return jsonify({"success": True, "rewrites": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/rewrites", methods=["POST"])
+@login_required
+@admin_required
+def api_dns_adguard_rewrites_add():
+    """Add a DNS rewrite"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+    answer = data.get("answer", "")
+
+    if not domain or not answer:
+        return jsonify({"success": False, "error": "Domain and answer are required"}), 400
+
+    try:
+        result = adguard_service.add_rewrite(domain, answer)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to add rewrite"}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/rewrites", methods=["DELETE"])
+@login_required
+@admin_required
+def api_dns_adguard_rewrites_delete():
+    """Delete a DNS rewrite"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+    answer = data.get("answer", "")
+
+    if not domain or not answer:
+        return jsonify({"success": False, "error": "Domain and answer are required"}), 400
+
+    try:
+        result = adguard_service.delete_rewrite(domain, answer)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to delete rewrite"}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/clients")
+@login_required
+@admin_required
+def api_dns_adguard_clients():
+    """Get AdGuard client statistics"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    try:
+        result = adguard_service.get_clients()
+        if result is None:
+            return jsonify({"success": False, "error": "Could not fetch clients"}), 503
+        return jsonify({"success": True, "clients": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/rules")
+@login_required
+@admin_required
+def api_dns_adguard_rules_get():
+    """Get AdGuard user rules"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    try:
+        result = adguard_service.get_user_rules()
+        if result is None:
+            return jsonify({"success": False, "error": "Could not fetch rules"}), 503
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/rules", methods=["POST"])
+@login_required
+@admin_required
+def api_dns_adguard_rules_set():
+    """Set AdGuard user rules"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    data = request.get_json() or {}
+    rules = data.get("rules")
+
+    if rules is None:
+        return jsonify({"success": False, "error": "Rules are required"}), 400
+
+    # Accept rules as a string (newline-separated) or list
+    if isinstance(rules, str):
+        rules = [r for r in rules.split("\n") if r.strip()]
+
+    try:
+        result = adguard_service.set_user_rules(rules)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to set rules"}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/block", methods=["POST"])
+@login_required
+@admin_required
+def api_dns_adguard_block():
+    """Block a domain via AdGuard"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+
+    if not domain:
+        return jsonify({"success": False, "error": "Domain is required"}), 400
+
+    try:
+        success = adguard_service.block_domain(domain)
+        if success:
+            return jsonify({"success": True, "message": f"Domain {domain} blocked"})
+        return jsonify({"success": False, "error": "Failed to block domain"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/unblock", methods=["POST"])
+@login_required
+@admin_required
+def api_dns_adguard_unblock():
+    """Unblock a domain via AdGuard"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+
+    if not domain:
+        return jsonify({"success": False, "error": "Domain is required"}), 400
+
+    try:
+        success = adguard_service.unblock_domain(domain)
+        if success:
+            return jsonify({"success": True, "message": f"Domain {domain} unblocked"})
+        return jsonify({"success": False, "error": "Failed to unblock domain"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/adguard/protection", methods=["POST"])
+@login_required
+@admin_required
+def api_dns_adguard_protection():
+    """Toggle AdGuard protection on/off"""
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+
+    data = request.get_json() or {}
+    enabled = data.get("enabled", True)
+
+    try:
+        result = adguard_service.set_protection(enabled)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to toggle protection"}), 500
+        return jsonify({"success": True, "protection_enabled": enabled})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# DNS MANAGEMENT - HOSTINGER
+# ============================================================================
+
+
+@security_network_bp.route("/api/dns/hostinger/records")
+@login_required
+@admin_required
+def api_dns_hostinger_records_get():
+    """List Hostinger DNS records"""
+    if not HOSTINGER_SERVICE_AVAILABLE or not hostinger_service:
+        return jsonify({"success": False, "error": "Hostinger service not available"}), 503
+
+    domain = request.args.get("domain")
+
+    try:
+        result = hostinger_service.get_dns_records(domain)
+        if result is None:
+            return jsonify({"success": False, "error": "Could not fetch DNS records"}), 503
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 500
+        return jsonify({"success": True, "records": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/hostinger/records", methods=["POST"])
+@login_required
+@admin_required
+def api_dns_hostinger_records_add():
+    """Add a Hostinger DNS record"""
+    if not HOSTINGER_SERVICE_AVAILABLE or not hostinger_service:
+        return jsonify({"success": False, "error": "Hostinger service not available"}), 503
+
+    data = request.get_json() or {}
+    record_type = data.get("record_type", "")
+    name = data.get("name", "")
+    content = data.get("content", "")
+    ttl = data.get("ttl", 3600)
+    domain = data.get("domain")
+
+    if not record_type or not name or not content:
+        return jsonify({"success": False, "error": "record_type, name, and content are required"}), 400
+
+    try:
+        result = hostinger_service.add_dns_record(record_type, name, content, ttl, domain)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to add DNS record"}), 500
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/hostinger/records/<record_id>", methods=["PUT"])
+@login_required
+@admin_required
+def api_dns_hostinger_records_update(record_id):
+    """Update a Hostinger DNS record"""
+    if not HOSTINGER_SERVICE_AVAILABLE or not hostinger_service:
+        return jsonify({"success": False, "error": "Hostinger service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain")
+    record_type = data.get("record_type", "")
+    name = data.get("name", "")
+    content = data.get("content", "")
+    ttl = data.get("ttl", 3600)
+
+    if not record_type or not name or not content:
+        return jsonify({"success": False, "error": "record_type, name, and content are required"}), 400
+
+    try:
+        records = [{"type": record_type, "name": name, "content": content, "ttl": ttl}]
+        result = hostinger_service.update_dns_records(records, overwrite=False, domain=domain)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to update DNS record"}), 500
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/hostinger/records/<record_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def api_dns_hostinger_records_delete(record_id):
+    """Delete a Hostinger DNS record"""
+    if not HOSTINGER_SERVICE_AVAILABLE or not hostinger_service:
+        return jsonify({"success": False, "error": "Hostinger service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain")
+    record_type = data.get("record_type")
+    name = data.get("name")
+
+    try:
+        result = hostinger_service.delete_dns_records(record_type, name, domain)
+        if result is None:
+            return jsonify({"success": False, "error": "Failed to delete DNS record"}), 500
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 500
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/dns/hostinger/domains")
+@login_required
+@admin_required
+def api_dns_hostinger_domains():
+    """List Hostinger domain portfolio"""
+    if not HOSTINGER_SERVICE_AVAILABLE or not hostinger_service:
+        return jsonify({"success": False, "error": "Hostinger service not available"}), 503
+
+    try:
+        result = hostinger_service.get_domain_list()
+        if result is None:
+            return jsonify({"success": False, "error": "Could not fetch domain list"}), 503
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 500
+        return jsonify({"success": True, "domains": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# SURVEILLANCE - HOME ASSISTANT CAMERAS
+# ============================================================================
+
+
+@security_network_bp.route("/api/surveillance/cameras")
+@login_required
+@admin_required
+def api_surveillance_cameras():
+    """Get all camera states"""
+    if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
+        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+
+    try:
+        cameras = surveillance_service.get_all_cameras()
+        alarm_state = surveillance_service.get_alarm_state()
+        return jsonify(
+            {
+                "success": True,
+                "cameras": cameras,
+                "alarm": alarm_state,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/surveillance/cameras/<entity_id>/snapshot")
+@login_required
+@admin_required
+def api_surveillance_snapshot(entity_id):
+    """Proxy camera snapshot image"""
+    if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
+        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+
+    try:
+        image_bytes = surveillance_service.get_camera_snapshot(entity_id)
+        if image_bytes is None:
+            return jsonify({"success": False, "error": "Could not fetch snapshot"}), 404
+        return Response(image_bytes, mimetype="image/jpeg")
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/surveillance/cameras/<entity_id>/refresh", methods=["POST"])
+@login_required
+@admin_required
+def api_surveillance_refresh(entity_id):
+    """Force snapshot refresh for a camera"""
+    if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
+        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+
+    try:
+        success = surveillance_service.trigger_snapshot(entity_id)
+        if success:
+            return jsonify({"success": True, "message": f"Snapshot refresh triggered for {entity_id}"})
+        return jsonify({"success": False, "error": "Failed to trigger snapshot"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/surveillance/system/arm", methods=["POST"])
+@login_required
+@admin_required
+def api_surveillance_arm():
+    """Arm the surveillance system"""
+    if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
+        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+
+    try:
+        success = surveillance_service.arm_system()
+        if success:
+            return jsonify({"success": True, "message": "System armed"})
+        return jsonify({"success": False, "error": "Failed to arm system"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/surveillance/system/disarm", methods=["POST"])
+@login_required
+@admin_required
+def api_surveillance_disarm():
+    """Disarm the surveillance system"""
+    if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
+        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+
+    try:
+        success = surveillance_service.disarm_system()
+        if success:
+            return jsonify({"success": True, "message": "System disarmed"})
+        return jsonify({"success": False, "error": "Failed to disarm system"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/surveillance/events")
+@login_required
+@admin_required
+def api_surveillance_events():
+    """Get recent surveillance events"""
+    if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
+        return jsonify({"success": False, "error": "Surveillance service not available"}), 503
+
+    hours = request.args.get("hours", 24, type=int)
+
+    try:
+        events = surveillance_service.get_recent_events(hours)
+        return jsonify({"success": True, "events": events})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# RECONNAISSANCE - ARGUS
+# ============================================================================
+
+
+@security_network_bp.route("/api/recon/modules")
+@login_required
+@admin_required
+def api_recon_modules():
+    """Get available Argus reconnaissance modules"""
+    if not ARGUS_SERVICE_AVAILABLE or not argus_service:
+        return jsonify({"success": False, "error": "Argus service not available"}), 503
+
+    try:
+        modules = argus_service.get_modules()
+        return jsonify(
+            {
+                "success": True,
+                "modules": modules,
+                "total_count": argus_service.get_module_count(),
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/recon/scan", methods=["POST"])
+@login_required
+@admin_required
+def api_recon_start_scan():
+    """Start an Argus reconnaissance scan"""
+    if not ARGUS_SERVICE_AVAILABLE or not argus_service:
+        return jsonify({"success": False, "error": "Argus service not available"}), 503
+
+    data = request.get_json() or {}
+    module_name = data.get("module_name", "")
+    target = data.get("target", "")
+    options = data.get("options", {})
+
+    if not module_name or not target:
+        return jsonify({"success": False, "error": "module_name and target are required"}), 400
+
+    try:
+        triggered_by = getattr(current_user, "username", "user")
+        scan_id = argus_service.start_scan(module_name, target, options, triggered_by)
+        if scan_id is None:
+            return jsonify({"success": False, "error": "Failed to start scan"}), 500
+        return jsonify({"success": True, "scan_id": scan_id, "message": "Scan started"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/recon/scan/<int:scan_id>")
+@login_required
+@admin_required
+def api_recon_scan_status(scan_id):
+    """Get scan status and results"""
+    if not ARGUS_SERVICE_AVAILABLE or not argus_service:
+        return jsonify({"success": False, "error": "Argus service not available"}), 503
+
+    try:
+        scan = argus_service.get_scan(scan_id)
+        if scan is None:
+            return jsonify({"success": False, "error": "Scan not found"}), 404
+        return jsonify({"success": True, "scan": scan})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/recon/history")
+@login_required
+@admin_required
+def api_recon_history():
+    """Get reconnaissance scan history"""
+    if not ARGUS_SERVICE_AVAILABLE or not argus_service:
+        return jsonify({"success": False, "error": "Argus service not available"}), 503
+
+    limit = request.args.get("limit", 50, type=int)
+
+    try:
+        history = argus_service.get_scan_history(limit)
+        return jsonify({"success": True, "history": history})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/recon/scan/<int:scan_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def api_recon_delete_scan(scan_id):
+    """Delete a reconnaissance scan"""
+    if not ARGUS_SERVICE_AVAILABLE or not argus_service:
+        return jsonify({"success": False, "error": "Argus service not available"}), 503
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM security_recon_scans WHERE id = %s", (scan_id,))
+        affected = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if affected == 0:
+            return jsonify({"success": False, "error": "Scan not found"}), 404
+        return jsonify({"success": True, "message": f"Scan {scan_id} deleted"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# AGENT AUTOMATION
+# ============================================================================
+
+
+@security_network_bp.route("/api/agent/config")
+@login_required
+@admin_required
+def api_agent_config_get():
+    """Get agent automation configuration"""
+    if not AGENT_AUTOMATION_AVAILABLE or not agent_automation_service:
+        return jsonify({"success": False, "error": "Agent automation service not available"}), 503
+
+    try:
+        config = agent_automation_service.get_config()
+        return jsonify({"success": True, "config": config})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/agent/config", methods=["PUT"])
+@login_required
+@admin_required
+def api_agent_config_update():
+    """Update agent automation configuration"""
+    if not AGENT_AUTOMATION_AVAILABLE or not agent_automation_service:
+        return jsonify({"success": False, "error": "Agent automation service not available"}), 503
+
+    data = request.get_json() or {}
+
+    try:
+        config = agent_automation_service.get_config()
+
+        # Update mode if provided
+        if "mode" in data:
+            config["mode"] = data["mode"]
+
+        # Update categories if provided
+        if "categories" in data:
+            for cat_name, cat_data in data["categories"].items():
+                if cat_name in config.get("categories", {}):
+                    if "auto_enabled" in cat_data:
+                        config["categories"][cat_name]["auto_enabled"] = cat_data["auto_enabled"]
+
+        success = agent_automation_service.save_config(config)
+        if success:
+            return jsonify({"success": True, "config": config})
+        return jsonify({"success": False, "error": "Failed to save configuration"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/agent/suggestions")
+@login_required
+@admin_required
+def api_agent_suggestions():
+    """Get pending agent suggestions"""
+    if not AGENT_AUTOMATION_AVAILABLE or not agent_automation_service:
+        return jsonify({"success": False, "error": "Agent automation service not available"}), 503
+
+    limit = request.args.get("limit", 50, type=int)
+    category = request.args.get("category")
+
+    try:
+        suggestions = agent_automation_service.get_pending_suggestions(category, limit)
+        return jsonify({"success": True, "suggestions": suggestions})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/agent/suggestions/<int:suggestion_id>/approve", methods=["POST"])
+@login_required
+@admin_required
+def api_agent_approve_suggestion(suggestion_id):
+    """Approve an agent suggestion"""
+    if not AGENT_AUTOMATION_AVAILABLE or not agent_automation_service:
+        return jsonify({"success": False, "error": "Agent automation service not available"}), 503
+
+    try:
+        success = agent_automation_service.approve_suggestion(suggestion_id)
+        if success:
+            return jsonify({"success": True, "message": f"Suggestion {suggestion_id} approved"})
+        return jsonify({"success": False, "error": "Suggestion not found or already processed"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/agent/suggestions/<int:suggestion_id>/dismiss", methods=["POST"])
+@login_required
+@admin_required
+def api_agent_dismiss_suggestion(suggestion_id):
+    """Dismiss an agent suggestion"""
+    if not AGENT_AUTOMATION_AVAILABLE or not agent_automation_service:
+        return jsonify({"success": False, "error": "Agent automation service not available"}), 503
+
+    data = request.get_json() or {}
+    reason = data.get("reason", "Dismissed by admin")
+
+    try:
+        success = agent_automation_service.dismiss_suggestion(suggestion_id)
+        if success:
+            return jsonify({"success": True, "message": f"Suggestion {suggestion_id} dismissed"})
+        return jsonify({"success": False, "error": "Suggestion not found or already processed"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/agent/actions")
+@login_required
+@admin_required
+def api_agent_action_history():
+    """Get agent action history"""
+    if not AGENT_AUTOMATION_AVAILABLE or not agent_automation_service:
+        return jsonify({"success": False, "error": "Agent automation service not available"}), 503
+
+    limit = request.args.get("limit", 100, type=int)
+
+    try:
+        actions = agent_automation_service.get_action_history(limit)
+        return jsonify({"success": True, "actions": actions})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/agent/pause", methods=["POST"])
+@login_required
+@admin_required
+def api_agent_pause():
+    """Pause agent automation"""
+    if not AGENT_AUTOMATION_AVAILABLE or not agent_automation_service:
+        return jsonify({"success": False, "error": "Agent automation service not available"}), 503
+
+    try:
+        success = agent_automation_service.set_paused(True)
+        if success:
+            return jsonify({"success": True, "message": "Agent automation paused"})
+        return jsonify({"success": False, "error": "Failed to pause automation"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/agent/resume", methods=["POST"])
+@login_required
+@admin_required
+def api_agent_resume():
+    """Resume agent automation"""
+    if not AGENT_AUTOMATION_AVAILABLE or not agent_automation_service:
+        return jsonify({"success": False, "error": "Agent automation service not available"}), 503
+
+    try:
+        success = agent_automation_service.set_paused(False)
+        if success:
+            return jsonify({"success": True, "message": "Agent automation resumed"})
+        return jsonify({"success": False, "error": "Failed to resume automation"}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

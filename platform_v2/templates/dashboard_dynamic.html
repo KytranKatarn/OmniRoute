@@ -6,8 +6,9 @@
 
 {% block styles %}
 /* ═══════════════════════════════════════════════════════════════════════════
-   A.R.C.H.I.E. DASHBOARD - Neo-Command Center Design
-   Premium Cyberpunk Aesthetic | v2.0
+   A.R.C.H.I.E. DASHBOARD — Starship Bridge
+   Cinematic Boot Sequence + Ambient Background
+   Task 2 of Dashboard Rebuild
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -28,20 +29,56 @@ body {
     line-height: 1.6;
 }
 
-/* Subtle atmospheric gradient overlay */
+/* ─────────────────────────────────────────────────────────────────────────────
+   NEBULA GRADIENT — body::before
+   Animated radial gradient shifting over 60s
+   ───────────────────────────────────────────────────────────────────────────── */
 body::before {
     content: '';
     position: fixed;
     inset: 0;
     background:
-        radial-gradient(ellipse at 20% 0%, rgba(0, 255, 65, 0.03) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 100%, rgba(0, 255, 255, 0.02) 0%, transparent 50%),
-        radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+        radial-gradient(ellipse at 20% 20%, rgba(26, 10, 62, 0.6) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(10, 10, 46, 0.8) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
+    background-size: 200% 200%;
+    animation: nebulaShift 60s ease-in-out infinite;
     pointer-events: none;
     z-index: 1;
 }
 
-/* Matrix Rain Canvas */
+@keyframes nebulaShift {
+    0% {
+        background-position: 0% 0%;
+    }
+    25% {
+        background-position: 100% 50%;
+    }
+    50% {
+        background-position: 50% 100%;
+    }
+    75% {
+        background-position: 0% 50%;
+    }
+    100% {
+        background-position: 0% 0%;
+    }
+}
+
+/* Light mode: replace nebula with subtle gradient mesh */
+[data-theme="light"] body::before,
+body.light-mode::before {
+    background:
+        radial-gradient(ellipse at 30% 20%, rgba(232, 244, 255, 0.8) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(240, 242, 245, 0.6) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.4) 0%, transparent 100%);
+    background-size: 200% 200%;
+    animation: nebulaShift 60s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MATRIX RAIN CANVAS
+   ───────────────────────────────────────────────────────────────────────────── */
 #matrix-rain {
     position: fixed;
     top: 0;
@@ -49,8 +86,397 @@ body::before {
     width: 100%;
     height: 100%;
     z-index: 0;
-    opacity: 0.25;
+    opacity: 0.15;
     pointer-events: none;
+}
+
+/* Light mode: hide matrix rain */
+[data-theme="light"] #matrix-rain,
+body.light-mode #matrix-rain {
+    display: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DASHBOARD MAIN CONTENT WRAPPER
+   ───────────────────────────────────────────────────────────────────────────── */
+.dashboard-content {
+    position: relative;
+    z-index: 2;
+    min-height: 100vh;
+    opacity: 0;
+    transition: opacity 0.6s var(--archie-ease-out);
+}
+
+.dashboard-content.visible {
+    opacity: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BOOT SEQUENCE OVERLAY
+   ───────────────────────────────────────────────────────────────────────────── */
+.boot-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: #000000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-family: var(--archie-font-mono);
+    overflow: hidden;
+}
+
+.boot-overlay.phase-split .boot-top-half,
+.boot-overlay.phase-split .boot-bottom-half {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: #000000;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.boot-overlay.phase-split .boot-top-half {
+    top: 0;
+    height: 50%;
+    transform: translateY(0);
+}
+
+.boot-overlay.phase-split .boot-bottom-half {
+    bottom: 0;
+    height: 50%;
+    transform: translateY(0);
+}
+
+.boot-overlay.phase-split.reveal .boot-top-half {
+    transform: translateY(-100%);
+}
+
+.boot-overlay.phase-split.reveal .boot-bottom-half {
+    transform: translateY(100%);
+}
+
+.boot-overlay.hidden {
+    display: none;
+}
+
+/* Boot Terminal Area — monospace green-on-dark */
+.boot-terminal {
+    width: 90%;
+    max-width: 700px;
+    padding: 2rem;
+    position: relative;
+}
+
+.boot-line {
+    font-size: 14px;
+    line-height: 1.8;
+    color: #00FF41;
+    white-space: pre;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+}
+
+.boot-line.visible {
+    opacity: 1;
+}
+
+.boot-line .label {
+    color: #00FF41;
+}
+
+.boot-line .dots {
+    color: #006618;
+}
+
+.boot-line .progress-track {
+    color: #003d0f;
+}
+
+.boot-line .progress-fill {
+    color: #00FF41;
+    display: inline;
+}
+
+.boot-line .status {
+    font-weight: 600;
+}
+
+.boot-line .status.connected { color: #00FF41; }
+.boot-line .status.online    { color: #00FFFF; }
+.boot-line .status.loaded    { color: #39ff6e; }
+.boot-line .status.secure    { color: #00FF41; }
+.boot-line .status.active    { color: #ffaa00; }
+.boot-line .status.aware     { color: #8b5cf6; }
+
+/* Cursor blink */
+.boot-cursor {
+    display: inline-block;
+    width: 10px;
+    height: 18px;
+    background: #00FF41;
+    vertical-align: middle;
+    animation: cursorBlink 0.6s step-end infinite;
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* Phase 1: Typing effect cursor */
+.boot-typing-line {
+    font-size: 16px;
+    color: #00FF41;
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+    margin-bottom: 1.5rem;
+    min-height: 1.5em;
+}
+
+/* Phase 3: Threat level */
+.boot-threat {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffaa00;
+    text-align: center;
+    opacity: 0;
+    text-shadow: 0 0 15px rgba(255, 170, 0, 0.6);
+    letter-spacing: 3px;
+    margin-top: 1.5rem;
+}
+
+.boot-threat.flash {
+    opacity: 1;
+    animation: threatFlash 0.5s ease-in-out;
+}
+
+@keyframes threatFlash {
+    0%   { opacity: 0; transform: scale(0.95); }
+    30%  { opacity: 1; transform: scale(1.02); }
+    60%  { opacity: 0.5; }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+/* Screen flicker effect */
+@keyframes screenFlicker {
+    0%   { opacity: 1; }
+    5%   { opacity: 0.3; }
+    10%  { opacity: 1; }
+    15%  { opacity: 0.6; }
+    20%  { opacity: 1; }
+    100% { opacity: 1; }
+}
+
+.boot-overlay.flicker {
+    animation: screenFlicker 0.4s linear;
+}
+
+/* Screen shake */
+@keyframes screenShake {
+    0%, 100% { transform: translate(0, 0); }
+    10%  { transform: translate(-3px, 1px); }
+    20%  { transform: translate(2px, -2px); }
+    30%  { transform: translate(-1px, 3px); }
+    40%  { transform: translate(3px, -1px); }
+    50%  { transform: translate(-2px, 2px); }
+    60%  { transform: translate(1px, -3px); }
+    70%  { transform: translate(-3px, 1px); }
+    80%  { transform: translate(2px, 2px); }
+    90%  { transform: translate(-1px, -1px); }
+}
+
+.boot-overlay.shake {
+    animation: screenShake 0.3s ease-in-out;
+}
+
+/* Phase 4: ARCHIE Logo */
+.boot-logo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+}
+
+.boot-logo-container.visible {
+    opacity: 1;
+}
+
+.boot-logo-text {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 4rem;
+    font-weight: 900;
+    color: #00FF41;
+    text-shadow:
+        0 0 20px rgba(0, 255, 65, 0.8),
+        0 0 40px rgba(0, 255, 65, 0.5),
+        0 0 80px rgba(0, 255, 65, 0.3);
+    letter-spacing: 12px;
+    animation: logoMaterialize 0.5s ease-out;
+    position: relative;
+    z-index: 2;
+}
+
+@keyframes logoMaterialize {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+        filter: blur(10px);
+        letter-spacing: 30px;
+    }
+    60% {
+        opacity: 1;
+        transform: scale(1.02);
+        filter: blur(0);
+    }
+    100% {
+        transform: scale(1);
+        letter-spacing: 12px;
+    }
+}
+
+.boot-logo-ring {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border: 2px solid rgba(0, 255, 65, 0.4);
+    border-radius: 50%;
+    animation: ringExpand 1s ease-out forwards;
+    z-index: 1;
+}
+
+@keyframes ringExpand {
+    0% {
+        width: 0;
+        height: 0;
+        opacity: 1;
+        border-width: 3px;
+    }
+    100% {
+        width: 500px;
+        height: 500px;
+        opacity: 0;
+        border-width: 1px;
+    }
+}
+
+.boot-logo-ring:nth-child(2) {
+    animation-delay: 0.15s;
+    border-color: rgba(0, 255, 255, 0.3);
+}
+
+.boot-logo-ring:nth-child(3) {
+    animation-delay: 0.3s;
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+.boot-system-online {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 1rem;
+    font-weight: 600;
+    color: #00FFFF;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    margin-top: 1.5rem;
+    text-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+    animation: systemOnlinePulse 1s ease-in-out infinite alternate;
+    position: relative;
+    z-index: 2;
+}
+
+@keyframes systemOnlinePulse {
+    0% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Skip Button */
+.boot-skip-btn {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 10001;
+    font-family: var(--archie-font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 2px;
+    color: rgba(255, 255, 255, 0.3);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--archie-radius-md, 6px);
+    padding: 8px 18px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.boot-skip-btn.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.boot-skip-btn:hover {
+    color: rgba(255, 255, 255, 0.7);
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Scanline overlay during boot for extra CRT feel */
+.boot-scanlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 255, 65, 0.015) 2px,
+        rgba(0, 255, 65, 0.015) 4px
+    );
+    z-index: 3;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DASHBOARD SECTION PLACEHOLDERS
+   ───────────────────────────────────────────────────────────────────────────── */
+.command-bar {
+    position: relative;
+    z-index: 100;
+}
+
+.hud-vitals-strip {
+    position: relative;
+    z-index: 10;
+}
+
+.mission-briefing {
+    position: relative;
+    z-index: 10;
+    padding: 0 var(--archie-spacing-xl);
+}
+
+.featured-modules {
+    position: relative;
+    z-index: 10;
+    padding: 0 var(--archie-spacing-xl);
+}
+
+.category-grid {
+    position: relative;
+    z-index: 10;
+    padding: 0 var(--archie-spacing-xl);
+}
+
+.status-footer {
+    position: relative;
+    z-index: 10;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -79,2715 +505,507 @@ body::before {
     50% { transform: translateY(-5px); }
 }
 
-@keyframes statusPulse {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(0, 255, 65, 0.7);
-    }
-    50% {
-        box-shadow: 0 0 0 8px rgba(0, 255, 65, 0);
-    }
+@keyframes slideDown {
+    0% { transform: translateY(-20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   USER HEADER BAR - Refined Command Bar
+   RESPONSIVE
    ───────────────────────────────────────────────────────────────────────────── */
-.user-header {
-    position: relative;
-    z-index: 100;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--archie-spacing-md) var(--archie-spacing-xl);
-    background: linear-gradient(180deg, rgba(13, 17, 23, 0.95) 0%, rgba(1, 4, 9, 0.98) 100%);
-    border-bottom: 1px solid rgba(0, 255, 65, 0.2);
-    backdrop-filter: blur(10px);
-    animation: slideDown 0.5s var(--archie-ease-out);
-}
-
-.user-header::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-    opacity: 0.5;
-}
-
-.user-info-left {
-    display: flex;
-    align-items: center;
-    gap: var(--archie-spacing-xl);
-}
-
-.user-welcome {
-    font-size: 0.85rem;
-    letter-spacing: 1px;
-    color: var(--archie-text-tertiary);
-}
-
-.user-name {
-    color: var(--archie-green);
-    font-weight: 600;
-    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
-}
-
-.user-role {
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-
-.subscription-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--archie-spacing-xs);
-    padding: var(--archie-spacing-xs) var(--archie-spacing-md);
-    font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    border-radius: 4px;
-    border: 1px solid;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.subscription-badge.admin {
-    color: var(--archie-warning);
-    border-color: var(--archie-warning);
-    background: rgba(255, 170, 0, 0.1);
-    animation: borderGlow 2s ease-in-out infinite;
-}
-
-.subscription-badge.pro {
-    color: #ffd700;
-    border-color: #ffd700;
-    background: rgba(255, 215, 0, 0.1);
-}
-
-.subscription-badge.free {
-    color: var(--archie-text-muted);
-    border-color: var(--archie-border-muted);
-    background: rgba(72, 79, 88, 0.1);
-}
-
-.logout-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--archie-spacing-sm);
-    padding: var(--archie-spacing-sm) var(--archie-spacing-lg);
-    font-family: var(--archie-font-mono);
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-decoration: none;
-    color: var(--archie-text-tertiary);
-    background: transparent;
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.logout-btn:hover {
-    color: var(--archie-danger);
-    border-color: var(--archie-danger);
-    background: rgba(255, 51, 102, 0.1);
-    box-shadow: 0 0 20px rgba(255, 51, 102, 0.2);
-}
-
-/* Header Actions (Language, Theme, Logout) */
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--archie-spacing-sm);
-}
-
-.header-icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: transparent;
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 8px;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-    position: relative;
-}
-
-.header-icon-btn:hover {
-    color: var(--archie-cyan);
-    border-color: var(--archie-cyan);
-    background: rgba(0, 255, 255, 0.1);
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
-}
-
-.header-icon-btn i {
-    width: 18px;
-    height: 18px;
-}
-
-.header-icon-btn.theme-toggle:hover {
-    color: var(--archie-warning);
-    border-color: var(--archie-warning);
-    background: rgba(255, 170, 0, 0.1);
-    box-shadow: 0 0 15px rgba(255, 170, 0, 0.2);
-}
-
-/* ─── User Header (Light Mode) ─── */
-body.light-mode .user-header {
-    background: linear-gradient(180deg,
-        rgba(255, 255, 255, 0.98) 0%,
-        rgba(248, 249, 250, 0.95) 100%);
-    border-bottom: 1px solid rgba(0, 170, 51, 0.2);
-}
-
-body.light-mode .user-header::after {
-    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.5), transparent);
-}
-
-body.light-mode .user-welcome,
-body.light-mode .user-role {
-    color: var(--archie-text-secondary);
-}
-
-body.light-mode .user-role {
-    color: var(--archie-green);
-}
-
-body.light-mode .logout-btn {
-    color: var(--archie-text-tertiary);
-    border-color: rgba(0, 0, 0, 0.2);
-}
-
-body.light-mode .logout-btn:hover {
-    color: var(--archie-danger);
-    border-color: var(--archie-danger);
-}
-
-body.light-mode .header-icon-btn {
-    color: var(--archie-text-tertiary);
-    border-color: rgba(0, 0, 0, 0.15);
-}
-
-body.light-mode .header-icon-btn:hover {
-    color: var(--archie-green);
-    border-color: var(--archie-green);
-    background: rgba(0, 170, 51, 0.08);
-}
-
-/* ─── Matrix Header ─── */
-body.light-mode .matrix-header {
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(0, 170, 51, 0.2);
-    box-shadow: none;
-    backdrop-filter: blur(2px);
-}
-
-body.light-mode .matrix-header::before {
-    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.4), transparent);
-}
-
-body.light-mode .matrix-header::after {
-    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.4), transparent);
-}
-
-body.light-mode .matrix-header h1 {
-    color: var(--archie-text-secondary);
-    text-shadow: none;
-}
-
-body.light-mode .matrix-header .subtitle,
-body.light-mode .matrix-header .acronym-expand {
-    color: var(--archie-text-muted);
-}
-
-body.light-mode .matrix-header .version-badge {
-    color: var(--archie-text-tertiary);
-    border-color: rgba(0, 0, 0, 0.15);
-}
-
-/* ─── Category Headers - Light Mode with darker accents ─── */
-body.light-mode .category-header {
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 8px;
-    margin-left: 16px;
-    margin-right: 16px;
-    backdrop-filter: blur(2px);
-}
-
-/* Project & Knowledge - Green */
-body.light-mode .category-header.category-project_knowledge h2 {
-    color: #00aa33;
-    text-shadow: 1px 1px 0 rgba(0, 170, 51, 0.15);
-}
-body.light-mode .category-header.category-project_knowledge::before {
-    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.5), transparent);
-}
-body.light-mode .category-header.category-project_knowledge::after {
-    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.4), transparent);
-}
-body.light-mode .category-header.category-project_knowledge h2::before,
-body.light-mode .category-header.category-project_knowledge h2::after {
-    background: linear-gradient(90deg, transparent, #00aa33);
-}
-body.light-mode .category-header.category-project_knowledge h2::after {
-    background: linear-gradient(90deg, #00aa33, transparent);
-}
-
-/* Development Tools - Teal/Cyan */
-body.light-mode .category-header.category-development_tools h2 {
-    color: #00808f;
-    text-shadow: 1px 1px 0 rgba(0, 128, 143, 0.15);
-}
-body.light-mode .category-header.category-development_tools::before {
-    background: linear-gradient(90deg, transparent, rgba(0, 160, 160, 0.5), transparent);
-}
-body.light-mode .category-header.category-development_tools::after {
-    background: linear-gradient(90deg, transparent, rgba(0, 160, 160, 0.4), transparent);
-}
-body.light-mode .category-header.category-development_tools h2::before,
-body.light-mode .category-header.category-development_tools h2::after {
-    background: linear-gradient(90deg, transparent, #00808f);
-}
-body.light-mode .category-header.category-development_tools h2::after {
-    background: linear-gradient(90deg, #00808f, transparent);
-}
-
-/* Admin Operations - Orange */
-body.light-mode .category-header.category-admin_operations h2,
-body.light-mode .category-header.category-ai_command h2 {
-    color: #cc6600;
-    text-shadow: 1px 1px 0 rgba(204, 102, 0, 0.15);
-}
-body.light-mode .category-header.category-admin_operations::before,
-body.light-mode .category-header.category-ai_command::before {
-    background: linear-gradient(90deg, transparent, rgba(204, 119, 0, 0.5), transparent);
-}
-body.light-mode .category-header.category-admin_operations::after,
-body.light-mode .category-header.category-ai_command::after {
-    background: linear-gradient(90deg, transparent, rgba(204, 119, 0, 0.4), transparent);
-}
-body.light-mode .category-header.category-admin_operations h2::before,
-body.light-mode .category-header.category-admin_operations h2::after,
-body.light-mode .category-header.category-ai_command h2::before,
-body.light-mode .category-header.category-ai_command h2::after {
-    background: linear-gradient(90deg, transparent, #cc6600);
-}
-body.light-mode .category-header.category-admin_operations h2::after,
-body.light-mode .category-header.category-ai_command h2::after {
-    background: linear-gradient(90deg, #cc6600, transparent);
-}
-
-/* SaaS Services - Purple */
-body.light-mode .category-header.category-saas_services h2 {
-    color: #7c3aed;
-    text-shadow: 1px 1px 0 rgba(124, 58, 237, 0.15);
-}
-body.light-mode .category-header.category-saas_services::before {
-    background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.5), transparent);
-}
-body.light-mode .category-header.category-saas_services::after {
-    background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.4), transparent);
-}
-body.light-mode .category-header.category-saas_services h2::before,
-body.light-mode .category-header.category-saas_services h2::after {
-    background: linear-gradient(90deg, transparent, #7c3aed);
-}
-body.light-mode .category-header.category-saas_services h2::after {
-    background: linear-gradient(90deg, #7c3aed, transparent);
-}
-
-/* Media & Home - Pink */
-body.light-mode .category-header.category-media_home h2 {
-    color: #db2777;
-    text-shadow: 1px 1px 0 rgba(219, 39, 119, 0.15);
-}
-body.light-mode .category-header.category-media_home::before {
-    background: linear-gradient(90deg, transparent, rgba(219, 39, 119, 0.5), transparent);
-}
-body.light-mode .category-header.category-media_home::after {
-    background: linear-gradient(90deg, transparent, rgba(219, 39, 119, 0.4), transparent);
-}
-body.light-mode .category-header.category-media_home h2::before,
-body.light-mode .category-header.category-media_home h2::after {
-    background: linear-gradient(90deg, transparent, #db2777);
-}
-body.light-mode .category-header.category-media_home h2::after {
-    background: linear-gradient(90deg, #db2777, transparent);
-}
-
-/* Project & Knowledge - Green */
-body.light-mode .category-header.category-project_knowledge h2 {
-    color: #00aa33;
-    text-shadow: 1px 1px 0 rgba(0, 170, 51, 0.15);
-}
-body.light-mode .category-header.category-project_knowledge::before {
-    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.5), transparent);
-}
-body.light-mode .category-header.category-project_knowledge::after {
-    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.4), transparent);
-}
-
-/* Placeholders / Coming Soon - Muted */
-body.light-mode .category-header.category-placeholders_future h2 {
-    color: #8b949e;
-    text-shadow: 1px 1px 0 rgba(139, 148, 158, 0.15);
-}
-body.light-mode .category-header.category-placeholders_future::before {
-    background: linear-gradient(90deg, transparent, rgba(139, 148, 158, 0.5), transparent);
-}
-body.light-mode .category-header.category-placeholders_future::after {
-    background: linear-gradient(90deg, transparent, rgba(139, 148, 158, 0.4), transparent);
-}
-
-body.light-mode .category-header p {
-    color: var(--archie-text-muted);
-}
-
-/* ─── Tool Cards ─── */
-body.light-mode .tool-card {
-    background: rgba(255, 255, 255, 0.98);
-    border: 2px solid rgba(0, 0, 0, 0.15);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08),
-                0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-body.light-mode .tool-card:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15),
-                0 4px 8px rgba(0, 0, 0, 0.08);
-    transform: translateY(-6px);
-}
-
-body.light-mode .tool-card .tool-name,
-body.light-mode .tool-card .tool-title {
-    color: var(--archie-text-secondary);
-}
-
-body.light-mode .tool-card .tool-description {
-    color: var(--archie-text-tertiary);
-}
-
-/* Category-specific card colors in light mode */
-body.light-mode .tool-card.category-project_knowledge .tool-title,
-body.light-mode .tool-card.category-project_knowledge .tool-name {
-    color: #00aa33;
-}
-
-body.light-mode .tool-card.category-development_tools .tool-title,
-body.light-mode .tool-card.category-development_tools .tool-name {
-    color: #00808f;
-}
-
-body.light-mode .tool-card.category-admin_operations .tool-title,
-body.light-mode .tool-card.category-admin_operations .tool-name,
-body.light-mode .tool-card.category-ai_command .tool-title,
-body.light-mode .tool-card.category-ai_command .tool-name {
-    color: #cc6600;
-}
-
-body.light-mode .tool-card.category-saas_services .tool-title,
-body.light-mode .tool-card.category-saas_services .tool-name {
-    color: #7c3aed;
-}
-
-body.light-mode .tool-card.category-media_home .tool-title,
-body.light-mode .tool-card.category-media_home .tool-name {
-    color: #db2777;
-}
-
-/* Card hover borders in light mode - more prominent */
-body.light-mode .tool-card.category-project_knowledge:hover {
-    border-color: #00aa33;
-}
-body.light-mode .tool-card.category-development_tools:hover {
-    border-color: #00808f;
-}
-body.light-mode .tool-card.category-admin_operations:hover,
-body.light-mode .tool-card.category-ai_command:hover {
-    border-color: #cc6600;
-}
-body.light-mode .tool-card.category-saas_services:hover {
-    border-color: #7c3aed;
-}
-body.light-mode .tool-card.category-media_home:hover {
-    border-color: #db2777;
-}
-body.light-mode .tool-card.category-project_knowledge .tool-title,
-body.light-mode .tool-card.category-project_knowledge .tool-name {
-    color: #00aa33;
-}
-body.light-mode .tool-card.category-placeholders_future .tool-title,
-body.light-mode .tool-card.category-placeholders_future .tool-name {
-    color: #8b949e;
-}
-body.light-mode .tool-card.category-placeholders_future:hover {
-    border-color: #8b949e;
-}
-
-/* ─── Status Bar ─── */
-body.light-mode .status-bar {
-    background: linear-gradient(180deg,
-        rgba(255, 255, 255, 0.98) 0%,
-        rgba(248, 249, 250, 0.95) 100%);
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    color: var(--archie-text-tertiary);
-}
-
-body.light-mode .status-bar::before {
-    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.4), transparent);
-}
-
-/* ─── Module Stats ─── */
-body.light-mode .module-stats {
-    background: rgba(255, 255, 255, 0.95);
-    border: 2px solid rgba(0, 0, 0, 0.12);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-body.light-mode .stat-item .stat-label {
-    color: var(--archie-text-muted);
-}
-
-body.light-mode .stat-value {
-    color: var(--archie-text-secondary);
-}
-
-/* ─── Notifications ─── */
-body.light-mode .notification-dropdown {
-    background: rgba(255, 255, 255, 0.98);
-    border-color: rgba(0, 0, 0, 0.15);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-}
-
-body.light-mode .notification-header {
-    border-color: rgba(0, 0, 0, 0.1);
-    color: var(--archie-green);
-}
-
-body.light-mode .notification-item {
-    border-color: rgba(0, 0, 0, 0.08);
-}
-
-body.light-mode .notification-item .title {
-    color: var(--archie-text-secondary);
-}
-
-body.light-mode .notification-item .message {
-    color: var(--archie-text-tertiary);
-}
-
-body.light-mode .notification-item .time {
-    color: var(--archie-text-muted);
-}
-
-/* ─── Footer Loading Bar ─── */
-body.light-mode .footer-loading-bar {
-    background: rgba(0, 0, 0, 0.08);
-}
-
-body.light-mode .footer-loading-bar-inner {
-    background: var(--archie-green);
-}
-
-/* ─── Compact Header (scroll header) ─── */
-body.light-mode .compact-header {
-    background: rgba(255, 255, 255, 0.15);
-    border-bottom: 1px solid rgba(0, 170, 51, 0.2);
-    box-shadow: none;
-    backdrop-filter: blur(2px);
-}
-
-body.light-mode .compact-header h1 {
-    color: var(--archie-text-secondary);
-    text-shadow: none;
-}
-
-body.light-mode .compact-header .subtitle {
-    color: var(--archie-green);
-    opacity: 1;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   MAIN HEADER - Hero Section
-   ───────────────────────────────────────────────────────────────────────────── */
-.matrix-header {
-    position: relative;
-    z-index: 10;
-    text-align: center;
-    padding: var(--archie-spacing-3xl) var(--archie-spacing-xl);
-    margin: var(--archie-spacing-lg);
-    background: linear-gradient(180deg, rgba(0, 255, 65, 0.02) 0%, transparent 100%);
-    border: 1px solid rgba(0, 255, 65, 0.15);
-    border-radius: 16px;
-    overflow: hidden;
-    animation: fadeIn 0.8s var(--archie-ease-out);
-}
-
-.matrix-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 200px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-}
-
-.matrix-header::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 300px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-}
-
-.matrix-header h1 {
-    font-family: var(--archie-font-display);
-    font-size: clamp(2rem, 8vw, 4.5rem);
-    font-weight: 900;
-    letter-spacing: 0.3em;
-    color: var(--archie-green);
-    text-shadow: var(--archie-glow-green);
-    margin-bottom: var(--archie-spacing-sm);
-    animation: glow 3s ease-in-out infinite;
-}
-
-.matrix-header .acronym-expand {
-    display: block;
-    font-size: 0.65rem;
-    letter-spacing: 0.2em;
-    color: var(--archie-text-muted);
-    margin-bottom: var(--archie-spacing-lg);
-    opacity: 0;
-    animation: fadeIn 1s var(--archie-ease-out) 0.3s forwards;
-}
-
-.matrix-header .subtitle {
-    font-size: 0.9rem;
-    letter-spacing: 0.4em;
-    text-transform: uppercase;
-    color: var(--archie-cyan);
-    text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
-    margin-bottom: var(--archie-spacing-md);
-    opacity: 0;
-    animation: fadeIn 1s var(--archie-ease-out) 0.5s forwards;
-}
-
-.matrix-header .version-badge {
-    display: inline-block;
-    padding: var(--archie-spacing-xs) var(--archie-spacing-md);
-    font-size: 0.6rem;
-    letter-spacing: 0.15em;
-    color: var(--archie-text-muted);
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 20px;
-    background: rgba(22, 27, 34, 0.5);
-    opacity: 0;
-    animation: fadeIn 1s var(--archie-ease-out) 0.7s forwards;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   COMPACT HEADER (Scroll State)
-   ───────────────────────────────────────────────────────────────────────────── */
-.sticky-header-wrapper {
-    position: relative;
-    z-index: 100;
-}
-
-.compact-header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 200;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: var(--archie-spacing-lg);
-    padding: var(--archie-spacing-md) var(--archie-spacing-xl);
-    background: rgba(1, 4, 9, 0.95);
-    border-bottom: 1px solid rgba(0, 255, 65, 0.3);
-    backdrop-filter: blur(20px);
-    transform: translateY(-100%);
-    opacity: 0;
-    transition: all var(--archie-duration-slow) var(--archie-ease-out);
-}
-
-.compact-header.visible {
-    transform: translateY(0);
-    opacity: 1;
-}
-
-.compact-header h1 {
-    font-family: var(--archie-font-display);
-    font-size: 1.2rem;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    color: var(--archie-green);
-    text-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
-}
-
-.compact-header .subtitle {
-    font-size: 0.65rem;
-    letter-spacing: 0.15em;
-    color: var(--archie-cyan);
-    opacity: 0.8;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   MODULE STATS BAR
-   ───────────────────────────────────────────────────────────────────────────── */
-.module-stats {
-    position: relative;
-    z-index: 10;
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--archie-spacing-xl);
-    margin: 0 var(--archie-spacing-lg) var(--archie-spacing-lg);
-    padding: var(--archie-spacing-lg) var(--archie-spacing-xl);
-    background: rgba(13, 17, 23, 0.6);
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 12px;
-    backdrop-filter: blur(10px);
-    animation: fadeInUp 0.6s var(--archie-ease-out) 0.2s both;
-}
-
-.module-stats::before {
-    content: '[ SYSTEM STATUS ]';
-    position: absolute;
-    top: -8px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 0 var(--archie-spacing-md);
-    font-size: 0.55rem;
-    letter-spacing: 0.2em;
-    color: var(--archie-text-muted);
-    background: var(--archie-bg-primary);
-}
-
-.stat-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--archie-spacing-xs);
-    padding: var(--archie-spacing-sm) var(--archie-spacing-lg);
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.stat-item:hover {
-    transform: translateY(-2px);
-}
-
-.stat-item strong {
-    font-family: var(--archie-font-display);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--archie-green);
-    text-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
-}
-
-.stat-item span {
-    font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   TOOL GRID - Main Content Area
-   ───────────────────────────────────────────────────────────────────────────── */
-.tool-grid {
-    position: relative;
-    z-index: 10;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: var(--archie-spacing-lg);
-    padding: var(--archie-spacing-lg);
-    max-width: 1600px;
-    margin: 0 auto;
-    padding-bottom: 120px;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   CATEGORY HEADERS
-   ───────────────────────────────────────────────────────────────────────────── */
-.category-cards {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--archie-spacing-lg);
-}
-
-.category-cards .tool-card {
-    width: 320px;
-    flex: 0 1 320px;
-}
-
-.category-header {
-    grid-column: 1 / -1;
-    position: relative;
-    margin-top: var(--archie-spacing-xl);
-    padding: var(--archie-spacing-lg) var(--archie-spacing-xl);
-    background: linear-gradient(135deg, rgba(0, 255, 65, 0.03) 0%, rgba(0, 255, 255, 0.02) 100%);
-    border: 1px solid rgba(0, 255, 65, 0.2);
-    border-radius: 12px;
-    text-align: center;
-    overflow: hidden;
-    animation: fadeInUp 0.5s var(--archie-ease-out) both;
-    /* Flexbox for vertical centering */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.category-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), var(--archie-cyan), transparent);
-    opacity: 0.5;
-}
-
-.category-header::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 20%;
-    right: 20%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.3), transparent);
-}
-
-.category-header h2 {
-    font-family: var(--archie-font-display);
-    font-size: 1.1rem;
-    font-weight: 600;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    color: var(--archie-green);
-    text-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--archie-spacing-sm);
-    text-align: center;
-    width: 100%;
-}
-
-.category-header h2::before,
-.category-header h2::after {
-    content: '';
-    width: 40px;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-green));
-}
-
-.category-header h2::after {
-    background: linear-gradient(90deg, var(--archie-green), transparent);
-}
-
-/* Category Header Icons */
-.category-icon {
-    width: 24px;
-    height: 24px;
-    stroke-width: 2;
-}
-
-.category-header.category-development_tools .category-icon {
-    stroke: var(--archie-cyan);
-}
-
-.category-header.category-admin_operations .category-icon,
-.category-header.category-ai_command .category-icon {
-    stroke: var(--archie-warning);
-}
-
-.category-header.category-saas_services .category-icon {
-    stroke: #a78bfa;
-}
-
-.category-header.category-media_home .category-icon {
-    stroke: #f472b6;
-}
-
-.category-header.category-project_knowledge .category-icon {
-    stroke: var(--archie-green);
-}
-
-.category-header.category-placeholders_future .category-icon {
-    stroke: var(--archie-text-tertiary);
-}
-
-.category-header p {
-    margin-top: var(--archie-spacing-sm);
-    font-size: 0.75rem;
-    letter-spacing: 0.1em;
-    color: var(--archie-text-muted);
-    font-style: italic;
-    text-align: center;
-    width: 100%;
-    max-width: 500px;
-}
-
-/* Category-specific accent colors */
-.category-header.category-development_tools h2 {
-    color: var(--archie-cyan);
-    text-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
-}
-
-.category-header.category-development_tools::before {
-    background: linear-gradient(90deg, transparent, var(--archie-cyan), transparent);
-}
-
-.category-header.category-admin_operations h2 {
-    color: var(--archie-warning);
-    text-shadow: 0 0 20px rgba(255, 170, 0, 0.4);
-}
-
-.category-header.category-admin_operations::before {
-    background: linear-gradient(90deg, transparent, var(--archie-warning), transparent);
-}
-
-.category-header.category-ai_command h2 {
-    color: var(--archie-warning);
-    text-shadow: 0 0 20px rgba(255, 170, 0, 0.4);
-}
-
-.category-header.category-ai_command::before {
-    background: linear-gradient(90deg, transparent, var(--archie-warning), transparent);
-}
-
-.category-header.category-saas_services h2 {
-    color: #a78bfa;
-    text-shadow: 0 0 20px rgba(167, 139, 250, 0.4);
-}
-
-.category-header.category-saas_services::before {
-    background: linear-gradient(90deg, transparent, #a78bfa, transparent);
-}
-
-.category-header.category-media_home h2 {
-    color: #f472b6;
-    text-shadow: 0 0 20px rgba(244, 114, 182, 0.4);
-}
-
-.category-header.category-media_home::before {
-    background: linear-gradient(90deg, transparent, #f472b6, transparent);
-}
-
-.category-header.category-project_knowledge h2 {
-    color: var(--archie-green);
-    text-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
-}
-
-.category-header.category-project_knowledge::before {
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-}
-
-.category-header.category-placeholders_future h2 {
-    color: var(--archie-text-tertiary);
-    text-shadow: 0 0 20px rgba(139, 148, 158, 0.4);
-}
-
-.category-header.category-placeholders_future::before {
-    background: linear-gradient(90deg, transparent, var(--archie-text-tertiary), transparent);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   TOOL CARDS - Premium Glassmorphism Design
-   ───────────────────────────────────────────────────────────────────────────── */
-.tool-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 220px;
-    padding: var(--archie-spacing-xl) var(--archie-spacing-lg);
-    text-decoration: none;
-    color: var(--archie-text-secondary);
-
-    /* Glassmorphism */
-    background: linear-gradient(
-        135deg,
-        rgba(13, 17, 23, 0.8) 0%,
-        rgba(22, 27, 34, 0.6) 100%
-    );
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 255, 65, 0.15);
-    border-radius: 16px;
-
-    /* Animation */
-    opacity: 0;
-    transform: translateY(20px);
-    animation: fadeInUp 0.5s var(--archie-ease-out) both;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-
-    overflow: hidden;
-}
-
-/* Staggered animation delays */
-.tool-card:nth-child(1) { animation-delay: 0.05s; }
-.tool-card:nth-child(2) { animation-delay: 0.1s; }
-.tool-card:nth-child(3) { animation-delay: 0.15s; }
-.tool-card:nth-child(4) { animation-delay: 0.2s; }
-.tool-card:nth-child(5) { animation-delay: 0.25s; }
-.tool-card:nth-child(6) { animation-delay: 0.3s; }
-.tool-card:nth-child(7) { animation-delay: 0.35s; }
-.tool-card:nth-child(8) { animation-delay: 0.4s; }
-.tool-card:nth-child(9) { animation-delay: 0.45s; }
-.tool-card:nth-child(10) { animation-delay: 0.5s; }
-.tool-card:nth-child(11) { animation-delay: 0.55s; }
-.tool-card:nth-child(12) { animation-delay: 0.6s; }
-
-/* Card hover state */
-.tool-card:hover {
-    transform: translateY(-8px);
-    border-color: rgba(0, 255, 65, 0.4);
-    box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 40px rgba(0, 255, 65, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-/* Corner accent */
-.tool-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 60px;
-    height: 60px;
-    background: linear-gradient(135deg, rgba(0, 255, 65, 0.1) 0%, transparent 60%);
-    border-radius: 16px 0 0 0;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.tool-card:hover::before {
-    width: 100px;
-    height: 100px;
-    background: linear-gradient(135deg, rgba(0, 255, 65, 0.15) 0%, transparent 60%);
-}
-
-/* Bottom glow line */
-.tool-card::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-    transition: width var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.tool-card:hover::after {
-    width: 80%;
-}
-
-/* Status Indicator */
-.tool-card .status-indicator {
-    position: absolute;
-    top: var(--archie-spacing-md);
-    right: var(--archie-spacing-md);
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--archie-text-muted);
-    transition: all var(--archie-duration-normal);
-}
-
-.tool-card.status-online .status-indicator {
-    background: var(--archie-success);
-    box-shadow: 0 0 10px var(--archie-success);
-    animation: statusPulse 2s ease-in-out infinite;
-}
-
-.tool-card.status-offline .status-indicator {
-    background: var(--archie-danger);
-    box-shadow: 0 0 10px var(--archie-danger);
-}
-
-.tool-card.status-degraded .status-indicator {
-    background: var(--archie-warning);
-    box-shadow: 0 0 10px var(--archie-warning);
-}
-
-/* Status Label */
-.tool-card .status-label {
-    position: absolute;
-    top: var(--archie-spacing-sm);
-    right: calc(var(--archie-spacing-md) + 20px);
-    font-size: 0.55rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 4px;
-    opacity: 0;
-    transform: translateX(10px);
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.tool-card:hover .status-label {
-    opacity: 1;
-    transform: translateX(0);
-}
-
-.tool-card.status-online .status-label {
-    color: var(--archie-success);
-    background: rgba(0, 255, 65, 0.1);
-    border: 1px solid rgba(0, 255, 65, 0.3);
-}
-
-.tool-card.status-offline .status-label {
-    color: var(--archie-danger);
-    background: rgba(255, 51, 102, 0.1);
-    border: 1px solid rgba(255, 51, 102, 0.3);
-}
-
-/* Offline card styling */
-.tool-card.status-offline {
-    opacity: 0.5;
-    filter: grayscale(0.3);
-}
-
-.tool-card.status-offline:hover {
-    opacity: 0.8;
-    filter: grayscale(0);
-    border-color: rgba(255, 51, 102, 0.3);
-}
-
-/* Agent On-Shift Display (Phase 51) */
-.agent-on-shift {
-    position: absolute;
-    top: var(--archie-spacing-sm);
-    left: var(--archie-spacing-sm);
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    font-size: 0.6rem;
-    letter-spacing: 0.05em;
-    color: var(--archie-text-tertiary);
-    background: rgba(0, 0, 0, 0.5);
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid rgba(0, 255, 65, 0.1);
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-    max-width: 60%;
-    overflow: hidden;
-}
-
-.agent-on-shift .agent-icon {
-    font-size: 0.8rem;
-    flex-shrink: 0;
-    margin-top: 1px;
-}
-
-.agent-on-shift .agent-info {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    overflow: hidden;
-    min-width: 0;
-}
-
-.agent-on-shift .agent-name {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: 500;
-    font-size: 0.65rem;
-    color: var(--archie-text-secondary);
-}
-
-.agent-on-shift .agent-position {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 0.55rem;
-    color: var(--archie-text-muted);
-    font-style: italic;
-}
-
-.tool-card:hover .agent-on-shift {
-    background: rgba(0, 255, 65, 0.15);
-    border-color: rgba(0, 255, 65, 0.3);
-}
-
-.tool-card:hover .agent-on-shift .agent-name {
-    color: var(--archie-green);
-}
-
-.agent-on-shift.has-agent .agent-name {
-    color: var(--archie-text-secondary);
-}
-
-.tool-card:hover .agent-on-shift.has-agent .agent-name {
-    color: var(--archie-green);
-}
-
-/* Tool Icon - Lucide SVG Icons */
-.tool-icon {
-    width: 48px;
-    height: 48px;
-    margin-bottom: var(--archie-spacing-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.tool-icon svg {
-    width: 36px;
-    height: 36px;
-    stroke: var(--archie-green);
-    stroke-width: 1.5;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.tool-card:hover .tool-icon svg {
-    transform: scale(1.15);
-    filter: drop-shadow(0 0 15px rgba(0, 255, 65, 0.6));
-    stroke-width: 2;
-}
-
-/* Category-specific icon colors */
-.tool-card.category-development_tools .tool-icon svg {
-    stroke: var(--archie-cyan);
-}
-
-.tool-card.category-development_tools:hover .tool-icon svg {
-    filter: drop-shadow(0 0 15px rgba(0, 255, 255, 0.6));
-}
-
-.tool-card.category-admin_operations .tool-icon svg,
-.tool-card.category-ai_command .tool-icon svg {
-    stroke: var(--archie-warning);
-}
-
-.tool-card.category-admin_operations:hover .tool-icon svg,
-.tool-card.category-ai_command:hover .tool-icon svg {
-    filter: drop-shadow(0 0 15px rgba(255, 170, 0, 0.6));
-}
-
-.tool-card.category-saas_services .tool-icon svg {
-    stroke: #a78bfa;
-}
-
-.tool-card.category-saas_services:hover .tool-icon svg {
-    filter: drop-shadow(0 0 15px rgba(167, 139, 250, 0.6));
-}
-
-.tool-card.category-media_home .tool-icon svg {
-    stroke: #f472b6;
-}
-
-.tool-card.category-media_home:hover .tool-icon svg {
-    filter: drop-shadow(0 0 15px rgba(244, 114, 182, 0.6));
-}
-
-.tool-card.category-project_knowledge .tool-icon svg {
-    stroke: var(--archie-green);
-}
-
-.tool-card.category-project_knowledge:hover .tool-icon svg {
-    filter: drop-shadow(0 0 15px rgba(0, 255, 65, 0.6));
-}
-
-.tool-card.category-placeholders_future .tool-icon svg {
-    stroke: var(--archie-text-tertiary);
-}
-
-.tool-card.category-placeholders_future:hover .tool-icon svg {
-    filter: drop-shadow(0 0 15px rgba(139, 148, 158, 0.6));
-}
-
-/* Tool Title */
-.tool-title,
-.tool-name {
-    font-family: var(--archie-font-display);
-    font-size: 0.9rem;
-    font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--archie-green);
-    text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
-    margin-bottom: var(--archie-spacing-sm);
-    text-align: center;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.tool-card:hover .tool-title,
-.tool-card:hover .tool-name {
-    text-shadow: 0 0 20px rgba(0, 255, 65, 0.6);
-}
-
-/* Tool Description */
-.tool-description {
-    font-size: 0.7rem;
-    line-height: 1.6;
-    letter-spacing: 0.05em;
-    color: var(--archie-text-tertiary);
-    text-align: center;
-    max-width: 90%;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   CATEGORY-SPECIFIC CARD STYLING
-   ───────────────────────────────────────────────────────────────────────────── */
-
-/* Development Tools - Cyan Accent */
-.tool-card.category-development_tools {
-    border-color: rgba(0, 255, 255, 0.15);
-}
-
-.tool-card.category-development_tools:hover {
-    border-color: rgba(0, 255, 255, 0.4);
-    box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 40px rgba(0, 255, 255, 0.1);
-}
-
-.tool-card.category-development_tools::before {
-    background: linear-gradient(135deg, rgba(0, 255, 255, 0.1) 0%, transparent 60%);
-}
-
-.tool-card.category-development_tools::after {
-    background: linear-gradient(90deg, transparent, var(--archie-cyan), transparent);
-}
-
-.tool-card.category-development_tools .tool-title,
-.tool-card.category-development_tools .tool-name {
-    color: var(--archie-cyan);
-    text-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
-}
-
-.tool-card.category-development_tools.status-online .status-indicator {
-    background: var(--archie-cyan);
-    box-shadow: 0 0 10px var(--archie-cyan);
-}
-
-/* Admin Operations - Orange/Gold Accent */
-.tool-card.category-admin_operations {
-    border-color: rgba(255, 170, 0, 0.15);
-}
-
-.tool-card.category-admin_operations:hover {
-    border-color: rgba(255, 170, 0, 0.4);
-    box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 40px rgba(255, 170, 0, 0.1);
-}
-
-.tool-card.category-admin_operations::before {
-    background: linear-gradient(135deg, rgba(255, 170, 0, 0.1) 0%, transparent 60%);
-}
-
-.tool-card.category-admin_operations::after {
-    background: linear-gradient(90deg, transparent, var(--archie-warning), transparent);
-}
-
-.tool-card.category-admin_operations .tool-title,
-.tool-card.category-admin_operations .tool-name {
-    color: var(--archie-warning);
-    text-shadow: 0 0 10px rgba(255, 170, 0, 0.3);
-}
-
-/* AI Command - Blue Accent */
-.tool-card.category-ai_command {
-    border-color: rgba(0, 170, 255, 0.15);
-}
-
-.tool-card.category-ai_command:hover {
-    border-color: rgba(0, 170, 255, 0.4);
-    box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 40px rgba(0, 170, 255, 0.1);
-}
-
-.tool-card.category-ai_command::before {
-    background: linear-gradient(135deg, rgba(0, 170, 255, 0.1) 0%, transparent 60%);
-}
-
-.tool-card.category-ai_command::after {
-    background: linear-gradient(90deg, transparent, var(--archie-info), transparent);
-}
-
-.tool-card.category-ai_command .tool-title,
-.tool-card.category-ai_command .tool-name {
-    color: var(--archie-info);
-    text-shadow: 0 0 10px rgba(0, 170, 255, 0.3);
-}
-
-/* Project & Knowledge - Green Accent */
-.tool-card.category-project_knowledge {
-    border-color: rgba(0, 255, 65, 0.15);
-}
-
-.tool-card.category-project_knowledge:hover {
-    border-color: rgba(0, 255, 65, 0.4);
-    box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 40px rgba(0, 255, 65, 0.1);
-}
-
-.tool-card.category-project_knowledge::before {
-    background: linear-gradient(135deg, rgba(0, 255, 65, 0.1) 0%, transparent 60%);
-}
-
-.tool-card.category-project_knowledge::after {
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-}
-
-.tool-card.category-project_knowledge .tool-title,
-.tool-card.category-project_knowledge .tool-name {
-    color: var(--archie-green);
-    text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
-}
-
-/* Placeholders / Coming Soon - Muted Accent */
-.tool-card.category-placeholders_future {
-    border-color: rgba(139, 148, 158, 0.15);
-}
-
-.tool-card.category-placeholders_future:hover {
-    border-color: rgba(139, 148, 158, 0.4);
-    box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 40px rgba(139, 148, 158, 0.1);
-}
-
-.tool-card.category-placeholders_future::before {
-    background: linear-gradient(135deg, rgba(139, 148, 158, 0.1) 0%, transparent 60%);
-}
-
-.tool-card.category-placeholders_future::after {
-    background: linear-gradient(90deg, transparent, var(--archie-text-tertiary), transparent);
-}
-
-.tool-card.category-placeholders_future .tool-title,
-.tool-card.category-placeholders_future .tool-name {
-    color: var(--archie-text-tertiary);
-    text-shadow: 0 0 10px rgba(139, 148, 158, 0.3);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   COMING SOON / DISABLED CARDS
-   ───────────────────────────────────────────────────────────────────────────── */
-.tool-card.coming-soon,
-.tool-card.disabled,
-.tool-card.locked {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.tool-card.coming-soon:hover,
-.tool-card.disabled:hover,
-.tool-card.locked:hover {
-    transform: none;
-    border-color: rgba(0, 255, 65, 0.15);
-    box-shadow: none;
-}
-
-.tool-card.coming-soon .tool-title,
-.tool-card.disabled .tool-title {
-    color: var(--archie-text-muted);
-    text-shadow: none;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   NAVIGATION TABS
-   ───────────────────────────────────────────────────────────────────────────── */
-.nav-tabs {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--archie-spacing-sm);
-    margin: var(--archie-spacing-lg);
-    animation: fadeInUp 0.5s var(--archie-ease-out) 0.3s both;
-}
-
-.nav-tab {
-    padding: var(--archie-spacing-sm) var(--archie-spacing-lg);
-    font-family: var(--archie-font-mono);
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    text-decoration: none;
-    color: var(--archie-text-tertiary);
-    background: rgba(22, 27, 34, 0.5);
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-
-.nav-tab:hover {
-    color: var(--archie-green);
-    border-color: rgba(0, 255, 65, 0.3);
-    background: rgba(0, 255, 65, 0.05);
-}
-
-.nav-tab.active {
-    color: var(--archie-bg-void);
-    background: var(--archie-green);
-    border-color: var(--archie-green);
-    box-shadow: 0 0 20px rgba(0, 255, 65, 0.4);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   STATUS BAR (Fixed Bottom)
-   ───────────────────────────────────────────────────────────────────────────── */
-.status-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--archie-spacing-sm) var(--archie-spacing-xl);
-    background: rgba(1, 4, 9, 0.95);
-    border-top: 1px solid rgba(0, 255, 65, 0.2);
-    backdrop-filter: blur(10px);
-    font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    color: var(--archie-text-muted);
-    overflow-x: auto;
-    max-width: 100vw;
-}
-
-.status-left,
-.status-right {
-    display: flex;
-    align-items: center;
-    gap: var(--archie-spacing-md);
-    flex-shrink: 0;
-}
-
-.status-bar::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-    opacity: 0.3;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   RESPONSIVE DESIGN
-   ───────────────────────────────────────────────────────────────────────────── */
-@media (max-width: 1200px) {
-    .tool-grid {
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    }
-}
-
-/* Tablet mode (Samsung Fold 5 unfolded ~720px) - keep horizontal layouts */
 @media (max-width: 768px) {
-    .user-header {
-        gap: var(--archie-spacing-md);
-        padding: var(--archie-spacing-md);
+    .boot-logo-text {
+        font-size: 2.5rem;
+        letter-spacing: 6px;
     }
 
-    .user-info-left {
-        gap: var(--archie-spacing-md);
-    }
-
-    .matrix-header {
-        padding: var(--archie-spacing-xl) var(--archie-spacing-md);
-        margin: var(--archie-spacing-md);
-    }
-
-    .matrix-header h1 {
-        letter-spacing: 0.15em;
-        font-size: 1.8rem;
-    }
-
-    .module-stats {
-        gap: var(--archie-spacing-md);
-        margin: var(--archie-spacing-md);
-    }
-
-    .tool-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .category-cards .tool-card {
-        width: auto;
-        flex: 1 1 280px;
-    }
-}
-
-/* Phone mode - stack vertically */
-@media (max-width: 540px) {
-    .user-header {
-        flex-direction: column;
-        gap: var(--archie-spacing-md);
-        padding: var(--archie-spacing-md);
-    }
-
-    .user-info-left {
-        flex-direction: column;
-        text-align: center;
-        gap: var(--archie-spacing-sm);
-    }
-
-    .module-stats {
-        flex-direction: column;
-        gap: var(--archie-spacing-md);
-        margin: var(--archie-spacing-md);
-    }
-
-    .tool-grid {
-        grid-template-columns: repeat(2, 1fr);  /* 2 columns for tablets */
-        padding: var(--archie-spacing-md);
-        gap: var(--archie-spacing-md);
-    }
-
-    .tool-card {
-        min-height: 160px;
-    }
-
-    .category-header {
-        text-align: center;
-        padding: var(--archie-spacing-md) var(--archie-spacing-md);
-    }
-
-    .category-header h2 {
-        font-size: 0.85rem;
-        letter-spacing: 0.15em;
-        justify-content: center;
-        flex-wrap: wrap;
-    }
-
-    /* Hide decorative lines on tablet/mobile */
-    .category-header h2::before,
-    .category-header h2::after {
-        display: none;
-    }
-
-    .category-header p {
-        text-align: center;
-        font-size: 0.7rem;
-    }
-
-    .nav-tabs {
-        gap: var(--archie-spacing-xs);
-    }
-
-    .nav-tab {
-        padding: var(--archie-spacing-xs) var(--archie-spacing-md);
-        font-size: 0.65rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .matrix-header h1 {
-        font-size: 1.8rem;
-        letter-spacing: 0.1em;
-    }
-
-    .matrix-header .subtitle {
-        font-size: 0.7rem;
-        letter-spacing: 0.2em;
-    }
-
-    .compact-header h1 {
-        font-size: 1rem;
-        letter-spacing: 0.1em;
-    }
-
-    .compact-header .subtitle {
-        display: none;
-    }
-
-    .category-header {
-        padding: var(--archie-spacing-sm) var(--archie-spacing-sm);
-        margin-left: 8px;
-        margin-right: 8px;
-    }
-
-    .category-header h2 {
+    .boot-system-online {
         font-size: 0.75rem;
-        letter-spacing: 0.1em;
+        letter-spacing: 4px;
     }
 
-    .category-header p {
-        font-size: 0.65rem;
-    }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   UTILITY ANIMATIONS FOR JS
-   ───────────────────────────────────────────────────────────────────────────── */
-@keyframes statusOnline {
-    0%, 100% { box-shadow: 0 0 5px var(--archie-success); }
-    50% { box-shadow: 0 0 15px var(--archie-success), 0 0 25px var(--archie-success); }
-}
-
-@keyframes statusOffline {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-@keyframes statusWarning {
-    0%, 100% { box-shadow: 0 0 5px var(--archie-warning); }
-    50% { box-shadow: 0 0 15px var(--archie-warning); }
-}
-
-@keyframes statusConnecting {
-    0% { opacity: 0.3; }
-    50% { opacity: 1; }
-    100% { opacity: 0.3; }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   LOADING OVERLAY
-   ───────────────────────────────────────────────────────────────────────────── */
-.loading-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: var(--archie-bg-void);
-    transition: opacity 0.5s var(--archie-ease-out), visibility 0.5s;
-}
-
-.loading-overlay.hidden {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-}
-
-.loading-logo {
-    font-family: var(--archie-font-display);
-    font-size: 3rem;
-    font-weight: 900;
-    letter-spacing: 0.3em;
-    color: var(--archie-green);
-    text-shadow: var(--archie-glow-green);
-    margin-bottom: var(--archie-spacing-xl);
-    animation: glow 2s ease-in-out infinite;
-}
-
-.loading-bar {
-    width: 200px;
-    height: 2px;
-    background: var(--archie-border-muted);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-bottom: var(--archie-spacing-md);
-}
-
-.loading-progress {
-    height: 100%;
-    width: 0;
-    background: var(--archie-green);
-    box-shadow: 0 0 10px var(--archie-green);
-    animation: loadingBar 1.5s ease-out forwards;
-}
-
-@keyframes loadingBar {
-    0% { width: 0; }
-    50% { width: 70%; }
-    100% { width: 100%; }
-}
-
-.loading-text {
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    color: var(--archie-text-muted);
-    animation: blink 1s ease-in-out infinite;
-}
-
-@keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   STATUS BAR (Fixed Bottom)
-   ───────────────────────────────────────────────────────────────────────────── */
-.status-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--archie-spacing-sm) var(--archie-spacing-xl);
-    background: rgba(1, 4, 9, 0.98);
-    border-top: 1px solid rgba(0, 255, 65, 0.2);
-    backdrop-filter: blur(10px);
-    font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    color: var(--archie-text-muted);
-}
-
-.status-bar::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-    opacity: 0.3;
-}
-
-.status-left,
-.status-right {
-    display: flex;
-    align-items: center;
-    gap: var(--archie-spacing-lg);
-}
-
-.status-left div {
-    display: flex;
-    align-items: center;
-    gap: var(--archie-spacing-xs);
-}
-
-.status-version {
-    padding: 2px 8px;
-    background: rgba(0, 255, 65, 0.1);
-    border: 1px solid rgba(0, 255, 65, 0.3);
-    border-radius: 4px;
-    color: var(--archie-green);
-}
-
-.blink {
-    animation: blink 1s ease-in-out infinite;
-    color: var(--archie-green);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   BADGES
-   ───────────────────────────────────────────────────────────────────────────── */
-.badge {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 0.55rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    border-radius: 4px;
-    margin-top: var(--archie-spacing-sm);
-}
-
-.badge-coming-soon {
-    color: var(--archie-cyan);
-    background: rgba(0, 255, 255, 0.1);
-    border: 1px solid rgba(0, 255, 255, 0.3);
-}
-
-.badge-locked {
-    color: var(--archie-warning);
-    background: rgba(255, 170, 0, 0.1);
-    border: 1px solid rgba(255, 170, 0, 0.3);
-}
-
-.admin-badge {
-    font-size: 0.6rem;
-    padding: 2px 8px;
-    background: rgba(255, 170, 0, 0.2);
-    border: 1px solid var(--archie-warning);
-    border-radius: 4px;
-    color: var(--archie-warning);
-    margin-left: var(--archie-spacing-sm);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   SCANLINE (Subtle)
-   ───────────────────────────────────────────────────────────────────────────── */
-.scanline {
-    display: none; /* Disabled - too distracting */
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   TOOLTIP PREVIEW
-   ───────────────────────────────────────────────────────────────────────────── */
-.tooltip-preview {
-    position: absolute;
-    bottom: var(--archie-spacing-md);
-    left: 50%;
-    transform: translateX(-50%) translateY(10px);
-    padding: var(--archie-spacing-xs) var(--archie-spacing-md);
-    font-size: 0.55rem;
-    letter-spacing: 0.1em;
-    color: var(--archie-text-muted);
-    background: rgba(13, 17, 23, 0.9);
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 4px;
-    white-space: nowrap;
-    opacity: 0;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-    pointer-events: none;
-}
-
-.tool-card:hover .tooltip-preview {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   RESPONSIVE ADDITIONS
-   ───────────────────────────────────────────────────────────────────────────── */
-/* Tablet mode - keep status bar horizontal */
-@media (max-width: 768px) {
-    .status-bar {
-        padding: var(--archie-spacing-xs) var(--archie-spacing-md);
-        font-size: 0.6rem;
+    .boot-terminal {
+        padding: 1rem;
     }
 
-    .status-left,
-    .status-right {
-        gap: var(--archie-spacing-sm);
+    .boot-line {
+        font-size: 11px;
     }
 
-    .tooltip-preview {
-        display: none;
+    .boot-typing-line {
+        font-size: 13px;
+    }
+
+    .boot-threat {
+        font-size: 14px;
+        letter-spacing: 2px;
+    }
+
+    .boot-skip-btn {
+        bottom: 1rem;
+        right: 1rem;
+    }
+
+    .mission-briefing,
+    .featured-modules,
+    .category-grid {
+        padding: 0 var(--archie-spacing-md);
     }
 }
 
-/* Phone mode - stack status bar */
-@media (max-width: 540px) {
-    .status-bar {
-        flex-direction: column;
-        gap: var(--archie-spacing-sm);
-        padding: var(--archie-spacing-sm);
-    }
-
-    .status-left,
-    .status-right {
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: var(--archie-spacing-sm);
-    }
-}
-
-/* Small phones and folded devices (Samsung Fold 5 cover screen ~280-320px) */
 @media (max-width: 480px) {
-    .status-bar {
-        padding: var(--archie-spacing-xs) var(--archie-spacing-sm);
-        font-size: 0.55rem;
+    .boot-logo-text {
+        font-size: 1.8rem;
+        letter-spacing: 4px;
     }
 
-    .status-left,
-    .status-right {
-        width: 100%;
-        gap: var(--archie-spacing-xs);
-    }
-
-    .status-left > div,
-    .status-right > div {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .notification-btn {
-        padding: 4px 8px;
-        font-size: 0.8rem;
-    }
-
-    .status-version {
-        font-size: 0.5rem;
-    }
-
-    /* Single column for small phones */
-    .tool-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .category-cards .tool-card {
-        width: 100%;
-        flex: 1 1 100%;
-    }
-
-    .tool-card {
-        min-height: 140px;
-    }
-}
-
-/* Galaxy Fold folded (374px) */
-@media (max-width: 374px) {
-    .tool-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Very narrow screens (folded phones, watches) */
-@media (max-width: 360px) {
-    .status-bar {
-        padding: 6px 8px;
-        font-size: 0.5rem;
-    }
-
-    .status-left {
-        display: none; /* Hide system info on very small screens - just show notifications */
-    }
-
-    .status-right {
-        width: 100%;
-        justify-content: space-between;
+    .boot-line {
+        font-size: 10px;
     }
 }
 {% endblock %}
 
 {% block content %}
-<!-- Loading Overlay -->
-<div class="loading-overlay" id="loadingOverlay">
-    <div class="loading-logo">A.R.C.H.I.E.</div>
-    <div class="loading-bar">
-        <div class="loading-progress"></div>
-    </div>
-    <div class="loading-text">INITIALIZING SYSTEMS...</div>
-</div>
-
 <!-- Sandbox Mode Banner (if in sandbox mode) -->
 {% include 'sandbox_banner.html' %}
 
 <!-- Matrix Rain Canvas -->
 <canvas id="matrix-rain"></canvas>
 
-<!-- Scanline Effect -->
-<div class="scanline"></div>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     BOOT SEQUENCE OVERLAY
+     6 phases, ~4s total, skippable
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="boot-overlay" id="bootOverlay">
+    <div class="boot-scanlines"></div>
 
-<!-- User Header -->
-<div class="user-header">
-    <div class="user-info-left">
-        <div class="user-welcome">
-            > LOGGED IN AS: <span class="user-name">{{ current_user.username|upper }}</span>
-        </div>
-        <div class="user-role">
-            ROLE: {{ dashboard_data.user_role|upper }}
-        </div>
-        {% if dashboard_data.subscription_tier %}
-        <span class="subscription-badge {{ dashboard_data.subscription_tier }}">
-            {{ dashboard_data.subscription_tier|upper }}
-        </span>
-        {% endif %}
+    <!-- Terminal output area -->
+    <div class="boot-terminal" id="bootTerminal">
+        <!-- Phase 0: Cursor blink -->
+        <div class="boot-line" id="bootCursor" style="opacity:1;"><span class="boot-cursor"></span></div>
+
+        <!-- Phase 1: Typing line -->
+        <div class="boot-typing-line" id="bootTyping"></div>
+
+        <!-- Phase 2: Subsystem checks (built by JS) -->
+        <div id="bootChecks"></div>
+
+        <!-- Phase 3: Threat level -->
+        <div class="boot-threat" id="bootThreat">&#9888; THREAT LEVEL: NOMINAL</div>
     </div>
-    <div class="header-actions">
-        <button class="header-icon-btn" id="languageBtn" title="Language (Coming Soon)" onclick="showLanguageMenu()">
-            <i data-lucide="globe"></i>
-        </button>
-        <button class="header-icon-btn theme-toggle" id="themeToggle" title="Toggle Light/Dark Mode" onclick="toggleTheme()">
-            <i data-lucide="sun" id="themeIcon"></i>
-        </button>
-        {% if current_user.is_admin %}
-        <a href="{{ url_for('dev_hq.index') }}" class="header-icon-btn" title="Dev HQ" style="text-decoration:none;">
-            <i data-lucide="compass"></i>
-        </a>
-        {% endif %}
-        <a href="{{ url_for('logout') }}" class="logout-btn">[ LOGOUT ]</a>
+
+    <!-- Phase 4: Logo -->
+    <div class="boot-logo-container" id="bootLogo">
+        <div class="boot-logo-ring"></div>
+        <div class="boot-logo-ring"></div>
+        <div class="boot-logo-ring"></div>
+        <div class="boot-logo-text">A.R.C.H.I.E.</div>
+        <div class="boot-system-online">SYSTEM ONLINE</div>
     </div>
+
+    <!-- Phase 5: Split halves (created by JS for the reveal animation) -->
 </div>
 
-<!-- Compact Header (appears on scroll) -->
-<div class="compact-header" id="compactHeader">
-    <h1>A.R.C.H.I.E.</h1>
-    <span class="subtitle">AI RESEARCH COMMAND CENTER</span>
+<!-- Skip button (outside overlay so it stays on top) -->
+<button class="boot-skip-btn" id="bootSkipBtn" onclick="window.skipBoot()">SKIP &#9656;</button>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DASHBOARD CONTENT
+     All sections below are populated by subsequent tasks
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="dashboard-content" id="dashboardContent">
+
+    <!-- Section 3: Command Bar -->
+    <div id="command-bar" class="command-bar"><!-- Task 3 --></div>
+
+    <!-- Section 3: HUD Vitals -->
+    <div id="hud-vitals" class="hud-vitals-strip"><!-- Task 3 --></div>
+
+    <!-- Section 5: Mission Briefing -->
+    <div id="mission-briefing" class="mission-briefing"><!-- Task 4 --></div>
+
+    <!-- Section 6: Featured Modules -->
+    <div id="featured-modules" class="featured-modules"><!-- Task 5 --></div>
+
+    <!-- Section 7: Category Grid -->
+    <div id="category-grid" class="category-grid"><!-- Task 6 --></div>
+
+    <!-- Section 8: Status Footer -->
+    <div id="status-footer" class="status-footer"><!-- Task 7 --></div>
+
 </div>
-
-<!-- Main Header -->
-<div class="sticky-header-wrapper" id="stickyHeader">
-    <!-- Matrix Header -->
-    <div class="matrix-header">
-        <h1>A.R.C.H.I.E.</h1>
-        <span class="acronym-expand">Autonomous Resource & Coordination Hub for Intelligent Execution</span>
-        <div class="subtitle">AI RESEARCH COMMAND CENTER</div>
-        <div class="version-badge">PLATFORM v2.0 | SYSTEM ONLINE</div>
-    </div>
-</div>
-
-<!-- Module Stats -->
-<div class="module-stats">
-    <div class="stat-item">
-        <strong>{{ dashboard_data.accessible_count }}</strong>
-        <span>Accessible Modules</span>
-    </div>
-    <div class="stat-item">
-        <strong id="modulesOnline" style="color: var(--archie-success);">-</strong>
-        <span>Online</span>
-    </div>
-    <div class="stat-item">
-        <strong id="modulesOffline" style="color: var(--archie-danger);">-</strong>
-        <span>Offline</span>
-    </div>
-    <div class="stat-item">
-        <strong id="modulesDegraded" style="color: var(--archie-warning);">-</strong>
-        <span>Degraded</span>
-    </div>
-    <div class="stat-item">
-        <strong>{{ dashboard_data.subscription_tier|upper }}</strong>
-        <span>User Tier</span>
-    </div>
-    <div class="stat-item staffing-status">
-        <strong id="staffingStatus" style="color: var(--archie-success);">-</strong>
-        <span>Staffing</span>
-    </div>
-</div>
-
-<!-- Tool Grid -->
-<div class="tool-grid">
-    {# Use namespace to track if locked modules have been shown #}
-    {% set ns = namespace(locked_shown=false) %}
-
-    {% for category, category_info in dashboard_data.categories.items() %}
-        {# Show locked modules before admin-only categories (above Admin Tools) #}
-        {% if category_info.admin_only and not ns.locked_shown and dashboard_data.locked_modules|length > 0 %}
-            {% set ns.locked_shown = true %}
-            <!-- Locked Modules Section (shown above Admin Tools) -->
-            <div class="category-header">
-                <h2>🔒 LOCKED MODULES</h2>
-                <p>Upgrade your subscription to unlock these features</p>
-            </div>
-
-            <div class="category-cards">
-            {% for module in dashboard_data.locked_modules[:6] %}
-                <div class="tool-card locked">
-                    <div class="tool-icon"><i data-lucide="{{ module.icon }}"></i></div>
-                    <div class="tool-title">{{ module.name|upper }}</div>
-                    <div class="tool-description">
-                        {{ module.description }}
-                        <span class="badge badge-locked">🔒 {{ module.minimum_role|upper }} ONLY</span>
-                    </div>
-                </div>
-            {% endfor %}
-            </div>
-        {% endif %}
-
-        {# Skip admin-only categories for non-admin users #}
-        {% if category_info.admin_only and not current_user.is_admin %}
-            {# Hidden for non-admin users #}
-        {% elif dashboard_data.modules_by_category.get(category) %}
-            <!-- Category Header: {{ category_info.name }} -->
-            <div class="category-header category-{{ category }} {% if category_info.admin_only %}admin-only{% endif %}">
-                <h2><i data-lucide="{{ category_info.icon }}" class="category-icon"></i> {{ category_info.name }}{% if category_info.admin_only %} <span class="admin-badge">ADMIN</span>{% endif %}</h2>
-                <p>{{ category_info.description }}</p>
-            </div>
-
-            <!-- Modules in this category -->
-            <div class="category-cards">
-            {% for module in dashboard_data.modules_by_category[category] %}
-                {% if module.coming_soon %}
-                    <div class="tool-card coming-soon category-{{ category }}">
-                        <div class="tool-icon"><i data-lucide="{{ module.icon }}"></i></div>
-                        <div class="tool-title">{{ module.name|upper }}</div>
-                        <div class="tool-description">
-                            {{ module.description|safe }}
-                            <span class="badge badge-coming-soon">COMING SOON</span>
-                        </div>
-                    </div>
-                {% else %}
-                    <a href="{{ sandbox_url(module.route) }}" class="tool-card status-checking category-{{ category }}" data-module-id="{{ module.id }}">
-                        <span class="status-label">CHECKING...</span>
-                        <div class="status-indicator"></div>
-                        <span class="tooltip-preview">CLICK TO OPEN {{ module.name|upper }}</span>
-                        <div class="agent-on-shift" data-module="{{ module.id }}">
-                            <span class="agent-icon">👤</span>
-                            <div class="agent-info">
-                                <span class="agent-name">-</span>
-                                <span class="agent-position"></span>
-                            </div>
-                        </div>
-                        <div class="tool-icon"><i data-lucide="{{ module.icon }}"></i></div>
-                        <div class="tool-title">{{ module.name|upper }}</div>
-                        <div class="tool-description">
-                            {{ module.description|safe }}
-                        </div>
-                    </a>
-                {% endif %}
-            {% endfor %}
-            </div>
-        {% endif %}
-    {% endfor %}
-</div>
-
-<!-- Status Bar -->
-<div class="status-bar">
-    <div class="status-left">
-        <div>SYSTEM TIME: <span class="blink">●</span> <span id="clock"></span></div>
-        <div>AI STATUS: <span style="color: var(--archie-success);">● ONLINE</span></div>
-        <div>UPTIME: <span id="uptime">{{ uptime }}</span></div>
-    </div>
-    <div class="status-right">
-        <!-- Notification Bell -->
-        <div style="position: relative; display: inline-block;">
-            <button class="notification-btn" id="notificationBtn" onclick="toggleNotifications()" title="Notifications">
-                🔔 <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
-            </button>
-            <div class="notification-dropdown" id="notificationDropdown">
-                <div class="notification-header">
-                    <span>NOTIFICATIONS</span>
-                    <button onclick="markAllRead()" style="background: none; border: 1px solid var(--archie-green); color: var(--archie-green); cursor: pointer; padding: 2px 8px; font-size: 0.6rem; border-radius: 4px;">Mark all read</button>
-                </div>
-                <div id="notificationList">
-                    <div class="notification-empty">Loading...</div>
-                </div>
-            </div>
-        </div>
-        <span class="status-version">v2.0</span>
-    </div>
-</div>
-
-<style>
-/* Notification Styles */
-.notification-btn {
-    background: transparent;
-    border: 1px solid var(--archie-border-muted);
-    color: var(--archie-text-tertiary);
-    padding: var(--archie-spacing-xs) var(--archie-spacing-sm);
-    cursor: pointer;
-    font-size: 1rem;
-    position: relative;
-    border-radius: 6px;
-    transition: all var(--archie-duration-normal) var(--archie-ease-out);
-}
-.notification-btn:hover {
-    border-color: var(--archie-green);
-    color: var(--archie-green);
-    background: rgba(0, 255, 65, 0.1);
-}
-.notification-badge {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    background: var(--archie-danger);
-    color: #FFF;
-    font-size: 0.55rem;
-    padding: 2px 5px;
-    border-radius: 10px;
-    min-width: 16px;
-    text-align: center;
-}
-.notification-dropdown {
-    display: none;
-    position: absolute;
-    bottom: 100%;
-    right: 0;
-    width: 320px;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 8px;
-    margin-bottom: 10px;
-    max-height: 400px;
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-}
-.notification-dropdown.show { display: block; }
-.notification-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--archie-spacing-sm) var(--archie-spacing-md);
-    border-bottom: 1px solid var(--archie-border-muted);
-    font-size: 0.7rem;
-    letter-spacing: 0.1em;
-    color: var(--archie-green);
-}
-.notification-item {
-    padding: var(--archie-spacing-sm) var(--archie-spacing-md);
-    border-bottom: 1px solid var(--archie-border-muted);
-    cursor: pointer;
-    font-size: 0.7rem;
-    transition: background var(--archie-duration-fast);
-}
-.notification-item:hover { background: rgba(0, 255, 65, 0.05); }
-.notification-item.unread { border-left: 3px solid var(--archie-green); }
-.notification-item .title { color: var(--archie-green); font-weight: 600; }
-.notification-item .message { color: var(--archie-text-tertiary); margin-top: 3px; }
-.notification-item .time { color: var(--archie-text-muted); font-size: 0.6rem; margin-top: 5px; }
-.notification-empty { padding: var(--archie-spacing-lg); text-align: center; color: var(--archie-text-muted); }
-</style>
 
 <script>
-// ============================================
-// LOADING SCREEN
-// ============================================
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        document.getElementById('loadingOverlay').classList.add('hidden');
-    }, 800);
-});
+// ═══════════════════════════════════════════════════════════════════════════════
+// MATRIX RAIN — Katakana + Binary + "ARCHIE"
+// Slower interval (33ms), green on transparent, JetBrains Mono 14px
+// ═══════════════════════════════════════════════════════════════════════════════
+(function initMatrixRain() {
+    var canvas = document.getElementById('matrix-rain');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
 
-// ============================================
-// MATRIX RAIN EFFECT
-// ============================================
-const canvas = document.getElementById('matrix-rain');
-const ctx = canvas.getContext('2d');
-
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
-
-const matrixChars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ARCHIE<>{}[]@#$%^&*';
-const chars = matrixChars.split('');
-const fontSize = 14;
-const columns = Math.floor(canvas.width / fontSize);
-const drops = [];
-for (let i = 0; i < columns; i++) {
-    drops[i] = Math.random() * -100;
-}
-
-function drawMatrix() {
-    // Check for light mode to adjust colors
-    const isLightMode = document.body.classList.contains('light-mode');
-
-    // Background fade - light gray for light mode, black for dark mode
-    if (isLightMode) {
-        ctx.fillStyle = 'rgba(232, 234, 237, 0.06)';
-    } else {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
     }
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    resize();
+    window.addEventListener('resize', resize);
 
-    // Text color - darker green for light mode, bright green for dark mode
-    if (isLightMode) {
-        ctx.fillStyle = '#00aa33';
-    } else {
-        ctx.fillStyle = '#00FF00';
-    }
-    ctx.font = fontSize + 'px monospace';
+    var FONT_SIZE = 14;
+    var columns = Math.floor(canvas.width / FONT_SIZE);
+    var drops = [];
+    for (var c = 0; c < columns; c++) drops[c] = 1;
 
-    for (let i = 0; i < drops.length; i++) {
-        const char = chars[Math.floor(Math.random() * chars.length)];
-        ctx.fillText(char, i * fontSize, drops[i] * fontSize);
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-            drops[i] = 0;
-        }
-        drops[i]++;
-    }
-}
-setInterval(drawMatrix, 33);
+    // Character ranges
+    var katakanaStart = 0x30A0;
+    var katakanaEnd = 0x30FF;
+    var archieStr = 'ARCHIE';
 
-// ============================================
-// CLOCK & UPTIME
-// ============================================
-function updateClock() {
-    const now = new Date();
-    const time = now.toLocaleTimeString('en-US', { hour12: false });
-    document.getElementById('clock').textContent = time;
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-function updateServerUptime() {
-    fetch('/health')
-        .then(r => r.json())
-        .then(data => {
-            if (data.uptime) {
-                document.getElementById('uptime').textContent = data.uptime;
-            }
-        })
-        .catch(e => console.log('Uptime fetch failed'));
-}
-updateServerUptime();
-setInterval(updateServerUptime, 30000);
-
-// ============================================
-// NOTIFICATIONS
-// ============================================
-let notificationDropdownOpen = false;
-
-function toggleNotifications() {
-    const dropdown = document.getElementById('notificationDropdown');
-    notificationDropdownOpen = !notificationDropdownOpen;
-    dropdown.classList.toggle('show', notificationDropdownOpen);
-    if (notificationDropdownOpen) loadNotifications();
-}
-
-document.addEventListener('click', function(e) {
-    const dropdown = document.getElementById('notificationDropdown');
-    const btn = document.getElementById('notificationBtn');
-    if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
-        dropdown.classList.remove('show');
-        notificationDropdownOpen = false;
-    }
-});
-
-function loadNotifications() {
-    // Fetch both regular notifications and IAAE alerts
-    Promise.all([
-        fetch('/api/notifications').then(r => r.json()).catch(() => ({ success: false })),
-        fetch('/tools/team-management/api/iaae/audit?limit=5').then(r => r.json()).catch(() => ({ success: false }))
-    ]).then(([notifData, iaaeData]) => {
-        let allNotifications = [];
-
-        // Add regular notifications
-        if (notifData.success && notifData.notifications) {
-            allNotifications = allNotifications.concat(notifData.notifications);
-        }
-
-        // Add IAAE alerts as notifications (only blocked/denied/warned outcomes)
-        if (iaaeData.success && iaaeData.events) {
-            const iaaeAlerts = iaaeData.events
-                .filter(e => ['blocked', 'denied', 'warned', 'escalated'].includes(e.outcome))
-                .map(e => ({
-                    id: `iaae-${e.id}`,
-                    type: `⚠️ IAAE: ${e.category}`,
-                    message: `${e.event_type}${e.agent_name ? ` (${e.agent_name})` : ''}`,
-                    created_at: e.created_at,
-                    is_read: false,
-                    is_iaae: true
-                }));
-            allNotifications = allNotifications.concat(iaaeAlerts);
-        }
-
-        // Sort by date, newest first
-        allNotifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-        renderNotifications(allNotifications);
-    }).catch(e => console.log('Failed to load notifications'));
-}
-
-function renderNotifications(notifications) {
-    const list = document.getElementById('notificationList');
-    if (!notifications || notifications.length === 0) {
-        list.innerHTML = '<div class="notification-empty">No notifications</div>';
-        return;
-    }
-    list.innerHTML = notifications.slice(0, 10).map(n => {
-        const isIAAE = n.is_iaae || (n.id && String(n.id).startsWith('iaae-'));
-        const titleColor = isIAAE ? '#FFAA00' : '#00FF00';
-        const borderColor = isIAAE ? '#FFAA00' : '#00FF00';
-
-        return `
-        <div class="notification-item ${n.is_read ? '' : 'unread'}" style="${isIAAE ? 'border-left-color: ' + borderColor + ';' : ''}" onclick="${isIAAE ? '' : 'markRead(' + n.id + ')'}">
-            <div class="title" style="color: ${titleColor};">${n.type || 'Notification'}</div>
-            <div class="message">${n.message || ''}</div>
-            <div class="time">${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
-        </div>
-    `;
-    }).join('');
-}
-
-function markRead(id) {
-    fetch(`/api/notifications/mark-read/${id}`, { method: 'POST' })
-        .then(() => { loadNotifications(); updateNotificationCount(); })
-        .catch(e => console.log('Failed to mark read'));
-}
-
-function markAllRead() {
-    fetch('/api/notifications/mark-all-read', { method: 'POST' })
-        .then(() => { loadNotifications(); updateNotificationCount(); })
-        .catch(e => console.log('Failed to mark all read'));
-}
-
-function updateNotificationCount() {
-    fetch('/api/notifications/count')
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                const badge = document.getElementById('notificationBadge');
-                const count = data.unread_count || 0;
-                badge.textContent = count;
-                badge.style.display = count > 0 ? 'inline-block' : 'none';
-            }
-        })
-        .catch(e => console.log('Failed to get notification count'));
-}
-updateNotificationCount();
-setInterval(updateNotificationCount, 30000);
-
-// ============================================
-// MODULE HEALTH STATUS
-// ============================================
-let moduleHealthData = {};
-
-function fetchModuleHealth() {
-    fetch('/api/modules/health')
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                moduleHealthData = data.health;
-                updateModuleStatusUI(data.health, data.summary);
-            } else {
-                setAllModulesOnline();
-            }
-        })
-        .catch(e => {
-            console.log('Failed to fetch module health:', e);
-            setAllModulesOnline();
-        });
-}
-
-function setAllModulesOnline() {
-    document.querySelectorAll('.tool-card[data-module-id]').forEach(card => {
-        card.classList.remove('status-checking', 'status-online', 'status-offline', 'status-degraded');
-        card.classList.add('status-online');
-        const label = card.querySelector('.status-label');
-        if (label) label.textContent = 'ONLINE';
-    });
-    const total = document.querySelectorAll('.tool-card[data-module-id]').length;
-    document.getElementById('modulesOnline').textContent = total;
-    document.getElementById('modulesOffline').textContent = 0;
-    document.getElementById('modulesDegraded').textContent = 0;
-}
-
-function updateModuleStatusUI(health, summary) {
-    let onlineCount = 0;
-    let offlineCount = 0;
-    let degradedCount = 0;
-
-    document.querySelectorAll('.tool-card[data-module-id]').forEach(card => {
-        const moduleId = card.dataset.moduleId;
-        const moduleHealth = health[moduleId];
-        const statusLabel = card.querySelector('.status-label');
-
-        card.classList.remove('status-checking', 'status-online', 'status-offline', 'status-degraded');
-
-        if (moduleHealth) {
-            const status = moduleHealth.status || (moduleHealth.healthy ? 'healthy' : 'unhealthy');
-
-            if (status === 'healthy' || moduleHealth.healthy) {
-                card.classList.add('status-online');
-                if (statusLabel) statusLabel.textContent = 'ONLINE';
-                onlineCount++;
-            } else if (status === 'degraded') {
-                card.classList.add('status-degraded');
-                if (statusLabel) statusLabel.textContent = 'DEGRADED';
-                degradedCount++;
-            } else {
-                card.classList.add('status-offline');
-                if (statusLabel) statusLabel.textContent = 'OFFLINE';
-                offlineCount++;
-            }
+    function getRandomChar() {
+        var roll = Math.random();
+        if (roll < 0.6) {
+            // Katakana
+            return String.fromCharCode(katakanaStart + Math.floor(Math.random() * (katakanaEnd - katakanaStart)));
+        } else if (roll < 0.9) {
+            // Binary
+            return Math.random() > 0.5 ? '1' : '0';
         } else {
-            card.classList.add('status-online');
-            if (statusLabel) statusLabel.textContent = 'ONLINE';
-            onlineCount++;
-        }
-    });
-
-    document.getElementById('modulesOnline').textContent = onlineCount;
-    document.getElementById('modulesOffline').textContent = offlineCount;
-    document.getElementById('modulesDegraded').textContent = degradedCount;
-}
-
-fetchModuleHealth();
-setInterval(fetchModuleHealth, 30000);
-
-// ============================================
-// STAFFING STATUS (Phase 51)
-// ============================================
-function fetchStaffingStatus() {
-    fetch('/tools/hr-management/api/scheduling/status')
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                const statusEl = document.getElementById('staffingStatus');
-                statusEl.textContent = data.status;
-                statusEl.style.color = data.is_business_hours ? 'var(--archie-success)' : 'var(--archie-warning)';
-            }
-        })
-        .catch(e => {
-            console.log('Staffing status fetch failed:', e);
-            document.getElementById('staffingStatus').textContent = 'Unknown';
-        });
-}
-fetchStaffingStatus();
-setInterval(fetchStaffingStatus, 60000); // Update every minute
-
-// ============================================
-// AGENT ON-SHIFT DISPLAY (Phase 51)
-// ============================================
-function fetchAgentsOnShift() {
-    fetch('/tools/hr-management/api/scheduling/on-shift')
-        .then(r => r.json())
-        .then(data => {
-            if (data.success && data.module_agents) {
-                // Map module IDs to agent info
-                const assignments = data.module_agents;
-
-                // Update each module card's agent display
-                document.querySelectorAll('.agent-on-shift').forEach(el => {
-                    const moduleId = el.dataset.module;
-                    const agentNameEl = el.querySelector('.agent-name');
-                    const agentPositionEl = el.querySelector('.agent-position');
-
-                    if (assignments[moduleId]) {
-                        const agent = assignments[moduleId];
-                        // Display full name and position
-                        agentNameEl.textContent = agent.full_name || agent.agent_name || 'Assigned';
-                        if (agentPositionEl) {
-                            agentPositionEl.textContent = agent.position || '';
-                        }
-                        el.classList.add('has-agent');
-                    } else {
-                        agentNameEl.textContent = 'Unassigned';
-                        if (agentPositionEl) {
-                            agentPositionEl.textContent = '';
-                        }
-                        el.classList.remove('has-agent');
-                    }
-                });
-            }
-        })
-        .catch(e => {
-            console.log('Agent on-shift fetch failed:', e);
-        });
-}
-fetchAgentsOnShift();
-setInterval(fetchAgentsOnShift, 60000); // Update every minute
-
-// ============================================
-// COMPACT HEADER ON SCROLL
-// ============================================
-const compactHeader = document.getElementById('compactHeader');
-const mainHeader = document.getElementById('stickyHeader');
-
-window.addEventListener('scroll', () => {
-    const scrollY = window.scrollY;
-    const headerBottom = mainHeader.offsetTop + mainHeader.offsetHeight;
-
-    if (scrollY > headerBottom - 50) {
-        compactHeader.classList.add('visible');
-    } else {
-        compactHeader.classList.remove('visible');
-    }
-}, { passive: true });
-
-// ============================================
-// STAGGERED ANIMATIONS
-// ============================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize Lucide Icons
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-
-    const toolCards = document.querySelectorAll('.tool-card');
-    toolCards.forEach((card, index) => {
-        card.style.animationDelay = `${0.1 + index * 0.05}s`;
-    });
-
-    const categoryHeaders = document.querySelectorAll('.category-header');
-    categoryHeaders.forEach((header, index) => {
-        header.style.animationDelay = `${index * 0.1}s`;
-    });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// THEME TOGGLE
-// ═══════════════════════════════════════════════════════════════════════════════
-function toggleTheme() {
-    const body = document.body;
-    const themeIcon = document.getElementById('themeIcon');
-
-    if (body.classList.contains('light-mode')) {
-        // Switch to dark mode
-        body.classList.remove('light-mode');
-        localStorage.setItem('archie-theme', 'dark');
-        if (themeIcon) {
-            themeIcon.setAttribute('data-lucide', 'sun');
-            lucide.createIcons();
-        }
-    } else {
-        // Switch to light mode
-        body.classList.add('light-mode');
-        localStorage.setItem('archie-theme', 'light');
-        if (themeIcon) {
-            themeIcon.setAttribute('data-lucide', 'moon');
-            lucide.createIcons();
+            // ARCHIE characters
+            return archieStr[Math.floor(Math.random() * archieStr.length)];
         }
     }
 
-    // Clear the matrix canvas to immediately show new background color
-    const canvas = document.getElementById('matrix-rain');
-    if (canvas) {
-        const ctx = canvas.getContext('2d');
-        const isLightMode = body.classList.contains('light-mode');
-        // Fill with the appropriate background color (light gray for light mode)
-        ctx.fillStyle = isLightMode ? '#e8eaed' : '#000000';
+    function draw() {
+        // Fade with semi-transparent black
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-}
 
-// Initialize theme from localStorage
-(function initTheme() {
-    const savedTheme = localStorage.getItem('archie-theme');
-    const themeIcon = document.getElementById('themeIcon');
+        ctx.fillStyle = '#00FF41';
+        ctx.font = FONT_SIZE + 'px "JetBrains Mono", monospace';
 
-    if (savedTheme === 'light') {
-        document.body.classList.add('light-mode');
-        if (themeIcon) {
-            themeIcon.setAttribute('data-lucide', 'moon');
-        }
-        // Clear canvas for light mode on initial load (light gray background)
-        const canvas = document.getElementById('matrix-rain');
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#e8eaed';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (var i = 0; i < drops.length; i++) {
+            var ch = getRandomChar();
+            var x = i * FONT_SIZE;
+            var y = drops[i] * FONT_SIZE;
+
+            ctx.fillText(ch, x, y);
+
+            // Reset drop to top randomly
+            if (y > canvas.height && Math.random() > 0.975) {
+                drops[i] = 0;
+            }
+            drops[i]++;
         }
     }
+
+    // 33ms interval = ~30fps (slower, more cinematic)
+    var matrixInterval = setInterval(draw, 33);
+
+    // Expose for external control
+    window.matrixRainInterval = matrixInterval;
+    window.restartMatrixRain = function() {
+        clearInterval(matrixInterval);
+        matrixInterval = setInterval(draw, 33);
+        window.matrixRainInterval = matrixInterval;
+    };
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LANGUAGE MENU (PLACEHOLDER)
+// BOOT SEQUENCE — 6 Phases, ~4s
 // ═══════════════════════════════════════════════════════════════════════════════
-function showLanguageMenu() {
-    // TODO: Implement language selection
-    // For now, show a notification that it's coming soon
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 80px;
-        right: 20px;
-        padding: 12px 20px;
-        background: rgba(0, 255, 255, 0.1);
-        border: 1px solid rgba(0, 255, 255, 0.3);
-        border-radius: 8px;
-        color: #00FFFF;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.8rem;
-        z-index: 10000;
-        animation: fadeIn 0.3s ease;
-    `;
-    notification.innerHTML = '<strong>LANGUAGE</strong><br>Multi-language support coming soon!';
-    document.body.appendChild(notification);
+(function runBootSequence() {
+    'use strict';
 
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transition = 'opacity 0.3s ease';
-        setTimeout(() => notification.remove(), 300);
-    }, 2000);
-}
+    var SKIP_KEY = 'archie-boot-skip';
+    var overlay = document.getElementById('bootOverlay');
+    var skipBtn = document.getElementById('bootSkipBtn');
+    var dashContent = document.getElementById('dashboardContent');
+
+    // If previously skipped, show dashboard immediately
+    if (localStorage.getItem(SKIP_KEY) === 'true') {
+        if (overlay) overlay.classList.add('hidden');
+        if (skipBtn) skipBtn.style.display = 'none';
+        if (dashContent) {
+            dashContent.classList.add('visible');
+        }
+        return;
+    }
+
+    var aborted = false;
+    var bootTimeouts = [];
+
+    function schedule(fn, delay) {
+        var id = setTimeout(fn, delay);
+        bootTimeouts.push(id);
+        return id;
+    }
+
+    // Skip handler
+    window.skipBoot = function() {
+        if (aborted) return;
+        aborted = true;
+        localStorage.setItem(SKIP_KEY, 'true');
+        // Clear all pending timeouts
+        bootTimeouts.forEach(clearTimeout);
+        // Immediately reveal dashboard
+        finishBoot();
+    };
+
+    function finishBoot() {
+        if (skipBtn) skipBtn.style.display = 'none';
+
+        // Split overlay and reveal
+        overlay.classList.add('phase-split');
+
+        // Create split halves for the horizontal split animation
+        var topHalf = document.createElement('div');
+        topHalf.className = 'boot-top-half';
+        var bottomHalf = document.createElement('div');
+        bottomHalf.className = 'boot-bottom-half';
+        overlay.appendChild(topHalf);
+        overlay.appendChild(bottomHalf);
+
+        // Hide terminal and logo
+        var terminal = document.getElementById('bootTerminal');
+        var logo = document.getElementById('bootLogo');
+        if (terminal) terminal.style.display = 'none';
+        if (logo) logo.style.display = 'none';
+
+        // Trigger split reveal
+        requestAnimationFrame(function() {
+            overlay.classList.add('reveal');
+        });
+
+        // Show dashboard content
+        if (dashContent) {
+            dashContent.classList.add('visible');
+        }
+
+        // Remove overlay after animation
+        setTimeout(function() {
+            overlay.classList.add('hidden');
+        }, 600);
+    }
+
+    // ── Phase 0 (0-300ms): Pure black + cursor blink ──
+    // Cursor element is already visible in the HTML
+
+    // ── Show skip button at 500ms ──
+    schedule(function() {
+        if (!aborted && skipBtn) skipBtn.classList.add('visible');
+    }, 500);
+
+    // ── Phase 1 (300-1000ms): Type initialization message ──
+    var typingEl = document.getElementById('bootTyping');
+    var cursorEl = document.getElementById('bootCursor');
+    var initMessage = '> INITIALIZING A.R.C.H.I.E. CORE...';
+
+    schedule(function() {
+        if (aborted) return;
+        // Hide initial cursor, start typing
+        if (cursorEl) cursorEl.style.opacity = '0';
+
+        var charIdx = 0;
+        function typeChar() {
+            if (aborted || charIdx >= initMessage.length) {
+                // Show blinking cursor at end of typed text
+                if (!aborted && typingEl) {
+                    var endCursor = document.createElement('span');
+                    endCursor.className = 'boot-cursor';
+                    typingEl.appendChild(endCursor);
+                }
+                return;
+            }
+            if (typingEl) {
+                typingEl.textContent = initMessage.substring(0, charIdx + 1);
+            }
+            charIdx++;
+            schedule(typeChar, 18 + Math.random() * 12);
+        }
+        typeChar();
+
+        // Screen flicker during typing
+        schedule(function() {
+            if (!aborted) overlay.classList.add('flicker');
+            schedule(function() {
+                if (!aborted) overlay.classList.remove('flicker');
+            }, 400);
+        }, 300);
+    }, 300);
+
+    // ── Phase 2 (1000-2500ms): Subsystem checks ──
+    var checksContainer = document.getElementById('bootChecks');
+    var moduleCount = '{{ dashboard_data.accessible_count }}';
+    var subsystems = [
+        { label: 'DATABASE',      dots: 10, status: 'CONNECTED', cls: 'connected', delay: 0 },
+        { label: 'AI BRIDGE',     dots: 9,  status: 'ONLINE',    cls: 'online',    delay: 220 },
+        { label: 'MODULES',       dots: 9,  status: moduleCount + ' LOADED', cls: 'loaded', delay: 440 },
+        { label: 'NETWORK',       dots: 9,  status: 'SECURE',    cls: 'secure',    delay: 660 },
+        { label: 'AGENTS',        dots: 10, status: 'ACTIVE',    cls: 'active',    delay: 880 },
+        { label: 'CONSCIOUSNESS', dots: 7,  status: 'AWARE',     cls: 'aware',     delay: 1100 }
+    ];
+
+    // Build the subsystem check lines at phase 2 start
+    schedule(function() {
+        if (aborted) return;
+
+        // Remove typing cursor
+        if (typingEl) {
+            var existingCursor = typingEl.querySelector('.boot-cursor');
+            if (existingCursor) existingCursor.remove();
+        }
+
+        subsystems.forEach(function(sys) {
+            schedule(function() {
+                if (aborted) return;
+
+                // Build line using DOM methods (no innerHTML for security)
+                var line = document.createElement('div');
+                line.className = 'boot-line';
+
+                // Label span
+                var labelSpan = document.createElement('span');
+                labelSpan.className = 'label';
+                labelSpan.textContent = sys.label;
+                line.appendChild(labelSpan);
+
+                // Dots span
+                var dotsSpan = document.createElement('span');
+                dotsSpan.className = 'dots';
+                var dotStr = ' ';
+                for (var d = 0; d < sys.dots; d++) dotStr += '.';
+                dotStr += ' ';
+                dotsSpan.textContent = dotStr;
+                line.appendChild(dotsSpan);
+
+                // Opening bracket
+                line.appendChild(document.createTextNode('['));
+
+                // Progress fill (starts empty)
+                var fillSpan = document.createElement('span');
+                fillSpan.className = 'progress-fill';
+                fillSpan.textContent = '';
+                line.appendChild(fillSpan);
+
+                // Progress track (starts full with light blocks)
+                var trackSpan = document.createElement('span');
+                trackSpan.className = 'progress-track';
+                var emptyBlocks = '';
+                for (var e = 0; e < 12; e++) emptyBlocks += '\u2591';
+                trackSpan.textContent = emptyBlocks;
+                line.appendChild(trackSpan);
+
+                // Closing bracket + space
+                line.appendChild(document.createTextNode('] '));
+
+                // Status span (hidden initially)
+                var statusSpan = document.createElement('span');
+                statusSpan.className = 'status ' + sys.cls;
+                statusSpan.style.opacity = '0';
+                statusSpan.textContent = sys.status;
+                line.appendChild(statusSpan);
+
+                checksContainer.appendChild(line);
+
+                // Animate line in
+                requestAnimationFrame(function() {
+                    line.classList.add('visible');
+                });
+
+                // Animate progress bar fill over ~300ms
+                var fillStep = 0;
+                var fillTotal = 12;
+                var fillTimer = setInterval(function() {
+                    if (aborted) { clearInterval(fillTimer); return; }
+                    fillStep++;
+                    var fullBlocks = '';
+                    for (var f = 0; f < fillStep; f++) fullBlocks += '\u2588';
+                    fillSpan.textContent = fullBlocks;
+
+                    var remainBlocks = '';
+                    for (var r = 0; r < Math.max(0, fillTotal - fillStep); r++) remainBlocks += '\u2591';
+                    trackSpan.textContent = remainBlocks;
+
+                    if (fillStep >= fillTotal) {
+                        clearInterval(fillTimer);
+                        statusSpan.style.opacity = '1';
+                    }
+                }, 25);
+
+            }, 1000 + sys.delay);
+        });
+    }, 0);
+
+    // ── Phase 3 (2500-3000ms): Threat level flash + screen shake ──
+    schedule(function() {
+        if (aborted) return;
+        var threat = document.getElementById('bootThreat');
+        if (threat) threat.classList.add('flash');
+        overlay.classList.add('shake');
+        schedule(function() {
+            if (!aborted) overlay.classList.remove('shake');
+        }, 300);
+    }, 2500);
+
+    // ── Phase 4 (3000-3500ms): Logo materializes ──
+    schedule(function() {
+        if (aborted) return;
+        // Fade out terminal
+        var terminal = document.getElementById('bootTerminal');
+        if (terminal) {
+            terminal.style.transition = 'opacity 0.3s ease';
+            terminal.style.opacity = '0';
+        }
+
+        schedule(function() {
+            if (aborted) return;
+            var logo = document.getElementById('bootLogo');
+            if (logo) logo.classList.add('visible');
+        }, 200);
+    }, 3000);
+
+    // ── Phase 5 (3500-4000ms): Split reveal ──
+    schedule(function() {
+        if (aborted) return;
+        finishBoot();
+    }, 3800);
+
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// THEME INTEGRATION
+// Handle matrix rain visibility on theme change
+// ═══════════════════════════════════════════════════════════════════════════════
+(function() {
+    // Watch for theme changes via MutationObserver on html data-theme attribute
+    var htmlEl = document.documentElement;
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.attributeName === 'data-theme') {
+                var theme = htmlEl.getAttribute('data-theme');
+                var canvas = document.getElementById('matrix-rain');
+                if (canvas) {
+                    canvas.style.display = (theme === 'light') ? 'none' : '';
+                }
+            }
+        });
+    });
+    observer.observe(htmlEl, { attributes: true, attributeFilter: ['data-theme'] });
+
+    // Also handle the legacy body.light-mode class approach
+    var bodyObserver = new MutationObserver(function() {
+        var canvas = document.getElementById('matrix-rain');
+        if (canvas) {
+            canvas.style.display = document.body.classList.contains('light-mode') ? 'none' : '';
+        }
+    });
+    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+})();
 </script>
 {% endblock %}

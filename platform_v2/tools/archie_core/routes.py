@@ -2006,3 +2006,174 @@ def invalidate_voice_cache(profile_id):
                 ),
                 500,
             )
+
+    # ── Phase 7: Memory Endpoints ─────────────────────────────────────────
+
+    @archie_chat_bp.route("/api/memory/list", methods=["GET"])
+    @login_required
+    def memory_list():
+        """List active memories for current user."""
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, memory_type, category, content, importance_score,
+                       access_count, tags, source_type, created_at
+                FROM long_term_memory
+                WHERE user_id = %s AND is_deleted = FALSE
+                ORDER BY importance_score DESC, created_at DESC
+                LIMIT 100
+                """,
+                (current_user.id,),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            memories = []
+            for r in rows:
+                memories.append(
+                    {
+                        "id": r["id"],
+                        "memory_type": r["memory_type"],
+                        "category": r["category"],
+                        "content": r["content"],
+                        "importance_score": float(r["importance_score"] or 0),
+                        "access_count": r["access_count"] or 0,
+                        "tags": r["tags"] or [],
+                        "source_type": r["source_type"],
+                        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    }
+                )
+            return jsonify({"success": True, "memories": memories})
+
+        except Exception as e:
+            logger.error(f"Memory list error: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return jsonify({"success": True, "memories": []})
+
+    @archie_chat_bp.route("/api/memory/store", methods=["POST"])
+    @login_required
+    def memory_store():
+        """Manually store a memory."""
+        data = request.get_json(silent=True) or {}
+        content = (data.get("content") or "").strip()
+        category = (data.get("category") or "general").strip()
+
+        if not content:
+            return jsonify({"success": False, "error": "content is required"}), 400
+
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                INSERT INTO long_term_memory
+                    (user_id, memory_type, category, content,
+                     importance_score, source_type, source_module)
+                VALUES (%s, 'fact', %s, %s, 0.7, 'manual', 'chat')
+                RETURNING id
+                """,
+                (current_user.id, category, content),
+            )
+            new_id = cur.fetchone()["id"]
+            conn.commit()
+            cur.close()
+            conn.close()
+            return jsonify({"success": True, "id": new_id})
+
+        except Exception as e:
+            logger.error(f"Memory store error: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @archie_chat_bp.route("/api/memory/<int:memory_id>/delete", methods=["POST"])
+    @login_required
+    def memory_delete(memory_id):
+        """Soft-delete a memory."""
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE long_term_memory
+                SET is_deleted = TRUE
+                WHERE id = %s AND user_id = %s
+                """,
+                (memory_id, current_user.id),
+            )
+            affected = cur.rowcount
+            conn.commit()
+            cur.close()
+            conn.close()
+            return jsonify({"success": True, "deleted": affected > 0})
+
+        except Exception as e:
+            logger.error(f"Memory delete error: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return jsonify({"success": False, "deleted": False}), 500
+
+    @archie_chat_bp.route("/api/memory/preferences", methods=["GET"])
+    @login_required
+    def memory_preferences():
+        """User memory preferences."""
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, category, preference_key, preference_value,
+                       confidence, times_confirmed, times_contradicted,
+                       first_observed_at, last_confirmed_at
+                FROM user_memory_preferences
+                WHERE user_id = %s AND is_active = TRUE
+                ORDER BY confidence DESC
+                """,
+                (current_user.id,),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            prefs = []
+            for r in rows:
+                prefs.append(
+                    {
+                        "id": r["id"],
+                        "category": r["category"],
+                        "preference_key": r["preference_key"],
+                        "preference_value": r["preference_value"],
+                        "confidence": float(r["confidence"] or 0),
+                        "times_confirmed": r["times_confirmed"] or 0,
+                        "times_contradicted": r["times_contradicted"] or 0,
+                        "first_observed_at": r["first_observed_at"].isoformat() if r["first_observed_at"] else None,
+                        "last_confirmed_at": r["last_confirmed_at"].isoformat() if r["last_confirmed_at"] else None,
+                    }
+                )
+            return jsonify({"success": True, "preferences": prefs})
+
+        except Exception as e:
+            logger.error(f"Memory preferences error: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return jsonify({"success": True, "preferences": []})

@@ -2715,6 +2715,49 @@
     width: 16px;
     height: 16px;
 }
+
+/* === Analytics Panel === */
+.analytics-panel{padding:8px 12px;border-top:1px solid var(--archie-border,#2a3a4a)}
+.analytics-toggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:6px 0;font-size:.8rem;font-weight:600;color:var(--archie-accent,#60a5fa)}
+.analytics-body{display:none;padding-top:8px}
+.analytics-body.open{display:block}
+.an-metric{display:flex;justify-content:space-between;padding:3px 0;font-size:.8rem}
+.an-metric .an-val{font-family:'Orbitron',monospace;color:var(--archie-accent,#60a5fa)}
+.an-chart{height:60px;margin:8px 0}
+.an-section-title{font-size:.7rem;color:var(--archie-muted,#6b7280);text-transform:uppercase;margin-top:10px;letter-spacing:.5px}
+.an-export-btn{font-size:.7rem;padding:2px 8px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:none;color:var(--archie-text,#e2e8f0);cursor:pointer;margin-top:6px}
+.an-export-btn:hover{border-color:var(--archie-accent,#60a5fa)}
+
+/* === Memory Panel === */
+.memory-panel{padding:8px 12px;border-top:1px solid var(--archie-border,#2a3a4a)}
+.memory-toggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:6px 0;font-size:.8rem;font-weight:600;color:var(--archie-accent,#60a5fa)}
+.memory-body{display:none;padding-top:8px;max-height:300px;overflow-y:auto}
+.memory-body.open{display:block}
+.mem-item{padding:6px 8px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;margin-bottom:6px;font-size:.8rem;position:relative}
+.mem-item .mem-cat{font-size:.65rem;color:var(--archie-accent,#60a5fa);text-transform:uppercase;font-weight:600}
+.mem-item .mem-content{margin-top:2px;color:var(--archie-text,#e2e8f0)}
+.mem-item .mem-del{position:absolute;top:4px;right:6px;font-size:.7rem;color:var(--archie-muted,#6b7280);cursor:pointer;background:none;border:none;padding:2px}
+.mem-item .mem-del:hover{color:#f87171}
+.mem-search{width:100%;padding:4px 8px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:var(--archie-card-bg,#0a1628);color:var(--archie-text,#e2e8f0);font-size:.8rem;margin-bottom:6px}
+.mem-empty{text-align:center;padding:16px;color:var(--archie-muted,#6b7280);font-size:.8rem}
+
+/* === Notification Feed === */
+.notif-bar{display:none;padding:8px 12px;background:var(--archie-card-bg,#0a1628);border-bottom:1px solid var(--archie-border,#2a3a4a);font-size:.8rem}
+.notif-bar.has-notifs{display:flex;align-items:center;gap:8px}
+.notif-dot{width:8px;height:8px;border-radius:50%;background:#fbbf24;flex-shrink:0}
+.notif-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--archie-text,#e2e8f0)}
+.notif-count{font-size:.7rem;background:var(--archie-accent,#60a5fa);color:#0a1628;border-radius:8px;padding:0 6px;font-weight:700}
+.notif-dismiss{background:none;border:none;color:var(--archie-muted,#6b7280);cursor:pointer;font-size:.8rem;padding:2px}
+.notif-dismiss:hover{color:var(--archie-text,#e2e8f0)}
+
+/* === Export & Toast === */
+.archie-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--archie-accent,#60a5fa);color:#0a1628;padding:8px 16px;border-radius:6px;font-size:.85rem;z-index:1001}
+.summary-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999}
+.summary-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--archie-card-bg,#0a1628);border:1px solid var(--archie-border,#2a3a4a);border-radius:8px;padding:20px;z-index:1000;max-width:500px;max-height:80vh;overflow-y:auto}
+.summary-modal h3{margin:0 0 12px;font-family:'Orbitron',monospace;font-size:.9rem;color:var(--archie-accent,#60a5fa)}
+.summary-modal .summary-body{font-size:.85rem;white-space:pre-wrap;color:var(--archie-text,#e2e8f0)}
+.summary-modal .summary-actions{margin-top:12px;display:flex;gap:8px}
+.summary-modal button{padding:4px 12px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:none;color:var(--archie-text,#e2e8f0);cursor:pointer}
 {% endblock %}
 
 {% block content %}
@@ -2806,6 +2849,35 @@
                 {% endfor %}
             </div>
         </div>
+
+        <!-- Analytics Panel -->
+        <div class="analytics-panel">
+            <div class="analytics-toggle" onclick="toggleAnalytics()">
+                <span>Analytics</span>
+                <span id="an-arrow">&#9654;</span>
+            </div>
+            <div class="analytics-body" id="analytics-body">
+                <div id="an-conversation-metrics"></div>
+                <canvas id="an-trend-chart" class="an-chart"></canvas>
+                <div class="an-section-title">Model Usage</div>
+                <div id="an-model-usage"></div>
+                <div class="an-section-title">Voice</div>
+                <div id="an-voice-stats"></div>
+                <button class="an-export-btn" onclick="exportAnalyticsCSV()">Export CSV</button>
+            </div>
+        </div>
+
+        <!-- Memory Panel -->
+        <div class="memory-panel">
+            <div class="memory-toggle" onclick="toggleMemory()">
+                <span>Memory</span>
+                <span id="mem-arrow">&#9654;</span>
+            </div>
+            <div class="memory-body" id="memory-body">
+                <input class="mem-search" id="mem-search" placeholder="Search memories..." oninput="filterMemories(this.value)">
+                <div id="mem-list"></div>
+            </div>
+        </div>
     </aside>
 
     <!-- Main Chat Area -->
@@ -2864,6 +2936,14 @@
                     <i data-lucide="layout-dashboard"></i>
                 </a>
             </div>
+        </div>
+
+        <!-- Notification Feed -->
+        <div class="notif-bar" id="notif-bar">
+            <span class="notif-dot"></span>
+            <span class="notif-text" id="notif-text"></span>
+            <span class="notif-count" id="notif-count"></span>
+            <button class="notif-dismiss" onclick="dismissNotification()" title="Dismiss">&#10005;</button>
         </div>
 
         <div id="solo-chat-container" style="display: flex; flex: 1; flex-direction: column; overflow: hidden;">
@@ -4225,6 +4305,304 @@ document.getElementById('messageInput').focus();
     updateActivityBadge();
     setInterval(updateActivityBadge, 30000);
 })();
+
+// ============================================================
+// Phase 7: Analytics Panel
+// ============================================================
+function toggleAnalytics() {
+    var body = document.getElementById('analytics-body');
+    var arrow = document.getElementById('an-arrow');
+    if (!body) return;
+    if (body.classList.contains('open')) {
+        body.classList.remove('open');
+        arrow.textContent = '\u25B6';
+    } else {
+        body.classList.add('open');
+        arrow.textContent = '\u25BC';
+        loadAnalytics();
+    }
+}
+
+function loadAnalytics() {
+    fetch('/tools/archie-chat/api/analytics/conversation-metrics?range=7')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var el = document.getElementById('an-conversation-metrics');
+            if (!el) return;
+            el.textContent = '';
+            var items = [
+                {label: 'Today', val: d.today || 0},
+                {label: 'This Week', val: d.week || 0},
+                {label: 'Avg Response', val: (d.avg_response_ms || 0) + 'ms'},
+                {label: 'Active Threads', val: d.active_threads || 0}
+            ];
+            items.forEach(function(it) {
+                var row = document.createElement('div');
+                row.className = 'an-metric';
+                var lbl = document.createElement('span');
+                lbl.textContent = it.label;
+                var val = document.createElement('span');
+                val.className = 'an-val';
+                val.textContent = it.val;
+                row.appendChild(lbl);
+                row.appendChild(val);
+                el.appendChild(row);
+            });
+            if (d.daily_trend && d.daily_trend.length > 0 && typeof Chart !== 'undefined') {
+                var canvas = document.getElementById('an-trend-chart');
+                if (canvas && !canvas._chartInstance) {
+                    canvas._chartInstance = new Chart(canvas, {
+                        type: 'line',
+                        data: {
+                            labels: d.daily_trend.map(function(t) { return t.day; }),
+                            datasets: [{
+                                data: d.daily_trend.map(function(t) { return t.count; }),
+                                borderColor: '#60a5fa',
+                                backgroundColor: 'rgba(96,165,250,0.1)',
+                                fill: true, tension: 0.3, pointRadius: 2
+                            }]
+                        },
+                        options: {
+                            plugins: { legend: { display: false } },
+                            scales: { x: { display: false }, y: { display: false } },
+                            responsive: true, maintainAspectRatio: false
+                        }
+                    });
+                }
+            }
+        }).catch(function() {});
+
+    fetch('/tools/archie-chat/api/analytics/model-usage?range=7')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var el = document.getElementById('an-model-usage');
+            if (!el) return;
+            el.textContent = '';
+            (d.models || []).slice(0, 5).forEach(function(m) {
+                var row = document.createElement('div');
+                row.className = 'an-metric';
+                var lbl = document.createElement('span');
+                lbl.textContent = m.model_used || 'unknown';
+                var val = document.createElement('span');
+                val.className = 'an-val';
+                val.textContent = m.count;
+                row.appendChild(lbl);
+                row.appendChild(val);
+                el.appendChild(row);
+            });
+        }).catch(function() {});
+
+    fetch('/tools/archie-chat/api/analytics/voice?range=7')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var el = document.getElementById('an-voice-stats');
+            if (!el) return;
+            el.textContent = '';
+            var items = [
+                {label: 'Generations', val: d.total_generations || 0},
+                {label: 'Cache Hit', val: (d.cache_hit_rate || 0) + '%'},
+                {label: 'Avg Latency', val: (d.avg_latency_ms || 0) + 'ms'}
+            ];
+            items.forEach(function(it) {
+                var row = document.createElement('div');
+                row.className = 'an-metric';
+                var lbl = document.createElement('span');
+                lbl.textContent = it.label;
+                var val = document.createElement('span');
+                val.className = 'an-val';
+                val.textContent = it.val;
+                row.appendChild(lbl);
+                row.appendChild(val);
+                el.appendChild(row);
+            });
+        }).catch(function() {});
+}
+
+function exportAnalyticsCSV() {
+    window.open('/tools/archie-chat/api/analytics/export?range=7', '_blank');
+}
+
+// ============================================================
+// Phase 7: Memory Panel
+// ============================================================
+var _allMemories = [];
+
+function toggleMemory() {
+    var body = document.getElementById('memory-body');
+    var arrow = document.getElementById('mem-arrow');
+    if (!body) return;
+    if (body.classList.contains('open')) {
+        body.classList.remove('open');
+        arrow.textContent = '\u25B6';
+    } else {
+        body.classList.add('open');
+        arrow.textContent = '\u25BC';
+        loadMemories();
+    }
+}
+
+function loadMemories() {
+    fetch('/tools/archie-chat/api/memory/list')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            _allMemories = d.memories || [];
+            renderMemories(_allMemories);
+        }).catch(function() {});
+}
+
+function renderMemories(memories) {
+    var list = document.getElementById('mem-list');
+    if (!list) return;
+    list.textContent = '';
+    if (memories.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'mem-empty';
+        empty.textContent = 'No memories yet. Say "Remember that..." to add one.';
+        list.appendChild(empty);
+        return;
+    }
+    memories.forEach(function(m) {
+        var item = document.createElement('div');
+        item.className = 'mem-item';
+        var cat = document.createElement('div');
+        cat.className = 'mem-cat';
+        cat.textContent = m.category || 'general';
+        var content = document.createElement('div');
+        content.className = 'mem-content';
+        content.textContent = m.content || '';
+        var delBtn = document.createElement('button');
+        delBtn.className = 'mem-del';
+        delBtn.textContent = '\u2715';
+        delBtn.title = 'Delete memory';
+        delBtn.onclick = (function(id, el) {
+            return function() { deleteMemory(id, el); };
+        })(m.id, item);
+        item.appendChild(cat);
+        item.appendChild(content);
+        item.appendChild(delBtn);
+        list.appendChild(item);
+    });
+}
+
+function filterMemories(query) {
+    if (!query) { renderMemories(_allMemories); return; }
+    var q = query.toLowerCase();
+    var filtered = _allMemories.filter(function(m) {
+        return (m.content || '').toLowerCase().indexOf(q) !== -1 ||
+               (m.category || '').toLowerCase().indexOf(q) !== -1;
+    });
+    renderMemories(filtered);
+}
+
+function deleteMemory(memId, itemEl) {
+    fetch('/tools/archie-chat/api/memory/' + memId + '/delete', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.deleted) {
+                itemEl.remove();
+                _allMemories = _allMemories.filter(function(m) { return m.id !== memId; });
+            }
+        }).catch(function() {});
+}
+
+// ============================================================
+// Phase 7: Notification Feed
+// ============================================================
+var _currentNotifId = null;
+
+function pollNotifications() {
+    fetch('/tools/archie-chat/api/notifications/unread')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var bar = document.getElementById('notif-bar');
+            if (!bar) return;
+            if (d.count > 0 && d.notifications && d.notifications.length > 0) {
+                bar.classList.add('has-notifs');
+                var latest = d.notifications[0];
+                _currentNotifId = latest.id;
+                var text = document.getElementById('notif-text');
+                if (text) text.textContent = (latest.title || latest.message || 'New notification').substring(0, 100);
+                var count = document.getElementById('notif-count');
+                if (count) count.textContent = d.count;
+            } else {
+                bar.classList.remove('has-notifs');
+                _currentNotifId = null;
+            }
+        }).catch(function() {});
+}
+
+function dismissNotification() {
+    if (!_currentNotifId) return;
+    fetch('/tools/archie-chat/api/notifications/' + _currentNotifId + '/read', { method: 'POST' })
+        .then(function() { pollNotifications(); })
+        .catch(function() {});
+}
+
+pollNotifications();
+setInterval(pollNotifications, 30000);
+
+// ============================================================
+// Phase 7: Export Functions
+// ============================================================
+function exportConversation(convId, format) {
+    window.open('/tools/archie-chat/api/conversations/' + convId + '/export?format=' + (format || 'md'), '_blank');
+}
+
+function saveToKnowledgeBase(convId) {
+    fetch('/tools/archie-chat/api/conversations/' + convId + '/save-to-kb', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.kb_id) {
+                showToast('Saved to knowledge base: ' + d.title);
+            } else {
+                showToast('Error: ' + (d.error || 'Unknown error'));
+            }
+        }).catch(function() { showToast('Failed to save'); });
+}
+
+function summarizeConversation(convId) {
+    showToast('Generating summary...');
+    fetch('/tools/archie-chat/api/conversations/' + convId + '/summarize', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.summary) {
+                var overlay = document.createElement('div');
+                overlay.className = 'summary-overlay';
+                var modal = document.createElement('div');
+                modal.className = 'summary-modal';
+                var title = document.createElement('h3');
+                title.textContent = 'Conversation Summary';
+                var body = document.createElement('div');
+                body.className = 'summary-body';
+                body.textContent = d.summary;
+                var actions = document.createElement('div');
+                actions.className = 'summary-actions';
+                var copyBtn = document.createElement('button');
+                copyBtn.textContent = 'Copy';
+                copyBtn.onclick = function() { navigator.clipboard.writeText(d.summary); showToast('Copied!'); };
+                var closeBtn = document.createElement('button');
+                closeBtn.textContent = 'Close';
+                closeBtn.onclick = function() { modal.remove(); overlay.remove(); };
+                actions.appendChild(copyBtn);
+                actions.appendChild(closeBtn);
+                modal.appendChild(title);
+                modal.appendChild(body);
+                modal.appendChild(actions);
+                overlay.onclick = function() { modal.remove(); overlay.remove(); };
+                document.body.appendChild(overlay);
+                document.body.appendChild(modal);
+            }
+        }).catch(function() { showToast('Summary failed'); });
+}
+
+function showToast(msg) {
+    var toast = document.createElement('div');
+    toast.className = 'archie-toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 3000);
+}
 </script>
 <script src="/static/js/collaboration.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 {% endblock %}

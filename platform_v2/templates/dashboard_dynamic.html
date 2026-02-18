@@ -2512,7 +2512,7 @@ body.light-mode .module-card {
         }, 300);
     }, 2500);
 
-    // ── Phase 4 (3000-3500ms): Logo materializes ──
+    // ── Phase 4 (5000ms): Logo materializes (2s pause after threat) ──
     schedule(function() {
         if (aborted) return;
         // Fade out terminal
@@ -2527,13 +2527,13 @@ body.light-mode .module-card {
             var logo = document.getElementById('bootLogo');
             if (logo) logo.classList.add('visible');
         }, 200);
-    }, 3000);
+    }, 5000);
 
-    // ── Phase 5 (5500-6000ms): Split reveal (2s pause on logo) ──
+    // ── Phase 5: Split reveal (2.8s pause on logo) ──
     schedule(function() {
         if (aborted) return;
         finishBoot();
-    }, 5800);
+    }, 7800);
 
 })();
 

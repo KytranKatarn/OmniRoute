@@ -1,0 +1,969 @@
+{# ═══════════════════════════════════════════════════════════════════════════════
+   GOLD STANDARD MODULE TEMPLATE — A.R.C.H.I.E. Platform
+   ═══════════════════════════════════════════════════════════════════════════════
+   Copy this file when creating or redesigning a module.
+   Replace all {{PLACEHOLDER}} values with your module's specifics.
+
+   Reference docs (search knowledge_base):
+   - "LCARS Design System Reference v1.0"
+   - "Gold Standard Module Patterns — Dashboard + System Operations"
+
+   Checklist before deployment:
+   [ ] Set {% block module_name %} and add [data-module] block to theme.css
+   [ ] All colors use --archie-* tokens (zero hardcoded hex)
+   [ ] Tested at 374px, 717px, 1280px viewports
+   [ ] Works in both dark and light mode
+   [ ] All interactive elements have ARIA labels
+   [ ] Tab navigation works with keyboard
+   [ ] Loading states for all async data
+   [ ] Empty states for all data sections
+   ═══════════════════════════════════════════════════════════════════════════════ #}
+{% extends "base.html" %}
+
+{# ─── Page Title ─── #}
+{% block title %}Module Name - A.R.C.H.I.E.{% endblock %}
+
+{# ─── Module Accent Color ───
+   This MUST match a [data-module="..."] block in theme.css.
+   If your module doesn't have one yet, add it to theme.css first:
+
+   [data-module="my-module"] {
+       --archie-accent: var(--archie-cyan);
+       --archie-accent-dim: var(--archie-cyan-dim);
+       --archie-accent-bright: var(--archie-cyan-bright);
+       --archie-accent-alpha-10: var(--archie-cyan-alpha-10);
+       --archie-accent-alpha-20: var(--archie-cyan-alpha-20);
+       --archie-accent-alpha-30: var(--archie-cyan-alpha-30);
+       --archie-glow-accent: var(--archie-glow-cyan);
+       --archie-glow-accent-sm: var(--archie-glow-cyan-sm);
+       --archie-glow-accent-lg: var(--archie-glow-cyan-lg);
+       --archie-text-glow-accent: var(--archie-text-glow-cyan);
+   }
+
+   Available colors: green, cyan, orange, red, purple, blue
+#}
+{% block module_name %}my-module{% endblock %}
+
+{# ─── Module-Specific CSS ───
+   RULES:
+   - Use ONLY --archie-* tokens from theme.css
+   - NO custom :root variables
+   - NO duplicate @keyframes (use animations.css)
+   - NO hardcoded hex colors
+   - NO !important unless absolutely necessary
+#}
+{% block styles %}
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MODULE: My Module
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Layout Container ─── */
+.module-container {
+    max-width: var(--archie-container-max);
+    margin: 0 auto;
+    padding: var(--archie-spacing-md);
+    position: relative;
+    z-index: 1;
+}
+
+/* ─── Framed Header Banner ───
+   The signature LCARS command-center look.
+   Accent border + gradient fade + glow shadow. */
+.module-header {
+    text-align: center;
+    padding: var(--archie-spacing-lg);
+    border: 2px solid var(--archie-accent);
+    border-radius: var(--archie-radius-xl);
+    margin-bottom: var(--archie-spacing-lg);
+    background: linear-gradient(180deg, var(--archie-accent-alpha-10) 0%, transparent 100%);
+    box-shadow: 0 0 30px var(--archie-accent-alpha-20);
+    animation: fadeIn var(--archie-duration-normal) var(--archie-ease-out);
+}
+
+.module-header h1 {
+    font-family: var(--archie-font-heading);
+    font-size: var(--archie-text-4xl);
+    font-weight: var(--archie-font-bold);
+    color: var(--archie-accent);
+    text-shadow: 0 0 20px var(--archie-accent-alpha-30);
+    letter-spacing: var(--archie-tracking-mega);
+    margin: 0 0 var(--archie-spacing-xs) 0;
+}
+
+.module-header .subtitle {
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-sm);
+    color: var(--archie-text-tertiary);
+    letter-spacing: var(--archie-tracking-wide);
+}
+
+.module-header .header-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--archie-spacing-md);
+    margin-top: var(--archie-spacing-md);
+    flex-wrap: wrap;
+}
+
+/* ─── Live Indicator Dot ─── */
+.live-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--archie-spacing-xs);
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-xs);
+    color: var(--archie-success);
+    letter-spacing: var(--archie-tracking-wider);
+}
+
+.live-indicator .dot {
+    width: 8px;
+    height: 8px;
+    background: var(--archie-success);
+    border-radius: var(--archie-radius-full);
+    animation: pulse 1.5s infinite;
+}
+
+/* ─── Stats Grid ─── */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--archie-spacing-md);
+    margin-bottom: var(--archie-spacing-lg);
+}
+
+/* ─── Stat Card ─── */
+.stat-card {
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: var(--archie-radius-xl);
+    padding: var(--archie-spacing-md);
+    transition: all var(--archie-transition-fast);
+}
+
+.stat-card:hover {
+    border-color: var(--archie-accent);
+    box-shadow: 0 0 20px var(--archie-accent-alpha-10);
+}
+
+.stat-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--archie-spacing-sm);
+}
+
+.stat-card-title {
+    display: flex;
+    align-items: center;
+    gap: var(--archie-spacing-sm);
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-sm);
+    color: var(--archie-text-secondary);
+    font-weight: var(--archie-font-medium);
+}
+
+.stat-card-title i {
+    color: var(--archie-accent);
+}
+
+.stat-value {
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-3xl);
+    font-weight: var(--archie-font-bold);
+    color: var(--archie-accent);
+    line-height: var(--archie-leading-tight);
+}
+
+.stat-subtitle {
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-xs);
+    color: var(--archie-text-muted);
+    margin-top: var(--archie-spacing-xs);
+}
+
+.stat-badge {
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-xs);
+    padding: 2px 8px;
+    border-radius: var(--archie-radius-full);
+    border: 1px solid var(--archie-border-default);
+    color: var(--archie-text-tertiary);
+}
+
+/* ─── Progress Bar ─── */
+.progress-bar {
+    height: 8px;
+    background: var(--archie-bg-tertiary);
+    border-radius: var(--archie-radius-sm);
+    overflow: hidden;
+    margin-top: var(--archie-spacing-sm);
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: var(--archie-radius-sm);
+    transition: width 0.5s var(--archie-ease-out);
+}
+
+.progress-fill.green  { background: var(--archie-green); }
+.progress-fill.yellow { background: var(--archie-orange); }
+.progress-fill.red    { background: var(--archie-red); }
+
+/* ─── Panel ─── */
+.panel {
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: var(--archie-radius-xl);
+    padding: var(--archie-spacing-md);
+    margin-bottom: var(--archie-spacing-md);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--archie-spacing-md);
+    padding-bottom: var(--archie-spacing-sm);
+    border-bottom: 1px solid var(--archie-border-default);
+}
+
+.panel-title {
+    display: flex;
+    align-items: center;
+    gap: var(--archie-spacing-sm);
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-base);
+    font-weight: var(--archie-font-semibold);
+    color: var(--archie-accent);
+}
+
+.panel-title i {
+    width: 18px;
+    height: 18px;
+}
+
+/* ─── Info Grid (key-value pairs inside panels) ─── */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--archie-spacing-sm);
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--archie-spacing-sm);
+    border-radius: var(--archie-radius-md);
+    background: var(--archie-bg-tertiary);
+}
+
+.info-label {
+    font-size: var(--archie-text-xs);
+    color: var(--archie-text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--archie-tracking-widest);
+}
+
+.info-value {
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-sm);
+    color: var(--archie-text-secondary);
+}
+
+/* ─── Loading Overlay (for heavy modules) ─── */
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--archie-bg-void);
+    transition: opacity 0.5s var(--archie-ease-out);
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loading-logo {
+    font-family: var(--archie-font-heading);
+    font-size: var(--archie-text-5xl);
+    font-weight: var(--archie-font-black);
+    letter-spacing: var(--archie-tracking-mega);
+    color: var(--archie-accent);
+    text-shadow: var(--archie-text-glow-accent);
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.loading-bar {
+    width: 200px;
+    height: 2px;
+    background: var(--archie-border-muted);
+    margin-top: var(--archie-spacing-lg);
+    border-radius: var(--archie-radius-full);
+    overflow: hidden;
+}
+
+.loading-progress {
+    height: 100%;
+    background: var(--archie-accent);
+    box-shadow: 0 0 10px var(--archie-accent);
+    animation: loadingBar 1.5s ease-in-out forwards;
+}
+
+.loading-text {
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-xs);
+    color: var(--archie-text-muted);
+    letter-spacing: var(--archie-tracking-widest);
+    margin-top: var(--archie-spacing-md);
+    animation: blink 1s step-end infinite;
+}
+
+/* ─── Empty State ─── */
+.empty-state {
+    text-align: center;
+    padding: var(--archie-spacing-2xl) var(--archie-spacing-md);
+    color: var(--archie-text-muted);
+}
+
+.empty-state i {
+    width: 48px;
+    height: 48px;
+    color: var(--archie-text-disabled);
+    margin-bottom: var(--archie-spacing-md);
+}
+
+.empty-state h3 {
+    font-family: var(--archie-font-heading);
+    font-size: var(--archie-text-lg);
+    color: var(--archie-text-tertiary);
+    margin-bottom: var(--archie-spacing-xs);
+}
+
+.empty-state p {
+    font-size: var(--archie-text-sm);
+    color: var(--archie-text-muted);
+}
+
+/* ─── Toast Notification ─── */
+.toast-container {
+    position: fixed;
+    top: var(--archie-spacing-md);
+    right: var(--archie-spacing-md);
+    z-index: var(--archie-z-notification);
+    display: flex;
+    flex-direction: column;
+    gap: var(--archie-spacing-sm);
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: var(--archie-spacing-sm);
+    padding: var(--archie-spacing-sm) var(--archie-spacing-md);
+    background: var(--archie-bg-elevated);
+    border: 1px solid var(--archie-border-default);
+    border-radius: var(--archie-radius-lg);
+    font-family: var(--archie-font-mono);
+    font-size: var(--archie-text-sm);
+    color: var(--archie-text-secondary);
+    backdrop-filter: blur(10px);
+    animation: slideInRight var(--archie-duration-normal) var(--archie-ease-out);
+    min-width: 280px;
+    max-width: 400px;
+}
+
+.toast.success { border-left: 3px solid var(--archie-success); }
+.toast.warning { border-left: 3px solid var(--archie-warning); }
+.toast.error   { border-left: 3px solid var(--archie-danger); }
+.toast.info    { border-left: 3px solid var(--archie-info); }
+
+/* ─── Responsive: Mobile First ─── */
+@media (max-width: 768px) {
+    .module-container {
+        padding: var(--archie-spacing-sm);
+    }
+
+    .module-header {
+        padding: var(--archie-spacing-md);
+    }
+
+    .module-header h1 {
+        font-size: var(--archie-text-2xl);
+        letter-spacing: var(--archie-tracking-wider);
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .module-header .header-controls {
+        flex-direction: column;
+        gap: var(--archie-spacing-sm);
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{# ═══════════════════════════════════════════════════════════════════════════════
+   OPTIONAL: Loading Overlay
+   Use for modules with heavy async data. Remove if not needed.
+   ═══════════════════════════════════════════════════════════════════════════════ #}
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-logo">A.R.C.H.I.E.</div>
+    <div class="loading-bar"><div class="loading-progress"></div></div>
+    <div class="loading-text">INITIALIZING MODULE...</div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════════
+   OPTIONAL: Category Navigation Bar
+   Include the appropriate nav for your module's category.
+   Available: includes/admin_tools_nav.html (for Admin Tools category)
+   Create new ones following the same pattern for other categories.
+   ═══════════════════════════════════════════════════════════════════════════════ #}
+{# {% include 'includes/admin_tools_nav.html' %} #}
+
+{# ═══════════════════════════════════════════════════════════════════════════════
+   Toast Container (for notifications)
+   ═══════════════════════════════════════════════════════════════════════════════ #}
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="module-container">
+
+    {# ─── Framed Header Banner ─── #}
+    <header class="module-header" role="banner">
+        <h1>MODULE TITLE</h1>
+        <div class="subtitle">Brief Description of This Module</div>
+        <div class="header-controls">
+            {# Add module-specific controls here: refresh, toggle, etc. #}
+            <div class="live-indicator" id="liveIndicator" style="display: none;">
+                <span class="dot"></span>
+                <span>LIVE</span>
+            </div>
+            <button class="btn btn-primary" onclick="refreshData()" aria-label="Refresh data">
+                <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    {# ─── Tab Navigation ───
+       Uses components.css .tab-nav / .tab-btn — zero custom CSS needed.
+       JS switching handled in the script block below. #}
+    <nav class="tab-nav" role="tablist" aria-label="Module sections">
+        <button class="tab-btn active" data-tab="overview" role="tab"
+                aria-selected="true" aria-controls="tab-overview" id="btn-overview">
+            <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i>
+            Overview
+        </button>
+        <button class="tab-btn" data-tab="details" role="tab"
+                aria-selected="false" aria-controls="tab-details" id="btn-details">
+            <i data-lucide="list" style="width: 16px; height: 16px;"></i>
+            Details
+        </button>
+        <button class="tab-btn" data-tab="settings" role="tab"
+                aria-selected="false" aria-controls="tab-settings" id="btn-settings">
+            <i data-lucide="settings" style="width: 16px; height: 16px;"></i>
+            Settings
+        </button>
+    </nav>
+
+    {# ═══════════════════════════════════════════════════════════════════════════
+       TAB 1: Overview
+       ═══════════════════════════════════════════════════════════════════════════ #}
+    <div id="tab-overview" class="tab-content active" role="tabpanel" aria-labelledby="btn-overview">
+
+        {# ─── Stat Cards Row ─── #}
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-title">
+                        <i data-lucide="activity" style="width: 20px; height: 20px;"></i>
+                        Metric Name
+                    </div>
+                    <span class="stat-badge" id="metricBadge">--</span>
+                </div>
+                <div class="stat-value" id="metricValue">--</div>
+                <div class="stat-subtitle">Description of this metric</div>
+                <div class="progress-bar">
+                    <div class="progress-fill green" id="metricBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-title">
+                        <i data-lucide="database" style="width: 20px; height: 20px;"></i>
+                        Another Metric
+                    </div>
+                </div>
+                <div class="stat-value" id="metric2Value">--</div>
+                <div class="stat-subtitle">Description</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-title">
+                        <i data-lucide="zap" style="width: 20px; height: 20px;"></i>
+                        Third Metric
+                    </div>
+                </div>
+                <div class="stat-value" id="metric3Value">--</div>
+                <div class="stat-subtitle">Description</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-title">
+                        <i data-lucide="check-circle" style="width: 20px; height: 20px;"></i>
+                        Fourth Metric
+                    </div>
+                </div>
+                <div class="stat-value" id="metric4Value">--</div>
+                <div class="stat-subtitle">Description</div>
+            </div>
+        </div>
+
+        {# ─── Panel with Info Grid ─── #}
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i data-lucide="info"></i>
+                    Information Panel
+                </div>
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Label</span>
+                    <span class="info-value" id="infoValue1">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Label</span>
+                    <span class="info-value" id="infoValue2">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Label</span>
+                    <span class="info-value" id="infoValue3">--</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Label</span>
+                    <span class="info-value" id="infoValue4">--</span>
+                </div>
+            </div>
+        </div>
+
+        {# ─── Data Table ─── #}
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i data-lucide="table"></i>
+                    Data Table
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="exportTable()" aria-label="Export table data">
+                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                    Export
+                </button>
+            </div>
+            <div class="table-container">
+                <table class="data-table data-table-striped" role="grid">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Value</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        {# Populated by JS or Jinja loop #}
+                    </tbody>
+                </table>
+            </div>
+            {# Empty state — shown when table has no data #}
+            <div class="empty-state" id="tableEmpty" style="display: none;">
+                <i data-lucide="inbox"></i>
+                <h3>No Data Found</h3>
+                <p>There are no records to display yet.</p>
+            </div>
+        </div>
+    </div>
+
+    {# ═══════════════════════════════════════════════════════════════════════════
+       TAB 2: Details
+       ═══════════════════════════════════════════════════════════════════════════ #}
+    <div id="tab-details" class="tab-content" role="tabpanel" aria-labelledby="btn-details">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i data-lucide="file-text"></i>
+                    Detail View
+                </div>
+            </div>
+            <p style="color: var(--archie-text-secondary);">Detail content goes here.</p>
+        </div>
+    </div>
+
+    {# ═══════════════════════════════════════════════════════════════════════════
+       TAB 3: Settings
+       ═══════════════════════════════════════════════════════════════════════════ #}
+    <div id="tab-settings" class="tab-content" role="tabpanel" aria-labelledby="btn-settings">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i data-lucide="settings"></i>
+                    Module Settings
+                </div>
+            </div>
+            {# ─── Form Pattern ─── #}
+            <form id="settingsForm" onsubmit="saveSettings(event)">
+                <div class="form-group" style="margin-bottom: var(--archie-spacing-md);">
+                    <label class="form-label" for="settingInput">Setting Name</label>
+                    <input class="form-input" type="text" id="settingInput"
+                           placeholder="Enter value" aria-describedby="settingHelp">
+                    <small id="settingHelp" style="color: var(--archie-text-muted); font-size: var(--archie-text-xs);">
+                        Help text for this setting.
+                    </small>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--archie-spacing-md);">
+                    <label class="form-label" for="settingSelect">Dropdown</label>
+                    <select class="form-select" id="settingSelect" aria-label="Select an option">
+                        <option value="">Select an option</option>
+                        <option value="a">Option A</option>
+                        <option value="b">Option B</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--archie-spacing-md);">
+                    <label class="form-label">
+                        <input type="checkbox" class="form-check-input" id="settingToggle">
+                        Enable Feature
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+                    Save Settings
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {# ═══════════════════════════════════════════════════════════════════════════
+       OPTIONAL: Modal Pattern
+       ═══════════════════════════════════════════════════════════════════════════ #}
+    <div class="modal-overlay" id="exampleModal" role="dialog" aria-modal="true"
+         aria-labelledby="modalTitle" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Modal Title</h3>
+                <button class="modal-close" onclick="closeModal('exampleModal')"
+                        aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--archie-text-secondary);">Modal content goes here.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('exampleModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{# ═══════════════════════════════════════════════════════════════════════════════
+   JavaScript
+   ═══════════════════════════════════════════════════════════════════════════════ #}
+{% block extra_js %}
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MODULE: My Module — JavaScript
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+// ─── Loading Overlay Dismiss ───
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) overlay.classList.add('hidden');
+    }, 800);
+});
+
+// ─── Tab Switching ───
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+
+        // Update button states
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+
+        // Update tab panels
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        const panel = document.getElementById('tab-' + tabId);
+        if (panel) panel.classList.add('active');
+    });
+});
+
+// ─── Keyboard Tab Navigation ───
+const tabNav = document.querySelector('.tab-nav');
+if (tabNav) {
+    tabNav.addEventListener('keydown', (e) => {
+        const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+        const current = tabs.indexOf(document.activeElement);
+        let next = -1;
+
+        if (e.key === 'ArrowRight') next = (current + 1) % tabs.length;
+        else if (e.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+        else if (e.key === 'Home') next = 0;
+        else if (e.key === 'End') next = tabs.length - 1;
+
+        if (next >= 0) {
+            e.preventDefault();
+            tabs[next].focus();
+            tabs[next].click();
+        }
+    });
+}
+
+// ─── Initialize Lucide Icons ───
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+});
+
+// ─── Utility: Escape HTML (XSS-safe) ───
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ─── API Fetch Helper ───
+async function apiFetch(url, options) {
+    options = options || {};
+    try {
+        const response = await fetch(url, {
+            headers: Object.assign({ 'Content-Type': 'application/json' }, options.headers || {}),
+            method: options.method || 'GET',
+            body: options.body || undefined,
+        });
+        if (!response.ok) {
+            if (response.status === 401) {
+                showToast('Session expired. Please log in again.', 'error');
+                setTimeout(() => { window.location.href = '/login'; }, 2000);
+                return null;
+            }
+            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+        }
+        return await response.json();
+    } catch (err) {
+        console.error('API error (' + url + '):', err);
+        showToast('Error: ' + err.message, 'error');
+        return null;
+    }
+}
+
+// ─── Data Loading with States ───
+async function refreshData() {
+    // Show loading state on stat values
+    document.querySelectorAll('.stat-value').forEach(el => {
+        el.textContent = '...';
+        el.style.opacity = '0.5';
+    });
+
+    const data = await apiFetch('/tools/my-module/api/stats');
+
+    // Restore opacity
+    document.querySelectorAll('.stat-value').forEach(el => {
+        el.style.opacity = '1';
+    });
+
+    if (!data) return; // apiFetch already showed error toast
+
+    // Update stat cards — replace with your actual data fields
+    updateStat('metricValue', data.metric1, 'metricBar', data.metric1_pct);
+    // updateStat('metric2Value', data.metric2);
+    // updateStat('metric3Value', data.metric3);
+    // updateStat('metric4Value', data.metric4);
+
+    // Update table
+    updateTable(data.items);
+}
+
+function updateStat(valueId, value, barId, pct) {
+    const el = document.getElementById(valueId);
+    if (el) el.textContent = (value != null) ? value : '--';
+
+    if (barId && pct != null) {
+        const bar = document.getElementById(barId);
+        if (bar) {
+            bar.style.width = pct + '%';
+            bar.className = 'progress-fill ' + (pct > 90 ? 'red' : pct > 70 ? 'yellow' : 'green');
+        }
+    }
+}
+
+function updateTable(items) {
+    const tbody = document.getElementById('tableBody');
+    const empty = document.getElementById('tableEmpty');
+    if (!tbody) return;
+
+    if (!items || items.length === 0) {
+        tbody.textContent = '';
+        if (empty) empty.style.display = 'block';
+        return;
+    }
+
+    if (empty) empty.style.display = 'none';
+
+    // Clear existing rows safely
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+    // Build rows using DOM API (XSS-safe — no innerHTML with user data)
+    items.forEach(item => {
+        const tr = document.createElement('tr');
+
+        const tdName = document.createElement('td');
+        tdName.textContent = item.name;
+        tr.appendChild(tdName);
+
+        const tdStatus = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-' + (item.status === 'active' ? 'success' : 'warning');
+        badge.textContent = item.status;
+        tdStatus.appendChild(badge);
+        tr.appendChild(tdStatus);
+
+        const tdValue = document.createElement('td');
+        tdValue.textContent = item.value;
+        tr.appendChild(tdValue);
+
+        const tdActions = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-ghost btn-xs';
+        btn.setAttribute('aria-label', 'View ' + escapeHtml(item.name));
+        btn.addEventListener('click', () => viewItem(item.id));
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'eye');
+        icon.style.cssText = 'width: 14px; height: 14px;';
+        btn.appendChild(icon);
+        tdActions.appendChild(btn);
+        tr.appendChild(tdActions);
+
+        tbody.appendChild(tr);
+    });
+
+    // Re-init icons in dynamically added content
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// ─── Toast Notifications ───
+function showToast(message, type, duration) {
+    type = type || 'info';
+    duration = duration || 4000;
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const icons = { success: 'check-circle', error: 'alert-circle', warning: 'alert-triangle', info: 'info' };
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', icons[type] || 'info');
+    icon.style.cssText = 'width: 18px; height: 18px; flex-shrink: 0;';
+    toast.appendChild(icon);
+
+    const text = document.createElement('span');
+    text.textContent = message;
+    toast.appendChild(text);
+
+    container.appendChild(toast);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        toast.style.transition = 'all 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
+
+// ─── Modal Helpers ───
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'flex';
+        const inner = modal.querySelector('.modal');
+        if (inner) inner.focus();
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'none';
+}
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.style.display = 'none';
+    });
+});
+
+// Close modal on Escape
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay').forEach(m => { m.style.display = 'none'; });
+    }
+});
+
+// ─── Form Submit ───
+function saveSettings(event) {
+    event.preventDefault();
+    // const formData = new FormData(event.target);
+    // Convert to JSON and send via apiFetch
+    showToast('Settings saved!', 'success');
+}
+
+// ─── Placeholders (replace with your logic) ───
+function exportTable() {
+    showToast('Export feature coming soon', 'info');
+}
+
+function viewItem(id) {
+    openModal('exampleModal');
+}
+
+function confirmAction() {
+    closeModal('exampleModal');
+    showToast('Action confirmed', 'success');
+}
+
+// ─── Initial Data Load ───
+document.addEventListener('DOMContentLoaded', () => {
+    refreshData();
+});
+</script>
+{% endblock %}

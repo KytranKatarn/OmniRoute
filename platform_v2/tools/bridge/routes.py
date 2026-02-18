@@ -9,12 +9,15 @@ Date: 2026-01-16
 """
 
 import hashlib
+import json
 import os
 import sys
+import time
 import logging
+from collections import deque
 from datetime import datetime
 from typing import Dict, List
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify, request, Response, stream_with_context
 from flask_login import login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -35,6 +38,34 @@ def get_db_connection():
         user=os.getenv("DB_USER", "archie"),
         password=os.getenv("DB_PASSWORD", ""),
     )
+
+
+# --- SSE Activity Event Queue ---
+_activity_queue = deque(maxlen=200)
+
+
+def push_agent_event(event_type, agent_id=None, data=None):
+    """Push an event to the in-memory SSE queue and persist to DB."""
+    evt = {
+        "event_type": event_type,
+        "agent_id": agent_id,
+        "data": data or {},
+        "created_at": datetime.utcnow().isoformat() + "Z",
+    }
+    _activity_queue.appendleft(evt)
+    # Persist to DB (fire-and-forget)
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO agent_activity_events (event_type, agent_id, data) VALUES (%s, %s, %s)",
+            (event_type, agent_id, json.dumps(data or {})),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.warning("Failed to persist activity event: %s", e)
 
 
 # ============================================================================
@@ -6766,6 +6797,317 @@ def get_module_agents():
         return jsonify({"success": True, "module_agents": module_agents})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# Phase 6: Mission Control — SSE + Activity Endpoints
+# ============================================================================
+
+
+@bridge_bp.route("/api/dispatch/stream")
+@login_required
+def activity_stream():
+    """SSE endpoint for real-time agent activity events."""
+
+    def generate():
+        last_sent_time = datetime.utcnow().isoformat() + "Z"
+        while True:
+            new_events = [e for e in _activity_queue if e["created_at"] > last_sent_time]
+            for evt in reversed(new_events):
+                yield "event: {}\ndata: {}\n\n".format(evt["event_type"], json.dumps(evt))
+                last_sent_time = evt["created_at"]
+            yield ": heartbeat\n\n"
+            time.sleep(5)
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@bridge_bp.route("/api/dispatch/activity-history")
+@login_required
+def activity_history():
+    """Return last 50 activity events for initial page load."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT e.id, e.event_type, e.agent_id, e.data, e.created_at,
+                   a.name AS agent_name, a.display_name
+            FROM agent_activity_events e
+            LEFT JOIN agents a ON a.id = e.agent_id
+            ORDER BY e.created_at DESC
+            LIMIT 50
+        """
+        )
+        events = cur.fetchall()
+        cur.close()
+        conn.close()
+        for ev in events:
+            ev["created_at"] = ev["created_at"].isoformat() if ev["created_at"] else None
+        return jsonify(events)
+    except Exception as e:
+        logger.error("activity_history error: %s", e)
+        return jsonify([])
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/executions")
+@login_required
+def agent_executions(agent_id):
+    """Recent execution history for a specific agent via orchestration_steps."""
+    limit = request.args.get("limit", 10, type=int)
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Sessions where this agent participated (via steps)
+        cur.execute(
+            """
+            SELECT DISTINCT ON (os.id)
+                   os.id, os.session_id, os.status,
+                   os.total_duration_ms, os.total_steps,
+                   os.created_at, os.completed_at,
+                   st.model_used,
+                   (SELECT COUNT(*) FROM orchestration_steps s2
+                    WHERE s2.session_id = os.id) AS step_count
+            FROM orchestration_sessions os
+            JOIN orchestration_steps st ON st.session_id = os.id
+                AND st.agent_id = %s
+            ORDER BY os.id DESC, st.id DESC
+            LIMIT %s
+        """,
+            (agent_id, limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        for r in rows:
+            r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else None
+            r["completed_at"] = r["completed_at"].isoformat() if r.get("completed_at") else None
+            # Convert UUID to string for JSON serialization
+            if r.get("session_id"):
+                r["session_id"] = str(r["session_id"])
+        return jsonify(rows)
+    except Exception as e:
+        logger.error("agent_executions error: %s", e)
+        return jsonify([])
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/emotional-state")
+@login_required
+def agent_emotional_state_detail(agent_id):
+    """Current emotional state for a specific agent."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT current_mood, mood_intensity, stress_level, energy_level,
+                   previous_mood, trigger_event, timestamp, metadata
+            FROM agent_emotional_state
+            WHERE agent_id = %s
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """,
+            (agent_id,),
+        )
+        state = cur.fetchone()
+        # Also get last rest cycle
+        cur.execute(
+            """
+            SELECT rest_type, started_at, ended_at, reason, initiated_by
+            FROM agent_rest_cycles
+            WHERE agent_id = %s
+            ORDER BY started_at DESC
+            LIMIT 1
+        """,
+            (agent_id,),
+        )
+        rest = cur.fetchone()
+        cur.close()
+        conn.close()
+        if state:
+            state["timestamp"] = state["timestamp"].isoformat() if state.get("timestamp") else None
+        if rest:
+            rest["started_at"] = rest["started_at"].isoformat() if rest.get("started_at") else None
+            rest["ended_at"] = rest["ended_at"].isoformat() if rest.get("ended_at") else None
+        return jsonify({"emotional_state": state, "last_rest": rest})
+    except Exception as e:
+        logger.error("agent_emotional_state_detail error: %s", e)
+        return jsonify({"emotional_state": None, "last_rest": None})
+
+
+@bridge_bp.route("/api/dispatch/multi-agent-sessions")
+@login_required
+def multi_agent_sessions():
+    """Paginated list of multi-agent orchestration sessions."""
+    page = max(request.args.get("page", 1, type=int), 1)
+    per_page = min(request.args.get("per_page", 20, type=int), 100)
+    offset = (page - 1) * per_page
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Multi-agent sessions have multiple agent steps
+        cur.execute(
+            """
+            SELECT os.id, os.session_id, os.status,
+                   os.total_duration_ms, os.total_steps,
+                   os.created_at, os.completed_at,
+                   os.metadata,
+                   (SELECT COUNT(DISTINCT st.agent_id) FROM orchestration_steps st
+                    WHERE st.session_id = os.id AND st.agent_id IS NOT NULL) AS agent_count,
+                   (SELECT COUNT(*) FROM orchestration_steps st
+                    WHERE st.session_id = os.id) AS step_count
+            FROM orchestration_sessions os
+            WHERE os.total_steps > 3
+            ORDER BY os.created_at DESC
+            LIMIT %s OFFSET %s
+        """,
+            (per_page, offset),
+        )
+        sessions = cur.fetchall()
+        # Total count
+        cur.execute("SELECT COUNT(*) AS total FROM orchestration_sessions WHERE total_steps > 3")
+        total = cur.fetchone()["total"]
+        cur.close()
+        conn.close()
+        for s in sessions:
+            s["created_at"] = s["created_at"].isoformat() if s.get("created_at") else None
+            s["completed_at"] = s["completed_at"].isoformat() if s.get("completed_at") else None
+            if s.get("session_id"):
+                s["session_id"] = str(s["session_id"])
+        return jsonify({"sessions": sessions, "total": total, "page": page, "per_page": per_page})
+    except Exception as e:
+        logger.error("multi_agent_sessions error: %s", e)
+        return jsonify({"sessions": [], "total": 0, "page": page, "per_page": per_page})
+
+
+@bridge_bp.route("/api/dispatch/multi-agent-sessions/<session_id>")
+@login_required
+def multi_agent_session_detail(session_id):
+    """Full detail for a multi-agent session with steps."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Session info — match by UUID or integer id
+        cur.execute(
+            """
+            SELECT os.id, os.session_id, os.status,
+                   os.total_duration_ms, os.total_steps,
+                   os.created_at, os.completed_at, os.metadata
+            FROM orchestration_sessions os
+            WHERE os.session_id::text = %s OR os.id::text = %s
+        """,
+            (session_id, session_id),
+        )
+        session = cur.fetchone()
+        if not session:
+            return jsonify({"error": "Session not found"}), 404
+        session["created_at"] = session["created_at"].isoformat() if session.get("created_at") else None
+        session["completed_at"] = session["completed_at"].isoformat() if session.get("completed_at") else None
+        if session.get("session_id"):
+            session["session_id"] = str(session["session_id"])
+        # Steps
+        cur.execute(
+            """
+            SELECT st.id, st.step_type, st.step_order, st.step_data,
+                   st.duration_ms, st.success, st.agent_id, st.model_used,
+                   a.name AS agent_name, a.display_name
+            FROM orchestration_steps st
+            LEFT JOIN agents a ON a.id = st.agent_id
+            WHERE st.session_id = %s
+            ORDER BY st.step_order ASC, st.id ASC
+        """,
+            (session["id"],),
+        )
+        steps = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"session": session, "steps": steps})
+    except Exception as e:
+        logger.error("multi_agent_session_detail error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@bridge_bp.route("/api/dispatch/fleet-metrics")
+@login_required
+def fleet_metrics():
+    """Aggregate fleet metrics for Mission Control."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Active vs total agents
+        cur.execute("SELECT COUNT(*) AS total," " COUNT(*) FILTER (WHERE status = 'active') AS active" " FROM agents")
+        agents_row = cur.fetchone()
+        # Tasks this hour
+        cur.execute(
+            """
+            SELECT COUNT(*) AS count,
+                   AVG(total_duration_ms) AS avg_duration,
+                   COUNT(*) FILTER (WHERE status = 'failed') AS errors
+            FROM orchestration_sessions
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """
+        )
+        tasks = cur.fetchone()
+        # GPU model (loaded Ollama model)
+        gpu_model = None
+        try:
+            resp = requests.get("http://host.docker.internal:11434/api/ps", timeout=3)
+            if resp.ok:
+                models = resp.json().get("models", [])
+                if models:
+                    gpu_model = models[0].get("name", "unknown")
+        except Exception:
+            pass
+        # Top agent today (via orchestration_steps linkage)
+        cur.execute(
+            """
+            SELECT a.name AS agent_name, a.display_name, COUNT(*) AS task_count
+            FROM orchestration_steps st
+            JOIN agents a ON a.id = st.agent_id
+            WHERE st.created_at > CURRENT_DATE
+              AND st.step_type = 'execute'
+            GROUP BY a.id, a.name, a.display_name
+            ORDER BY task_count DESC
+            LIMIT 1
+        """
+        )
+        top = cur.fetchone()
+        cur.close()
+        conn.close()
+        total_tasks = tasks["count"] or 0
+        error_count = tasks["errors"] or 0
+        return jsonify(
+            {
+                "active_agents": agents_row["active"] or 0,
+                "total_agents": agents_row["total"] or 0,
+                "tasks_this_hour": total_tasks,
+                "avg_duration_ms": round(float(tasks["avg_duration"] or 0)),
+                "error_rate": round((error_count / total_tasks * 100) if total_tasks > 0 else 0, 1),
+                "gpu_model": gpu_model,
+                "top_agent": top,
+            }
+        )
+    except Exception as e:
+        logger.error("fleet_metrics error: %s", e)
+        return jsonify(
+            {
+                "active_agents": 0,
+                "total_agents": 0,
+                "tasks_this_hour": 0,
+                "avg_duration_ms": 0,
+                "error_rate": 0,
+                "gpu_model": None,
+                "top_agent": None,
+            }
+        )
 
 
 # ============================================================================

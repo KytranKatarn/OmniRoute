@@ -2149,6 +2149,77 @@
 }
 
 /* ============================================
+   STT VOICE INPUT
+   ============================================ */
+#voice-input-btn {
+    background: transparent;
+    border: 1px solid var(--archie-border-default);
+    border-radius: 50%;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--archie-text-secondary);
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+#voice-input-btn:hover {
+    border-color: var(--archie-accent-blue);
+    color: var(--archie-accent-blue);
+}
+
+#voice-input-btn.listening {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+    color: #ef4444;
+    animation: mic-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+#voice-status {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--archie-accent-blue);
+}
+
+#voice-waveform {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 20px;
+}
+
+#voice-waveform .bar {
+    width: 3px;
+    background: var(--archie-accent-blue);
+    border-radius: 2px;
+    animation: waveform-bar 0.8s ease-in-out infinite;
+}
+
+#voice-waveform .bar:nth-child(1) { animation-delay: 0s; height: 8px; }
+#voice-waveform .bar:nth-child(2) { animation-delay: 0.1s; height: 14px; }
+#voice-waveform .bar:nth-child(3) { animation-delay: 0.2s; height: 20px; }
+#voice-waveform .bar:nth-child(4) { animation-delay: 0.3s; height: 14px; }
+#voice-waveform .bar:nth-child(5) { animation-delay: 0.4s; height: 8px; }
+
+@keyframes waveform-bar {
+    0%, 100% { transform: scaleY(0.4); }
+    50% { transform: scaleY(1); }
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 @media (max-width: 900px) {
@@ -2625,7 +2696,14 @@
                         rows="1"
                         required
                     ></textarea>
+                    <div id="voice-status">
+                        <div id="voice-waveform"></div>
+                        <span id="voice-status-text">Listening...</span>
+                    </div>
                 </div>
+                <button type="button" id="voice-input-btn" onclick="toggleVoiceInput()" title="Start voice input">
+                    <i data-lucide="mic"></i>
+                </button>
                 <button type="submit" class="send-btn" id="sendButton">
                     <i data-lucide="send"></i>
                 </button>
@@ -3690,10 +3768,26 @@ function sendArchieMessage() {
     }
 }
 
+// Bridge: collaboration.js STT references 'archie-chat-input' but our input is 'messageInput'
+(function() {
+    var origGetById = document.getElementById.bind(document);
+    document.getElementById = function(id) {
+        if (id === 'archie-chat-input') return origGetById('messageInput');
+        return origGetById(id);
+    };
+})();
+
 // Initialize
 loadStatus();
 loadSuggestions();
 loadVoiceConfig();
+
+// Hide mic button if browser doesn't support Speech Recognition
+if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+    var micBtn = document.getElementById('voice-input-btn');
+    if (micBtn) micBtn.style.display = 'none';
+}
+
 document.getElementById('messageInput').focus();
 </script>
 <script src="/static/js/collaboration.js"></script>

@@ -116,6 +116,7 @@ services:
       - "3000:3000"
     networks:
       - archie_internal
+      - network_tools_ext
     depends_on:
       archie_database:
         condition: service_healthy
@@ -193,6 +194,9 @@ networks:
   archie_internal:
     driver: bridge
     name: archie_network
+  network_tools_ext:
+    external: true
+    name: network_tools_network
 
 volumes:
   archie_db:

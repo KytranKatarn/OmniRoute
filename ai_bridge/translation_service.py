@@ -39,7 +39,7 @@ SUPPORTED_LANGUAGES = {
 }
 
 # How many strings to translate per LLM call
-BATCH_SIZE = 40
+BATCH_SIZE = 10
 
 
 def _get_db():
@@ -73,7 +73,7 @@ def _call_ollama(model: str, prompt: str, temperature: float = 0.3) -> str:
                 "stream": False,
                 "options": {"temperature": temperature},
             },
-            timeout=120,
+            timeout=300,
         )
         resp.raise_for_status()
         return resp.json().get("response", "").strip()

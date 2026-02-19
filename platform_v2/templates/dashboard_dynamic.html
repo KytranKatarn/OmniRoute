@@ -2504,7 +2504,7 @@ body.light-mode .module-card {
     var dashContent = document.getElementById('dashboardContent');
 
     // If previously skipped, show dashboard immediately
-    if (localStorage.getItem(SKIP_KEY) === 'true') {
+    if (sessionStorage.getItem(SKIP_KEY) === 'true') {
         if (overlay) overlay.classList.add('hidden');
         if (skipBtn) skipBtn.style.display = 'none';
         if (dashContent) {
@@ -2526,7 +2526,7 @@ body.light-mode .module-card {
     window.skipBoot = function() {
         if (aborted) return;
         aborted = true;
-        localStorage.setItem(SKIP_KEY, 'true');
+        sessionStorage.setItem(SKIP_KEY, 'true');
         // Clear all pending timeouts
         bootTimeouts.forEach(clearTimeout);
         // Immediately reveal dashboard

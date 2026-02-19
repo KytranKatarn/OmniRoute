@@ -1023,7 +1023,7 @@ body.light-mode .footer-version {
 /* ─── Command Bar + HUD responsive: 717px (tablet / folded) ─── */
 @media (max-width: 717px) {
     .cb-zone-center {
-        flex: 0 1 180px;
+        flex: 1 1 260px;
     }
     .cb-username, .cb-badge {
         display: none;
@@ -2710,6 +2710,51 @@ body.light-mode .module-card {
                 e.preventDefault();
                 searchInput.focus();
             }
+            // Escape clears and blurs search
+            if (e.key === 'Escape' && document.activeElement === searchInput) {
+                searchInput.value = '';
+                searchInput.dispatchEvent(new Event('input'));
+                searchInput.blur();
+            }
+        });
+
+        // ── Live module search/filter ──
+        var searchTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(function() {
+                var query = searchInput.value.trim().toLowerCase();
+                var allCards = document.querySelectorAll('.category-grid .module-card');
+                var panels = document.querySelectorAll('.category-panel');
+
+                if (!query) {
+                    // Show everything
+                    allCards.forEach(function(c) { c.style.display = ''; });
+                    panels.forEach(function(p) { p.style.display = ''; });
+                    return;
+                }
+
+                // Filter cards by name match
+                allCards.forEach(function(card) {
+                    var name = (card.getAttribute('data-module-name') || '').toLowerCase();
+                    var id = (card.getAttribute('data-module-id') || '').toLowerCase();
+                    var match = name.indexOf(query) >= 0 || id.indexOf(query) >= 0;
+                    card.style.display = match ? '' : 'none';
+                });
+
+                // Hide category panels with no visible cards
+                panels.forEach(function(panel) {
+                    var catKey = panel.getAttribute('data-category');
+                    var cardsContainer = document.getElementById('cat-' + catKey);
+                    if (!cardsContainer) return;
+                    var visibleCards = cardsContainer.querySelectorAll('.module-card:not([style*="display: none"])');
+                    panel.style.display = visibleCards.length > 0 ? '' : 'none';
+                    // Auto-expand panels with matches
+                    if (visibleCards.length > 0 && cardsContainer.classList.contains('collapsed')) {
+                        cardsContainer.classList.remove('collapsed');
+                    }
+                });
+            }, 150);
         });
     }
 

@@ -926,9 +926,14 @@ body.light-mode .login-btn.loading::after { border-top-color: var(--archie-green
         <div class="login-header">
             <h1 class="login-logo">A.R.C.H.I.E.</h1>
             <p class="login-subtitle" data-i18n="login.auth_required">AUTHENTICATION REQUIRED</p>
-            <button class="theme-toggle-login" id="themeToggle" title="Toggle light/dark mode">
-                <i data-lucide="moon" width="14" height="14"></i>
-            </button>
+            <div style="display: inline-flex; gap: 6px; margin-top: 12px;">
+                <button class="theme-toggle-login" id="themeToggle" title="Toggle light/dark mode" style="margin-top: 0;">
+                    <i data-lucide="moon" width="14" height="14"></i>
+                </button>
+                <button class="theme-toggle-login" id="langToggle" title="Switch language" style="margin-top: 0; font-size: 0.65rem; font-family: 'Orbitron', monospace; font-weight: 600; letter-spacing: 0.05em;" onclick="archieI18n.switchLanguage(archieI18n.getCurrentLanguage() === 'en' ? 'fr' : 'en'); this.textContent = archieI18n.getCurrentLanguage() === 'en' ? 'FR' : 'EN';">
+                    FR
+                </button>
+            </div>
         </div>
 
         <!-- Login Form -->
@@ -1156,9 +1161,13 @@ window.addEventListener('themechange', function() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 });
 
-// ─── Init Lucide ───
+// ─── Init Lucide + Language Button ───
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
+    var langBtn = document.getElementById('langToggle');
+    if (langBtn && typeof archieI18n !== 'undefined') {
+        langBtn.textContent = archieI18n.getCurrentLanguage() === 'en' ? 'FR' : 'EN';
+    }
 });
 </script>
 {% endblock %}

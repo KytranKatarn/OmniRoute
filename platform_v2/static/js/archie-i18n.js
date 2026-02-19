@@ -31,6 +31,8 @@
         'js.boot.active':            'ACTIVE',
         'js.boot.consciousness':     'CONSCIOUSNESS',
         'js.boot.aware':             'AWARE',
+        'boot.threat_level':         'THREAT LEVEL:',
+        'boot.midnight':             'MIDNIGHT',
 
         // Status labels
         'js.status.online':          'ONLINE',

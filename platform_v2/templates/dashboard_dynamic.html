@@ -2121,7 +2121,7 @@ body.light-mode .module-card {
         <div id="bootChecks"></div>
 
         <!-- Phase 3: Threat level -->
-        <div class="boot-threat" id="bootThreat">&#9888; THREAT LEVEL: <span class="midnight-text">MIDNIGHT</span></div>
+        <div class="boot-threat" id="bootThreat">&#9888; <span id="bootThreatLabel">THREAT LEVEL:</span> <span class="midnight-text" id="bootMidnight">MIDNIGHT</span></div>
     </div>
 
     <!-- Phase 4: Logo -->
@@ -2716,6 +2716,11 @@ body.light-mode .module-card {
     // ── Phase 3 (2500-3000ms): Threat level flash + screen shake ──
     schedule(function() {
         if (aborted) return;
+        // Translate threat text before reveal
+        var threatLabel = document.getElementById('bootThreatLabel');
+        var midnightText = document.getElementById('bootMidnight');
+        if (threatLabel) threatLabel.textContent = archieI18n.t('boot.threat_level', 'THREAT LEVEL:');
+        if (midnightText) midnightText.textContent = archieI18n.t('boot.midnight', 'MIDNIGHT');
         var threat = document.getElementById('bootThreat');
         if (threat) threat.classList.add('flash');
         overlay.classList.add('shake');

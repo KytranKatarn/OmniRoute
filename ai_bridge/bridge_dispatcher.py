@@ -499,6 +499,16 @@ class BridgeDispatcher:
                     approval_method="auto",
                     success=True,
                 )
+                # Telegram FYI: notify that free cloud was used
+                self._notify_throughput_escalation(
+                    agent_name=agent_name,
+                    cloud_model=cloud_model,
+                    capability=capability,
+                    module_id=module_id,
+                    busy_job=busy_job,
+                    duration_ms=duration_ms,
+                )
+
                 result = DispatchResult(
                     success=True,
                     response=llm_result.get("response", ""),
@@ -566,6 +576,54 @@ class BridgeDispatcher:
             logger.warning(f"[BridgeDispatcher] Throughput approval request failed: {esc_err}")
 
         return None  # Caller proceeds with original (busy) agent
+
+    def _notify_throughput_escalation(
+        self,
+        agent_name: str,
+        cloud_model: str,
+        capability: str,
+        module_id: str,
+        busy_job: Dict,
+        duration_ms: int,
+    ):
+        """Insert an agent_alert so Telegram notifier sends an FYI."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO agent_alerts
+                    (agent_id, alert_type, severity, title, message, details)
+                VALUES (
+                    (SELECT id FROM agents WHERE name = %s LIMIT 1),
+                    'throughput_escalation', 'warning',
+                    %s, %s, %s
+                )
+                """,
+                (
+                    agent_name,
+                    f"Cloud escalation: {agent_name} → {cloud_model}",
+                    (
+                        f"{agent_name} is busy with \"{busy_job.get('description', '?')}\" "
+                        f"({busy_job.get('progress_pct', 0)}%). "
+                        f"Dispatched {capability} to {cloud_model} (free cloud). "
+                        f"Module: {module_id} | Duration: {duration_ms}ms"
+                    ),
+                    json.dumps({
+                        "original_agent": agent_name,
+                        "cloud_model": cloud_model,
+                        "capability": capability,
+                        "module_id": module_id,
+                        "busy_job": busy_job,
+                        "duration_ms": duration_ms,
+                    }),
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] _notify_throughput_escalation failed: {e}")
 
     def _track_failure(self, agent_id: int, capability: str) -> int:
         """Increment failure count, return new count."""

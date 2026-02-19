@@ -168,6 +168,8 @@ CAPABILITY_ROUTING = {
     "conversation": "local",     # Chat
     "summarize": "local",        # Summarization
     "embed": "local",            # (handled by embedding service, not router)
+    "translate": "local_analysis",   # Translation via qwen3-coder-cpu
+    "detect_language": "classify",   # Language detection via qwen25-classify
 }
 
 

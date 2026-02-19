@@ -104,6 +104,19 @@
     var originalsMap = new Map();    // element -> original textContent
     var originalsStored = false;
 
+    // ── Hydrate from localStorage for instant t() on page load ──
+    try {
+        var _savedLang = localStorage.getItem('archie-language');
+        var _savedData = localStorage.getItem('archie-translations');
+        if (_savedLang && _savedLang !== 'en' && _savedData) {
+            var _parsed = JSON.parse(_savedData);
+            if (_parsed && typeof _parsed === 'object' && Object.keys(_parsed).length > 0) {
+                translationCache[_savedLang] = { data: _parsed, timestamp: Date.now() };
+                currentLanguage = _savedLang;
+            }
+        }
+    } catch (e) { /* ignore parse errors */ }
+
     // ── Helpers ──
 
     function isSupported(lang) {
@@ -137,6 +150,10 @@
                     data: translations,
                     timestamp: Date.now()
                 };
+                // Persist to localStorage for instant hydration on next page load
+                try {
+                    localStorage.setItem('archie-translations', JSON.stringify(translations));
+                } catch (e) { /* ignore quota errors */ }
                 return translations;
             });
     }
@@ -252,6 +269,7 @@
 
         if (lang === 'en') {
             revertToEnglish();
+            try { localStorage.removeItem('archie-translations'); } catch (e) { /* ignore */ }
             return Promise.resolve();
         }
 
@@ -340,9 +358,11 @@
                 if (serverLang !== 'en' && isSupported(serverLang)) {
                     return switchLanguage(serverLang);
                 }
-                // If server says English but localStorage had something else, respect server
-                if (serverLang === 'en' && currentLanguage !== 'en') {
-                    revertToEnglish();
+                // Server says EN but localStorage has a different preference
+                // (e.g. user switched language on login page before authenticating)
+                // → sync localStorage preference to server and apply it
+                if (serverLang === 'en' && savedLang && savedLang !== 'en' && isSupported(savedLang)) {
+                    return switchLanguage(savedLang);
                 }
             })
             .catch(function() {

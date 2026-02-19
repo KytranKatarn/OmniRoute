@@ -8987,6 +8987,9 @@ def _scan_all_sources():
                         content = fh.read()
                     for match in i18n_pattern.finditer(content):
                         key = match.group(1)
+                        # Skip Jinja2 template expressions (resolved at runtime)
+                        if "{{" in key or "}}" in key:
+                            continue
                         if key not in keys:
                             keys[key] = {
                                 "source": "template",

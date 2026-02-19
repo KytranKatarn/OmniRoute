@@ -860,6 +860,7 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
         <button class="tab-btn" data-tab="brain">🧠 Brain Map</button>
         <button class="tab-btn" data-tab="feed">📡 Feed</button>
         <button class="tab-btn" data-tab="voice">🎙 Voice</button>
+        <button class="tab-btn" data-tab="languages">🌐 Languages</button>
     </div>
 
     <div id="tab-overview" class="tab-content active">
@@ -1671,6 +1672,96 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
             </div>
         </div>
     </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- LANGUAGES TAB -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="tab-languages" class="tab-content">
+        <!-- Language Sub-tabs -->
+        <div class="voice-subtabs">
+            <button class="voice-subtab-btn active" onclick="switchLangTab('dashboard')">📊 Dashboard</button>
+            <button class="voice-subtab-btn" onclick="switchLangTab('review')">📝 Review</button>
+            <button class="voice-subtab-btn" onclick="switchLangTab('glossary')">📖 Glossary</button>
+        </div>
+
+        <!-- Sub-tab 1: Dashboard -->
+        <div id="lang-sub-dashboard" class="voice-subtab-content active">
+            <div class="stats-grid" id="lang-stats-grid">
+                <div class="stat-card"><div class="stat-value" id="ls-total">--</div><div class="stat-label">Total Keys</div></div>
+                <div class="stat-card"><div class="stat-value" id="ls-approved">--</div><div class="stat-label">Approved</div></div>
+                <div class="stat-card"><div class="stat-value" id="ls-pending">--</div><div class="stat-label">Pending Review</div></div>
+                <div class="stat-card"><div class="stat-value" id="ls-edited">--</div><div class="stat-label">Human Edited</div></div>
+            </div>
+
+            <!-- Coverage progress bar -->
+            <div class="voice-panel" style="margin-top: 1rem;">
+                <h3>French Translation Coverage</h3>
+                <div style="background: var(--archie-bg-tertiary, #21262d); border-radius: 8px; overflow: hidden; height: 24px; margin: 0.75rem 0;">
+                    <div id="ls-progress-bar" style="height: 100%; background: linear-gradient(90deg, var(--module-accent, #00ff41), #00ccff); border-radius: 8px; transition: width 0.5s ease; width: 0%;"></div>
+                </div>
+                <div id="ls-progress-text" style="text-align: center; font-size: 0.85rem; color: var(--archie-text-secondary, #c9d1d9);">Loading coverage...</div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="voice-panel" style="margin-top: 1rem;">
+                <h3>Actions</h3>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem;">
+                    <button class="btn btn-primary" onclick="scanTemplates()" id="ls-btn-scan">Scan Templates</button>
+                    <button class="btn btn-primary" onclick="generateTranslations()" id="ls-btn-generate">Generate French Translations</button>
+                    <button class="btn btn-primary" onclick="bulkApproveAll()" id="ls-btn-bulk">Bulk Approve All Pending</button>
+                </div>
+                <div id="ls-action-status" style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.85rem; color: var(--archie-text-tertiary, #8b949e);"></div>
+            </div>
+        </div>
+
+        <!-- Sub-tab 2: Review -->
+        <div id="lang-sub-review" class="voice-subtab-content">
+            <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--archie-text-secondary);">Filter:</label>
+                <select id="ls-review-filter" onchange="loadReviewTable()" style="padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 6px; color: var(--archie-text-primary, #e6edf3); font-size: 0.85rem;">
+                    <option value="pending_review">Pending Review</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="all">All</option>
+                </select>
+            </div>
+            <div id="ls-review-table" style="overflow-x: auto;">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+        </div>
+
+        <!-- Sub-tab 3: Glossary -->
+        <div id="lang-sub-glossary" class="voice-subtab-content">
+            <!-- Add entry form -->
+            <div class="voice-panel" style="margin-bottom: 1rem;">
+                <h3>Add Glossary Entry</h3>
+                <div style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; margin-top: 0.75rem;">
+                    <div class="voice-form-group" style="flex: 1; min-width: 150px;">
+                        <label>English</label>
+                        <input type="text" id="ls-gloss-source" placeholder="Source text" style="width: 100%; padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: var(--archie-text-primary); font-size: 0.85rem;">
+                    </div>
+                    <div class="voice-form-group" style="flex: 1; min-width: 150px;">
+                        <label>French</label>
+                        <input type="text" id="ls-gloss-target" placeholder="Translation" style="width: 100%; padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: var(--archie-text-primary); font-size: 0.85rem;">
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Category</label>
+                        <select id="ls-gloss-category" style="padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: var(--archie-text-primary); font-size: 0.85rem;">
+                            <option value="ui">UI</option>
+                            <option value="chat">Chat</option>
+                            <option value="technical">Technical</option>
+                            <option value="glossary">Glossary</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="addGlossaryEntry()">Add</button>
+                </div>
+            </div>
+            <!-- Glossary table -->
+            <div id="ls-glossary-table">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -1686,6 +1777,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.dataset.tab === 'brain') loadBrainMap();
         if (btn.dataset.tab === 'feed') loadActivityFeed();
         if (btn.dataset.tab === 'voice') loadVoiceDashboard();
+        if (btn.dataset.tab === 'languages') loadLangStats();
     });
 });
 
@@ -5761,6 +5853,270 @@ function pollCardPregenJob(jobId, profileId) {
             document.getElementById('card-pregen-status-' + profileId).textContent = 'Poll error: ' + e.message;
         }
     }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LANGUAGES TAB — Translation Management
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function switchLangTab(tabId) {
+    document.querySelectorAll('#tab-languages .voice-subtab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#tab-languages .voice-subtab-content').forEach(c => c.classList.remove('active'));
+    event.target.classList.add('active');
+    var el = document.getElementById('lang-sub-' + tabId);
+    if (el) el.classList.add('active');
+    if (tabId === 'dashboard') loadLangStats();
+    if (tabId === 'review') loadReviewTable();
+    if (tabId === 'glossary') loadGlossary();
+}
+
+function loadLangStats() {
+    fetch('/tools/consciousness/api/translations/stats')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            var stats = data.stats.fr || {};
+            document.getElementById('ls-total').textContent = stats.total || 0;
+            document.getElementById('ls-approved').textContent = stats.approved || 0;
+            document.getElementById('ls-pending').textContent = stats.pending || 0;
+            document.getElementById('ls-edited').textContent = stats.human_edited || 0;
+            var pct = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0;
+            document.getElementById('ls-progress-bar').style.width = pct + '%';
+            document.getElementById('ls-progress-text').textContent =
+                'French: ' + (stats.approved || 0) + '/' + (stats.total || 0) + ' keys (' + pct + '% approved)';
+        })
+        .catch(err => {
+            document.getElementById('ls-progress-text').textContent = 'Error loading stats';
+            console.error('Lang stats error:', err);
+        });
+}
+
+function scanTemplates() {
+    var btn = document.getElementById('ls-btn-scan');
+    var status = document.getElementById('ls-action-status');
+    btn.disabled = true;
+    status.textContent = 'Scanning templates...';
+    fetch('/tools/consciousness/api/translations/scan', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            if (data.success) {
+                status.textContent = 'Found ' + (data.keys ? data.keys.length : 0) + ' i18n keys across templates.';
+            } else {
+                status.textContent = 'Scan error: ' + (data.error || 'Unknown');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            status.textContent = 'Scan failed: ' + err.message;
+        });
+}
+
+function generateTranslations() {
+    var btn = document.getElementById('ls-btn-generate');
+    var status = document.getElementById('ls-action-status');
+    btn.disabled = true;
+    status.textContent = 'Generating French translations... (this may take a minute)';
+    fetch('/tools/consciousness/api/translations/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: 'fr' })
+    })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            if (data.success) {
+                status.textContent = 'Generated ' + (data.translated || 0) + ' translations. ' + (data.failed || 0) + ' failed.';
+                loadLangStats();
+            } else {
+                status.textContent = 'Generate error: ' + (data.error || 'Unknown');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            status.textContent = 'Generate failed: ' + err.message;
+        });
+}
+
+function bulkApproveAll() {
+    var btn = document.getElementById('ls-btn-bulk');
+    var status = document.getElementById('ls-action-status');
+    btn.disabled = true;
+    status.textContent = 'Fetching pending translations...';
+    fetch('/tools/consciousness/api/translations/review?status=pending_review&language=fr')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.translations || data.translations.length === 0) {
+                btn.disabled = false;
+                status.textContent = 'No pending translations to approve.';
+                return;
+            }
+            var ids = data.translations.map(t => t.id);
+            status.textContent = 'Approving ' + ids.length + ' translations...';
+            return fetch('/tools/consciousness/api/translations/bulk-approve', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: ids })
+            });
+        })
+        .then(r => { if (r) return r.json(); })
+        .then(data => {
+            btn.disabled = false;
+            if (data && data.success) {
+                status.textContent = 'Approved ' + (data.approved || 0) + ' translations.';
+                loadLangStats();
+            } else if (data) {
+                status.textContent = 'Bulk approve error: ' + (data.error || 'Unknown');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            status.textContent = 'Bulk approve failed: ' + err.message;
+        });
+}
+
+function loadReviewTable() {
+    var filter = document.getElementById('ls-review-filter').value;
+    var container = document.getElementById('ls-review-table');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';  // safe static HTML
+    fetch('/tools/consciousness/api/translations/review?status=' + filter + '&language=fr')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.translations || data.translations.length === 0) {
+                container.innerHTML = '<div style="padding: 1rem; color: var(--archie-text-tertiary);">No translations found for this filter.</div>';  // safe static HTML
+                return;
+            }
+            var html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">';
+            html += '<thead><tr style="border-bottom: 1px solid var(--archie-border-default, #30363d);">';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Key</th>';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Translation</th>';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Status</th>';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Actions</th>';
+            html += '</tr></thead><tbody>';
+            data.translations.forEach(function(t) {
+                var statusColor = t.status === 'approved' ? 'var(--archie-green, #00ff41)' :
+                    t.status === 'rejected' ? 'var(--archie-red, #ff6b6b)' : 'var(--archie-orange, #ffaa00)';
+                // HTML-entity-escape all dynamic values to prevent XSS
+                var escapedText = (t.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                var escapedKey = (t.key || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                var escapedStatus = (t.status || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                html += '<tr style="border-bottom: 1px solid var(--archie-border-muted, #21262d);">';
+                html += '<td style="padding: 0.5rem; font-family: monospace; font-size: 0.8rem; color: var(--archie-text-secondary);">' + escapedKey + '</td>';
+                html += '<td style="padding: 0.5rem;"><input type="text" value="' + escapedText + '" id="ls-edit-' + t.id + '" style="width: 100%; padding: 0.3rem 0.5rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 0.85rem;"></td>';
+                html += '<td style="padding: 0.5rem;"><span style="color: ' + statusColor + '; font-size: 0.8rem; font-weight: 600;">' + escapedStatus.toUpperCase() + '</span></td>';
+                html += '<td style="padding: 0.5rem; white-space: nowrap;">';
+                html += '<button class="btn btn-sm" onclick="reviewAction(' + t.id + ', \'approve\')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-right: 0.25rem;" title="Approve">&#x2713;</button>';
+                html += '<button class="btn btn-sm" onclick="reviewAction(' + t.id + ', \'save\')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-right: 0.25rem;" title="Save edit">&#x1F4BE;</button>';
+                html += '<button class="btn btn-sm" onclick="reviewAction(' + t.id + ', \'reject\')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Reject">&#x2717;</button>';
+                html += '</td></tr>';
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;  // admin-only UI with escaped dynamic values
+        })
+        .catch(err => {
+            container.textContent = 'Error loading: ' + err.message;
+        });
+}
+
+function reviewAction(id, action) {
+    var body = {};
+    if (action === 'approve') {
+        body = { id: id, action: 'approve' };
+    } else if (action === 'reject') {
+        body = { id: id, action: 'reject' };
+    } else if (action === 'save') {
+        var input = document.getElementById('ls-edit-' + id);
+        body = { id: id, action: 'edit', text: input ? input.value : '' };
+    }
+    fetch('/tools/consciousness/api/translations/approve', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                loadReviewTable();
+                loadLangStats();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(err => alert('Failed: ' + err.message));
+}
+
+function loadGlossary() {
+    var container = document.getElementById('ls-glossary-table');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';  // safe static HTML
+    fetch('/tools/consciousness/api/translation-memory?language=fr')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.entries || data.entries.length === 0) {
+                container.innerHTML = '<div style="padding: 1rem; color: var(--archie-text-tertiary);">No glossary entries yet.</div>';  // safe static HTML
+                return;
+            }
+            var html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">';
+            html += '<thead><tr style="border-bottom: 1px solid var(--archie-border-default, #30363d);">';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Source (EN)</th>';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Translation (FR)</th>';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Category</th>';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Actions</th>';
+            html += '</tr></thead><tbody>';
+            data.entries.forEach(function(e) {
+                // HTML-entity-escape all dynamic values
+                var escapedSource = (e.source_text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                var escapedTranslation = (e.translated_text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                var escapedCategory = (e.category || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                html += '<tr style="border-bottom: 1px solid var(--archie-border-muted, #21262d);">';
+                html += '<td style="padding: 0.5rem; color: var(--archie-text-secondary);">' + escapedSource + '</td>';
+                html += '<td style="padding: 0.5rem; color: var(--archie-text-primary);">' + escapedTranslation + '</td>';
+                html += '<td style="padding: 0.5rem;"><span style="padding: 0.15rem 0.4rem; background: var(--archie-bg-tertiary); border-radius: 4px; font-size: 0.75rem; color: var(--archie-text-tertiary);">' + escapedCategory + '</span></td>';
+                html += '<td style="padding: 0.5rem;"><button class="btn btn-sm" onclick="deleteGlossary(' + e.id + ')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; color: var(--archie-red);" title="Delete">&#x2717;</button></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;  // admin-only UI with escaped dynamic values
+        })
+        .catch(err => {
+            container.textContent = 'Error loading: ' + err.message;
+        });
+}
+
+function addGlossaryEntry() {
+    var source = document.getElementById('ls-gloss-source').value.trim();
+    var target = document.getElementById('ls-gloss-target').value.trim();
+    var category = document.getElementById('ls-gloss-category').value;
+    if (!source || !target) { alert('Both English and French fields are required.'); return; }
+    fetch('/tools/consciousness/api/translation-memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_text: source, translated_text: target, language: 'fr', category: category })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('ls-gloss-source').value = '';
+                document.getElementById('ls-gloss-target').value = '';
+                loadGlossary();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(err => alert('Failed: ' + err.message));
+}
+
+function deleteGlossary(id) {
+    if (!confirm('Delete this glossary entry?')) return;
+    fetch('/tools/consciousness/api/translation-memory/' + id, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                loadGlossary();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown'));
+            }
+        })
+        .catch(err => alert('Failed: ' + err.message));
 }
 </script>
 {% endblock %}

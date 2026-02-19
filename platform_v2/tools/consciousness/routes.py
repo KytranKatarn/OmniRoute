@@ -8918,3 +8918,406 @@ def voice_profile_lock_status(profile_id):
         return jsonify({"success": True, "locked_count": count})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LINGUISTICS / TRANSLATION ADMIN API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from ai_bridge.translation_service import (
+    get_translation_stats,
+    batch_translate,
+    store_translations,
+    SUPPORTED_LANGUAGES,
+)
+
+
+@consciousness_bp.route("/api/translations/stats")
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_stats():
+    """Get translation statistics for all supported languages."""
+    try:
+        stats = {}
+        for lang_code, lang_name in SUPPORTED_LANGUAGES.items():
+            if lang_code == "en":
+                continue
+            stats[lang_code] = {
+                "name": lang_name,
+                **get_translation_stats(lang_code),
+            }
+        return jsonify({"success": True, "stats": stats})
+    except Exception as e:
+        logger.error(f"Translation stats error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/scan", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_scan():
+    """Scan templates for data-i18n attributes and return discovered keys."""
+    try:
+        templates_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "templates",
+        )
+        pattern = re.compile(r'data-i18n(?:-\w+)?="([^"]+)"')
+        keys = {}
+
+        for root, _dirs, files in os.walk(templates_dir):
+            for fname in files:
+                if not fname.endswith(".html"):
+                    continue
+                filepath = os.path.join(root, fname)
+                rel_path = os.path.relpath(filepath, templates_dir)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as fh:
+                        content = fh.read()
+                    for match in pattern.finditer(content):
+                        key = match.group(1)
+                        keys.setdefault(key, [])
+                        if rel_path not in keys[key]:
+                            keys[key].append(rel_path)
+                except Exception as read_err:
+                    logger.warning(f"Could not read {rel_path}: {read_err}")
+
+        return jsonify({"success": True, "keys": keys, "total": len(keys)})
+    except Exception as e:
+        logger.error(f"Translation scan error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/generate", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_generate():
+    """Generate AI translations for missing keys in a target language."""
+    try:
+        data = request.get_json() or {}
+        language = data.get("language", "fr")
+        model = data.get("model", "qwen3-coder-cpu")
+        provided_strings = data.get("strings")
+
+        if language == "en":
+            return jsonify({"success": False, "error": "Cannot translate to English"}), 400
+        if language not in SUPPORTED_LANGUAGES:
+            return (
+                jsonify({"success": False, "error": f"Unsupported language: {language}"}),
+                400,
+            )
+
+        if provided_strings:
+            # Use caller-supplied strings: list of {"key", "text", "context"}
+            strings = [(s["key"], s["text"], s.get("context", "")) for s in provided_strings]
+        else:
+            # Find English keys that have no translation in the target language
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT DISTINCT t1.key, t1.text AS english_text, t1.context
+                FROM translations t1
+                WHERE t1.language = 'en'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM translations t2
+                      WHERE t2.key = t1.key AND t2.language = %s
+                  )
+                """,
+                (language,),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            strings = [(r["key"], r["english_text"], r.get("context") or "") for r in rows]
+
+        if not strings:
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "No missing translations found",
+                    "stats": {"inserted": 0, "updated": 0, "failed": 0},
+                }
+            )
+
+        results = batch_translate(strings, language, model=model)
+        stats = store_translations(results, language, model)
+        return jsonify({"success": True, "stats": stats, "total_requested": len(strings)})
+
+    except Exception as e:
+        logger.error(f"Translation generate error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/review")
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_review():
+    """Get translations for review, filterable by language and status."""
+    try:
+        language = request.args.get("language", "fr")
+        status = request.args.get("status", "pending_review")
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        if status == "all":
+            cur.execute(
+                """
+                SELECT id, key, language, text, source, status, context,
+                       generated_by, reviewed_by, created_at, updated_at
+                FROM translations
+                WHERE language = %s
+                ORDER BY updated_at DESC
+                """,
+                (language,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, key, language, text, source, status, context,
+                       generated_by, reviewed_by, created_at, updated_at
+                FROM translations
+                WHERE language = %s AND status = %s
+                ORDER BY updated_at DESC
+                """,
+                (language, status),
+            )
+
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        result = []
+        for row in rows:
+            d = dict(row)
+            for k in ("created_at", "updated_at"):
+                if d.get(k):
+                    d[k] = d[k].isoformat()
+            result.append(d)
+
+        return jsonify({"success": True, "translations": result, "count": len(result)})
+    except Exception as e:
+        logger.error(f"Translation review error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/approve", methods=["PUT"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_approve():
+    """Approve, reject, or edit a single translation."""
+    try:
+        data = request.get_json() or {}
+        translation_id = data.get("id")
+        action = data.get("action")
+
+        if not translation_id or action not in ("approve", "reject", "edit"):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "id and action (approve|reject|edit) required",
+                    }
+                ),
+                400,
+            )
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        if action == "approve":
+            cur.execute(
+                """
+                UPDATE translations
+                SET status = 'approved', reviewed_by = %s, updated_at = NOW()
+                WHERE id = %s
+                """,
+                (current_user.id, translation_id),
+            )
+        elif action == "reject":
+            cur.execute(
+                """
+                UPDATE translations
+                SET status = 'rejected', reviewed_by = %s, updated_at = NOW()
+                WHERE id = %s
+                """,
+                (current_user.id, translation_id),
+            )
+        elif action == "edit":
+            new_text = data.get("text")
+            if not new_text:
+                cur.close()
+                conn.close()
+                return (
+                    jsonify({"success": False, "error": "text required for edit action"}),
+                    400,
+                )
+
+            cur.execute(
+                """
+                UPDATE translations
+                SET text = %s, source = 'human_edited', status = 'approved',
+                    reviewed_by = %s, updated_at = NOW()
+                WHERE id = %s
+                RETURNING key, language
+                """,
+                (new_text, current_user.id, translation_id),
+            )
+            updated = cur.fetchone()
+            if updated:
+                # Save correction to translation_memory
+                cur.execute(
+                    "SELECT text FROM translations WHERE key = %s AND language = 'en'",
+                    (updated["key"],),
+                )
+                en_row = cur.fetchone()
+                if en_row:
+                    cur.execute(
+                        """
+                        INSERT INTO translation_memory
+                            (source_text, translated_text, language, category,
+                             created_by, created_at)
+                        VALUES (%s, %s, %s, 'ui', %s, NOW())
+                        """,
+                        (
+                            en_row["text"],
+                            new_text,
+                            updated["language"],
+                            current_user.id,
+                        ),
+                    )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "action": action, "id": translation_id})
+    except Exception as e:
+        logger.error(f"Translation approve error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/bulk-approve", methods=["PUT"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_bulk_approve():
+    """Bulk-approve translations by list of IDs."""
+    try:
+        data = request.get_json() or {}
+        ids = data.get("ids", [])
+        if not ids:
+            return jsonify({"success": False, "error": "ids list required"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE translations
+            SET status = 'approved', reviewed_by = %s, updated_at = NOW()
+            WHERE id = ANY(%s)
+            """,
+            (current_user.id, ids),
+        )
+        count = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "approved_count": count})
+    except Exception as e:
+        logger.error(f"Translation bulk approve error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translation-memory", methods=["GET", "POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_memory_api():
+    """GET: list translation memory entries. POST: add a new entry."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        if request.method == "GET":
+            language = request.args.get("language", "fr")
+            cur.execute(
+                """
+                SELECT id, source_text, translated_text, language, category,
+                       created_by, created_at
+                FROM translation_memory
+                WHERE language = %s
+                ORDER BY category, source_text
+                """,
+                (language,),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            result = []
+            for row in rows:
+                d = dict(row)
+                if d.get("created_at"):
+                    d["created_at"] = d["created_at"].isoformat()
+                result.append(d)
+            return jsonify({"success": True, "entries": result, "count": len(result)})
+
+        # POST - add new entry
+        data = request.get_json() or {}
+        source_text = data.get("source_text")
+        translated_text = data.get("translated_text")
+        language = data.get("language", "fr")
+        category = data.get("category", "ui")
+
+        if not source_text or not translated_text:
+            cur.close()
+            conn.close()
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "source_text and translated_text required",
+                    }
+                ),
+                400,
+            )
+
+        cur.execute(
+            """
+            INSERT INTO translation_memory
+                (source_text, translated_text, language, category, created_by, created_at)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+            RETURNING id
+            """,
+            (source_text, translated_text, language, category, current_user.id),
+        )
+        new_id = cur.fetchone()["id"]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "id": new_id})
+
+    except Exception as e:
+        logger.error(f"Translation memory error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translation-memory/<int:entry_id>", methods=["DELETE"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_memory_delete(entry_id):
+    """Delete a translation memory entry by ID."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM translation_memory WHERE id = %s", (entry_id,))
+        deleted = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if deleted == 0:
+            return jsonify({"success": False, "error": "Entry not found"}), 404
+        return jsonify({"success": True, "deleted_id": entry_id})
+    except Exception as e:
+        logger.error(f"Translation memory delete error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

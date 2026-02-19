@@ -222,6 +222,7 @@ class BridgeDispatcher:
                 SELECT a.id, a.name, a.model, a.default_model_tier,
                        a.system_prompt, a.capabilities, a.temperature,
                        a.max_tokens, a.status,
+                       a.first_name, a.last_name, a.title,
                        bs.station_code, bs.default_llm
                 FROM agents a
                 JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
@@ -245,6 +246,9 @@ class BridgeDispatcher:
                     "max_tokens": agent["max_tokens"] or 4096,
                     "station_code": agent["station_code"],
                     "station_llm": agent["default_llm"],
+                    "first_name": agent.get("first_name") or "",
+                    "last_name": agent.get("last_name") or "",
+                    "title": agent.get("title") or "",
                 }
             self._cache_time = now
             logger.info(f"[BridgeDispatcher] Cached {len(self._agent_cache)} agents")
@@ -402,6 +406,166 @@ class BridgeDispatcher:
             return row[0] if row else "full"
         except Exception:
             return "full"
+
+    # Cloud contractor models (free via OLLAMA_API_KEY)
+    FREE_CLOUD_MODELS = [
+        "minimax-m2.5:cloud",
+        "qwen3-coder-next:cloud",
+    ]
+
+    def _check_agent_busy(self, agent_name: str) -> Optional[Dict]:
+        """Check if agent has a running bridge_job. Returns job dict or None."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT id, description, total_steps, completed_steps
+                FROM bridge_jobs
+                WHERE agent_name = %s AND status = 'running'
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (agent_name,),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row:
+                total = row[2] or 1
+                completed = row[3] or 0
+                pct = round((completed / total) * 100, 1)
+                return {
+                    "id": row[0],
+                    "description": row[1],
+                    "progress_pct": pct,
+                }
+            return None
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] _check_agent_busy failed: {e}")
+            return None
+
+    def _try_cloud_escalation(
+        self,
+        agent_name: str,
+        busy_job: Dict,
+        capability: str,
+        prompt: str,
+        module_id: str,
+        system_prompt: Optional[str],
+        json_mode: bool,
+        timeout: int,
+        routing_mode: str,
+        station_code: str,
+        user_id: Optional[int],
+        job_id: Optional[int],
+    ) -> Optional[DispatchResult]:
+        """
+        Attempt throughput escalation when primary agent is busy.
+
+        1. Try free cloud contractors (auto-approve)
+        2. If unavailable/failed, request paid cloud via Telegram approval
+        Returns DispatchResult on success, None if escalation not possible.
+        """
+        if routing_mode == "local_only":
+            return None  # Cannot escalate
+
+        start = time.time()
+
+        # --- Try free cloud contractors ---
+        for cloud_model in self.FREE_CLOUD_MODELS:
+            logger.info(
+                f"[BridgeDispatcher] Throughput escalation: {agent_name} busy "
+                f"({busy_job['description']}, {busy_job['progress_pct']}%). "
+                f"Trying free cloud: {cloud_model}"
+            )
+            llm_result = self._execute_llm(
+                model=cloud_model,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                json_mode=json_mode,
+                timeout=timeout,
+            )
+            if llm_result.get("success"):
+                duration_ms = int((time.time() - start) * 1000)
+                self._log_escalation(
+                    original_agent_id=None,
+                    original_model=agent_name,
+                    escalated_model=cloud_model,
+                    escalated_provider="ollama_cloud",
+                    capability=capability,
+                    module_id=module_id,
+                    reason=f"Throughput: {agent_name} busy ({busy_job['description']})",
+                    failure_count=0,
+                    approval_method="auto",
+                    success=True,
+                )
+                result = DispatchResult(
+                    success=True,
+                    response=llm_result.get("response", ""),
+                    agent_name=f"{agent_name}→{cloud_model}",
+                    agent_id=None,
+                    model_used=cloud_model,
+                    station_code=station_code,
+                    capability=capability,
+                    duration_ms=duration_ms,
+                    prompt_tokens=llm_result.get("prompt_tokens", 0),
+                    completion_tokens=llm_result.get("completion_tokens", 0),
+                    provider="ollama_cloud",
+                    metadata={"escalation": "throughput_free_cloud", "original_agent": agent_name},
+                )
+                self._log_execution(result, module_id, user_id, job_id=job_id)
+                return result
+
+        # --- Free cloud unavailable; request paid cloud via Telegram ---
+        if routing_mode == "local_cloud":
+            return None  # Cannot use paid
+
+        logger.info(
+            f"[BridgeDispatcher] Free cloud unavailable. "
+            f"Requesting paid cloud approval for capability='{capability}'"
+        )
+        try:
+            from agent_loop import request_approval
+
+            next_tier = self._get_next_tier(
+                self.FREE_CLOUD_MODELS[-1], capability
+            )
+            if next_tier and next_tier["is_paid"]:
+                request_approval(
+                    action_type="cloud_throughput_escalation",
+                    action_data={
+                        "original_agent": agent_name,
+                        "busy_job": busy_job,
+                        "escalated_model": next_tier["model"],
+                        "escalated_provider": next_tier["provider"],
+                        "capability": capability,
+                        "module_id": module_id,
+                        "prompt_preview": prompt[:200],
+                    },
+                    reason=(
+                        f"{agent_name} busy ({busy_job['description']}, "
+                        f"{busy_job['progress_pct']}%). Free cloud failed. "
+                        f"Escalate to {next_tier['model']}?"
+                    ),
+                    requested_by="bridge_dispatcher",
+                    tier=2,
+                )
+                self._log_escalation(
+                    original_agent_id=None,
+                    original_model=agent_name,
+                    escalated_model=next_tier["model"],
+                    escalated_provider=next_tier["provider"],
+                    capability=capability,
+                    module_id=module_id,
+                    reason=f"Throughput: awaiting paid cloud approval",
+                    failure_count=0,
+                    approval_method="telegram",
+                    success=None,
+                )
+        except Exception as esc_err:
+            logger.warning(f"[BridgeDispatcher] Throughput approval request failed: {esc_err}")
+
+        return None  # Caller proceeds with original (busy) agent
 
     def _track_failure(self, agent_id: int, capability: str) -> int:
         """Increment failure count, return new count."""
@@ -598,6 +762,27 @@ class BridgeDispatcher:
                 capability=capability,
                 error=f"Blocked: routing_mode=local_cloud, model={model} is paid external",
             )
+
+        # 3d. Throughput escalation — if agent is busy, try cloud contractors
+        busy_job = self._check_agent_busy(agent_name)
+        if busy_job and routing_mode != "local_only":
+            escalated = self._try_cloud_escalation(
+                agent_name=agent_name,
+                busy_job=busy_job,
+                capability=capability,
+                prompt=prompt,
+                module_id=module_id,
+                system_prompt=system_prompt,
+                json_mode=json_mode,
+                timeout=timeout,
+                routing_mode=routing_mode,
+                station_code=station_code,
+                user_id=user_id,
+                job_id=job_id,
+            )
+            if escalated:
+                return escalated
+            # Otherwise fall through to dispatch to original agent anyway
 
         # 4. Execute the LLM call
         llm_result = self._execute_llm(
@@ -998,6 +1183,157 @@ class BridgeDispatcher:
         except Exception as e:
             logger.error(f"[BridgeDispatcher] complete_job failed: {e}")
             return False
+
+    # ========================================================================
+    # CREW MANIFEST
+    # ========================================================================
+
+    # Hardware map: model → GPU or CPU
+    MODEL_HARDWARE = {
+        "dolphin3-8k:latest": "GPU",
+        "dolphin3-8k": "GPU",
+        "qwen25-classify:latest": "CPU",
+        "qwen25-classify": "CPU",
+        "arctic-embed-cpu:latest": "CPU",
+        "arctic-embed-cpu": "CPU",
+        "qwen3-coder-cpu:latest": "CPU",
+        "qwen3-coder-cpu": "CPU",
+        "minicpm-v-cpu:latest": "CPU",
+        "minicpm-v-cpu": "CPU",
+    }
+
+    def get_crew_manifest(self) -> list:
+        """
+        Build a live roster of every agent's real-time status.
+
+        Joins: agents, station_assignments, agent_emotional_state,
+               bridge_jobs (running), task_execution_log (24h), knowledge_base.
+        """
+        self._refresh_agent_cache()
+        if not self._agent_cache:
+            return []
+
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # --- Wellness (emotional state) per agent ---
+            cur.execute("""
+                SELECT agent_id, stress_level, energy_level, current_mood
+                FROM agent_emotional_state
+            """)
+            wellness_map = {
+                r["agent_id"]: {
+                    "stress": float(r["stress_level"] or 0),
+                    "energy": float(r["energy_level"] or 0),
+                    "mood": r["current_mood"] or "neutral",
+                }
+                for r in cur.fetchall()
+            }
+
+            # --- Active jobs (running) per agent ---
+            cur.execute("""
+                SELECT id, agent_name, description,
+                       total_steps, completed_steps
+                FROM bridge_jobs
+                WHERE status = 'running'
+            """)
+            jobs_map = {}
+            for j in cur.fetchall():
+                total = j["total_steps"] or 1
+                completed = j["completed_steps"] or 0
+                pct = round((completed / total) * 100, 1) if total > 0 else 0
+                jobs_map[j["agent_name"]] = {
+                    "id": j["id"],
+                    "description": j["description"],
+                    "progress_pct": pct,
+                }
+
+            # --- 24h dispatch stats per agent ---
+            cur.execute("""
+                SELECT agent_name,
+                       COUNT(*) AS dispatches,
+                       AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
+                       AVG(duration_ms) AS avg_duration_sec
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                GROUP BY agent_name
+            """)
+            stats_map = {}
+            for r in cur.fetchall():
+                stats_map[r["agent_name"]] = {
+                    "dispatches": r["dispatches"],
+                    "success_rate": round(float(r["success_rate"] or 0), 2),
+                    "avg_duration_sec": round(float(r["avg_duration_sec"] or 0) / 1000, 1),
+                }
+
+            # --- Learning count per agent (from task_execution_log unique capabilities) ---
+            cur.execute("""
+                SELECT agent_name, COUNT(DISTINCT capability) AS cnt
+                FROM task_execution_log
+                WHERE success = TRUE
+                  AND created_at > NOW() - INTERVAL '30 days'
+                GROUP BY agent_name
+            """)
+            learning_map = {r["agent_name"]: r["cnt"] for r in cur.fetchall()}
+
+            # --- Rest cycles (check if agent is resting) ---
+            cur.execute("""
+                SELECT agent_id
+                FROM agent_rest_cycles
+                WHERE ended_at IS NULL
+            """)
+            resting_ids = {r["agent_id"] for r in cur.fetchall()}
+
+            cur.close()
+            conn.close()
+
+            # Build manifest
+            manifest = []
+            for name, info in self._agent_cache.items():
+                agent_id = info["id"]
+                model = info.get("model", "")
+
+                # Determine status
+                if agent_id in resting_ids:
+                    status = "resting"
+                elif name in jobs_map:
+                    status = "working"
+                else:
+                    status = "idle"
+
+                hw = self.MODEL_HARDWARE.get(model, "CPU")
+
+                first = info.get("first_name", "")
+                last = info.get("last_name", "")
+                full_name = f"{first} {last}".strip() if (first or last) else name
+
+                manifest.append({
+                    "name": name,
+                    "full_name": full_name,
+                    "title": info.get("title", ""),
+                    "agent_id": agent_id,
+                    "station": info.get("station_code", "COMMAND"),
+                    "model": model,
+                    "hardware": hw,
+                    "status": status,
+                    "wellness": wellness_map.get(agent_id, {
+                        "stress": 0.0, "energy": 1.0, "mood": "neutral",
+                    }),
+                    "current_job": jobs_map.get(name),
+                    "stats_24h": stats_map.get(name, {
+                        "dispatches": 0, "success_rate": 0.0, "avg_duration_sec": 0,
+                    }),
+                    "learning_count": learning_map.get(name, 0),
+                })
+
+            return manifest
+
+        except Exception as e:
+            logger.error(f"[BridgeDispatcher] get_crew_manifest failed: {e}")
+            return []
 
     def get_dispatch_status(self) -> Dict:
         """Get current dispatch status for all stations (Phase 6: Bridge Command)."""

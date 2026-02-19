@@ -9400,7 +9400,7 @@ def translation_generate():
                 }
             )
 
-        results = batch_translate(strings, language, model=model)
+        results = batch_translate(strings, language)
         stats = store_translations(results, language, model)
         return jsonify({"success": True, "stats": stats, "total_requested": len(strings)})
 

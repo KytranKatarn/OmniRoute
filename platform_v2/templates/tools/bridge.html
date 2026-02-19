@@ -1128,6 +1128,178 @@
 }
 
 /* ============================================================================
+   CREW MANIFEST — Agent roster with live status
+   ============================================================================ */
+
+.crew-manifest-section {
+    margin-top: 1.5rem;
+    background: var(--archie-bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--archie-border-default);
+    overflow: hidden;
+}
+
+.crew-manifest-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--archie-border-default);
+}
+
+.crew-manifest-header h2 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+}
+
+.crew-manifest-count {
+    font-size: 0.7rem;
+    color: var(--archie-text-muted);
+    background: var(--archie-bg-tertiary);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.crew-manifest-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.75rem;
+    padding: 1rem;
+}
+
+.crew-agent-card {
+    background: var(--archie-bg-tertiary);
+    border-radius: 6px;
+    border-left: 3px solid var(--archie-text-muted);
+    padding: 0.65rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    transition: border-color 0.3s;
+}
+
+/* Station-colored borders */
+.crew-agent-card[data-station="COMMAND"] { border-left-color: #FFD700; }
+.crew-agent-card[data-station="ANALYTICS"] { border-left-color: #00CED1; }
+.crew-agent-card[data-station="ENGINEERING"] { border-left-color: #32CD32; }
+.crew-agent-card[data-station="OPERATIONS"] { border-left-color: #FF8C00; }
+.crew-agent-card[data-station="CREATIVE"] { border-left-color: #FF69B4; }
+.crew-agent-card[data-station="RESEARCH"] { border-left-color: #6495ED; }
+
+.crew-agent-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.crew-agent-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--archie-text-primary);
+}
+
+.crew-agent-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.crew-wellness-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.crew-wellness-dot.green { background: #32CD32; box-shadow: 0 0 4px #32CD3288; }
+.crew-wellness-dot.yellow { background: #FFD700; box-shadow: 0 0 4px #FFD70088; }
+.crew-wellness-dot.red { background: #FF4444; box-shadow: 0 0 4px #FF444488; }
+
+.crew-status-badge {
+    font-size: 0.6rem;
+    padding: 1px 6px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.crew-status-badge.idle { background: var(--archie-bg-secondary); color: var(--archie-text-muted); }
+.crew-status-badge.working { background: rgba(0,206,209,0.15); color: #00CED1; }
+.crew-status-badge.resting { background: rgba(255,215,0,0.15); color: #FFD700; }
+.crew-status-badge.offline { background: rgba(255,68,68,0.15); color: #FF4444; }
+
+.crew-agent-meta {
+    font-size: 0.65rem;
+    color: var(--archie-text-muted);
+    display: flex;
+    gap: 0.75rem;
+}
+
+.crew-agent-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.crew-hw-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+}
+
+.crew-hw-badge.gpu { background: rgba(50,205,50,0.15); color: #32CD32; }
+.crew-hw-badge.cpu { background: rgba(100,149,237,0.15); color: #6495ED; }
+
+.crew-agent-job {
+    font-size: 0.65rem;
+    color: var(--archie-cyan);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.crew-job-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--archie-bg-secondary);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.crew-job-bar-fill {
+    height: 100%;
+    background: var(--archie-cyan);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+}
+
+.crew-agent-stats {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.6rem;
+    color: var(--archie-text-muted);
+}
+
+.crew-agent-stats .stat-val {
+    font-weight: 600;
+    color: var(--archie-text-secondary);
+}
+
+@media (max-width: 768px) {
+    .crew-manifest-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================================
    NODE NETWORK SECTION
    ============================================================================ */
 
@@ -3053,6 +3225,19 @@
                         <div class="dispatch-station-bars" id="dispatch-station-bars">
                             <div class="dispatch-empty">Loading station activity...</div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crew Manifest Section -->
+            <div class="crew-manifest-section" id="crew-manifest-section">
+                <div class="crew-manifest-header">
+                    <h2><i data-lucide="users"></i> CREW MANIFEST</h2>
+                    <span class="crew-manifest-count" id="crew-manifest-count">Loading...</span>
+                </div>
+                <div class="crew-manifest-grid" id="crew-manifest-grid">
+                    <div style="color: var(--archie-text-muted); font-size: 0.75rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
+                        Loading crew manifest...
                     </div>
                 </div>
             </div>
@@ -5910,6 +6095,184 @@ function formatEta(seconds) {
     var m = Math.round((seconds % 3600) / 60);
     return h + 'h ' + m + 'm';
 }
+
+// ============================================================================
+// CREW MANIFEST (Phase B)
+// ============================================================================
+
+async function loadCrewManifest() {
+    try {
+        const resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.success) {
+            renderCrewManifest(data.crew || []);
+        }
+    } catch (e) {
+        // Silently fail — crew manifest is supplementary
+    }
+}
+
+function makeStatSpan(val, label) {
+    var span = document.createElement('span');
+    var valEl = document.createElement('span');
+    valEl.className = 'stat-val';
+    valEl.textContent = val;
+    span.appendChild(valEl);
+    span.appendChild(document.createTextNode(' ' + label));
+    return span;
+}
+
+function renderCrewManifest(crew) {
+    var grid = document.getElementById('crew-manifest-grid');
+    var countEl = document.getElementById('crew-manifest-count');
+    if (!grid) return;
+
+    if (countEl) {
+        var working = crew.filter(function(a) { return a.status === 'working'; }).length;
+        var idle = crew.filter(function(a) { return a.status === 'idle'; }).length;
+        countEl.textContent = crew.length + ' agents \u2014 ' + working + ' working, ' + idle + ' idle';
+    }
+
+    grid.replaceChildren();
+
+    if (!crew || crew.length === 0) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'color: var(--archie-text-muted); font-size: 0.75rem; grid-column: 1/-1; text-align: center; padding: 2rem;';
+        empty.textContent = 'No agents registered';
+        grid.appendChild(empty);
+        return;
+    }
+
+    // Sort: working first, then idle, then resting
+    var statusOrder = { working: 0, idle: 1, resting: 2, offline: 3 };
+    crew.sort(function(a, b) {
+        return (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
+    });
+
+    crew.forEach(function(agent) {
+        var card = document.createElement('div');
+        card.className = 'crew-agent-card';
+        card.setAttribute('data-station', agent.station);
+
+        // Top row: name + badges
+        var top = document.createElement('div');
+        top.className = 'crew-agent-top';
+
+        var name = document.createElement('span');
+        name.className = 'crew-agent-name';
+        name.textContent = agent.full_name || agent.name;
+        if (agent.full_name && agent.full_name !== agent.name) {
+            name.title = agent.name + (agent.title ? ' \u2014 ' + agent.title : '');
+        }
+
+        var badges = document.createElement('div');
+        badges.className = 'crew-agent-badges';
+
+        // Wellness dot
+        var wellness = agent.wellness || {};
+        var stress = wellness.stress || 0;
+        var dotClass = stress <= 0.4 ? 'green' : (stress <= 0.7 ? 'yellow' : 'red');
+        var dot = document.createElement('span');
+        dot.className = 'crew-wellness-dot ' + dotClass;
+        dot.title = 'Stress: ' + (stress * 100).toFixed(0) + '% | Energy: ' + ((wellness.energy || 0) * 100).toFixed(0) + '% | ' + (wellness.mood || 'neutral');
+        badges.appendChild(dot);
+
+        // Status badge
+        var statusBadge = document.createElement('span');
+        statusBadge.className = 'crew-status-badge ' + agent.status;
+        statusBadge.textContent = agent.status;
+        badges.appendChild(statusBadge);
+
+        top.appendChild(name);
+        top.appendChild(badges);
+        card.appendChild(top);
+
+        // Callsign + title subtitle
+        if (agent.full_name && agent.full_name !== agent.name) {
+            var subtitle = document.createElement('div');
+            subtitle.style.cssText = 'font-size: 0.6rem; color: var(--archie-text-muted); margin-top: -2px;';
+            subtitle.textContent = agent.name + (agent.title ? ' \u2014 ' + agent.title : '');
+            card.appendChild(subtitle);
+        }
+
+        // Meta row: station + model + hardware
+        var meta = document.createElement('div');
+        meta.className = 'crew-agent-meta';
+
+        var stationSpan = document.createElement('span');
+        stationSpan.textContent = agent.station;
+        meta.appendChild(stationSpan);
+
+        var modelSpan = document.createElement('span');
+        modelSpan.textContent = (agent.model || '').replace(':latest', '');
+        meta.appendChild(modelSpan);
+
+        var hwBadge = document.createElement('span');
+        hwBadge.className = 'crew-hw-badge ' + (agent.hardware || 'cpu').toLowerCase();
+        hwBadge.textContent = agent.hardware || 'CPU';
+        meta.appendChild(hwBadge);
+
+        card.appendChild(meta);
+
+        // Active job (if any)
+        if (agent.current_job) {
+            var jobRow = document.createElement('div');
+            jobRow.className = 'crew-agent-job';
+
+            var jobDesc = document.createElement('span');
+            jobDesc.textContent = agent.current_job.description || 'Working...';
+            jobDesc.style.cssText = 'max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+            jobDesc.title = agent.current_job.description || '';
+
+            var jobBar = document.createElement('div');
+            jobBar.className = 'crew-job-bar';
+
+            var jobFill = document.createElement('div');
+            jobFill.className = 'crew-job-bar-fill';
+            jobFill.style.width = Math.min(agent.current_job.progress_pct || 0, 100) + '%';
+            jobBar.appendChild(jobFill);
+
+            var jobPct = document.createElement('span');
+            jobPct.textContent = Math.round(agent.current_job.progress_pct || 0) + '%';
+            jobPct.style.fontSize = '0.6rem';
+
+            jobRow.appendChild(jobDesc);
+            jobRow.appendChild(jobBar);
+            jobRow.appendChild(jobPct);
+            card.appendChild(jobRow);
+        }
+
+        // Stats row
+        var stats = agent.stats_24h || {};
+        var statsRow = document.createElement('div');
+        statsRow.className = 'crew-agent-stats';
+
+        statsRow.appendChild(makeStatSpan(stats.dispatches || 0, 'dispatches'));
+        statsRow.appendChild(makeStatSpan(Math.round((stats.success_rate || 0) * 100) + '%', 'success'));
+
+        if (agent.learning_count > 0) {
+            statsRow.appendChild(makeStatSpan(agent.learning_count, 'learnings'));
+        }
+
+        card.appendChild(statsRow);
+
+        grid.appendChild(card);
+    });
+}
+
+// Hook crew manifest into init + refresh
+(function() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCrewManifest();
+            setInterval(loadCrewManifest, 15000);
+        });
+    } else {
+        loadCrewManifest();
+        setInterval(loadCrewManifest, 15000);
+    }
+})();
 
 </script>
 {% endblock %}

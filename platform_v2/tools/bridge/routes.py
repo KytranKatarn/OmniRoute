@@ -6452,7 +6452,14 @@ def get_dispatch_history():
 
         cur.execute(
             """
-            SELECT tel.id, a.name as agent_name, a.avatar_url,
+            SELECT tel.id,
+                   COALESCE(
+                       NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                       a.name,
+                       tel.agent_name
+                   ) as agent_display_name,
+                   COALESCE(a.name, tel.agent_name) as agent_callsign,
+                   a.avatar_url,
                    tel.module_source, tel.task_type, tel.capability,
                    tel.model_used, tel.duration_ms, tel.success,
                    tel.error_message, tel.created_at,
@@ -6477,7 +6484,7 @@ def get_dispatch_history():
                 "history": [
                     {
                         "id": h["id"],
-                        "agent_name": h["agent_name"],
+                        "agent_name": h["agent_display_name"] or h.get("agent_callsign") or "Unknown",
                         "avatar_url": h.get("avatar_url"),
                         "module": h["module_source"],
                         "task_type": h["task_type"],
@@ -6521,13 +6528,21 @@ def get_bridge_jobs():
         if status_filter:
             cur.execute(
                 """
-                SELECT id, job_type, module_source, description,
-                       total_steps, completed_steps, failed_steps,
-                       status, agent_name, metadata,
-                       created_at, updated_at, completed_at
-                FROM bridge_jobs
-                WHERE status = %s
-                ORDER BY created_at DESC
+                SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                       bj.total_steps, bj.completed_steps, bj.failed_steps,
+                       bj.status,
+                       COALESCE(
+                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                           a.name,
+                           bj.agent_name
+                       ) as agent_display_name,
+                       bj.agent_name as agent_callsign,
+                       bj.metadata,
+                       bj.created_at, bj.updated_at, bj.completed_at
+                FROM bridge_jobs bj
+                LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+                WHERE bj.status = %s
+                ORDER BY bj.created_at DESC
                 LIMIT %s
                 """,
                 (status_filter, limit),
@@ -6535,18 +6550,26 @@ def get_bridge_jobs():
         else:
             cur.execute(
                 """
-                SELECT id, job_type, module_source, description,
-                       total_steps, completed_steps, failed_steps,
-                       status, agent_name, metadata,
-                       created_at, updated_at, completed_at
-                FROM bridge_jobs
+                SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                       bj.total_steps, bj.completed_steps, bj.failed_steps,
+                       bj.status,
+                       COALESCE(
+                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                           a.name,
+                           bj.agent_name
+                       ) as agent_display_name,
+                       bj.agent_name as agent_callsign,
+                       bj.metadata,
+                       bj.created_at, bj.updated_at, bj.completed_at
+                FROM bridge_jobs bj
+                LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
                 ORDER BY
-                    CASE status
+                    CASE bj.status
                         WHEN 'running' THEN 0
                         WHEN 'pending' THEN 1
                         ELSE 2
                     END,
-                    created_at DESC
+                    bj.created_at DESC
                 LIMIT %s
                 """,
                 (limit,),
@@ -6580,7 +6603,7 @@ def get_bridge_jobs():
                     "completed_steps": completed,
                     "failed_steps": j["failed_steps"] or 0,
                     "status": j["status"],
-                    "agent_name": j["agent_name"],
+                    "agent_name": j.get("agent_display_name") or j.get("agent_callsign") or "Unknown",
                     "metadata": j["metadata"] or {},
                     "progress_pct": progress_pct,
                     "eta_seconds": eta_seconds,
@@ -6608,12 +6631,19 @@ def get_bridge_job_detail(job_id):
         # Get the job
         cur.execute(
             """
-            SELECT id, job_type, module_source, description,
-                   total_steps, completed_steps, failed_steps,
-                   status, agent_name, metadata,
-                   created_at, updated_at, completed_at
-            FROM bridge_jobs
-            WHERE id = %s
+            SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                   bj.total_steps, bj.completed_steps, bj.failed_steps,
+                   bj.status,
+                   COALESCE(
+                       NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                       a.name,
+                       bj.agent_name
+                   ) as agent_display_name,
+                   bj.metadata,
+                   bj.created_at, bj.updated_at, bj.completed_at
+            FROM bridge_jobs bj
+            LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+            WHERE bj.id = %s
             """,
             (job_id,),
         )
@@ -6626,7 +6656,13 @@ def get_bridge_job_detail(job_id):
         # Get linked execution log entries
         cur.execute(
             """
-            SELECT tel.id, a.name as agent_name, tel.capability,
+            SELECT tel.id,
+                   COALESCE(
+                       NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                       a.name,
+                       tel.agent_name
+                   ) as agent_name,
+                   tel.capability,
                    tel.model_used, tel.duration_ms, tel.success,
                    tel.error_message, tel.created_at
             FROM task_execution_log tel
@@ -6656,7 +6692,7 @@ def get_bridge_job_detail(job_id):
                     "completed_steps": completed,
                     "failed_steps": job["failed_steps"] or 0,
                     "status": job["status"],
-                    "agent_name": job["agent_name"],
+                    "agent_name": job.get("agent_display_name") or "Unknown",
                     "metadata": job["metadata"] or {},
                     "progress_pct": progress_pct,
                     "created_at": job["created_at"].isoformat() if job["created_at"] else None,
@@ -6681,6 +6717,27 @@ def get_bridge_job_detail(job_id):
 
     except Exception as e:
         logger.error(f"Error getting bridge job detail: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# CREW MANIFEST — Live agent roster with status/wellness/jobs/stats
+# ============================================================================
+
+
+@bridge_bp.route("/api/bridge/crew/manifest")
+@login_required
+def get_crew_manifest():
+    """Get the live crew manifest — all agents with status, wellness, jobs, stats."""
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        manifest = dispatcher.get_crew_manifest()
+
+        return jsonify({"success": True, "crew": manifest, "total": len(manifest)})
+    except Exception as e:
+        logger.error(f"Error getting crew manifest: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

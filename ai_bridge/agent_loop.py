@@ -1283,6 +1283,40 @@ class AgentLoop:
             )
             return {"status_code": resp.status_code, "response": resp.text[:500]}
 
+        elif action_type == "cloud_throughput_escalation":
+            # Approved paid cloud escalation — dispatch via bridge
+            try:
+                from bridge_dispatcher import get_dispatcher
+
+                dispatcher = get_dispatcher()
+                escalated_model = data.get("escalated_model", "")
+                result = dispatcher._execute_llm(
+                    model=escalated_model,
+                    prompt=data.get("prompt_preview", ""),
+                    system_prompt=None,
+                    timeout=300,
+                )
+                dispatcher._log_escalation(
+                    original_agent_id=None,
+                    original_model=data.get("original_agent", "unknown"),
+                    escalated_model=escalated_model,
+                    escalated_provider=data.get("escalated_provider", "unknown"),
+                    capability=data.get("capability", "unknown"),
+                    module_id=data.get("module_id", "unknown"),
+                    reason=f"Throughput: paid cloud approved (#{item['id']})",
+                    failure_count=0,
+                    approval_method="telegram",
+                    success=result.get("success", False),
+                )
+                return {
+                    "executed": True,
+                    "model": escalated_model,
+                    "success": result.get("success", False),
+                }
+            except Exception as esc_err:
+                logger.error(f"Cloud throughput escalation failed: {esc_err}")
+                return {"executed": False, "error": str(esc_err)}
+
         else:
             logger.warning(f"Unknown approved action type: {action_type}")
             return {"skipped": True, "reason": f"Unknown action type: {action_type}"}

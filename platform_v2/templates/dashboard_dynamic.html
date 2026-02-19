@@ -2269,7 +2269,7 @@ body.light-mode .module-card {
                    data-module-name="{{ module.name }}"
                    data-module-icon="{{ module.icon }}"
                    data-module-desc="{{ module.description | striptags | truncate(120) }}"
-                   data-module-category="{{ module.category.value }}"
+                   data-module-category="{{ cat_key }}"
                    {% if module.coming_soon %}onclick="return false;"{% endif %}>
                     <div class="module-card-icon">
                         <i data-lucide="{{ module.icon }}"></i>

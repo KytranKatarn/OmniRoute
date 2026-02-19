@@ -8,7 +8,15 @@
 (function() {
     'use strict';
 
-    var SUPPORTED_LANGUAGES = { en: 'English', fr: 'Québécois French' };
+    var SUPPORTED_LANGUAGES = {
+        en: 'English',
+        fr: 'Québécois French',
+        es: 'Español',
+        pt: 'Português',
+        de: 'Deutsch',
+        zh: '中文',
+        ar: 'العربية'
+    };
     var CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
     /**

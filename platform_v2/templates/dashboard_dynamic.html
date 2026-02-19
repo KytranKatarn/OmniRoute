@@ -2181,6 +2181,11 @@ body.light-mode .module-card {
             <div class="cb-lang-menu hidden" id="cbLangMenu">
                 <button class="cb-lang-option active" data-lang="en">English</button>
                 <button class="cb-lang-option" data-lang="fr">Français (QC)</button>
+                <button class="cb-lang-option" data-lang="es">Español</button>
+                <button class="cb-lang-option" data-lang="pt">Português</button>
+                <button class="cb-lang-option" data-lang="de">Deutsch</button>
+                <button class="cb-lang-option" data-lang="zh">中文</button>
+                <button class="cb-lang-option" data-lang="ar">العربية</button>
             </div>
             {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
             <!-- Dev HQ -->
@@ -2893,9 +2898,16 @@ body.light-mode .module-card {
         });
     });
 
-    // Initialize i18n on load
+    // Initialize i18n on load and sync active language in dropdown
     if (window.archieI18n) {
         archieI18n.init();
+        // Sync dropdown active state after init
+        setTimeout(function() {
+            var curLang = archieI18n.getCurrentLanguage();
+            document.querySelectorAll('.cb-lang-option').forEach(function(o) {
+                o.classList.toggle('active', o.getAttribute('data-lang') === curLang);
+            });
+        }, 600);
     }
 
     // ── Theme toggle icon sync ──

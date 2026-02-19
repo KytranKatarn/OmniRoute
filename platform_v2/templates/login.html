@@ -357,6 +357,53 @@ body {
     box-shadow: 0 0 12px var(--archie-green-alpha-20);
 }
 
+/* ─── Language Dropdown ─── */
+.lang-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 4px;
+    background: rgba(10, 14, 10, 0.95);
+    border: 1px solid var(--archie-border-muted);
+    border-radius: var(--archie-radius-md);
+    padding: 4px 0;
+    z-index: 200;
+    min-width: 120px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+}
+.lang-dropdown.hidden { display: none; }
+.lang-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 6px 14px;
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 0.7rem;
+    font-family: 'Orbitron', 'Share Tech Mono', monospace;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.lang-dropdown-item:hover {
+    background: rgba(0, 255, 65, 0.08);
+    color: #fff;
+}
+.lang-dropdown-item.active {
+    color: var(--archie-green);
+    font-weight: 600;
+}
+[data-theme="light"] .lang-dropdown {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .lang-dropdown-item { color: #555; }
+[data-theme="light"] .lang-dropdown-item:hover { background: rgba(0, 122, 32, 0.06); color: #111; }
+[data-theme="light"] .lang-dropdown-item.active { color: #007a20; }
+
 /* ─── Form — Staggered Boot Sequence ─── */
 .login-form {
     margin-top: 28px;
@@ -930,9 +977,20 @@ body.light-mode .login-btn.loading::after { border-top-color: var(--archie-green
                 <button class="theme-toggle-login" id="themeToggle" title="Toggle light/dark mode" style="margin-top: 0;">
                     <i data-lucide="moon" width="14" height="14"></i>
                 </button>
-                <button class="theme-toggle-login" id="langToggle" title="Switch language" style="margin-top: 0; font-size: 0.65rem; font-family: 'Orbitron', monospace; font-weight: 600; letter-spacing: 0.05em;" onclick="archieI18n.switchLanguage(archieI18n.getCurrentLanguage() === 'en' ? 'fr' : 'en'); this.textContent = archieI18n.getCurrentLanguage() === 'en' ? 'FR' : 'EN';">
-                    FR
-                </button>
+                <div style="position: relative; display: inline-block;">
+                    <button class="theme-toggle-login" id="langToggle" title="Switch language" style="margin-top: 0; font-size: 0.6rem; font-family: 'Orbitron', monospace; font-weight: 600; letter-spacing: 0.05em; min-width: 36px;" onclick="document.getElementById('langMenu').classList.toggle('hidden');">
+                        EN
+                    </button>
+                    <div class="lang-dropdown hidden" id="langMenu">
+                        <button class="lang-dropdown-item active" data-lang="en">English</button>
+                        <button class="lang-dropdown-item" data-lang="fr">Français</button>
+                        <button class="lang-dropdown-item" data-lang="es">Español</button>
+                        <button class="lang-dropdown-item" data-lang="pt">Português</button>
+                        <button class="lang-dropdown-item" data-lang="de">Deutsch</button>
+                        <button class="lang-dropdown-item" data-lang="zh">中文</button>
+                        <button class="lang-dropdown-item" data-lang="ar">العربية</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1161,16 +1219,46 @@ window.addEventListener('themechange', function() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 });
 
-// ─── Init Lucide + Language Button ───
+// ─── Init Lucide + Language Dropdown ───
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Language dropdown handler
+    var LANG_LABELS = { en: 'EN', fr: 'FR', es: 'ES', pt: 'PT', de: 'DE', zh: '中文', ar: 'عر' };
+    var langBtn = document.getElementById('langToggle');
+    var langMenu = document.getElementById('langMenu');
+
+    function syncLangUI(lang) {
+        if (langBtn) langBtn.textContent = LANG_LABELS[lang] || lang.toUpperCase();
+        if (langMenu) {
+            langMenu.querySelectorAll('.lang-dropdown-item').forEach(function(o) {
+                o.classList.toggle('active', o.getAttribute('data-lang') === lang);
+            });
+        }
+    }
+
+    if (langMenu) {
+        langMenu.querySelectorAll('.lang-dropdown-item').forEach(function(opt) {
+            opt.addEventListener('click', function() {
+                var lang = opt.getAttribute('data-lang');
+                if (window.archieI18n) archieI18n.switchLanguage(lang);
+                syncLangUI(lang);
+                langMenu.classList.add('hidden');
+            });
+        });
+    }
+
+    // Close dropdown on outside click
+    document.addEventListener('click', function(e) {
+        if (langMenu && !langMenu.classList.contains('hidden') &&
+            !langMenu.contains(e.target) && e.target !== langBtn && !langBtn.contains(e.target)) {
+            langMenu.classList.add('hidden');
+        }
+    });
+
     if (typeof archieI18n !== 'undefined') {
         archieI18n.init();
-        // Update button label after async init completes
-        setTimeout(function() {
-            var langBtn = document.getElementById('langToggle');
-            if (langBtn) langBtn.textContent = archieI18n.getCurrentLanguage() === 'en' ? 'FR' : 'EN';
-        }, 500);
+        setTimeout(function() { syncLangUI(archieI18n.getCurrentLanguage()); }, 500);
     }
 });
 </script>

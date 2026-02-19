@@ -36,6 +36,11 @@ OLLAMA_URL = "http://host.docker.internal:11434"
 SUPPORTED_LANGUAGES = {
     "en": "English",
     "fr": "Québécois French",
+    "es": "Spanish",
+    "pt": "Brazilian Portuguese",
+    "de": "German",
+    "zh": "Simplified Chinese (Mandarin)",
+    "ar": "Arabic",
 }
 
 # How many strings to translate per LLM call

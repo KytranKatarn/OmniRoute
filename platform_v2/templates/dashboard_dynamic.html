@@ -707,6 +707,31 @@ body.light-mode #matrix-rain {
     color: rgba(255, 255, 255, 0.3);
 }
 
+/* Dual-stacked pods */
+.hud-pod-dual {
+    justify-content: center;
+    gap: 0;
+    padding: 8px 12px;
+}
+.hud-dual-top, .hud-dual-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+}
+.hud-dual-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.hud-dual-divider {
+    width: 60%;
+    height: 1px;
+    margin: 4px auto;
+    background: rgba(255, 255, 255, 0.1);
+}
+
 /* Ring Gauge SVG */
 .hud-ring-wrap {
     position: relative;
@@ -775,11 +800,6 @@ body.light-mode #matrix-rain {
 }
 
 /* A.R.C.H.I.E. status */
-.hud-archie-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
 .hud-archie-dot {
     width: 10px;
     height: 10px;
@@ -798,16 +818,8 @@ body.light-mode #matrix-rain {
     50% { box-shadow: 0 0 16px rgba(139, 92, 246, 0.9), 0 0 30px rgba(139, 92, 246, 0.3); }
 }
 
-/* Agent count icon */
-.hud-agents-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.hud-agents-row svg {
-    width: 18px;
-    height: 18px;
+/* Dual-pod agent icon */
+.hud-dual-row svg {
     color: rgba(0, 204, 255, 0.7);
 }
 
@@ -895,6 +907,11 @@ body.light-mode .hud-ring-center {
 [data-theme="light"] .hud-pod-sub,
 body.light-mode .hud-pod-sub {
     color: #888;
+}
+
+[data-theme="light"] .hud-dual-divider,
+body.light-mode .hud-dual-divider {
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .mission-briefing {
@@ -2068,32 +2085,38 @@ body.light-mode .module-card {
             </div>
             <span class="hud-pod-sub" id="hudMemDetail">--/-- GB</span>
         </div>
-        <!-- Pod 4: AI STATUS -->
-        <div class="hud-pod" id="hudPodAi">
-            <span class="hud-pod-label">AI STATUS</span>
-            <div class="hud-ai-dot" id="hudAiDot"></div>
-            <span class="hud-pod-value" id="hudValAi" style="font-size:14px;">ONLINE</span>
-        </div>
-        <!-- Pod 5: A.R.C.H.I.E. -->
-        <div class="hud-pod" id="hudPodArchie">
-            <span class="hud-pod-label">A.R.C.H.I.E.</span>
-            <div class="hud-archie-row">
-                <div class="hud-archie-dot online" id="hudArchieDot"></div>
-                <span class="hud-pod-value" id="hudValArchie" style="font-size:12px;">ONLINE</span>
+        <!-- Pod 4: AI STATUS + AGENTS (stacked) -->
+        <div class="hud-pod hud-pod-dual" id="hudPodAiAgents">
+            <div class="hud-dual-top">
+                <span class="hud-pod-label">AI STATUS</span>
+                <div class="hud-dual-row">
+                    <div class="hud-ai-dot" id="hudAiDot"></div>
+                    <span class="hud-pod-value" id="hudValAi" style="font-size:13px;">ONLINE</span>
+                </div>
+            </div>
+            <div class="hud-dual-divider"></div>
+            <div class="hud-dual-bottom">
+                <span class="hud-pod-label">AGENTS</span>
+                <div class="hud-dual-row">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span class="hud-pod-value" id="hudValAgents" style="font-size:13px;">0</span>
+                </div>
             </div>
         </div>
-        <!-- Pod 6: AGENTS -->
-        <div class="hud-pod" id="hudPodAgents">
-            <span class="hud-pod-label">AGENTS</span>
-            <div class="hud-agents-row">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <span class="hud-pod-value" id="hudValAgents">0</span>
+        <!-- Pod 5: A.R.C.H.I.E. + UPTIME (stacked) -->
+        <div class="hud-pod hud-pod-dual" id="hudPodArchieUptime">
+            <div class="hud-dual-top">
+                <span class="hud-pod-label">A.R.C.H.I.E.</span>
+                <div class="hud-dual-row">
+                    <div class="hud-archie-dot online" id="hudArchieDot"></div>
+                    <span class="hud-pod-value" id="hudValArchie" style="font-size:13px;">ONLINE</span>
+                </div>
             </div>
-        </div>
-        <!-- Pod 6: UPTIME -->
-        <div class="hud-pod" id="hudPodUptime">
-            <span class="hud-pod-label">UPTIME</span>
-            <span class="hud-pod-value" id="hudValUptime">--h --m</span>
+            <div class="hud-dual-divider"></div>
+            <div class="hud-dual-bottom">
+                <span class="hud-pod-label">UPTIME</span>
+                <span class="hud-pod-value" id="hudValUptime" style="font-size:13px;">--h --m</span>
+            </div>
         </div>
     </div>
 

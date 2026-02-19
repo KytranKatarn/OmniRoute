@@ -435,10 +435,11 @@ def store_translations(
                 cur.execute(
                     """
                     INSERT INTO translations (key, language, text, generated_by, source, status, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, 'ai_generated', 'pending_review', NOW(), NOW())
+                    VALUES (%s, %s, %s, %s, 'ai_generated', 'approved', NOW(), NOW())
                     ON CONFLICT (key, language) DO UPDATE SET
                         text = EXCLUDED.text,
                         generated_by = EXCLUDED.generated_by,
+                        status = 'approved',
                         updated_at = NOW()
                     RETURNING (xmax = 0) AS is_insert
                     """,

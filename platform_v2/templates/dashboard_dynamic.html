@@ -2148,9 +2148,7 @@ body.light-mode .module-card {
             </button>
             <div class="cb-lang-menu hidden" id="cbLangMenu">
                 <button class="cb-lang-option active" data-lang="en">English</button>
-                <button class="cb-lang-option" data-lang="vi">Tiếng Việt</button>
-                <button class="cb-lang-option" data-lang="ja">日本語</button>
-                <button class="cb-lang-option" data-lang="ko">한국어</button>
+                <button class="cb-lang-option" data-lang="fr">Français (QC)</button>
             </div>
             {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
             <!-- Dev HQ -->
@@ -2851,18 +2849,16 @@ body.light-mode .module-card {
             var lang = opt.getAttribute('data-lang');
             document.querySelectorAll('.cb-lang-option').forEach(function(o) { o.classList.remove('active'); });
             opt.classList.add('active');
-            localStorage.setItem('archie-language', lang);
             document.getElementById('cbLangMenu').classList.add('hidden');
-            // Future: trigger i18n reload
+            if (window.archieI18n) {
+                archieI18n.switchLanguage(lang);
+            }
         });
     });
 
-    // Restore saved language on load
-    var savedLang = localStorage.getItem('archie-language');
-    if (savedLang) {
-        document.querySelectorAll('.cb-lang-option').forEach(function(opt) {
-            opt.classList.toggle('active', opt.getAttribute('data-lang') === savedLang);
-        });
+    // Initialize i18n on load
+    if (window.archieI18n) {
+        archieI18n.init();
     }
 
     // ── Theme toggle icon sync ──

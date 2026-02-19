@@ -84,7 +84,9 @@ CAPABILITY_STATION_MAP = {
     "fact_checking": "RESEARCH",
     "semantic_search": "RESEARCH",
     "context_retrieval": "RESEARCH",
-    "translate": "RESEARCH",
+
+    # Creative station — translation (language content creation)
+    "translate": "CREATIVE",
 
     # Analytics — language detection (classification task)
     "detect_language": "ANALYTICS",

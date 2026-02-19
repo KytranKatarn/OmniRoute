@@ -40,7 +40,8 @@ SUPPORTED_LANGUAGES = {
 }
 
 # How many strings to translate per LLM call
-BATCH_SIZE = 10
+# Kept at 5 to stay within CPU model timeout (qwen3-coder-cpu ~2-4min/batch)
+BATCH_SIZE = 5
 
 # Module ID for bridge tracking
 MODULE_ID = "consciousness_linguistics"
@@ -57,7 +58,7 @@ def _get_db():
     )
 
 
-def _dispatch(capability: str, prompt: str, system_prompt: str = None) -> str:
+def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: int = 300) -> str:
     """Route an LLM call through the BridgeDispatcher (ADR-013).
 
     All LLM work goes through the bridge so that:
@@ -71,6 +72,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None) -> str:
         capability: Bridge capability key ('classify', 'translate', etc.)
         prompt: The prompt to send.
         system_prompt: Optional system prompt override.
+        timeout: HTTP timeout in seconds (default 300, translation uses 600).
 
     Returns:
         Generated text, or empty string on failure.
@@ -84,7 +86,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None) -> str:
             prompt=prompt,
             module_id=MODULE_ID,
             system_prompt=system_prompt,
-            timeout=300,
+            timeout=timeout,
         )
         if result.success:
             return result.response
@@ -205,7 +207,9 @@ def batch_translate(
     all_results = []
 
     # Process in batches
+    total_batches = (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE
     for batch_start in range(0, len(strings), BATCH_SIZE):
+        batch_num = batch_start // BATCH_SIZE + 1
         batch = strings[batch_start : batch_start + BATCH_SIZE]
 
         # Build numbered list of strings to translate
@@ -223,11 +227,16 @@ def batch_translate(
             + "\n".join(numbered)
         )
 
-        raw = _dispatch("translate", prompt)
+        logger.info(
+            "[Linguistics] %s batch %d/%d (%d strings)",
+            language, batch_num, total_batches, len(batch),
+        )
+        raw = _dispatch("translate", prompt, timeout=600)
 
         # Parse JSON from response
         translations = _parse_batch_response(raw, len(batch))
 
+        batch_ok = 0
         for i, (key, english_text, _context) in enumerate(batch):
             if i < len(translations) and translations[i]:
                 all_results.append({
@@ -235,6 +244,7 @@ def batch_translate(
                     "translation": translations[i],
                     "success": True,
                 })
+                batch_ok += 1
             else:
                 logger.warning("Missing translation for key=%s in batch", key)
                 all_results.append({
@@ -242,6 +252,10 @@ def batch_translate(
                     "translation": english_text,
                     "success": False,
                 })
+        logger.info(
+            "[Linguistics] %s batch %d/%d done: %d/%d ok",
+            language, batch_num, total_batches, batch_ok, len(batch),
+        )
 
     return all_results
 
@@ -249,7 +263,8 @@ def batch_translate(
 def _parse_batch_response(raw: str, expected: int) -> List[Optional[str]]:
     """Parse JSON array from LLM batch translation response.
 
-    Handles markdown code fences and partial JSON.
+    Handles markdown code fences, preamble text before JSON, and partial JSON.
+    The LLM may return commentary before/after the actual JSON array.
 
     Returns:
         List of translated strings indexed by position (0-based).
@@ -260,12 +275,18 @@ def _parse_batch_response(raw: str, expected: int) -> List[Optional[str]]:
     if not raw:
         return results
 
-    # Strip markdown code fences if present
     cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```\w*\n?", "", cleaned)
-        cleaned = re.sub(r"\n?```$", "", cleaned)
-        cleaned = cleaned.strip()
+
+    # Strategy 1: Extract JSON from markdown code fences anywhere in response
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", cleaned, re.DOTALL)
+    if fence_match:
+        cleaned = fence_match.group(1).strip()
+    else:
+        # Strategy 2: Find the first '[' and last ']' to extract JSON array
+        first_bracket = cleaned.find("[")
+        last_bracket = cleaned.rfind("]")
+        if first_bracket != -1 and last_bracket > first_bracket:
+            cleaned = cleaned[first_bracket : last_bracket + 1]
 
     try:
         arr = json.loads(cleaned)

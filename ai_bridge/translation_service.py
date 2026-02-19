@@ -18,6 +18,7 @@ Usage:
 """
 
 import json
+import os
 import logging
 import re
 import psycopg2
@@ -44,11 +45,11 @@ BATCH_SIZE = 40
 def _get_db():
     """Get a psycopg2 connection to the ARCHIE database."""
     return psycopg2.connect(
-        host="archie_database",
-        port=5432,
-        database="archie",
-        user="archie",
-        password="archie",
+        host=os.environ.get("DB_HOST", "archie_database"),
+        port=os.environ.get("DB_PORT", "5432"),
+        database=os.environ.get("DB_NAME", "archie"),
+        user=os.environ.get("DB_USER", "archie"),
+        password=os.environ.get("DB_PASSWORD", ""),
     )
 
 
@@ -354,11 +355,11 @@ def store_translations(
             try:
                 cur.execute(
                     """
-                    INSERT INTO translations (key, language, translation, model_used, status, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, 'pending', NOW(), NOW())
+                    INSERT INTO translations (key, language, text, generated_by, source, status, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, 'ai_generated', 'pending_review', NOW(), NOW())
                     ON CONFLICT (key, language) DO UPDATE SET
-                        translation = EXCLUDED.translation,
-                        model_used = EXCLUDED.model_used,
+                        text = EXCLUDED.text,
+                        generated_by = EXCLUDED.generated_by,
                         updated_at = NOW()
                     RETURNING (xmax = 0) AS is_insert
                     """,
@@ -401,7 +402,7 @@ def get_translations(language: str) -> Dict[str, str]:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT key, translation
+            SELECT key, text
             FROM translations
             WHERE language = %s AND status = 'approved'
             ORDER BY key
@@ -434,9 +435,9 @@ def get_translation_stats(language: str) -> Dict[str, int]:
             SELECT
                 COUNT(*) AS total,
                 COUNT(*) FILTER (WHERE status = 'approved') AS approved,
-                COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                COUNT(*) FILTER (WHERE status = 'pending_review') AS pending,
                 COUNT(*) FILTER (WHERE status = 'rejected') AS rejected,
-                COUNT(*) FILTER (WHERE human_edited = TRUE) AS human_edited
+                COUNT(*) FILTER (WHERE source = 'human_edited') AS human_edited
             FROM translations
             WHERE language = %s
             """,

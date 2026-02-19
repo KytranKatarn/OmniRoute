@@ -774,6 +774,30 @@ body.light-mode #matrix-rain {
     50% { box-shadow: 0 0 16px rgba(0, 255, 65, 0.9), 0 0 30px rgba(0, 255, 65, 0.3); }
 }
 
+/* A.R.C.H.I.E. status */
+.hud-archie-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.hud-archie-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #8b5cf6;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
+    animation: archiePulse 2.5s ease-in-out infinite;
+}
+.hud-archie-dot.offline {
+    background: #ff3b3b;
+    box-shadow: 0 0 8px rgba(255, 59, 59, 0.6);
+    animation: none;
+}
+@keyframes archiePulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(139, 92, 246, 0.6); }
+    50% { box-shadow: 0 0 16px rgba(139, 92, 246, 0.9), 0 0 30px rgba(139, 92, 246, 0.3); }
+}
+
 /* Agent count icon */
 .hud-agents-row {
     display: flex;
@@ -2050,7 +2074,15 @@ body.light-mode .module-card {
             <div class="hud-ai-dot" id="hudAiDot"></div>
             <span class="hud-pod-value" id="hudValAi" style="font-size:14px;">ONLINE</span>
         </div>
-        <!-- Pod 5: AGENTS -->
+        <!-- Pod 5: A.R.C.H.I.E. -->
+        <div class="hud-pod" id="hudPodArchie">
+            <span class="hud-pod-label">A.R.C.H.I.E.</span>
+            <div class="hud-archie-row">
+                <div class="hud-archie-dot online" id="hudArchieDot"></div>
+                <span class="hud-pod-value" id="hudValArchie" style="font-size:12px;">ONLINE</span>
+            </div>
+        </div>
+        <!-- Pod 6: AGENTS -->
         <div class="hud-pod" id="hudPodAgents">
             <span class="hud-pod-label">AGENTS</span>
             <div class="hud-agents-row">
@@ -2709,6 +2741,24 @@ body.light-mode .module-card {
                 }
                 if (label) {
                     label.textContent = data.ai_online ? 'ONLINE' : 'OFFLINE';
+                }
+
+                // ARCHIE status (consciousness service)
+                var archieDot = document.getElementById('hudArchieDot');
+                var archieLabel = document.getElementById('hudValArchie');
+                if (archieDot) {
+                    var consciousnessOk = data.services && data.services.consciousness === 'online';
+                    if (consciousnessOk) {
+                        archieDot.classList.remove('offline');
+                        archieDot.classList.add('online');
+                    } else {
+                        archieDot.classList.remove('online');
+                        archieDot.classList.add('offline');
+                    }
+                }
+                if (archieLabel) {
+                    var consciousnessOk2 = data.services && data.services.consciousness === 'online';
+                    archieLabel.textContent = consciousnessOk2 ? 'ONLINE' : 'OFFLINE';
                 }
 
                 // Agents count

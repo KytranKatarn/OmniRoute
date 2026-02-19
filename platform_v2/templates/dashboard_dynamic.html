@@ -3186,9 +3186,9 @@ body.light-mode .module-card {
     function getPinnedModules() {
         try {
             var stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
+            if (stored !== null) {
                 var parsed = JSON.parse(stored);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, MAX_PINS);
+                if (Array.isArray(parsed)) return parsed.slice(0, MAX_PINS);
             }
         } catch (e) {}
         return DEFAULT_PINS.slice();

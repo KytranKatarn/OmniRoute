@@ -84,6 +84,10 @@ CAPABILITY_STATION_MAP = {
     "fact_checking": "RESEARCH",
     "semantic_search": "RESEARCH",
     "context_retrieval": "RESEARCH",
+    "translate": "RESEARCH",
+
+    # Analytics — language detection (classification task)
+    "detect_language": "ANALYTICS",
 
     # Generic fallbacks
     "analysis": "ANALYTICS",

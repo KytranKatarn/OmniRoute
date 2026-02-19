@@ -1,13 +1,13 @@
 """
 Translation Service for ARCHIE Linguistics Module
 
-Provides batch and single-string translation via Ollama LLMs,
-language detection, glossary management, and translation storage.
+All LLM calls route through BridgeDispatcher per ADR-013.
+Bridge handles agent assignment, IAAE governance, HR labor tracking,
+and dashboard AI Insights automatically.
 
-Models used:
-- qwen25-classify: fast language detection (CPU)
-- qwen3-coder-cpu: batch UI string translation (CPU, 32K context)
-- dolphin3-8k: single-string chat translation (GPU, 8K context)
+Capabilities used:
+- classify (detect_language): fast language detection via bridge
+- translate: batch/single string translation via bridge
 
 Usage:
     from ai_bridge.translation_service import detect_language, batch_translate, translate_text
@@ -23,14 +23,10 @@ import logging
 import re
 import psycopg2
 import psycopg2.extras
-import requests
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("archie_platform")
-
-# Ollama endpoint (host machine from inside Docker)
-OLLAMA_URL = "http://host.docker.internal:11434"
 
 # Languages supported by the platform
 SUPPORTED_LANGUAGES = {
@@ -46,6 +42,9 @@ SUPPORTED_LANGUAGES = {
 # How many strings to translate per LLM call
 BATCH_SIZE = 10
 
+# Module ID for bridge tracking
+MODULE_ID = "consciousness_linguistics"
+
 
 def _get_db():
     """Get a psycopg2 connection to the ARCHIE database."""
@@ -58,38 +57,43 @@ def _get_db():
     )
 
 
-def _call_ollama(model: str, prompt: str, temperature: float = 0.3) -> str:
-    """Call Ollama generate API and return the response text.
+def _dispatch(capability: str, prompt: str, system_prompt: str = None) -> str:
+    """Route an LLM call through the BridgeDispatcher (ADR-013).
+
+    All LLM work goes through the bridge so that:
+    - Agent assignment is tracked (e.g. Amara at Consciousness)
+    - IAAE governance is enforced
+    - HR labor tracking records the work
+    - Dashboard AI Insights reflect the activity
+    - Escalation triggers automatically on failures
 
     Args:
-        model: Ollama model name (e.g. 'qwen25-classify', 'qwen3-coder-cpu')
-        prompt: The prompt to send
-        temperature: Sampling temperature (default 0.3 for deterministic output)
+        capability: Bridge capability key ('classify', 'translate', etc.)
+        prompt: The prompt to send.
+        system_prompt: Optional system prompt override.
 
     Returns:
         Generated text, or empty string on failure.
     """
     try:
-        resp = requests.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": temperature},
-            },
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        result = dispatcher.request_work(
+            capability=capability,
+            prompt=prompt,
+            module_id=MODULE_ID,
+            system_prompt=system_prompt,
             timeout=300,
         )
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip()
-    except requests.exceptions.Timeout:
-        logger.error("Ollama request timed out (model=%s)", model)
-        return ""
-    except requests.exceptions.ConnectionError:
-        logger.error("Cannot connect to Ollama at %s", OLLAMA_URL)
+        if result.success:
+            return result.response
+        logger.error(
+            "Bridge dispatch failed (capability=%s): %s", capability, result.error
+        )
         return ""
     except Exception as e:
-        logger.error("Ollama call failed (model=%s): %s", model, e)
+        logger.error("Bridge dispatch error (capability=%s): %s", capability, e)
         return ""
 
 
@@ -100,7 +104,7 @@ def _call_ollama(model: str, prompt: str, temperature: float = 0.3) -> str:
 def detect_language(text: str) -> str:
     """Detect the language of a text string.
 
-    Uses qwen25-classify for fast CPU-based classification.
+    Routes through bridge with 'detect_language' capability.
 
     Args:
         text: Input text to classify.
@@ -114,7 +118,7 @@ def detect_language(text: str) -> str:
             "What language is this? Reply with ONLY the 2-letter ISO code.\n\n"
             f"{text[:500]}"
         )
-        result = _call_ollama("qwen25-classify", prompt, temperature=0.1)
+        result = _dispatch("detect_language", prompt)
         # Extract just the 2-letter code from the response
         code = re.search(r"\b([a-z]{2})\b", result.lower())
         if code:
@@ -139,7 +143,7 @@ def get_glossary(language: str) -> List[Dict]:
         language: ISO 639-1 code (e.g. 'fr').
 
     Returns:
-        List of dicts with keys: source_text, translated_text, category, notes.
+        List of dicts with keys: source_text, translated_text, category.
     """
     try:
         conn = _get_db()
@@ -169,14 +173,12 @@ def get_glossary(language: str) -> List[Dict]:
 def batch_translate(
     strings: List[Tuple[str, str, str]],
     language: str,
-    model: str = "qwen3-coder-cpu",
 ) -> List[Dict]:
-    """Translate a batch of UI strings.
+    """Translate a batch of UI strings via the bridge.
 
     Args:
         strings: List of (key, english_text, context) tuples.
         language: Target language ISO code.
-        model: Ollama model to use (default qwen3-coder-cpu for large context).
 
     Returns:
         List of dicts: {"key": str, "translation": str, "success": bool}
@@ -191,7 +193,7 @@ def batch_translate(
     glossary_section = ""
     if glossary:
         glossary_lines = [
-            f"  - \"{g['source_text']}\" → \"{g['translated_text']}\""
+            f"  - \"{g['source_text']}\" \u2192 \"{g['translated_text']}\""
             for g in glossary
         ]
         glossary_section = (
@@ -221,7 +223,7 @@ def batch_translate(
             + "\n".join(numbered)
         )
 
-        raw = _call_ollama(model, prompt, temperature=0.3)
+        raw = _dispatch("translate", prompt)
 
         # Parse JSON from response
         translations = _parse_batch_response(raw, len(batch))
@@ -287,17 +289,15 @@ def translate_text(
     text: str,
     target_language: str,
     source_language: str = "en",
-    model: str = "dolphin3-8k",
 ) -> str:
-    """Translate a single text string.
+    """Translate a single text string via the bridge.
 
-    Intended for chat / real-time translation, uses the faster GPU model.
+    Intended for chat / real-time translation.
 
     Args:
         text: Source text to translate.
         target_language: Target ISO language code.
         source_language: Source ISO language code (default 'en').
-        model: Ollama model to use.
 
     Returns:
         Translated text, or original text on failure.
@@ -312,7 +312,7 @@ def translate_text(
             f"{text}"
         )
 
-        result = _call_ollama(model, prompt, temperature=0.3)
+        result = _dispatch("translate", prompt)
         if result:
             return result
         logger.warning("Empty translation result, returning original text")

@@ -78,7 +78,13 @@
         'js.nav.toggle_theme':       'Toggle Theme',
         'js.nav.language':           'Language',
         'js.nav.dev_hq':             'Dev HQ',
-        'js.nav.logout':             'Logout'
+        'js.nav.logout':             'Logout',
+
+        // Login page
+        'login.show_password':       'Show password',
+        'login.hide_password':       'Hide password',
+        'login.authenticating':      'AUTHENTICATING...',
+        'login.access_system':       'Access System'
     };
 
     var currentLanguage = 'en';

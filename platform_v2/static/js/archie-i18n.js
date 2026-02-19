@@ -11,6 +11,76 @@
     var SUPPORTED_LANGUAGES = { en: 'English', fr: 'Québécois French' };
     var CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+    /**
+     * JS string registry — every translatable string generated in JavaScript.
+     * The backend scan endpoint reads this via archieI18n.getTranslationKeys()
+     * so these keys are discoverable without HTML template scanning.
+     */
+    var TRANSLATION_KEYS = {
+        // Boot sequence
+        'js.boot.initializing':      '> INITIALIZING A.R.C.H.I.E. CORE...',
+        'js.boot.database':          'DATABASE',
+        'js.boot.connected':         'CONNECTED',
+        'js.boot.ai_bridge':         'AI BRIDGE',
+        'js.boot.online':            'ONLINE',
+        'js.boot.modules':           'MODULES',
+        'js.boot.loaded':            'LOADED',
+        'js.boot.network':           'NETWORK',
+        'js.boot.secure':            'SECURE',
+        'js.boot.agents':            'AGENTS',
+        'js.boot.active':            'ACTIVE',
+        'js.boot.consciousness':     'CONSCIOUSNESS',
+        'js.boot.aware':             'AWARE',
+
+        // Status labels
+        'js.status.online':          'ONLINE',
+        'js.status.offline':         'OFFLINE',
+        'js.status.checking':        'CHECKING...',
+
+        // Time formatting
+        'js.time.seconds_ago':       's ago',
+        'js.time.minutes_ago':       'm ago',
+        'js.time.hours_ago':         'h ago',
+        'js.time.days_ago':          'd ago',
+
+        // Mission briefing
+        'js.briefing.loading_activity':     'Loading activity...',
+        'js.briefing.no_recent_activity':   'No recent activity',
+        'js.briefing.checking_alerts':      'Checking alerts...',
+        'js.briefing.loading_insights':     'Loading insights...',
+        'js.briefing.all_nominal':          'ALL SYSTEMS NOMINAL',
+        'js.briefing.unable_load_activity': 'Unable to load activity',
+        'js.briefing.unable_load_alerts':   'Unable to load alerts',
+        'js.briefing.ai_unavailable':       'AI data unavailable',
+
+        // AI Insights
+        'js.insights.interactions_today':   'Interactions Today',
+        'js.insights.active_agents':        'Active Agents',
+        'js.insights.ai_online':            'AI Systems Online',
+        'js.insights.ai_offline':           'AI Systems Offline',
+
+        // Pin actions
+        'js.pin.pin_to':             'Pin to Priority Stations',
+        'js.pin.unpin_from':         'Unpin from Priority Stations',
+        'js.pin.pin_module':         'Pin module',
+        'js.pin.unpin_module':       'Unpin module',
+
+        // Footer
+        'js.footer.last_refreshed':  'Last refreshed',
+
+        // Badges
+        'js.badge.beta':             'BETA',
+        'js.badge.coming_soon':      'COMING SOON',
+        'js.badge.admin':            'ADMIN',
+
+        // Button titles / nav
+        'js.nav.notifications':      'Notifications',
+        'js.nav.toggle_theme':       'Toggle Theme',
+        'js.nav.language':           'Language',
+        'js.nav.dev_hq':             'Dev HQ',
+        'js.nav.logout':             'Logout'
+    };
+
     var currentLanguage = 'en';
     var translationCache = {};      // { lang: { data: {}, timestamp: number } }
     var originalsMap = new Map();    // element -> original textContent
@@ -264,7 +334,8 @@
         switchLanguage: switchLanguage,
         t: t,
         getCurrentLanguage: getCurrentLanguage,
-        refresh: refresh
+        refresh: refresh,
+        getTranslationKeys: function() { return TRANSLATION_KEYS; }
     };
 
 })();

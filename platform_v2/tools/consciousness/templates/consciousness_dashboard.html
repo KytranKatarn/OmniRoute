@@ -1680,6 +1680,7 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
         <!-- Language Sub-tabs -->
         <div class="voice-subtabs">
             <button class="voice-subtab-btn active" onclick="switchLangTab('dashboard')">📊 Dashboard</button>
+            <button class="voice-subtab-btn" onclick="switchLangTab('browser')">🔀 Side-by-Side</button>
             <button class="voice-subtab-btn" onclick="switchLangTab('review')">📝 Review</button>
             <button class="voice-subtab-btn" onclick="switchLangTab('glossary')">📖 Glossary</button>
         </div>
@@ -1722,6 +1723,35 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                     <button class="btn btn-primary" onclick="bulkApproveAll()" id="ls-btn-bulk">4. Approve All Pending</button>
                 </div>
                 <div id="ls-action-status" style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.85rem; color: var(--archie-text-tertiary, #8b949e);"></div>
+            </div>
+        </div>
+
+        <!-- Sub-tab: Side-by-Side Browser -->
+        <div id="lang-sub-browser" class="voice-subtab-content">
+            <!-- Filter bar -->
+            <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap;">
+                <label style="font-size: 0.85rem; color: var(--archie-text-secondary);">Source:</label>
+                <select id="ls-browser-source" onchange="loadBrowser()" style="padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 6px; color: var(--archie-text-primary, #e6edf3); font-size: 0.85rem;">
+                    <option value="all">All Sources</option>
+                    <option value="template">HTML Templates</option>
+                    <option value="module_name">Module Names</option>
+                    <option value="module_desc">Module Descriptions</option>
+                    <option value="category">Categories</option>
+                    <option value="js">JS Strings</option>
+                </select>
+                <label style="font-size: 0.85rem; color: var(--archie-text-secondary);">Status:</label>
+                <select id="ls-browser-status" onchange="loadBrowser()" style="padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 6px; color: var(--archie-text-primary, #e6edf3); font-size: 0.85rem;">
+                    <option value="all">All Statuses</option>
+                    <option value="missing">Missing</option>
+                    <option value="pending_review">Pending Review</option>
+                    <option value="approved">Approved</option>
+                </select>
+                <input id="ls-browser-search" type="text" placeholder="Search keys or text..." onkeyup="browserSearchDebounce()" style="padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 6px; color: var(--archie-text-primary, #e6edf3); font-size: 0.85rem; flex: 1; min-width: 150px;" />
+                <span id="ls-browser-count" style="font-size: 0.85rem; color: var(--archie-text-tertiary, #8b949e);"></span>
+            </div>
+            <!-- Table container -->
+            <div id="ls-browser-table" style="overflow-x: auto;">
+                <div style="color: var(--archie-text-tertiary); padding: 1rem; text-align: center; font-size: 0.85rem;">Select a filter or click to load translations.</div>
             </div>
         </div>
 
@@ -5879,6 +5909,7 @@ function switchLangTab(tabId) {
     var el = document.getElementById('lang-sub-' + tabId);
     if (el) el.classList.add('active');
     if (tabId === 'dashboard') loadLangStats();
+    if (tabId === 'browser') loadBrowser();
     if (tabId === 'review') loadReviewTable();
     if (tabId === 'glossary') loadGlossary();
 }
@@ -6032,6 +6063,181 @@ function seedMissingEnglish() {
             btn.disabled = false;
             status.textContent = 'Seed failed: ' + err.message;
         });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Side-by-Side Translation Browser
+// ═══════════════════════════════════════════════════════════════════════════════
+
+var browserSearchTimer = null;
+function browserSearchDebounce() {
+    clearTimeout(browserSearchTimer);
+    browserSearchTimer = setTimeout(loadBrowser, 300);
+}
+
+function loadBrowser() {
+    var source = document.getElementById('ls-browser-source').value;
+    var status = document.getElementById('ls-browser-status').value;
+    var search = document.getElementById('ls-browser-search').value;
+    var container = document.getElementById('ls-browser-table');
+    container.textContent = 'Loading...';
+
+    var url = '/tools/consciousness/api/translations/browser?source=' + encodeURIComponent(source) + '&status=' + encodeURIComponent(status) + '&search=' + encodeURIComponent(search) + '&language=fr';
+
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                container.textContent = 'Error loading translations';
+                return;
+            }
+            var countEl = document.getElementById('ls-browser-count');
+            if (countEl) countEl.textContent = data.total + ' translations';
+
+            // Clear container
+            while (container.firstChild) container.removeChild(container.firstChild);
+
+            if (!data.translations || data.translations.length === 0) {
+                container.textContent = 'No translations found for current filters.';
+                return;
+            }
+
+            // Build table
+            var table = document.createElement('table');
+            table.style.cssText = 'width: 100%; border-collapse: collapse; font-size: 0.85rem;';
+
+            // Header
+            var thead = document.createElement('thead');
+            var headerRow = document.createElement('tr');
+            ['Key', 'English', 'French', 'Status', 'Source', 'Actions'].forEach(function(h) {
+                var th = document.createElement('th');
+                th.textContent = h;
+                th.style.cssText = 'text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--archie-border-default, #30363d); color: var(--archie-text-secondary, #c9d1d9); font-weight: 600;';
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            // Body
+            var tbody = document.createElement('tbody');
+            data.translations.forEach(function(t) {
+                var row = document.createElement('tr');
+                row.style.cssText = 'border-bottom: 1px solid var(--archie-border-muted, #21262d);';
+
+                // Key cell
+                var keyCell = document.createElement('td');
+                keyCell.style.cssText = 'padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.8rem; color: var(--archie-text-secondary, #c9d1d9); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+                keyCell.textContent = t.key;
+                keyCell.title = t.key;
+                row.appendChild(keyCell);
+
+                // English cell
+                var enCell = document.createElement('td');
+                enCell.style.cssText = 'padding: 0.5rem 0.75rem; color: var(--archie-text-primary, #e6edf3);';
+                enCell.textContent = t.english || '';
+                row.appendChild(enCell);
+
+                // French cell (editable)
+                var frCell = document.createElement('td');
+                frCell.style.cssText = 'padding: 0.5rem 0.75rem;';
+                if (t.status === 'missing') {
+                    frCell.style.cssText += 'background: rgba(255, 170, 0, 0.1);';
+                }
+                var frInput = document.createElement('input');
+                frInput.type = 'text';
+                frInput.value = t.french || '';
+                frInput.placeholder = t.status === 'missing' ? '(missing)' : '';
+                frInput.dataset.key = t.key;
+                frInput.dataset.frId = t.fr_id || '';
+                frInput.style.cssText = 'width: 100%; padding: 0.3rem 0.5rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 4px; color: var(--archie-text-primary, #e6edf3); font-size: 0.85rem;';
+                frCell.appendChild(frInput);
+                row.appendChild(frCell);
+
+                // Status cell
+                var statusCell = document.createElement('td');
+                statusCell.style.cssText = 'padding: 0.5rem 0.75rem;';
+                var badge = document.createElement('span');
+                badge.textContent = t.status;
+                var badgeColor = t.status === 'approved' ? '#238636' : t.status === 'missing' ? '#da3633' : t.status === 'pending_review' ? '#d29922' : '#6e7681';
+                badge.style.cssText = 'display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: ' + badgeColor + '33; color: ' + badgeColor + '; border: 1px solid ' + badgeColor + '66;';
+                statusCell.appendChild(badge);
+                row.appendChild(statusCell);
+
+                // Source cell
+                var srcCell = document.createElement('td');
+                srcCell.style.cssText = 'padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--archie-text-tertiary, #8b949e);';
+                srcCell.textContent = t.source || '';
+                row.appendChild(srcCell);
+
+                // Actions cell
+                var actCell = document.createElement('td');
+                actCell.style.cssText = 'padding: 0.5rem 0.75rem; white-space: nowrap;';
+
+                // Save button
+                var saveBtn = document.createElement('button');
+                saveBtn.textContent = 'Save';
+                saveBtn.className = 'btn btn-sm';
+                saveBtn.style.cssText = 'padding: 0.2rem 0.5rem; font-size: 0.75rem; margin-right: 0.25rem; background: var(--archie-bg-tertiary, #21262d); border: 1px solid var(--archie-border-default, #30363d); border-radius: 4px; color: var(--archie-text-primary, #e6edf3); cursor: pointer;';
+                saveBtn.onclick = (function(key, input) {
+                    return function() { saveBrowserTranslation(key, input.value); };
+                })(t.key, frInput);
+                actCell.appendChild(saveBtn);
+
+                // Approve button (only if there's a fr_id and not already approved)
+                if (t.fr_id && t.status !== 'approved') {
+                    var approveBtn = document.createElement('button');
+                    approveBtn.textContent = 'Approve';
+                    approveBtn.className = 'btn btn-sm';
+                    approveBtn.style.cssText = 'padding: 0.2rem 0.5rem; font-size: 0.75rem; background: #238636; border: 1px solid #2ea043; border-radius: 4px; color: #fff; cursor: pointer;';
+                    approveBtn.onclick = (function(id) {
+                        return function() { approveBrowserTranslation(id); };
+                    })(t.fr_id);
+                    actCell.appendChild(approveBtn);
+                }
+
+                row.appendChild(actCell);
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+        })
+        .catch(function(err) {
+            container.textContent = 'Error: ' + err.message;
+        });
+}
+
+function saveBrowserTranslation(key, text) {
+    if (!text.trim()) return;
+    fetch('/tools/consciousness/api/translations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key, language: 'fr', text: text, source: 'human' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            loadBrowser();
+        } else {
+            alert('Save failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(function(err) { alert('Save error: ' + err.message); });
+}
+
+function approveBrowserTranslation(id) {
+    fetch('/tools/consciousness/api/translations/' + id + '/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            loadBrowser();
+        } else {
+            alert('Approve failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(function(err) { alert('Approve error: ' + err.message); });
 }
 
 function generateTranslations() {

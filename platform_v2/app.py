@@ -1168,9 +1168,8 @@ def api_dashboard_alerts():
 
 
 @app.route("/api/translations/<lang>")
-@login_required
 def api_translations(lang):
-    """Get UI translations for a specific language"""
+    """Get UI translations for a specific language (public — serves on login/signup too)"""
     from ai_bridge.translation_service import get_translations, SUPPORTED_LANGUAGES
 
     if lang not in SUPPORTED_LANGUAGES:

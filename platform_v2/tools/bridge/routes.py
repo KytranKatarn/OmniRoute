@@ -6513,28 +6513,44 @@ def get_bridge_jobs():
     try:
         limit = request.args.get("limit", 20, type=int)
         limit = min(limit, 100)
+        status_filter = request.args.get("status")
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute(
-            """
-            SELECT id, job_type, module_source, description,
-                   total_steps, completed_steps, failed_steps,
-                   status, agent_name, metadata,
-                   created_at, updated_at, completed_at
-            FROM bridge_jobs
-            ORDER BY
-                CASE status
-                    WHEN 'running' THEN 0
-                    WHEN 'pending' THEN 1
-                    ELSE 2
-                END,
-                created_at DESC
-            LIMIT %s
-            """,
-            (limit,),
-        )
+        if status_filter:
+            cur.execute(
+                """
+                SELECT id, job_type, module_source, description,
+                       total_steps, completed_steps, failed_steps,
+                       status, agent_name, metadata,
+                       created_at, updated_at, completed_at
+                FROM bridge_jobs
+                WHERE status = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (status_filter, limit),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, job_type, module_source, description,
+                       total_steps, completed_steps, failed_steps,
+                       status, agent_name, metadata,
+                       created_at, updated_at, completed_at
+                FROM bridge_jobs
+                ORDER BY
+                    CASE status
+                        WHEN 'running' THEN 0
+                        WHEN 'pending' THEN 1
+                        ELSE 2
+                    END,
+                    created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
         jobs = cur.fetchall()
         cur.close()
         conn.close()

@@ -219,6 +219,7 @@ def batch_translate(
             module_source=MODULE_ID,
             description=f"Translate {len(strings)} keys to {lang_name}",
             total_steps=total_batches,
+            capability="translate",
             metadata={
                 "language": language,
                 "lang_name": lang_name,
@@ -305,8 +306,7 @@ def batch_translate(
     # Complete the job
     if job_id:
         try:
-            final_status = "completed" if total_fail == 0 else "completed"
-            dispatcher.complete_job(job_id, status=final_status)
+            dispatcher.complete_job(job_id)  # auto-determines status from counters
         except Exception:
             pass
 

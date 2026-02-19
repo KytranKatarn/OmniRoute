@@ -390,6 +390,19 @@ class BridgeDispatcher:
         except Exception:
             return 3
 
+    def _get_routing_mode(self) -> str:
+        """Read routing_mode from platform_settings. Returns 'full' on error."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return row[0] if row else "full"
+        except Exception:
+            return "full"
+
     def _track_failure(self, agent_id: int, capability: str) -> int:
         """Increment failure count, return new count."""
         key = (agent_id, capability)
@@ -544,6 +557,47 @@ class BridgeDispatcher:
             prompt = inject_learnings(agent_name, capability, prompt)
         except ImportError:
             pass
+
+        # 3c. Routing mode enforcement
+        # Ensures the bridge UI toggle (local_only/local_cloud/full) controls dispatch
+        routing_mode = self._get_routing_mode()
+        is_cloud = ":cloud" in model or model in ("minimax-m2.5", "qwen3-coder-next")
+        is_paid_external = any(
+            model.startswith(p)
+            for p in ("gpt-4o", "llama-3.1-sonar", "grok", "claude")
+        )
+
+        if routing_mode == "local_only" and (is_cloud or is_paid_external):
+            logger.warning(
+                f"[BridgeDispatcher] Blocked by routing_mode=local_only: "
+                f"model='{model}' capability='{capability}' module='{module_id}'"
+            )
+            return DispatchResult(
+                success=False,
+                response="",
+                agent_name=agent_name,
+                agent_id=agent.get("id"),
+                model_used=model,
+                station_code=station_code,
+                capability=capability,
+                error=f"Blocked: routing_mode=local_only, model={model} is cloud/external",
+            )
+
+        if routing_mode == "local_cloud" and is_paid_external:
+            logger.warning(
+                f"[BridgeDispatcher] Blocked by routing_mode=local_cloud: "
+                f"model='{model}' capability='{capability}' module='{module_id}'"
+            )
+            return DispatchResult(
+                success=False,
+                response="",
+                agent_name=agent_name,
+                agent_id=agent.get("id"),
+                model_used=model,
+                station_code=station_code,
+                capability=capability,
+                error=f"Blocked: routing_mode=local_cloud, model={model} is paid external",
+            )
 
         # 4. Execute the LLM call
         llm_result = self._execute_llm(
@@ -782,6 +836,7 @@ class BridgeDispatcher:
         module_source: str,
         description: str,
         total_steps: int,
+        capability: Optional[str] = None,
         metadata: Optional[Dict] = None,
     ) -> Optional[int]:
         """Create a new bridge job for tracking multi-step operations.
@@ -791,6 +846,8 @@ class BridgeDispatcher:
             module_source: Module requesting the job.
             description: Human-readable description.
             total_steps: Total number of steps to complete.
+            capability: Bridge capability key for agent resolution (e.g. 'translate').
+                        Falls back to parsing from job_type if not provided.
             metadata: Additional job metadata (language, batch_size, etc.).
 
         Returns:
@@ -798,8 +855,9 @@ class BridgeDispatcher:
         """
         try:
             # Resolve agent name from capability→station→agent mapping
-            station_code = CAPABILITY_STATION_MAP.get(job_type.split("_")[0], "COMMAND")
-            agent = self._select_agent(job_type.split("_")[0], station_code)
+            cap_key = capability or job_type.split("_")[0]
+            station_code = CAPABILITY_STATION_MAP.get(cap_key, "COMMAND")
+            agent = self._select_agent(cap_key, station_code)
             agent_name = None
             if agent:
                 for name, info in self._agent_cache.items():
@@ -887,12 +945,18 @@ class BridgeDispatcher:
             logger.error(f"[BridgeDispatcher] update_job_progress failed: {e}")
             return False
 
-    def complete_job(self, job_id: int, status: str = "completed") -> bool:
+    def complete_job(self, job_id: int, status: str = "auto") -> bool:
         """Mark a job as completed (or failed/cancelled).
+
+        If status is 'auto' (default), determines the final status from
+        the job's completed_steps and failed_steps:
+        - All failed, zero completed → 'failed'
+        - Zero completed, zero failed → 'cancelled'
+        - Otherwise → 'completed'
 
         Args:
             job_id: The job to complete.
-            status: Final status ('completed', 'failed', 'cancelled').
+            status: Final status or 'auto' to determine from counters.
 
         Returns:
             True on success.
@@ -900,6 +964,24 @@ class BridgeDispatcher:
         try:
             conn = self._get_db()
             cur = conn.cursor()
+
+            if status == "auto":
+                cur.execute(
+                    "SELECT completed_steps, failed_steps, total_steps FROM bridge_jobs WHERE id = %s",
+                    (job_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    completed, failed, total = row[0] or 0, row[1] or 0, row[2] or 0
+                    if completed == 0 and failed == 0:
+                        status = "cancelled"
+                    elif completed == 0 and failed > 0:
+                        status = "failed"
+                    else:
+                        status = "completed"
+                else:
+                    status = "completed"
+
             cur.execute(
                 """
                 UPDATE bridge_jobs

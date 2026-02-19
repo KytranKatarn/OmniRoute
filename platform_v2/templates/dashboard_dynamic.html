@@ -654,6 +654,62 @@ body.light-mode #matrix-rain {
     background: rgba(255, 85, 85, 0.1);
 }
 
+/* Language dropdown menu */
+.cb-lang-menu {
+    position: fixed;
+    top: 44px;
+    right: 24px;
+    background: rgba(20, 20, 30, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 6px 0;
+    min-width: 140px;
+    z-index: 200;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.cb-lang-menu.hidden { display: none; }
+.cb-lang-option {
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.cb-lang-option:hover {
+    background: rgba(0, 255, 65, 0.08);
+    color: #fff;
+}
+.cb-lang-option.active {
+    color: #00FF41;
+    font-weight: 600;
+}
+[data-theme="light"] .cb-lang-menu,
+body.light-mode .cb-lang-menu {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .cb-lang-option,
+body.light-mode .cb-lang-option {
+    color: #444;
+}
+[data-theme="light"] .cb-lang-option:hover,
+body.light-mode .cb-lang-option:hover {
+    background: rgba(0, 122, 32, 0.06);
+    color: #111;
+}
+[data-theme="light"] .cb-lang-option.active,
+body.light-mode .cb-lang-option.active {
+    color: #007a20;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    HUD VITALS STRIP — 6 stat pods
    ───────────────────────────────────────────────────────────────────────────── */
@@ -1023,7 +1079,7 @@ body.light-mode .footer-version {
 /* ─── Command Bar + HUD responsive: 717px (tablet / folded) ─── */
 @media (max-width: 717px) {
     .cb-zone-center {
-        flex: 1 1 260px;
+        flex: 0 1 220px;
     }
     .cb-username, .cb-badge {
         display: none;
@@ -2086,6 +2142,16 @@ body.light-mode .module-card {
                 <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
                 <i data-lucide="moon" id="cbThemeIconMoon"></i>
             </button>
+            <!-- Language -->
+            <button class="cb-icon-btn" id="cbLangBtn" title="Language" aria-label="Change language" onclick="toggleLangMenu(this);">
+                <i data-lucide="languages"></i>
+            </button>
+            <div class="cb-lang-menu hidden" id="cbLangMenu">
+                <button class="cb-lang-option active" data-lang="en">English</button>
+                <button class="cb-lang-option" data-lang="vi">Tiếng Việt</button>
+                <button class="cb-lang-option" data-lang="ja">日本語</button>
+                <button class="cb-lang-option" data-lang="ko">한국어</button>
+            </div>
             {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
             <!-- Dev HQ -->
             <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" aria-label="Dev HQ">
@@ -2755,6 +2821,47 @@ body.light-mode .module-card {
                     }
                 });
             }, 150);
+        });
+    }
+
+    // ── Language menu ──
+    window.toggleLangMenu = function(btn) {
+        var menu = document.getElementById('cbLangMenu');
+        if (!menu) return;
+        menu.classList.toggle('hidden');
+        // Position relative to button
+        var rect = btn.getBoundingClientRect();
+        menu.style.top = (rect.bottom + 4) + 'px';
+        menu.style.right = (window.innerWidth - rect.right) + 'px';
+    };
+
+    // Close lang menu on outside click
+    document.addEventListener('click', function(e) {
+        var menu = document.getElementById('cbLangMenu');
+        var btn = document.getElementById('cbLangBtn');
+        if (!menu || menu.classList.contains('hidden')) return;
+        if (!menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    // Language selection
+    document.querySelectorAll('.cb-lang-option').forEach(function(opt) {
+        opt.addEventListener('click', function() {
+            var lang = opt.getAttribute('data-lang');
+            document.querySelectorAll('.cb-lang-option').forEach(function(o) { o.classList.remove('active'); });
+            opt.classList.add('active');
+            localStorage.setItem('archie-language', lang);
+            document.getElementById('cbLangMenu').classList.add('hidden');
+            // Future: trigger i18n reload
+        });
+    });
+
+    // Restore saved language on load
+    var savedLang = localStorage.getItem('archie-language');
+    if (savedLang) {
+        document.querySelectorAll('.cb-lang-option').forEach(function(opt) {
+            opt.classList.toggle('active', opt.getAttribute('data-lang') === savedLang);
         });
     }
 

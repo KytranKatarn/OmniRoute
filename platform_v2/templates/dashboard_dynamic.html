@@ -2089,7 +2089,7 @@ body.light-mode .module-card {
         <div id="bootChecks"></div>
 
         <!-- Phase 3: Threat level -->
-        <div class="boot-threat" id="bootThreat">&#9888; THREAT LEVEL: NOMINAL</div>
+        <div class="boot-threat" id="bootThreat" data-i18n="boot.threat_nominal">&#9888; THREAT LEVEL: NOMINAL</div>
     </div>
 
     <!-- Phase 4: Logo -->
@@ -2098,14 +2098,14 @@ body.light-mode .module-card {
         <div class="boot-logo-ring"></div>
         <div class="boot-logo-ring"></div>
         <div class="boot-logo-text">A.R.C.H.I.E.</div>
-        <div class="boot-system-online">SYSTEM ONLINE</div>
+        <div class="boot-system-online" data-i18n="boot.system_online">SYSTEM ONLINE</div>
     </div>
 
     <!-- Phase 5: Split halves (created by JS for the reveal animation) -->
 </div>
 
 <!-- Skip button (outside overlay so it stays on top) -->
-<button class="boot-skip-btn" id="bootSkipBtn" onclick="window.skipBoot()">SKIP &#9656;</button>
+<button class="boot-skip-btn" id="bootSkipBtn" onclick="window.skipBoot()"><span data-i18n="boot.skip">SKIP</span> &#9656;</button>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      DASHBOARD CONTENT
@@ -2126,7 +2126,7 @@ body.light-mode .module-card {
         <div class="cb-zone cb-zone-center">
             <div class="cb-search">
                 <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search modules, commands..." autocomplete="off" />
+                <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search modules, commands..." data-i18n-placeholder="cmd.search_placeholder" autocomplete="off" />
                 <span class="cb-search-hint">Ctrl+K</span>
             </div>
         </div>
@@ -2167,7 +2167,7 @@ body.light-mode .module-card {
     <div id="hud-vitals" class="hud-vitals-strip" role="status" aria-label="System vitals">
         <!-- Pod 1: SYSTEM health -->
         <div class="hud-pod" id="hudPodSystem">
-            <span class="hud-pod-label">SYSTEM</span>
+            <span class="hud-pod-label" data-i18n="hud.system">SYSTEM</span>
             <div class="hud-ring-wrap">
                 <svg viewBox="0 0 60 60">
                     <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
@@ -2179,7 +2179,7 @@ body.light-mode .module-card {
         </div>
         <!-- Pod 2: CPU -->
         <div class="hud-pod" id="hudPodCpu">
-            <span class="hud-pod-label">CPU</span>
+            <span class="hud-pod-label" data-i18n="hud.cpu">CPU</span>
             <div class="hud-ring-wrap">
                 <svg viewBox="0 0 60 60">
                     <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
@@ -2191,7 +2191,7 @@ body.light-mode .module-card {
         </div>
         <!-- Pod 3: MEMORY -->
         <div class="hud-pod" id="hudPodMem">
-            <span class="hud-pod-label">MEMORY</span>
+            <span class="hud-pod-label" data-i18n="hud.memory">MEMORY</span>
             <div class="hud-ring-wrap">
                 <svg viewBox="0 0 60 60">
                     <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
@@ -2205,15 +2205,15 @@ body.light-mode .module-card {
         <!-- Pod 4: AI STATUS + AGENTS (stacked) -->
         <div class="hud-pod hud-pod-dual" id="hudPodAiAgents">
             <div class="hud-dual-top">
-                <span class="hud-pod-label">AI STATUS</span>
+                <span class="hud-pod-label" data-i18n="hud.ai_status">AI STATUS</span>
                 <div class="hud-dual-row">
                     <div class="hud-ai-dot" id="hudAiDot"></div>
-                    <span class="hud-pod-value" id="hudValAi" style="font-size:13px;">ONLINE</span>
+                    <span class="hud-pod-value" id="hudValAi" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
                 </div>
             </div>
             <div class="hud-dual-divider"></div>
             <div class="hud-dual-bottom">
-                <span class="hud-pod-label">AGENTS</span>
+                <span class="hud-pod-label" data-i18n="hud.agents">AGENTS</span>
                 <div class="hud-dual-row">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span class="hud-pod-value" id="hudValAgents" style="font-size:13px;">0</span>
@@ -2223,15 +2223,15 @@ body.light-mode .module-card {
         <!-- Pod 5: A.R.C.H.I.E. + UPTIME (stacked) -->
         <div class="hud-pod hud-pod-dual" id="hudPodArchieUptime">
             <div class="hud-dual-top">
-                <span class="hud-pod-label">A.R.C.H.I.E.</span>
+                <span class="hud-pod-label" data-i18n="hud.archie">A.R.C.H.I.E.</span>
                 <div class="hud-dual-row">
                     <div class="hud-archie-dot online" id="hudArchieDot"></div>
-                    <span class="hud-pod-value" id="hudValArchie" style="font-size:13px;">ONLINE</span>
+                    <span class="hud-pod-value" id="hudValArchie" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
                 </div>
             </div>
             <div class="hud-dual-divider"></div>
             <div class="hud-dual-bottom">
-                <span class="hud-pod-label">UPTIME</span>
+                <span class="hud-pod-label" data-i18n="hud.uptime">UPTIME</span>
                 <span class="hud-pod-value" id="hudValUptime" style="font-size:13px;">--h --m</span>
             </div>
         </div>
@@ -2244,7 +2244,7 @@ body.light-mode .module-card {
             <div class="briefing-card briefing-card--activity">
                 <div class="briefing-card-header">
                     <i data-lucide="activity"></i>
-                    <span>Recent Activity</span>
+                    <span data-i18n="section.recent_activity">Recent Activity</span>
                 </div>
                 <div class="briefing-card-body" id="briefingActivity">
                     <span class="briefing-muted">Loading activity...</span>
@@ -2254,7 +2254,7 @@ body.light-mode .module-card {
             <div class="briefing-card briefing-card--alerts">
                 <div class="briefing-card-header">
                     <i data-lucide="alert-triangle"></i>
-                    <span>System Alerts</span>
+                    <span data-i18n="section.system_alerts">System Alerts</span>
                 </div>
                 <div class="briefing-card-body" id="briefingAlerts">
                     <span class="briefing-muted">Checking alerts...</span>
@@ -2264,7 +2264,7 @@ body.light-mode .module-card {
             <div class="briefing-card briefing-card--ai">
                 <div class="briefing-card-header">
                     <i data-lucide="brain"></i>
-                    <span>AI Insights</span>
+                    <span data-i18n="section.ai_insights">AI Insights</span>
                 </div>
                 <div class="briefing-card-body" id="briefingAi">
                     <span class="briefing-muted">Loading insights...</span>
@@ -2277,7 +2277,7 @@ body.light-mode .module-card {
     <div id="featured-modules" class="featured-modules">
         <div class="section-header">
             <i data-lucide="star"></i>
-            <span>Priority Stations</span>
+            <span data-i18n="section.priority_stations">Priority Stations</span>
         </div>
         <div class="featured-cards-row" id="featuredCardsRow">
             {% for module in dashboard_data.featured_modules %}
@@ -2370,7 +2370,7 @@ body.light-mode .module-card {
         <div class="footer-right">
             <span class="footer-connection">
                 <span class="footer-conn-dot online" aria-hidden="true"></span>
-                Connected
+                <span data-i18n="footer.connected">Connected</span>
             </span>
             <span class="footer-divider">|</span>
             <span class="footer-refresh" id="footerRefresh">Last refreshed 0s ago</span>

@@ -8965,7 +8965,18 @@ def _scan_all_sources():
 
     # ── Source 1: HTML Templates ──
     # Scan both templates/ and all tools/*/templates/ directories
-    i18n_pattern = re.compile(r'data-i18n(?:-\w+)?="([^"]+)"')
+    # Pattern extracts key and optionally the element's text content
+    i18n_key_pattern = re.compile(r'data-i18n(?:-\w+)?="([^"]+)"')
+    # For extracting text: data-i18n="key">text content<
+    i18n_text_pattern = re.compile(r'data-i18n="([^"]+)"[^>]*>([^<]+)<')
+    # For placeholder/title: match either order within a tag (may span lines)
+    # Returns (key, text) tuples
+    i18n_attr_extractors = []
+    for attr in ("placeholder", "title"):
+        # data-i18n-attr="key" ... attr="text"
+        i18n_attr_extractors.append(re.compile(rf'data-i18n-{attr}="([^"]+)"[^>]*{attr}="([^"]+)"', re.DOTALL))
+        # attr="text" ... data-i18n-attr="key" (reversed order)
+        i18n_attr_extractors.append(re.compile(rf'{attr}="([^"]+)"[^>]*data-i18n-{attr}="([^"]+)"', re.DOTALL))
     template_dirs = [os.path.join(platform_root, "templates")]
 
     tools_root = os.path.join(platform_root, "tools")
@@ -8985,16 +8996,29 @@ def _scan_all_sources():
                 try:
                     with open(filepath, "r", encoding="utf-8") as fh:
                         content = fh.read()
-                    for match in i18n_pattern.finditer(content):
+
+                    # First pass: extract text content for data-i18n="key">text<
+                    text_map = {}
+                    for m in i18n_text_pattern.finditer(content):
+                        text_map[m.group(1)] = m.group(2).strip()
+                    # Extract attribute variants (placeholder, title)
+                    for i, pat in enumerate(i18n_attr_extractors):
+                        for m in pat.finditer(content):
+                            if i % 2 == 0:  # data-i18n-X first: (key, text)
+                                text_map[m.group(1)] = m.group(2).strip()
+                            else:  # attr first: (text, key)
+                                text_map[m.group(2)] = m.group(1).strip()
+
+                    # Second pass: register all keys
+                    for match in i18n_key_pattern.finditer(content):
                         key = match.group(1)
-                        # Skip Jinja2 template expressions (resolved at runtime)
                         if "{{" in key or "}}" in key:
                             continue
                         if key not in keys:
                             keys[key] = {
                                 "source": "template",
                                 "file": rel_path,
-                                "english": "",
+                                "english": text_map.get(key, ""),
                             }
                 except Exception as read_err:
                     logger.warning(f"Scan: could not read {rel_path}: {read_err}")

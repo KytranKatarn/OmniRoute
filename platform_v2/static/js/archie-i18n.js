@@ -84,7 +84,19 @@
         'login.show_password':       'Show password',
         'login.hide_password':       'Hide password',
         'login.authenticating':      'AUTHENTICATING...',
-        'login.access_system':       'Access System'
+        'login.access_system':       'Access System',
+
+        // Signup page
+        'signup.show_password':       'Show password',
+        'signup.hide_password':       'Hide password',
+        'signup.registering':         'REGISTERING...',
+        'signup.password_hint':       'Minimum 8 characters',
+        'signup.submit':              'Submit Registration',
+        'signup.strength_very_weak':  'Very weak',
+        'signup.strength_weak':       'Weak',
+        'signup.strength_fair':       'Fair',
+        'signup.strength_strong':     'Strong',
+        'signup.strength_very_strong':'Very strong'
     };
 
     var currentLanguage = 'en';

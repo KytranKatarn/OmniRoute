@@ -2165,17 +2165,17 @@ body.light-mode .module-card {
         <!-- Right Zone: Actions -->
         <div class="cb-zone cb-zone-right">
             <!-- Notifications -->
-            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" aria-label="Notifications">
+            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
                 <i data-lucide="bell"></i>
                 <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
             </button>
             <!-- Theme toggle -->
-            <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
+            <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
                 <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
                 <i data-lucide="moon" id="cbThemeIconMoon"></i>
             </button>
             <!-- Language -->
-            <button class="cb-icon-btn" id="cbLangBtn" title="Language" aria-label="Change language" onclick="toggleLangMenu(this);">
+            <button class="cb-icon-btn" id="cbLangBtn" title="Language" data-i18n-title="js.nav.language" aria-label="Change language" onclick="toggleLangMenu(this);">
                 <i data-lucide="languages"></i>
             </button>
             <div class="cb-lang-menu hidden" id="cbLangMenu">
@@ -2184,12 +2184,12 @@ body.light-mode .module-card {
             </div>
             {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
             <!-- Dev HQ -->
-            <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" aria-label="Dev HQ">
+            <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" data-i18n-title="js.nav.dev_hq" aria-label="Dev HQ">
                 <i data-lucide="compass"></i>
             </a>
             {% endif %}
             <!-- Logout -->
-            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" aria-label="Logout">
+            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout">
                 <i data-lucide="log-out"></i>
             </a>
         </div>
@@ -2279,7 +2279,7 @@ body.light-mode .module-card {
                     <span data-i18n="section.recent_activity">Recent Activity</span>
                 </div>
                 <div class="briefing-card-body" id="briefingActivity">
-                    <span class="briefing-muted">Loading activity...</span>
+                    <span class="briefing-muted" data-i18n="js.briefing.loading_activity">Loading activity...</span>
                 </div>
             </div>
             <!-- Card 2: System Alerts -->
@@ -2289,7 +2289,7 @@ body.light-mode .module-card {
                     <span data-i18n="section.system_alerts">System Alerts</span>
                 </div>
                 <div class="briefing-card-body" id="briefingAlerts">
-                    <span class="briefing-muted">Checking alerts...</span>
+                    <span class="briefing-muted" data-i18n="js.briefing.checking_alerts">Checking alerts...</span>
                 </div>
             </div>
             <!-- Card 3: AI Insights -->
@@ -2299,7 +2299,7 @@ body.light-mode .module-card {
                     <span data-i18n="section.ai_insights">AI Insights</span>
                 </div>
                 <div class="briefing-card-body" id="briefingAi">
-                    <span class="briefing-muted">Loading insights...</span>
+                    <span class="briefing-muted" data-i18n="js.briefing.loading_insights">Loading insights...</span>
                 </div>
             </div>
         </div>
@@ -2323,9 +2323,9 @@ body.light-mode .module-card {
                     <i data-lucide="{{ module.icon }}"></i>
                 </div>
                 <!-- Module name -->
-                <div class="featured-card-name">{{ module.name }}</div>
+                <div class="featured-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
                 <!-- Module description (strip HTML tags for clean display) -->
-                <div class="featured-card-desc">{{ module.description | striptags }}</div>
+                <div class="featured-card-desc" data-i18n="module.{{ module.id }}.desc">{{ module.description | striptags }}</div>
                 <!-- Footer: status indicator -->
                 <div class="featured-card-footer">
                     <div class="featured-card-status">
@@ -2349,7 +2349,7 @@ body.light-mode .module-card {
                 <div class="cat-header-icon">
                     <i class="{{ cat_info.icon }}"></i>
                 </div>
-                <span class="cat-header-title">{{ cat_info.name }}</span>
+                <span class="cat-header-title" data-i18n="cat.{{ cat_key }}">{{ cat_info.name }}</span>
                 {% if cat_info.get('admin_only') %}
                 <span class="cat-admin-badge">ADMIN</span>
                 {% endif %}
@@ -2371,7 +2371,7 @@ body.light-mode .module-card {
                         <i data-lucide="{{ module.icon }}"></i>
                     </div>
                     <div class="module-card-info">
-                        <div class="module-card-name">{{ module.name }}</div>
+                        <div class="module-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
                         <div class="module-card-status" data-status-for="{{ module.id }}">
                             <span class="status-dot checking"></span>
                             <span class="status-text">CHECKING...</span>

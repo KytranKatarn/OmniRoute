@@ -1691,9 +1691,11 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                 <div class="stat-card"><div class="stat-value" id="ls-approved">--</div><div class="stat-label">Approved</div></div>
                 <div class="stat-card"><div class="stat-value" id="ls-pending">--</div><div class="stat-label">Pending Review</div></div>
                 <div class="stat-card"><div class="stat-value" id="ls-edited">--</div><div class="stat-label">Human Edited</div></div>
+                <div class="stat-card"><div class="stat-value" id="ls-discovered">--</div><div class="stat-label">Discovered</div></div>
+                <div class="stat-card"><div class="stat-value" id="ls-missing" style="color: var(--archie-orange, #ffaa00);">--</div><div class="stat-label">Missing French</div></div>
             </div>
 
-            <!-- Coverage progress bar -->
+            <!-- Overall coverage progress bar -->
             <div class="voice-panel" style="margin-top: 1rem;">
                 <h3>French Translation Coverage</h3>
                 <div style="background: var(--archie-bg-tertiary, #21262d); border-radius: 8px; overflow: hidden; height: 24px; margin: 0.75rem 0;">
@@ -1702,13 +1704,22 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                 <div id="ls-progress-text" style="text-align: center; font-size: 0.85rem; color: var(--archie-text-secondary, #c9d1d9);">Loading coverage...</div>
             </div>
 
-            <!-- Action buttons -->
+            <!-- Per-source coverage breakdown -->
             <div class="voice-panel" style="margin-top: 1rem;">
-                <h3>Actions</h3>
+                <h3>Coverage by Source</h3>
+                <div id="ls-coverage-bars" style="margin-top: 0.75rem;">
+                    <div style="color: var(--archie-text-tertiary); padding: 0.5rem; font-size: 0.85rem;">Click "Scan All Sources" to load coverage data.</div>
+                </div>
+            </div>
+
+            <!-- Translation workflow buttons -->
+            <div class="voice-panel" style="margin-top: 1rem;">
+                <h3>Translation Workflow</h3>
                 <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem;">
-                    <button class="btn btn-primary" onclick="scanTemplates()" id="ls-btn-scan">Scan Templates</button>
-                    <button class="btn btn-primary" onclick="generateTranslations()" id="ls-btn-generate">Generate French Translations</button>
-                    <button class="btn btn-primary" onclick="bulkApproveAll()" id="ls-btn-bulk">Bulk Approve All Pending</button>
+                    <button class="btn btn-primary" onclick="scanAllSources()" id="ls-btn-scan">1. Scan All Sources</button>
+                    <button class="btn btn-primary" onclick="seedMissingEnglish()" id="ls-btn-seed" disabled>2. Seed Missing English</button>
+                    <button class="btn btn-primary" onclick="generateTranslations()" id="ls-btn-generate">3. Generate French</button>
+                    <button class="btn btn-primary" onclick="bulkApproveAll()" id="ls-btn-bulk">4. Approve All Pending</button>
                 </div>
                 <div id="ls-action-status" style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.85rem; color: var(--archie-text-tertiary, #8b949e);"></div>
             </div>
@@ -5859,6 +5870,8 @@ function pollCardPregenJob(jobId, profileId) {
 // LANGUAGES TAB — Translation Management
 // ═══════════════════════════════════════════════════════════════════════════════
 
+var lastScanResult = null;
+
 function switchLangTab(tabId) {
     document.querySelectorAll('#tab-languages .voice-subtab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('#tab-languages .voice-subtab-content').forEach(c => c.classList.remove('active'));
@@ -5871,44 +5884,153 @@ function switchLangTab(tabId) {
 }
 
 function loadLangStats() {
-    fetch('/tools/consciousness/api/translations/stats')
-        .then(r => r.json())
-        .then(data => {
+    var SOURCE_LABELS = {
+        template: 'HTML Templates',
+        module_name: 'Module Names',
+        module_desc: 'Module Descriptions',
+        category: 'Categories',
+        js: 'JS Strings'
+    };
+
+    fetch('/tools/consciousness/api/translations/coverage')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
             if (!data.success) return;
-            var stats = data.stats.fr || {};
-            document.getElementById('ls-total').textContent = stats.total || 0;
-            document.getElementById('ls-approved').textContent = stats.approved || 0;
-            document.getElementById('ls-pending').textContent = stats.pending || 0;
-            document.getElementById('ls-edited').textContent = stats.human_edited || 0;
-            var pct = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0;
+            var overall = data.overall || {};
+            var total = overall.total || 0;
+            var approved = overall.approved || 0;
+            var pending = overall.pending || 0;
+            var missing = overall.missing || 0;
+            var edited = Math.max(0, (overall.translated || 0) - approved - pending);
+
+            document.getElementById('ls-total').textContent = total;
+            document.getElementById('ls-approved').textContent = approved;
+            document.getElementById('ls-pending').textContent = pending;
+            document.getElementById('ls-edited').textContent = edited;
+            document.getElementById('ls-discovered').textContent = total;
+            document.getElementById('ls-missing').textContent = missing;
+
+            var pct = total > 0 ? Math.round((approved / total) * 100) : 0;
             document.getElementById('ls-progress-bar').style.width = pct + '%';
             document.getElementById('ls-progress-text').textContent =
-                'French: ' + (stats.approved || 0) + '/' + (stats.total || 0) + ' keys (' + pct + '% approved)';
+                'French: ' + approved + '/' + total + ' keys (' + pct + '% approved)';
+
+            // Build per-source coverage bars using safe DOM methods
+            var sources = data.sources || {};
+            var container = document.getElementById('ls-coverage-bars');
+            while (container.firstChild) { container.removeChild(container.firstChild); }
+
+            var sourceKeys = Object.keys(sources);
+            if (sourceKeys.length === 0) {
+                var placeholder = document.createElement('div');
+                placeholder.style.cssText = 'color: var(--archie-text-tertiary); padding: 0.5rem; font-size: 0.85rem;';
+                placeholder.textContent = 'Click "Scan All Sources" to load coverage data.';
+                container.appendChild(placeholder);
+                return;
+            }
+
+            sourceKeys.forEach(function(src) {
+                var info = sources[src];
+                var srcTotal = info.total || 0;
+                var srcTranslated = info.translated || 0;
+                var srcPct = srcTotal > 0 ? Math.round((srcTranslated / srcTotal) * 100) : 0;
+
+                var row = document.createElement('div');
+                row.style.cssText = 'display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;';
+
+                var label = document.createElement('span');
+                label.style.cssText = 'width: 120px; flex-shrink: 0; font-size: 0.85rem; color: var(--archie-text-secondary, #c9d1d9);';
+                label.textContent = SOURCE_LABELS[src] || src;
+
+                var barBg = document.createElement('div');
+                barBg.style.cssText = 'flex: 1; background: var(--archie-bg-tertiary, #21262d); border-radius: 6px; overflow: hidden; height: 16px;';
+
+                var barFill = document.createElement('div');
+                barFill.style.cssText = 'height: 100%; border-radius: 6px; transition: width 0.4s ease;';
+                barFill.style.width = srcPct + '%';
+                if (srcPct >= 80) {
+                    barFill.style.background = 'linear-gradient(90deg, var(--module-accent, #00ff41), #00ccff)';
+                } else if (srcPct >= 50) {
+                    barFill.style.background = 'linear-gradient(90deg, #ffaa00, #ff8800)';
+                } else {
+                    barFill.style.background = 'linear-gradient(90deg, #ff4444, #ff6666)';
+                }
+                barBg.appendChild(barFill);
+
+                var fraction = document.createElement('span');
+                fraction.style.cssText = 'width: 100px; flex-shrink: 0; font-size: 0.8rem; color: var(--archie-text-tertiary, #8b949e); text-align: right;';
+                fraction.textContent = srcTranslated + '/' + srcTotal + ' (' + srcPct + '%)';
+
+                row.appendChild(label);
+                row.appendChild(barBg);
+                row.appendChild(fraction);
+                container.appendChild(row);
+            });
         })
-        .catch(err => {
+        .catch(function(err) {
             document.getElementById('ls-progress-text').textContent = 'Error loading stats';
             console.error('Lang stats error:', err);
         });
 }
 
-function scanTemplates() {
+function scanAllSources() {
     var btn = document.getElementById('ls-btn-scan');
+    var seedBtn = document.getElementById('ls-btn-seed');
     var status = document.getElementById('ls-action-status');
     btn.disabled = true;
-    status.textContent = 'Scanning templates...';
+    status.textContent = 'Scanning all sources (templates, modules, JS)...';
     fetch('/tools/consciousness/api/translations/scan', { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
             btn.disabled = false;
             if (data.success) {
-                status.textContent = 'Found ' + (data.keys ? data.keys.length : 0) + ' i18n keys across templates.';
+                lastScanResult = data;
+                var total = data.total || 0;
+                var bySource = data.by_source || {};
+                var parts = [];
+                Object.keys(bySource).forEach(function(src) {
+                    parts.push(bySource[src] + ' ' + src);
+                });
+                status.textContent = 'Discovered ' + total + ' keys: ' + (parts.length > 0 ? parts.join(', ') : 'none') + '.';
+                seedBtn.disabled = false;
+                loadLangStats();
             } else {
                 status.textContent = 'Scan error: ' + (data.error || 'Unknown');
             }
         })
-        .catch(err => {
+        .catch(function(err) {
             btn.disabled = false;
             status.textContent = 'Scan failed: ' + err.message;
+        });
+}
+
+function seedMissingEnglish() {
+    if (!lastScanResult || !lastScanResult.keys) {
+        document.getElementById('ls-action-status').textContent = 'Run "Scan All Sources" first.';
+        return;
+    }
+    var btn = document.getElementById('ls-btn-seed');
+    var status = document.getElementById('ls-action-status');
+    btn.disabled = true;
+    status.textContent = 'Seeding missing English entries...';
+    fetch('/tools/consciousness/api/translations/seed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: lastScanResult.keys })
+    })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.success) {
+                status.textContent = 'Seeded ' + (data.seeded || 0) + ' new English entries, ' + (data.skipped || 0) + ' already existed.';
+                loadLangStats();
+            } else {
+                status.textContent = 'Seed error: ' + (data.error || 'Unknown');
+            }
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            status.textContent = 'Seed failed: ' + err.message;
         });
 }
 

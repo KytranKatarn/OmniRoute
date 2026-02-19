@@ -146,7 +146,7 @@ def get_glossary(language: str) -> List[Dict]:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(
             """
-            SELECT source_text, translated_text, category, notes
+            SELECT source_text, translated_text, category
             FROM translation_memory
             WHERE language = %s
             ORDER BY category, source_text

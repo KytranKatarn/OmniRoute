@@ -331,7 +331,7 @@ class BridgeDispatcher:
             logger.error("[BridgeDispatcher] archie_bridge not available")
             return {"success": False, "error": "archie_bridge not available", "model": model}
 
-    def _log_execution(self, result: DispatchResult, module_id: str, user_id: Optional[int] = None):
+    def _log_execution(self, result: DispatchResult, module_id: str, user_id: Optional[int] = None, job_id: Optional[int] = None):
         """Log execution to task_execution_log for HR tracking."""
         try:
             conn = self._get_db()
@@ -342,12 +342,12 @@ class BridgeDispatcher:
                     agent_id, agent_name, module_source, task_type, capability,
                     model_used, provider, prompt_tokens, completion_tokens,
                     tokens_used, duration_ms, success, error_message,
-                    station_code, requested_by, priority, request_metadata
+                    station_code, requested_by, priority, request_metadata, job_id
                 ) VALUES (
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s,
-                    %s, %s, %s, %s
+                    %s, %s, %s, %s, %s
                 )
                 """,
                 (
@@ -368,6 +368,7 @@ class BridgeDispatcher:
                     user_id,
                     "normal",
                     json.dumps(result.metadata or {}),
+                    job_id,
                 ),
             )
             conn.commit()
@@ -474,6 +475,7 @@ class BridgeDispatcher:
         json_mode: bool = False,
         timeout: int = 300,
         prefer_gpu: bool = True,
+        job_id: Optional[int] = None,
     ) -> DispatchResult:
         """
         Main entry point — request AI work by capability.
@@ -646,7 +648,7 @@ class BridgeDispatcher:
         )
 
         # 6. Log for HR tracking
-        self._log_execution(result, module_id, user_id)
+        self._log_execution(result, module_id, user_id, job_id=job_id)
 
         return result
 
@@ -769,6 +771,151 @@ class BridgeDispatcher:
             error=error,
         )
         self._log_execution(result, module_id, user_id)
+
+    # ========================================================================
+    # JOB MANAGEMENT
+    # ========================================================================
+
+    def create_job(
+        self,
+        job_type: str,
+        module_source: str,
+        description: str,
+        total_steps: int,
+        metadata: Optional[Dict] = None,
+    ) -> Optional[int]:
+        """Create a new bridge job for tracking multi-step operations.
+
+        Args:
+            job_type: Job category (e.g. 'batch_translate', 'reindex').
+            module_source: Module requesting the job.
+            description: Human-readable description.
+            total_steps: Total number of steps to complete.
+            metadata: Additional job metadata (language, batch_size, etc.).
+
+        Returns:
+            job_id on success, None on failure.
+        """
+        try:
+            # Resolve agent name from capability→station→agent mapping
+            station_code = CAPABILITY_STATION_MAP.get(job_type.split("_")[0], "COMMAND")
+            agent = self._select_agent(job_type.split("_")[0], station_code)
+            agent_name = None
+            if agent:
+                for name, info in self._agent_cache.items():
+                    if info.get("id") == agent.get("id"):
+                        agent_name = name
+                        break
+
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO bridge_jobs (job_type, module_source, description,
+                    total_steps, status, agent_name, metadata)
+                VALUES (%s, %s, %s, %s, 'running', %s, %s)
+                RETURNING id
+                """,
+                (
+                    job_type,
+                    module_source,
+                    description,
+                    total_steps,
+                    agent_name,
+                    json.dumps(metadata or {}),
+                ),
+            )
+            job_id = cur.fetchone()[0]
+            conn.commit()
+            cur.close()
+            conn.close()
+            logger.info(
+                f"[BridgeDispatcher] Created job #{job_id}: {description} "
+                f"({total_steps} steps, agent={agent_name})"
+            )
+            return job_id
+        except Exception as e:
+            logger.error(f"[BridgeDispatcher] create_job failed: {e}")
+            return None
+
+    def update_job_progress(
+        self,
+        job_id: int,
+        completed_steps: int,
+        failed_steps: int = 0,
+        metadata_update: Optional[Dict] = None,
+    ) -> bool:
+        """Update progress counters and merge metadata for a running job.
+
+        Args:
+            job_id: The job to update.
+            completed_steps: New total completed steps.
+            failed_steps: New total failed steps.
+            metadata_update: Dict to merge into existing metadata.
+
+        Returns:
+            True on success.
+        """
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            if metadata_update:
+                cur.execute(
+                    """
+                    UPDATE bridge_jobs
+                    SET completed_steps = %s, failed_steps = %s,
+                        metadata = metadata || %s::jsonb,
+                        updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (completed_steps, failed_steps, json.dumps(metadata_update), job_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE bridge_jobs
+                    SET completed_steps = %s, failed_steps = %s, updated_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (completed_steps, failed_steps, job_id),
+                )
+            conn.commit()
+            cur.close()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.error(f"[BridgeDispatcher] update_job_progress failed: {e}")
+            return False
+
+    def complete_job(self, job_id: int, status: str = "completed") -> bool:
+        """Mark a job as completed (or failed/cancelled).
+
+        Args:
+            job_id: The job to complete.
+            status: Final status ('completed', 'failed', 'cancelled').
+
+        Returns:
+            True on success.
+        """
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE bridge_jobs
+                SET status = %s, completed_at = NOW(), updated_at = NOW()
+                WHERE id = %s
+                """,
+                (status, job_id),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+            logger.info(f"[BridgeDispatcher] Job #{job_id} → {status}")
+            return True
+        except Exception as e:
+            logger.error(f"[BridgeDispatcher] complete_job failed: {e}")
+            return False
 
     def get_dispatch_status(self) -> Dict:
         """Get current dispatch status for all stations (Phase 6: Bridge Command)."""

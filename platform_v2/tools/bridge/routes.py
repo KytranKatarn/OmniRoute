@@ -6501,6 +6501,173 @@ def get_dispatch_history():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================================================
+# BRIDGE JOBS — Workload tracking for multi-step operations
+# ============================================================================
+
+
+@bridge_bp.route("/api/bridge/jobs")
+@login_required
+def get_bridge_jobs():
+    """Get active and recent bridge jobs with progress info."""
+    try:
+        limit = request.args.get("limit", 20, type=int)
+        limit = min(limit, 100)
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT id, job_type, module_source, description,
+                   total_steps, completed_steps, failed_steps,
+                   status, agent_name, metadata,
+                   created_at, updated_at, completed_at
+            FROM bridge_jobs
+            ORDER BY
+                CASE status
+                    WHEN 'running' THEN 0
+                    WHEN 'pending' THEN 1
+                    ELSE 2
+                END,
+                created_at DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        jobs = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        now = datetime.utcnow()
+        result = []
+        for j in jobs:
+            total = j["total_steps"] or 1
+            completed = j["completed_steps"] or 0
+            progress_pct = round((completed / total) * 100, 1) if total > 0 else 0
+
+            # Estimate ETA for running jobs
+            eta_seconds = None
+            if j["status"] == "running" and completed > 0 and j["created_at"]:
+                elapsed = (now - j["created_at"].replace(tzinfo=None)).total_seconds()
+                per_step = elapsed / completed
+                remaining = total - completed
+                eta_seconds = int(per_step * remaining)
+
+            result.append(
+                {
+                    "id": j["id"],
+                    "job_type": j["job_type"],
+                    "module_source": j["module_source"],
+                    "description": j["description"],
+                    "total_steps": total,
+                    "completed_steps": completed,
+                    "failed_steps": j["failed_steps"] or 0,
+                    "status": j["status"],
+                    "agent_name": j["agent_name"],
+                    "metadata": j["metadata"] or {},
+                    "progress_pct": progress_pct,
+                    "eta_seconds": eta_seconds,
+                    "created_at": j["created_at"].isoformat() if j["created_at"] else None,
+                    "updated_at": j["updated_at"].isoformat() if j["updated_at"] else None,
+                    "completed_at": j["completed_at"].isoformat() if j["completed_at"] else None,
+                }
+            )
+
+        return jsonify({"success": True, "jobs": result, "total": len(result)})
+
+    except Exception as e:
+        logger.error(f"Error getting bridge jobs: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/bridge/jobs/<int:job_id>")
+@login_required
+def get_bridge_job_detail(job_id):
+    """Get single bridge job detail with linked execution log entries."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get the job
+        cur.execute(
+            """
+            SELECT id, job_type, module_source, description,
+                   total_steps, completed_steps, failed_steps,
+                   status, agent_name, metadata,
+                   created_at, updated_at, completed_at
+            FROM bridge_jobs
+            WHERE id = %s
+            """,
+            (job_id,),
+        )
+        job = cur.fetchone()
+        if not job:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Job not found"}), 404
+
+        # Get linked execution log entries
+        cur.execute(
+            """
+            SELECT tel.id, a.name as agent_name, tel.capability,
+                   tel.model_used, tel.duration_ms, tel.success,
+                   tel.error_message, tel.created_at
+            FROM task_execution_log tel
+            LEFT JOIN agents a ON a.id = tel.agent_id
+            WHERE tel.job_id = %s
+            ORDER BY tel.created_at
+            """,
+            (job_id,),
+        )
+        executions = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        total = job["total_steps"] or 1
+        completed = job["completed_steps"] or 0
+        progress_pct = round((completed / total) * 100, 1) if total > 0 else 0
+
+        return jsonify(
+            {
+                "success": True,
+                "job": {
+                    "id": job["id"],
+                    "job_type": job["job_type"],
+                    "module_source": job["module_source"],
+                    "description": job["description"],
+                    "total_steps": total,
+                    "completed_steps": completed,
+                    "failed_steps": job["failed_steps"] or 0,
+                    "status": job["status"],
+                    "agent_name": job["agent_name"],
+                    "metadata": job["metadata"] or {},
+                    "progress_pct": progress_pct,
+                    "created_at": job["created_at"].isoformat() if job["created_at"] else None,
+                    "updated_at": job["updated_at"].isoformat() if job["updated_at"] else None,
+                    "completed_at": job["completed_at"].isoformat() if job["completed_at"] else None,
+                },
+                "executions": [
+                    {
+                        "id": e["id"],
+                        "agent_name": e["agent_name"],
+                        "capability": e["capability"],
+                        "model": e["model_used"],
+                        "duration_ms": e["duration_ms"],
+                        "success": e["success"],
+                        "error": e.get("error_message"),
+                        "timestamp": e["created_at"].isoformat() if e["created_at"] else None,
+                    }
+                    for e in executions
+                ],
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting bridge job detail: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/bridge/reassign", methods=["POST"])
 @login_required
 def reassign_agent():

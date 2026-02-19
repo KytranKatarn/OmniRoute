@@ -985,6 +985,149 @@
 }
 
 /* ============================================================================
+   ACTIVE JOBS PANEL
+   ============================================================================ */
+
+.dispatch-jobs-section {
+    border-top: 1px solid var(--archie-border-default);
+    border-bottom: 1px solid var(--archie-border-default);
+    background: rgba(0, 255, 255, 0.02);
+}
+
+.dispatch-jobs-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1.5rem;
+    background: linear-gradient(90deg, rgba(0, 255, 255, 0.05), transparent);
+}
+
+.dispatch-jobs-title {
+    font-family: var(--archie-font-display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--archie-cyan);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.dispatch-jobs-count {
+    font-size: 0.65rem;
+    color: var(--archie-text-muted);
+}
+
+.dispatch-jobs-list {
+    padding: 0.5rem 1.5rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.dispatch-job-card {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--archie-bg-tertiary);
+    border-radius: 6px;
+    border-left: 3px solid var(--archie-cyan);
+}
+
+.dispatch-job-card.status-completed {
+    border-left-color: var(--archie-success);
+    opacity: 0.7;
+}
+
+.dispatch-job-card.status-failed {
+    border-left-color: var(--archie-danger);
+}
+
+.dispatch-job-info {
+    min-width: 0;
+}
+
+.dispatch-job-desc {
+    font-size: 0.78rem;
+    color: var(--archie-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dispatch-job-agent {
+    font-size: 0.65rem;
+    color: var(--archie-text-muted);
+    margin-top: 2px;
+}
+
+.dispatch-job-steps {
+    font-family: var(--archie-font-display);
+    font-size: 0.75rem;
+    color: var(--archie-text-muted);
+    white-space: nowrap;
+}
+
+.dispatch-job-progress {
+    width: 120px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dispatch-job-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.dispatch-job-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--archie-cyan), #00e5ff);
+    transition: width 0.6s ease;
+}
+
+.dispatch-job-card.status-completed .dispatch-job-bar-fill {
+    background: linear-gradient(90deg, var(--archie-success), #4ade80);
+}
+
+.dispatch-job-card.status-failed .dispatch-job-bar-fill {
+    background: linear-gradient(90deg, var(--archie-danger), #f87171);
+}
+
+.dispatch-job-pct {
+    font-family: var(--archie-font-display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--archie-cyan);
+    min-width: 32px;
+    text-align: right;
+}
+
+.dispatch-job-card.status-completed .dispatch-job-pct {
+    color: var(--archie-success);
+}
+
+.dispatch-job-eta {
+    font-size: 0.65rem;
+    color: var(--archie-text-muted);
+    min-width: 40px;
+    text-align: right;
+}
+
+@media (max-width: 768px) {
+    .dispatch-job-card {
+        grid-template-columns: 1fr auto;
+        gap: 0.5rem;
+    }
+    .dispatch-job-progress { display: none; }
+    .dispatch-job-eta { display: none; }
+}
+
+/* ============================================================================
    NODE NETWORK SECTION
    ============================================================================ */
 
@@ -2889,6 +3032,14 @@
                             <span class="dispatch-stat-label">Avg ms</span>
                         </div>
                     </div>
+                </div>
+                <!-- Active Jobs Panel (hidden when empty) -->
+                <div class="dispatch-jobs-section" id="dispatch-jobs-section" style="display: none;">
+                    <div class="dispatch-jobs-header">
+                        <span class="dispatch-jobs-title">ACTIVE JOBS</span>
+                        <span class="dispatch-jobs-count" id="dispatch-jobs-count"></span>
+                    </div>
+                    <div class="dispatch-jobs-list" id="dispatch-jobs-list"></div>
                 </div>
                 <div class="dispatch-body">
                     <div class="dispatch-panel">
@@ -5519,9 +5670,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadDispatchActivity() {
     try {
-        const [statusResp, historyResp] = await Promise.all([
+        const [statusResp, historyResp, jobsResp] = await Promise.all([
             fetch('/tools/bridge/api/bridge/dispatch-status'),
-            fetch('/tools/bridge/api/bridge/dispatch-history?limit=20')
+            fetch('/tools/bridge/api/bridge/dispatch-history?limit=20'),
+            fetch('/tools/bridge/api/bridge/jobs?limit=10')
         ]);
 
         if (statusResp.ok) {
@@ -5536,6 +5688,13 @@ async function loadDispatchActivity() {
             const historyData = await historyResp.json();
             if (historyData.success) {
                 renderDispatchHistory(historyData.history);
+            }
+        }
+
+        if (jobsResp.ok) {
+            const jobsData = await jobsResp.json();
+            if (jobsData.success) {
+                renderActiveJobs(jobsData.jobs || []);
             }
         }
     } catch (e) {
@@ -5645,6 +5804,111 @@ function renderStationActivity(stations) {
         bar.appendChild(count);
         container.appendChild(bar);
     });
+}
+
+// ============================================================================
+// ACTIVE JOBS (Bridge Job Tracking)
+// ============================================================================
+
+function renderActiveJobs(jobs) {
+    const section = document.getElementById('dispatch-jobs-section');
+    const container = document.getElementById('dispatch-jobs-list');
+    const countEl = document.getElementById('dispatch-jobs-count');
+    if (!section || !container) return;
+
+    // Filter: show running/pending jobs + recently completed (last 5 min)
+    const now = Date.now();
+    const visible = jobs.filter(function(j) {
+        if (j.status === 'running' || j.status === 'pending') return true;
+        if (j.completed_at) {
+            var age = now - new Date(j.completed_at).getTime();
+            return age < 300000; // 5 minutes
+        }
+        return false;
+    });
+
+    if (visible.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    if (countEl) {
+        var running = visible.filter(function(j) { return j.status === 'running'; }).length;
+        countEl.textContent = running > 0 ? running + ' running' : '';
+    }
+
+    container.replaceChildren();
+
+    visible.forEach(function(job) {
+        var card = document.createElement('div');
+        card.className = 'dispatch-job-card status-' + job.status;
+
+        // Info column (description + agent)
+        var info = document.createElement('div');
+        info.className = 'dispatch-job-info';
+
+        var desc = document.createElement('div');
+        desc.className = 'dispatch-job-desc';
+        desc.textContent = job.description || job.job_type;
+        desc.title = job.description || '';
+        info.appendChild(desc);
+
+        var agent = document.createElement('div');
+        agent.className = 'dispatch-job-agent';
+        agent.textContent = job.agent_name || (job.status === 'pending' ? '(queued)' : '—');
+        info.appendChild(agent);
+
+        // Step counter
+        var steps = document.createElement('div');
+        steps.className = 'dispatch-job-steps';
+        steps.textContent = job.completed_steps + '/' + job.total_steps;
+
+        // Progress bar
+        var progress = document.createElement('div');
+        progress.className = 'dispatch-job-progress';
+
+        var barBg = document.createElement('div');
+        barBg.className = 'dispatch-job-bar';
+
+        var barFill = document.createElement('div');
+        barFill.className = 'dispatch-job-bar-fill';
+        barFill.style.width = Math.min(job.progress_pct, 100) + '%';
+        barBg.appendChild(barFill);
+
+        var pct = document.createElement('span');
+        pct.className = 'dispatch-job-pct';
+        pct.textContent = Math.round(job.progress_pct) + '%';
+
+        progress.appendChild(barBg);
+        progress.appendChild(pct);
+
+        // ETA
+        var eta = document.createElement('div');
+        eta.className = 'dispatch-job-eta';
+        if (job.status === 'running' && job.eta_seconds) {
+            eta.textContent = formatEta(job.eta_seconds);
+        } else if (job.status === 'completed') {
+            eta.textContent = 'done';
+        } else {
+            eta.textContent = '--';
+        }
+
+        card.appendChild(info);
+        card.appendChild(steps);
+        card.appendChild(progress);
+        card.appendChild(eta);
+        container.appendChild(card);
+    });
+}
+
+function formatEta(seconds) {
+    if (!seconds || seconds <= 0) return '--';
+    if (seconds < 60) return seconds + 's';
+    if (seconds < 3600) return Math.round(seconds / 60) + 'm';
+    var h = Math.floor(seconds / 3600);
+    var m = Math.round((seconds % 3600) / 60);
+    return h + 'h ' + m + 'm';
 }
 
 </script>

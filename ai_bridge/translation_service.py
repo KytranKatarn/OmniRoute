@@ -58,7 +58,7 @@ def _get_db():
     )
 
 
-def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: int = 300) -> str:
+def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: int = 300, job_id: int = None) -> str:
     """Route an LLM call through the BridgeDispatcher (ADR-013).
 
     All LLM work goes through the bridge so that:
@@ -73,6 +73,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: 
         prompt: The prompt to send.
         system_prompt: Optional system prompt override.
         timeout: HTTP timeout in seconds (default 300, translation uses 600).
+        job_id: Optional bridge job ID to link this execution to.
 
     Returns:
         Generated text, or empty string on failure.
@@ -87,6 +88,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: 
             module_id=MODULE_ID,
             system_prompt=system_prompt,
             timeout=timeout,
+            job_id=job_id,
         )
         if result.success:
             return result.response
@@ -205,9 +207,32 @@ def batch_translate(
         )
 
     all_results = []
+    total_batches = (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE
+
+    # Create a bridge job for this batch operation
+    job_id = None
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+        dispatcher = get_dispatcher()
+        job_id = dispatcher.create_job(
+            job_type="batch_translate",
+            module_source=MODULE_ID,
+            description=f"Translate {len(strings)} keys to {lang_name}",
+            total_steps=total_batches,
+            metadata={
+                "language": language,
+                "lang_name": lang_name,
+                "total_strings": len(strings),
+                "batch_size": BATCH_SIZE,
+            },
+        )
+    except Exception as e:
+        logger.warning("[Linguistics] Could not create bridge job: %s", e)
+
+    total_ok = 0
+    total_fail = 0
 
     # Process in batches
-    total_batches = (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE
     for batch_start in range(0, len(strings), BATCH_SIZE):
         batch_num = batch_start // BATCH_SIZE + 1
         batch = strings[batch_start : batch_start + BATCH_SIZE]
@@ -231,7 +256,7 @@ def batch_translate(
             "[Linguistics] %s batch %d/%d (%d strings)",
             language, batch_num, total_batches, len(batch),
         )
-        raw = _dispatch("translate", prompt, timeout=600)
+        raw = _dispatch("translate", prompt, timeout=600, job_id=job_id)
 
         # Parse JSON from response
         translations = _parse_batch_response(raw, len(batch))
@@ -252,10 +277,38 @@ def batch_translate(
                     "translation": english_text,
                     "success": False,
                 })
+
+        total_ok += batch_ok
+        total_fail += len(batch) - batch_ok
+
         logger.info(
             "[Linguistics] %s batch %d/%d done: %d/%d ok",
             language, batch_num, total_batches, batch_ok, len(batch),
         )
+
+        # Update job progress
+        if job_id:
+            try:
+                dispatcher.update_job_progress(
+                    job_id=job_id,
+                    completed_steps=batch_num,
+                    failed_steps=0,
+                    metadata_update={
+                        "strings_ok": total_ok,
+                        "strings_failed": total_fail,
+                        "last_batch": batch_num,
+                    },
+                )
+            except Exception:
+                pass
+
+    # Complete the job
+    if job_id:
+        try:
+            final_status = "completed" if total_fail == 0 else "completed"
+            dispatcher.complete_job(job_id, status=final_status)
+        except Exception:
+            pass
 
     return all_results
 

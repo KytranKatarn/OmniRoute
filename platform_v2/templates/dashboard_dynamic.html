@@ -1930,6 +1930,53 @@ body.light-mode .featured-pin-btn.pinned {
     animation: cardMaterialize 0.4s ease forwards;
 }
 
+/* Pin star on category grid module cards */
+.module-pin-btn {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.15);
+    transition: color 0.2s ease, transform 0.2s ease;
+    padding: 0;
+    opacity: 0;
+}
+.module-card:hover .module-pin-btn {
+    opacity: 1;
+}
+.module-pin-btn:hover {
+    color: #ffaa00;
+    transform: translateY(-50%) scale(1.2);
+}
+.module-pin-btn.pinned {
+    color: #ffaa00;
+    opacity: 1;
+}
+.module-pin-btn i[data-lucide] {
+    width: 14px;
+    height: 14px;
+}
+[data-theme="light"] .module-pin-btn,
+body.light-mode .module-pin-btn {
+    color: rgba(0, 0, 0, 0.1);
+}
+[data-theme="light"] .module-pin-btn:hover,
+body.light-mode .module-pin-btn:hover {
+    color: #cc8800;
+}
+[data-theme="light"] .module-pin-btn.pinned,
+body.light-mode .module-pin-btn.pinned {
+    color: #cc8800;
+}
+
 /* ─── Category Grid Responsive ─── */
 @media (max-width: 1280px) {
     .cat-cards { grid-template-columns: repeat(3, 1fr); }
@@ -2219,6 +2266,10 @@ body.light-mode .module-card {
                 {% for module in dashboard_data.modules_by_category[cat_key] %}
                 <a href="{{ module.route }}" class="module-card{% if module.coming_soon %} coming-soon{% endif %}"
                    data-module-id="{{ module.id }}"
+                   data-module-name="{{ module.name }}"
+                   data-module-icon="{{ module.icon }}"
+                   data-module-desc="{{ module.description | striptags | truncate(120) }}"
+                   data-module-category="{{ module.category.value }}"
                    {% if module.coming_soon %}onclick="return false;"{% endif %}>
                     <div class="module-card-icon">
                         <i data-lucide="{{ module.icon }}"></i>
@@ -2232,6 +2283,10 @@ body.light-mode .module-card {
                     </div>
                     {% if module.beta %}<span class="module-badge beta">BETA</span>{% endif %}
                     {% if module.coming_soon %}<span class="module-badge soon">COMING SOON</span>{% endif %}
+                    <button class="module-pin-btn" data-pin-id="{{ module.id }}" title="Pin to Priority Stations"
+                            onclick="event.preventDefault(); event.stopPropagation(); toggleGridPin(this, '{{ module.id }}');">
+                        <i data-lucide="star"></i>
+                    </button>
                 </a>
                 {% endfor %}
             </div>
@@ -3118,72 +3173,143 @@ body.light-mode .module-card {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEATURED MODULES — Priority Stations — Task 5
-// Pin/unpin localStorage, module health check
+// Pin/unpin from category grid stars, max 4, dynamic rebuild
 // ═══════════════════════════════════════════════════════════════════════════════
 (function initFeaturedModules() {
     'use strict';
 
     var STORAGE_KEY = 'archie-pinned-modules';
+    var MAX_PINS = 4;
     var DEFAULT_PINS = ['archie_chat', 'bridge', 'consciousness'];
 
-    // ── Get pinned modules from localStorage ──
+    // ── Get / save pinned modules ──
     function getPinnedModules() {
         try {
             var stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
                 var parsed = JSON.parse(stored);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, MAX_PINS);
             }
-        } catch (e) {
-            // Ignore parse errors
-        }
+        } catch (e) {}
         return DEFAULT_PINS.slice();
     }
 
-    // ── Save pinned modules to localStorage ──
     function savePinnedModules(pins) {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(pins));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(pins.slice(0, MAX_PINS)));
         } catch (e) {
             console.warn('Failed to save pinned modules:', e);
         }
     }
 
-    // ── Initialize pin button states from localStorage ──
-    function initPinStates() {
+    // ── Sync all star buttons (grid + featured) to match localStorage ──
+    function syncAllStars() {
         var pins = getPinnedModules();
-        var pinBtns = document.querySelectorAll('.featured-pin-btn');
-        pinBtns.forEach(function(btn) {
-            var moduleId = btn.getAttribute('data-pin-id');
-            if (pins.indexOf(moduleId) >= 0) {
-                btn.classList.add('pinned');
-            } else {
-                btn.classList.remove('pinned');
-            }
+        // Grid stars
+        document.querySelectorAll('.module-pin-btn').forEach(function(btn) {
+            var id = btn.getAttribute('data-pin-id');
+            btn.classList.toggle('pinned', pins.indexOf(id) >= 0);
+            btn.title = pins.indexOf(id) >= 0 ? 'Unpin from Priority Stations' : 'Pin to Priority Stations';
+        });
+        // Featured card stars
+        document.querySelectorAll('.featured-pin-btn').forEach(function(btn) {
+            var id = btn.getAttribute('data-pin-id');
+            btn.classList.toggle('pinned', pins.indexOf(id) >= 0);
+            btn.title = pins.indexOf(id) >= 0 ? 'Unpin module' : 'Pin module';
         });
     }
 
-    // ── Toggle pin (exposed globally for onclick) ──
-    window.togglePin = function(btn, moduleId) {
+    // ── Build a featured card HTML from module data ──
+    function buildFeaturedCard(mod) {
+        return '<a href="' + mod.route + '" class="featured-card" data-module-id="' + mod.id + '" data-category="' + mod.category + '">' +
+            '<button class="featured-pin-btn pinned" data-pin-id="' + mod.id + '" title="Unpin module" ' +
+                'onclick="event.preventDefault(); event.stopPropagation(); toggleGridPin(this, \'' + mod.id + '\');">' +
+                '<i data-lucide="star"></i></button>' +
+            '<div class="featured-card-icon"><i data-lucide="' + mod.icon + '"></i></div>' +
+            '<div class="featured-card-name">' + mod.name + '</div>' +
+            '<div class="featured-card-desc">' + mod.desc + '</div>' +
+            '<div class="featured-card-footer">' +
+                '<div class="featured-card-status">' +
+                    '<span class="featured-status-dot online" id="featStatus-' + mod.id + '"></span>' +
+                    '<span class="featured-status-text" id="featStatusText-' + mod.id + '">ONLINE</span>' +
+                '</div>' +
+            '</div></a>';
+    }
+
+    // ── Get module data from its grid card's data attributes ──
+    function getModuleData(moduleId) {
+        var card = document.querySelector('.module-card[data-module-id="' + moduleId + '"]');
+        if (!card) return null;
+        return {
+            id: moduleId,
+            name: card.getAttribute('data-module-name') || moduleId,
+            icon: card.getAttribute('data-module-icon') || 'box',
+            desc: card.getAttribute('data-module-desc') || '',
+            route: card.getAttribute('href') || '#',
+            category: card.getAttribute('data-module-category') || ''
+        };
+    }
+
+    // ── Rebuild the featured cards row from current pins ──
+    function rebuildFeaturedCards() {
+        var pins = getPinnedModules();
+        var row = document.getElementById('featuredCardsRow');
+        var section = document.getElementById('featured-modules');
+        if (!row) return;
+
+        if (pins.length === 0) {
+            // Hide section if no pins
+            if (section) section.style.display = 'none';
+            return;
+        }
+        if (section) section.style.display = '';
+
+        var html = '';
+        pins.forEach(function(pinId) {
+            var mod = getModuleData(pinId);
+            if (mod) {
+                html += buildFeaturedCard(mod);
+            }
+        });
+
+        row.innerHTML = html;
+
+        // Re-render Lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+
+        syncAllStars();
+        fetchModuleHealth();
+    }
+
+    // ── Toggle pin from grid or featured card star (exposed globally) ──
+    window.toggleGridPin = function(btn, moduleId) {
         var pins = getPinnedModules();
         var idx = pins.indexOf(moduleId);
 
         if (idx >= 0) {
             // Unpin
             pins.splice(idx, 1);
-            btn.classList.remove('pinned');
-            btn.title = 'Pin module';
         } else {
-            // Pin
+            // Pin — enforce max
+            if (pins.length >= MAX_PINS) {
+                // Brief flash on the button to indicate limit
+                btn.style.color = '#ff3b3b';
+                setTimeout(function() { btn.style.color = ''; }, 600);
+                return;
+            }
             pins.push(moduleId);
-            btn.classList.add('pinned');
-            btn.title = 'Unpin module';
         }
 
         savePinnedModules(pins);
+        rebuildFeaturedCards();
     };
 
-    // ── Fetch module health and update status dots ──
+    // Keep old togglePin working for featured card stars
+    window.togglePin = window.toggleGridPin;
+
+    // ── Fetch module health and update featured status dots ──
     function fetchModuleHealth() {
         fetch('/api/modules/health')
             .then(function(r) { return r.json(); })
@@ -3191,58 +3317,30 @@ body.light-mode .module-card {
                 if (!data.success) return;
                 var modules = data.modules || data.health || {};
 
-                // Update each featured card's status dot
-                var cards = document.querySelectorAll('.featured-card');
-                cards.forEach(function(card) {
+                document.querySelectorAll('.featured-card').forEach(function(card) {
                     var moduleId = card.getAttribute('data-module-id');
                     var dot = document.getElementById('featStatus-' + moduleId);
                     var text = document.getElementById('featStatusText-' + moduleId);
                     if (!dot || !text) return;
 
-                    // Check health data - could be keyed by id
                     var health = modules[moduleId];
-                    var isHealthy = false;
-
-                    if (health) {
-                        isHealthy = health.healthy || health.status === 'active' || health.status === 'ok';
-                    } else {
-                        // If no specific health data, assume online
-                        isHealthy = true;
-                    }
+                    var isHealthy = health ? (health.healthy || health.status === 'active' || health.status === 'ok') : true;
 
                     dot.classList.remove('online', 'offline');
-                    if (isHealthy) {
-                        dot.classList.add('online');
-                        text.textContent = 'ONLINE';
-                    } else {
-                        dot.classList.add('offline');
-                        text.textContent = 'OFFLINE';
-                    }
+                    dot.classList.add(isHealthy ? 'online' : 'offline');
+                    text.textContent = isHealthy ? 'ONLINE' : 'OFFLINE';
                 });
             })
             .catch(function(err) {
                 console.warn('Featured module health fetch failed:', err);
-                // On error, mark all as online (graceful fallback)
-                var dots = document.querySelectorAll('.featured-status-dot');
-                dots.forEach(function(dot) {
-                    dot.classList.add('online');
-                });
-                var texts = document.querySelectorAll('.featured-status-text');
-                texts.forEach(function(text) {
-                    text.textContent = 'ONLINE';
-                });
+                document.querySelectorAll('.featured-status-dot').forEach(function(dot) { dot.classList.add('online'); });
+                document.querySelectorAll('.featured-status-text').forEach(function(text) { text.textContent = 'ONLINE'; });
             });
     }
 
     // ── Start when dashboard is visible ──
     function startFeaturedModules() {
-        initPinStates();
-        fetchModuleHealth();
-
-        // Re-render Lucide icons for featured cards
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+        rebuildFeaturedCards();
     }
 
     var dashContent = document.getElementById('dashboardContent');

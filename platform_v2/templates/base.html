@@ -30,6 +30,9 @@
     <!-- A.R.C.H.I.E. Theme System (light/dark mode) -->
     <script src="{{ url_for('static', filename='js/archie-theme.js') }}"></script>
 
+    <!-- A.R.C.H.I.E. i18n Engine (must load before inline t() calls) -->
+    <script src="{{ url_for('static', filename='js/archie-i18n.js') }}"></script>
+
     <style>
         /* Legacy Flash Messages - Override with theme */
         .flash-messages {
@@ -538,7 +541,5 @@
         {% endif %}
     </script>
 
-    <!-- A.R.C.H.I.E. i18n Engine -->
-    <script src="{{ url_for('static', filename='js/archie-i18n.js') }}"></script>
 </body>
 </html>

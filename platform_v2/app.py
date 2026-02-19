@@ -1162,6 +1162,145 @@ def api_dashboard_alerts():
         return jsonify({"success": True, "alerts": [], "service_issues": []})
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# LINGUISTICS / TRANSLATION API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.route("/api/translations/<lang>")
+@login_required
+def api_translations(lang):
+    """Get UI translations for a specific language"""
+    from ai_bridge.translation_service import get_translations, SUPPORTED_LANGUAGES
+
+    if lang not in SUPPORTED_LANGUAGES:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Unsupported language: {lang}. Supported: {', '.join(sorted(SUPPORTED_LANGUAGES.keys()))}",
+                }
+            ),
+            400,
+        )
+    return jsonify({"success": True, "language": lang, "translations": get_translations(lang)})
+
+
+@app.route("/api/user/language", methods=["GET", "PUT"])
+@login_required
+def api_user_language():
+    """Get or update user language preference"""
+    from ai_bridge.translation_service import SUPPORTED_LANGUAGES
+
+    if request.method == "GET":
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT language, auto_detect FROM user_language_preferences WHERE user_id = %s",
+                (current_user.id,),
+            )
+            pref = cur.fetchone()
+            cur.close()
+            conn.close()
+            if pref:
+                return jsonify(
+                    {
+                        "success": True,
+                        "language": pref["language"],
+                        "auto_detect": pref["auto_detect"],
+                    }
+                )
+            return jsonify({"success": True, "language": "en", "auto_detect": True})
+        except Exception as e:
+            logger.error(f"User language GET error: {e}")
+            return jsonify({"success": True, "language": "en", "auto_detect": True})
+
+    # PUT
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No JSON data provided"}), 400
+    language = data.get("language", "en")
+    auto_detect = data.get("auto_detect", True)
+    if language not in SUPPORTED_LANGUAGES:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Unsupported language: {language}",
+                }
+            ),
+            400,
+        )
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO user_language_preferences (user_id, language, auto_detect)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET language = EXCLUDED.language, auto_detect = EXCLUDED.auto_detect""",
+            (current_user.id, language, auto_detect),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify(
+            {
+                "success": True,
+                "language": language,
+                "auto_detect": auto_detect,
+            }
+        )
+    except Exception as e:
+        logger.error(f"User language PUT error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/translate/text", methods=["POST"])
+@login_required
+def api_translate_text():
+    """Translate text to target language"""
+    from ai_bridge.translation_service import translate_text
+
+    data = request.get_json()
+    if not data or "text" not in data:
+        return jsonify({"success": False, "error": "Missing 'text' field"}), 400
+    text = data["text"]
+    target = data.get("target_language", "en")
+    source = data.get("source_language", "en")
+    try:
+        result = translate_text(text, target, source)
+        return jsonify(
+            {
+                "success": True,
+                "original": text,
+                "translated": result,
+                "target_language": target,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Translation error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/language/detect", methods=["POST"])
+@login_required
+def api_language_detect():
+    """Detect language of given text"""
+    from ai_bridge.translation_service import detect_language
+
+    data = request.get_json()
+    if not data or "text" not in data:
+        return jsonify({"success": False, "error": "Missing 'text' field"}), 400
+    text = data["text"]
+    try:
+        detected_code = detect_language(text)
+        return jsonify({"success": True, "text": text[:100], "language": detected_code})
+    except Exception as e:
+        logger.error(f"Language detection error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/health")
 def health():
     """Health check endpoint with uptime"""

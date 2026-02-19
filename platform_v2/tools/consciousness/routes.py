@@ -8930,6 +8930,7 @@ from ai_bridge.translation_service import (
     store_translations,
     SUPPORTED_LANGUAGES,
 )
+from module_registry import get_all_modules, ModuleCategory
 
 
 @consciousness_bp.route("/api/translations/stats")
@@ -8952,39 +8953,371 @@ def translation_stats():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route("/api/translations/scan", methods=["POST"])
-@login_required
-@require_permission(Permission.ADMIN_ACCESS)
-def translation_scan():
-    """Scan templates for data-i18n attributes and return discovered keys."""
-    try:
-        templates_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "templates",
-        )
-        pattern = re.compile(r'data-i18n(?:-\w+)?="([^"]+)"')
-        keys = {}
+def _scan_all_sources():
+    """Scan all discoverable translation key sources.
 
-        for root, _dirs, files in os.walk(templates_dir):
+    Returns a dict of key -> {"source": str, "file": str, "english": str}
+    and a by_source count dict.
+    """
+    platform_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    keys = {}
+    by_source = {}
+
+    # ── Source 1: HTML Templates ──
+    # Scan both templates/ and all tools/*/templates/ directories
+    i18n_pattern = re.compile(r'data-i18n(?:-\w+)?="([^"]+)"')
+    template_dirs = [os.path.join(platform_root, "templates")]
+
+    tools_root = os.path.join(platform_root, "tools")
+    if os.path.isdir(tools_root):
+        for tool_name in os.listdir(tools_root):
+            tool_tpl = os.path.join(tools_root, tool_name, "templates")
+            if os.path.isdir(tool_tpl):
+                template_dirs.append(tool_tpl)
+
+    for tpl_dir in template_dirs:
+        for root, _dirs, files in os.walk(tpl_dir):
             for fname in files:
                 if not fname.endswith(".html"):
                     continue
                 filepath = os.path.join(root, fname)
-                rel_path = os.path.relpath(filepath, templates_dir)
+                rel_path = os.path.relpath(filepath, platform_root)
                 try:
                     with open(filepath, "r", encoding="utf-8") as fh:
                         content = fh.read()
-                    for match in pattern.finditer(content):
+                    for match in i18n_pattern.finditer(content):
                         key = match.group(1)
-                        keys.setdefault(key, [])
-                        if rel_path not in keys[key]:
-                            keys[key].append(rel_path)
+                        if key not in keys:
+                            keys[key] = {
+                                "source": "template",
+                                "file": rel_path,
+                                "english": "",
+                            }
                 except Exception as read_err:
-                    logger.warning(f"Could not read {rel_path}: {read_err}")
+                    logger.warning(f"Scan: could not read {rel_path}: {read_err}")
 
-        return jsonify({"success": True, "keys": keys, "total": len(keys)})
+    by_source["template"] = sum(1 for v in keys.values() if v["source"] == "template")
+
+    # ── Source 2: Module Registry ──
+    try:
+        modules = get_all_modules()
+        for mod in modules:
+            name_key = f"module.{mod.id}.name"
+            keys[name_key] = {
+                "source": "module_name",
+                "file": "module_registry.py",
+                "english": mod.name,
+            }
+
+            desc_text = (mod.description or "")[:120]
+            # Strip simple HTML tags
+            desc_text = re.sub(r"<[^>]+>", "", desc_text).strip()
+            desc_key = f"module.{mod.id}.desc"
+            keys[desc_key] = {
+                "source": "module_desc",
+                "file": "module_registry.py",
+                "english": desc_text,
+            }
+    except Exception as e:
+        logger.warning(f"Scan: module registry error: {e}")
+
+    by_source["module_name"] = sum(1 for v in keys.values() if v["source"] == "module_name")
+    by_source["module_desc"] = sum(1 for v in keys.values() if v["source"] == "module_desc")
+
+    # ── Source 3: Categories ──
+    try:
+        for member in ModuleCategory:
+            cat_key = f"cat.{member.value}"
+            english_name = member.value.replace("_", " ").title()
+            keys[cat_key] = {
+                "source": "category",
+                "file": "module_registry.py",
+                "english": english_name,
+            }
+    except Exception as e:
+        logger.warning(f"Scan: category enum error: {e}")
+
+    by_source["category"] = sum(1 for v in keys.values() if v["source"] == "category")
+
+    # ── Source 4: JS Translation Keys ──
+    js_path = os.path.join(platform_root, "static", "js", "archie-i18n.js")
+    js_key_pattern = re.compile(r"'([^']+)':\s*'([^']+)'")
+    try:
+        with open(js_path, "r", encoding="utf-8") as fh:
+            js_content = fh.read()
+        for match in js_key_pattern.finditer(js_content):
+            js_key = match.group(1)
+            js_val = match.group(2)
+            # Only capture keys that look like translation keys (contain a dot)
+            if "." in js_key:
+                keys[js_key] = {
+                    "source": "js",
+                    "file": "archie-i18n.js",
+                    "english": js_val,
+                }
+    except Exception as e:
+        logger.warning(f"Scan: archie-i18n.js read error: {e}")
+
+    by_source["js"] = sum(1 for v in keys.values() if v["source"] == "js")
+
+    return keys, by_source
+
+
+@consciousness_bp.route("/api/translations/scan", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_scan():
+    """Scan all sources for translatable keys: templates, modules, categories, JS."""
+    try:
+        keys, by_source = _scan_all_sources()
+        return jsonify(
+            {
+                "success": True,
+                "keys": keys,
+                "total": len(keys),
+                "by_source": by_source,
+            }
+        )
     except Exception as e:
         logger.error(f"Translation scan error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/seed", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_seed():
+    """Seed English source strings for all discovered keys not yet in DB."""
+    try:
+        data = request.get_json() or {}
+        incoming_keys = data.get("keys", {})
+
+        if not incoming_keys:
+            return jsonify({"success": False, "error": "keys dict required"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        seeded = 0
+        skipped = 0
+
+        for key, info in incoming_keys.items():
+            english = info.get("english", "")
+            source_type = info.get("source", "")
+            if not english:
+                skipped += 1
+                continue
+
+            # Map source type to context label
+            context_map = {
+                "module_name": "module_registry",
+                "module_desc": "module_registry",
+                "category": "module_registry",
+                "js": "js_manifest",
+                "template": "template",
+            }
+            context = context_map.get(source_type, source_type)
+
+            cur.execute(
+                """
+                INSERT INTO translations (key, language, text, source, status, context,
+                                          created_at, updated_at)
+                VALUES (%s, 'en', %s, 'imported', 'approved', %s, NOW(), NOW())
+                ON CONFLICT (key, language) DO NOTHING
+                """,
+                (key, english, context),
+            )
+            if cur.rowcount > 0:
+                seeded += 1
+            else:
+                skipped += 1
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "seeded": seeded, "skipped": skipped})
+    except Exception as e:
+        logger.error(f"Translation seed error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/coverage")
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_coverage():
+    """Per-source coverage stats for French translations."""
+    try:
+        keys, _by_source = _scan_all_sources()
+
+        if not keys:
+            return jsonify(
+                {
+                    "success": True,
+                    "sources": {},
+                    "overall": {
+                        "total": 0,
+                        "translated": 0,
+                        "approved": 0,
+                        "pending": 0,
+                        "missing": 0,
+                    },
+                }
+            )
+
+        # Fetch all French translations for discovered keys
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        key_list = list(keys.keys())
+        cur.execute(
+            """
+            SELECT key, status
+            FROM translations
+            WHERE language = 'fr' AND key = ANY(%s)
+            """,
+            (key_list,),
+        )
+        fr_rows = {row["key"]: row["status"] for row in cur.fetchall()}
+        cur.close()
+        conn.close()
+
+        # Build per-source stats
+        sources = {}
+        for key, info in keys.items():
+            src = info["source"]
+            if src not in sources:
+                sources[src] = {
+                    "total": 0,
+                    "translated": 0,
+                    "approved": 0,
+                    "pending": 0,
+                    "missing": 0,
+                }
+            sources[src]["total"] += 1
+
+            status = fr_rows.get(key)
+            if status is None:
+                sources[src]["missing"] += 1
+            else:
+                sources[src]["translated"] += 1
+                if status == "approved":
+                    sources[src]["approved"] += 1
+                elif status == "pending_review":
+                    sources[src]["pending"] += 1
+
+        # Overall totals
+        overall = {"total": 0, "translated": 0, "approved": 0, "pending": 0, "missing": 0}
+        for stats in sources.values():
+            for k in overall:
+                overall[k] += stats[k]
+
+        return jsonify({"success": True, "sources": sources, "overall": overall})
+    except Exception as e:
+        logger.error(f"Translation coverage error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/browser")
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_browser():
+    """Side-by-side EN/FR translation browser with filtering."""
+    try:
+        source_filter = request.args.get("source", "all")
+        status_filter = request.args.get("status", "all")
+        search_filter = request.args.get("search", "").strip().lower()
+        language = request.args.get("language", "fr")
+
+        keys, _by_source = _scan_all_sources()
+        key_list = list(keys.keys())
+
+        if not key_list:
+            return jsonify({"success": True, "translations": [], "total": 0, "filtered": 0})
+
+        # Fetch English and target language translations from DB
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT key, text
+            FROM translations
+            WHERE language = 'en' AND key = ANY(%s)
+            """,
+            (key_list,),
+        )
+        en_db = {row["key"]: row["text"] for row in cur.fetchall()}
+
+        cur.execute(
+            """
+            SELECT id, key, text, status
+            FROM translations
+            WHERE language = %s AND key = ANY(%s)
+            """,
+            (language, key_list),
+        )
+        target_db = {row["key"]: row for row in cur.fetchall()}
+
+        cur.close()
+        conn.close()
+
+        # Build paired list
+        translations = []
+        for key, info in keys.items():
+            # English: prefer scan-discovered text, fall back to DB
+            english_text = info.get("english") or en_db.get(key, "")
+
+            target_row = target_db.get(key)
+            if target_row:
+                target_text = target_row["text"]
+                status = target_row["status"]
+                target_id = target_row["id"]
+            else:
+                target_text = None
+                status = "missing"
+                target_id = None
+
+            translations.append(
+                {
+                    "key": key,
+                    "english": english_text,
+                    "french": target_text,
+                    "status": status,
+                    "source": info["source"],
+                    "file": info["file"],
+                    "fr_id": target_id,
+                }
+            )
+
+        total = len(translations)
+
+        # Apply filters
+        if source_filter != "all":
+            translations = [t for t in translations if t["source"] == source_filter]
+
+        if status_filter != "all":
+            translations = [t for t in translations if t["status"] == status_filter]
+
+        if search_filter:
+            translations = [
+                t
+                for t in translations
+                if search_filter in t["key"].lower()
+                or search_filter in (t["english"] or "").lower()
+                or search_filter in (t["french"] or "").lower()
+            ]
+
+        return jsonify(
+            {
+                "success": True,
+                "translations": translations,
+                "total": total,
+                "filtered": len(translations),
+            }
+        )
+    except Exception as e:
+        logger.error(f"Translation browser error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

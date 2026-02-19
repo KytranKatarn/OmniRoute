@@ -1185,9 +1185,13 @@ window.addEventListener('themechange', function() {
 // ─── Init Lucide + Language Button ───
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
-    var langBtn = document.getElementById('langToggle');
-    if (langBtn && typeof archieI18n !== 'undefined') {
-        langBtn.textContent = archieI18n.getCurrentLanguage() === 'en' ? 'FR' : 'EN';
+    if (typeof archieI18n !== 'undefined') {
+        archieI18n.init();
+        // Update button label after async init completes
+        setTimeout(function() {
+            var langBtn = document.getElementById('langToggle');
+            if (langBtn) langBtn.textContent = archieI18n.getCurrentLanguage() === 'en' ? 'FR' : 'EN';
+        }, 500);
     }
 });
 </script>

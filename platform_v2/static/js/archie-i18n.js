@@ -238,14 +238,17 @@
             localStorage.setItem('archie-language', lang);
         } catch (e) { /* ignore */ }
 
-        // Save preference to server
-        fetch('/api/user/language', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ language: lang })
-        }).catch(function(err) {
-            console.warn('[archieI18n] Failed to save language preference:', err);
-        });
+        // Save preference to server (skip on login/signup — no session yet)
+        var path = window.location.pathname;
+        if (path !== '/login' && path !== '/signup') {
+            fetch('/api/user/language', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ language: lang })
+            }).catch(function(err) {
+                console.warn('[archieI18n] Failed to save language preference:', err);
+            });
+        }
 
         if (lang === 'en') {
             revertToEnglish();
@@ -316,6 +319,15 @@
         try {
             savedLang = localStorage.getItem('archie-language');
         } catch (e) { /* ignore */ }
+
+        // On login/signup pages, skip server fetch (no session) — use localStorage only
+        var path = window.location.pathname;
+        if (path === '/login' || path === '/signup') {
+            if (savedLang && savedLang !== 'en' && isSupported(savedLang)) {
+                switchLanguage(savedLang);
+            }
+            return;
+        }
 
         // Fetch authoritative preference from server
         fetch('/api/user/language')

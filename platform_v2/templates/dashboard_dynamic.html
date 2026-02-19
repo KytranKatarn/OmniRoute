@@ -2575,7 +2575,7 @@ body.light-mode .module-card {
     // ── Phase 1 (300-1000ms): Type initialization message ──
     var typingEl = document.getElementById('bootTyping');
     var cursorEl = document.getElementById('bootCursor');
-    var initMessage = '> INITIALIZING A.R.C.H.I.E. CORE...';
+    var initMessage = archieI18n.t('js.boot.initializing', '> INITIALIZING A.R.C.H.I.E. CORE...');
 
     schedule(function() {
         if (aborted) return;
@@ -2614,12 +2614,12 @@ body.light-mode .module-card {
     var checksContainer = document.getElementById('bootChecks');
     var moduleCount = '{{ dashboard_data.accessible_count }}';
     var subsystems = [
-        { label: 'DATABASE',      dots: 10, status: 'CONNECTED', cls: 'connected', delay: 0 },
-        { label: 'AI BRIDGE',     dots: 9,  status: 'ONLINE',    cls: 'online',    delay: 220 },
-        { label: 'MODULES',       dots: 9,  status: moduleCount + ' LOADED', cls: 'loaded', delay: 440 },
-        { label: 'NETWORK',       dots: 9,  status: 'SECURE',    cls: 'secure',    delay: 660 },
-        { label: 'AGENTS',        dots: 10, status: 'ACTIVE',    cls: 'active',    delay: 880 },
-        { label: 'CONSCIOUSNESS', dots: 7,  status: 'AWARE',     cls: 'aware',     delay: 1100 }
+        { label: archieI18n.t('js.boot.database', 'DATABASE'),      dots: 10, status: archieI18n.t('js.boot.connected', 'CONNECTED'), cls: 'connected', delay: 0 },
+        { label: archieI18n.t('js.boot.ai_bridge', 'AI BRIDGE'),     dots: 9,  status: archieI18n.t('js.boot.online', 'ONLINE'),    cls: 'online',    delay: 220 },
+        { label: archieI18n.t('js.boot.modules', 'MODULES'),       dots: 9,  status: moduleCount + ' ' + archieI18n.t('js.boot.loaded', 'LOADED'), cls: 'loaded', delay: 440 },
+        { label: archieI18n.t('js.boot.network', 'NETWORK'),       dots: 9,  status: archieI18n.t('js.boot.secure', 'SECURE'),    cls: 'secure',    delay: 660 },
+        { label: archieI18n.t('js.boot.agents', 'AGENTS'),        dots: 10, status: archieI18n.t('js.boot.active', 'ACTIVE'),    cls: 'active',    delay: 880 },
+        { label: archieI18n.t('js.boot.consciousness', 'CONSCIOUSNESS'), dots: 7,  status: archieI18n.t('js.boot.aware', 'AWARE'),     cls: 'aware',     delay: 1100 }
     ];
 
     // Build the subsystem check lines at phase 2 start
@@ -3004,7 +3004,7 @@ body.light-mode .module-card {
                     }
                 }
                 if (label) {
-                    label.textContent = data.ai_online ? 'ONLINE' : 'OFFLINE';
+                    label.textContent = data.ai_online ? archieI18n.t('js.status.online', 'ONLINE') : archieI18n.t('js.status.offline', 'OFFLINE');
                 }
 
                 // ARCHIE status (consciousness service)
@@ -3022,7 +3022,7 @@ body.light-mode .module-card {
                 }
                 if (archieLabel) {
                     var consciousnessOk2 = data.services && data.services.consciousness === 'online';
-                    archieLabel.textContent = consciousnessOk2 ? 'ONLINE' : 'OFFLINE';
+                    archieLabel.textContent = consciousnessOk2 ? archieI18n.t('js.status.online', 'ONLINE') : archieI18n.t('js.status.offline', 'OFFLINE');
                 }
 
                 // Agents count
@@ -3104,10 +3104,10 @@ body.light-mode .module-card {
         var now = new Date();
         var then = new Date(isoString);
         var diff = Math.floor((now - then) / 1000);
-        if (diff < 60) return diff + 's ago';
-        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-        return Math.floor(diff / 86400) + 'd ago';
+        if (diff < 60) return diff + archieI18n.t('js.time.seconds_ago', 's ago');
+        if (diff < 3600) return Math.floor(diff / 60) + archieI18n.t('js.time.minutes_ago', 'm ago');
+        if (diff < 86400) return Math.floor(diff / 3600) + archieI18n.t('js.time.hours_ago', 'h ago');
+        return Math.floor(diff / 86400) + archieI18n.t('js.time.days_ago', 'd ago');
     }
 
     // ── Render Recent Activity ──
@@ -3116,7 +3116,11 @@ body.light-mode .module-card {
         if (!container) return;
 
         if (!activities || activities.length === 0) {
-            container.innerHTML = '<span class="briefing-muted">No recent activity</span>';
+            var noActivitySpan = document.createElement('span');
+            noActivitySpan.className = 'briefing-muted';
+            noActivitySpan.textContent = archieI18n.t('js.briefing.no_recent_activity', 'No recent activity');
+            container.innerHTML = '';
+            container.appendChild(noActivitySpan);
             return;
         }
 
@@ -3168,7 +3172,12 @@ body.light-mode .module-card {
             container.innerHTML = '';
             var nominal = document.createElement('div');
             nominal.className = 'briefing-alert-nominal';
-            nominal.innerHTML = '<i data-lucide="check-circle"></i><span>ALL SYSTEMS NOMINAL</span>';
+            var nomIcon = document.createElement('i');
+            nomIcon.setAttribute('data-lucide', 'check-circle');
+            nominal.appendChild(nomIcon);
+            var nomText = document.createElement('span');
+            nomText.textContent = archieI18n.t('js.briefing.all_nominal', 'ALL SYSTEMS NOMINAL');
+            nominal.appendChild(nomText);
             container.appendChild(nominal);
             if (typeof lucide !== 'undefined') lucide.createIcons();
             return;
@@ -3231,7 +3240,11 @@ body.light-mode .module-card {
         var container = document.getElementById('briefingAi');
         if (!container) return;
         if (!data) {
-            container.innerHTML = '<span class="briefing-muted">AI data unavailable</span>';
+            container.innerHTML = '';
+            var aiUnavailSpan = document.createElement('span');
+            aiUnavailSpan.className = 'briefing-muted';
+            aiUnavailSpan.textContent = archieI18n.t('js.briefing.ai_unavailable', 'AI data unavailable');
+            container.appendChild(aiUnavailSpan);
             return;
         }
 
@@ -3247,7 +3260,7 @@ body.light-mode .module-card {
         bigNum.textContent = data.today_interactions || 0;
         var interLabel = document.createElement('div');
         interLabel.className = 'briefing-ai-stat-label';
-        interLabel.textContent = 'Interactions Today';
+        interLabel.textContent = archieI18n.t('js.insights.interactions_today', 'Interactions Today');
         interactionRow.appendChild(bigNum);
         interactionRow.appendChild(interLabel);
         stats.appendChild(interactionRow);
@@ -3261,7 +3274,7 @@ body.light-mode .module-card {
         agentNum.textContent = data.active_agents || 0;
         var agentLabel = document.createElement('div');
         agentLabel.className = 'briefing-ai-stat-label';
-        agentLabel.textContent = 'Active Agents';
+        agentLabel.textContent = archieI18n.t('js.insights.active_agents', 'Active Agents');
         agentRow.appendChild(agentNum);
         agentRow.appendChild(agentLabel);
         stats.appendChild(agentRow);
@@ -3274,7 +3287,7 @@ body.light-mode .module-card {
         if (!data.ai_online) dot.classList.add('offline');
         var statusText = document.createElement('span');
         statusText.className = 'briefing-ai-status-text';
-        statusText.textContent = data.ai_online ? 'AI Systems Online' : 'AI Systems Offline';
+        statusText.textContent = data.ai_online ? archieI18n.t('js.insights.ai_online', 'AI Systems Online') : archieI18n.t('js.insights.ai_offline', 'AI Systems Offline');
         statusRow.appendChild(dot);
         statusRow.appendChild(statusText);
         stats.appendChild(statusRow);
@@ -3295,7 +3308,11 @@ body.light-mode .module-card {
                 console.warn('Mission briefing recent-activity fetch failed:', err);
                 var container = document.getElementById('briefingActivity');
                 if (container) {
-                    container.innerHTML = '<span class="briefing-muted">Unable to load activity</span>';
+                    container.innerHTML = '';
+                    var actErrSpan = document.createElement('span');
+                    actErrSpan.className = 'briefing-muted';
+                    actErrSpan.textContent = archieI18n.t('js.briefing.unable_load_activity', 'Unable to load activity');
+                    container.appendChild(actErrSpan);
                 }
             });
     }
@@ -3313,7 +3330,11 @@ body.light-mode .module-card {
                 console.warn('Mission briefing alerts fetch failed:', err);
                 var container = document.getElementById('briefingAlerts');
                 if (container) {
-                    container.innerHTML = '<span class="briefing-muted">Unable to load alerts</span>';
+                    container.innerHTML = '';
+                    var alertErrSpan = document.createElement('span');
+                    alertErrSpan.className = 'briefing-muted';
+                    alertErrSpan.textContent = archieI18n.t('js.briefing.unable_load_alerts', 'Unable to load alerts');
+                    container.appendChild(alertErrSpan);
                 }
             });
     }
@@ -3389,20 +3410,20 @@ body.light-mode .module-card {
         document.querySelectorAll('.module-pin-btn').forEach(function(btn) {
             var id = btn.getAttribute('data-pin-id');
             btn.classList.toggle('pinned', pins.indexOf(id) >= 0);
-            btn.title = pins.indexOf(id) >= 0 ? 'Unpin from Priority Stations' : 'Pin to Priority Stations';
+            btn.title = pins.indexOf(id) >= 0 ? archieI18n.t('js.pin.unpin_from', 'Unpin from Priority Stations') : archieI18n.t('js.pin.pin_to', 'Pin to Priority Stations');
         });
         // Featured card stars
         document.querySelectorAll('.featured-pin-btn').forEach(function(btn) {
             var id = btn.getAttribute('data-pin-id');
             btn.classList.toggle('pinned', pins.indexOf(id) >= 0);
-            btn.title = pins.indexOf(id) >= 0 ? 'Unpin module' : 'Pin module';
+            btn.title = pins.indexOf(id) >= 0 ? archieI18n.t('js.pin.unpin_module', 'Unpin module') : archieI18n.t('js.pin.pin_module', 'Pin module');
         });
     }
 
     // ── Build a featured card HTML from module data ──
     function buildFeaturedCard(mod) {
         return '<a href="' + mod.route + '" class="featured-card" data-module-id="' + mod.id + '" data-category="' + mod.category + '">' +
-            '<button class="featured-pin-btn pinned" data-pin-id="' + mod.id + '" title="Unpin module" ' +
+            '<button class="featured-pin-btn pinned" data-pin-id="' + mod.id + '" title="' + archieI18n.t('js.pin.unpin_module', 'Unpin module') + '" ' +
                 'onclick="event.preventDefault(); event.stopPropagation(); toggleGridPin(this, \'' + mod.id + '\');">' +
                 '<i data-lucide="star"></i></button>' +
             '<div class="featured-card-icon"><i data-lucide="' + mod.icon + '"></i></div>' +
@@ -3411,7 +3432,7 @@ body.light-mode .module-card {
             '<div class="featured-card-footer">' +
                 '<div class="featured-card-status">' +
                     '<span class="featured-status-dot online" id="featStatus-' + mod.id + '"></span>' +
-                    '<span class="featured-status-text" id="featStatusText-' + mod.id + '">ONLINE</span>' +
+                    '<span class="featured-status-text" id="featStatusText-' + mod.id + '">' + archieI18n.t('js.status.online', 'ONLINE') + '</span>' +
                 '</div>' +
             '</div></a>';
     }
@@ -3508,13 +3529,13 @@ body.light-mode .module-card {
 
                     dot.classList.remove('online', 'offline');
                     dot.classList.add(isHealthy ? 'online' : 'offline');
-                    text.textContent = isHealthy ? 'ONLINE' : 'OFFLINE';
+                    text.textContent = isHealthy ? archieI18n.t('js.status.online', 'ONLINE') : archieI18n.t('js.status.offline', 'OFFLINE');
                 });
             })
             .catch(function(err) {
                 console.warn('Featured module health fetch failed:', err);
                 document.querySelectorAll('.featured-status-dot').forEach(function(dot) { dot.classList.add('online'); });
-                document.querySelectorAll('.featured-status-text').forEach(function(text) { text.textContent = 'ONLINE'; });
+                document.querySelectorAll('.featured-status-text').forEach(function(text) { text.textContent = archieI18n.t('js.status.online', 'ONLINE'); });
             });
     }
 
@@ -3631,10 +3652,10 @@ function toggleCategory(catKey) {
             dot.classList.remove('checking', 'online', 'offline', 'degraded');
             if (isHealthy) {
                 dot.classList.add('online');
-                text.textContent = 'ONLINE';
+                text.textContent = archieI18n.t('js.status.online', 'ONLINE');
             } else {
                 dot.classList.add('offline');
-                text.textContent = 'OFFLINE';
+                text.textContent = archieI18n.t('js.status.offline', 'OFFLINE');
             }
         });
     }
@@ -3658,7 +3679,7 @@ function toggleCategory(catKey) {
                 });
                 var texts = document.querySelectorAll('.category-grid .status-text');
                 texts.forEach(function(text) {
-                    text.textContent = 'ONLINE';
+                    text.textContent = archieI18n.t('js.status.online', 'ONLINE');
                 });
             });
     }
@@ -3713,7 +3734,7 @@ function updateRefreshCounter() {
     var el = document.getElementById('footerRefresh');
     if (!el) return;
     var ago = Math.floor((Date.now() - lastRefreshTime) / 1000);
-    el.textContent = 'Last refreshed ' + ago + 's ago';
+    el.textContent = archieI18n.t('js.footer.last_refreshed', 'Last refreshed') + ' ' + ago + archieI18n.t('js.time.seconds_ago', 's ago');
 }
 setInterval(updateRefreshCounter, 1000);
 

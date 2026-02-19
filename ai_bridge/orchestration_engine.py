@@ -81,6 +81,8 @@ class StepType(Enum):
     SYNTHESIZE = "synthesize"
     MEMORY_COMMAND = "memory_command"
     BRIEFING_COMMAND = "briefing_command"
+    LANGUAGE_DETECT = "language_detect"
+    TRANSLATE_RESPONSE = "translate_response"
 
 
 @dataclass
@@ -253,6 +255,52 @@ class OrchestrationEngine:
             # --- Step 1: Parse intent ---
             intent = self._step_parse_intent(message, steps)
 
+            # --- Step 1b: Language detection ---
+            detected_lang = "en"
+            user_lang_pref = "en"
+            try:
+                conn = self._get_connection()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    "SELECT language, auto_detect FROM user_language_preferences WHERE user_id = %s",
+                    (user_id,),
+                )
+                pref = cur.fetchone()
+                if pref:
+                    user_lang_pref = pref["language"] or "en"
+                cur.close()
+                conn.close()
+
+                if pref and pref.get("auto_detect", True) and message:
+                    from translation_service import detect_language
+
+                    detected_lang = detect_language(message) or "en"
+                else:
+                    detected_lang = user_lang_pref
+
+                if detected_lang != "en" or user_lang_pref != "en":
+                    steps.append(
+                        ThinkingStep(
+                            step_type=StepType.LANGUAGE_DETECT.value,
+                            label=f"Language: {detected_lang}"
+                            + (
+                                f" (pref: {user_lang_pref})"
+                                if user_lang_pref != detected_lang
+                                else ""
+                            ),
+                            data={
+                                "detected": detected_lang,
+                                "preference": user_lang_pref,
+                                "auto_detect": bool(
+                                    pref and pref.get("auto_detect", True)
+                                ),
+                            },
+                            success=True,
+                        )
+                    )
+            except Exception as e:
+                logger.warning(f"Language detection failed: {e}")
+
             # --- Step 2: IAAE pre-check ---
             iaae_ok = self._step_iaae_check(intent, steps, governance_events)
 
@@ -424,6 +472,34 @@ class OrchestrationEngine:
                     user_context,
                     steps,
                 )
+
+            # --- Step 7b: Translate response if needed ---
+            try:
+                response_lang = (
+                    detected_lang if detected_lang != "en" else user_lang_pref
+                )
+                if response_lang != "en" and response_text:
+                    from translation_service import translate_text
+
+                    t_start = time.time()
+                    translated = translate_text(response_text, response_lang, "en")
+                    t_ms = int((time.time() - t_start) * 1000)
+                    if translated and translated != response_text:
+                        response_text = translated
+                        steps.append(
+                            ThinkingStep(
+                                step_type=StepType.TRANSLATE_RESPONSE.value,
+                                label=f"Response translated to {response_lang}",
+                                data={
+                                    "target_language": response_lang,
+                                    "original_length": len(response_text),
+                                },
+                                duration_ms=t_ms,
+                                success=True,
+                            )
+                        )
+            except Exception as e:
+                logger.warning(f"Response translation failed: {e}")
 
             # --- Step 8: Log steps to DB ---
             total_ms = int((time.time() - start_time) * 1000)

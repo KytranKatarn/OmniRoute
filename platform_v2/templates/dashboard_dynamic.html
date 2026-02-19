@@ -253,6 +253,38 @@ body.light-mode #matrix-rain {
     animation: threatFlash 0.5s ease-in-out;
 }
 
+/* "MIDNIGHT" scary styling */
+.midnight-text {
+    color: #ff1a1a;
+    font-size: 1.4em;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 6px;
+    text-shadow:
+        0 0 10px rgba(255, 0, 0, 0.9),
+        0 0 30px rgba(255, 0, 0, 0.6),
+        0 0 60px rgba(255, 0, 0, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.8);
+    position: relative;
+    display: inline-block;
+}
+
+.boot-threat.flash .midnight-text {
+    animation: midnightFlicker 2s ease-in-out 0.5s infinite;
+}
+
+@keyframes midnightFlicker {
+    0%   { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
+    5%   { opacity: 0.4; text-shadow: none; }
+    7%   { opacity: 1; text-shadow: 0 0 20px rgba(255,0,0,1), 0 0 40px rgba(255,0,0,0.7); }
+    10%  { opacity: 0.7; text-shadow: 0 0 5px rgba(255,0,0,0.5); }
+    13%  { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
+    50%  { opacity: 1; }
+    52%  { opacity: 0.3; text-shadow: none; }
+    54%  { opacity: 1; text-shadow: 0 0 15px rgba(255,0,0,0.8), 0 0 50px rgba(255,0,0,0.4); }
+    100% { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
+}
+
 @keyframes threatFlash {
     0%   { opacity: 0; transform: scale(0.95); }
     30%  { opacity: 1; transform: scale(1.02); }
@@ -2089,7 +2121,7 @@ body.light-mode .module-card {
         <div id="bootChecks"></div>
 
         <!-- Phase 3: Threat level -->
-        <div class="boot-threat" id="bootThreat" data-i18n="boot.threat_nominal">&#9888; THREAT LEVEL: NOMINAL</div>
+        <div class="boot-threat" id="bootThreat">&#9888; THREAT LEVEL: <span class="midnight-text">MIDNIGHT</span></div>
     </div>
 
     <!-- Phase 4: Logo -->

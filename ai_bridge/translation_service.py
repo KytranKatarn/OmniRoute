@@ -37,6 +37,7 @@ SUPPORTED_LANGUAGES = {
     "de": "German",
     "zh": "Simplified Chinese (Mandarin)",
     "ar": "Arabic",
+    "he": "Hebrew",
 }
 
 # How many strings to translate per LLM call

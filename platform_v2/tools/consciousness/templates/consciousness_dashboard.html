@@ -1687,18 +1687,32 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
 
         <!-- Sub-tab 1: Dashboard -->
         <div id="lang-sub-dashboard" class="voice-subtab-content active">
+            <!-- Language Selector -->
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--archie-text-secondary); font-weight: 600;">Target Language:</label>
+                <select id="ls-target-lang" onchange="onTargetLangChange()" style="padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 6px; color: var(--archie-text-primary, #e6edf3); font-size: 0.85rem;">
+                    <option value="fr">Fran&ccedil;ais (QC)</option>
+                    <option value="es">Espa&ntilde;ol</option>
+                    <option value="pt">Portugu&ecirc;s</option>
+                    <option value="de">Deutsch</option>
+                    <option value="zh">&#x4E2D;&#x6587;</option>
+                    <option value="ar">&#x0627;&#x0644;&#x0639;&#x0631;&#x0628;&#x064A;&#x0629;</option>
+                    <option value="he">&#x05E2;&#x05D1;&#x05E8;&#x05D9;&#x05EA;</option>
+                </select>
+            </div>
+
             <div class="stats-grid" id="lang-stats-grid">
                 <div class="stat-card"><div class="stat-value" id="ls-total">--</div><div class="stat-label">Total Keys</div></div>
                 <div class="stat-card"><div class="stat-value" id="ls-approved">--</div><div class="stat-label">Approved</div></div>
                 <div class="stat-card"><div class="stat-value" id="ls-pending">--</div><div class="stat-label">Pending Review</div></div>
                 <div class="stat-card"><div class="stat-value" id="ls-edited">--</div><div class="stat-label">Human Edited</div></div>
                 <div class="stat-card"><div class="stat-value" id="ls-discovered">--</div><div class="stat-label">Discovered</div></div>
-                <div class="stat-card"><div class="stat-value" id="ls-missing" style="color: var(--archie-orange, #ffaa00);">--</div><div class="stat-label">Missing French</div></div>
+                <div class="stat-card"><div class="stat-value" id="ls-missing" style="color: var(--archie-orange, #ffaa00);">--</div><div class="stat-label" id="ls-missing-label">Missing</div></div>
             </div>
 
             <!-- Overall coverage progress bar -->
             <div class="voice-panel" style="margin-top: 1rem;">
-                <h3>French Translation Coverage</h3>
+                <h3 id="ls-coverage-title">Translation Coverage</h3>
                 <div style="background: var(--archie-bg-tertiary, #21262d); border-radius: 8px; overflow: hidden; height: 24px; margin: 0.75rem 0;">
                     <div id="ls-progress-bar" style="height: 100%; background: linear-gradient(90deg, var(--module-accent, #00ff41), #00ccff); border-radius: 8px; transition: width 0.5s ease; width: 0%;"></div>
                 </div>
@@ -1719,7 +1733,7 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                 <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem;">
                     <button class="btn btn-primary" onclick="scanAllSources()" id="ls-btn-scan">1. Scan All Sources</button>
                     <button class="btn btn-primary" onclick="seedMissingEnglish()" id="ls-btn-seed" disabled>2. Seed Missing English</button>
-                    <button class="btn btn-primary" onclick="generateTranslations()" id="ls-btn-generate">3. Generate French</button>
+                    <button class="btn btn-primary" onclick="generateTranslations()" id="ls-btn-generate">3. Generate Translations</button>
                     <button class="btn btn-primary" onclick="bulkApproveAll()" id="ls-btn-bulk">4. Approve All Pending</button>
                 </div>
                 <div id="ls-action-status" style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.85rem; color: var(--archie-text-tertiary, #8b949e);"></div>
@@ -5914,6 +5928,20 @@ function switchLangTab(tabId) {
     if (tabId === 'glossary') loadGlossary();
 }
 
+var LANG_NAMES = { fr: 'French', es: 'Spanish', pt: 'Portuguese', de: 'German', zh: 'Chinese', ar: 'Arabic', he: 'Hebrew' };
+
+function getTargetLang() {
+    var sel = document.getElementById('ls-target-lang');
+    return sel ? sel.value : 'fr';
+}
+
+function onTargetLangChange() {
+    loadLangStats();
+    loadBrowser();
+    loadReviewTable();
+    loadGlossary();
+}
+
 function loadLangStats() {
     var SOURCE_LABELS = {
         template: 'HTML Templates',
@@ -5923,7 +5951,10 @@ function loadLangStats() {
         js: 'JS Strings'
     };
 
-    fetch('/tools/consciousness/api/translations/coverage')
+    var targetLang = getTargetLang();
+    var langName = LANG_NAMES[targetLang] || targetLang;
+
+    fetch('/tools/consciousness/api/translations/coverage?language=' + targetLang)
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
@@ -5940,11 +5971,13 @@ function loadLangStats() {
             document.getElementById('ls-edited').textContent = edited;
             document.getElementById('ls-discovered').textContent = total;
             document.getElementById('ls-missing').textContent = missing;
+            document.getElementById('ls-missing-label').textContent = 'Missing ' + langName;
+            document.getElementById('ls-coverage-title').textContent = langName + ' Translation Coverage';
 
             var pct = total > 0 ? Math.round((approved / total) * 100) : 0;
             document.getElementById('ls-progress-bar').style.width = pct + '%';
             document.getElementById('ls-progress-text').textContent =
-                'French: ' + approved + '/' + total + ' keys (' + pct + '% approved)';
+                langName + ': ' + approved + '/' + total + ' keys (' + pct + '% approved)';
 
             // Build per-source coverage bars using safe DOM methods
             var sources = data.sources || {};
@@ -6082,7 +6115,7 @@ function loadBrowser() {
     var container = document.getElementById('ls-browser-table');
     container.textContent = 'Loading...';
 
-    var url = '/tools/consciousness/api/translations/browser?source=' + encodeURIComponent(source) + '&status=' + encodeURIComponent(status) + '&search=' + encodeURIComponent(search) + '&language=fr';
+    var url = '/tools/consciousness/api/translations/browser?source=' + encodeURIComponent(source) + '&status=' + encodeURIComponent(status) + '&search=' + encodeURIComponent(search) + '&language=' + getTargetLang();
 
     fetch(url)
         .then(function(r) { return r.json(); })
@@ -6109,7 +6142,7 @@ function loadBrowser() {
             // Header
             var thead = document.createElement('thead');
             var headerRow = document.createElement('tr');
-            ['Key', 'English', 'French', 'Status', 'Source', 'Actions'].forEach(function(h) {
+            ['Key', 'English', (LANG_NAMES[getTargetLang()] || getTargetLang()), 'Status', 'Source', 'Actions'].forEach(function(h) {
                 var th = document.createElement('th');
                 th.textContent = h;
                 th.style.cssText = 'text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--archie-border-default, #30363d); color: var(--archie-text-secondary, #c9d1d9); font-weight: 600;';
@@ -6137,7 +6170,7 @@ function loadBrowser() {
                 enCell.textContent = t.english || '';
                 row.appendChild(enCell);
 
-                // French cell (editable)
+                // Target language cell (editable)
                 var frCell = document.createElement('td');
                 frCell.style.cssText = 'padding: 0.5rem 0.75rem;';
                 if (t.status === 'missing') {
@@ -6145,7 +6178,7 @@ function loadBrowser() {
                 }
                 var frInput = document.createElement('input');
                 frInput.type = 'text';
-                frInput.value = t.french || '';
+                frInput.value = t.target || t.french || '';
                 frInput.placeholder = t.status === 'missing' ? '(missing)' : '';
                 frInput.dataset.key = t.key;
                 frInput.dataset.frId = t.fr_id || '';
@@ -6211,7 +6244,7 @@ function saveBrowserTranslation(key, text) {
     fetch('/tools/consciousness/api/translations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: key, language: 'fr', text: text, source: 'human' })
+        body: JSON.stringify({ key: key, language: getTargetLang(), text: text, source: 'human' })
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -6243,18 +6276,21 @@ function approveBrowserTranslation(id) {
 function generateTranslations() {
     var btn = document.getElementById('ls-btn-generate');
     var status = document.getElementById('ls-action-status');
+    var targetLang = getTargetLang();
+    var langName = LANG_NAMES[targetLang] || targetLang;
     btn.disabled = true;
-    status.textContent = 'Generating French translations... (this may take a minute)';
+    status.textContent = 'Generating ' + langName + ' translations... (this may take a minute)';
     fetch('/tools/consciousness/api/translations/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language: 'fr' })
+        body: JSON.stringify({ language: targetLang })
     })
         .then(r => r.json())
         .then(data => {
             btn.disabled = false;
             if (data.success) {
-                status.textContent = 'Generated ' + (data.translated || 0) + ' translations. ' + (data.failed || 0) + ' failed.';
+                var stats = data.stats || {};
+                status.textContent = langName + ': ' + (stats.inserted || 0) + ' generated, ' + (stats.failed || 0) + ' failed.';
                 loadLangStats();
             } else {
                 status.textContent = 'Generate error: ' + (data.error || 'Unknown');
@@ -6269,9 +6305,11 @@ function generateTranslations() {
 function bulkApproveAll() {
     var btn = document.getElementById('ls-btn-bulk');
     var status = document.getElementById('ls-action-status');
+    var targetLang = getTargetLang();
+    var langName = LANG_NAMES[targetLang] || targetLang;
     btn.disabled = true;
-    status.textContent = 'Fetching pending translations...';
-    fetch('/tools/consciousness/api/translations/review?status=pending_review&language=fr')
+    status.textContent = 'Fetching pending ' + langName + ' translations...';
+    fetch('/tools/consciousness/api/translations/review?status=pending_review&language=' + targetLang)
         .then(r => r.json())
         .then(data => {
             if (!data.success || !data.translations || data.translations.length === 0) {
@@ -6307,7 +6345,7 @@ function loadReviewTable() {
     var filter = document.getElementById('ls-review-filter').value;
     var container = document.getElementById('ls-review-table');
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';  // safe static HTML
-    fetch('/tools/consciousness/api/translations/review?status=' + filter + '&language=fr')
+    fetch('/tools/consciousness/api/translations/review?status=' + filter + '&language=' + getTargetLang())
         .then(r => r.json())
         .then(data => {
             if (!data.success || !data.translations || data.translations.length === 0) {
@@ -6376,7 +6414,7 @@ function reviewAction(id, action) {
 function loadGlossary() {
     var container = document.getElementById('ls-glossary-table');
     container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';  // safe static HTML
-    fetch('/tools/consciousness/api/translation-memory?language=fr')
+    fetch('/tools/consciousness/api/translation-memory?language=' + getTargetLang())
         .then(r => r.json())
         .then(data => {
             if (!data.success || !data.entries || data.entries.length === 0) {
@@ -6385,8 +6423,9 @@ function loadGlossary() {
             }
             var html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">';
             html += '<thead><tr style="border-bottom: 1px solid var(--archie-border-default, #30363d);">';
+            var glLang = getTargetLang().toUpperCase();
             html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Source (EN)</th>';
-            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Translation (FR)</th>';
+            html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Translation (' + glLang + ')</th>';
             html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Category</th>';
             html += '<th style="padding: 0.5rem; text-align: left; color: var(--archie-text-tertiary);">Actions</th>';
             html += '</tr></thead><tbody>';
@@ -6414,11 +6453,11 @@ function addGlossaryEntry() {
     var source = document.getElementById('ls-gloss-source').value.trim();
     var target = document.getElementById('ls-gloss-target').value.trim();
     var category = document.getElementById('ls-gloss-category').value;
-    if (!source || !target) { alert('Both English and French fields are required.'); return; }
+    if (!source || !target) { alert('Both source and translation fields are required.'); return; }
     fetch('/tools/consciousness/api/translation-memory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_text: source, translated_text: target, language: 'fr', category: category })
+        body: JSON.stringify({ source_text: source, translated_text: target, language: getTargetLang(), category: category })
     })
         .then(r => r.json())
         .then(data => {

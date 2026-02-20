@@ -15,8 +15,10 @@
         pt: 'Português',
         de: 'Deutsch',
         zh: '中文',
-        ar: 'العربية'
+        ar: 'العربية',
+        he: 'עברית'
     };
+    var RTL_LANGUAGES = ['ar', 'he'];
     var CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
     /**
@@ -193,6 +195,11 @@
         }
     } catch (e) { /* ignore parse errors */ }
 
+    // ── Set RTL on page load if cached language is RTL ──
+    if (currentLanguage !== 'en' && RTL_LANGUAGES.indexOf(currentLanguage) >= 0) {
+        document.documentElement.setAttribute('dir', 'rtl');
+    }
+
     // ── Helpers ──
 
     function isSupported(lang) {
@@ -346,6 +353,7 @@
         if (lang === 'en') {
             revertToEnglish();
             try { localStorage.removeItem('archie-translations'); } catch (e) { /* ignore */ }
+            setDocDirection('ltr');
             return Promise.resolve();
         }
 
@@ -355,10 +363,19 @@
             .then(function(translations) {
                 applyTranslations(translations);
                 currentLanguage = lang;
+                setDocDirection(RTL_LANGUAGES.indexOf(lang) >= 0 ? 'rtl' : 'ltr');
             })
             .catch(function(err) {
                 console.warn('[archieI18n] Failed to switch language:', err);
             });
+    }
+
+    /**
+     * Set document direction for RTL/LTR languages.
+     */
+    function setDocDirection(dir) {
+        document.documentElement.setAttribute('dir', dir);
+        document.body.setAttribute('dir', dir);
     }
 
     /**

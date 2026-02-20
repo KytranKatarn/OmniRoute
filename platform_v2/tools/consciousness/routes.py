@@ -9173,8 +9173,9 @@ def translation_seed():
 @login_required
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_coverage():
-    """Per-source coverage stats for French translations."""
+    """Per-source coverage stats for translations in a target language."""
     try:
+        language = request.args.get("language", "fr")
         keys, _by_source = _scan_all_sources()
 
         if not keys:
@@ -9192,7 +9193,7 @@ def translation_coverage():
                 }
             )
 
-        # Fetch all French translations for discovered keys
+        # Fetch translations for discovered keys in target language
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -9201,9 +9202,9 @@ def translation_coverage():
             """
             SELECT key, status
             FROM translations
-            WHERE language = 'fr' AND key = ANY(%s)
+            WHERE language = %s AND key = ANY(%s)
             """,
-            (key_list,),
+            (language, key_list),
         )
         fr_rows = {row["key"]: row["status"] for row in cur.fetchall()}
         cur.close()
@@ -9310,10 +9311,12 @@ def translation_browser():
                     "key": key,
                     "english": english_text,
                     "french": target_text,
+                    "target": target_text,
                     "status": status,
                     "source": info["source"],
                     "file": info["file"],
                     "fr_id": target_id,
+                    "target_id": target_id,
                 }
             )
 

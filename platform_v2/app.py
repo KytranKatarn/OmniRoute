@@ -1106,18 +1106,20 @@ def api_dashboard_recent_activity():
         }
         return labels.get(module_source, (module_source or "bridge").replace("_", " ").title())
 
-    def _friendly_capability(capability, count, agent, module):
+    def _friendly_capability(capability, agent, module, model=""):
         """Build a human-readable bridge activity description."""
         verbs = {
-            "classify": f"Classified {count} emails",
-            "translate": f"Translated {count} strings",
-            "chat": f"Handled {count} conversations",
-            "summarize": f"Summarized {count} texts",
-            "code": f"Generated {count} code blocks",
-            "detect_language": f"Detected {count} languages",
-            "embed": f"Embedded {count} entries",
+            "classify": "Classified email",
+            "translate": "Translated text",
+            "chat": "Handled conversation",
+            "summarize": "Summarized content",
+            "code": "Generated code",
+            "detect_language": "Detected language",
+            "embed": "Created embedding",
         }
-        task_desc = verbs.get(capability, f"{count}x {capability}")
+        task_desc = verbs.get(capability, capability)
+        if model:
+            task_desc += f" via {model}"
         return f"{module}: {agent} — {task_desc}"
 
     def _ts(dt):
@@ -1154,25 +1156,23 @@ def api_dashboard_recent_activity():
                 }
             )
 
-        # 2. AI bridge work (aggregated by module+capability per 7 days)
+        # 2. AI bridge work (individual transactions per 7 days)
         #    JOIN agents+agent_types for full name + role
         cur.execute(
             """
             SELECT t.module_source, t.capability, t.agent_name,
-                   COUNT(*) as calls, MAX(t.created_at) as latest,
+                   t.model_used, t.created_at,
                    a.first_name, a.last_name, at.name as role_name
             FROM task_execution_log t
             LEFT JOIN agents a ON a.name = SPLIT_PART(t.agent_name, '→', 1)
             LEFT JOIN agent_types at ON a.type_id = at.id
             WHERE t.created_at >= NOW() - INTERVAL '7 days'
-            GROUP BY t.module_source, t.capability, t.agent_name,
-                     a.first_name, a.last_name, at.name
-            ORDER BY latest DESC
-            LIMIT 8
+            ORDER BY t.created_at DESC
+            LIMIT 15
         """
         )
         for row in cur.fetchall():
-            # Build "First Last (Role)" label from agents + agent_types
+            # Build 'First Last "Role"' label from agents + agent_types
             first = (row["first_name"] or "").strip()
             last = (row["last_name"] or "").strip()
             full_name = f"{first} {last}".strip()
@@ -1185,16 +1185,16 @@ def api_dashboard_recent_activity():
                 agent_label = role
             else:
                 agent_label = (row["agent_name"] or "Bridge").split("\u2192")[0].strip()
-            calls = row["calls"]
             module = _friendly_module(row["module_source"])
+            model = (row["model_used"] or "").split(":")[0]
             combined.append(
                 {
-                    "action": _friendly_capability(row["capability"], calls, agent_label, module),
+                    "action": _friendly_capability(row["capability"], agent_label, module, model),
                     "module": module,
-                    "details": f"{module} requested {calls} {row['capability']} calls — assigned to {agent_label}",
+                    "details": f"{module} → {agent_label} — {row['capability']} via {row['model_used'] or 'bridge'}",
                     "username": agent_label,
                     "source": "bridge",
-                    "timestamp": _ts(row["latest"]),
+                    "timestamp": _ts(row["created_at"]),
                 }
             )
 

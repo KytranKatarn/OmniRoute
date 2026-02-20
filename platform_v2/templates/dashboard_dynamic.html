@@ -2088,6 +2088,118 @@ body.light-mode .module-card {
     border-color: rgba(0, 0, 0, 0.08);
     color: #333;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   i18n LAYOUT — RTL support, text overflow, non-Latin script adjustments
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Text overflow safety for translated strings ─── */
+.featured-card-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cat-header-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.module-card-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.module-card-info {
+    overflow: hidden;
+    min-width: 0;
+    flex: 1;
+}
+.briefing-card-header span {
+    white-space: normal;
+    word-break: break-word;
+}
+.section-header span {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ─── RTL: direction flips ─── */
+[dir="rtl"] .featured-card {
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 3px solid var(--feat-accent, rgba(0, 255, 65, 0.3));
+}
+[dir="rtl"] .section-header::after {
+    background: linear-gradient(270deg, rgba(0, 255, 65, 0.3), transparent);
+}
+[dir="rtl"] .cat-header::before {
+    background: linear-gradient(270deg, transparent, var(--cat-accent), transparent);
+}
+[dir="rtl"] .category-panel.collapsed .cat-chevron {
+    transform: rotate(90deg);
+}
+[dir="rtl"] .module-badge {
+    right: auto;
+    left: 8px;
+}
+[dir="rtl"] .module-pin-btn {
+    right: auto;
+    left: 8px;
+}
+[dir="rtl"] .featured-pin-btn {
+    right: auto;
+    left: 12px;
+}
+[dir="rtl"] .briefing-card-header::before {
+    background: linear-gradient(270deg, transparent, var(--card-accent), transparent);
+}
+[dir="rtl"] .footer-conn-dot {
+    margin-right: 0;
+    margin-left: 4px;
+}
+[dir="rtl"] .status-footer {
+    direction: rtl;
+}
+
+/* ─── RTL: light mode overrides ─── */
+[dir="rtl"][data-theme="light"] .featured-card,
+[dir="rtl"] body.light-mode .featured-card {
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+    border-right: 3px solid var(--feat-accent, rgba(0, 255, 65, 0.3));
+}
+
+/* ─── Non-Latin scripts: reduce letter-spacing ─── */
+[dir="rtl"] .featured-card-name,
+[dir="rtl"] .cat-header-title,
+[dir="rtl"] .module-card-name,
+[dir="rtl"] .section-header,
+[dir="rtl"] .briefing-card-header,
+[dir="rtl"] .hud-pod-label,
+[dir="rtl"] .featured-card-status,
+[dir="rtl"] .cat-admin-badge,
+[dir="rtl"] .status-text {
+    letter-spacing: 0.5px;
+}
+[lang="zh"] .featured-card-name,
+[lang="zh"] .cat-header-title,
+[lang="zh"] .module-card-name,
+[lang="zh"] .section-header,
+[lang="zh"] .briefing-card-header,
+[lang="zh"] .hud-pod-label {
+    letter-spacing: 1px;
+}
+
+/* ─── Long-text languages (DE, FR, PT, ES): tighter letter-spacing on headers ─── */
+[lang="de"] .section-header,
+[lang="de"] .cat-header-title,
+[lang="de"] .featured-card-name,
+[lang="de"] .briefing-card-header {
+    letter-spacing: 2px;
+}
+[lang="de"] .module-card-name {
+    letter-spacing: 0.5px;
+}
 {% endblock %}
 
 {% block extra_head %}

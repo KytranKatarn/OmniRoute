@@ -2421,14 +2421,26 @@ def get_notifications():
 @app.route("/api/notifications/mark-read/<int:notification_id>", methods=["POST"])
 @login_required
 def mark_notification_read(notification_id):
-    """Mark notification as read"""
+    """Mark notification and its group as read"""
     try:
         conn = get_db()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Find the notification's title+source to mark entire group
         cur.execute(
-            "UPDATE system_notifications SET is_read = TRUE WHERE id = %s",
+            "SELECT title, source FROM system_notifications WHERE id = %s",
             (notification_id,),
         )
+        row = cur.fetchone()
+        if row:
+            cur.execute(
+                "UPDATE system_notifications SET is_read = TRUE WHERE title = %s AND source = %s AND is_read = FALSE",
+                (row["title"], row["source"]),
+            )
+        else:
+            cur.execute(
+                "UPDATE system_notifications SET is_read = TRUE WHERE id = %s",
+                (notification_id,),
+            )
         conn.commit()
         cur.close()
         conn.close()
@@ -2547,12 +2559,12 @@ def create_notification_endpoint():
 @app.route("/api/notifications/count", methods=["GET"])
 @login_required
 def get_notification_count():
-    """Get unread notification count — system_notifications + blended alerts."""
+    """Get unread notification count — only markable system_notifications."""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Unread system notifications (grouped count)
+        # Only count real system_notifications that the user can mark as read
         cur.execute(
             """
             SELECT
@@ -2564,33 +2576,15 @@ def get_notification_count():
         """
         )
         counts = cur.fetchone()
-
-        # Add failed jobs count (last 24h)
-        cur.execute(
-            "SELECT COUNT(*) as cnt FROM task_execution_log WHERE success = false AND created_at >= NOW() - INTERVAL '24 hours'"
-        )
-        failed = cur.fetchone()["cnt"]
-
-        # Add unresolved system alerts
-        cur.execute("SELECT COUNT(*) as cnt FROM system_alerts WHERE resolved = false")
-        sys_alerts = cur.fetchone()["cnt"]
-
         cur.close()
         conn.close()
-
-        total_unread = counts["unread"]
-        total_errors = counts["errors"] + sys_alerts
-        if failed > 0:
-            total_unread += 1  # +1 for bridge failures group
-        if sys_alerts > 0:
-            total_unread += sys_alerts
 
         return jsonify(
             {
                 "success": True,
-                "unread": total_unread,
+                "unread": counts["unread"],
                 "critical": counts["critical"],
-                "errors": total_errors,
+                "errors": counts["errors"],
             }
         )
     except Exception as e:

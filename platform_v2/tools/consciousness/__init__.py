@@ -11,7 +11,12 @@ All routes require admin authentication via @admin_required decorator.
 
 from flask import Blueprint
 
-consciousness_bp = Blueprint("consciousness", __name__, url_prefix="/tools/consciousness")
+consciousness_bp = Blueprint(
+    "consciousness",
+    __name__,
+    url_prefix="/tools/consciousness",
+    template_folder="templates",
+)
 
 from . import routes  # noqa: F401, E402
 from .processing_routes import processing_bp  # noqa: E402

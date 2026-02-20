@@ -86,7 +86,7 @@ def get_db():
 @admin_required
 def index():
     """Consciousness dashboard - memory, analytics, team"""
-    return render_template("tools/consciousness_dashboard.html")
+    return render_template("consciousness_dashboard.html")
 
 
 # ============================================================================
@@ -124,7 +124,7 @@ def memory():
         cur.close()
         conn.close()
 
-        return render_template("tools/consciousness_memory.html", table_stats=table_stats)
+        return render_template("consciousness_memory.html", table_stats=table_stats)
     except Exception as e:
         flash(f"Error loading memory: {str(e)}", "error")
         return redirect(url_for("consciousness.index"))
@@ -1222,7 +1222,7 @@ def get_categories():
 @admin_required
 def team_awareness():
     """Team directory - all agents, performance, capabilities"""
-    return render_template("tools/team_awareness.html")
+    return render_template("team_awareness.html")
 
 
 @consciousness_bp.route("/team/agents", methods=["GET"])
@@ -1520,7 +1520,7 @@ def get_team_awareness_data():
 @admin_required
 def analytics():
     """Knowledge growth analytics dashboard"""
-    return render_template("tools/consciousness_analytics.html")
+    return render_template("consciousness_analytics.html")
 
 
 @consciousness_bp.route("/analytics/knowledge-growth", methods=["GET"])

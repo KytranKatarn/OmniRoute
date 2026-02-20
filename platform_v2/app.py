@@ -1135,8 +1135,9 @@ def api_dashboard_recent_activity():
             """
             SELECT action, module, details, created_at, username
             FROM user_activity_log
+            WHERE created_at >= NOW() - INTERVAL '7 days'
             ORDER BY created_at DESC
-            LIMIT 5
+            LIMIT 8
         """
         )
         for a in cur.fetchall():
@@ -1152,16 +1153,16 @@ def api_dashboard_recent_activity():
                 }
             )
 
-        # 2. AI bridge work (aggregated by module+capability per 24h)
+        # 2. AI bridge work (aggregated by module+capability per 7 days)
         cur.execute(
             """
             SELECT module_source, capability, agent_name,
                    COUNT(*) as calls, MAX(created_at) as latest
             FROM task_execution_log
-            WHERE created_at >= NOW() - INTERVAL '24 hours'
+            WHERE created_at >= NOW() - INTERVAL '7 days'
             GROUP BY module_source, capability, agent_name
             ORDER BY latest DESC
-            LIMIT 5
+            LIMIT 8
         """
         )
         for row in cur.fetchall():
@@ -1185,8 +1186,9 @@ def api_dashboard_recent_activity():
                    g.timestamp, u.username
             FROM governance_audit_log g
             LEFT JOIN users u ON g.user_id = u.id
+            WHERE g.timestamp >= NOW() - INTERVAL '7 days'
             ORDER BY g.timestamp DESC
-            LIMIT 5
+            LIMIT 8
         """
         )
         for g in cur.fetchall():
@@ -1214,8 +1216,9 @@ def api_dashboard_recent_activity():
             """
             SELECT title, knowledge_type, category, updated_at
             FROM knowledge_base
+            WHERE updated_at >= NOW() - INTERVAL '7 days'
             ORDER BY updated_at DESC
-            LIMIT 3
+            LIMIT 5
         """
         )
         for k in cur.fetchall():
@@ -1239,7 +1242,7 @@ def api_dashboard_recent_activity():
             key=lambda x: x.get("timestamp") or "",
             reverse=True,
         )
-        return jsonify({"success": True, "activities": combined[:10]})
+        return jsonify({"success": True, "activities": combined[:15]})
     except Exception as e:
         logger.error(f"Recent activity API error: {e}")
         return jsonify({"success": True, "activities": []})

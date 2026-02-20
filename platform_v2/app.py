@@ -1106,18 +1106,19 @@ def api_dashboard_recent_activity():
         }
         return labels.get(module_source, (module_source or "bridge").replace("_", " ").title())
 
-    def _friendly_capability(capability, count, agent):
+    def _friendly_capability(capability, count, agent, module):
         """Build a human-readable bridge activity description."""
         verbs = {
-            "classify": f"{agent} classified {count} emails",
-            "translate": f"{agent} translated {count} strings",
-            "chat": f"{agent} handled {count} conversations",
-            "summarize": f"{agent} summarized {count} texts",
-            "code": f"{agent} generated {count} code blocks",
-            "detect_language": f"{agent} detected {count} languages",
-            "embed": f"{agent} embedded {count} entries",
+            "classify": f"Classified {count} emails",
+            "translate": f"Translated {count} strings",
+            "chat": f"Handled {count} conversations",
+            "summarize": f"Summarized {count} texts",
+            "code": f"Generated {count} code blocks",
+            "detect_language": f"Detected {count} languages",
+            "embed": f"Embedded {count} entries",
         }
-        return verbs.get(capability, f"{agent}: {count}x {capability}")
+        task_desc = verbs.get(capability, f"{count}x {capability}")
+        return f"{module}: {agent} — {task_desc}"
 
     def _ts(dt):
         """Convert datetime to ISO 8601 string with Z suffix."""
@@ -1168,11 +1169,12 @@ def api_dashboard_recent_activity():
         for row in cur.fetchall():
             agent = row["agent_name"] or "Bridge"
             calls = row["calls"]
+            module = _friendly_module(row["module_source"])
             combined.append(
                 {
-                    "action": _friendly_capability(row["capability"], calls, agent),
-                    "module": _friendly_module(row["module_source"]),
-                    "details": f"Agent {agent} — {calls} {row['capability']} calls via bridge",
+                    "action": _friendly_capability(row["capability"], calls, agent, module),
+                    "module": module,
+                    "details": f"{module} requested {calls} {row['capability']} calls — assigned to {agent}",
                     "username": agent,
                     "source": "bridge",
                     "timestamp": _ts(row["latest"]),

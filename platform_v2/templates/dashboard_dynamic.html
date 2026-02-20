@@ -3843,8 +3843,11 @@ body.light-mode .module-card {
     function timeAgo(isoString) {
         if (!isoString) return '';
         var now = new Date();
-        var then = new Date(isoString);
+        // API returns naive UTC timestamps (no 'Z' suffix) — append 'Z' so
+        // the browser parses them as UTC instead of local time.
+        var then = new Date(isoString.endsWith('Z') ? isoString : isoString + 'Z');
         var diff = Math.floor((now - then) / 1000);
+        if (diff < 0) diff = 0;
         if (diff < 60) return diff + archieI18n.t('js.time.seconds_ago', 's ago');
         if (diff < 3600) return Math.floor(diff / 60) + archieI18n.t('js.time.minutes_ago', 'm ago');
         if (diff < 86400) return Math.floor(diff / 3600) + archieI18n.t('js.time.hours_ago', 'h ago');

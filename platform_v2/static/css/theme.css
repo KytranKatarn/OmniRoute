@@ -447,7 +447,8 @@
     --archie-text-glow-accent: var(--archie-text-glow-orange);
 }
 
-/* Blueprint - Cyan Command */
+/* Bridge & Blueprint - Cyan Command */
+[data-module="bridge"],
 [data-module="blueprint"],
 [data-module="admin"] {
     --archie-accent: var(--archie-cyan);

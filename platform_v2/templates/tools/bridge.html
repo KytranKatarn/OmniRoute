@@ -6,7 +6,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 {% endblock %}
 
-{% block module_name %}A.R.C.H.I.E. Bridge{% endblock %}
+{% block module_name %}bridge{% endblock %}
 
 {% block content %}
 <style>
@@ -81,30 +81,120 @@
 }
 
 /* ============================================================================
-   TOP STATUS BAR - LCARS Style
+   LCARS FRAMED HEADER — Gold Standard Pattern
    ============================================================================ */
 
-.bridge-status-bar {
-    display: flex;
-    align-items: stretch;
-    background: var(--archie-bg-secondary);
-    border-bottom: 3px solid var(--archie-cyan);
-    position: sticky;
-    top: 0;
-    z-index: 100;
+.bridge-header {
+    text-align: center;
+    padding: 20px 24px;
+    border: 2px solid var(--archie-accent);
+    border-radius: 12px;
+    margin: 0 16px 20px;
+    background: linear-gradient(180deg, var(--archie-accent-alpha-10, rgba(0,255,255,0.1)) 0%, transparent 100%);
+    box-shadow: 0 0 30px var(--archie-accent-alpha-20, rgba(0,255,255,0.2));
+    animation: fadeIn 0.5s ease-out;
+    position: relative;
 }
 
-.bridge-status-bar::before {
+.bridge-header::after {
     content: '';
     position: absolute;
-    bottom: -3px;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: var(--archie-cyan);
-    box-shadow: 0 0 20px var(--archie-cyan), 0 0 40px var(--archie-cyan);
+    bottom: -1px;
+    left: 20%;
+    right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--archie-accent), transparent);
 }
 
+.bridge-header-top {
+    margin-bottom: 16px;
+}
+
+.bridge-header-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'Orbitron', var(--archie-font-heading, sans-serif);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--archie-accent);
+    text-shadow: 0 0 20px var(--archie-accent-alpha-30, rgba(0,255,255,0.3));
+    letter-spacing: 3px;
+    margin: 0;
+}
+
+.bridge-header-subtitle {
+    font-family: var(--archie-font-mono);
+    font-size: 0.8rem;
+    color: var(--archie-text-muted);
+    letter-spacing: 0.15em;
+    margin-top: 4px;
+}
+
+/* Status indicators row inside header */
+.bridge-header-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 12px 0;
+    border-top: 1px solid var(--archie-border-default);
+    border-bottom: 1px solid var(--archie-border-default);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+/* Controls row inside header */
+.bridge-header-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.bridge-control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bridge-control-label {
+    color: var(--archie-accent);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.bridge-control-btns {
+    display: flex;
+}
+
+.bridge-control-status {
+    color: var(--archie-text-muted);
+    font-size: 10px;
+}
+
+.bridge-live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--archie-font-mono);
+    font-size: 0.7rem;
+    color: var(--archie-green, #00FF41);
+    letter-spacing: 0.15em;
+}
+
+.bridge-live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--archie-green, #00FF41);
+    border-radius: 50%;
+    animation: status-pulse 1.5s infinite;
+}
+
+/* Legacy class kept for JS compatibility */
 .bridge-logo {
     display: flex;
     align-items: center;
@@ -162,7 +252,7 @@
 }
 
 .bridge-status-item .status-value {
-    color: var(--archie-cyan);
+    color: var(--archie-accent);
     font-weight: 500;
 }
 
@@ -176,7 +266,7 @@
 .bridge-time {
     font-family: var(--archie-font-display);
     font-size: 1.1rem;
-    color: var(--archie-cyan);
+    color: var(--archie-accent);
     letter-spacing: 2px;
 }
 
@@ -3027,40 +3117,9 @@
     }
 }
 
-@media (max-width: 768px) {
-    .bridge-status-bar {
-        flex-wrap: wrap;
-    }
-
-    .bridge-status-center {
-        order: 3;
-        width: 100%;
-        justify-content: space-around;
-        border-top: 1px solid var(--archie-border-default);
-    }
-
-    .command-station {
-        grid-template-columns: 1fr;
-    }
-
-    .bridge-stations-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Routing Mode Toggle */
-.routing-mode-control {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 16px;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    margin-bottom: 12px;
-}
+/* Routing Mode Toggle (legacy — now in bridge-header-controls) */
 .routing-mode-label {
-    color: var(--archie-gold);
+    color: var(--archie-accent);
     font-family: 'Orbitron', sans-serif;
     font-size: 11px;
     text-transform: uppercase;
@@ -3078,13 +3137,13 @@
 .routing-btn:first-child { border-radius: 4px 0 0 4px; }
 .routing-btn:last-child { border-radius: 0 4px 4px 0; }
 .routing-btn.active {
-    background: var(--archie-gold);
+    background: var(--archie-accent);
     color: #000;
-    border-color: var(--archie-gold);
+    border-color: var(--archie-accent);
 }
 .routing-btn:hover:not(.active) {
     color: var(--archie-text-secondary);
-    border-color: var(--archie-gold);
+    border-color: var(--archie-accent);
 }
 .escalation-btn {
     padding: 4px 14px;
@@ -3099,13 +3158,13 @@
 .escalation-btn:first-child { border-radius: 4px 0 0 4px; }
 .escalation-btn:last-child { border-radius: 0 4px 4px 0; }
 .escalation-btn.active {
-    background: var(--archie-cyan);
+    background: var(--archie-accent);
     color: #000;
-    border-color: var(--archie-cyan);
+    border-color: var(--archie-accent);
 }
 .escalation-btn:hover:not(.active) {
     color: var(--archie-text-secondary);
-    border-color: var(--archie-cyan);
+    border-color: var(--archie-accent);
 }
 
 /* ============================================================================
@@ -3127,21 +3186,28 @@ body.light-mode .bridge-container::before,
 }
 
 /* Status Bar */
-body.light-mode .bridge-status-bar,
-[data-theme="light"] .bridge-status-bar {
-    background: rgba(255, 255, 255, 0.95);
-    border-bottom-color: rgba(0, 150, 180, 0.3);
+/* LCARS Header - Light Mode */
+body.light-mode .bridge-header,
+[data-theme="light"] .bridge-header {
+    border-color: rgba(0, 136, 170, 0.3);
+    background: linear-gradient(180deg, rgba(0, 136, 170, 0.06) 0%, transparent 100%);
+    box-shadow: 0 0 20px rgba(0, 136, 170, 0.1);
 }
 
-body.light-mode .bridge-status-bar::before,
-[data-theme="light"] .bridge-status-bar::before {
-    background: rgba(0, 150, 180, 0.3);
-    box-shadow: 0 0 10px rgba(0, 150, 180, 0.2);
+body.light-mode .bridge-header-title,
+[data-theme="light"] .bridge-header-title {
+    color: #0088aa;
+    text-shadow: none;
 }
 
-body.light-mode .bridge-logo,
-[data-theme="light"] .bridge-logo {
-    background: linear-gradient(135deg, #cc8800 0%, #aa6600 100%);
+body.light-mode .bridge-header-subtitle,
+[data-theme="light"] .bridge-header-subtitle {
+    color: #666;
+}
+
+body.light-mode .bridge-header-status,
+[data-theme="light"] .bridge-header-status {
+    border-color: rgba(0, 0, 0, 0.08);
 }
 
 body.light-mode .bridge-status-item .status-label,
@@ -3166,6 +3232,21 @@ body.light-mode .staffing-badge.full-staff,
     color: #00aa33;
 }
 
+body.light-mode .bridge-control-label,
+[data-theme="light"] .bridge-control-label {
+    color: #0088aa;
+}
+
+body.light-mode .bridge-live-indicator,
+[data-theme="light"] .bridge-live-indicator {
+    color: #00aa33;
+}
+
+body.light-mode .bridge-live-dot,
+[data-theme="light"] .bridge-live-dot {
+    background: #00aa33;
+}
+
 /* Routing Mode */
 body.light-mode .routing-mode-control,
 [data-theme="light"] .routing-mode-control {
@@ -3186,9 +3267,9 @@ body.light-mode .routing-btn,
 
 body.light-mode .routing-btn.active,
 [data-theme="light"] .routing-btn.active {
-    background: #cc8800;
+    background: #0088aa;
     color: #fff;
-    border-color: #cc8800;
+    border-color: #0088aa;
 }
 body.light-mode .escalation-btn,
 [data-theme="light"] .escalation-btn {
@@ -3595,27 +3676,16 @@ body.light-mode .station-coverage-code,
 
 /* Fold5 Open — 717px */
 @media (max-width: 768px) {
-    .bridge-status-bar {
-        flex-wrap: wrap;
-        gap: 0;
+    .bridge-header {
+        margin: 0 12px 16px;
+        padding: 16px;
     }
-    .bridge-logo {
-        clip-path: none;
-        padding-right: 16px;
-        width: 100%;
-        justify-content: center;
+    .bridge-header-title {
+        font-size: 1.3rem;
+        letter-spacing: 2px;
     }
-    .bridge-status-center {
-        width: 100%;
+    .bridge-header-controls {
         gap: 12px;
-        padding: 6px 12px;
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-    .bridge-status-right {
-        width: 100%;
-        justify-content: center;
-        padding: 4px 12px 8px;
     }
     .bridge-command-section {
         padding: 12px;
@@ -3724,6 +3794,27 @@ body.light-mode .station-coverage-code,
     .mesh-header-stats {
         display: none;
     }
+    .bridge-header {
+        margin: 0 8px 16px;
+        padding: 16px 12px;
+    }
+    .bridge-header-title {
+        font-size: 1.2rem;
+        letter-spacing: 1px;
+    }
+    .bridge-header-status {
+        gap: 8px;
+    }
+    .routing-btn, .escalation-btn {
+        padding: 4px 8px;
+        font-size: 9px;
+    }
+    .bridge-control-label {
+        font-size: 8px;
+    }
+    .bridge-control-group {
+        gap: 4px;
+    }
 }
 </style>
 
@@ -3732,14 +3823,18 @@ body.light-mode .station-coverage-code,
 
 <!-- Bridge Container -->
 <div class="bridge-container">
-    <!-- Status Bar -->
-    <div class="bridge-status-bar">
-        <div class="bridge-logo">
-            <i data-lucide="command"></i>
-            <span class="bridge-logo-text" data-i18n="bridge.title">A.R.C.H.I.E. BRIDGE</span>
+    <!-- LCARS Framed Header -->
+    <div class="bridge-header">
+        <div class="bridge-header-top">
+            <h1 class="bridge-header-title">
+                <i data-lucide="command" style="width:28px;height:28px;"></i>
+                <span data-i18n="bridge.title">A.R.C.H.I.E. BRIDGE</span>
+            </h1>
+            <div class="bridge-header-subtitle" data-i18n="bridge.command.subtitle">Bridge Control &amp; Workload Orchestration</div>
         </div>
 
-        <div class="bridge-status-center">
+        <!-- Status Indicators Row -->
+        <div class="bridge-header-status">
             <div class="bridge-status-item">
                 <span class="status-dot online" id="system-status-dot"></span>
                 <span class="status-label" data-i18n="bridge.status.system">System</span>
@@ -3757,35 +3852,42 @@ body.light-mode .station-coverage-code,
                 <span class="status-label" data-i18n="bridge.status.iaae">IAAE</span>
                 <span class="status-value" id="iaae-status">--</span>
             </div>
-        </div>
-
-        <div class="bridge-status-right">
-            <div class="staffing-badge full-staff" id="staffing-badge">
-                <i data-lucide="users" style="width:12px;height:12px;"></i>
-                <span id="staffing-text" data-i18n="bridge.status.full_staff">Full Staff</span>
+            <div class="bridge-status-item">
+                <div class="staffing-badge full-staff" id="staffing-badge">
+                    <i data-lucide="users" style="width:12px;height:12px;"></i>
+                    <span id="staffing-text" data-i18n="bridge.status.full_staff">Full Staff</span>
+                </div>
             </div>
-            <div class="bridge-time" id="bridge-time">00:00:00</div>
+            <div class="bridge-status-item">
+                <div class="bridge-time" id="bridge-time">00:00:00</div>
+            </div>
         </div>
-    </div>
 
-    <!-- Routing Mode Toggle -->
-    <div class="routing-mode-control">
-        <span class="routing-mode-label" data-i18n="bridge.routing.mode">Routing Mode</span>
-        <div style="display:flex;">
-            <button class="routing-btn" data-mode="local_only" title="Local Ollama models only" data-i18n="bridge.routing.local_only">Local Only</button>
-            <button class="routing-btn" data-mode="local_cloud" title="Local + Ollama cloud (free)" data-i18n="bridge.routing.local_cloud">Local + Cloud</button>
-            <button class="routing-btn active" data-mode="full" title="All tiers including paid APIs" data-i18n="bridge.routing.full">Full</button>
+        <!-- Controls Row: Routing + Escalation -->
+        <div class="bridge-header-controls">
+            <div class="bridge-control-group">
+                <span class="bridge-control-label" data-i18n="bridge.routing.mode">Routing Mode</span>
+                <div class="bridge-control-btns">
+                    <button class="routing-btn" data-mode="local_only" title="Local Ollama models only" data-i18n="bridge.routing.local_only">Local Only</button>
+                    <button class="routing-btn" data-mode="local_cloud" title="Local + Ollama cloud (free)" data-i18n="bridge.routing.local_cloud">Local + Cloud</button>
+                    <button class="routing-btn active" data-mode="full" title="All tiers including paid APIs" data-i18n="bridge.routing.full">Full</button>
+                </div>
+                <span id="routingModeStatus" class="bridge-control-status"></span>
+            </div>
+            <div class="bridge-control-group">
+                <span class="bridge-control-label" data-i18n="bridge.escalation.mode">Escalation</span>
+                <div class="bridge-control-btns">
+                    <button class="escalation-btn" data-mode="auto" title="Auto-escalate to free cloud when busy" data-i18n="bridge.escalation.auto">Auto</button>
+                    <button class="escalation-btn" data-mode="ask_first" title="Ask via Telegram before cloud escalation" data-i18n="bridge.escalation.ask_first">Ask First</button>
+                    <button class="escalation-btn active" data-mode="local_only" title="Never escalate — queue for local LLM" data-i18n="bridge.escalation.local_only">Local Only</button>
+                </div>
+                <span id="escalationModeStatus" class="bridge-control-status"></span>
+            </div>
+            <div class="bridge-live-indicator">
+                <div class="bridge-live-dot"></div>
+                <span>LIVE</span>
+            </div>
         </div>
-        <span id="routingModeStatus" style="color:var(--archie-text-muted);font-size:11px;"></span>
-    </div>
-    <div class="routing-mode-control">
-        <span class="routing-mode-label" data-i18n="bridge.escalation.mode">Escalation</span>
-        <div style="display:flex;">
-            <button class="escalation-btn" data-mode="auto" title="Auto-escalate to free cloud when busy" data-i18n="bridge.escalation.auto">Auto</button>
-            <button class="escalation-btn" data-mode="ask_first" title="Ask via Telegram before cloud escalation" data-i18n="bridge.escalation.ask_first">Ask First</button>
-            <button class="escalation-btn active" data-mode="local_only" title="Never escalate — queue for local LLM" data-i18n="bridge.escalation.local_only">Local Only</button>
-        </div>
-        <span id="escalationModeStatus" style="color:var(--archie-text-muted);font-size:11px;"></span>
     </div>
 
     <!-- Main Content -->

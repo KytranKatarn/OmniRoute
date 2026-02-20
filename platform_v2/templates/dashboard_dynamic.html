@@ -2331,7 +2331,7 @@ body.light-mode .module-card {
                 <!-- Module name -->
                 <div class="featured-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
                 <!-- Module description (strip HTML tags for clean display) -->
-                <div class="featured-card-desc" data-i18n="module.{{ module.id }}.desc">{{ module.description | striptags }}</div>
+                <div class="featured-card-desc" data-i18n="module.{{ module.id }}.desc">{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags }}</div>
                 <!-- Footer: status indicator -->
                 <div class="featured-card-footer">
                     <div class="featured-card-status">
@@ -2370,7 +2370,7 @@ body.light-mode .module-card {
                    data-module-id="{{ module.id }}"
                    data-module-name="{{ module.name }}"
                    data-module-icon="{{ module.icon }}"
-                   data-module-desc="{{ module.description | striptags | truncate(120) }}"
+                   data-module-desc="{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags | truncate(120) }}"
                    data-module-category="{{ cat_key }}"
                    {% if module.coming_soon %}onclick="return false;"{% endif %}>
                     <div class="module-card-icon">

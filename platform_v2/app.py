@@ -1155,27 +1155,38 @@ def api_dashboard_recent_activity():
             )
 
         # 2. AI bridge work (aggregated by module+capability per 7 days)
+        #    JOIN agents+agent_types to get the agent's role title
         cur.execute(
             """
-            SELECT module_source, capability, agent_name,
-                   COUNT(*) as calls, MAX(created_at) as latest
-            FROM task_execution_log
-            WHERE created_at >= NOW() - INTERVAL '7 days'
-            GROUP BY module_source, capability, agent_name
+            SELECT t.module_source, t.capability, t.agent_name,
+                   COUNT(*) as calls, MAX(t.created_at) as latest,
+                   COALESCE(at.name, a.name, t.agent_name) as agent_title
+            FROM task_execution_log t
+            LEFT JOIN agents a ON a.name = SPLIT_PART(t.agent_name, '→', 1)
+            LEFT JOIN agent_types at ON a.type_id = at.id
+            WHERE t.created_at >= NOW() - INTERVAL '7 days'
+            GROUP BY t.module_source, t.capability, t.agent_name,
+                     at.name, a.name
             ORDER BY latest DESC
             LIMIT 8
         """
         )
         for row in cur.fetchall():
-            agent = row["agent_name"] or "Bridge"
+            agent_name = (row["agent_name"] or "Bridge").split("\u2192")[0].strip()
+            agent_type = row["agent_title"] or agent_name
+            # Show "Name (Role)" when role differs from name
+            if agent_type != agent_name:
+                agent_label = f"{agent_name} ({agent_type})"
+            else:
+                agent_label = agent_name
             calls = row["calls"]
             module = _friendly_module(row["module_source"])
             combined.append(
                 {
-                    "action": _friendly_capability(row["capability"], calls, agent, module),
+                    "action": _friendly_capability(row["capability"], calls, agent_label, module),
                     "module": module,
-                    "details": f"{module} requested {calls} {row['capability']} calls — assigned to {agent}",
-                    "username": agent,
+                    "details": f"{module} requested {calls} {row['capability']} calls — assigned to {agent_label}",
+                    "username": agent_label,
                     "source": "bridge",
                     "timestamp": _ts(row["latest"]),
                 }

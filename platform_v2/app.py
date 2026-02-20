@@ -2264,38 +2264,156 @@ def get_module_health(module_id):
 @app.route("/api/notifications", methods=["GET"])
 @login_required
 def get_notifications():
-    """Get all notifications as JSON"""
+    """Blended notifications — grouped system_notifications + bridge alerts + security."""
+
+    def _ts_notif(dt):
+        if dt is None:
+            return None
+        return dt.isoformat() + "Z" if dt.tzinfo is None else dt.isoformat()
+
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        notifications_list = []
+
+        # 1. System notifications — grouped by title+source (last 7 days)
         cur.execute(
             """
-            SELECT id, type, title, message, source, is_read, created_at
+            SELECT title, source, type, priority,
+                   MAX(message) as message,
+                   MAX(id) as id,
+                   COUNT(*) as group_count,
+                   MAX(created_at) as latest,
+                   BOOL_AND(is_read) as all_read
             FROM system_notifications
-            ORDER BY created_at DESC
-            LIMIT 50
+            WHERE is_archived = FALSE
+              AND created_at >= NOW() - INTERVAL '7 days'
+            GROUP BY title, source, type, priority
+            ORDER BY MAX(created_at) DESC
+            LIMIT 20
         """
         )
-        notifications = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        # Convert to JSON-serializable format
-        notifications_list = []
-        for notif in notifications:
+        for n in cur.fetchall():
+            count = n["group_count"]
+            title = n["title"] or "Notification"
+            if count > 1:
+                title = f"{title} ({count}x)"
             notifications_list.append(
                 {
-                    "id": notif["id"],
-                    "type": notif["type"],
-                    "title": notif["title"],
-                    "message": notif["message"],
-                    "source": notif["source"],
-                    "is_read": notif["is_read"],
-                    "created_at": (notif["created_at"].isoformat() if notif["created_at"] else None),
+                    "id": n["id"],
+                    "type": n["type"] or "info",
+                    "title": title,
+                    "message": n["message"],
+                    "source": n["source"] or "system",
+                    "is_read": n["all_read"],
+                    "priority": n["priority"] or "normal",
+                    "created_at": _ts_notif(n["latest"]),
                 }
             )
 
-        return jsonify({"success": True, "notifications": notifications_list})
+        # 2. Failed bridge jobs (last 24h) — grouped by module+capability
+        cur.execute(
+            """
+            SELECT t.module_source, t.capability,
+                   LEFT(t.error_message, 120) as error_summary,
+                   COUNT(*) as fail_count, MAX(t.created_at) as latest,
+                   a.first_name, a.last_name
+            FROM task_execution_log t
+            LEFT JOIN agents a ON a.name = SPLIT_PART(t.agent_name, '→', 1)
+            WHERE t.success = false AND t.created_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY t.module_source, t.capability,
+                     LEFT(t.error_message, 120), a.first_name, a.last_name
+            ORDER BY latest DESC
+            LIMIT 3
+        """
+        )
+        for row in cur.fetchall():
+            first = (row["first_name"] or "").strip()
+            last = (row["last_name"] or "").strip()
+            agent = f"{first} {last}".strip() or "Bridge"
+            module = (row["module_source"] or "bridge").replace("_", " ").title()
+            count = row["fail_count"]
+            notifications_list.append(
+                {
+                    "id": 0,
+                    "type": "warning" if count < 10 else "error",
+                    "title": f"{module}: {count} failed {row['capability']}",
+                    "message": f"{agent} — {row['error_summary'] or 'Unknown error'}",
+                    "source": "bridge",
+                    "is_read": True,
+                    "priority": "high" if count >= 10 else "medium",
+                    "created_at": _ts_notif(row["latest"]),
+                }
+            )
+
+        # 3. Failed logins (last 24h) — grouped by username
+        cur.execute(
+            """
+            SELECT username, COUNT(*) as attempts, MAX(attempted_at) as latest,
+                   (array_agg(DISTINCT ip_address))[1:2] as ips
+            FROM failed_logins
+            WHERE attempted_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY username
+            ORDER BY attempts DESC
+            LIMIT 3
+        """
+        )
+        for row in cur.fetchall():
+            count = row["attempts"]
+            ips = ", ".join(row["ips"]) if row["ips"] else "unknown"
+            notifications_list.append(
+                {
+                    "id": 0,
+                    "type": "warning" if count < 5 else "error",
+                    "title": f"{count} failed login{'s' if count > 1 else ''} — {row['username']}",
+                    "message": f"From IP: {ips}",
+                    "source": "security",
+                    "is_read": True,
+                    "priority": "high" if count >= 5 else "medium",
+                    "created_at": _ts_notif(row["latest"]),
+                }
+            )
+
+        # 4. Unresolved system alerts
+        cur.execute(
+            """
+            SELECT alert_type, severity, message, created_at
+            FROM system_alerts
+            WHERE resolved = false
+            ORDER BY created_at DESC
+            LIMIT 3
+        """
+        )
+        for row in cur.fetchall():
+            notifications_list.append(
+                {
+                    "id": 0,
+                    "type": "error" if row["severity"] in ("critical", "error") else "warning",
+                    "title": row["alert_type"].replace("_", " ").title(),
+                    "message": row["message"],
+                    "source": "system",
+                    "is_read": True,
+                    "priority": row["severity"],
+                    "created_at": _ts_notif(row["created_at"]),
+                }
+            )
+
+        cur.close()
+        conn.close()
+
+        # Sort: unread first, then by timestamp DESC
+        notifications_list.sort(
+            key=lambda n: (n["is_read"], n.get("created_at") or ""),
+            reverse=False,
+        )
+        # Unread first (is_read=False sorts before True when reverse=False)
+        # Within each group, newest first
+        unread = [n for n in notifications_list if not n["is_read"]]
+        read = [n for n in notifications_list if n["is_read"]]
+        unread.sort(key=lambda n: n.get("created_at") or "", reverse=True)
+        read.sort(key=lambda n: n.get("created_at") or "", reverse=True)
+
+        return jsonify({"success": True, "notifications": (unread + read)[:30]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2429,31 +2547,50 @@ def create_notification_endpoint():
 @app.route("/api/notifications/count", methods=["GET"])
 @login_required
 def get_notification_count():
-    """Get unread notification count for auto-refresh"""
+    """Get unread notification count — system_notifications + blended alerts."""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # Unread system notifications (grouped count)
         cur.execute(
             """
             SELECT
-                COUNT(*) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) as unread,
+                COUNT(DISTINCT (title, source)) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) as unread,
                 COUNT(*) FILTER (WHERE priority = 'critical' AND is_read = FALSE) as critical,
                 COUNT(*) FILTER (WHERE type = 'error' AND is_read = FALSE) as errors
             FROM system_notifications
+            WHERE created_at >= NOW() - INTERVAL '7 days'
         """
         )
-
         counts = cur.fetchone()
+
+        # Add failed jobs count (last 24h)
+        cur.execute(
+            "SELECT COUNT(*) as cnt FROM task_execution_log WHERE success = false AND created_at >= NOW() - INTERVAL '24 hours'"
+        )
+        failed = cur.fetchone()["cnt"]
+
+        # Add unresolved system alerts
+        cur.execute("SELECT COUNT(*) as cnt FROM system_alerts WHERE resolved = false")
+        sys_alerts = cur.fetchone()["cnt"]
+
         cur.close()
         conn.close()
+
+        total_unread = counts["unread"]
+        total_errors = counts["errors"] + sys_alerts
+        if failed > 0:
+            total_unread += 1  # +1 for bridge failures group
+        if sys_alerts > 0:
+            total_unread += sys_alerts
 
         return jsonify(
             {
                 "success": True,
-                "unread": counts["unread"],
+                "unread": total_unread,
                 "critical": counts["critical"],
-                "errors": counts["errors"],
+                "errors": total_errors,
             }
         )
     except Exception as e:

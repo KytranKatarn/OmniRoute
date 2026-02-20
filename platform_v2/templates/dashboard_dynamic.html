@@ -995,23 +995,41 @@ body.light-mode .cb-search-result-icon {
     font-size: 12px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
+    line-height: 1.3;
 }
 .cb-notif-item-msg {
     font-size: 11px;
     color: rgba(255, 255, 255, 0.45);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
+    line-height: 1.3;
     margin-top: 2px;
+}
+.cb-notif-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
 }
 .cb-notif-item-time {
     font-size: 10px;
     color: rgba(255, 255, 255, 0.25);
-    margin-top: 3px;
 }
+.cb-notif-source-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--archie-font-mono);
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+.cb-notif-source-badge.src-email_intelligence { background: rgba(0, 204, 255, 0.15); color: #00CCFF; }
+.cb-notif-source-badge.src-bridge { background: rgba(107, 200, 255, 0.15); color: #6ec8ff; }
+.cb-notif-source-badge.src-security { background: rgba(255, 59, 59, 0.15); color: #ff3b3b; }
+.cb-notif-source-badge.src-system { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+.cb-notif-source-badge.src-proposals { background: rgba(0, 255, 65, 0.15); color: #00FF41; }
+.cb-notif-source-badge.src-admin-panel { background: rgba(247, 168, 62, 0.15); color: #f7a83e; }
+.cb-notif-source-badge.src-default { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.4); }
 .cb-notif-empty {
     padding: 24px 16px;
     text-align: center;
@@ -3628,57 +3646,88 @@ body.light-mode .module-card {
 
     function renderNotifications(items) {
         if (!items.length) {
-            notifList.innerHTML = '<div class="cb-notif-empty" data-i18n="js.notif.none">No notifications</div>';
+            notifList.textContent = '';
+            var emptyDiv = document.createElement('div');
+            emptyDiv.className = 'cb-notif-empty';
+            emptyDiv.setAttribute('data-i18n', 'js.notif.none');
+            emptyDiv.textContent = archieI18n.t('js.notif.none', 'No notifications');
+            notifList.appendChild(emptyDiv);
             return;
         }
-        var html = '';
-        items.slice(0, 20).forEach(function(n) {
+        notifList.textContent = '';
+        var sourceLabels = {
+            'email_intelligence': 'Email',
+            'bridge': 'Bridge',
+            'security': 'Security',
+            'system': 'System',
+            'proposals': 'Proposals',
+            'admin-panel': 'Admin',
+            'agent_loop': 'Agent',
+            'anomaly_detector': 'Anomaly'
+        };
+
+        items.slice(0, 25).forEach(function(n) {
+            var div = document.createElement('div');
+            div.className = 'cb-notif-item' + (n.is_read ? '' : ' unread');
+            div.setAttribute('data-notif-id', n.id);
+
+            var dot = document.createElement('div');
             var dotClass = n.type || 'info';
             if (['info','warning','error','success','system'].indexOf(dotClass) < 0) dotClass = 'info';
-            var unread = n.is_read ? '' : ' unread';
-            var timeStr = formatNotifTime(n.created_at);
-            html += '<div class="cb-notif-item' + unread + '" data-notif-id="' + n.id + '">' +
-                '<div class="cb-notif-dot ' + dotClass + '"></div>' +
-                '<div class="cb-notif-info">' +
-                    '<div class="cb-notif-item-title">' + escNotifHtml(n.title || '') + '</div>' +
-                    '<div class="cb-notif-item-msg">' + escNotifHtml(n.message || '') + '</div>' +
-                    '<div class="cb-notif-item-time">' + timeStr + '</div>' +
-                '</div>' +
-            '</div>';
+            dot.className = 'cb-notif-dot ' + dotClass;
+            div.appendChild(dot);
+
+            var info = document.createElement('div');
+            info.className = 'cb-notif-info';
+
+            var title = document.createElement('div');
+            title.className = 'cb-notif-item-title';
+            title.textContent = n.title || 'Notification';
+            info.appendChild(title);
+
+            if (n.message) {
+                var msg = document.createElement('div');
+                msg.className = 'cb-notif-item-msg';
+                msg.textContent = n.message;
+                info.appendChild(msg);
+            }
+
+            var meta = document.createElement('div');
+            meta.className = 'cb-notif-item-meta';
+
+            if (n.created_at) {
+                var time = document.createElement('span');
+                time.className = 'cb-notif-item-time';
+                time.textContent = timeAgo(n.created_at);
+                meta.appendChild(time);
+            }
+
+            if (n.source) {
+                var badge = document.createElement('span');
+                var srcClass = sourceLabels[n.source] ? 'src-' + n.source : 'src-default';
+                badge.className = 'cb-notif-source-badge ' + srcClass;
+                badge.textContent = sourceLabels[n.source] || n.source;
+                meta.appendChild(badge);
+            }
+
+            info.appendChild(meta);
+            div.appendChild(info);
+            notifList.appendChild(div);
+
+            // Click to mark as read (only for real notifications with id > 0)
+            if (!n.is_read && n.id > 0) {
+                div.addEventListener('click', function() {
+                    fetch('/api/notifications/mark-read/' + n.id, { method: 'POST' })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.success) {
+                                div.classList.remove('unread');
+                                fetchNotifCount();
+                            }
+                        });
+                });
+            }
         });
-        notifList.innerHTML = html;
-
-        // Click to mark individual as read
-        notifList.querySelectorAll('.cb-notif-item.unread').forEach(function(item) {
-            item.addEventListener('click', function() {
-                var nid = item.getAttribute('data-notif-id');
-                fetch('/api/notifications/mark-read/' + nid, { method: 'POST' })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.success) {
-                            item.classList.remove('unread');
-                            fetchNotifCount();
-                        }
-                    });
-            });
-        });
-    }
-
-    function escNotifHtml(s) {
-        var d = document.createElement('div');
-        d.textContent = s;
-        return d.innerHTML;
-    }
-
-    function formatNotifTime(iso) {
-        if (!iso) return '';
-        var d = new Date(iso);
-        var now = new Date();
-        var diff = Math.floor((now - d) / 1000);
-        if (diff < 60) return diff + 's ago';
-        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-        return Math.floor(diff / 86400) + 'd ago';
     }
 
     // ── Lucide icons: re-render for command bar ──

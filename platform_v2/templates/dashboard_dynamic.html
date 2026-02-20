@@ -3439,13 +3439,17 @@ body.light-mode .module-card {
 
     // ── Build a featured card HTML from module data ──
     function buildFeaturedCard(mod) {
+        var nameKey = 'module.' + mod.id + '.name';
+        var descKey = 'module.' + mod.id + '.desc';
+        var translatedName = archieI18n.t(nameKey, mod.name);
+        var translatedDesc = archieI18n.t(descKey, mod.desc);
         return '<a href="' + mod.route + '" class="featured-card" data-module-id="' + mod.id + '" data-category="' + mod.category + '">' +
             '<button class="featured-pin-btn pinned" data-pin-id="' + mod.id + '" title="' + archieI18n.t('js.pin.unpin_module', 'Unpin module') + '" ' +
                 'onclick="event.preventDefault(); event.stopPropagation(); toggleGridPin(this, \'' + mod.id + '\');">' +
                 '<i data-lucide="star"></i></button>' +
             '<div class="featured-card-icon"><i data-lucide="' + mod.icon + '"></i></div>' +
-            '<div class="featured-card-name">' + mod.name + '</div>' +
-            '<div class="featured-card-desc">' + mod.desc + '</div>' +
+            '<div class="featured-card-name" data-i18n="' + nameKey + '">' + translatedName + '</div>' +
+            '<div class="featured-card-desc" data-i18n="' + descKey + '">' + translatedDesc + '</div>' +
             '<div class="featured-card-footer">' +
                 '<div class="featured-card-status">' +
                     '<span class="featured-status-dot online" id="featStatus-' + mod.id + '"></span>' +
@@ -3495,6 +3499,11 @@ body.light-mode .module-card {
         // Re-render Lucide icons
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
+        }
+
+        // Re-apply i18n translations to new DOM elements
+        if (typeof archieI18n !== 'undefined' && archieI18n.getCurrentLanguage() !== 'en') {
+            archieI18n.switchLanguage(archieI18n.getCurrentLanguage());
         }
 
         syncAllStars();

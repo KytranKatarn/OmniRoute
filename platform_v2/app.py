@@ -1623,6 +1623,34 @@ def _warmup_ollama_models():
 
 _warmup_ollama_models()
 
+
+# ============================================================================
+# I18N AUTO-SCAN - Discover and seed new translation keys on startup
+# ============================================================================
+def _warmup_i18n_keys():
+    """Background scan for new translation keys and seed English entries."""
+    import threading
+
+    def _do_scan():
+        try:
+            with app.app_context():
+                from tools.consciousness.routes import scan_and_seed_keys
+
+                result = scan_and_seed_keys()
+                if result["seeded"] > 0:
+                    logger.info(f"[i18n] {result['seeded']} new translation keys discovered and seeded")
+                else:
+                    logger.info(f"[i18n] {result['total']} keys scanned, all already seeded")
+        except Exception as e:
+            logger.warning(f"[i18n] Startup scan skipped: {e}")
+
+    t = threading.Thread(target=_do_scan, daemon=True, name="i18n-scan")
+    t.start()
+
+
+_warmup_i18n_keys()
+
+
 # ============================================================================
 # SANDBOX MODE CONTEXT PROCESSOR
 # ============================================================================

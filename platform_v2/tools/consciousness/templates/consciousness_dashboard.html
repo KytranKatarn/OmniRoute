@@ -1734,9 +1734,18 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                     <button class="btn btn-primary" onclick="scanAllSources()" id="ls-btn-scan">1. Scan All Sources</button>
                     <button class="btn btn-primary" onclick="seedMissingEnglish()" id="ls-btn-seed" disabled>2. Seed Missing English</button>
                     <button class="btn btn-primary" onclick="generateTranslations()" id="ls-btn-generate">3. Generate Translations</button>
+                    <button class="btn btn-primary" onclick="generateAllLanguages()" id="ls-btn-generate-all" style="background: #238636; border-color: #2ea043;">3b. Generate ALL Languages</button>
                     <button class="btn btn-primary" onclick="bulkApproveAll()" id="ls-btn-bulk">4. Approve All Pending</button>
                 </div>
                 <div id="ls-action-status" style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.85rem; color: var(--archie-text-tertiary, #8b949e);"></div>
+            </div>
+
+            <!-- Module i18n Coverage -->
+            <div class="voice-panel" style="margin-top: 1rem;">
+                <h3>Module i18n Coverage</h3>
+                <div id="ls-module-coverage" style="margin-top: 0.75rem;">
+                    <div style="color: var(--archie-text-tertiary); padding: 0.5rem; font-size: 0.85rem;">Loading module coverage...</div>
+                </div>
             </div>
         </div>
 
@@ -1796,7 +1805,7 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                         <input type="text" id="ls-gloss-source" placeholder="Source text" style="width: 100%; padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: var(--archie-text-primary); font-size: 0.85rem;">
                     </div>
                     <div class="voice-form-group" style="flex: 1; min-width: 150px;">
-                        <label>French</label>
+                        <label id="ls-gloss-target-label">Target</label>
                         <input type="text" id="ls-gloss-target" placeholder="Translation" style="width: 100%; padding: 0.4rem 0.75rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: var(--archie-text-primary); font-size: 0.85rem;">
                     </div>
                     <div class="voice-form-group">
@@ -1832,7 +1841,13 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.dataset.tab === 'brain') loadBrainMap();
         if (btn.dataset.tab === 'feed') loadActivityFeed();
         if (btn.dataset.tab === 'voice') loadVoiceDashboard();
-        if (btn.dataset.tab === 'languages') loadLangStats();
+        if (btn.dataset.tab === 'languages') {
+            var langName = LANG_NAMES[getTargetLang()] || getTargetLang();
+            var glossLabel = document.getElementById('ls-gloss-target-label');
+            if (glossLabel) glossLabel.textContent = langName;
+            loadLangStats();
+            loadModuleCoverage();
+        }
     });
 });
 
@@ -5922,7 +5937,7 @@ function switchLangTab(tabId) {
     event.target.classList.add('active');
     var el = document.getElementById('lang-sub-' + tabId);
     if (el) el.classList.add('active');
-    if (tabId === 'dashboard') loadLangStats();
+    if (tabId === 'dashboard') { loadLangStats(); loadModuleCoverage(); }
     if (tabId === 'browser') loadBrowser();
     if (tabId === 'review') loadReviewTable();
     if (tabId === 'glossary') loadGlossary();
@@ -5936,6 +5951,10 @@ function getTargetLang() {
 }
 
 function onTargetLangChange() {
+    // Update dynamic labels that depend on selected language
+    var langName = LANG_NAMES[getTargetLang()] || getTargetLang();
+    var glossLabel = document.getElementById('ls-gloss-target-label');
+    if (glossLabel) glossLabel.textContent = langName;
     loadLangStats();
     loadBrowser();
     loadReviewTable();
@@ -5973,6 +5992,22 @@ function loadLangStats() {
             document.getElementById('ls-missing').textContent = missing;
             document.getElementById('ls-missing-label').textContent = 'Missing ' + langName;
             document.getElementById('ls-coverage-title').textContent = langName + ' Translation Coverage';
+
+            // Auto-enable Seed button if there are missing keys and no scan has been run yet
+            if (missing > 0 && !lastScanResult) {
+                // Run a background scan to populate lastScanResult so Seed works
+                fetch('/tools/consciousness/api/translations/scan', { method: 'POST' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(scanData) {
+                        if (scanData.success) {
+                            lastScanResult = scanData;
+                            document.getElementById('ls-btn-seed').disabled = false;
+                        }
+                    })
+                    .catch(function() {}); // silent — manual scan still works
+            } else if (lastScanResult) {
+                document.getElementById('ls-btn-seed').disabled = false;
+            }
 
             var pct = total > 0 ? Math.round((approved / total) * 100) : 0;
             document.getElementById('ls-progress-bar').style.width = pct + '%';
@@ -6034,6 +6069,86 @@ function loadLangStats() {
         .catch(function(err) {
             document.getElementById('ls-progress-text').textContent = 'Error loading stats';
             console.error('Lang stats error:', err);
+        });
+}
+
+function loadModuleCoverage() {
+    var container = document.getElementById('ls-module-coverage');
+    if (!container) return;
+    while (container.firstChild) container.removeChild(container.firstChild);
+    var spinner = document.createElement('div');
+    spinner.className = 'loading';
+    var spinEl = document.createElement('div');
+    spinEl.className = 'spinner';
+    spinner.appendChild(spinEl);
+    container.appendChild(spinner);
+
+    fetch('/tools/consciousness/api/translations/module-coverage')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            while (container.firstChild) container.removeChild(container.firstChild);
+            if (!data.success || !data.modules) {
+                container.textContent = 'Error loading module coverage.';
+                return;
+            }
+            var summary = data.summary || {};
+            var summaryEl = document.createElement('div');
+            summaryEl.style.cssText = 'margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--archie-text-secondary);';
+            summaryEl.textContent = summary.done + '/' + summary.total + ' modules with i18n (' + summary.partial + ' partial, ' + summary.none + ' pending)';
+            container.appendChild(summaryEl);
+
+            var table = document.createElement('table');
+            table.style.cssText = 'width: 100%; border-collapse: collapse; font-size: 0.85rem;';
+            var thead = document.createElement('thead');
+            var hRow = document.createElement('tr');
+            hRow.style.cssText = 'border-bottom: 1px solid var(--archie-border-default, #30363d);';
+            ['Module', 'Keys', 'Status'].forEach(function(h) {
+                var th = document.createElement('th');
+                th.style.cssText = 'padding: 0.4rem 0.75rem; text-align: left; color: var(--archie-text-tertiary);';
+                th.textContent = h;
+                hRow.appendChild(th);
+            });
+            thead.appendChild(hRow);
+            table.appendChild(thead);
+
+            var tbody = document.createElement('tbody');
+            data.modules.forEach(function(mod) {
+                var row = document.createElement('tr');
+                row.style.cssText = 'border-bottom: 1px solid var(--archie-border-muted, #21262d);';
+
+                var nameCell = document.createElement('td');
+                nameCell.style.cssText = 'padding: 0.4rem 0.75rem; color: var(--archie-text-primary);';
+                nameCell.textContent = mod.name;
+                row.appendChild(nameCell);
+
+                var keyCell = document.createElement('td');
+                keyCell.style.cssText = 'padding: 0.4rem 0.75rem; color: var(--archie-text-secondary);';
+                keyCell.textContent = mod.key_count || 0;
+                row.appendChild(keyCell);
+
+                var statusCell = document.createElement('td');
+                statusCell.style.cssText = 'padding: 0.4rem 0.75rem;';
+                var badge = document.createElement('span');
+                var statusColors = {
+                    done: { bg: '#23863633', fg: '#238636', border: '#23863666', label: 'Done' },
+                    partial: { bg: '#d2992233', fg: '#d29922', border: '#d2992266', label: 'Partial' },
+                    none: { bg: '#da363333', fg: '#da3633', border: '#da363366', label: 'None' },
+                    no_templates: { bg: '#6e768133', fg: '#6e7681', border: '#6e768166', label: 'N/A' }
+                };
+                var sc = statusColors[mod.status] || statusColors.none;
+                badge.textContent = sc.label;
+                badge.style.cssText = 'display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: ' + sc.bg + '; color: ' + sc.fg + '; border: 1px solid ' + sc.border + ';';
+                statusCell.appendChild(badge);
+                row.appendChild(statusCell);
+
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+        })
+        .catch(function(err) {
+            while (container.firstChild) container.removeChild(container.firstChild);
+            container.textContent = 'Error: ' + err.message;
         });
 }
 
@@ -6178,10 +6293,10 @@ function loadBrowser() {
                 }
                 var frInput = document.createElement('input');
                 frInput.type = 'text';
-                frInput.value = t.target || t.french || '';
+                frInput.value = t.target || '';
                 frInput.placeholder = t.status === 'missing' ? '(missing)' : '';
                 frInput.dataset.key = t.key;
-                frInput.dataset.frId = t.fr_id || '';
+                frInput.dataset.targetId = t.target_id || '';
                 frInput.style.cssText = 'width: 100%; padding: 0.3rem 0.5rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 4px; color: var(--archie-text-primary, #e6edf3); font-size: 0.85rem;';
                 frCell.appendChild(frInput);
                 row.appendChild(frCell);
@@ -6216,15 +6331,15 @@ function loadBrowser() {
                 })(t.key, frInput);
                 actCell.appendChild(saveBtn);
 
-                // Approve button (only if there's a fr_id and not already approved)
-                if (t.fr_id && t.status !== 'approved') {
+                // Approve button (only if there's a target_id and not already approved)
+                if (t.target_id && t.status !== 'approved') {
                     var approveBtn = document.createElement('button');
                     approveBtn.textContent = 'Approve';
                     approveBtn.className = 'btn btn-sm';
                     approveBtn.style.cssText = 'padding: 0.2rem 0.5rem; font-size: 0.75rem; background: #238636; border: 1px solid #2ea043; border-radius: 4px; color: #fff; cursor: pointer;';
                     approveBtn.onclick = (function(id) {
                         return function() { approveBrowserTranslation(id); };
-                    })(t.fr_id);
+                    })(t.target_id);
                     actCell.appendChild(approveBtn);
                 }
 
@@ -6300,6 +6415,55 @@ function generateTranslations() {
             btn.disabled = false;
             status.textContent = 'Generate failed: ' + err.message;
         });
+}
+
+function generateAllLanguages() {
+    var btn = document.getElementById('ls-btn-generate-all');
+    var status = document.getElementById('ls-action-status');
+    var langs = Object.keys(LANG_NAMES); // all non-English languages
+    var totalLangs = langs.length;
+    var currentIdx = 0;
+    var totalGenerated = 0;
+    var totalFailed = 0;
+    btn.disabled = true;
+
+    function generateNext() {
+        if (currentIdx >= totalLangs) {
+            btn.disabled = false;
+            status.textContent = 'All ' + totalLangs + ' languages done: ' + totalGenerated + ' generated, ' + totalFailed + ' failed.';
+            loadLangStats();
+            return;
+        }
+        var lang = langs[currentIdx];
+        var langName = LANG_NAMES[lang] || lang;
+        currentIdx++;
+        status.textContent = 'Generating ' + langName + '... (' + currentIdx + '/' + totalLangs + ')';
+        fetch('/tools/consciousness/api/translations/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ language: lang })
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    var stats = data.stats || {};
+                    totalGenerated += (stats.inserted || 0);
+                    totalFailed += (stats.failed || 0);
+                    status.textContent = langName + ' done (' + (stats.inserted || 0) + ' generated). Running ' + currentIdx + '/' + totalLangs + '...';
+                } else {
+                    totalFailed++;
+                    status.textContent = langName + ' error: ' + (data.error || 'Unknown') + '. Continuing...';
+                }
+                generateNext();
+            })
+            .catch(function(err) {
+                totalFailed++;
+                status.textContent = langName + ' failed: ' + err.message + '. Continuing...';
+                generateNext();
+            });
+    }
+
+    generateNext();
 }
 
 function bulkApproveAll() {

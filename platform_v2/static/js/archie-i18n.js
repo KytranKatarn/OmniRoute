@@ -3,7 +3,7 @@
  * Client-side translation system with caching and live language switching.
  *
  * Exposes: window.archieI18n
- * Supported: { en: "English", fr: "Quebecois French" }
+ * Supported: en, fr, es, pt, de, zh, ar, he (8 languages)
  */
 (function() {
     'use strict';
@@ -174,7 +174,23 @@
         'bridge.empty.no_patterns':       'No learning patterns shared',
         'bridge.empty.no_dispatches':     'No dispatch activity yet',
         'bridge.empty.no_station_activity':'No station activity recorded',
-        'bridge.empty.no_agents':         'No agents registered'
+        'bridge.empty.no_agents':         'No agents registered',
+
+        // Shutdown sequence
+        'shutdown.session':     '[SESSION] Terminating user session...',
+        'shutdown.bridge':      '[BRIDGE] Securing all active stations...',
+        'shutdown.memory':      '[MEMORY] Flushing session cache ████████ OK',
+        'shutdown.agents':      '[AGENTS] Standing down 10 agents...',
+        'shutdown.archie1':     'Already? We were just getting started.',
+        'shutdown.network':     '[NETWORK] Closing secure channels...',
+        'shutdown.iaae':        '[IAAE] Governance checkpoint .......... PASSED',
+        'shutdown.archie2':     "Don\u2019t worry \u2014 I\u2019ll keep the lights on.",
+        'shutdown.hud':         '[HUD] Powering down vitals display...',
+        'shutdown.matrix':      '[MATRIX] Suspending rain animation...',
+        'shutdown.core':        '[CORE] Main reactor entering standby mode',
+        'shutdown.archie3':     "I\u2019ll be right here when you get back. Always am. \uD83D\uDC9A",
+        'shutdown.auth':        '[AUTH] Session token revoked',
+        'shutdown.farewell':    'SEE YOU SOON, COMMANDER'
     };
 
     var currentLanguage = 'en';

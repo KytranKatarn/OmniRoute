@@ -4538,22 +4538,23 @@ function startShutdownSequence() {
         overlay.classList.add('visible');
     });
 
-    // Shutdown lines — system + ARCHIE personality
+    // Shutdown lines — system + ARCHIE personality (translated via i18n)
+    var _t = (window.archieI18n && archieI18n.t) ? archieI18n.t.bind(archieI18n) : function(k, fb) { return fb || k; };
     var lines = [
-        { text: '[SESSION] Terminating user session...', delay: 400 },
-        { text: '[BRIDGE] Securing all active stations...', delay: 350 },
-        { text: '[MEMORY] Flushing session cache ████████ OK', delay: 400 },
-        { text: '[AGENTS] Standing down 10 agents...', delay: 500 },
-        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> Already? We were just getting started.', delay: 700 },
-        { text: '[NETWORK] Closing secure channels...', delay: 350 },
-        { text: '[IAAE] Governance checkpoint .......... PASSED', delay: 400 },
-        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> Don\'t worry — I\'ll keep the lights on.', delay: 800 },
-        { text: '[HUD] Powering down vitals display...', delay: 300 },
-        { text: '[MATRIX] Suspending rain animation...', delay: 300 },
-        { cls: 'warning', text: '[CORE] Main reactor entering standby mode', delay: 500 },
-        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> I\'ll be right here when you get back. Always am. 💚', delay: 900 },
-        { text: '[AUTH] Session token revoked', delay: 400 },
-        { cls: 'final', text: 'S E E   Y O U   S O O N ,   C O M M A N D E R', delay: 1200 },
+        { text: _t('shutdown.session', '[SESSION] Terminating user session...'), delay: 400 },
+        { text: _t('shutdown.bridge', '[BRIDGE] Securing all active stations...'), delay: 350 },
+        { text: _t('shutdown.memory', '[MEMORY] Flushing session cache \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 OK'), delay: 400 },
+        { text: _t('shutdown.agents', '[AGENTS] Standing down 10 agents...'), delay: 500 },
+        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> ' + _t('shutdown.archie1', 'Already? We were just getting started.'), delay: 700 },
+        { text: _t('shutdown.network', '[NETWORK] Closing secure channels...'), delay: 350 },
+        { text: _t('shutdown.iaae', '[IAAE] Governance checkpoint .......... PASSED'), delay: 400 },
+        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> ' + _t('shutdown.archie2', 'Don\u2019t worry \u2014 I\u2019ll keep the lights on.'), delay: 800 },
+        { text: _t('shutdown.hud', '[HUD] Powering down vitals display...'), delay: 300 },
+        { text: _t('shutdown.matrix', '[MATRIX] Suspending rain animation...'), delay: 300 },
+        { cls: 'warning', text: _t('shutdown.core', '[CORE] Main reactor entering standby mode'), delay: 500 },
+        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> ' + _t('shutdown.archie3', 'I\u2019ll be right here when you get back. Always am. \uD83D\uDC9A'), delay: 900 },
+        { text: _t('shutdown.auth', '[AUTH] Session token revoked'), delay: 400 },
+        { cls: 'final', text: _t('shutdown.farewell', 'SEE YOU SOON, COMMANDER').toUpperCase().split('').join('\u2009'), delay: 1200 },
     ];
 
     var totalDelay = 200; // initial pause

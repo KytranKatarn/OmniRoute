@@ -9068,13 +9068,24 @@ def _scan_all_sources():
 
     # ── Source 4: JS Translation Keys ──
     js_path = os.path.join(platform_root, "static", "js", "archie-i18n.js")
-    js_key_pattern = re.compile(r"'([^']+)':\s*'([^']+)'")
+    js_key_pattern = re.compile(r"""'([^']+)':\s*(['"])(.*?)\2""", re.DOTALL)
     try:
         with open(js_path, "r", encoding="utf-8") as fh:
             js_content = fh.read()
         for match in js_key_pattern.finditer(js_content):
             js_key = match.group(1)
-            js_val = match.group(2)
+            js_val = match.group(3)
+            # Decode JS unicode escapes (\uXXXX) to actual characters
+            if "\\u" in js_val:
+                try:
+                    js_val = (
+                        js_val.encode("raw_unicode_escape")
+                        .decode("unicode_escape")
+                        .encode("utf-16", "surrogatepass")
+                        .decode("utf-16")
+                    )
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    pass  # keep raw value if decode fails
             # Only capture keys that look like translation keys (contain a dot)
             if "." in js_key:
                 keys[js_key] = {
@@ -9110,6 +9121,75 @@ def translation_scan():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+def _seed_keys(keys_dict):
+    """Seed English source strings for discovered keys not yet in DB.
+
+    Args:
+        keys_dict: dict of key -> {"english": str, "source": str, ...}
+
+    Returns:
+        tuple: (seeded_count, skipped_count)
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    seeded = 0
+    skipped = 0
+
+    context_map = {
+        "module_name": "module_registry",
+        "module_desc": "module_registry",
+        "category": "module_registry",
+        "js": "js_manifest",
+        "template": "template",
+    }
+
+    for key, info in keys_dict.items():
+        english = info.get("english", "")
+        source_type = info.get("source", "")
+        if not english:
+            skipped += 1
+            continue
+
+        context = context_map.get(source_type, source_type)
+
+        cur.execute(
+            """
+            INSERT INTO translations (key, language, text, source, status, context,
+                                      created_at, updated_at)
+            VALUES (%s, 'en', %s, 'imported', 'approved', %s, NOW(), NOW())
+            ON CONFLICT (key, language) DO NOTHING
+            """,
+            (key, english, context),
+        )
+        if cur.rowcount > 0:
+            seeded += 1
+        else:
+            skipped += 1
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return seeded, skipped
+
+
+def scan_and_seed_keys():
+    """Scan all sources and seed missing English keys. Callable from startup hook or API.
+
+    Returns:
+        dict: {"total": int, "seeded": int, "skipped": int, "by_source": dict}
+    """
+    keys, by_source = _scan_all_sources()
+    seeded, skipped = _seed_keys(keys)
+    return {
+        "total": len(keys),
+        "seeded": seeded,
+        "skipped": skipped,
+        "by_source": by_source,
+    }
+
+
 @consciousness_bp.route("/api/translations/seed", methods=["POST"])
 @login_required
 @require_permission(Permission.ADMIN_ACCESS)
@@ -9122,50 +9202,130 @@ def translation_seed():
         if not incoming_keys:
             return jsonify({"success": False, "error": "keys dict required"}), 400
 
-        conn = get_db()
-        cur = conn.cursor()
-
-        seeded = 0
-        skipped = 0
-
-        for key, info in incoming_keys.items():
-            english = info.get("english", "")
-            source_type = info.get("source", "")
-            if not english:
-                skipped += 1
-                continue
-
-            # Map source type to context label
-            context_map = {
-                "module_name": "module_registry",
-                "module_desc": "module_registry",
-                "category": "module_registry",
-                "js": "js_manifest",
-                "template": "template",
-            }
-            context = context_map.get(source_type, source_type)
-
-            cur.execute(
-                """
-                INSERT INTO translations (key, language, text, source, status, context,
-                                          created_at, updated_at)
-                VALUES (%s, 'en', %s, 'imported', 'approved', %s, NOW(), NOW())
-                ON CONFLICT (key, language) DO NOTHING
-                """,
-                (key, english, context),
-            )
-            if cur.rowcount > 0:
-                seeded += 1
-            else:
-                skipped += 1
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
+        seeded, skipped = _seed_keys(incoming_keys)
         return jsonify({"success": True, "seeded": seeded, "skipped": skipped})
     except Exception as e:
         logger.error(f"Translation seed error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/scan-and-seed", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_scan_and_seed():
+    """One-click: scan all sources and seed missing English keys."""
+    try:
+        result = scan_and_seed_keys()
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"Translation scan-and-seed error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/translations/module-coverage")
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_module_coverage():
+    """Per-module i18n coverage: which modules have data-i18n attributes."""
+    try:
+        platform_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        tools_root = os.path.join(platform_root, "tools")
+        i18n_pattern = re.compile(r'data-i18n(?:-\w+)?="([^"]+)"')
+        t_call_pattern = re.compile(r"archieI18n\.t\(")
+
+        modules = []
+        try:
+            from module_registry import get_all_modules
+
+            all_modules = get_all_modules()
+        except Exception:
+            all_modules = []
+
+        for mod in all_modules:
+            mod_dir = os.path.join(tools_root, mod.id)
+            if not os.path.isdir(mod_dir):
+                modules.append(
+                    {
+                        "id": mod.id,
+                        "name": mod.name,
+                        "key_count": 0,
+                        "status": "no_templates",
+                    }
+                )
+                continue
+
+            key_count = 0
+            has_t_calls = False
+            # Scan all HTML files in the module's templates directory
+            tpl_dir = os.path.join(mod_dir, "templates")
+            if os.path.isdir(tpl_dir):
+                for root, _dirs, files in os.walk(tpl_dir):
+                    for fname in files:
+                        if not fname.endswith(".html"):
+                            continue
+                        try:
+                            fpath = os.path.join(root, fname)
+                            with open(fpath, "r", encoding="utf-8") as fh:
+                                content = fh.read()
+                            key_count += len(i18n_pattern.findall(content))
+                            if t_call_pattern.search(content):
+                                has_t_calls = True
+                        except Exception:
+                            pass
+
+            # Also scan static JS files in the module dir
+            static_dir = os.path.join(mod_dir, "static")
+            if os.path.isdir(static_dir):
+                for root, _dirs, files in os.walk(static_dir):
+                    for fname in files:
+                        if not fname.endswith(".js"):
+                            continue
+                        try:
+                            fpath = os.path.join(root, fname)
+                            with open(fpath, "r", encoding="utf-8") as fh:
+                                content = fh.read()
+                            if t_call_pattern.search(content):
+                                has_t_calls = True
+                        except Exception:
+                            pass
+
+            if key_count > 0 or has_t_calls:
+                status = "done" if key_count >= 5 else "partial"
+            else:
+                status = "none"
+
+            modules.append(
+                {
+                    "id": mod.id,
+                    "name": mod.name,
+                    "key_count": key_count,
+                    "has_t_calls": has_t_calls,
+                    "status": status,
+                }
+            )
+
+        # Sort: done first, then partial, then none
+        status_order = {"done": 0, "partial": 1, "none": 2, "no_templates": 3}
+        modules.sort(key=lambda m: (status_order.get(m["status"], 9), m["name"]))
+
+        done = sum(1 for m in modules if m["status"] == "done")
+        partial = sum(1 for m in modules if m["status"] == "partial")
+        none_count = sum(1 for m in modules if m["status"] in ("none", "no_templates"))
+
+        return jsonify(
+            {
+                "success": True,
+                "modules": modules,
+                "summary": {
+                    "total": len(modules),
+                    "done": done,
+                    "partial": partial,
+                    "none": none_count,
+                },
+            }
+        )
+    except Exception as e:
+        logger.error(f"Module coverage error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -9206,7 +9366,7 @@ def translation_coverage():
             """,
             (language, key_list),
         )
-        fr_rows = {row["key"]: row["status"] for row in cur.fetchall()}
+        target_rows = {row["key"]: row["status"] for row in cur.fetchall()}
         cur.close()
         conn.close()
 
@@ -9224,7 +9384,7 @@ def translation_coverage():
                 }
             sources[src]["total"] += 1
 
-            status = fr_rows.get(key)
+            status = target_rows.get(key)
             if status is None:
                 sources[src]["missing"] += 1
             else:
@@ -9310,12 +9470,10 @@ def translation_browser():
                 {
                     "key": key,
                     "english": english_text,
-                    "french": target_text,
                     "target": target_text,
                     "status": status,
                     "source": info["source"],
                     "file": info["file"],
-                    "fr_id": target_id,
                     "target_id": target_id,
                 }
             )
@@ -9335,7 +9493,7 @@ def translation_browser():
                 for t in translations
                 if search_filter in t["key"].lower()
                 or search_filter in (t["english"] or "").lower()
-                or search_filter in (t["french"] or "").lower()
+                or search_filter in (t["target"] or "").lower()
             ]
 
         return jsonify(

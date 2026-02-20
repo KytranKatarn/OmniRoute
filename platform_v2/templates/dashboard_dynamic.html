@@ -814,6 +814,168 @@ body.light-mode .cb-search-result-icon {
     display: none;
 }
 
+/* ─── Notifications Popover ─── */
+.cb-notif-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 340px;
+    max-height: 420px;
+    background: rgba(10, 10, 20, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 65, 0.06);
+    z-index: 200;
+    display: none;
+    overflow: hidden;
+}
+.cb-notif-popover.visible {
+    display: block;
+}
+.cb-notif-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.cb-notif-title {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.7);
+}
+.cb-notif-mark-all {
+    background: none;
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    color: rgba(0, 255, 65, 0.7);
+    font-size: 10px;
+    font-family: var(--archie-font-mono);
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+.cb-notif-mark-all:hover {
+    background: rgba(0, 255, 65, 0.1);
+    border-color: rgba(0, 255, 65, 0.4);
+    color: #00FF41;
+}
+.cb-notif-list {
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+.cb-notif-list::-webkit-scrollbar { width: 4px; }
+.cb-notif-list::-webkit-scrollbar-track { background: transparent; }
+.cb-notif-list::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.2); border-radius: 2px; }
+.cb-notif-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.cb-notif-item:last-child {
+    border-bottom: none;
+}
+.cb-notif-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+.cb-notif-item.unread {
+    background: rgba(0, 255, 65, 0.04);
+    border-left: 2px solid rgba(0, 255, 65, 0.4);
+}
+.cb-notif-item.unread:hover {
+    background: rgba(0, 255, 65, 0.08);
+}
+.cb-notif-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+}
+.cb-notif-dot.info { background: #00CCFF; }
+.cb-notif-dot.warning { background: #ffaa00; }
+.cb-notif-dot.error { background: #ff3b3b; }
+.cb-notif-dot.success { background: #00FF41; }
+.cb-notif-dot.system { background: #8b5cf6; }
+.cb-notif-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+.cb-notif-item-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cb-notif-item-msg {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+.cb-notif-item-time {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.25);
+    margin-top: 3px;
+}
+.cb-notif-empty {
+    padding: 24px 16px;
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    letter-spacing: 1px;
+}
+
+/* Light mode */
+[data-theme="light"] .cb-notif-popover,
+body.light-mode .cb-notif-popover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.12);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] .cb-notif-item-title,
+body.light-mode .cb-notif-item-title { color: #222; }
+[data-theme="light"] .cb-notif-item-msg,
+body.light-mode .cb-notif-item-msg { color: rgba(0,0,0,0.5); }
+[data-theme="light"] .cb-notif-title,
+body.light-mode .cb-notif-title { color: #333; }
+
+/* Mobile: full-width */
+@media (max-width: 480px) {
+    .cb-notif-popover {
+        position: fixed;
+        top: 52px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+    }
+}
+
+/* RTL */
+[dir="rtl"] .cb-notif-popover {
+    right: auto;
+    left: 0;
+}
+[dir="rtl"] .cb-notif-item.unread {
+    border-left: none;
+    border-right: 2px solid rgba(0, 255, 65, 0.4);
+}
+
 /* Logout button specific */
 .cb-icon-btn.cb-logout:hover {
     color: #ff5555;
@@ -2425,10 +2587,21 @@ body.light-mode .module-card {
         <!-- Right Zone: Actions -->
         <div class="cb-zone cb-zone-right">
             <!-- Notifications -->
-            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
-                <i data-lucide="bell"></i>
-                <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
-            </button>
+            <div style="position:relative;">
+                <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
+                    <i data-lucide="bell"></i>
+                    <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
+                </button>
+                <div class="cb-notif-popover" id="cbNotifPopover">
+                    <div class="cb-notif-header">
+                        <span class="cb-notif-title" data-i18n="js.notif.title">Notifications</span>
+                        <button class="cb-notif-mark-all" id="cbNotifMarkAll" data-i18n="js.notif.mark_all_read">Mark all read</button>
+                    </div>
+                    <div class="cb-notif-list" id="cbNotifList">
+                        <div class="cb-notif-empty" data-i18n="js.notif.loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
             <!-- Theme toggle -->
             <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
                 <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
@@ -3288,6 +3461,115 @@ body.light-mode .module-card {
     var themeObserver = new MutationObserver(syncThemeIcons);
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    // ── Notifications Popover ──
+    var notifBtn = document.getElementById('cbNotifBtn');
+    var notifPopover = document.getElementById('cbNotifPopover');
+    var notifList = document.getElementById('cbNotifList');
+    var notifMarkAll = document.getElementById('cbNotifMarkAll');
+
+    if (notifBtn && notifPopover) {
+        notifBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var isOpen = notifPopover.classList.contains('visible');
+            if (isOpen) {
+                notifPopover.classList.remove('visible');
+            } else {
+                notifPopover.classList.add('visible');
+                fetchNotifications();
+            }
+        });
+
+        // Close on outside click
+        document.addEventListener('click', function(e) {
+            if (!notifPopover.contains(e.target) && e.target !== notifBtn && !notifBtn.contains(e.target)) {
+                notifPopover.classList.remove('visible');
+            }
+        });
+
+        // Mark all read
+        if (notifMarkAll) {
+            notifMarkAll.addEventListener('click', function() {
+                fetch('/api/notifications/mark-all-read', { method: 'POST' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            fetchNotifications();
+                            fetchNotifCount();
+                        }
+                    })
+                    .catch(function(err) { console.warn('Mark all read failed:', err); });
+            });
+        }
+    }
+
+    function fetchNotifications() {
+        fetch('/api/notifications')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.notifications) return;
+                renderNotifications(data.notifications);
+            })
+            .catch(function(err) {
+                console.warn('Notifications fetch failed:', err);
+                notifList.innerHTML = '<div class="cb-notif-empty">Failed to load</div>';
+            });
+    }
+
+    function renderNotifications(items) {
+        if (!items.length) {
+            notifList.innerHTML = '<div class="cb-notif-empty" data-i18n="js.notif.none">No notifications</div>';
+            return;
+        }
+        var html = '';
+        items.slice(0, 20).forEach(function(n) {
+            var dotClass = n.type || 'info';
+            if (['info','warning','error','success','system'].indexOf(dotClass) < 0) dotClass = 'info';
+            var unread = n.is_read ? '' : ' unread';
+            var timeStr = formatNotifTime(n.created_at);
+            html += '<div class="cb-notif-item' + unread + '" data-notif-id="' + n.id + '">' +
+                '<div class="cb-notif-dot ' + dotClass + '"></div>' +
+                '<div class="cb-notif-info">' +
+                    '<div class="cb-notif-item-title">' + escNotifHtml(n.title || '') + '</div>' +
+                    '<div class="cb-notif-item-msg">' + escNotifHtml(n.message || '') + '</div>' +
+                    '<div class="cb-notif-item-time">' + timeStr + '</div>' +
+                '</div>' +
+            '</div>';
+        });
+        notifList.innerHTML = html;
+
+        // Click to mark individual as read
+        notifList.querySelectorAll('.cb-notif-item.unread').forEach(function(item) {
+            item.addEventListener('click', function() {
+                var nid = item.getAttribute('data-notif-id');
+                fetch('/api/notifications/mark-read/' + nid, { method: 'POST' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            item.classList.remove('unread');
+                            fetchNotifCount();
+                        }
+                    });
+            });
+        });
+    }
+
+    function escNotifHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    function formatNotifTime(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        var now = new Date();
+        var diff = Math.floor((now - d) / 1000);
+        if (diff < 60) return diff + 's ago';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        return Math.floor(diff / 86400) + 'd ago';
+    }
 
     // ── Lucide icons: re-render for command bar ──
     if (typeof lucide !== 'undefined') {

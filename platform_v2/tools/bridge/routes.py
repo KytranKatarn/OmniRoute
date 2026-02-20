@@ -6863,6 +6863,50 @@ def set_routing_mode():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/escalation-mode", methods=["GET"])
+@login_required
+def get_escalation_mode():
+    """Get current bridge escalation mode."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT value FROM platform_settings WHERE key = 'escalation_mode'")
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "escalation_mode": row["value"] if row else "auto"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/escalation-mode", methods=["POST"])
+@login_required
+def set_escalation_mode():
+    """Set bridge escalation mode: auto, ask_first, or local_only."""
+    data = request.get_json() or {}
+    mode = data.get("escalation_mode", "auto")
+    if mode not in ("auto", "ask_first", "local_only"):
+        return jsonify({"success": False, "error": f"Invalid mode: {mode}"}), 400
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+            VALUES ('escalation_mode', %s, 'string', 'Throughput escalation mode', NOW())
+            ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()
+        """,
+            (mode, mode),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"[Bridge] Escalation mode changed to: {mode}")
+        return jsonify({"success": True, "escalation_mode": mode})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/escalation-log", methods=["GET"])
 @login_required
 def get_escalation_log():

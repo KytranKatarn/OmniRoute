@@ -3086,6 +3086,27 @@
     color: var(--archie-text-secondary);
     border-color: var(--archie-gold);
 }
+.escalation-btn {
+    padding: 4px 14px;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    background: transparent;
+    color: var(--archie-text-muted);
+    border: 1px solid var(--archie-border-default);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.escalation-btn:first-child { border-radius: 4px 0 0 4px; }
+.escalation-btn:last-child { border-radius: 0 4px 4px 0; }
+.escalation-btn.active {
+    background: var(--archie-cyan);
+    color: #000;
+    border-color: var(--archie-cyan);
+}
+.escalation-btn:hover:not(.active) {
+    color: var(--archie-text-secondary);
+    border-color: var(--archie-cyan);
+}
 
 /* ============================================================================
    LIGHT MODE OVERRIDES
@@ -3168,6 +3189,17 @@ body.light-mode .routing-btn.active,
     background: #cc8800;
     color: #fff;
     border-color: #cc8800;
+}
+body.light-mode .escalation-btn,
+[data-theme="light"] .escalation-btn {
+    color: #666;
+    border-color: rgba(0, 0, 0, 0.15);
+}
+body.light-mode .escalation-btn.active,
+[data-theme="light"] .escalation-btn.active {
+    background: #0088aa;
+    color: #fff;
+    border-color: #0088aa;
 }
 
 /* Command Station */
@@ -3746,6 +3778,15 @@ body.light-mode .station-coverage-code,
         </div>
         <span id="routingModeStatus" style="color:var(--archie-text-muted);font-size:11px;"></span>
     </div>
+    <div class="routing-mode-control">
+        <span class="routing-mode-label" data-i18n="bridge.escalation.mode">Escalation</span>
+        <div style="display:flex;">
+            <button class="escalation-btn" data-mode="auto" title="Auto-escalate to free cloud when busy" data-i18n="bridge.escalation.auto">Auto</button>
+            <button class="escalation-btn" data-mode="ask_first" title="Ask via Telegram before cloud escalation" data-i18n="bridge.escalation.ask_first">Ask First</button>
+            <button class="escalation-btn active" data-mode="local_only" title="Never escalate — queue for local LLM" data-i18n="bridge.escalation.local_only">Local Only</button>
+        </div>
+        <span id="escalationModeStatus" style="color:var(--archie-text-muted);font-size:11px;"></span>
+    </div>
 
     <!-- Main Content -->
     <div class="bridge-main">
@@ -4295,6 +4336,40 @@ document.querySelectorAll('.routing-btn').forEach(function(btn) {
 });
 
 loadRoutingMode();
+
+// === Escalation Mode Toggle ===
+async function loadEscalationMode() {
+    try {
+        const res = await fetch('/tools/bridge/api/escalation-mode');
+        const data = await res.json();
+        if (data.success) {
+            document.querySelectorAll('.escalation-btn').forEach(function(btn) {
+                btn.classList.toggle('active', btn.dataset.mode === data.escalation_mode);
+            });
+        }
+    } catch (e) { console.error('Failed to load escalation mode:', e); }
+}
+
+document.querySelectorAll('.escalation-btn').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+        var mode = this.dataset.mode;
+        try {
+            var res = await fetch('/tools/bridge/api/escalation-mode', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({escalation_mode: mode}),
+            });
+            var data = await res.json();
+            if (data.success) {
+                document.querySelectorAll('.escalation-btn').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                document.getElementById('escalationModeStatus').textContent = 'Mode: ' + mode;
+            }
+        } catch (e) { console.error('Failed to set escalation mode:', e); }
+    });
+});
+
+loadEscalationMode();
 
 // ============================================================================
 // A.R.C.H.I.E. BRIDGE - JavaScript Controller

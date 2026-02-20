@@ -407,6 +407,25 @@ class BridgeDispatcher:
         except Exception:
             return "full"
 
+    def _get_escalation_mode(self) -> str:
+        """Read escalation_mode from platform_settings.
+
+        Returns one of: 'auto', 'ask_first', 'local_only'.
+        - auto: auto-escalate to free cloud, Telegram FYI
+        - ask_first: request Telegram approval before any cloud escalation
+        - local_only: never escalate, always use local LLM (queue/wait)
+        """
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'escalation_mode'")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return row[0] if row else "auto"
+        except Exception:
+            return "auto"
+
     # Cloud contractor models (free via OLLAMA_API_KEY)
     FREE_CLOUD_MODELS = [
         "minimax-m2.5:cloud",
@@ -478,12 +497,71 @@ class BridgeDispatcher:
         """
         Attempt throughput escalation when primary agent is busy.
 
-        1. Try free cloud contractors (auto-approve)
-        2. If unavailable/failed, request paid cloud via Telegram approval
+        Behavior depends on escalation_mode platform setting:
+        - auto: try free cloud (auto-approve), then paid cloud via Telegram
+        - ask_first: request Telegram approval before ANY cloud escalation
+        - local_only: never escalate, always queue for local LLM
+
         Returns DispatchResult on success, None if escalation not possible.
         """
         if routing_mode == "local_only":
             return None  # Cannot escalate
+
+        escalation_mode = self._get_escalation_mode()
+
+        if escalation_mode == "local_only":
+            logger.info(
+                f"[BridgeDispatcher] Escalation blocked: escalation_mode=local_only. "
+                f"{agent_name} busy ({busy_job['description']}), queuing for local."
+            )
+            return None  # Never escalate — queue for local
+
+        if escalation_mode == "ask_first":
+            # Request Telegram approval before any cloud escalation (including free)
+            logger.info(
+                f"[BridgeDispatcher] Escalation ask_first: {agent_name} busy "
+                f"({busy_job['description']}, {busy_job['progress_pct']}%). "
+                f"Requesting Telegram approval for cloud escalation."
+            )
+            try:
+                from agent_loop import request_approval
+
+                cloud_model = self.FREE_CLOUD_MODELS[0] if self.FREE_CLOUD_MODELS else "unknown"
+                request_approval(
+                    action_type="cloud_throughput_escalation",
+                    action_data={
+                        "original_agent": agent_name,
+                        "busy_job": busy_job,
+                        "escalated_model": cloud_model,
+                        "escalated_provider": "ollama_cloud",
+                        "capability": capability,
+                        "module_id": module_id,
+                        "prompt_preview": prompt[:200],
+                        "escalation_mode": "ask_first",
+                    },
+                    reason=(
+                        f"{agent_name} busy ({busy_job['description']}, "
+                        f"{busy_job['progress_pct']}%). "
+                        f"Escalate to {cloud_model}? Or queue for local."
+                    ),
+                    requested_by="bridge_dispatcher",
+                    tier=2,
+                )
+                self._log_escalation(
+                    original_agent_id=None,
+                    original_model=agent_name,
+                    escalated_model=cloud_model,
+                    escalated_provider="ollama_cloud",
+                    capability=capability,
+                    module_id=module_id,
+                    reason=f"Throughput: awaiting cloud approval (ask_first)",
+                    failure_count=0,
+                    approval_method="telegram",
+                    success=None,
+                )
+            except Exception as esc_err:
+                logger.warning(f"[BridgeDispatcher] ask_first approval request failed: {esc_err}")
+            return None  # Caller proceeds with local (busy) agent
 
         start = time.time()
 

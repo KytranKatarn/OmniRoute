@@ -1349,7 +1349,96 @@ def api_dashboard_alerts():
                 }
             )
 
-        # 4. User notifications (unread)
+        # 4. System alerts (unresolved — performance, escalation, provider failures, cost)
+        cur.execute(
+            """
+            SELECT alert_type, severity, message, created_at
+            FROM system_alerts
+            WHERE resolved = false
+            ORDER BY created_at DESC
+            LIMIT 5
+        """
+        )
+        for row in cur.fetchall():
+            alerts.append(
+                {
+                    "type": "system",
+                    "title": row["alert_type"].replace("_", " ").title(),
+                    "message": row["message"],
+                    "priority": row["severity"],
+                    "timestamp": row["created_at"].isoformat() + "Z" if row["created_at"] else None,
+                }
+            )
+
+        # 5. Stack health alerts (unresolved container/stack issues)
+        cur.execute(
+            """
+            SELECT stack_name, container_name, alert_type, severity, message, created_at
+            FROM stack_health_alerts
+            WHERE resolved = false
+            ORDER BY created_at DESC
+            LIMIT 5
+        """
+        )
+        for row in cur.fetchall():
+            name = row["container_name"] or row["stack_name"]
+            alerts.append(
+                {
+                    "type": "stack_health",
+                    "title": f"{name}: {row['alert_type'].replace('_', ' ')}",
+                    "message": row["message"],
+                    "priority": row["severity"] or "warning",
+                    "timestamp": row["created_at"].isoformat() + "Z" if row["created_at"] else None,
+                }
+            )
+
+        # 6. Failed logins (last 24h, grouped by username)
+        cur.execute(
+            """
+            SELECT username, COUNT(*) as attempts, MAX(attempted_at) as latest,
+                   (array_agg(DISTINCT ip_address))[1:2] as ips
+            FROM failed_logins
+            WHERE attempted_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY username
+            ORDER BY attempts DESC
+            LIMIT 3
+        """
+        )
+        for row in cur.fetchall():
+            count = row["attempts"]
+            ips = ", ".join(row["ips"]) if row["ips"] else "unknown"
+            alerts.append(
+                {
+                    "type": "security",
+                    "title": f"{count} failed login{'s' if count > 1 else ''} for {row['username']}",
+                    "message": f"From IP: {ips}",
+                    "priority": "high" if count >= 5 else "medium",
+                    "timestamp": row["latest"].isoformat() + "Z" if row["latest"] else None,
+                }
+            )
+
+        # 7. Ethics alerts (unresolved)
+        cur.execute(
+            """
+            SELECT alert_type, severity, description, created_at
+            FROM ethics_alerts
+            WHERE status != 'resolved'
+            ORDER BY created_at DESC
+            LIMIT 3
+        """
+        )
+        for row in cur.fetchall():
+            alerts.append(
+                {
+                    "type": "ethics",
+                    "title": f"Ethics: {row['alert_type'].replace('_', ' ').title()}",
+                    "message": row["description"],
+                    "priority": row["severity"] or "warning",
+                    "timestamp": row["created_at"].isoformat() + "Z" if row["created_at"] else None,
+                }
+            )
+
+        # 8. User notifications (unread)
         cur.execute(
             """
             SELECT type, title, message, priority, created_at

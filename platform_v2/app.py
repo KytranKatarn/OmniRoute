@@ -36,7 +36,11 @@ from config import Config
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
-            return obj.isoformat()
+            # Append 'Z' for naive (UTC) datetimes so browsers parse correctly
+            iso = obj.isoformat()
+            if obj.tzinfo is None:
+                iso += "Z"
+            return iso
         return super().default(obj)
 
 
@@ -1078,6 +1082,49 @@ def api_dashboard_ai_status():
 @login_required
 def api_dashboard_recent_activity():
     """Blended recent activity from multiple sources for mission briefing."""
+
+    def _friendly_action(action):
+        """Convert raw action codes to human-readable labels."""
+        labels = {
+            "login_success": "Logged in",
+            "login_failed": "Failed login",
+            "user_updated": "Updated profile",
+            "session_revoked": "Revoked session",
+            "subscription_changed": "Changed subscription",
+            "2fa_enabled": "Enabled 2FA",
+            "2fa_disabled": "Disabled 2FA",
+        }
+        return labels.get(action, action.replace("_", " ").title())
+
+    def _friendly_module(module_source):
+        """Convert module_source codes to readable names."""
+        labels = {
+            "email_intelligence": "Email",
+            "consciousness_linguistics": "Linguistics",
+            "proactive_intelligence": "Proactive AI",
+            "bridge_learning": "Bridge Learning",
+        }
+        return labels.get(module_source, (module_source or "bridge").replace("_", " ").title())
+
+    def _friendly_capability(capability, count, agent):
+        """Build a human-readable bridge activity description."""
+        verbs = {
+            "classify": f"{agent} classified {count} emails",
+            "translate": f"{agent} translated {count} strings",
+            "chat": f"{agent} handled {count} conversations",
+            "summarize": f"{agent} summarized {count} texts",
+            "code": f"{agent} generated {count} code blocks",
+            "detect_language": f"{agent} detected {count} languages",
+            "embed": f"{agent} embedded {count} entries",
+        }
+        return verbs.get(capability, f"{agent}: {count}x {capability}")
+
+    def _ts(dt):
+        """Convert datetime to ISO 8601 string with Z suffix."""
+        if dt is None:
+            return None
+        return dt.isoformat() + "Z" if dt.tzinfo is None else dt.isoformat()
+
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1093,18 +1140,19 @@ def api_dashboard_recent_activity():
         """
         )
         for a in cur.fetchall():
+            user = a["username"] or ""
             combined.append(
                 {
-                    "action": a["action"],
-                    "module": a["module"],
+                    "action": f"{user}: {_friendly_action(a['action'])}" if user else _friendly_action(a["action"]),
+                    "module": (a["module"] or "").replace("_", " ").title(),
                     "details": a["details"],
-                    "username": a["username"],
+                    "username": user,
                     "source": "user",
-                    "timestamp": a["created_at"].isoformat() if a["created_at"] else None,
+                    "timestamp": _ts(a["created_at"]),
                 }
             )
 
-        # 2. AI bridge work (aggregated by module+capability)
+        # 2. AI bridge work (aggregated by module+capability per 24h)
         cur.execute(
             """
             SELECT module_source, capability, agent_name,
@@ -1117,36 +1165,47 @@ def api_dashboard_recent_activity():
         """
         )
         for row in cur.fetchall():
-            module_label = (row["module_source"] or "bridge").replace("_", " ").title()
+            agent = row["agent_name"] or "Bridge"
+            calls = row["calls"]
             combined.append(
                 {
-                    "action": f"{row['calls']}x {row['capability']}",
-                    "module": module_label,
-                    "details": f"Agent {row['agent_name']} — {row['calls']} {row['capability']} calls",
-                    "username": row["agent_name"],
+                    "action": _friendly_capability(row["capability"], calls, agent),
+                    "module": _friendly_module(row["module_source"]),
+                    "details": f"Agent {agent} — {calls} {row['capability']} calls via bridge",
+                    "username": agent,
                     "source": "bridge",
-                    "timestamp": row["latest"].isoformat() if row["latest"] else None,
+                    "timestamp": _ts(row["latest"]),
                 }
             )
 
-        # 3. Governance events (commits, decisions)
+        # 3. Governance events (commits, decisions) — with user attribution
         cur.execute(
             """
-            SELECT event_type, event_category, action, reason, timestamp
-            FROM governance_audit_log
-            ORDER BY timestamp DESC
+            SELECT g.event_type, g.event_category, g.action, g.reason,
+                   g.timestamp, u.username
+            FROM governance_audit_log g
+            LEFT JOIN users u ON g.user_id = u.id
+            ORDER BY g.timestamp DESC
             LIMIT 5
         """
         )
         for g in cur.fetchall():
+            reason = g["reason"] or ""
+            who = g["username"] or ""
+            if g["event_type"] == "dev_commit":
+                action_text = f"Committed: {reason}" if reason else "New commit"
+            else:
+                action_text = f"{g['event_type'].replace('_', ' ').title()}: {reason}"
+            if who:
+                action_text = f"{who}: {action_text}"
             combined.append(
                 {
-                    "action": g["event_type"],
-                    "module": g["event_category"],
-                    "details": g["reason"],
-                    "username": None,
+                    "action": action_text,
+                    "module": (g["event_category"] or "").replace("_", " ").title(),
+                    "details": reason,
+                    "username": who,
                     "source": "governance",
-                    "timestamp": g["timestamp"].isoformat() if g["timestamp"] else None,
+                    "timestamp": _ts(g["timestamp"]),
                 }
             )
 
@@ -1160,14 +1219,15 @@ def api_dashboard_recent_activity():
         """
         )
         for k in cur.fetchall():
+            ktype = (k["knowledge_type"] or "entry").replace("_", " ").title()
             combined.append(
                 {
-                    "action": f"{k['knowledge_type']} updated",
-                    "module": k["category"] or "knowledge",
+                    "action": f"{ktype}: {k['title']}",
+                    "module": (k["category"] or "knowledge").replace("_", " ").title(),
                     "details": k["title"],
                     "username": None,
                     "source": "knowledge",
-                    "timestamp": k["updated_at"].isoformat() if k["updated_at"] else None,
+                    "timestamp": _ts(k["updated_at"]),
                 }
             )
 
@@ -1175,7 +1235,10 @@ def api_dashboard_recent_activity():
         conn.close()
 
         # Sort all by timestamp descending, take top 10
-        combined.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+        combined.sort(
+            key=lambda x: x.get("timestamp") or "",
+            reverse=True,
+        )
         return jsonify({"success": True, "activities": combined[:10]})
     except Exception as e:
         logger.error(f"Recent activity API error: {e}")

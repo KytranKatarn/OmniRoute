@@ -1717,10 +1717,10 @@ body.light-mode .footer-version {
 
 .briefing-activity-text {
     flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    min-width: 0;
     color: rgba(255, 255, 255, 0.7);
+    line-height: 1.4;
+    word-break: break-word;
 }
 
 .briefing-activity-time {
@@ -3905,17 +3905,9 @@ body.light-mode .module-card {
 
             var textSpan = document.createElement('span');
             textSpan.className = 'briefing-activity-text';
-            var actionText = item.action || 'Activity';
-            if (item.module) {
-                actionText += ' \u2014 ' + item.module;
-            }
-            if (item.username && item.source === 'user') {
-                actionText = item.username + ': ' + actionText;
-            } else if (item.username && item.source === 'bridge') {
-                actionText = item.username + ': ' + actionText;
-            }
-            textSpan.textContent = actionText;
-            textSpan.title = item.details || actionText;
+            // Action text is already human-readable from the API
+            textSpan.textContent = item.action || 'Activity';
+            textSpan.title = item.details || item.action || '';
 
             var timeSpan = document.createElement('span');
             timeSpan.className = 'briefing-activity-time';

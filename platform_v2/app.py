@@ -1155,30 +1155,36 @@ def api_dashboard_recent_activity():
             )
 
         # 2. AI bridge work (aggregated by module+capability per 7 days)
-        #    JOIN agents+agent_types to get the agent's role title
+        #    JOIN agents+agent_types for full name + role
         cur.execute(
             """
             SELECT t.module_source, t.capability, t.agent_name,
                    COUNT(*) as calls, MAX(t.created_at) as latest,
-                   COALESCE(at.name, a.name, t.agent_name) as agent_title
+                   a.first_name, a.last_name, at.name as role_name
             FROM task_execution_log t
             LEFT JOIN agents a ON a.name = SPLIT_PART(t.agent_name, '→', 1)
             LEFT JOIN agent_types at ON a.type_id = at.id
             WHERE t.created_at >= NOW() - INTERVAL '7 days'
             GROUP BY t.module_source, t.capability, t.agent_name,
-                     at.name, a.name
+                     a.first_name, a.last_name, at.name
             ORDER BY latest DESC
             LIMIT 8
         """
         )
         for row in cur.fetchall():
-            agent_name = (row["agent_name"] or "Bridge").split("\u2192")[0].strip()
-            agent_type = row["agent_title"] or agent_name
-            # Show "Name (Role)" when role differs from name
-            if agent_type != agent_name:
-                agent_label = f"{agent_name} ({agent_type})"
+            # Build "First Last (Role)" label from agents + agent_types
+            first = (row["first_name"] or "").strip()
+            last = (row["last_name"] or "").strip()
+            full_name = f"{first} {last}".strip()
+            role = row["role_name"] or ""
+            if full_name and role:
+                agent_label = f'{full_name} "{role}"'
+            elif full_name:
+                agent_label = full_name
+            elif role:
+                agent_label = role
             else:
-                agent_label = agent_name
+                agent_label = (row["agent_name"] or "Bridge").split("\u2192")[0].strip()
             calls = row["calls"]
             module = _friendly_module(row["module_source"])
             combined.append(

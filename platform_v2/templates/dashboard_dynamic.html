@@ -1073,6 +1073,154 @@ body.light-mode .cb-notif-title { color: #333; }
     border-right: 2px solid rgba(0, 255, 65, 0.4);
 }
 
+/* ── Notification Detail Modal ── */
+.cb-notif-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+}
+.cb-notif-modal-overlay.visible {
+    display: flex;
+}
+.cb-notif-modal {
+    background: rgba(12, 12, 24, 0.97);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 480px;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 255, 65, 0.06);
+    animation: notifModalIn 0.2s ease-out;
+}
+@keyframes notifModalIn {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.cb-notif-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.cb-notif-modal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.cb-notif-modal-dot.info { background: #00CCFF; }
+.cb-notif-modal-dot.warning { background: #ffaa00; }
+.cb-notif-modal-dot.error { background: #ff3b3b; }
+.cb-notif-modal-dot.success { background: #00FF41; }
+.cb-notif-modal-dot.reminder { background: #8b5cf6; }
+.cb-notif-modal-title {
+    flex: 1;
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.9);
+    word-break: break-word;
+}
+.cb-notif-modal-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color 0.15s ease;
+}
+.cb-notif-modal-close:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+.cb-notif-modal-body {
+    padding: 20px;
+}
+.cb-notif-modal-message {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.75);
+    line-height: 1.6;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+.cb-notif-modal-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.cb-notif-modal-meta-item {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.cb-notif-modal-meta-item strong {
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 500;
+}
+.cb-notif-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.cb-notif-modal-btn {
+    background: none;
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    color: rgba(0, 255, 65, 0.7);
+    font-size: 11px;
+    font-family: var(--archie-font-mono);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+.cb-notif-modal-btn:hover {
+    background: rgba(0, 255, 65, 0.1);
+    border-color: rgba(0, 255, 65, 0.4);
+    color: #00FF41;
+}
+.cb-notif-modal-btn.dismiss {
+    border-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.4);
+}
+.cb-notif-modal-btn.dismiss:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* Light mode modal */
+[data-theme="light"] .cb-notif-modal,
+body.light-mode .cb-notif-modal {
+    background: rgba(255, 255, 255, 0.97);
+    border-color: rgba(0, 0, 0, 0.12);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+[data-theme="light"] .cb-notif-modal-title,
+body.light-mode .cb-notif-modal-title { color: #222; }
+[data-theme="light"] .cb-notif-modal-message,
+body.light-mode .cb-notif-modal-message { color: #444; }
+[data-theme="light"] .cb-notif-modal-meta-item,
+body.light-mode .cb-notif-modal-meta-item { color: rgba(0,0,0,0.35); }
+[data-theme="light"] .cb-notif-modal-meta-item strong,
+body.light-mode .cb-notif-modal-meta-item strong { color: rgba(0,0,0,0.55); }
+
 /* Logout button specific */
 .cb-icon-btn.cb-logout:hover {
     color: #ff5555;
@@ -2730,6 +2878,21 @@ body.light-mode .module-card {
                     </div>
                 </div>
             </div>
+            <!-- Notification Detail Modal -->
+            <div class="cb-notif-modal-overlay" id="cbNotifModal">
+                <div class="cb-notif-modal">
+                    <div class="cb-notif-modal-header">
+                        <div class="cb-notif-modal-dot" id="cbNotifModalDot"></div>
+                        <span class="cb-notif-modal-title" id="cbNotifModalTitle"></span>
+                        <button class="cb-notif-modal-close" id="cbNotifModalClose" aria-label="Close">&times;</button>
+                    </div>
+                    <div class="cb-notif-modal-body">
+                        <div class="cb-notif-modal-message" id="cbNotifModalMsg"></div>
+                        <div class="cb-notif-modal-meta" id="cbNotifModalMeta"></div>
+                    </div>
+                    <div class="cb-notif-modal-footer" id="cbNotifModalFooter"></div>
+                </div>
+            </div>
             <!-- Theme toggle -->
             <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
                 <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
@@ -3730,21 +3893,122 @@ window.timeAgo = function timeAgo(isoString) {
             div.appendChild(info);
             notifList.appendChild(div);
 
-            // Click to mark as read (only for real notifications with id > 0)
-            if (!n.is_read && n.id > 0) {
-                div.addEventListener('click', function() {
-                    fetch('/api/notifications/mark-read/' + n.id, { method: 'POST' })
-                        .then(function(r) { return r.json(); })
-                        .then(function(data) {
-                            if (data.success) {
-                                div.classList.remove('unread');
-                                fetchNotifCount();
-                            }
-                        });
-                });
-            }
+            // Click to open detail modal
+            div.addEventListener('click', (function(notif, itemDiv) {
+                return function() {
+                    openNotifModal(notif, itemDiv, sourceLabels);
+                };
+            })(n, div));
         });
     }
+
+    function openNotifModal(n, itemDiv, sourceLabels) {
+        var modal = document.getElementById('cbNotifModal');
+        var modalDot = document.getElementById('cbNotifModalDot');
+        var modalTitle = document.getElementById('cbNotifModalTitle');
+        var modalMsg = document.getElementById('cbNotifModalMsg');
+        var modalMeta = document.getElementById('cbNotifModalMeta');
+        var modalFooter = document.getElementById('cbNotifModalFooter');
+        if (!modal) return;
+
+        // Set type dot
+        var dotClass = n.type || 'info';
+        if (['info','warning','error','success','reminder'].indexOf(dotClass) < 0) dotClass = 'info';
+        modalDot.className = 'cb-notif-modal-dot ' + dotClass;
+
+        // Title
+        modalTitle.textContent = n.title || 'Notification';
+
+        // Full message
+        modalMsg.textContent = n.message || 'No details available.';
+
+        // Meta: source + time + priority
+        modalMeta.textContent = '';
+        if (n.source) {
+            var srcItem = document.createElement('span');
+            srcItem.className = 'cb-notif-modal-meta-item';
+            srcItem.innerHTML = ''; // clear
+            var srcLabel = document.createElement('strong');
+            srcLabel.textContent = 'Source: ';
+            srcItem.appendChild(srcLabel);
+            srcItem.appendChild(document.createTextNode(sourceLabels[n.source] || n.source));
+            modalMeta.appendChild(srcItem);
+        }
+        if (n.created_at) {
+            var timeItem = document.createElement('span');
+            timeItem.className = 'cb-notif-modal-meta-item';
+            var timeLabel = document.createElement('strong');
+            timeLabel.textContent = 'When: ';
+            timeItem.appendChild(timeLabel);
+            timeItem.appendChild(document.createTextNode(timeAgo(n.created_at)));
+            modalMeta.appendChild(timeItem);
+        }
+        if (n.priority && n.priority !== 'normal') {
+            var prioItem = document.createElement('span');
+            prioItem.className = 'cb-notif-modal-meta-item';
+            var prioLabel = document.createElement('strong');
+            prioLabel.textContent = 'Priority: ';
+            prioItem.appendChild(prioLabel);
+            prioItem.appendChild(document.createTextNode(n.priority.toUpperCase()));
+            modalMeta.appendChild(prioItem);
+        }
+
+        // Footer buttons
+        modalFooter.textContent = '';
+        if (!n.is_read && n.id > 0) {
+            var markBtn = document.createElement('button');
+            markBtn.className = 'cb-notif-modal-btn';
+            markBtn.textContent = 'Mark as Read';
+            markBtn.addEventListener('click', function() {
+                fetch('/api/notifications/mark-read/' + n.id, { method: 'POST' })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            n.is_read = true;
+                            itemDiv.classList.remove('unread');
+                            fetchNotifCount();
+                            markBtn.textContent = 'Read';
+                            markBtn.disabled = true;
+                            markBtn.style.opacity = '0.4';
+                        }
+                    });
+            });
+            modalFooter.appendChild(markBtn);
+        }
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'cb-notif-modal-btn dismiss';
+        closeBtn.textContent = 'Close';
+        closeBtn.addEventListener('click', function() {
+            modal.classList.remove('visible');
+        });
+        modalFooter.appendChild(closeBtn);
+
+        // Show modal
+        modal.classList.add('visible');
+
+        // Close on overlay click
+        modal.onclick = function(e) {
+            if (e.target === modal) modal.classList.remove('visible');
+        };
+    }
+
+    // Close modal on X button
+    var notifModalClose = document.getElementById('cbNotifModalClose');
+    if (notifModalClose) {
+        notifModalClose.addEventListener('click', function() {
+            document.getElementById('cbNotifModal').classList.remove('visible');
+        });
+    }
+
+    // Close modal on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var modal = document.getElementById('cbNotifModal');
+            if (modal && modal.classList.contains('visible')) {
+                modal.classList.remove('visible');
+            }
+        }
+    });
 
     // ── Lucide icons: re-render for command bar ──
     if (typeof lucide !== 'undefined') {

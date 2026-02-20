@@ -3086,6 +3086,613 @@
     color: var(--archie-text-secondary);
     border-color: var(--archie-gold);
 }
+
+/* ============================================================================
+   LIGHT MODE OVERRIDES
+   ============================================================================ */
+
+body.light-mode .bridge-container,
+[data-theme="light"] .bridge-container {
+    background: #f5f6f8;
+    background-image:
+        radial-gradient(ellipse at 20% 30%, rgba(0, 150, 180, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 70%, rgba(100, 60, 180, 0.03) 0%, transparent 50%);
+    color: #333;
+}
+
+body.light-mode .bridge-container::before,
+[data-theme="light"] .bridge-container::before {
+    background: linear-gradient(90deg, transparent, rgba(0, 150, 180, 0.15), transparent);
+}
+
+/* Status Bar */
+body.light-mode .bridge-status-bar,
+[data-theme="light"] .bridge-status-bar {
+    background: rgba(255, 255, 255, 0.95);
+    border-bottom-color: rgba(0, 150, 180, 0.3);
+}
+
+body.light-mode .bridge-status-bar::before,
+[data-theme="light"] .bridge-status-bar::before {
+    background: rgba(0, 150, 180, 0.3);
+    box-shadow: 0 0 10px rgba(0, 150, 180, 0.2);
+}
+
+body.light-mode .bridge-logo,
+[data-theme="light"] .bridge-logo {
+    background: linear-gradient(135deg, #cc8800 0%, #aa6600 100%);
+}
+
+body.light-mode .bridge-status-item .status-label,
+[data-theme="light"] .bridge-status-item .status-label {
+    color: #666;
+}
+
+body.light-mode .bridge-status-item .status-value,
+[data-theme="light"] .bridge-status-item .status-value {
+    color: #0088aa;
+}
+
+body.light-mode .bridge-time,
+[data-theme="light"] .bridge-time {
+    color: #0088aa;
+}
+
+body.light-mode .staffing-badge.full-staff,
+[data-theme="light"] .staffing-badge.full-staff {
+    background: rgba(0, 170, 51, 0.1);
+    border-color: #00aa33;
+    color: #00aa33;
+}
+
+/* Routing Mode */
+body.light-mode .routing-mode-control,
+[data-theme="light"] .routing-mode-control {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .routing-mode-label,
+[data-theme="light"] .routing-mode-label {
+    color: #666;
+}
+
+body.light-mode .routing-btn,
+[data-theme="light"] .routing-btn {
+    color: #666;
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+body.light-mode .routing-btn.active,
+[data-theme="light"] .routing-btn.active {
+    background: #cc8800;
+    color: #fff;
+    border-color: #cc8800;
+}
+
+/* Command Station */
+body.light-mode .bridge-command-section,
+[data-theme="light"] .bridge-command-section {
+    background: linear-gradient(180deg, rgba(204, 136, 0, 0.04) 0%, transparent 100%);
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .command-station,
+[data-theme="light"] .command-station {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: #cc8800;
+}
+
+body.light-mode .command-station::before,
+[data-theme="light"] .command-station::before {
+    background: linear-gradient(90deg, transparent, #cc8800, transparent);
+}
+
+body.light-mode .command-slot,
+[data-theme="light"] .command-slot {
+    background: rgba(204, 136, 0, 0.04);
+    border-color: rgba(204, 136, 0, 0.2);
+}
+
+body.light-mode .command-slot.commander,
+[data-theme="light"] .command-slot.commander {
+    background: rgba(204, 136, 0, 0.06);
+    border-color: #cc8800;
+}
+
+body.light-mode .command-slot-label,
+[data-theme="light"] .command-slot-label {
+    color: #cc8800;
+}
+
+body.light-mode .command-title,
+[data-theme="light"] .command-title {
+    color: #cc8800;
+    text-shadow: none;
+}
+
+body.light-mode .command-subtitle,
+[data-theme="light"] .command-subtitle {
+    color: #888;
+}
+
+/* Section Headers */
+body.light-mode .bridge-section-title,
+[data-theme="light"] .bridge-section-title {
+    color: #0088aa;
+}
+
+body.light-mode .bridge-section-header,
+[data-theme="light"] .bridge-section-header {
+    border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .bridge-section-count,
+[data-theme="light"] .bridge-section-count {
+    color: #888;
+}
+
+/* Station Cards */
+body.light-mode .bridge-station-card,
+[data-theme="light"] .bridge-station-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .bridge-station-card:hover,
+[data-theme="light"] .bridge-station-card:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .bridge-station-header,
+[data-theme="light"] .bridge-station-header {
+    background: rgba(0, 0, 0, 0.03);
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .bridge-station-badge,
+[data-theme="light"] .bridge-station-badge {
+    background: rgba(0, 136, 170, 0.08);
+    color: #0088aa;
+}
+
+body.light-mode .bridge-module-btn,
+[data-theme="light"] .bridge-module-btn {
+    background: rgba(0, 136, 170, 0.06);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: #555;
+}
+
+body.light-mode .bridge-module-btn:hover,
+[data-theme="light"] .bridge-module-btn:hover {
+    background: rgba(0, 136, 170, 0.12);
+    border-color: #0088aa;
+    color: #0088aa;
+}
+
+body.light-mode .bridge-station-team-label,
+[data-theme="light"] .bridge-station-team-label {
+    color: #888;
+}
+
+body.light-mode .bridge-agent-chip,
+[data-theme="light"] .bridge-agent-chip {
+    background: rgba(0, 136, 170, 0.04);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .bridge-agent-chip:hover,
+[data-theme="light"] .bridge-agent-chip:hover {
+    background: rgba(0, 136, 170, 0.08);
+    border-color: #0088aa;
+}
+
+body.light-mode .bridge-agent-name,
+[data-theme="light"] .bridge-agent-name {
+    color: #333;
+}
+
+body.light-mode .bridge-agent-role,
+[data-theme="light"] .bridge-agent-role {
+    color: #888;
+}
+
+body.light-mode .bridge-station-nodes,
+[data-theme="light"] .bridge-station-nodes {
+    background: rgba(0, 136, 170, 0.02);
+    border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .station-node-chip,
+[data-theme="light"] .station-node-chip {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: #555;
+}
+
+body.light-mode .station-node-chip:hover,
+[data-theme="light"] .station-node-chip:hover {
+    background: rgba(0, 136, 170, 0.08);
+    border-color: #0088aa;
+}
+
+/* Dispatch Section */
+body.light-mode .bridge-dispatch-section,
+[data-theme="light"] .bridge-dispatch-section {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .bridge-dispatch-header,
+[data-theme="light"] .bridge-dispatch-header {
+    background: linear-gradient(90deg, rgba(0, 136, 170, 0.06), transparent);
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .bridge-dispatch-header h2,
+[data-theme="light"] .bridge-dispatch-header h2 {
+    color: #0088aa;
+}
+
+body.light-mode .dispatch-stat-label,
+[data-theme="light"] .dispatch-stat-label {
+    color: #888;
+}
+
+body.light-mode .dispatch-panel,
+[data-theme="light"] .dispatch-panel {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .dispatch-panel-title,
+[data-theme="light"] .dispatch-panel-title {
+    color: #555;
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .dispatch-jobs-section,
+[data-theme="light"] .dispatch-jobs-section {
+    background: rgba(204, 136, 0, 0.04);
+    border-color: rgba(204, 136, 0, 0.15);
+}
+
+body.light-mode .dispatch-jobs-title,
+[data-theme="light"] .dispatch-jobs-title {
+    color: #cc8800;
+}
+
+/* Crew Manifest */
+body.light-mode .crew-manifest-section,
+[data-theme="light"] .crew-manifest-section {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .crew-manifest-header,
+[data-theme="light"] .crew-manifest-header {
+    background: linear-gradient(90deg, rgba(0, 136, 170, 0.06), transparent);
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .crew-manifest-header h2,
+[data-theme="light"] .crew-manifest-header h2 {
+    color: #0088aa;
+}
+
+body.light-mode .crew-agent-card,
+[data-theme="light"] .crew-agent-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .crew-agent-card:hover,
+[data-theme="light"] .crew-agent-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .crew-agent-callsign,
+[data-theme="light"] .crew-agent-callsign {
+    color: #888;
+}
+
+body.light-mode .crew-agent-stats,
+[data-theme="light"] .crew-agent-stats {
+    color: #888;
+}
+
+body.light-mode .crew-agent-stats .stat-val,
+[data-theme="light"] .crew-agent-stats .stat-val {
+    color: #333;
+}
+
+/* Node Network */
+body.light-mode .bridge-nodes-section,
+[data-theme="light"] .bridge-nodes-section {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .bridge-nodes-header,
+[data-theme="light"] .bridge-nodes-header {
+    background: linear-gradient(90deg, rgba(0, 136, 170, 0.06), transparent);
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .bridge-nodes-header h2,
+[data-theme="light"] .bridge-nodes-header h2 {
+    color: #0088aa;
+}
+
+body.light-mode .node-card,
+[data-theme="light"] .node-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .mesh-subsection-header,
+[data-theme="light"] .mesh-subsection-header {
+    background: rgba(0, 0, 0, 0.03);
+    color: #555;
+}
+
+body.light-mode .mesh-empty-state,
+[data-theme="light"] .mesh-empty-state {
+    color: #999;
+}
+
+/* Model Availability */
+body.light-mode .model-availability-section,
+[data-theme="light"] .model-availability-section {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .model-availability-header,
+[data-theme="light"] .model-availability-header {
+    background: linear-gradient(90deg, rgba(0, 136, 170, 0.06), transparent);
+}
+
+body.light-mode .model-availability-header h3,
+[data-theme="light"] .model-availability-header h3 {
+    color: #0088aa;
+}
+
+/* Sidebar */
+body.light-mode .bridge-sidebar,
+[data-theme="light"] .bridge-sidebar {
+    background: rgba(245, 246, 248, 0.95);
+    border-left-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .bridge-sidebar-section,
+[data-theme="light"] .bridge-sidebar-section {
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .bridge-sidebar-title,
+[data-theme="light"] .bridge-sidebar-title {
+    color: #555;
+}
+
+body.light-mode .bridge-iaae-panel,
+[data-theme="light"] .bridge-iaae-panel {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+body.light-mode .bridge-iaae-value,
+[data-theme="light"] .bridge-iaae-value {
+    color: #333;
+}
+
+body.light-mode .bridge-iaae-label,
+[data-theme="light"] .bridge-iaae-label {
+    color: #888;
+}
+
+body.light-mode .bridge-drop-zone,
+[data-theme="light"] .bridge-drop-zone {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .bridge-drop-zone-hint,
+[data-theme="light"] .bridge-drop-zone-hint {
+    color: #999;
+}
+
+body.light-mode .bridge-remote-placeholder,
+[data-theme="light"] .bridge-remote-placeholder {
+    color: #888;
+}
+
+/* Modals */
+body.light-mode .assignment-modal,
+[data-theme="light"] .assignment-modal {
+    background: #fff;
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .assignment-modal-header,
+[data-theme="light"] .assignment-modal-header {
+    background: rgba(0, 0, 0, 0.02);
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .assignment-modal-header h3,
+[data-theme="light"] .assignment-modal-header h3 {
+    color: #333;
+}
+
+body.light-mode .assignment-modal-body label,
+[data-theme="light"] .assignment-modal-body label {
+    color: #555;
+}
+
+body.light-mode .assignment-modal-body select,
+body.light-mode .assignment-modal-body input,
+[data-theme="light"] .assignment-modal-body select,
+[data-theme="light"] .assignment-modal-body input {
+    background: #f8f9fa;
+    border-color: rgba(0, 0, 0, 0.15);
+    color: #333;
+}
+
+/* Station Coverage Cards (light) */
+body.light-mode .station-coverage-card,
+[data-theme="light"] .station-coverage-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .station-coverage-header,
+[data-theme="light"] .station-coverage-header {
+    background: rgba(0, 0, 0, 0.02);
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .station-coverage-code,
+[data-theme="light"] .station-coverage-code {
+    background: rgba(0, 0, 0, 0.04);
+    color: #888;
+}
+
+/* ============================================================================
+   RESPONSIVE — Fold5 Open (717px) + Fold5 Closed (374px)
+   ============================================================================ */
+
+/* Fold5 Open — 717px */
+@media (max-width: 768px) {
+    .bridge-status-bar {
+        flex-wrap: wrap;
+        gap: 0;
+    }
+    .bridge-logo {
+        clip-path: none;
+        padding-right: 16px;
+        width: 100%;
+        justify-content: center;
+    }
+    .bridge-status-center {
+        width: 100%;
+        gap: 12px;
+        padding: 6px 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .bridge-status-right {
+        width: 100%;
+        justify-content: center;
+        padding: 4px 12px 8px;
+    }
+    .bridge-command-section {
+        padding: 12px;
+    }
+    .command-station {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 12px;
+    }
+    .command-center-display {
+        order: -1;
+    }
+    .command-title {
+        font-size: 1.1rem;
+    }
+    .bridge-stations-section {
+        padding: 12px;
+    }
+    .bridge-stations-grid {
+        grid-template-columns: 1fr;
+    }
+    .bridge-dispatch-section {
+        margin: 0 12px;
+    }
+    .dispatch-stats-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .crew-manifest-grid {
+        grid-template-columns: 1fr;
+    }
+    .node-grid {
+        grid-template-columns: 1fr;
+    }
+    .bridge-nodes-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .routing-mode-control {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px;
+    }
+}
+
+/* Fold5 Closed — 374px */
+@media (max-width: 420px) {
+    .bridge-logo-text {
+        font-size: 0.7rem;
+        letter-spacing: 1px;
+    }
+    .bridge-status-center {
+        gap: 8px;
+    }
+    .bridge-status-item {
+        font-size: 0.65rem;
+        gap: 4px;
+    }
+    .bridge-status-item .status-label {
+        display: none;
+    }
+    .command-title {
+        font-size: 0.9rem;
+        letter-spacing: 1px;
+    }
+    .command-subtitle {
+        font-size: 0.55rem;
+    }
+    .command-slot-label {
+        font-size: 0.55rem;
+    }
+    .bridge-section-title {
+        font-size: 0.75rem;
+        letter-spacing: 1px;
+    }
+    .bridge-dispatch-header h2 {
+        font-size: 0.85rem;
+    }
+    .dispatch-stat-value {
+        font-size: 1rem;
+    }
+    .dispatch-stat-label {
+        font-size: 0.6rem;
+    }
+    .crew-manifest-header h2 {
+        font-size: 0.85rem;
+    }
+    .bridge-nodes-header h2 {
+        font-size: 0.85rem;
+    }
+    .node-stats {
+        gap: 0.5rem;
+        font-size: 0.65rem;
+    }
+    .btn-add-node {
+        padding: 4px 10px;
+        font-size: 0.6rem;
+    }
+    .bridge-sidebar-title {
+        font-size: 0.7rem;
+    }
+    .bridge-iaae-panel {
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+    }
+    .mesh-header-stats {
+        display: none;
+    }
+}
 </style>
 
 <!-- Admin Operations Navigation -->
@@ -3097,25 +3704,25 @@
     <div class="bridge-status-bar">
         <div class="bridge-logo">
             <i data-lucide="command"></i>
-            <span class="bridge-logo-text">A.R.C.H.I.E. BRIDGE</span>
+            <span class="bridge-logo-text" data-i18n="bridge.title">A.R.C.H.I.E. BRIDGE</span>
         </div>
 
         <div class="bridge-status-center">
             <div class="bridge-status-item">
                 <span class="status-dot online" id="system-status-dot"></span>
-                <span class="status-label">System</span>
-                <span class="status-value" id="system-status">Online</span>
+                <span class="status-label" data-i18n="bridge.status.system">System</span>
+                <span class="status-value" id="system-status" data-i18n="bridge.status.online">Online</span>
             </div>
             <div class="bridge-status-item">
-                <span class="status-label">Stations</span>
+                <span class="status-label" data-i18n="bridge.status.stations">Stations</span>
                 <span class="status-value" id="station-count">--</span>
             </div>
             <div class="bridge-status-item">
-                <span class="status-label">Agents</span>
+                <span class="status-label" data-i18n="bridge.status.agents">Agents</span>
                 <span class="status-value" id="agent-count">--</span>
             </div>
             <div class="bridge-status-item">
-                <span class="status-label">IAAE</span>
+                <span class="status-label" data-i18n="bridge.status.iaae">IAAE</span>
                 <span class="status-value" id="iaae-status">--</span>
             </div>
         </div>
@@ -3123,7 +3730,7 @@
         <div class="bridge-status-right">
             <div class="staffing-badge full-staff" id="staffing-badge">
                 <i data-lucide="users" style="width:12px;height:12px;"></i>
-                <span id="staffing-text">Full Staff</span>
+                <span id="staffing-text" data-i18n="bridge.status.full_staff">Full Staff</span>
             </div>
             <div class="bridge-time" id="bridge-time">00:00:00</div>
         </div>
@@ -3131,11 +3738,11 @@
 
     <!-- Routing Mode Toggle -->
     <div class="routing-mode-control">
-        <span class="routing-mode-label">Routing Mode</span>
+        <span class="routing-mode-label" data-i18n="bridge.routing.mode">Routing Mode</span>
         <div style="display:flex;">
-            <button class="routing-btn" data-mode="local_only" title="Local Ollama models only">Local Only</button>
-            <button class="routing-btn" data-mode="local_cloud" title="Local + Ollama cloud (free)">Local + Cloud</button>
-            <button class="routing-btn active" data-mode="full" title="All tiers including paid APIs">Full</button>
+            <button class="routing-btn" data-mode="local_only" title="Local Ollama models only" data-i18n="bridge.routing.local_only">Local Only</button>
+            <button class="routing-btn" data-mode="local_cloud" title="Local + Ollama cloud (free)" data-i18n="bridge.routing.local_cloud">Local + Cloud</button>
+            <button class="routing-btn active" data-mode="full" title="All tiers including paid APIs" data-i18n="bridge.routing.full">Full</button>
         </div>
         <span id="routingModeStatus" style="color:var(--archie-text-muted);font-size:11px;"></span>
     </div>
@@ -3147,22 +3754,22 @@
             <div class="bridge-command-section">
                 <div class="command-station">
                     <div class="command-slot" id="commander-slot">
-                        <div class="command-slot-label">Commander</div>
+                        <div class="command-slot-label" data-i18n="bridge.command.commander">Commander</div>
                         <div id="commander-agent">
                             <span style="color:var(--archie-text-muted);font-size:0.7rem;">Loading...</span>
                         </div>
                     </div>
 
                     <div class="command-center-display">
-                        <div class="command-title">COMMAND CENTER</div>
-                        <div class="command-subtitle">A.R.C.H.I.E. Bridge Control</div>
+                        <div class="command-title" data-i18n="bridge.command.center">COMMAND CENTER</div>
+                        <div class="command-subtitle" data-i18n="bridge.command.subtitle">A.R.C.H.I.E. Bridge Control</div>
                         <div class="command-modules" id="command-modules">
                             <!-- Command modules rendered here -->
                         </div>
                     </div>
 
                     <div class="command-slot" id="cocommander-slot">
-                        <div class="command-slot-label">Co-Commander</div>
+                        <div class="command-slot-label" data-i18n="bridge.command.co_commander">Co-Commander</div>
                         <div id="cocommander-agent">
                             <span style="color:var(--archie-text-muted);font-size:0.7rem;">Loading...</span>
                         </div>
@@ -3173,8 +3780,8 @@
             <!-- Stations Grid -->
             <div class="bridge-stations-section">
                 <div class="bridge-section-header">
-                    <h2 class="bridge-section-title">Active Stations</h2>
-                    <span class="bridge-section-count" id="stations-summary">Loading stations...</span>
+                    <h2 class="bridge-section-title" data-i18n="bridge.sections.active_stations">Active Stations</h2>
+                    <span class="bridge-section-count" id="stations-summary" data-i18n="bridge.loading.stations">Loading stations...</span>
                 </div>
 
                 <div class="bridge-stations-grid" id="stations-grid">
@@ -3185,43 +3792,43 @@
             <!-- Dispatch Activity Section (Project #91 — Phase 6) -->
             <div class="bridge-dispatch-section">
                 <div class="bridge-dispatch-header">
-                    <h2><i data-lucide="zap"></i> DISPATCH ACTIVITY</h2>
+                    <h2><i data-lucide="zap"></i> <span data-i18n="bridge.sections.dispatch_activity">DISPATCH ACTIVITY</span></h2>
                     <div class="dispatch-stats-bar">
                         <div class="dispatch-stat">
                             <span class="dispatch-stat-value" id="dispatch-total">--</span>
-                            <span class="dispatch-stat-label">Dispatches/hr</span>
+                            <span class="dispatch-stat-label" data-i18n="bridge.dispatch.per_hour">Dispatches/hr</span>
                         </div>
                         <div class="dispatch-stat">
                             <span class="dispatch-stat-value success" id="dispatch-success">--</span>
-                            <span class="dispatch-stat-label">Success</span>
+                            <span class="dispatch-stat-label" data-i18n="bridge.dispatch.success">Success</span>
                         </div>
                         <div class="dispatch-stat">
                             <span class="dispatch-stat-value fail" id="dispatch-failed">--</span>
-                            <span class="dispatch-stat-label">Failed</span>
+                            <span class="dispatch-stat-label" data-i18n="bridge.dispatch.failed">Failed</span>
                         </div>
                         <div class="dispatch-stat">
                             <span class="dispatch-stat-value speed" id="dispatch-avg-ms">--</span>
-                            <span class="dispatch-stat-label">Avg ms</span>
+                            <span class="dispatch-stat-label" data-i18n="bridge.dispatch.avg_ms">Avg ms</span>
                         </div>
                     </div>
                 </div>
                 <!-- Active Jobs Panel (hidden when empty) -->
                 <div class="dispatch-jobs-section" id="dispatch-jobs-section" style="display: none;">
                     <div class="dispatch-jobs-header">
-                        <span class="dispatch-jobs-title">ACTIVE JOBS</span>
+                        <span class="dispatch-jobs-title" data-i18n="bridge.dispatch.active_jobs">ACTIVE JOBS</span>
                         <span class="dispatch-jobs-count" id="dispatch-jobs-count"></span>
                     </div>
                     <div class="dispatch-jobs-list" id="dispatch-jobs-list"></div>
                 </div>
                 <div class="dispatch-body">
                     <div class="dispatch-panel">
-                        <div class="dispatch-panel-title">Recent Dispatches</div>
+                        <div class="dispatch-panel-title" data-i18n="bridge.dispatch.recent">Recent Dispatches</div>
                         <div class="dispatch-history-list" id="dispatch-history-list">
                             <div class="dispatch-empty">Loading dispatch history...</div>
                         </div>
                     </div>
                     <div class="dispatch-panel">
-                        <div class="dispatch-panel-title">Station Activity (24h)</div>
+                        <div class="dispatch-panel-title" data-i18n="bridge.dispatch.station_activity">Station Activity (24h)</div>
                         <div class="dispatch-station-bars" id="dispatch-station-bars">
                             <div class="dispatch-empty">Loading station activity...</div>
                         </div>
@@ -3232,7 +3839,7 @@
             <!-- Crew Manifest Section -->
             <div class="crew-manifest-section" id="crew-manifest-section">
                 <div class="crew-manifest-header">
-                    <h2><i data-lucide="users"></i> CREW MANIFEST</h2>
+                    <h2><i data-lucide="users"></i> <span data-i18n="bridge.sections.crew_manifest">CREW MANIFEST</span></h2>
                     <span class="crew-manifest-count" id="crew-manifest-count">Loading...</span>
                 </div>
                 <div class="crew-manifest-grid" id="crew-manifest-grid">
@@ -3245,22 +3852,22 @@
             <!-- Node Network Section -->
             <div class="bridge-nodes-section">
                 <div class="bridge-nodes-header">
-                    <h2><i data-lucide="network"></i> NODE NETWORK</h2>
+                    <h2><i data-lucide="network"></i> <span data-i18n="bridge.sections.node_network">NODE NETWORK</span></h2>
                     <div class="node-stats">
-                        <span class="stat online"><span id="nodes-online">0</span> Online</span>
-                        <span class="stat offline"><span id="nodes-offline">0</span> Offline</span>
-                        <span class="stat pending"><span id="nodes-pending">0</span> Pending</span>
+                        <span class="stat online"><span id="nodes-online">0</span> <span data-i18n="bridge.nodes.online">Online</span></span>
+                        <span class="stat offline"><span id="nodes-offline">0</span> <span data-i18n="bridge.nodes.offline">Offline</span></span>
+                        <span class="stat pending"><span id="nodes-pending">0</span> <span data-i18n="bridge.nodes.pending">Pending</span></span>
                     </div>
                     <div class="mesh-header-stats">
-                        <span class="stat"><span id="mesh-loans-count">0</span> Loans</span>
-                        <span class="stat"><span id="mesh-learning-count">0</span> Learnings</span>
+                        <span class="stat"><span id="mesh-loans-count">0</span> <span data-i18n="bridge.nodes.loans">Loans</span></span>
+                        <span class="stat"><span id="mesh-learning-count">0</span> <span data-i18n="bridge.nodes.learnings">Learnings</span></span>
                     </div>
-                    <button class="btn-add-node" onclick="showAddNodeModal()">+ Add Node</button>
+                    <button class="btn-add-node" onclick="showAddNodeModal()" data-i18n="bridge.nodes.add">+ Add Node</button>
                 </div>
 
                 <!-- Pending Approvals Section -->
                 <div class="pending-nodes-section" id="pending-nodes-section" style="display: none;">
-                    <h3><i data-lucide="clock"></i> Pending Approval</h3>
+                    <h3><i data-lucide="clock"></i> <span data-i18n="bridge.nodes.pending_approval">Pending Approval</span></h3>
                     <div class="node-grid" id="pending-nodes-grid"></div>
                 </div>
 
@@ -3273,7 +3880,7 @@
                 <div class="mesh-subsection">
                     <div class="mesh-subsection-header" id="mesh-loans-header" onclick="toggleMeshSection('mesh-loans')">
                         <span class="chevron">▼</span>
-                        <i data-lucide="users"></i> Agent Mesh Pool
+                        <i data-lucide="users"></i> <span data-i18n="bridge.nodes.mesh_pool">Agent Mesh Pool</span>
                         <span class="mesh-sub-count" id="mesh-loans-sub-count">0 active</span>
                     </div>
                     <div class="mesh-subsection-body" id="mesh-loans-body">
@@ -3287,7 +3894,7 @@
                 <div class="mesh-subsection">
                     <div class="mesh-subsection-header" id="mesh-learning-header" onclick="toggleMeshSection('mesh-learning')">
                         <span class="chevron">▼</span>
-                        <i data-lucide="brain"></i> Learning Patterns
+                        <i data-lucide="brain"></i> <span data-i18n="bridge.nodes.learning_patterns">Learning Patterns</span>
                         <span class="mesh-sub-count" id="mesh-learning-sub-count">0 patterns</span>
                     </div>
                     <div class="mesh-subsection-body" id="mesh-learning-body">
@@ -3301,7 +3908,7 @@
             <!-- Model Availability Section (Phase 72) -->
             <div class="model-availability-section" id="model-availability-section">
                 <div class="model-availability-header">
-                    <h3><i data-lucide="box"></i> Bridge Model Availability</h3>
+                    <h3><i data-lucide="box"></i> <span data-i18n="bridge.sections.model_availability">Bridge Model Availability</span></h3>
                     <div class="model-stats">
                         <div class="stat"><span>0</span> Models</div>
                         <div class="stat"><span>0</span> Nodes</div>
@@ -3323,24 +3930,24 @@
             <div class="bridge-sidebar-section">
                 <div class="bridge-sidebar-title">
                     <i data-lucide="heart-pulse"></i>
-                    IAAE Health Monitor
+                    <span data-i18n="bridge.sidebar.iaae_health">IAAE Health Monitor</span>
                 </div>
                 <div class="bridge-iaae-panel">
                     <div class="bridge-iaae-stat">
                         <div class="bridge-iaae-value" id="iaae-healthy">--</div>
-                        <div class="bridge-iaae-label">Healthy</div>
+                        <div class="bridge-iaae-label" data-i18n="bridge.sidebar.healthy">Healthy</div>
                     </div>
                     <div class="bridge-iaae-stat warning">
                         <div class="bridge-iaae-value" id="iaae-warnings">--</div>
-                        <div class="bridge-iaae-label">Warnings</div>
+                        <div class="bridge-iaae-label" data-i18n="bridge.sidebar.warnings">Warnings</div>
                     </div>
                     <div class="bridge-iaae-stat">
                         <div class="bridge-iaae-value" id="iaae-energy">--%</div>
-                        <div class="bridge-iaae-label">Avg Energy</div>
+                        <div class="bridge-iaae-label" data-i18n="bridge.sidebar.avg_energy">Avg Energy</div>
                     </div>
                     <div class="bridge-iaae-stat">
                         <div class="bridge-iaae-value" id="iaae-stress">--%</div>
-                        <div class="bridge-iaae-label">Avg Stress</div>
+                        <div class="bridge-iaae-label" data-i18n="bridge.sidebar.avg_stress">Avg Stress</div>
                     </div>
                 </div>
             </div>
@@ -3349,14 +3956,14 @@
             <div class="bridge-sidebar-section">
                 <div class="bridge-sidebar-title">
                     <i data-lucide="graduation-cap"></i>
-                    Training Rooms
+                    <span data-i18n="bridge.sidebar.training">Training Rooms</span>
                 </div>
                 <div class="bridge-drop-zone" id="training-drop-zone"
                      ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
                      ondrop="handleDrop(event, 'training')">
                     <div class="bridge-drop-zone-hint" id="training-hint">
                         <i data-lucide="user-plus"></i>
-                        Drop agent here for training
+                        <span data-i18n="bridge.sidebar.drop_training">Drop agent here for training</span>
                     </div>
                     <div id="training-agents"></div>
                 </div>
@@ -3366,14 +3973,14 @@
             <div class="bridge-sidebar-section">
                 <div class="bridge-sidebar-title">
                     <i data-lucide="coffee"></i>
-                    Lounge / Rest
+                    <span data-i18n="bridge.sidebar.lounge">Lounge / Rest</span>
                 </div>
                 <div class="bridge-drop-zone" id="lounge-drop-zone"
                      ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
                      ondrop="handleDrop(event, 'lounge')">
                     <div class="bridge-drop-zone-hint" id="lounge-hint">
                         <i data-lucide="moon"></i>
-                        Drop agent here for rest
+                        <span data-i18n="bridge.sidebar.drop_rest">Drop agent here for rest</span>
                     </div>
                     <div id="lounge-agents"></div>
                 </div>
@@ -3383,12 +3990,12 @@
             <div class="bridge-sidebar-section bridge-remote-connections">
                 <div class="bridge-sidebar-title">
                     <i data-lucide="wifi"></i>
-                    Remote Connections
+                    <span data-i18n="bridge.sidebar.remote">Remote Connections</span>
                 </div>
                 <div class="bridge-remote-list" id="remote-connections-list">
                     <div class="bridge-remote-placeholder">
                         <i data-lucide="globe-2"></i>
-                        <span>VPN Connected Nodes</span>
+                        <span data-i18n="bridge.sidebar.vpn_nodes">VPN Connected Nodes</span>
                         <span style="opacity:0.6;">vpn.kytranempowerment.com</span>
                     </div>
                 </div>
@@ -3647,6 +4254,14 @@
 
 {% block extra_js %}
 <script>
+// === i18n helper ===
+function _t(key, fallback) {
+    if (window.archieI18n && typeof archieI18n.t === 'function') {
+        return archieI18n.t(key, fallback);
+    }
+    return fallback;
+}
+
 // === Routing Mode Toggle ===
 async function loadRoutingMode() {
     try {
@@ -3806,6 +4421,11 @@ let stationNodeCoverage = {}; // Maps station_id to node data
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize i18n for translations
+    if (window.archieI18n) {
+        archieI18n.init();
+    }
+
     updateClock();
     setInterval(updateClock, 1000);
 
@@ -4050,7 +4670,7 @@ function createStationCard(station) {
         <div class="bridge-station-nodes">
             <div class="bridge-station-nodes-label">
                 <i data-lucide="server" style="width:12px;height:12px;"></i>
-                Node Support
+                ${_t('bridge.station.node_support', 'Node Support')}
                 <span class="node-count-badge">${primaryNodes}P/${totalNodes}</span>
             </div>
             <div class="station-node-list">
@@ -4063,15 +4683,15 @@ function createStationCard(station) {
         <div class="bridge-station-header">
             <div class="bridge-station-status ${station.status || 'online'}"></div>
             <div class="bridge-station-name">${station.name}</div>
-            <div class="bridge-station-badge">${modules.length} modules</div>
+            <div class="bridge-station-badge">${modules.length} ${_t('bridge.station.modules', 'modules')}</div>
         </div>
         <div class="bridge-station-modules">
-            ${moduleButtons || '<span style="color:var(--archie-text-muted);font-size:0.65rem;">No modules</span>'}
+            ${moduleButtons || '<span style="color:var(--archie-text-muted);font-size:0.65rem;">' + _t('bridge.station.no_modules', 'No modules') + '</span>'}
         </div>
         <div class="bridge-station-team">
-            <div class="bridge-station-team-label">Assigned Team</div>
+            <div class="bridge-station-team-label">${_t('bridge.station.assigned_team', 'Assigned Team')}</div>
             <div class="bridge-agent-list">
-                ${agentChips || '<div class="bridge-station-empty"><i data-lucide="alert-triangle" style="width:14px;height:14px;margin-right:4px;"></i> Unstaffed</div>'}
+                ${agentChips || '<div class="bridge-station-empty"><i data-lucide="alert-triangle" style="width:14px;height:14px;margin-right:4px;"></i> ' + _t('bridge.station.unstaffed', 'Unstaffed') + '</div>'}
             </div>
             ${hiddenSection}
         </div>
@@ -5753,7 +6373,7 @@ function renderAgentLoans(loans) {
     if (loans.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'mesh-empty-state';
-        empty.textContent = 'No agent loans recorded';
+        empty.textContent = _t('bridge.empty.no_loans', 'No agent loans recorded');
         container.appendChild(empty);
         return;
     }
@@ -5827,7 +6447,7 @@ function renderLearningPatterns(patterns) {
     if (patterns.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'mesh-empty-state';
-        empty.textContent = 'No learning patterns shared';
+        empty.textContent = _t('bridge.empty.no_patterns', 'No learning patterns shared');
         container.appendChild(empty);
         return;
     }
@@ -5908,7 +6528,7 @@ function renderDispatchHistory(history) {
     if (!history || history.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'dispatch-empty';
-        empty.textContent = 'No dispatch activity yet';
+        empty.textContent = _t('bridge.empty.no_dispatches', 'No dispatch activity yet');
         container.appendChild(empty);
         return;
     }
@@ -5956,7 +6576,7 @@ function renderStationActivity(stations) {
     if (!stations || stations.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'dispatch-empty';
-        empty.textContent = 'No station activity recorded';
+        empty.textContent = _t('bridge.empty.no_station_activity', 'No station activity recorded');
         container.appendChild(empty);
         return;
     }

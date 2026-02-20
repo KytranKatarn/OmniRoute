@@ -38,11 +38,23 @@
         <!-- Theme Controls -->
         <div class="theme-controls">
             <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
-                <i data-lucide="sun" id="themeIcon"></i>
+                <i data-lucide="sun" id="navThemeIconSun" style="display:none;"></i>
+                <i data-lucide="moon" id="navThemeIconMoon"></i>
             </button>
-            <button class="nav-icon-btn" onclick="showLanguageMenu()" title="Language (Coming Soon)">
-                <i data-lucide="globe"></i>
-            </button>
+            <div style="position:relative;">
+                <button class="nav-icon-btn" id="navLangBtn" onclick="toggleNavLangMenu()" title="Language">
+                    <i data-lucide="languages"></i>
+                </button>
+                <div class="nav-lang-menu hidden" id="navLangMenu">
+                    <button class="nav-lang-option active" data-lang="en">English</button>
+                    <button class="nav-lang-option" data-lang="fr">Français (QC)</button>
+                    <button class="nav-lang-option" data-lang="es">Español</button>
+                    <button class="nav-lang-option" data-lang="pt">Português</button>
+                    <button class="nav-lang-option" data-lang="de">Deutsch</button>
+                    <button class="nav-lang-option" data-lang="zh">中文</button>
+                    <button class="nav-lang-option" data-lang="ar">العربية</button>
+                </div>
+            </div>
         </div>
         <div class="nav-divider"></div>
         {% if current_user.is_authenticated and current_user.is_admin %}
@@ -371,6 +383,60 @@ body.light-mode .nav-divider {
     background: rgba(204, 102, 0, 0.2);
 }
 
+/* Language Dropdown */
+.nav-lang-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    background: rgba(10, 10, 20, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 170, 0, 0.2);
+    border-radius: 8px;
+    padding: 4px 0;
+    min-width: 140px;
+    z-index: 300;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.nav-lang-menu.hidden { display: none; }
+
+.nav-lang-option {
+    display: block;
+    width: 100%;
+    padding: 7px 14px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-lang-option:hover {
+    background: rgba(255, 170, 0, 0.08);
+    color: #fff;
+}
+.nav-lang-option.active {
+    color: #FFAA00;
+    font-weight: 600;
+}
+
+body.light-mode .nav-lang-menu {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(204, 102, 0, 0.2);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+body.light-mode .nav-lang-option {
+    color: rgba(0, 0, 0, 0.5);
+}
+body.light-mode .nav-lang-option:hover {
+    background: rgba(204, 102, 0, 0.06);
+    color: #333;
+}
+body.light-mode .nav-lang-option.active {
+    color: #cc6600;
+}
+
 body.light-mode .page-transition-overlay {
     background: #f8f9fa;
 }
@@ -550,5 +616,64 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.admin-ops-nav .nav-right .nav-module-btn').forEach(function(link) {
         link.addEventListener('click', closeMobileNav);
     });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// LANGUAGE DROPDOWN
+// ═══════════════════════════════════════════════════════════════════════
+function toggleNavLangMenu() {
+    var menu = document.getElementById('navLangMenu');
+    if (menu) menu.classList.toggle('hidden');
+}
+
+// Close on outside click
+document.addEventListener('click', function(e) {
+    var menu = document.getElementById('navLangMenu');
+    var btn = document.getElementById('navLangBtn');
+    if (!menu || menu.classList.contains('hidden')) return;
+    if (!menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+        menu.classList.add('hidden');
+    }
+});
+
+// Language selection
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.nav-lang-option').forEach(function(opt) {
+        opt.addEventListener('click', function() {
+            var lang = opt.getAttribute('data-lang');
+            document.querySelectorAll('.nav-lang-option').forEach(function(o) { o.classList.remove('active'); });
+            opt.classList.add('active');
+            document.getElementById('navLangMenu').classList.add('hidden');
+            if (window.archieI18n) {
+                archieI18n.switchLanguage(lang);
+            }
+        });
+    });
+
+    // Sync active language on load
+    if (window.archieI18n) {
+        archieI18n.init();
+        setTimeout(function() {
+            var curLang = archieI18n.getCurrentLanguage();
+            document.querySelectorAll('.nav-lang-option').forEach(function(o) {
+                o.classList.toggle('active', o.getAttribute('data-lang') === curLang);
+            });
+        }, 600);
+    }
+
+    // Theme icon sync
+    function syncNavThemeIcons() {
+        var sunIcon = document.getElementById('navThemeIconSun');
+        var moonIcon = document.getElementById('navThemeIconMoon');
+        if (!sunIcon || !moonIcon) return;
+        var isLight = document.documentElement.getAttribute('data-theme') === 'light' ||
+                      document.body.classList.contains('light-mode');
+        sunIcon.style.display = isLight ? 'none' : 'inline-block';
+        moonIcon.style.display = isLight ? 'inline-block' : 'none';
+    }
+    syncNavThemeIcons();
+    var navThemeObs = new MutationObserver(syncNavThemeIcons);
+    navThemeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    navThemeObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 });
 </script>

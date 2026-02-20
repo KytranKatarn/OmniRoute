@@ -1111,7 +1111,8 @@ body.light-mode .footer-version {
 /* ─── Command Bar + HUD responsive: 717px (tablet / folded) ─── */
 @media (max-width: 717px) {
     .cb-zone-center {
-        flex: 0 1 220px;
+        flex: 1 1 0;
+        min-width: 0;
     }
     .cb-username, .cb-badge {
         display: none;
@@ -1142,7 +1143,11 @@ body.light-mode .footer-version {
         padding: 0 8px;
     }
     .cb-zone-center {
-        flex: 0 1 120px;
+        flex: 1 1 0;
+        min-width: 0;
+    }
+    .cb-search-input {
+        font-size: 11px;
     }
     .cb-search-hint {
         display: none;
@@ -1242,6 +1247,7 @@ body.light-mode .footer-version {
 .briefing-card-header {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
     padding: 10px 16px;
     border-bottom: 2px solid var(--card-accent);
@@ -1272,7 +1278,7 @@ body.light-mode .footer-version {
 }
 
 .briefing-card-header span {
-    white-space: nowrap;
+    text-align: center;
 }
 
 .briefing-card-body {
@@ -2117,8 +2123,8 @@ body.light-mode .module-card {
     flex: 1;
 }
 .briefing-card-header span {
-    white-space: normal;
     word-break: break-word;
+    text-align: center;
 }
 .section-header span {
     white-space: nowrap;
@@ -2270,7 +2276,7 @@ body.light-mode .module-card {
         <div class="cb-zone cb-zone-center">
             <div class="cb-search">
                 <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search modules, commands..." data-i18n-placeholder="cmd.search_placeholder" autocomplete="off" />
+                <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search..." data-i18n-placeholder="cmd.search_placeholder" autocomplete="off" />
                 <span class="cb-search-hint">Ctrl+K</span>
             </div>
         </div>
@@ -2953,11 +2959,14 @@ body.light-mode .module-card {
                     return;
                 }
 
-                // Filter cards by name match
+                // Filter cards by name match (English attrs + visible translated text)
                 allCards.forEach(function(card) {
                     var name = (card.getAttribute('data-module-name') || '').toLowerCase();
                     var id = (card.getAttribute('data-module-id') || '').toLowerCase();
-                    var match = name.indexOf(query) >= 0 || id.indexOf(query) >= 0;
+                    var desc = (card.getAttribute('data-module-desc') || '').toLowerCase();
+                    var visibleName = (card.querySelector('.module-card-name') || {}).textContent || '';
+                    visibleName = visibleName.toLowerCase();
+                    var match = name.indexOf(query) >= 0 || id.indexOf(query) >= 0 || desc.indexOf(query) >= 0 || visibleName.indexOf(query) >= 0;
                     card.style.display = match ? '' : 'none';
                 });
 

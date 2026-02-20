@@ -895,22 +895,35 @@ body.light-mode .cb-search-result-icon {
 
 /* ─── Notifications Popover ─── */
 .cb-notif-popover {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    width: 340px;
-    max-height: 420px;
-    background: rgba(10, 10, 20, 0.95);
+    position: fixed;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 380px;
+    max-height: calc(100vh - 72px);
+    background: rgba(10, 10, 20, 0.97);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(0, 255, 65, 0.2);
-    border-radius: 12px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 65, 0.06);
-    z-index: 200;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 255, 65, 0.06);
+    z-index: 300;
     display: none;
     overflow: hidden;
 }
 .cb-notif-popover.visible {
+    display: block;
+}
+.cb-notif-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 299;
+}
+.cb-notif-overlay.visible {
     display: block;
 }
 .cb-notif-header {
@@ -1052,21 +1065,18 @@ body.light-mode .cb-notif-item-msg { color: rgba(0,0,0,0.5); }
 [data-theme="light"] .cb-notif-title,
 body.light-mode .cb-notif-title { color: #333; }
 
-/* Mobile: full-width */
-@media (max-width: 480px) {
-    .cb-notif-popover {
-        position: fixed;
-        top: 52px;
-        left: 8px;
-        right: 8px;
-        width: auto;
-    }
+/* Light mode overlay */
+[data-theme="light"] .cb-notif-overlay,
+body.light-mode .cb-notif-overlay {
+    background: rgba(0, 0, 0, 0.2);
 }
 
-/* RTL */
-[dir="rtl"] .cb-notif-popover {
-    right: auto;
-    left: 0;
+/* Mobile: full-width popover */
+@media (max-width: 480px) {
+    .cb-notif-popover {
+        width: calc(100vw - 32px);
+        max-height: 80vh;
+    }
 }
 [dir="rtl"] .cb-notif-item.unread {
     border-left: none;
@@ -2868,6 +2878,7 @@ body.light-mode .module-card {
                     <i data-lucide="bell"></i>
                     <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
                 </button>
+                <div class="cb-notif-overlay" id="cbNotifOverlay"></div>
                 <div class="cb-notif-popover" id="cbNotifPopover">
                     <div class="cb-notif-header">
                         <span class="cb-notif-title" data-i18n="js.notif.title">Notifications</span>
@@ -3772,25 +3783,49 @@ window.timeAgo = function timeAgo(isoString) {
     // ── Notifications Popover ──
     var notifBtn = document.getElementById('cbNotifBtn');
     var notifPopover = document.getElementById('cbNotifPopover');
+    var notifOverlay = document.getElementById('cbNotifOverlay');
     var notifList = document.getElementById('cbNotifList');
     var notifMarkAll = document.getElementById('cbNotifMarkAll');
+
+    function openNotifPopover() {
+        if (notifOverlay) notifOverlay.classList.add('visible');
+        notifPopover.classList.add('visible');
+        fetchNotifications();
+    }
+    function closeNotifPopover() {
+        notifPopover.classList.remove('visible');
+        if (notifOverlay) notifOverlay.classList.remove('visible');
+    }
 
     if (notifBtn && notifPopover) {
         notifBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             var isOpen = notifPopover.classList.contains('visible');
             if (isOpen) {
-                notifPopover.classList.remove('visible');
+                closeNotifPopover();
             } else {
-                notifPopover.classList.add('visible');
-                fetchNotifications();
+                openNotifPopover();
             }
         });
 
-        // Close on outside click
+        // Close on overlay click
+        if (notifOverlay) {
+            notifOverlay.addEventListener('click', function() {
+                closeNotifPopover();
+            });
+        }
+
+        // Close on outside click (keyboard Escape handled below)
         document.addEventListener('click', function(e) {
             if (!notifPopover.contains(e.target) && e.target !== notifBtn && !notifBtn.contains(e.target)) {
-                notifPopover.classList.remove('visible');
+                closeNotifPopover();
+            }
+        });
+
+        // Close on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && notifPopover.classList.contains('visible')) {
+                closeNotifPopover();
             }
         });
 

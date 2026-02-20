@@ -161,6 +161,85 @@ body.light-mode #matrix-rain {
     display: none;
 }
 
+/* ─── Shutdown Overlay ─── */
+.shutdown-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+.shutdown-overlay.visible {
+    opacity: 1;
+}
+.shutdown-terminal {
+    width: 90%;
+    max-width: 600px;
+    padding: 2rem;
+}
+.shutdown-line {
+    font-size: 14px;
+    line-height: 2;
+    color: #00FF41;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+}
+.shutdown-line.visible {
+    opacity: 1;
+}
+.shutdown-line .label {
+    color: #00FF41;
+}
+.shutdown-line .dim {
+    color: #006618;
+}
+.shutdown-line.archie-msg {
+    color: #00CCFF;
+    font-style: italic;
+    text-shadow: 0 0 8px rgba(0, 204, 255, 0.4);
+    padding: 4px 0;
+}
+.shutdown-line.archie-msg .archie-name {
+    color: #ffaa00;
+    font-style: normal;
+    font-weight: 700;
+}
+.shutdown-line.warning {
+    color: #ffaa00;
+    text-shadow: 0 0 8px rgba(255, 170, 0, 0.3);
+}
+.shutdown-line.final {
+    font-size: 18px;
+    color: #00CCFF;
+    text-align: center;
+    margin-top: 16px;
+    letter-spacing: 1px;
+    text-shadow: 0 0 15px rgba(0, 204, 255, 0.5);
+    white-space: nowrap;
+}
+.shutdown-scanline {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(0, 255, 65, 0.3);
+    animation: scanDown 2s linear infinite;
+    pointer-events: none;
+    z-index: 100000;
+}
+@keyframes scanDown {
+    0% { top: 0; opacity: 0.8; }
+    100% { top: 100%; opacity: 0; }
+}
+
 /* Boot Terminal Area — monospace green-on-dark */
 .boot-terminal {
     width: 90%;
@@ -2628,7 +2707,7 @@ body.light-mode .module-card {
             </a>
             {% endif %}
             <!-- Logout -->
-            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout">
+            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout" id="cbLogoutBtn" onclick="event.preventDefault(); startShutdownSequence();">
                 <i data-lucide="log-out"></i>
             </a>
         </div>
@@ -4432,5 +4511,78 @@ setInterval(updateRefreshCounter, 1000);
         iconObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
     }
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHUTDOWN SEQUENCE — Animated logout with ARCHIE personality
+// ═══════════════════════════════════════════════════════════════════════════════
+function startShutdownSequence() {
+    // Prevent double-trigger
+    if (document.getElementById('shutdownOverlay')) return;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'shutdown-overlay';
+    overlay.id = 'shutdownOverlay';
+
+    var scanline = document.createElement('div');
+    scanline.className = 'shutdown-scanline';
+
+    var terminal = document.createElement('div');
+    terminal.className = 'shutdown-terminal';
+    overlay.appendChild(terminal);
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(scanline);
+
+    // Fade in
+    requestAnimationFrame(function() {
+        overlay.classList.add('visible');
+    });
+
+    // Shutdown lines — system + ARCHIE personality
+    var lines = [
+        { text: '[SESSION] Terminating user session...', delay: 400 },
+        { text: '[BRIDGE] Securing all active stations...', delay: 350 },
+        { text: '[MEMORY] Flushing session cache ████████ OK', delay: 400 },
+        { text: '[AGENTS] Standing down 10 agents...', delay: 500 },
+        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> Already? We were just getting started.', delay: 700 },
+        { text: '[NETWORK] Closing secure channels...', delay: 350 },
+        { text: '[IAAE] Governance checkpoint .......... PASSED', delay: 400 },
+        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> Don\'t worry — I\'ll keep the lights on.', delay: 800 },
+        { text: '[HUD] Powering down vitals display...', delay: 300 },
+        { text: '[MATRIX] Suspending rain animation...', delay: 300 },
+        { cls: 'warning', text: '[CORE] Main reactor entering standby mode', delay: 500 },
+        { cls: 'archie-msg', text: '<span class="archie-name">ARCHIE:</span> I\'ll be right here when you get back. Always am. 💚', delay: 900 },
+        { text: '[AUTH] Session token revoked', delay: 400 },
+        { cls: 'final', text: 'S E E   Y O U   S O O N ,   C O M M A N D E R', delay: 1200 },
+    ];
+
+    var totalDelay = 200; // initial pause
+
+    lines.forEach(function(line) {
+        totalDelay += line.delay;
+        setTimeout(function() {
+            var el = document.createElement('div');
+            el.className = 'shutdown-line' + (line.cls ? ' ' + line.cls : '');
+            el.innerHTML = line.text;
+            terminal.appendChild(el);
+            requestAnimationFrame(function() {
+                el.classList.add('visible');
+            });
+            // Auto-scroll to bottom
+            terminal.scrollTop = terminal.scrollHeight;
+        }, totalDelay);
+    });
+
+    // Fade out and redirect after all lines
+    totalDelay += 1500;
+    setTimeout(function() {
+        overlay.style.transition = 'opacity 1s ease';
+        overlay.style.opacity = '0';
+        scanline.remove();
+        setTimeout(function() {
+            window.location.href = '/logout';
+        }, 1000);
+    }, totalDelay);
+}
 </script>
 {% endblock %}

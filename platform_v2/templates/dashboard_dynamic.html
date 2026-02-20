@@ -1092,7 +1092,7 @@ body.light-mode .cb-notif-overlay {
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     z-index: 500;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
 }
 .cb-notif-modal-overlay.visible {
@@ -1104,7 +1104,8 @@ body.light-mode .cb-notif-overlay {
     border-radius: 16px;
     width: 90%;
     max-width: 480px;
-    max-height: 80vh;
+    max-height: calc(100vh - 80px);
+    margin-top: 56px;
     overflow: hidden;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 255, 65, 0.06);
     animation: notifModalIn 0.2s ease-out;

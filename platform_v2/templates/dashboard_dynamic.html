@@ -624,6 +624,139 @@ body.light-mode #matrix-rain {
     font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
 }
 
+/* ─── Spotlight Search Popover ─── */
+.cb-search-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    max-height: 360px;
+    overflow-y: auto;
+    background: rgba(10, 10, 20, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 65, 0.06);
+    z-index: 200;
+    display: none;
+    padding: 4px 0;
+}
+.cb-search-popover.visible {
+    display: block;
+}
+.cb-search-popover::-webkit-scrollbar {
+    width: 4px;
+}
+.cb-search-popover::-webkit-scrollbar-track {
+    background: transparent;
+}
+.cb-search-popover::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 65, 0.2);
+    border-radius: 2px;
+}
+.cb-search-result {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.8);
+    transition: background 0.15s ease;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+}
+.cb-search-result:hover,
+.cb-search-result.active {
+    background: rgba(0, 255, 65, 0.08);
+    border-left-color: rgba(0, 255, 65, 0.5);
+    color: #fff;
+    text-decoration: none;
+}
+.cb-search-result-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--result-accent, rgba(0, 255, 65, 0.7));
+    flex-shrink: 0;
+}
+.cb-search-result-icon i[data-lucide] {
+    width: 16px;
+    height: 16px;
+}
+.cb-search-result-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+.cb-search-result-name {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cb-search-result-cat {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cb-search-empty {
+    padding: 16px;
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    letter-spacing: 1px;
+}
+
+/* Light mode */
+[data-theme="light"] .cb-search-popover,
+body.light-mode .cb-search-popover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.12);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] .cb-search-result,
+body.light-mode .cb-search-result {
+    color: #333;
+}
+[data-theme="light"] .cb-search-result:hover,
+[data-theme="light"] .cb-search-result.active,
+body.light-mode .cb-search-result:hover,
+body.light-mode .cb-search-result.active {
+    background: rgba(0, 128, 0, 0.06);
+    border-left-color: rgba(0, 128, 0, 0.4);
+    color: #111;
+}
+[data-theme="light"] .cb-search-result-cat,
+body.light-mode .cb-search-result-cat {
+    color: rgba(0, 0, 0, 0.4);
+}
+[data-theme="light"] .cb-search-result-icon,
+body.light-mode .cb-search-result-icon {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+/* RTL */
+[dir="rtl"] .cb-search-result {
+    border-left: none;
+    border-right: 2px solid transparent;
+}
+[dir="rtl"] .cb-search-result:hover,
+[dir="rtl"] .cb-search-result.active {
+    border-left-color: transparent;
+    border-right-color: rgba(0, 255, 65, 0.5);
+}
+
 /* Right zone icon buttons */
 .cb-icon-btn {
     display: flex;
@@ -1151,6 +1284,13 @@ body.light-mode .footer-version {
     }
     .cb-search-hint {
         display: none;
+    }
+    .cb-search-popover {
+        position: fixed;
+        top: 52px;
+        left: 8px;
+        right: 8px;
+        max-height: 50vh;
     }
     .hud-vitals-strip {
         display: grid;
@@ -2278,6 +2418,7 @@ body.light-mode .module-card {
                 <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search..." data-i18n-placeholder="cmd.search_placeholder" autocomplete="off" />
                 <span class="cb-search-hint">Ctrl+K</span>
+                <div class="cb-search-popover" id="cbSearchPopover"></div>
             </div>
         </div>
         <!-- Right Zone: Actions -->
@@ -2943,46 +3084,145 @@ body.light-mode .module-card {
             }
         });
 
-        // ── Live module search/filter ──
+        // ── Spotlight Search Popover ──
+        var popover = document.getElementById('cbSearchPopover');
+        var activeIdx = -1;
         var searchTimeout;
+
+        // Category accent colors for result icons
+        var catAccents = {
+            admin_operations: '#cc6600', ai_command: '#cc6600',
+            development_tools: '#00808f', saas_services: '#7c3aed',
+            project_knowledge: '#00aa33', media_home: '#db2777',
+            placeholder_future: '#8b949e', core_services: '#00808f'
+        };
+
+        // Category display names
+        var catNames = {
+            admin_operations: 'Admin Operations', ai_command: 'AI Command',
+            development_tools: 'Development Tools', saas_services: 'SaaS Services',
+            project_knowledge: 'Project & Knowledge', media_home: 'Media & Home',
+            placeholder_future: 'Coming Soon', core_services: 'Core Services'
+        };
+
+        // Build module index from DOM
+        var moduleIndex = [];
+        document.querySelectorAll('.category-grid .module-card').forEach(function(card) {
+            moduleIndex.push({
+                id: card.getAttribute('data-module-id') || '',
+                name: card.getAttribute('data-module-name') || '',
+                icon: card.getAttribute('data-module-icon') || 'box',
+                desc: card.getAttribute('data-module-desc') || '',
+                category: card.getAttribute('data-module-category') || '',
+                href: card.getAttribute('href') || '#',
+                comingSoon: card.classList.contains('coming-soon'),
+                el: card
+            });
+        });
+
+        function showPopover(results, query) {
+            if (!results.length) {
+                popover.innerHTML = '<div class="cb-search-empty" data-i18n="js.search.no_results">No modules found</div>';
+                popover.classList.add('visible');
+                activeIdx = -1;
+                return;
+            }
+            var html = '';
+            results.forEach(function(mod, i) {
+                var accent = catAccents[mod.category] || '#00FF41';
+                var catLabel = catNames[mod.category] || mod.category;
+                // Use visible translated name if available
+                var nameEl = mod.el.querySelector('.module-card-name');
+                var displayName = nameEl ? nameEl.textContent : mod.name;
+                // Translate category if i18n available
+                if (typeof window.archieI18n !== 'undefined' && window.archieI18n.t) {
+                    var tCat = window.archieI18n.t('cat.' + mod.category, catLabel);
+                    if (tCat !== 'cat.' + mod.category) catLabel = tCat;
+                }
+                html += '<a href="' + mod.href + '" class="cb-search-result' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '" style="--result-accent:' + accent + ';">' +
+                    '<div class="cb-search-result-icon"><i data-lucide="' + mod.icon + '"></i></div>' +
+                    '<div class="cb-search-result-info">' +
+                        '<div class="cb-search-result-name">' + escHtml(displayName) + '</div>' +
+                        '<div class="cb-search-result-cat">' + escHtml(catLabel) + '</div>' +
+                    '</div>' +
+                '</a>';
+            });
+            popover.innerHTML = html;
+            popover.classList.add('visible');
+            activeIdx = 0;
+            // Re-render lucide icons in popover
+            if (window.lucide) lucide.createIcons({ nodes: popover.querySelectorAll('[data-lucide]') });
+        }
+
+        function hidePopover() {
+            popover.classList.remove('visible');
+            popover.innerHTML = '';
+            activeIdx = -1;
+        }
+
+        function escHtml(s) {
+            var d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function setActiveResult(idx) {
+            var items = popover.querySelectorAll('.cb-search-result');
+            if (!items.length) return;
+            items.forEach(function(el) { el.classList.remove('active'); });
+            if (idx < 0) idx = items.length - 1;
+            if (idx >= items.length) idx = 0;
+            activeIdx = idx;
+            items[idx].classList.add('active');
+            items[idx].scrollIntoView({ block: 'nearest' });
+        }
+
         searchInput.addEventListener('input', function() {
             clearTimeout(searchTimeout);
+            var query = searchInput.value.trim().toLowerCase();
+            if (!query) {
+                hidePopover();
+                return;
+            }
             searchTimeout = setTimeout(function() {
-                var query = searchInput.value.trim().toLowerCase();
-                var allCards = document.querySelectorAll('.category-grid .module-card');
-                var panels = document.querySelectorAll('.category-panel');
+                var results = moduleIndex.filter(function(mod) {
+                    var visibleName = (mod.el.querySelector('.module-card-name') || {}).textContent || '';
+                    return mod.name.toLowerCase().indexOf(query) >= 0 ||
+                           mod.id.toLowerCase().indexOf(query) >= 0 ||
+                           mod.desc.toLowerCase().indexOf(query) >= 0 ||
+                           visibleName.toLowerCase().indexOf(query) >= 0;
+                });
+                showPopover(results.slice(0, 8), query);
+            }, 100);
+        });
 
-                if (!query) {
-                    // Show everything
-                    allCards.forEach(function(c) { c.style.display = ''; });
-                    panels.forEach(function(p) { p.style.display = ''; });
-                    return;
+        searchInput.addEventListener('keydown', function(e) {
+            if (!popover.classList.contains('visible')) return;
+            var items = popover.querySelectorAll('.cb-search-result');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActiveResult(activeIdx + 1);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActiveResult(activeIdx - 1);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (items[activeIdx]) {
+                    window.location.href = items[activeIdx].getAttribute('href');
                 }
+            }
+        });
 
-                // Filter cards by name match (English attrs + visible translated text)
-                allCards.forEach(function(card) {
-                    var name = (card.getAttribute('data-module-name') || '').toLowerCase();
-                    var id = (card.getAttribute('data-module-id') || '').toLowerCase();
-                    var desc = (card.getAttribute('data-module-desc') || '').toLowerCase();
-                    var visibleName = (card.querySelector('.module-card-name') || {}).textContent || '';
-                    visibleName = visibleName.toLowerCase();
-                    var match = name.indexOf(query) >= 0 || id.indexOf(query) >= 0 || desc.indexOf(query) >= 0 || visibleName.indexOf(query) >= 0;
-                    card.style.display = match ? '' : 'none';
-                });
+        searchInput.addEventListener('focus', function() {
+            var query = searchInput.value.trim().toLowerCase();
+            if (query) searchInput.dispatchEvent(new Event('input'));
+        });
 
-                // Hide category panels with no visible cards
-                panels.forEach(function(panel) {
-                    var catKey = panel.getAttribute('data-category');
-                    var cardsContainer = document.getElementById('cat-' + catKey);
-                    if (!cardsContainer) return;
-                    var visibleCards = cardsContainer.querySelectorAll('.module-card:not([style*="display: none"])');
-                    panel.style.display = visibleCards.length > 0 ? '' : 'none';
-                    // Auto-expand panels with matches
-                    if (visibleCards.length > 0 && cardsContainer.classList.contains('collapsed')) {
-                        cardsContainer.classList.remove('collapsed');
-                    }
-                });
-            }, 150);
+        // Close popover on outside click
+        document.addEventListener('click', function(e) {
+            if (!popover.contains(e.target) && e.target !== searchInput) {
+                hidePopover();
+            }
         });
     }
 

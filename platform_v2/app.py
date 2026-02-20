@@ -1077,36 +1077,106 @@ def api_dashboard_ai_status():
 @app.route("/api/dashboard/recent-activity")
 @login_required
 def api_dashboard_recent_activity():
-    """Recent user activity for mission briefing"""
+    """Blended recent activity from multiple sources for mission briefing."""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        combined = []
+
+        # 1. User activity (logins, account changes)
         cur.execute(
             """
             SELECT action, module, details, created_at, username
             FROM user_activity_log
             ORDER BY created_at DESC
-            LIMIT 10
+            LIMIT 5
         """
         )
-        activities = cur.fetchall()
+        for a in cur.fetchall():
+            combined.append(
+                {
+                    "action": a["action"],
+                    "module": a["module"],
+                    "details": a["details"],
+                    "username": a["username"],
+                    "source": "user",
+                    "timestamp": a["created_at"].isoformat() if a["created_at"] else None,
+                }
+            )
+
+        # 2. AI bridge work (aggregated by module+capability)
+        cur.execute(
+            """
+            SELECT module_source, capability, agent_name,
+                   COUNT(*) as calls, MAX(created_at) as latest
+            FROM task_execution_log
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY module_source, capability, agent_name
+            ORDER BY latest DESC
+            LIMIT 5
+        """
+        )
+        for row in cur.fetchall():
+            module_label = (row["module_source"] or "bridge").replace("_", " ").title()
+            combined.append(
+                {
+                    "action": f"{row['calls']}x {row['capability']}",
+                    "module": module_label,
+                    "details": f"Agent {row['agent_name']} — {row['calls']} {row['capability']} calls",
+                    "username": row["agent_name"],
+                    "source": "bridge",
+                    "timestamp": row["latest"].isoformat() if row["latest"] else None,
+                }
+            )
+
+        # 3. Governance events (commits, decisions)
+        cur.execute(
+            """
+            SELECT event_type, event_category, action, reason, timestamp
+            FROM governance_audit_log
+            ORDER BY timestamp DESC
+            LIMIT 5
+        """
+        )
+        for g in cur.fetchall():
+            combined.append(
+                {
+                    "action": g["event_type"],
+                    "module": g["event_category"],
+                    "details": g["reason"],
+                    "username": None,
+                    "source": "governance",
+                    "timestamp": g["timestamp"].isoformat() if g["timestamp"] else None,
+                }
+            )
+
+        # 4. Knowledge base updates
+        cur.execute(
+            """
+            SELECT title, knowledge_type, category, updated_at
+            FROM knowledge_base
+            ORDER BY updated_at DESC
+            LIMIT 3
+        """
+        )
+        for k in cur.fetchall():
+            combined.append(
+                {
+                    "action": f"{k['knowledge_type']} updated",
+                    "module": k["category"] or "knowledge",
+                    "details": k["title"],
+                    "username": None,
+                    "source": "knowledge",
+                    "timestamp": k["updated_at"].isoformat() if k["updated_at"] else None,
+                }
+            )
+
         cur.close()
         conn.close()
-        return jsonify(
-            {
-                "success": True,
-                "activities": [
-                    {
-                        "action": a["action"],
-                        "module": a["module"],
-                        "details": a["details"],
-                        "username": a["username"],
-                        "timestamp": a["created_at"].isoformat() if a["created_at"] else None,
-                    }
-                    for a in activities
-                ],
-            }
-        )
+
+        # Sort all by timestamp descending, take top 10
+        combined.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+        return jsonify({"success": True, "activities": combined[:10]})
     except Exception as e:
         logger.error(f"Recent activity API error: {e}")
         return jsonify({"success": True, "activities": []})

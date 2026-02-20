@@ -1730,6 +1730,19 @@ body.light-mode .footer-version {
     letter-spacing: 0.5px;
 }
 
+.briefing-activity-icon {
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    font-size: 10px;
+    line-height: 1.6;
+}
+
+.briefing-activity-item[data-source="user"] .briefing-activity-icon { color: var(--archie-accent, #f7a83e); }
+.briefing-activity-item[data-source="bridge"] .briefing-activity-icon { color: var(--archie-primary, #6ec8ff); }
+.briefing-activity-item[data-source="governance"] .briefing-activity-icon { color: var(--archie-success, #5bf5a0); }
+.briefing-activity-item[data-source="knowledge"] .briefing-activity-icon { color: var(--archie-warning, #f5c85b); }
+
 .briefing-muted {
     color: rgba(255, 255, 255, 0.3);
     font-style: italic;
@@ -3873,18 +3886,32 @@ body.light-mode .module-card {
         var ul = document.createElement('ul');
         ul.className = 'briefing-activity-list';
 
+        var sourceIcons = {
+            user: '\u25C6',       /* diamond — user actions */
+            bridge: '\u2726',     /* sparkle — AI work */
+            governance: '\u2738', /* heavy asterisk — governance */
+            knowledge: '\u25CB'   /* circle — knowledge */
+        };
+
         items.forEach(function(item) {
             var li = document.createElement('li');
             li.className = 'briefing-activity-item';
+            if (item.source) li.setAttribute('data-source', item.source);
+
+            var iconSpan = document.createElement('span');
+            iconSpan.className = 'briefing-activity-icon';
+            iconSpan.textContent = sourceIcons[item.source] || '\u25C6';
+            li.appendChild(iconSpan);
 
             var textSpan = document.createElement('span');
             textSpan.className = 'briefing-activity-text';
-            // Build descriptive text from action + module
             var actionText = item.action || 'Activity';
             if (item.module) {
                 actionText += ' \u2014 ' + item.module;
             }
-            if (item.username) {
+            if (item.username && item.source === 'user') {
+                actionText = item.username + ': ' + actionText;
+            } else if (item.username && item.source === 'bridge') {
                 actionText = item.username + ': ' + actionText;
             }
             textSpan.textContent = actionText;

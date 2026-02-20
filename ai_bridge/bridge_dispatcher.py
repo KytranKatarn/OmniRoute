@@ -413,20 +413,36 @@ class BridgeDispatcher:
         "qwen3-coder-next:cloud",
     ]
 
-    def _check_agent_busy(self, agent_name: str) -> Optional[Dict]:
-        """Check if agent has a running bridge_job. Returns job dict or None."""
+    def _check_agent_busy(self, agent_name: str, exclude_job_id: int = None) -> Optional[Dict]:
+        """Check if agent has a running bridge_job. Returns job dict or None.
+
+        Args:
+            agent_name: Agent to check.
+            exclude_job_id: If provided, ignore this job (the caller's own job).
+        """
         try:
             conn = self._get_db()
             cur = conn.cursor()
-            cur.execute(
-                """
-                SELECT id, description, total_steps, completed_steps
-                FROM bridge_jobs
-                WHERE agent_name = %s AND status = 'running'
-                ORDER BY created_at DESC LIMIT 1
-                """,
-                (agent_name,),
-            )
+            if exclude_job_id:
+                cur.execute(
+                    """
+                    SELECT id, description, total_steps, completed_steps
+                    FROM bridge_jobs
+                    WHERE agent_name = %s AND status = 'running' AND id != %s
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (agent_name, exclude_job_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, description, total_steps, completed_steps
+                    FROM bridge_jobs
+                    WHERE agent_name = %s AND status = 'running'
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (agent_name,),
+                )
             row = cur.fetchone()
             cur.close()
             conn.close()
@@ -822,7 +838,9 @@ class BridgeDispatcher:
             )
 
         # 3d. Throughput escalation — if agent is busy, try cloud contractors
-        busy_job = self._check_agent_busy(agent_name)
+        # Exclude the caller's own job_id so a batch operation doesn't
+        # escalate its own sub-dispatches to cloud.
+        busy_job = self._check_agent_busy(agent_name, exclude_job_id=job_id)
         if busy_job and routing_mode != "local_only":
             escalated = self._try_cloud_escalation(
                 agent_name=agent_name,

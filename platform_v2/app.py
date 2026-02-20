@@ -1270,48 +1270,117 @@ def api_dashboard_recent_activity():
 @app.route("/api/dashboard/alerts")
 @login_required
 def api_dashboard_alerts():
-    """System alerts for mission briefing"""
+    """Blended system alerts for mission briefing — services, failed jobs, notifications."""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        alerts = []
+
+        # 1. Service issues (non-online services)
+        cur.execute(
+            "SELECT service_name, status, error_message, last_checked FROM service_status WHERE status != 'online'"
+        )
+        service_issues = []
+        for s in cur.fetchall():
+            service_issues.append(
+                {
+                    "service": s["service_name"],
+                    "status": s["status"],
+                    "error": s["error_message"],
+                }
+            )
+
+        # 2. Failed bridge jobs (last 24h, grouped by module+error)
+        cur.execute(
+            """
+            SELECT t.module_source, t.capability,
+                   LEFT(t.error_message, 120) as error_summary,
+                   COUNT(*) as fail_count, MAX(t.created_at) as latest,
+                   a.first_name, a.last_name
+            FROM task_execution_log t
+            LEFT JOIN agents a ON a.name = SPLIT_PART(t.agent_name, '→', 1)
+            WHERE t.success = false AND t.created_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY t.module_source, t.capability,
+                     LEFT(t.error_message, 120), a.first_name, a.last_name
+            ORDER BY latest DESC
+            LIMIT 5
+        """
+        )
+        for row in cur.fetchall():
+            first = (row["first_name"] or "").strip()
+            last = (row["last_name"] or "").strip()
+            agent = f"{first} {last}".strip() or "Bridge"
+            module = (row["module_source"] or "bridge").replace("_", " ").title()
+            error = row["error_summary"] or "Unknown error"
+            count = row["fail_count"]
+            alerts.append(
+                {
+                    "type": "job_failure",
+                    "title": f"{module}: {count} failed {row['capability']} call{'s' if count > 1 else ''}",
+                    "message": f"{agent} — {error}",
+                    "priority": "high" if count >= 10 else "medium",
+                    "timestamp": row["latest"].isoformat() + "Z" if row["latest"] else None,
+                }
+            )
+
+        # 3. Agent welfare (rest cycles in last 24h)
+        cur.execute(
+            """
+            SELECT a.first_name, a.last_name, a.name as codename,
+                   r.reason, r.started_at
+            FROM agent_rest_cycles r
+            JOIN agents a ON a.id = r.agent_id
+            WHERE r.started_at >= NOW() - INTERVAL '24 hours'
+            ORDER BY r.started_at DESC
+            LIMIT 3
+        """
+        )
+        for row in cur.fetchall():
+            first = (row["first_name"] or "").strip()
+            last = (row["last_name"] or "").strip()
+            agent = f"{first} {last}".strip() or row["codename"]
+            alerts.append(
+                {
+                    "type": "welfare",
+                    "title": f"{agent} entered rest cycle",
+                    "message": row["reason"] or "Scheduled rest",
+                    "priority": "low",
+                    "timestamp": row["started_at"].isoformat() + "Z" if row["started_at"] else None,
+                }
+            )
+
+        # 4. User notifications (unread)
         cur.execute(
             """
             SELECT type, title, message, priority, created_at
             FROM notifications
             WHERE user_id = %s AND is_read = FALSE
             ORDER BY created_at DESC
-            LIMIT 10
+            LIMIT 5
         """,
             (current_user.id,),
         )
-        alerts = cur.fetchall()
-        cur.execute("SELECT service_name, status, error_message FROM service_status WHERE status != 'online'")
-        service_issues = cur.fetchall()
+        for n in cur.fetchall():
+            alerts.append(
+                {
+                    "type": n["type"],
+                    "title": n["title"],
+                    "message": n["message"],
+                    "priority": n["priority"] or "normal",
+                    "timestamp": n["created_at"].isoformat() + "Z" if n["created_at"] else None,
+                }
+            )
+
         cur.close()
         conn.close()
-        return jsonify(
-            {
-                "success": True,
-                "alerts": [
-                    {
-                        "type": a["type"],
-                        "title": a["title"],
-                        "message": a["message"],
-                        "priority": a["priority"],
-                        "timestamp": a["created_at"].isoformat() if a["created_at"] else None,
-                    }
-                    for a in alerts
-                ],
-                "service_issues": [
-                    {
-                        "service": s["service_name"],
-                        "status": s["status"],
-                        "error": s["error_message"],
-                    }
-                    for s in service_issues
-                ],
-            }
-        )
+
+        # Sort all alerts by priority weight then timestamp
+        prio_weight = {"critical": 0, "high": 1, "medium": 2, "normal": 3, "low": 4}
+        alerts.sort(key=lambda a: (prio_weight.get(a["priority"], 3), a.get("timestamp") or ""))
+        alerts.reverse()
+        alerts.sort(key=lambda a: prio_weight.get(a["priority"], 3))
+
+        return jsonify({"success": True, "alerts": alerts[:10], "service_issues": service_issues})
     except Exception as e:
         logger.error(f"Alerts API error: {e}")
         return jsonify({"success": True, "alerts": [], "service_issues": []})
@@ -1804,6 +1873,88 @@ def _warmup_i18n_keys():
 
 
 _warmup_i18n_keys()
+
+
+# ============================================================================
+# SERVICE STATUS - Update on startup and provide live health checks
+# ============================================================================
+def _update_service_status():
+    """Update service_status table on platform startup."""
+    import threading
+
+    def _do_update():
+        try:
+            with app.app_context():
+                import requests as req
+
+                conn = get_db()
+                cur = conn.cursor()
+
+                # Platform is online (we're running)
+                cur.execute(
+                    """
+                    UPDATE service_status SET status = 'online', last_checked = NOW(), error_message = NULL
+                    WHERE service_name = 'platform'
+                """
+                )
+
+                # Database is online (we just connected)
+                cur.execute(
+                    """
+                    UPDATE service_status SET status = 'online', last_checked = NOW(), error_message = NULL
+                    WHERE service_name = 'database'
+                """
+                )
+
+                # Check Ollama
+                try:
+                    r = req.get("http://host.docker.internal:11434/api/tags", timeout=3)
+                    status = "online" if r.status_code == 200 else "degraded"
+                    cur.execute(
+                        "UPDATE service_status SET status = %s, last_checked = NOW(), error_message = NULL WHERE service_name = 'ollama'",
+                        (status,),
+                    )
+                except Exception as e:
+                    cur.execute(
+                        "UPDATE service_status SET status = 'offline', last_checked = NOW(), error_message = %s WHERE service_name = 'ollama'",
+                        (str(e)[:200],),
+                    )
+
+                # Check AI Bridge
+                try:
+                    from ai_bridge.archie_bridge import archie_bridge as _ab
+
+                    status = "online" if _ab else "unknown"
+                    cur.execute(
+                        "UPDATE service_status SET status = %s, last_checked = NOW(), error_message = NULL WHERE service_name = 'ai_bridge'",
+                        (status,),
+                    )
+                except Exception as e:
+                    cur.execute(
+                        "UPDATE service_status SET status = 'offline', last_checked = NOW(), error_message = %s WHERE service_name = 'ai_bridge'",
+                        (str(e)[:200],),
+                    )
+
+                # Consciousness module
+                cur.execute(
+                    """
+                    UPDATE service_status SET status = 'online', last_checked = NOW(), error_message = NULL
+                    WHERE service_name = 'consciousness'
+                """
+                )
+
+                conn.commit()
+                cur.close()
+                conn.close()
+                logger.info("[health] Service status updated on startup")
+        except Exception as e:
+            logger.warning(f"[health] Service status update failed: {e}")
+
+    t = threading.Thread(target=_do_update, daemon=True, name="service-status")
+    t.start()
+
+
+_update_service_status()
 
 
 # ============================================================================

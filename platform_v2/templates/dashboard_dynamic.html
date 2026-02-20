@@ -1797,9 +1797,27 @@ body.light-mode .footer-version {
 
 .briefing-alert-text {
     flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-width: 0;
+    line-height: 1.4;
+}
+.briefing-alert-title {
+    display: block;
+    font-weight: 500;
+    word-break: break-word;
+}
+.briefing-alert-detail {
+    display: block;
+    font-size: 0.8em;
+    opacity: 0.6;
+    word-break: break-word;
+}
+.briefing-alert-time {
+    font-size: 0.75em;
+    opacity: 0.4;
     white-space: nowrap;
+    flex-shrink: 0;
+    align-self: flex-start;
+    margin-top: 1px;
 }
 
 /* AI Insights card */
@@ -3950,23 +3968,30 @@ body.light-mode .module-card {
         // Service issues first (these are more critical)
         serviceIssues.forEach(function(issue) {
             var div = document.createElement('div');
-            var severity = (issue.status === 'error' || issue.status === 'down') ? 'alert-critical' : 'alert-warning';
+            var severity = (issue.status === 'error' || issue.status === 'down' || issue.status === 'offline') ? 'alert-critical' : 'alert-warning';
             div.className = 'briefing-alert-item ' + severity;
 
-            var iconName = severity === 'alert-critical' ? 'x-circle' : 'alert-triangle';
-            div.innerHTML = '<i data-lucide="' + iconName + '"></i>';
+            var icon = document.createElement('i');
+            icon.setAttribute('data-lucide', severity === 'alert-critical' ? 'x-circle' : 'alert-triangle');
+            div.appendChild(icon);
 
-            var text = document.createElement('span');
-            text.className = 'briefing-alert-text';
-            text.textContent = (issue.service || 'Service') + ': ' + (issue.status || 'issue');
+            var textWrap = document.createElement('span');
+            textWrap.className = 'briefing-alert-text';
+            var titleSpan = document.createElement('span');
+            titleSpan.className = 'briefing-alert-title';
+            titleSpan.textContent = (issue.service || 'Service').replace('_', ' ').toUpperCase() + ' — ' + (issue.status || 'issue');
+            textWrap.appendChild(titleSpan);
             if (issue.error) {
-                text.title = issue.error;
+                var detail = document.createElement('span');
+                detail.className = 'briefing-alert-detail';
+                detail.textContent = issue.error;
+                textWrap.appendChild(detail);
             }
-            div.appendChild(text);
+            div.appendChild(textWrap);
             container.appendChild(div);
         });
 
-        // Notification alerts
+        // Blended alerts (failed jobs, welfare, notifications)
         alerts.forEach(function(alert) {
             var div = document.createElement('div');
             var severity = 'alert-info';
@@ -3982,15 +4007,30 @@ body.light-mode .module-card {
                 'alert-warning': 'alert-triangle',
                 'alert-info': 'info'
             };
-            div.innerHTML = '<i data-lucide="' + (iconMap[severity] || 'info') + '"></i>';
+            var icon = document.createElement('i');
+            icon.setAttribute('data-lucide', iconMap[severity] || 'info');
+            div.appendChild(icon);
 
-            var text = document.createElement('span');
-            text.className = 'briefing-alert-text';
-            text.textContent = alert.title || alert.message || 'Alert';
+            var textWrap = document.createElement('span');
+            textWrap.className = 'briefing-alert-text';
+            var titleSpan = document.createElement('span');
+            titleSpan.className = 'briefing-alert-title';
+            titleSpan.textContent = alert.title || 'Alert';
+            textWrap.appendChild(titleSpan);
             if (alert.message) {
-                text.title = alert.message;
+                var detail = document.createElement('span');
+                detail.className = 'briefing-alert-detail';
+                detail.textContent = alert.message;
+                textWrap.appendChild(detail);
             }
-            div.appendChild(text);
+            div.appendChild(textWrap);
+
+            if (alert.timestamp) {
+                var time = document.createElement('span');
+                time.className = 'briefing-alert-time';
+                time.textContent = timeAgo(alert.timestamp);
+                div.appendChild(time);
+            }
             container.appendChild(div);
         });
 

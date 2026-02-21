@@ -4933,7 +4933,9 @@ function loadOverviewData() {
             html += '</div>';
             html += '<div style="max-height:160px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.15) transparent;">';
             allModels.forEach(function(m) {
-                var name = esc(String(m.name || 'unknown').split(':')[0]);
+                var rawName = String(m.name || 'unknown');
+                var parts = rawName.split(':');
+                var name = esc(parts[0]) + (parts[1] && parts[1] !== 'latest' ? '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">:' + esc(parts[1]) + '</span>' : '');
                 var isLoaded = m.status === 'loaded';
                 var dotColor = isLoaded ? '#00ff41' : 'rgba(255,255,255,0.2)';
                 var nameColor = isLoaded ? '#00ff41' : 'var(--archie-text-secondary)';

@@ -1226,6 +1226,284 @@ body.light-mode .status-bar-divider {
 }
 
 /* ============================================================================
+   CONTRACTOR FIRMS (External Providers)
+   ============================================================================ */
+
+.contractor-firm {
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: border-color 0.3s ease;
+}
+.contractor-firm:hover {
+    border-color: rgba(168, 85, 247, 0.4);
+}
+.contractor-firm-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    background: rgba(168, 85, 247, 0.04);
+    transition: background 0.2s ease;
+    user-select: none;
+}
+.contractor-firm-header:hover {
+    background: rgba(168, 85, 247, 0.08);
+}
+.contractor-firm-header .chevron-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--archie-text-muted);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+.contractor-firm.expanded .contractor-firm-header .chevron-icon {
+    transform: rotate(90deg);
+}
+.contractor-firm-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--archie-text-primary);
+    flex: 1;
+}
+.contractor-tier-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: rgba(168, 85, 247, 0.12);
+    color: #a855f7;
+}
+.contractor-status-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.contractor-status-badge.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10B981;
+}
+.contractor-status-badge.inactive {
+    background: rgba(255, 68, 68, 0.15);
+    color: #FF4444;
+}
+.contractor-status-badge.over-budget {
+    background: rgba(255, 170, 0, 0.15);
+    color: #ffaa00;
+}
+.budget-bar {
+    width: 60px;
+    height: 4px;
+    background: var(--archie-bg-secondary, rgba(255,255,255,0.06));
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.budget-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+    background: #a855f7;
+}
+.budget-fill.over { background: #FF4444; }
+.budget-fill.warning { background: #ffaa00; }
+.contractor-firm-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.contractor-firm-actions button {
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid;
+    background: transparent;
+    transition: all 0.2s ease;
+}
+.contractor-btn-edit {
+    color: #a855f7;
+    border-color: rgba(168, 85, 247, 0.3) !important;
+}
+.contractor-btn-edit:hover {
+    background: rgba(168, 85, 247, 0.1) !important;
+}
+.contractor-btn-toggle {
+    color: var(--archie-text-muted);
+    border-color: rgba(255,255,255,0.1) !important;
+}
+.contractor-btn-toggle:hover {
+    background: rgba(255,255,255,0.05) !important;
+}
+.contractor-firm-body {
+    display: none;
+    padding: 8px 12px 12px;
+    border-top: 1px solid rgba(168, 85, 247, 0.1);
+}
+.contractor-firm.expanded .contractor-firm-body {
+    display: block;
+}
+.contractor-models-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+}
+.contractor-model-card {
+    background: var(--archie-bg-tertiary);
+    border-radius: 8px;
+    border-left: 3px solid #a855f7;
+    padding: 0.65rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    transition: opacity 0.3s ease, border-color 0.3s ease;
+}
+.contractor-model-card.disabled {
+    opacity: 0.5;
+}
+.contractor-model-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--archie-text-primary);
+}
+.contractor-model-meta {
+    font-size: 0.65rem;
+    color: var(--archie-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.contractor-model-card .model-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    font-size: 0.6rem;
+    color: var(--archie-text-muted);
+}
+.contractor-model-card .model-stats .stat-val {
+    font-weight: 600;
+    color: var(--archie-text-secondary);
+}
+.contractor-iaae-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: #10B981;
+    background: rgba(16, 185, 129, 0.1);
+    padding: 1px 6px;
+    border-radius: 8px;
+    align-self: flex-start;
+}
+.contractor-model-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    font-size: 0.6rem;
+    color: var(--archie-text-muted);
+}
+.contractor-model-toggle input[type="checkbox"] {
+    accent-color: #a855f7;
+}
+
+/* Provider Modal */
+.provider-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.provider-modal {
+    background: var(--archie-bg-primary, #0d1117);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 12px;
+    padding: 24px;
+    width: 400px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.provider-modal h3 {
+    color: #a855f7;
+    font-size: 1rem;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.provider-modal label {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--archie-text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.provider-modal input,
+.provider-modal select {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--archie-bg-tertiary, rgba(255,255,255,0.05));
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 6px;
+    color: var(--archie-text-primary);
+    font-size: 0.8rem;
+    margin-bottom: 12px;
+    box-sizing: border-box;
+}
+.provider-modal input:focus,
+.provider-modal select:focus {
+    outline: none;
+    border-color: #a855f7;
+}
+.provider-modal-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+.provider-modal-buttons button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    border: 1px solid;
+    transition: all 0.2s ease;
+}
+.provider-modal-buttons .btn-save {
+    background: rgba(168, 85, 247, 0.15);
+    border-color: rgba(168, 85, 247, 0.4);
+    color: #a855f7;
+}
+.provider-modal-buttons .btn-save:hover {
+    background: rgba(168, 85, 247, 0.25);
+}
+.provider-modal-buttons .btn-cancel {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--archie-text-muted);
+}
+.provider-modal-buttons .btn-cancel:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* ============================================================================
    NODE NETWORK SECTION
    ============================================================================ */
 
@@ -3394,6 +3672,64 @@ body.light-mode .crew-subtab.active,
     background: rgba(139, 92, 246, 0.06);
 }
 
+/* Contractor Firms — light mode */
+body.light-mode .contractor-firm,
+[data-theme="light"] .contractor-firm {
+    border-color: rgba(168, 85, 247, 0.15);
+}
+body.light-mode .contractor-firm-header,
+[data-theme="light"] .contractor-firm-header {
+    background: rgba(168, 85, 247, 0.03);
+}
+body.light-mode .contractor-firm-header:hover,
+[data-theme="light"] .contractor-firm-header:hover {
+    background: rgba(168, 85, 247, 0.06);
+}
+body.light-mode .contractor-model-card,
+[data-theme="light"] .contractor-model-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-left-color: #9333ea;
+}
+body.light-mode .contractor-model-card:hover,
+[data-theme="light"] .contractor-model-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+body.light-mode .contractor-model-card .model-stats,
+[data-theme="light"] .contractor-model-card .model-stats {
+    color: #888;
+}
+body.light-mode .contractor-model-card .model-stats .stat-val,
+[data-theme="light"] .contractor-model-card .model-stats .stat-val {
+    color: #333;
+}
+body.light-mode .contractor-firm-body,
+[data-theme="light"] .contractor-firm-body {
+    border-top-color: rgba(168, 85, 247, 0.08);
+}
+body.light-mode .provider-modal,
+[data-theme="light"] .provider-modal {
+    background: #ffffff;
+    border-color: rgba(168, 85, 247, 0.2);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+body.light-mode .provider-modal input,
+body.light-mode .provider-modal select,
+[data-theme="light"] .provider-modal input,
+[data-theme="light"] .provider-modal select {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(168, 85, 247, 0.15);
+    color: #1a1a2e;
+}
+body.light-mode .contractor-btn-toggle,
+[data-theme="light"] .contractor-btn-toggle {
+    color: #666;
+    border-color: rgba(0, 0, 0, 0.1) !important;
+}
+body.light-mode .budget-bar,
+[data-theme="light"] .budget-bar {
+    background: rgba(0, 0, 0, 0.06);
+}
+
 /* Node Network — light mode */
 body.light-mode .bridge-nodes-header,
 [data-theme="light"] .bridge-nodes-header {
@@ -3601,6 +3937,13 @@ body.light-mode .station-coverage-code,
     }
     .crew-manifest-grid {
         grid-template-columns: 1fr;
+    }
+    .contractor-models-grid {
+        grid-template-columns: 1fr;
+    }
+    .contractor-firm-header {
+        flex-wrap: wrap;
+        gap: 6px;
     }
     .node-grid {
         grid-template-columns: 1fr;
@@ -4281,6 +4624,10 @@ body.light-mode .bridge-hud-value {
                         <i data-lucide="coffee"></i>
                         <span data-i18n="bridge.crew.lounge">Lounge</span>
                     </button>
+                    <button class="crew-subtab" data-subtab="contractors" onclick="switchCrewSubtab('contractors')">
+                        <i data-lucide="building-2"></i>
+                        <span data-i18n="bridge.crew.contractors">Contractors</span>
+                    </button>
                 </div>
 
                 <!-- Manifest Sub-Panel -->
@@ -4341,6 +4688,23 @@ body.light-mode .bridge-hud-value {
                             <!-- Agents currently in lounge -->
                             <div id="lounge-agents-list">
                                 <span class="briefing-muted" style="font-size:0.75rem;">No agents in lounge</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contractors Sub-Panel -->
+                <div class="crew-subpanel" data-subpanel="contractors">
+                    <div class="briefing-card" style="--card-accent: #a855f7; margin: 0 16px;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="building-2"></i>
+                            <span data-i18n="bridge.crew.external_contractors">External Contractors</span>
+                            <span class="briefing-card-link" id="contractors-summary">-- providers</span>
+                            <button onclick="openAddProviderModal()" style="background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.3);color:#a855f7;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;">+ Add Provider</button>
+                        </div>
+                        <div class="briefing-card-body">
+                            <div id="contractors-grid">
+                                <span class="briefing-muted">Loading contractors...</span>
                             </div>
                         </div>
                     </div>
@@ -7749,6 +8113,7 @@ function switchCrewSubtab(name) {
     document.querySelectorAll('.crew-subpanel').forEach(function(panel) {
         panel.classList.toggle('active', panel.dataset.subpanel === name);
     });
+    if (name === 'contractors') loadContractors();
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -8395,6 +8760,223 @@ function returnFromLounge(agentId) {
         body: JSON.stringify({})
     }).then(function(r) { return r.json(); })
     .then(function() { loadCrewManifest(); });
+}
+
+// ============================================================================
+// CONTRACTORS (External Providers) — Crew Sub-Tab
+// ============================================================================
+
+async function loadContractors() {
+    try {
+        var resp = await fetch('/tools/bridge/api/external-providers');
+        if (!resp.ok) throw new Error('Failed to load providers');
+        var data = await resp.json();
+        renderContractors(data.providers || []);
+    } catch (e) {
+        console.error('loadContractors error:', e);
+        var grid = document.getElementById('contractors-grid');
+        if (grid) grid.innerHTML = '<span class="briefing-muted">Failed to load contractors</span>';
+    }
+}
+
+function renderContractors(providers) {
+    var grid = document.getElementById('contractors-grid');
+    var summaryEl = document.getElementById('contractors-summary');
+    if (!grid) return;
+
+    // Compute summary
+    var activeCount = 0;
+    var totalCount = providers.length;
+    var totalSpent = 0;
+    var totalBudget = 0;
+    providers.forEach(function(p) {
+        if (p.enabled) activeCount++;
+        totalSpent += (p.cost_24h || 0);
+        totalBudget += (p.monthly_budget || 0);
+    });
+    if (summaryEl) {
+        summaryEl.textContent = activeCount + '/' + totalCount + ' active \u2014 $' + totalSpent.toFixed(2) + ' / $' + totalBudget.toFixed(0);
+    }
+
+    if (providers.length === 0) {
+        grid.innerHTML = '<span class="briefing-muted">No external providers configured. Click "+ Add Provider" to get started.</span>';
+        return;
+    }
+
+    var html = '';
+    providers.forEach(function(p) {
+        var providerName = escapeHtml((p.name || p.provider || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }));
+        var providerKey = escapeHtml(p.provider || p.name || '');
+        var tierPos = p.tier_position || '--';
+        var isEnabled = p.enabled !== false;
+        var isOverBudget = p.monthly_budget > 0 && (p.cost_24h || 0) * 30 > p.monthly_budget;
+        var statusClass = isOverBudget ? 'over-budget' : (isEnabled ? 'active' : 'inactive');
+        var statusText = isOverBudget ? 'Over Budget' : (isEnabled ? 'Active' : 'Inactive');
+        var budgetPct = p.monthly_budget > 0 ? Math.min(100, ((p.cost_24h || 0) * 30 / p.monthly_budget) * 100) : 0;
+        var budgetFillClass = budgetPct > 100 ? 'over' : (budgetPct > 75 ? 'warning' : '');
+
+        html += '<div class="contractor-firm' + (isEnabled ? ' expanded' : '') + '">';
+        html += '<div class="contractor-firm-header" onclick="this.parentElement.classList.toggle(\'expanded\')">';
+        html += '<i data-lucide="chevron-right" class="chevron-icon"></i>';
+        html += '<span class="contractor-firm-name">' + providerName + '</span>';
+        html += '<span class="contractor-tier-badge">Tier ' + escapeHtml(String(tierPos)) + '</span>';
+        html += '<span class="contractor-status-badge ' + statusClass + '">' + statusText + '</span>';
+        html += '<div class="budget-bar"><div class="budget-fill ' + budgetFillClass + '" style="width:' + budgetPct.toFixed(0) + '%"></div></div>';
+        html += '<div class="contractor-firm-actions">';
+        html += '<button class="contractor-btn-edit" onclick="event.stopPropagation();editProvider(\'' + providerKey + '\')">Edit</button>';
+        html += '<button class="contractor-btn-toggle" onclick="event.stopPropagation();toggleProvider(\'' + providerKey + '\')">' + (isEnabled ? 'Disable' : 'Enable') + '</button>';
+        html += '</div>';
+        html += '</div>'; // header
+
+        // Models body
+        html += '<div class="contractor-firm-body">';
+        var models = p.models || [];
+        if (models.length === 0) {
+            html += '<span class="briefing-muted" style="font-size:0.7rem;">No models registered for this provider</span>';
+        } else {
+            html += '<div class="contractor-models-grid">';
+            models.forEach(function(m) {
+                var modelEnabled = m.enabled !== false;
+                html += '<div class="contractor-model-card' + (modelEnabled ? '' : ' disabled') + '">';
+                html += '<div class="contractor-model-name">' + escapeHtml(m.name || m.model_name || '') + '</div>';
+                html += '<div class="contractor-model-meta">';
+                html += '<span>Contract Worker \u00b7 Tier ' + escapeHtml(String(tierPos)) + '</span>';
+                html += '</div>';
+                html += '<div class="model-stats">';
+                html += '<div>Tasks/24h: <span class="stat-val">' + (m.tasks_24h != null ? m.tasks_24h : '--') + '</span></div>';
+                html += '<div>Success: <span class="stat-val">' + (m.success_rate != null ? m.success_rate.toFixed(0) + '%' : '--') + '</span></div>';
+                html += '<div>Avg latency: <span class="stat-val">' + (m.avg_latency != null ? m.avg_latency.toFixed(1) + 's' : '--') + '</span></div>';
+                html += '<div>Cost/24h: <span class="stat-val">$' + (m.cost_24h != null ? m.cost_24h.toFixed(3) : '--') + '</span></div>';
+                html += '</div>';
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
+                html += '<span class="contractor-iaae-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> IAAE Compliant</span>';
+                html += '<label class="contractor-model-toggle"><input type="checkbox" ' + (modelEnabled ? 'checked' : '') + ' onchange="toggleContractorModel(\'' + providerKey + '\',\'' + escapeHtml(m.name || m.model_name || '') + '\',this.checked)"> Enabled</label>';
+                html += '</div>';
+                html += '</div>'; // model card
+            });
+            html += '</div>'; // models grid
+        }
+        html += '</div>'; // firm body
+        html += '</div>'; // firm
+    });
+
+    grid.innerHTML = html;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function toggleProvider(provider) {
+    fetch('/tools/bridge/api/external-providers/' + encodeURIComponent(provider) + '/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Provider toggled', 'success');
+        loadContractors();
+    })
+    .catch(function(e) {
+        showToast('Failed to toggle provider', 'error');
+    });
+}
+
+function toggleContractorModel(provider, model, enabled) {
+    fetch('/tools/bridge/api/external-providers/' + encodeURIComponent(provider) + '/models/' + encodeURIComponent(model) + '/toggle', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: enabled })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Model toggled', 'success');
+        loadContractors();
+    })
+    .catch(function(e) {
+        showToast('Failed to toggle model', 'error');
+    });
+}
+
+function openAddProviderModal(editProviderName) {
+    // Remove existing modal if any
+    var existing = document.querySelector('.provider-modal-overlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.className = 'provider-modal-overlay';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+    var providerOptions = [
+        { value: 'openai', label: 'OpenAI' },
+        { value: 'perplexity', label: 'Perplexity' },
+        { value: 'xai', label: 'xAI' },
+        { value: 'minimax_cloud', label: 'MiniMax Cloud' },
+        { value: 'qwen3_cloud', label: 'Qwen3 Cloud' }
+    ];
+
+    var selectHtml = providerOptions.map(function(opt) {
+        var selected = (editProviderName && editProviderName === opt.value) ? ' selected' : '';
+        return '<option value="' + opt.value + '"' + selected + '>' + escapeHtml(opt.label) + '</option>';
+    }).join('');
+
+    var modal = document.createElement('div');
+    modal.className = 'provider-modal';
+    modal.innerHTML = '<h3><i data-lucide="building-2" style="width:18px;height:18px;"></i> ' + (editProviderName ? 'Edit' : 'Add') + ' Provider</h3>' +
+        '<label>Provider</label>' +
+        '<select id="provider-modal-name" ' + (editProviderName ? 'disabled' : '') + '>' +
+        '<option value="">Select provider...</option>' +
+        selectHtml +
+        '</select>' +
+        '<label>API Key</label>' +
+        '<input type="password" id="provider-modal-key" placeholder="sk-... or key">' +
+        '<label>Monthly Budget ($)</label>' +
+        '<input type="number" id="provider-modal-budget" value="10" min="0" step="1">' +
+        '<div class="provider-modal-buttons">' +
+        '<button class="btn-cancel" onclick="this.closest(\'.provider-modal-overlay\').remove()">Cancel</button>' +
+        '<button class="btn-save" onclick="saveProvider()">Save</button>' +
+        '</div>';
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function editProvider(providerName) {
+    openAddProviderModal(providerName);
+}
+
+function saveProvider() {
+    var nameEl = document.getElementById('provider-modal-name');
+    var keyEl = document.getElementById('provider-modal-key');
+    var budgetEl = document.getElementById('provider-modal-budget');
+
+    if (!nameEl || !nameEl.value) {
+        showToast('Please select a provider', 'error');
+        return;
+    }
+
+    var payload = {
+        provider: nameEl.value,
+        monthly_budget: parseFloat(budgetEl.value) || 10
+    };
+    if (keyEl.value) {
+        payload.api_key = keyEl.value;
+    }
+
+    fetch('/tools/bridge/api/external-providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.message || 'Provider saved', 'success');
+        var overlay = document.querySelector('.provider-modal-overlay');
+        if (overlay) overlay.remove();
+        loadContractors();
+    })
+    .catch(function(e) {
+        showToast('Failed to save provider', 'error');
+    });
 }
 
 // Hook crew manifest into init + refresh

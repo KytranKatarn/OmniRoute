@@ -1992,33 +1992,37 @@ def get_iaae_overview():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Compliance: tasks approved vs total reviewed in 24h
+        # Agent welfare: stress and energy across active agents
         cur.execute(
             """
-            SELECT
-                COUNT(*) FILTER (WHERE event_category = 'task_approved') as approved,
-                COUNT(*) as total
-            FROM governance_audit_log
-            WHERE timestamp >= NOW() - INTERVAL '24 hours'
-        """
-        )
-        gov = cur.fetchone()
-        gov_total = gov["total"] or 0
-        gov_approved = gov["approved"] or 0
-        compliance_pct = round(gov_approved / gov_total * 100, 1) if gov_total > 0 else None
-
-        # Agent welfare: average stress and energy across active agents
-        cur.execute(
-            """
-            SELECT AVG(es.stress_level) as avg_stress, AVG(es.energy_level) as avg_energy
+            SELECT es.stress_level, es.energy_level
             FROM agent_emotional_state es
             JOIN agents a ON a.id = es.agent_id
             WHERE a.status = 'active'
         """
         )
-        welfare = cur.fetchone()
-        avg_stress = round(float(welfare["avg_stress"]), 2) if welfare and welfare["avg_stress"] is not None else None
-        avg_energy = round(float(welfare["avg_energy"]), 2) if welfare and welfare["avg_energy"] is not None else None
+        welfare_rows = cur.fetchall()
+        stress_vals = [r["stress_level"] for r in welfare_rows if r["stress_level"] is not None]
+        energy_vals = [r["energy_level"] for r in welfare_rows if r["energy_level"] is not None]
+        avg_stress = round(sum(stress_vals) / len(stress_vals), 2) if stress_vals else None
+        avg_energy = round(sum(energy_vals) / len(energy_vals), 2) if energy_vals else None
+
+        # Compliance = agents within ethical limits (stress <= 0.7, energy >= 0.3)
+        monitored = [r for r in welfare_rows if r.get("stress_level") is not None or r.get("energy_level") is not None]
+        healthy = sum(
+            1 for r in monitored if (r.get("stress_level") or 0) <= 0.7 and (r.get("energy_level") or 1) >= 0.3
+        )
+        compliance_pct = round(healthy / len(monitored) * 100, 1) if monitored else None
+
+        # Governance events 24h
+        cur.execute(
+            """
+            SELECT COUNT(*) as total
+            FROM governance_audit_log
+            WHERE timestamp >= NOW() - INTERVAL '24 hours'
+        """
+        )
+        gov_total = cur.fetchone()["total"] or 0
 
         # Agents currently at rest
         cur.execute(
@@ -2228,8 +2232,13 @@ def get_agent_welfare():
         high_stress = sum(1 for s in stress_vals if s > 0.7)
 
         total_gov = sum(gov_summary.values()) if gov_summary else 0
-        approved = gov_summary.get("task_approved", 0)
-        compliance_pct = round(approved / total_gov * 100, 1) if total_gov > 0 else None
+
+        # Compliance = agents within ethical limits (stress <= 0.7, energy >= 0.3)
+        monitored = [a for a in agents if a.get("stress_level") is not None or a.get("energy_level") is not None]
+        healthy_count = sum(
+            1 for a in monitored if (a.get("stress_level") or 0) <= 0.7 and (a.get("energy_level") or 1) >= 0.3
+        )
+        compliance_pct = round(healthy_count / len(monitored) * 100, 1) if monitored else None
 
         return jsonify(
             {

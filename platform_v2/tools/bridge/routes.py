@@ -6431,10 +6431,31 @@ def get_external_providers():
         ],
     }
 
-    # Rate limits per provider (Ollama cloud free-tier windows)
+    # Rate limits per provider+tier (session=2h, weekly=7d)
     PROVIDER_RATE_LIMITS = {
-        "minimax_cloud": {"session_limit": 50, "weekly_limit": 7000},
-        "qwen3_cloud": {"session_limit": 50, "weekly_limit": 7000},
+        "minimax_cloud": {
+            "free": {"session_limit": 50, "weekly_limit": 7000},
+            "pro": {"session_limit": 500, "weekly_limit": 50000},
+            "enterprise": {"session_limit": None, "weekly_limit": None},
+        },
+        "qwen3_cloud": {
+            "free": {"session_limit": 50, "weekly_limit": 7000},
+            "pro": {"session_limit": 500, "weekly_limit": 50000},
+            "enterprise": {"session_limit": None, "weekly_limit": None},
+        },
+        "openai": {
+            "free": {"session_limit": 20, "weekly_limit": 500},
+            "pay_as_you_go": {"session_limit": None, "weekly_limit": None},
+            "pro": {"session_limit": None, "weekly_limit": None},
+        },
+        "perplexity": {
+            "free": {"session_limit": 10, "weekly_limit": 200},
+            "pro": {"session_limit": None, "weekly_limit": None},
+        },
+        "xai": {
+            "free": {"session_limit": 25, "weekly_limit": 1500},
+            "pro": {"session_limit": None, "weekly_limit": None},
+        },
     }
 
     try:
@@ -6444,7 +6465,7 @@ def get_external_providers():
             cur.execute(
                 """
                 SELECT id, provider, is_active, monthly_budget_usd, current_month_cost_usd,
-                       budget_reset_day, created_at, updated_at,
+                       budget_reset_day, account_tier, created_at, updated_at,
                        CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != ''
                             THEN '****' || RIGHT(api_key_encrypted, 4) ELSE NULL END as key_hint
                 FROM external_api_keys
@@ -6564,6 +6585,9 @@ def get_external_providers():
                 monthly_budget = float(db_row["monthly_budget_usd"]) if db_row else 10.0
                 current_cost = float(db_row["current_month_cost_usd"]) if db_row else 0.0
                 budget_pct = round((current_cost / monthly_budget) * 100, 1) if monthly_budget > 0 else 0.0
+                account_tier = db_row.get("account_tier", "free") if db_row else "free"
+                tier_limits = PROVIDER_RATE_LIMITS.get(provider_name, {})
+                rate_limits = tier_limits.get(account_tier, tier_limits.get("free", {}))
 
                 # Aggregate 24h stats across all models for this provider
                 provider_requests = 0
@@ -6587,6 +6611,16 @@ def get_external_providers():
 
                     m_alltime = alltime_by_model.get(m["name"], None)
                     m_windows = usage_windows.get(m["name"], None)
+                    if m_windows and rate_limits:
+                        m_windows["session_limit"] = rate_limits.get("session_limit")
+                        m_windows["weekly_limit"] = rate_limits.get("weekly_limit")
+                    elif rate_limits:
+                        m_windows = {
+                            "session_2h": 0,
+                            "weekly_7d": 0,
+                            "session_limit": rate_limits.get("session_limit"),
+                            "weekly_limit": rate_limits.get("weekly_limit"),
+                        }
                     models_out.append(
                         {
                             "name": m["name"],
@@ -6622,6 +6656,7 @@ def get_external_providers():
                 entry = {
                     "provider": provider_name,
                     "is_active": is_active,
+                    "account_tier": account_tier,
                     "monthly_budget_usd": monthly_budget,
                     "current_month_cost_usd": current_cost,
                     "budget_pct": budget_pct,
@@ -6642,7 +6677,10 @@ def get_external_providers():
             # Cloud-config virtual providers (MiniMax Cloud, Qwen3 Cloud)
             for provider_name in ["minimax_cloud", "qwen3_cloud"]:
                 models_def = PROVIDER_MODELS.get(provider_name, [])
-                rate_limits = PROVIDER_RATE_LIMITS.get(provider_name, {})
+                db_row_rl = db_providers.get(provider_name)
+                account_tier = db_row_rl.get("account_tier", "free") if db_row_rl else "free"
+                tier_limits = PROVIDER_RATE_LIMITS.get(provider_name, {})
+                rate_limits = tier_limits.get(account_tier, tier_limits.get("free", {}))
 
                 provider_requests = 0
                 provider_cost = 0.0
@@ -6723,6 +6761,7 @@ def get_external_providers():
                 entry = {
                     "provider": provider_name,
                     "is_active": is_active,
+                    "account_tier": account_tier,
                     "monthly_budget_usd": monthly_budget,
                     "current_month_cost_usd": current_cost,
                     "budget_pct": budget_pct,
@@ -6775,17 +6814,22 @@ def upsert_external_provider():
         return jsonify({"success": False, "error": "API key required"}), 400
 
     budget = data.get("monthly_budget_usd", 10.0)
+    account_tier = data.get("account_tier", "free").strip().lower()
+    valid_tiers = ("free", "pro", "pay_as_you_go", "enterprise")
+    if account_tier not in valid_tiers:
+        account_tier = "free"
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """
-                INSERT INTO external_api_keys (provider, api_key_encrypted, monthly_budget_usd, is_active)
-                VALUES (%s, %s, %s, TRUE)
+                INSERT INTO external_api_keys (provider, api_key_encrypted, monthly_budget_usd, account_tier, is_active)
+                VALUES (%s, %s, %s, %s, TRUE)
                 ON CONFLICT (provider) DO UPDATE SET
-                    api_key_encrypted = %s, monthly_budget_usd = %s, is_active = TRUE, updated_at = NOW()
-                RETURNING id, provider, is_active, monthly_budget_usd
+                    api_key_encrypted = %s, monthly_budget_usd = %s, account_tier = %s,
+                    is_active = TRUE, updated_at = NOW()
+                RETURNING id, provider, is_active, monthly_budget_usd, account_tier
             """,
-                (provider, api_key, budget, api_key, budget),
+                (provider, api_key, budget, account_tier, api_key, budget, account_tier),
             )
             row = cur.fetchone()
             return jsonify({"success": True, "provider": dict(row)})

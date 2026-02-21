@@ -8263,6 +8263,9 @@ function renderContractors(providers, routingMode, iaaeData) {
         var tierPosVals = Object.values(tierPositions);
         var tierPos = tierPosVals.length > 0 ? Math.min.apply(null, tierPosVals) : '--';
         var isEnabled = p.is_active !== false;
+        var accountTier = p.account_tier || 'free';
+        var tierLabel = accountTier.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        var tierColor = accountTier === 'enterprise' ? '#a855f7' : accountTier === 'pro' ? '#f59e0b' : accountTier === 'pay_as_you_go' ? '#3b82f6' : '#6b7280';
         var monthlyBudget = p.monthly_budget_usd || 0;
         var currentCost = p.current_month_cost_usd || 0;
         var isOverBudget = monthlyBudget > 0 && currentCost > monthlyBudget;
@@ -8279,6 +8282,7 @@ function renderContractors(providers, routingMode, iaaeData) {
         html += '<i data-lucide="chevron-right" class="chevron-icon"></i>';
         html += '<span class="contractor-firm-name">' + providerName + '</span>';
         html += '<span class="contractor-tier-badge">Tier ' + escapeHtml(String(tierPos)) + '</span>';
+        html += '<span style="font-size:0.6rem;padding:1px 6px;border-radius:3px;border:1px solid ' + tierColor + ';color:' + tierColor + ';text-transform:uppercase;letter-spacing:0.5px;">' + escapeHtml(tierLabel) + '</span>';
         html += '<span class="contractor-status-badge ' + statusClass + '">' + statusText + '</span>';
         html += '<div class="budget-bar"><div class="budget-fill ' + budgetFillClass + '" style="width:' + budgetPct.toFixed(0) + '%"></div></div>';
         html += '<div class="contractor-firm-actions">';
@@ -8336,25 +8340,38 @@ function renderContractors(providers, routingMode, iaaeData) {
                     var wkly = mWindows.weekly_7d != null ? mWindows.weekly_7d : 0;
                     var wklyLimit = mWindows.weekly_limit || null;
                     var sessPct = sessLimit ? Math.min(sess / sessLimit * 100, 100) : 0;
+                    var sessPct = sessLimit ? Math.min(sess / sessLimit * 100, 100) : 0;
                     var wklyPct = wklyLimit ? Math.min(wkly / wklyLimit * 100, 100) : 0;
                     var barColor = function(pct) { return pct > 80 ? '#ff4444' : pct > 50 ? '#ffaa00' : '#22cc88'; };
-                    var sessStr = sess + (sessLimit ? ' / ' + sessLimit : '');
-                    var wklyStr = wkly + (wklyLimit ? ' / ' + wklyLimit : '');
+                    var sessStr = sessLimit ? sess + ' / ' + sessLimit : sess + ' req';
+                    var wklyStr = wklyLimit ? wkly + ' / ' + wklyLimit : wkly + ' req';
+                    var sessPctStr = sessLimit ? Math.round(sessPct) + '%' : '';
+                    var wklyPctStr = wklyLimit ? Math.round(wklyPct) + '%' : '';
                     html += '<div style="margin-top:4px;padding:5px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:5px;font-size:0.65rem;">';
                     // Session bar
                     html += '<div style="display:flex;align-items:center;gap:6px;">';
-                    html += '<span style="color:rgba(255,255,255,0.5);min-width:72px;display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session</span>';
-                    html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
-                    html += '<div style="height:100%;width:' + sessPct.toFixed(1) + '%;background:' + barColor(sessPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
-                    html += '</div>';
+                    html += '<span style="color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session</span>';
+                    if (sessLimit) {
+                        html += '<span style="color:' + barColor(sessPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;">' + sessPctStr + '</span>';
+                        html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
+                        html += '<div style="height:100%;width:' + sessPct.toFixed(1) + '%;background:' + barColor(sessPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
+                        html += '</div>';
+                    } else {
+                        html += '<span style="color:var(--archie-cyan);font-size:0.6rem;flex:1;">Unlimited</span>';
+                    }
                     html += '<span style="color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;">' + sessStr + '</span>';
                     html += '</div>';
                     // Weekly bar
                     html += '<div style="display:flex;align-items:center;gap:6px;">';
-                    html += '<span style="color:rgba(255,255,255,0.5);min-width:72px;display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly</span>';
-                    html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
-                    html += '<div style="height:100%;width:' + wklyPct.toFixed(1) + '%;background:' + barColor(wklyPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
-                    html += '</div>';
+                    html += '<span style="color:rgba(255,255,255,0.5);min-width:58px;display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly</span>';
+                    if (wklyLimit) {
+                        html += '<span style="color:' + barColor(wklyPct) + ';min-width:28px;font-weight:600;font-size:0.6rem;">' + wklyPctStr + '</span>';
+                        html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
+                        html += '<div style="height:100%;width:' + wklyPct.toFixed(1) + '%;background:' + barColor(wklyPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
+                        html += '</div>';
+                    } else {
+                        html += '<span style="color:var(--archie-cyan);font-size:0.6rem;flex:1;">Unlimited</span>';
+                    }
                     html += '<span style="color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;">' + wklyStr + '</span>';
                     html += '</div>';
                     html += '</div>';
@@ -8445,11 +8462,23 @@ function openAddProviderModal(editProviderName) {
         }).join('');
 
         var budgetVal = current ? (current.monthly_budget_usd || 10) : 10;
+        var currentTier = current ? (current.account_tier || 'free') : 'free';
         var isCloud = editProviderName && ['minimax_cloud', 'qwen3_cloud'].indexOf(editProviderName) !== -1;
         var authNote = isCloud
             ? '<div style="margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);">Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)</div>'
             : '';
         var keyPlaceholder = current && current.key_hint ? 'Current: ' + current.key_hint + ' (leave blank to keep)' : 'sk-... or key';
+
+        var tierOptions = [
+            { value: 'free', label: 'Free' },
+            { value: 'pro', label: 'Pro' },
+            { value: 'pay_as_you_go', label: 'Pay As You Go' },
+            { value: 'enterprise', label: 'Enterprise' }
+        ];
+        var tierSelectHtml = tierOptions.map(function(opt) {
+            var sel = opt.value === currentTier ? ' selected' : '';
+            return '<option value="' + opt.value + '"' + sel + '>' + escapeHtml(opt.label) + '</option>';
+        }).join('');
 
         var modal = document.createElement('div');
         modal.className = 'provider-modal';
@@ -8460,6 +8489,8 @@ function openAddProviderModal(editProviderName) {
             selectHtml +
             '</select>' +
             authNote +
+            '<label>Account Tier</label>' +
+            '<select id="provider-modal-tier">' + tierSelectHtml + '</select>' +
             '<label>API Key</label>' +
             '<input type="password" id="provider-modal-key" placeholder="' + escapeHtml(keyPlaceholder) + '">' +
             '<label>Monthly Budget ($)</label>' +
@@ -8489,9 +8520,11 @@ function saveProvider() {
         return;
     }
 
+    var tierEl = document.getElementById('provider-modal-tier');
     var payload = {
         provider: nameEl.value,
-        monthly_budget: parseFloat(budgetEl.value) || 10
+        monthly_budget_usd: parseFloat(budgetEl.value) || 10,
+        account_tier: tierEl ? tierEl.value : 'free'
     };
     if (keyEl.value) {
         payload.api_key = keyEl.value;

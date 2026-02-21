@@ -1374,31 +1374,36 @@ body.light-mode .status-bar-divider {
    ============================================================================ */
 
 .bridge-nodes-section {
-    margin-top: 2rem;
-    background: var(--archie-bg-secondary);
-    border-radius: 8px;
-    border: 1px solid var(--archie-border-default);
-    overflow: hidden;
+    padding: 0 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .bridge-nodes-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.5rem;
-    background: linear-gradient(90deg, rgba(0, 255, 255, 0.1), transparent);
-    border-bottom: 1px solid var(--archie-border-default);
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .bridge-nodes-header h2 {
     font-family: var(--archie-font-display);
-    font-size: 1rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    color: var(--archie-cyan);
+    color: #ff6b6b;
     display: flex;
     align-items: center;
     gap: 10px;
     margin: 0;
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }
 
 .node-stats {
@@ -1418,28 +1423,28 @@ body.light-mode .status-bar-divider {
 .node-stats .stat.pending { color: #58a6ff; }
 
 .btn-add-node {
-    background: linear-gradient(135deg, var(--archie-cyan), #00cccc);
-    color: #000;
+    background: linear-gradient(135deg, #ff6b6b, #cc5555);
+    color: #fff;
     border: none;
     padding: 6px 14px;
-    border-radius: 4px;
+    border-radius: 8px;
     font-family: var(--archie-font-display);
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }
 
 .btn-add-node:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 255, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
 }
 
-/* Pending Nodes Alert */
+/* Pending Nodes Alert — inside its own briefing card */
 .pending-nodes-section {
-    background: rgba(88, 166, 255, 0.1);
-    border-bottom: 1px solid rgba(88, 166, 255, 0.3);
-    padding: 1rem 1.5rem;
+    padding: 0;
 }
 
 .pending-nodes-section h3 {
@@ -1456,7 +1461,7 @@ body.light-mode .status-bar-divider {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1rem;
-    padding: 1.5rem;
+    padding: 0;
 }
 
 .node-grid:empty::after {
@@ -1467,11 +1472,12 @@ body.light-mode .status-bar-divider {
     padding: 2rem;
 }
 
-/* Node Card */
+/* Node Card — briefing-card treatment */
 .node-card {
-    background: linear-gradient(135deg, #1a1f2e, #0d1117);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
     overflow: hidden;
     transition: all 0.3s ease;
 }
@@ -2399,8 +2405,8 @@ body.light-mode .status-bar-divider {
 }
 
 .node-card:hover {
-    border-color: var(--archie-cyan);
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.15);
+    border-color: rgba(255, 107, 107, 0.4);
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.15);
 }
 
 .node-card.online { border-left: 3px solid var(--archie-success); }
@@ -2694,10 +2700,6 @@ body.light-mode .status-bar-divider {
 
 /* Mesh Sub-sections (inside Node Network) */
 .mesh-subsection {
-    border-top: 1px solid var(--archie-border-default);
-    background: rgba(10, 10, 15, 0.6);
-    border-radius: 0 0 8px 8px;
-    margin-top: 1rem;
     overflow: hidden;
 }
 
@@ -2712,13 +2714,13 @@ body.light-mode .status-bar-divider {
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--archie-cyan);
+    color: #ff6b6b;
     user-select: none;
     transition: background 0.2s;
 }
 
 .mesh-subsection-header:hover {
-    background: rgba(0, 255, 255, 0.05);
+    background: rgba(255, 107, 107, 0.05);
 }
 
 .mesh-subsection-header .chevron {
@@ -2921,29 +2923,19 @@ body.light-mode .status-bar-divider {
 
 /* Model Availability Section */
 .model-availability-section {
-    margin-top: 1.5rem;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    padding: 1rem;
+    padding: 0;
 }
 
 .model-availability-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--archie-border-default);
+    margin-bottom: 0;
+    padding-bottom: 0;
 }
 
 .model-availability-header h3 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9rem;
-    color: var(--archie-cyan);
-    margin: 0;
+    display: none; /* header handled by briefing-card-header */
 }
 
 .model-stats {
@@ -2973,15 +2965,18 @@ body.light-mode .status-bar-divider {
 }
 
 .model-card {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
     padding: 10px;
     font-size: 0.75rem;
+    transition: all 0.3s ease;
 }
 
 .model-card:hover {
-    border-color: var(--archie-cyan);
+    border-color: rgba(255, 107, 107, 0.4);
+    box-shadow: 0 0 15px rgba(255, 107, 107, 0.1);
 }
 
 .model-name {
@@ -3542,34 +3537,34 @@ body.light-mode .crew-subtab.active,
     background: rgba(139, 92, 246, 0.06);
 }
 
-/* Node Network */
-body.light-mode .bridge-nodes-section,
-[data-theme="light"] .bridge-nodes-section {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(0, 0, 0, 0.1);
-}
-
+/* Node Network — light mode */
 body.light-mode .bridge-nodes-header,
 [data-theme="light"] .bridge-nodes-header {
-    background: linear-gradient(90deg, rgba(0, 136, 170, 0.06), transparent);
-    border-bottom-color: rgba(0, 0, 0, 0.06);
+    background: rgba(255, 255, 255, 0.7);
+    border-color: rgba(0, 0, 0, 0.08);
 }
 
 body.light-mode .bridge-nodes-header h2,
 [data-theme="light"] .bridge-nodes-header h2 {
-    color: #0088aa;
+    color: #d94444;
 }
 
 body.light-mode .node-card,
 [data-theme="light"] .node-card {
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.8);
     border-color: rgba(0, 0, 0, 0.1);
+    backdrop-filter: none;
+}
+
+body.light-mode .node-card:hover,
+[data-theme="light"] .node-card:hover {
+    border-color: rgba(217, 68, 68, 0.3);
+    box-shadow: 0 0 15px rgba(217, 68, 68, 0.1);
 }
 
 body.light-mode .mesh-subsection-header,
 [data-theme="light"] .mesh-subsection-header {
-    background: rgba(0, 0, 0, 0.03);
-    color: #555;
+    color: #d94444;
 }
 
 body.light-mode .mesh-empty-state,
@@ -3577,21 +3572,18 @@ body.light-mode .mesh-empty-state,
     color: #999;
 }
 
-/* Model Availability */
-body.light-mode .model-availability-section,
-[data-theme="light"] .model-availability-section {
-    background: rgba(255, 255, 255, 0.9);
+/* Model Availability — light mode */
+body.light-mode .model-card,
+[data-theme="light"] .model-card {
+    background: rgba(255, 255, 255, 0.8);
     border-color: rgba(0, 0, 0, 0.1);
+    backdrop-filter: none;
 }
 
-body.light-mode .model-availability-header,
-[data-theme="light"] .model-availability-header {
-    background: linear-gradient(90deg, rgba(0, 136, 170, 0.06), transparent);
-}
-
-body.light-mode .model-availability-header h3,
-[data-theme="light"] .model-availability-header h3 {
-    color: #0088aa;
+body.light-mode .model-card:hover,
+[data-theme="light"] .model-card:hover {
+    border-color: rgba(217, 68, 68, 0.3);
+    box-shadow: 0 0 15px rgba(217, 68, 68, 0.1);
 }
 
 /* Sidebar */
@@ -4493,6 +4485,7 @@ body.light-mode .bridge-hud-value {
             <div class="bridge-tab-panel" data-panel="network">
             <!-- Node Network Section -->
             <div class="bridge-nodes-section">
+                <!-- Network Header Bar -->
                 <div class="bridge-nodes-header">
                     <h2><i data-lucide="network"></i> <span data-i18n="bridge.sections.node_network">NODE NETWORK</span></h2>
                     <div class="node-stats">
@@ -4507,59 +4500,101 @@ body.light-mode .bridge-hud-value {
                     <button class="btn-add-node" onclick="showAddNodeModal()" data-i18n="bridge.nodes.add">+ Add Node</button>
                 </div>
 
-                <!-- Pending Approvals Section -->
-                <div class="pending-nodes-section" id="pending-nodes-section" style="display: none;">
-                    <h3><i data-lucide="clock"></i> <span data-i18n="bridge.nodes.pending_approval">Pending Approval</span></h3>
-                    <div class="node-grid" id="pending-nodes-grid"></div>
-                </div>
-
-                <!-- Active Nodes Grid -->
-                <div class="node-grid" id="active-nodes-grid">
-                    <!-- Node cards rendered by JavaScript -->
-                </div>
-
-                <!-- Agent Mesh Pool Sub-section -->
-                <div class="mesh-subsection">
-                    <div class="mesh-subsection-header" id="mesh-loans-header" onclick="toggleMeshSection('mesh-loans')">
-                        <span class="chevron">▼</span>
-                        <i data-lucide="users"></i> <span data-i18n="bridge.nodes.mesh_pool">Agent Mesh Pool</span>
-                        <span class="mesh-sub-count" id="mesh-loans-sub-count">0 active</span>
+                <!-- Pending Approvals — briefing card (conditionally shown) -->
+                <div class="briefing-card" style="--card-accent: #58a6ff; display: none;" id="pending-nodes-section">
+                    <div class="briefing-card-header">
+                        <i data-lucide="clock"></i>
+                        <span data-i18n="bridge.nodes.pending_approval">Pending Approval</span>
                     </div>
-                    <div class="mesh-subsection-body" id="mesh-loans-body">
-                        <div class="mesh-loans-table" id="mesh-loans-container">
-                            <div class="mesh-empty-state">No agent loans recorded</div>
+                    <div class="briefing-card-body">
+                        <div class="pending-nodes-section">
+                            <div class="node-grid" id="pending-nodes-grid"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Learning Patterns Sub-section -->
-                <div class="mesh-subsection">
-                    <div class="mesh-subsection-header" id="mesh-learning-header" onclick="toggleMeshSection('mesh-learning')">
-                        <span class="chevron">▼</span>
-                        <i data-lucide="brain"></i> <span data-i18n="bridge.nodes.learning_patterns">Learning Patterns</span>
-                        <span class="mesh-sub-count" id="mesh-learning-sub-count">0 patterns</span>
+                <!-- Active Nodes — briefing card -->
+                <div class="briefing-card" style="--card-accent: #ff6b6b;">
+                    <div class="briefing-card-header">
+                        <i data-lucide="server"></i>
+                        <span data-i18n="bridge.network.active_nodes">Active Nodes</span>
                     </div>
-                    <div class="mesh-subsection-body" id="mesh-learning-body">
-                        <div class="mesh-learning-feed" id="mesh-learnings-container">
-                            <div class="mesh-empty-state">No learning patterns shared</div>
+                    <div class="briefing-card-body">
+                        <div class="node-grid" id="active-nodes-grid">
+                            <!-- Node cards rendered by JavaScript -->
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Model Availability Section (Phase 72) -->
-            <div class="model-availability-section" id="model-availability-section">
-                <div class="model-availability-header">
-                    <h3><i data-lucide="box"></i> <span data-i18n="bridge.sections.model_availability">Bridge Model Availability</span></h3>
-                    <div class="model-stats">
-                        <div class="stat"><span>0</span> Models</div>
-                        <div class="stat"><span>0</span> Nodes</div>
-                        <div class="stat"><span>0</span> Requests</div>
+                <!-- Agent Mesh Pool — briefing card -->
+                <div class="briefing-card" style="--card-accent: #ff6b6b;">
+                    <div class="briefing-card-header">
+                        <i data-lucide="users"></i>
+                        <span data-i18n="bridge.nodes.mesh_pool">Agent Mesh Pool</span>
+                        <span class="briefing-card-link" id="mesh-loans-sub-count">0 active</span>
+                    </div>
+                    <div class="briefing-card-body">
+                        <div class="mesh-subsection">
+                            <div class="mesh-subsection-header" id="mesh-loans-header" onclick="toggleMeshSection('mesh-loans')">
+                                <span class="chevron">▼</span>
+                                <span data-i18n="bridge.network.toggle_details">Toggle Details</span>
+                            </div>
+                            <div class="mesh-subsection-body" id="mesh-loans-body">
+                                <div class="mesh-loans-table" id="mesh-loans-container">
+                                    <div class="mesh-empty-state">No agent loans recorded</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="model-grid" id="model-grid">
-                    <div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
-                        Loading models...
+
+                <!-- Learning Patterns — briefing card -->
+                <div class="briefing-card" style="--card-accent: #ff6b6b;">
+                    <div class="briefing-card-header">
+                        <i data-lucide="brain"></i>
+                        <span data-i18n="bridge.nodes.learning_patterns">Learning Patterns</span>
+                        <span class="briefing-card-link" id="mesh-learning-sub-count">0 patterns</span>
+                    </div>
+                    <div class="briefing-card-body">
+                        <div class="mesh-subsection">
+                            <div class="mesh-subsection-header" id="mesh-learning-header" onclick="toggleMeshSection('mesh-learning')">
+                                <span class="chevron">▼</span>
+                                <span data-i18n="bridge.network.toggle_details">Toggle Details</span>
+                            </div>
+                            <div class="mesh-subsection-body" id="mesh-learning-body">
+                                <div class="mesh-learning-feed" id="mesh-learnings-container">
+                                    <div class="mesh-empty-state">No learning patterns shared</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Availability — briefing card -->
+                <div class="briefing-card" style="--card-accent: #ff6b6b;">
+                    <div class="briefing-card-header">
+                        <i data-lucide="box"></i>
+                        <span data-i18n="bridge.sections.model_availability">Bridge Model Availability</span>
+                        <span class="briefing-card-link" id="model-stats-link">
+                            <span>0</span> <span data-i18n="bridge.network.models">Models</span>
+                        </span>
+                    </div>
+                    <div class="briefing-card-body">
+                        <div class="model-availability-section" id="model-availability-section">
+                            <div class="model-availability-header">
+                                <h3><i data-lucide="box"></i> <span>Bridge Model Availability</span></h3>
+                                <div class="model-stats">
+                                    <div class="stat"><span>0</span> Models</div>
+                                    <div class="stat"><span>0</span> Nodes</div>
+                                    <div class="stat"><span>0</span> Requests</div>
+                                </div>
+                            </div>
+                            <div class="model-grid" id="model-grid">
+                                <div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
+                                    Loading models...
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -6604,13 +6639,19 @@ function renderModelAvailability(models, summary) {
     const grid = container.querySelector('.model-grid');
     const statsContainer = container.querySelector('.model-stats');
 
-    // Update stats
+    // Update stats in inner header
     if (statsContainer) {
         statsContainer.innerHTML = `
             <div class="stat"><span>${summary?.total_models || 0}</span> Models</div>
             <div class="stat"><span>${summary?.total_nodes || 0}</span> Nodes</div>
             <div class="stat"><span>${summary?.total_requests || 0}</span> Requests</div>
         `;
+    }
+
+    // Update briefing-card header count
+    const modelStatsLink = document.getElementById('model-stats-link');
+    if (modelStatsLink) {
+        modelStatsLink.innerHTML = `<span>${summary?.total_models || 0}</span> Models`;
     }
 
     // Render model cards

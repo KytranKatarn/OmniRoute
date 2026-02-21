@@ -70,13 +70,7 @@
             <i data-lucide="monitor"></i>
             <span>Bridge</span>
         </a>
-        <a href="{{ url_for('team_management.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'team_management' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Team Management">
-            <i data-lucide="users-round"></i>
-            <span>Team</span>
-        </a>
+        <!-- Team Management retired — absorbed into Bridge Command Crew tab -->
         <a href="{{ url_for('consciousness.index') }}"
            class="nav-module-btn {% if request.endpoint and 'consciousness' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"

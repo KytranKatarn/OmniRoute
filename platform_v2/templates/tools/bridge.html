@@ -4874,7 +4874,7 @@ function loadOverviewData() {
             var stations = Array.isArray(data) ? data : (data.stations || []);
             var totalAgents = 0;
             stations.forEach(function(s) {
-                totalAgents += (s.agents || s.roster || []).length;
+                totalAgents += (s.assigned_agents || s.agents || []).length;
             });
             // Note: innerHTML used here with integer-only values from internal API (no user input)
             var html = '<div style="display:flex;justify-content:space-between;padding:3px 0;">';

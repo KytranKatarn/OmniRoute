@@ -7601,7 +7601,7 @@ function renderCrewManifest(crew) {
         card.className = 'crew-agent-card';
         card.setAttribute('data-station', agent.station);
         card.style.cursor = 'pointer';
-        card.onclick = (function(id) { return function() { openAgentProfile(id); }; })(agent.id);
+        card.onclick = (function(id) { return function() { openAgentProfile(id); }; })(agent.agent_id);
 
         // Top row: name + badges
         var top = document.createElement('div');
@@ -7706,7 +7706,7 @@ function renderCrewManifest(crew) {
         card.appendChild(statsRow);
 
         // Workload bar + risk glow (from parallel workload fetch)
-        var wl = _crewWorkloadMap[agent.id];
+        var wl = _crewWorkloadMap[agent.agent_id];
         if (wl) {
             var wPct = wl.workload_pct || 0;
             var wCol = wPct < 60 ? '#00ff41' : wPct < 80 ? '#ffaa00' : '#ff4444';

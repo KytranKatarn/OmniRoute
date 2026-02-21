@@ -6791,13 +6791,26 @@ def get_external_providers():
             if row["value"].lower() == "true":
                 disabled_models.add(model_name)
 
+        # 4. Fetch IAAE governance events from last 24h
+        cur.execute(
+            """
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN outcome = 'blocked' THEN 1 ELSE 0 END) as blocked
+            FROM governance_audit_log
+            WHERE timestamp >= NOW() - INTERVAL '24 hours'
+        """
+        )
+        iaae_row = cur.fetchone()
+        iaae_total_24h = iaae_row["total"] if iaae_row else 0
+        iaae_blocked_24h = iaae_row["blocked"] if iaae_row and iaae_row["blocked"] else 0
+
         cur.close()
         conn.close()
 
-        # 4. Check if Ollama cloud API key is available (for MiniMax/Qwen3 virtual providers)
+        # 5. Check if Ollama cloud API key is available (for MiniMax/Qwen3 virtual providers)
         ollama_api_key_set = bool(os.environ.get("OLLAMA_API_KEY", "").strip())
 
-        # 5. Build the response for each provider
+        # 6. Build the response for each provider
         result = []
 
         # DB-managed providers (openai, perplexity, xai)
@@ -6942,7 +6955,14 @@ def get_external_providers():
             }
             result.append(entry)
 
-        return jsonify({"success": True, "providers": result})
+        return jsonify(
+            {
+                "success": True,
+                "providers": result,
+                "iaae_total_24h": iaae_total_24h,
+                "iaae_blocked_24h": iaae_blocked_24h,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

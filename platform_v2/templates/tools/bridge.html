@@ -8785,7 +8785,10 @@ async function loadContractors() {
             var modeData = await modeResp.json();
             if (modeData.success) routingMode = modeData.routing_mode || 'full';
         }
-        renderContractors(data.providers || [], routingMode);
+        renderContractors(data.providers || [], routingMode, {
+            iaae_total_24h: data.iaae_total_24h || 0,
+            iaae_blocked_24h: data.iaae_blocked_24h || 0
+        });
     } catch (e) {
         console.error('loadContractors error:', e);
         var grid = document.getElementById('contractors-grid');
@@ -8793,8 +8796,10 @@ async function loadContractors() {
     }
 }
 
-function renderContractors(providers, routingMode) {
+function renderContractors(providers, routingMode, iaaeData) {
     routingMode = routingMode || 'full';
+    iaaeData = iaaeData || { iaae_total_24h: 0, iaae_blocked_24h: 0 };
+    var iaaeBlocked = iaaeData.iaae_blocked_24h || 0;
     var cloudProviders = ['minimax_cloud', 'qwen3_cloud'];
     var grid = document.getElementById('contractors-grid');
     var summaryEl = document.getElementById('contractors-summary');
@@ -8868,7 +8873,11 @@ function renderContractors(providers, routingMode) {
                 html += '<div>Cost/24h: <span class="stat-val">$' + (m.cost_24h != null ? m.cost_24h.toFixed(3) : '--') + '</span></div>';
                 html += '</div>';
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
-                html += '<span class="contractor-iaae-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> IAAE Compliant</span>';
+                if (iaaeBlocked > 0) {
+                    html += '<span class="contractor-iaae-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> IAAE: ' + escapeHtml(String(iaaeBlocked)) + ' blocked</span>';
+                } else {
+                    html += '<span class="contractor-iaae-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> IAAE Compliant</span>';
+                }
                 html += '<label class="contractor-model-toggle"><input type="checkbox" ' + (modelEnabled ? 'checked' : '') + ' onchange="toggleContractorModel(\'' + providerKey + '\',\'' + escapeHtml(m.name || m.model_name || '') + '\',this.checked)"> Enabled</label>';
                 html += '</div>';
                 html += '</div>'; // model card

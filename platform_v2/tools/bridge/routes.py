@@ -6573,6 +6573,7 @@ def get_external_providers():
                     "current_month_cost_usd": current_cost,
                     "budget_pct": budget_pct,
                     "source": "db",
+                    "auth_method": "API key",
                     "key_hint": db_row.get("key_hint") if db_row else None,
                     "tier_positions": tier_positions,
                     "stats_24h": {
@@ -6638,13 +6639,28 @@ def get_external_providers():
 
                 tier_positions = {m["name"]: TIER_ORDER.get(m["tier"], -1) for m in models_def}
 
+                # Merge DB budget/key info if available
+                db_row = db_providers.get(provider_name)
+                monthly_budget = (
+                    float(db_row["monthly_budget_usd"]) if db_row and db_row.get("monthly_budget_usd") else 0.0
+                )
+                current_cost = (
+                    float(db_row["current_month_cost_usd"])
+                    if db_row and db_row.get("current_month_cost_usd")
+                    else round(provider_cost, 6)
+                )
+                budget_pct = round((current_cost / monthly_budget) * 100, 1) if monthly_budget > 0 else 0.0
+                is_active = db_row["is_active"] if db_row else ollama_api_key_set
+
                 entry = {
                     "provider": provider_name,
-                    "is_active": ollama_api_key_set,
-                    "monthly_budget_usd": 0.0,
-                    "current_month_cost_usd": round(provider_cost, 6),
-                    "budget_pct": 0.0,
+                    "is_active": is_active,
+                    "monthly_budget_usd": monthly_budget,
+                    "current_month_cost_usd": current_cost,
+                    "budget_pct": budget_pct,
                     "source": "cloud_config",
+                    "auth_method": "OLLAMA_API_KEY env var",
+                    "key_hint": db_row.get("key_hint") if db_row else None,
                     "tier_positions": tier_positions,
                     "stats_24h": {
                         "requests": provider_requests,

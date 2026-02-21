@@ -8289,6 +8289,15 @@ function renderContractors(providers, routingMode, iaaeData) {
 
         // Models body
         html += '<div class="contractor-firm-body">';
+        // Auth & budget info row
+        var authMethod = escapeHtml(p.auth_method || 'API key');
+        var keyHint = p.key_hint ? escapeHtml(p.key_hint) : 'Not set';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:12px;padding:6px 8px;margin-bottom:8px;background:rgba(255,255,255,0.03);border-radius:4px;font-size:0.72rem;color:var(--archie-text-tertiary);">';
+        html += '<span>Auth: <span style="color:var(--archie-cyan);">' + authMethod + '</span></span>';
+        html += '<span>Key: <span style="color:' + (p.key_hint ? 'var(--archie-text-secondary)' : '#ff6b6b') + ';">' + keyHint + '</span></span>';
+        html += '<span>Budget: <span style="color:var(--archie-text-secondary);">$' + monthlyBudget.toFixed(2) + '/mo</span></span>';
+        html += '<span>Spent: <span style="color:var(--archie-text-secondary);">$' + currentCost.toFixed(2) + '</span></span>';
+        html += '</div>';
         var models = p.models || [];
         if (models.length === 0) {
             html += '<span class="briefing-muted" style="font-size:0.7rem;">No models registered for this provider</span>';
@@ -8370,43 +8379,59 @@ function openAddProviderModal(editProviderName) {
     var existing = document.querySelector('.provider-modal-overlay');
     if (existing) existing.remove();
 
-    var overlay = document.createElement('div');
-    overlay.className = 'provider-modal-overlay';
-    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    // Fetch current data to pre-fill fields
+    fetch('/tools/bridge/api/external-providers')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var providers = data.providers || [];
+        var current = editProviderName ? providers.find(function(p) { return p.provider === editProviderName; }) : null;
 
-    var providerOptions = [
-        { value: 'openai', label: 'OpenAI' },
-        { value: 'perplexity', label: 'Perplexity' },
-        { value: 'xai', label: 'xAI' },
-        { value: 'minimax_cloud', label: 'MiniMax Cloud' },
-        { value: 'qwen3_cloud', label: 'Qwen3 Cloud' }
-    ];
+        var overlay = document.createElement('div');
+        overlay.className = 'provider-modal-overlay';
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 
-    var selectHtml = providerOptions.map(function(opt) {
-        var selected = (editProviderName && editProviderName === opt.value) ? ' selected' : '';
-        return '<option value="' + opt.value + '"' + selected + '>' + escapeHtml(opt.label) + '</option>';
-    }).join('');
+        var providerOptions = [
+            { value: 'openai', label: 'OpenAI' },
+            { value: 'perplexity', label: 'Perplexity' },
+            { value: 'xai', label: 'xAI' },
+            { value: 'minimax_cloud', label: 'MiniMax Cloud' },
+            { value: 'qwen3_cloud', label: 'Qwen3 Cloud' }
+        ];
 
-    var modal = document.createElement('div');
-    modal.className = 'provider-modal';
-    modal.innerHTML = '<h3><i data-lucide="building-2" style="width:18px;height:18px;"></i> ' + (editProviderName ? 'Edit' : 'Add') + ' Provider</h3>' +
-        '<label>Provider</label>' +
-        '<select id="provider-modal-name" ' + (editProviderName ? 'disabled' : '') + '>' +
-        '<option value="">Select provider...</option>' +
-        selectHtml +
-        '</select>' +
-        '<label>API Key</label>' +
-        '<input type="password" id="provider-modal-key" placeholder="sk-... or key">' +
-        '<label>Monthly Budget ($)</label>' +
-        '<input type="number" id="provider-modal-budget" value="10" min="0" step="1">' +
-        '<div class="provider-modal-buttons">' +
-        '<button class="btn-cancel" onclick="this.closest(\'.provider-modal-overlay\').remove()">Cancel</button>' +
-        '<button class="btn-save" onclick="saveProvider()">Save</button>' +
-        '</div>';
+        var selectHtml = providerOptions.map(function(opt) {
+            var selected = (editProviderName && editProviderName === opt.value) ? ' selected' : '';
+            return '<option value="' + opt.value + '"' + selected + '>' + escapeHtml(opt.label) + '</option>';
+        }).join('');
 
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-    if (typeof lucide !== 'undefined') lucide.createIcons();
+        var budgetVal = current ? (current.monthly_budget_usd || 10) : 10;
+        var isCloud = editProviderName && ['minimax_cloud', 'qwen3_cloud'].indexOf(editProviderName) !== -1;
+        var authNote = isCloud
+            ? '<div style="margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);">Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)</div>'
+            : '';
+        var keyPlaceholder = current && current.key_hint ? 'Current: ' + current.key_hint + ' (leave blank to keep)' : 'sk-... or key';
+
+        var modal = document.createElement('div');
+        modal.className = 'provider-modal';
+        modal.innerHTML = '<h3><i data-lucide="building-2" style="width:18px;height:18px;"></i> ' + (editProviderName ? 'Edit' : 'Add') + ' Provider</h3>' +
+            '<label>Provider</label>' +
+            '<select id="provider-modal-name" ' + (editProviderName ? 'disabled' : '') + '>' +
+            '<option value="">Select provider...</option>' +
+            selectHtml +
+            '</select>' +
+            authNote +
+            '<label>API Key</label>' +
+            '<input type="password" id="provider-modal-key" placeholder="' + escapeHtml(keyPlaceholder) + '">' +
+            '<label>Monthly Budget ($)</label>' +
+            '<input type="number" id="provider-modal-budget" value="' + budgetVal + '" min="0" step="1">' +
+            '<div class="provider-modal-buttons">' +
+            '<button class="btn-cancel" onclick="this.closest(\'.provider-modal-overlay\').remove()">Cancel</button>' +
+            '<button class="btn-save" onclick="saveProvider()">Save</button>' +
+            '</div>';
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
 }
 
 function editProvider(providerName) {

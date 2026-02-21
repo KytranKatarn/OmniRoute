@@ -5213,14 +5213,20 @@ function loadOverviewData() {
                 html += '+ ' + parseInt(availCount) + ' available on disk';
                 html += '</div>';
             }
-            // External providers (fixed labels, only status varies)
+            // External providers (dynamic from DB + cloud models)
             (data.external || []).forEach(function(ext) {
-                var dot = ext.status === 'configured' ? '🟡' : '⚫';
+                var dot = '⚫';
+                if (ext.status === 'active') dot = '🟢';
+                else if (ext.status === 'configured') dot = '🟡';
                 var extName = esc(String(ext.name || 'Unknown'));
                 var extStatus = esc(String(ext.status || 'unknown').replace('_', ' '));
+                var budgetStr = '';
+                if (ext.budget_pct !== undefined && ext.budget_pct !== null) {
+                    budgetStr = ' (' + parseFloat(ext.budget_pct).toFixed(1) + '%)';
+                }
                 html += '<div style="display:flex;justify-content:space-between;padding:2px 0;">';
                 html += '<span>' + dot + ' ' + extName + '</span>';
-                html += '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">' + extStatus + '</span>';
+                html += '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">' + extStatus + budgetStr + '</span>';
                 html += '</div>';
             });
             el.innerHTML = html;

@@ -2442,21 +2442,69 @@ def get_llm_status():
                 }
             )
 
-        # 5. Check external API keys
+        # 5. Check external API keys — dynamic from external_api_keys table
         external = []
-        for conn_id, label in [
-            ("claude_api", "Claude API"),
-            ("openai_api", "OpenAI"),
-            ("grok_api", "Grok"),
-        ]:
-            key_status = check_api_key_status(conn_id)
-            external.append(
-                {
-                    "name": label,
-                    "provider": conn_id.replace("_api", ""),
-                    "status": "configured" if key_status else "no_key",
-                }
+        provider_display_names = {
+            "openai": "OpenAI",
+            "perplexity": "Perplexity",
+            "xai": "Grok",
+            "anthropic": "Claude API",
+            "claude": "Claude API",
+        }
+        try:
+            pconn = get_db_connection()
+            pcur = pconn.cursor(cursor_factory=RealDictCursor)
+            pcur.execute(
+                """
+                SELECT provider, is_active, monthly_budget_usd, current_month_cost_usd,
+                       CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != ''
+                            THEN TRUE ELSE FALSE END as has_key
+                FROM external_api_keys
+                ORDER BY provider
+                """
             )
+            for row in pcur.fetchall():
+                prov = row["provider"]
+                has_key = row["has_key"]
+                is_active = row["is_active"]
+                if has_key and is_active:
+                    prov_status = "active"
+                elif has_key:
+                    prov_status = "configured"
+                else:
+                    prov_status = "no_key"
+                entry = {
+                    "name": provider_display_names.get(prov, prov.replace("_", " ").title()),
+                    "provider": prov,
+                    "status": prov_status,
+                }
+                # Add budget percentage if budget is set
+                budget = row.get("monthly_budget_usd")
+                cost = row.get("current_month_cost_usd")
+                if budget and float(budget) > 0:
+                    entry["budget_pct"] = round(float(cost or 0) / float(budget) * 100, 1)
+                external.append(entry)
+            pcur.close()
+            pconn.close()
+        except Exception as e:
+            logger.warning(f"Could not query external_api_keys: {e}")
+
+        # Also check Ollama cloud models (MiniMax, Qwen3)
+        cloud_models = {
+            "minimax_cloud": "MiniMax Cloud",
+            "qwen3_cloud": "Qwen3 Cloud",
+        }
+        ollama_key = os.getenv("OLLAMA_API_KEY", "")
+        existing_providers = {e["provider"] for e in external}
+        for cloud_prov, cloud_label in cloud_models.items():
+            if cloud_prov not in existing_providers:
+                external.append(
+                    {
+                        "name": cloud_label,
+                        "provider": cloud_prov,
+                        "status": "active" if ollama_key else "no_key",
+                    }
+                )
 
         # 6. Get routing mode
         routing_mode = "full"

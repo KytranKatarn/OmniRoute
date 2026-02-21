@@ -2470,6 +2470,40 @@ def get_agent_welfare():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/iaae/enforcement-log")
+@login_required
+def get_iaae_enforcement_log():
+    """Vigil enforcement log: governance actions in the last 7 days."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT gal.id, gal.timestamp, gal.event_type, gal.event_category,
+                   gal.action, gal.reason, gal.outcome,
+                   gal.agent_id, a.name as agent_name,
+                   a.first_name as agent_first_name
+            FROM governance_audit_log gal
+            LEFT JOIN agents a ON a.id = gal.agent_id
+            WHERE gal.timestamp >= NOW() - INTERVAL '7 days'
+            ORDER BY gal.timestamp DESC
+            LIMIT 50
+        """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        for r in rows:
+            if r.get("timestamp"):
+                r["timestamp"] = r["timestamp"].isoformat()
+
+        return jsonify({"success": True, "events": rows, "total": len(rows)})
+    except Exception as e:
+        logger.error("get_iaae_enforcement_log error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # ARCHIE STATUS API
 # ============================================================================

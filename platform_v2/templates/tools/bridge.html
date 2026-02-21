@@ -4126,6 +4126,17 @@ body.light-mode .bridge-hud-value {
                     </div>
                 </div>
 
+                <!-- Vigil's Log -->
+                <div class="briefing-card" style="--card-accent: #ff6b6b;">
+                    <div class="briefing-card-header">
+                        <i data-lucide="shield-alert"></i>
+                        <span>Vigil's Log</span>
+                    </div>
+                    <div class="briefing-card-body" id="overviewVigilLog">
+                        <span class="briefing-muted">Loading...</span>
+                    </div>
+                </div>
+
                 <!-- Mini Activity Feed -->
                 <div class="briefing-card" style="--card-accent: #00ffff;">
                     <div class="briefing-card-header">
@@ -4859,55 +4870,168 @@ function loadOverviewData() {
             }
         }).catch(function() {});
 
-    // 3. IAAE Health card (real governance data)
-    fetch('/tools/bridge/api/iaae/overview')
+    // 3. IAAE Health card (real welfare + workload data)
+    Promise.all([
+        fetch('/tools/bridge/api/agents/welfare').then(function(r) { return r.json(); }),
+        fetch('/tools/bridge/api/agents/workload').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var welfareData = results[0];
+        var workloadData = results[1];
+        var el = document.getElementById('overviewIAAE');
+        var iaaeEl = document.getElementById('hudIAAEScore');
+        if (!el) return;
+
+        if (!welfareData.success) {
+            el.textContent = 'Unable to load';
+            if (iaaeEl) iaaeEl.textContent = 'N/A';
+            return;
+        }
+
+        var fh = welfareData.fleet_health || {};
+        // HUD pod
+        if (iaaeEl) {
+            iaaeEl.textContent = fh.compliance_pct !== null && fh.compliance_pct !== undefined ? fh.compliance_pct + '%' : 'N/A';
+        }
+
+        // Build rich IAAE card via DOM
+        el.textContent = '';
+
+        // Helper: make a gauge bar
+        function makeGauge(label, pct, color) {
+            var wrap = document.createElement('div');
+            wrap.style.cssText = 'margin-bottom:6px;';
+            var top = document.createElement('div');
+            top.style.cssText = 'display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:2px;';
+            var lbl = document.createElement('span');
+            lbl.textContent = label;
+            var val = document.createElement('span');
+            val.textContent = pct + '%';
+            val.style.color = color;
+            top.appendChild(lbl);
+            top.appendChild(val);
+            wrap.appendChild(top);
+            var bar = document.createElement('div');
+            bar.style.cssText = 'height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;';
+            var fill = document.createElement('div');
+            fill.style.cssText = 'height:100%;border-radius:3px;width:' + Math.min(pct, 100) + '%;background:' + color + ';';
+            bar.appendChild(fill);
+            wrap.appendChild(bar);
+            return wrap;
+        }
+
+        // Fleet stress
+        var stressPct = fh.avg_stress !== null ? Math.round(fh.avg_stress * 100) : 0;
+        var stressColor = stressPct <= 40 ? '#00ff41' : stressPct <= 70 ? '#ffaa00' : '#ff4444';
+        el.appendChild(makeGauge('Fleet Stress', stressPct, stressColor));
+
+        // Fleet energy
+        var energyPct = fh.avg_energy !== null ? Math.round(fh.avg_energy * 100) : 0;
+        var energyColor = energyPct >= 60 ? '#00ff41' : energyPct >= 30 ? '#ffaa00' : '#ff4444';
+        el.appendChild(makeGauge('Fleet Energy', energyPct, energyColor));
+
+        // Stats row
+        var stats = document.createElement('div');
+        stats.style.cssText = 'display:flex;gap:10px;font-size:0.7rem;margin-bottom:6px;';
+        var riskSpan = document.createElement('span');
+        var riskCount = fh.agents_at_risk || 0;
+        riskSpan.innerHTML = 'At Risk: <span style="color:' + (riskCount > 0 ? '#ff4444' : '#00ff41') + ';">' + parseInt(riskCount) + '</span>';
+        riskSpan.style.cursor = 'pointer';
+        riskSpan.onclick = function() { switchBridgeTab('crew'); };
+        stats.appendChild(riskSpan);
+        var restSpan = document.createElement('span');
+        restSpan.textContent = 'Resting: ' + parseInt(fh.agents_resting || 0);
+        stats.appendChild(restSpan);
+        var govSpan = document.createElement('span');
+        govSpan.textContent = 'Events: ' + parseInt(fh.total_governance_events || 0);
+        stats.appendChild(govSpan);
+        el.appendChild(stats);
+
+        // Workload mini-bars (top agents from workload data)
+        if (workloadData.success && workloadData.agents && workloadData.agents.length > 0) {
+            var wLabel = document.createElement('div');
+            wLabel.style.cssText = 'font-size:0.65rem;color:var(--archie-text-muted);margin-bottom:3px;';
+            wLabel.textContent = 'Agent Workload (24h)';
+            el.appendChild(wLabel);
+
+            var topAgents = workloadData.agents.slice(0, 8);
+            topAgents.forEach(function(ag) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:2px;font-size:0.65rem;';
+                var nm = document.createElement('span');
+                nm.style.cssText = 'width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                nm.textContent = ag.first_name || ag.name;
+                nm.title = ag.name;
+                row.appendChild(nm);
+                var barWrap = document.createElement('div');
+                barWrap.style.cssText = 'flex:1;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;';
+                var barFill = document.createElement('div');
+                var wPct = ag.workload_pct || 0;
+                var wCol = wPct < 60 ? '#00ff41' : wPct < 80 ? '#ffaa00' : '#ff4444';
+                barFill.style.cssText = 'height:100%;border-radius:2px;width:' + Math.min(wPct, 100) + '%;background:' + wCol + ';';
+                barWrap.appendChild(barFill);
+                row.appendChild(barWrap);
+                var pctLabel = document.createElement('span');
+                pctLabel.style.cssText = 'width:28px;text-align:right;color:' + wCol + ';';
+                pctLabel.textContent = Math.round(wPct) + '%';
+                row.appendChild(pctLabel);
+                el.appendChild(row);
+            });
+        }
+    }).catch(function() {
+        var el = document.getElementById('overviewIAAE');
+        if (el) el.textContent = 'IAAE Governance Active';
+        var iaaeEl = document.getElementById('hudIAAEScore');
+        if (iaaeEl) iaaeEl.textContent = 'N/A';
+    });
+
+    // 3b. Vigil's Log (enforcement events)
+    fetch('/tools/bridge/api/iaae/enforcement-log')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var el = document.getElementById('overviewIAAE');
+            var el = document.getElementById('overviewVigilLog');
             if (!el) return;
-            if (!data.success) {
-                el.textContent = 'Unable to load';
+            if (!data.success || !data.events || data.events.length === 0) {
+                el.textContent = '';
+                var msg = document.createElement('div');
+                msg.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted);padding:4px 0;';
+                msg.textContent = 'No interventions needed \u2014 all agents within healthy parameters';
+                el.appendChild(msg);
                 return;
             }
-            // Build IAAE summary with safe DOM construction
             el.textContent = '';
-            var rows = [];
-            if (data.compliance_pct !== null) {
-                rows.push(['Compliance', data.compliance_pct + '%']);
-            } else {
-                rows.push(['Compliance', 'No data']);
-            }
-            if (data.avg_stress !== null) {
-                rows.push(['Fleet Stress', (data.avg_stress * 100).toFixed(0) + '%']);
-            }
-            if (data.avg_energy !== null) {
-                rows.push(['Fleet Energy', (data.avg_energy * 100).toFixed(0) + '%']);
-            }
-            rows.push(['Agents at Rest', String(data.agents_at_rest || 0)]);
-            rows.push(['Governance Events (24h)', String(data.governance_events_24h || 0)]);
-            rows.forEach(function(row) {
-                var div = document.createElement('div');
-                div.style.cssText = 'display:flex;justify-content:space-between;padding:3px 0;';
-                var label = document.createElement('span');
-                label.textContent = row[0];
-                var val = document.createElement('span');
-                val.style.color = 'var(--archie-cyan)';
-                val.textContent = row[1];
-                div.appendChild(label);
-                div.appendChild(val);
-                el.appendChild(div);
+            var shown = data.events.slice(0, 5);
+            shown.forEach(function(ev) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.7rem;';
+                var left = document.createElement('div');
+                var catColors = { task_blocked: '#ff4444', rest_initiated: '#8b5cf6', task_reassigned: '#ffaa00', escalation: '#ff6b6b', task_approved: '#00ff41' };
+                var dot = document.createElement('span');
+                dot.style.cssText = 'color:' + (catColors[ev.event_category] || '#888') + ';margin-right:4px;';
+                dot.textContent = '\u25cf';
+                left.appendChild(dot);
+                var desc = document.createElement('span');
+                var agentName = ev.agent_first_name || ev.agent_name || '';
+                desc.textContent = (ev.event_category || '').replace(/_/g, ' ') + (agentName ? ' \u2014 ' + agentName : '');
+                left.appendChild(desc);
+                row.appendChild(left);
+                if (ev.timestamp) {
+                    var ts = document.createElement('span');
+                    ts.style.cssText = 'color:var(--archie-text-tertiary);font-size:0.65rem;white-space:nowrap;';
+                    var d = new Date(ev.timestamp);
+                    ts.textContent = d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                    row.appendChild(ts);
+                }
+                el.appendChild(row);
             });
-
-            // Update HUD pod with real compliance
-            var iaaeEl = document.getElementById('hudIAAEScore');
-            if (iaaeEl) {
-                iaaeEl.textContent = data.compliance_pct !== null ? data.compliance_pct + '%' : 'N/A';
+            if (data.total > 5) {
+                var more = document.createElement('div');
+                more.style.cssText = 'font-size:0.65rem;color:var(--archie-text-muted);padding-top:3px;';
+                more.textContent = '+ ' + (data.total - 5) + ' more events (7d)';
+                el.appendChild(more);
             }
         }).catch(function() {
-            var el = document.getElementById('overviewIAAE');
+            var el = document.getElementById('overviewVigilLog');
             if (el) el.textContent = 'IAAE Governance Active';
-            var iaaeEl = document.getElementById('hudIAAEScore');
-            if (iaaeEl) iaaeEl.textContent = 'N/A';
         });
 
     // 4. Mini Activity Feed (last 5 dispatches)
@@ -7526,11 +7650,23 @@ function switchCrewSubtab(name) {
 // CREW MANIFEST (Phase B)
 // ============================================================================
 
+var _crewWorkloadMap = {};
 async function loadCrewManifest() {
     try {
-        const resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
-        if (!resp.ok) return;
-        const data = await resp.json();
+        const [crewResp, wlResp] = await Promise.all([
+            fetch('/tools/bridge/api/bridge/crew/manifest'),
+            fetch('/tools/bridge/api/agents/workload')
+        ]);
+        if (!crewResp.ok) return;
+        const data = await crewResp.json();
+        // Build workload lookup
+        _crewWorkloadMap = {};
+        if (wlResp.ok) {
+            const wlData = await wlResp.json();
+            if (wlData.success) {
+                (wlData.agents || []).forEach(function(w) { _crewWorkloadMap[w.id] = w; });
+            }
+        }
         if (data.success) {
             renderCrewManifest(data.crew || []);
         }
@@ -7686,6 +7822,27 @@ function renderCrewManifest(crew) {
         }
 
         card.appendChild(statsRow);
+
+        // Workload bar + risk glow (from parallel workload fetch)
+        var wl = _crewWorkloadMap[agent.id];
+        if (wl) {
+            var wPct = wl.workload_pct || 0;
+            var wCol = wPct < 60 ? '#00ff41' : wPct < 80 ? '#ffaa00' : '#ff4444';
+            var wBar = document.createElement('div');
+            wBar.style.cssText = 'height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;margin-top:4px;';
+            var wFill = document.createElement('div');
+            wFill.style.cssText = 'height:100%;border-radius:2px;width:' + Math.min(wPct, 100) + '%;background:' + wCol + ';';
+            wBar.appendChild(wFill);
+            card.appendChild(wBar);
+
+            // Risk glow
+            if (wl.risk_level === 'critical' || wl.risk_level === 'overloaded') {
+                card.style.boxShadow = '0 0 8px rgba(255,68,68,0.3)';
+                card.style.borderColor = 'rgba(255,68,68,0.4)';
+            } else if (wl.risk_level === 'elevated') {
+                card.style.boxShadow = '0 0 6px rgba(255,170,0,0.2)';
+            }
+        }
 
         grid.appendChild(card);
     });

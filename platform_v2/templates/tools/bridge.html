@@ -8335,15 +8335,28 @@ function renderContractors(providers, routingMode, iaaeData) {
                     var sessLimit = mWindows.session_limit || null;
                     var wkly = mWindows.weekly_7d != null ? mWindows.weekly_7d : 0;
                     var wklyLimit = mWindows.weekly_limit || null;
-                    var sessPct = sessLimit ? (sess / sessLimit * 100) : 0;
-                    var wklyPct = wklyLimit ? (wkly / wklyLimit * 100) : 0;
-                    var sessColor = sessPct > 80 ? '#ff4444' : sessPct > 50 ? '#ffaa00' : 'var(--archie-cyan)';
-                    var wklyColor = wklyPct > 80 ? '#ff4444' : wklyPct > 50 ? '#ffaa00' : 'var(--archie-cyan)';
-                    var sessStr = sess + (sessLimit ? ' / ' + sessLimit : '') + ' req';
-                    var wklyStr = wkly + (wklyLimit ? ' / ' + wklyLimit : '') + ' req';
-                    html += '<div style="margin-top:4px;padding:4px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;flex-wrap:wrap;font-size:0.65rem;color:rgba(255,255,255,0.5);">';
-                    html += '<span style="display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session (2h): <span style="color:' + sessColor + ';">' + sessStr + '</span></span>';
-                    html += '<span style="display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly (7d): <span style="color:' + wklyColor + ';">' + wklyStr + '</span></span>';
+                    var sessPct = sessLimit ? Math.min(sess / sessLimit * 100, 100) : 0;
+                    var wklyPct = wklyLimit ? Math.min(wkly / wklyLimit * 100, 100) : 0;
+                    var barColor = function(pct) { return pct > 80 ? '#ff4444' : pct > 50 ? '#ffaa00' : '#22cc88'; };
+                    var sessStr = sess + (sessLimit ? ' / ' + sessLimit : '');
+                    var wklyStr = wkly + (wklyLimit ? ' / ' + wklyLimit : '');
+                    html += '<div style="margin-top:4px;padding:5px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:5px;font-size:0.65rem;">';
+                    // Session bar
+                    html += '<div style="display:flex;align-items:center;gap:6px;">';
+                    html += '<span style="color:rgba(255,255,255,0.5);min-width:72px;display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session</span>';
+                    html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
+                    html += '<div style="height:100%;width:' + sessPct.toFixed(1) + '%;background:' + barColor(sessPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
+                    html += '</div>';
+                    html += '<span style="color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;">' + sessStr + '</span>';
+                    html += '</div>';
+                    // Weekly bar
+                    html += '<div style="display:flex;align-items:center;gap:6px;">';
+                    html += '<span style="color:rgba(255,255,255,0.5);min-width:72px;display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly</span>';
+                    html += '<div style="flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden;position:relative;">';
+                    html += '<div style="height:100%;width:' + wklyPct.toFixed(1) + '%;background:' + barColor(wklyPct) + ';border-radius:5px;transition:width 0.4s ease;"></div>';
+                    html += '</div>';
+                    html += '<span style="color:rgba(255,255,255,0.45);min-width:62px;text-align:right;font-size:0.6rem;">' + wklyStr + '</span>';
+                    html += '</div>';
                     html += '</div>';
                 }
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;">';

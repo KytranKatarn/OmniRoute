@@ -4921,28 +4921,25 @@ function loadOverviewData() {
                 var sizeMB = m.vram ? Math.round(m.vram / 1048576) : Math.round((m.size || 0) / 1048576);
                 vramMap[m.name] = sizeMB;
             });
-            // All models list (loaded first, then available) in scrollable container
-            var allModels = (data.models || []).filter(function(m) {
-                return !String(m.name || '').endsWith(':cloud');
-            }).sort(function(a, b) {
-                if (a.status === 'loaded' && b.status !== 'loaded') return -1;
-                if (a.status !== 'loaded' && b.status === 'loaded') return 1;
+            // Unified model list — assigned (green) first, then unassigned (gray)
+            var allModels = (data.models || []).sort(function(a, b) {
+                if (a.assigned && !b.assigned) return -1;
+                if (!a.assigned && b.assigned) return 1;
                 return a.name.localeCompare(b.name);
             });
-            var loadedCount = parseInt(data.total_loaded || 0);
-            var onDiskCount = allModels.length - loadedCount;
+            var assignedCount = allModels.filter(function(m) { return m.assigned; }).length;
+            var unassignedCount = allModels.length - assignedCount;
             html += '<div style="font-size:0.7rem;color:var(--archie-text-tertiary);padding:2px 0 4px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px;">';
-            html += 'Local Models &mdash; <span style="color:#00ff41;">' + loadedCount + ' loaded</span>, ' + parseInt(onDiskCount) + ' on disk';
+            html += 'Models &mdash; <span style="color:#00ff41;">' + assignedCount + ' assigned</span>, ' + unassignedCount + ' idle';
             html += '</div>';
             html += '<div style="max-height:160px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.15) transparent;">';
             allModels.forEach(function(m) {
                 var rawName = String(m.name || 'unknown');
                 var parts = rawName.split(':');
                 var name = esc(parts[0]) + (parts[1] && parts[1] !== 'latest' ? '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">:' + esc(parts[1]) + '</span>' : '');
-                var isLoaded = m.status === 'loaded';
-                var dotColor = isLoaded ? '#00ff41' : 'rgba(255,255,255,0.2)';
-                var nameColor = isLoaded ? '#00ff41' : 'var(--archie-text-secondary)';
-                var label = isLoaded ? 'loaded' : 'on disk';
+                var isAssigned = m.assigned;
+                var nameColor = isAssigned ? '#00ff41' : 'var(--archie-text-secondary)';
+                var label = isAssigned ? 'assigned' : 'idle';
                 var sizeStr = '';
                 if (vramMap[m.name]) sizeStr = parseInt(vramMap[m.name]) + ' MB';
                 html += '<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.8em;">';
@@ -4951,14 +4948,15 @@ function loadOverviewData() {
                 html += '</div>';
             });
             html += '</div>';
-            // External providers (dynamic from DB + cloud models)
-            if ((data.external || []).length > 0) {
-                html += '<div style="font-size:0.7rem;color:var(--archie-text-tertiary);padding:4px 0 4px;border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;">Cloud Providers</div>';
+            // External API providers (paid services with API keys)
+            var extProviders = (data.external || []).filter(function(ext) {
+                return ext.status !== 'no_key';
+            });
+            if (extProviders.length > 0) {
+                html += '<div style="font-size:0.7rem;color:var(--archie-text-tertiary);padding:4px 0 4px;border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;">API Providers</div>';
             }
-            (data.external || []).forEach(function(ext) {
-                var dot = '⚫';
-                if (ext.status === 'active') dot = '🟢';
-                else if (ext.status === 'configured') dot = '🟡';
+            extProviders.forEach(function(ext) {
+                var dot = ext.status === 'active' ? '🟢' : '🟡';
                 var extName = esc(String(ext.name || 'Unknown'));
                 var extStatus = esc(String(ext.status || 'unknown').replace('_', ' '));
                 var budgetStr = '';

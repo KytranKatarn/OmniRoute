@@ -2308,14 +2308,32 @@ def get_llm_status():
         # 3. Get all available models
         available_models = get_ollama_models(ollama_host, ollama_port)
 
+        # 3b. Get models in use — assigned to agents OR configured in active tiers
+        assigned_models = set()
+        try:
+            with get_db_cursor(commit=False) as (aconn, acur):
+                acur.execute("SELECT DISTINCT model FROM agents WHERE status = 'active' AND model IS NOT NULL")
+                for row in acur.fetchall():
+                    assigned_models.add(row["model"])
+                acur.execute(
+                    "SELECT DISTINCT model_name FROM model_tier_configs WHERE is_active = true AND model_name IS NOT NULL"
+                )
+                for row in acur.fetchall():
+                    assigned_models.add(row["model_name"])
+        except Exception:
+            pass
+
         # 4. Build model list with status
         models = []
         for name in available_models:
+            # Check assignment: match with or without :latest suffix
+            is_assigned = name in assigned_models or name.split(":")[0] in {m.split(":")[0] for m in assigned_models}
             models.append(
                 {
                     "name": name,
                     "provider": "ollama",
                     "status": "loaded" if name in loaded_names else "available",
+                    "assigned": is_assigned,
                 }
             )
 

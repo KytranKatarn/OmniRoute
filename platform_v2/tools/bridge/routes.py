@@ -2267,6 +2267,209 @@ def get_iaae_overview():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/agents/workload")
+@login_required
+def get_agent_workload():
+    """Per-agent workload: 24h tasks, tokens, daily caps, risk levels."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT
+                a.id, a.name, a.first_name, a.last_name, a.status,
+                COALESCE(ab.task_queue_limit, 50) as daily_cap,
+                COALESCE(ab.token_limit_per_day, 500000) as token_cap,
+                COUNT(tel.id) as tasks_24h,
+                COUNT(tel.id) FILTER (WHERE tel.success = TRUE) as completed_24h,
+                COUNT(tel.id) FILTER (WHERE tel.success = FALSE) as failed_24h,
+                COALESCE(AVG(tel.duration_ms), 0) as avg_duration_ms,
+                COALESCE(SUM(tel.tokens_used), 0) as tokens_used_24h
+            FROM agents a
+            LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
+            LEFT JOIN task_execution_log tel ON tel.agent_id = a.id
+                AND tel.created_at >= NOW() - INTERVAL '24 hours'
+            WHERE a.status IN ('active', 'busy', 'idle', 'working')
+            GROUP BY a.id, a.name, a.first_name, a.last_name, a.status,
+                     ab.task_queue_limit, ab.token_limit_per_day
+            ORDER BY tasks_24h DESC
+        """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        agents = []
+        total_tasks = 0
+        at_risk = 0
+        for r in rows:
+            daily_cap = int(r["daily_cap"]) or 50
+            token_cap = int(r["token_cap"]) or 500000
+            tasks = int(r["tasks_24h"])
+            tokens = int(r["tokens_used_24h"])
+            workload_pct = min(round(tasks / daily_cap * 100, 1), 100) if daily_cap > 0 else 0
+            token_pct = min(round(tokens / token_cap * 100, 1), 100) if token_cap > 0 else 0
+
+            if workload_pct >= 100:
+                risk = "overloaded"
+            elif workload_pct >= 80:
+                risk = "critical"
+            elif workload_pct >= 60:
+                risk = "elevated"
+            else:
+                risk = "healthy"
+
+            if risk in ("critical", "overloaded"):
+                at_risk += 1
+            total_tasks += tasks
+
+            agents.append(
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "first_name": r.get("first_name"),
+                    "last_name": r.get("last_name"),
+                    "status": r["status"],
+                    "daily_cap": daily_cap,
+                    "token_cap": token_cap,
+                    "tasks_24h": tasks,
+                    "completed_24h": int(r["completed_24h"]),
+                    "failed_24h": int(r["failed_24h"]),
+                    "avg_duration_ms": round(float(r["avg_duration_ms"]), 1),
+                    "tokens_used_24h": tokens,
+                    "workload_pct": workload_pct,
+                    "token_usage_pct": token_pct,
+                    "risk_level": risk,
+                }
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "agents": agents,
+                "summary": {
+                    "total_agents": len(agents),
+                    "total_tasks_24h": total_tasks,
+                    "agents_at_risk": at_risk,
+                },
+            }
+        )
+    except Exception as e:
+        logger.error("get_agent_workload error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/welfare")
+@login_required
+def get_agent_welfare():
+    """Aggregate welfare: emotional state, rest cycles, refusals, governance."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Latest emotional state per agent (using DISTINCT ON)
+        cur.execute(
+            """
+            SELECT DISTINCT ON (a.id)
+                a.id, a.name, a.first_name, a.last_name,
+                es.current_mood as mood, es.mood_intensity as intensity,
+                es.energy_level, es.stress_level, es.timestamp as last_check
+            FROM agents a
+            LEFT JOIN agent_emotional_state es ON es.agent_id = a.id
+            WHERE a.status IN ('active', 'busy', 'idle', 'working', 'resting')
+            ORDER BY a.id, es.timestamp DESC NULLS LAST
+        """
+        )
+        agents = cur.fetchall()
+        for a in agents:
+            if a.get("last_check"):
+                a["last_check"] = a["last_check"].isoformat()
+            for k in ["intensity", "energy_level", "stress_level"]:
+                if a.get(k) is not None:
+                    a[k] = float(a[k])
+
+        # Agents currently at rest
+        cur.execute(
+            """
+            SELECT a.id, a.name, arc.reason, arc.started_at, arc.initiated_by
+            FROM agent_rest_cycles arc
+            JOIN agents a ON a.id = arc.agent_id
+            WHERE arc.ended_at IS NULL
+        """
+        )
+        resting = cur.fetchall()
+        for r in resting:
+            if r.get("started_at"):
+                r["started_at"] = r["started_at"].isoformat()
+
+        # Recent refusals (24h)
+        cur.execute(
+            """
+            SELECT a.id, a.name, trl.refusal_reason as reason,
+                   trl.task_type, trl.was_overridden, trl.timestamp
+            FROM task_refusal_log trl
+            JOIN agents a ON a.id = trl.agent_id
+            WHERE trl.timestamp >= NOW() - INTERVAL '24 hours'
+            ORDER BY trl.timestamp DESC
+            LIMIT 20
+        """
+        )
+        refusals = cur.fetchall()
+        for r in refusals:
+            if r.get("timestamp"):
+                r["timestamp"] = r["timestamp"].isoformat()
+
+        # Governance events (24h)
+        cur.execute(
+            """
+            SELECT event_category, COUNT(*) as count
+            FROM governance_audit_log
+            WHERE timestamp >= NOW() - INTERVAL '24 hours'
+            GROUP BY event_category
+        """
+        )
+        gov_rows = cur.fetchall()
+        gov_summary = {}
+        for g in gov_rows:
+            gov_summary[g["event_category"]] = g["count"]
+
+        cur.close()
+        conn.close()
+
+        # Fleet health aggregates
+        stress_vals = [a["stress_level"] for a in agents if a.get("stress_level") is not None]
+        energy_vals = [a["energy_level"] for a in agents if a.get("energy_level") is not None]
+        avg_stress = round(sum(stress_vals) / len(stress_vals), 2) if stress_vals else None
+        avg_energy = round(sum(energy_vals) / len(energy_vals), 2) if energy_vals else None
+        high_stress = sum(1 for s in stress_vals if s > 0.7)
+
+        total_gov = sum(gov_summary.values()) if gov_summary else 0
+        approved = gov_summary.get("task_approved", 0)
+        compliance_pct = round(approved / total_gov * 100, 1) if total_gov > 0 else None
+
+        return jsonify(
+            {
+                "success": True,
+                "agents": agents,
+                "agents_at_rest": resting,
+                "recent_refusals": refusals,
+                "governance_summary": gov_summary,
+                "fleet_health": {
+                    "avg_stress": avg_stress,
+                    "avg_energy": avg_energy,
+                    "agents_at_risk": high_stress,
+                    "agents_resting": len(resting),
+                    "compliance_pct": compliance_pct,
+                    "total_governance_events": total_gov,
+                },
+            }
+        )
+    except Exception as e:
+        logger.error("get_agent_welfare error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # ARCHIE STATUS API
 # ============================================================================

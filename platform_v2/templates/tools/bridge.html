@@ -7848,7 +7848,64 @@ function openAgentProfile(agentId) {
                 html += '</div></div>';
             }
 
+            // IAAE Welfare & Compliance section (placeholder, filled async)
+            html += '<div id="profile-iaae-section"></div>';
+
             body.innerHTML = html;
+
+            // Async fetch workload data for this agent
+            fetch('/tools/bridge/api/agents/workload')
+                .then(function(r) { return r.json(); })
+                .then(function(wData) {
+                    var section = document.getElementById('profile-iaae-section');
+                    if (!section || !wData.success) return;
+                    var me = null;
+                    (wData.agents || []).forEach(function(w) { if (w.id === parseInt(agentId)) me = w; });
+                    if (!me) return;
+
+                    var iHtml = '<div class="briefing-card" style="--card-accent:#ff6b6b;margin-bottom:10px;">';
+                    iHtml += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>IAAE Welfare & Compliance</span>';
+
+                    // Risk badge
+                    var riskColors = { healthy: '#00ff41', elevated: '#ffaa00', critical: '#ff6b6b', overloaded: '#ff0000' };
+                    var riskColor = riskColors[me.risk_level] || '#888';
+                    iHtml += '<span style="background:' + riskColor + '22;color:' + riskColor + ';padding:1px 6px;border-radius:3px;font-size:0.6rem;text-transform:uppercase;border:1px solid ' + riskColor + '44;">' + esc(me.risk_level) + '</span>';
+                    iHtml += '</div>';
+                    iHtml += '<div class="briefing-card-body">';
+
+                    // Workload gauge
+                    var wPct = me.workload_pct || 0;
+                    var wColor = wPct < 60 ? '#00ff41' : wPct < 80 ? '#ffaa00' : '#ff4444';
+                    iHtml += '<div style="margin-bottom:8px;">';
+                    iHtml += '<div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:2px;">';
+                    iHtml += '<span>Workload (24h)</span><span>' + parseInt(me.tasks_24h) + ' / ' + parseInt(me.daily_cap) + ' tasks</span></div>';
+                    iHtml += '<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">';
+                    iHtml += '<div style="height:100%;width:' + Math.min(wPct, 100) + '%;background:' + wColor + ';border-radius:3px;transition:width 0.3s;"></div></div></div>';
+
+                    // Token gauge
+                    var tPct = me.token_usage_pct || 0;
+                    var tColor = tPct < 60 ? '#00ff41' : tPct < 80 ? '#ffaa00' : '#ff4444';
+                    iHtml += '<div style="margin-bottom:8px;">';
+                    iHtml += '<div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:2px;">';
+                    iHtml += '<span>Token Usage</span><span>' + parseInt(me.tokens_used_24h).toLocaleString() + ' / ' + parseInt(me.token_cap).toLocaleString() + '</span></div>';
+                    iHtml += '<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">';
+                    iHtml += '<div style="height:100%;width:' + Math.min(tPct, 100) + '%;background:' + tColor + ';border-radius:3px;transition:width 0.3s;"></div></div></div>';
+
+                    // Performance stats
+                    iHtml += '<div style="display:flex;gap:12px;font-size:0.7rem;margin-bottom:8px;">';
+                    iHtml += '<span>Completed: <span style="color:#00ff41;">' + parseInt(me.completed_24h) + '</span></span>';
+                    iHtml += '<span>Failed: <span style="color:#ff4444;">' + parseInt(me.failed_24h) + '</span></span>';
+                    iHtml += '<span>Avg: <span style="color:var(--archie-cyan);">' + formatDuration(me.avg_duration_ms) + '</span></span>';
+                    iHtml += '</div>';
+
+                    // Send to rest button if at risk
+                    if (wPct >= 80 || (em && (em.stress_level || 0) > 0.7)) {
+                        iHtml += '<button onclick="sendToLounge();closeAgentProfile();" style="background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);color:#ff6b6b;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">Send to Rest (Recommended)</button>';
+                    }
+
+                    iHtml += '</div></div>';
+                    section.innerHTML = iHtml;
+                }).catch(function() {});
         }).catch(function() {
             body.textContent = 'Failed to load profile';
         });

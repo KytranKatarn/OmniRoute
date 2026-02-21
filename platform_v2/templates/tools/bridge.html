@@ -4915,23 +4915,41 @@ function loadOverviewData() {
             html += '<span>' + ollamaDot + ' Ollama</span>';
             html += '<span style="color:var(--archie-cyan);font-size:0.8em;text-transform:uppercase;">' + mode + '</span>';
             html += '</div>';
-            // Loaded models (currently in memory)
+            // Build VRAM lookup from loaded_models for size display
+            var vramMap = {};
             (data.loaded_models || []).forEach(function(m) {
-                var name = esc(String(m.name || 'unknown').split(':')[0]);
                 var sizeMB = m.vram ? Math.round(m.vram / 1048576) : Math.round((m.size || 0) / 1048576);
-                html += '<div style="display:flex;justify-content:space-between;padding:2px 0;">';
-                html += '<span style="color:#00ff41;">&#9679; ' + name + '</span>';
-                html += '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">' + parseInt(sizeMB) + ' MB</span>';
+                vramMap[m.name] = sizeMB;
+            });
+            // All models list (loaded first, then available) in scrollable container
+            var allModels = (data.models || []).slice().sort(function(a, b) {
+                if (a.status === 'loaded' && b.status !== 'loaded') return -1;
+                if (a.status !== 'loaded' && b.status === 'loaded') return 1;
+                return a.name.localeCompare(b.name);
+            });
+            var loadedCount = parseInt(data.total_loaded || 0);
+            html += '<div style="font-size:0.7rem;color:var(--archie-text-tertiary);padding:2px 0 4px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px;">';
+            html += 'Local Models &mdash; <span style="color:#00ff41;">' + loadedCount + ' loaded</span>, ' + parseInt(allModels.length - loadedCount) + ' on disk';
+            html += '</div>';
+            html += '<div style="max-height:160px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.15) transparent;">';
+            allModels.forEach(function(m) {
+                var name = esc(String(m.name || 'unknown').split(':')[0]);
+                var isLoaded = m.status === 'loaded';
+                var dotColor = isLoaded ? '#00ff41' : 'rgba(255,255,255,0.2)';
+                var nameColor = isLoaded ? '#00ff41' : 'var(--archie-text-secondary)';
+                var label = isLoaded ? 'loaded' : 'on disk';
+                var sizeStr = '';
+                if (vramMap[m.name]) sizeStr = parseInt(vramMap[m.name]) + ' MB';
+                html += '<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.8em;">';
+                html += '<span style="color:' + nameColor + ';">&#9679; ' + name + '</span>';
+                html += '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">' + (sizeStr ? sizeStr + ' &middot; ' : '') + label + '</span>';
                 html += '</div>';
             });
-            // Available (not loaded) count
-            var availCount = parseInt(data.total_available || 0) - parseInt(data.total_loaded || 0);
-            if (availCount > 0) {
-                html += '<div style="padding:2px 0;color:var(--archie-text-tertiary);font-size:0.85em;">';
-                html += '+ ' + parseInt(availCount) + ' available on disk';
-                html += '</div>';
-            }
+            html += '</div>';
             // External providers (dynamic from DB + cloud models)
+            if ((data.external || []).length > 0) {
+                html += '<div style="font-size:0.7rem;color:var(--archie-text-tertiary);padding:4px 0 4px;border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;">Cloud Providers</div>';
+            }
             (data.external || []).forEach(function(ext) {
                 var dot = '⚫';
                 if (ext.status === 'active') dot = '🟢';

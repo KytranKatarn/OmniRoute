@@ -4422,17 +4422,33 @@ def toggle_bridge_sharing(node_id):
 
 @bridge_bp.route("/api/bridge/models")
 def get_bridge_available_models():
-    """Get all models available across bridge-enabled nodes"""
+    """Get all models available across bridge-enabled nodes, split local vs remote"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # Get per-model detail with id, node_id, is_available for toggle support
+        cur.execute(
+            """
+            SELECT m.id, m.node_id, n.node_name, m.model_name, m.model_family,
+                   m.parameter_size, m.model_size_gb, m.is_available,
+                   m.total_requests, m.avg_response_ms,
+                   n.bridge_enabled, n.status as node_status
+            FROM node_ollama_models m
+            JOIN remote_nodes n ON m.node_id = n.node_id
+            WHERE n.status = 'online' AND n.approval_status = 'approved'
+            ORDER BY m.model_name
+        """
+        )
+        all_models = cur.fetchall()
+
+        # Get aggregated view for summary
         cur.execute(
             """
             SELECT * FROM v_bridge_available_models
         """
         )
-        models = cur.fetchall()
+        aggregated = cur.fetchall()
 
         # Get summary stats
         cur.execute(
@@ -4448,10 +4464,38 @@ def get_bridge_available_models():
         )
         summary = cur.fetchone()
 
+        # Get local Ollama models (this host)
+        local_models = []
+        try:
+            ollama_host = os.environ.get("OLLAMA_HOST", "host.docker.internal")
+            ollama_port = os.environ.get("OLLAMA_PORT", "11434")
+            resp = requests.get(f"http://{ollama_host}:{ollama_port}/api/tags", timeout=5)
+            if resp.status_code == 200:
+                for m in resp.json().get("models", []):
+                    size_gb = round(m.get("size", 0) / 1e9, 1)
+                    local_models.append(
+                        {
+                            "name": m["name"],
+                            "family": m.get("details", {}).get("family", ""),
+                            "parameter_size": m.get("details", {}).get("parameter_size", ""),
+                            "size_gb": size_gb,
+                        }
+                    )
+        except Exception:
+            pass  # Local Ollama unreachable — just skip
+
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "models": models, "summary": summary})
+        return jsonify(
+            {
+                "success": True,
+                "models": aggregated,
+                "all_models": all_models,
+                "local_models": local_models,
+                "summary": summary,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Get bridge models error: {e}")
@@ -4483,7 +4527,7 @@ def get_node_models(node_id):
         # Get models
         cur.execute(
             """
-            SELECT model_name, model_family, parameter_size, model_size_gb,
+            SELECT id, model_name, model_family, parameter_size, model_size_gb,
                    is_available, total_requests, avg_response_ms, updated_at
             FROM node_ollama_models
             WHERE node_id = %s
@@ -4590,6 +4634,50 @@ def sync_node_models_api(node_id):
 
     except Exception as e:
         logger.error(f"Manual model sync error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/nodes/<node_id>/models/<int:model_id>/toggle", methods=["PUT"])
+@login_required
+def toggle_model_availability(node_id, model_id):
+    """Enable or disable a specific model on a node for bridge routing"""
+    data = request.get_json() or {}
+    enabled = data.get("enabled", True)
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            UPDATE node_ollama_models
+            SET is_available = %s, updated_at = NOW()
+            WHERE id = %s AND node_id = %s
+            RETURNING model_name
+        """,
+            (enabled, model_id, node_id),
+        )
+
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Model not found"}), 404
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "model_name": result[0],
+                "is_available": enabled,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Toggle model availability error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

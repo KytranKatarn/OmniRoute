@@ -2474,7 +2474,8 @@ body.light-mode .status-bar-divider {
     color: var(--archie-success);
 }
 
-.node-actions button.reject {
+.node-actions button.reject,
+.node-actions button.danger {
     background: rgba(255, 68, 68, 0.1);
     border-color: var(--archie-danger);
     color: var(--archie-danger);
@@ -2863,6 +2864,26 @@ body.light-mode .status-bar-divider {
 
 .model-meta .requests {
     color: var(--archie-cyan);
+}
+
+.model-card.disabled {
+    opacity: 0.45;
+    border-color: rgba(255, 255, 255, 0.03);
+}
+
+.model-card .model-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.65rem;
+    color: var(--archie-text-muted);
+}
+
+.model-card .model-toggle label.toggle-switch {
+    transform: scale(0.75);
 }
 
 /* Add Node Modal */
@@ -4415,29 +4436,35 @@ body.light-mode .bridge-hud-value {
                     </div>
                 </div>
 
-                <!-- Model Availability — briefing card -->
+                <!-- Local Models — briefing card -->
+                <div class="briefing-card" style="--card-accent: #00ffff;">
+                    <div class="briefing-card-header">
+                        <i data-lucide="hard-drive"></i>
+                        <span>Local Models</span>
+                        <span class="briefing-card-link" id="local-model-count">0 models</span>
+                    </div>
+                    <div class="briefing-card-body">
+                        <div class="model-grid" id="local-models-grid">
+                            <div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
+                                Loading local models...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Remote Node Models — briefing card -->
                 <div class="briefing-card" style="--card-accent: #ff6b6b;">
                     <div class="briefing-card-header">
-                        <i data-lucide="box"></i>
-                        <span data-i18n="bridge.sections.model_availability">Bridge Model Availability</span>
-                        <span class="briefing-card-link" id="model-stats-link">
-                            <span>0</span> <span data-i18n="bridge.network.models">Models</span>
+                        <i data-lucide="globe"></i>
+                        <span>Remote Node Models</span>
+                        <span class="briefing-card-link" id="remote-model-stats">
+                            <span>0</span> models &middot; <span>0</span> nodes
                         </span>
                     </div>
                     <div class="briefing-card-body">
-                        <div class="model-availability-section" id="model-availability-section">
-                            <div class="model-availability-header">
-                                <h3><i data-lucide="box"></i> <span>Bridge Model Availability</span></h3>
-                                <div class="model-stats">
-                                    <div class="stat"><span>0</span> Models</div>
-                                    <div class="stat"><span>0</span> Nodes</div>
-                                    <div class="stat"><span>0</span> Requests</div>
-                                </div>
-                            </div>
-                            <div class="model-grid" id="model-grid">
-                                <div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
-                                    Loading models...
-                                </div>
+                        <div class="model-grid" id="remote-models-grid">
+                            <div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
+                                Loading remote models...
                             </div>
                         </div>
                     </div>
@@ -5883,6 +5910,7 @@ function renderNodeCard(node) {
                 ` : `
                     <button onclick="testNode('${node.node_id}')">TEST</button>
                     <button onclick="showNodeDetail('${node.node_id}')">DETAIL</button>
+                    <button class="danger" onclick="removeNode('${node.node_id}', '${escapeHtml(node.node_name || node.node_id)}')">REMOVE</button>
                 `}
             </div>
         </div>
@@ -5949,6 +5977,24 @@ async function testNode(nodeId) {
     } finally {
         btn.textContent = 'TEST';
         btn.disabled = false;
+    }
+}
+
+async function removeNode(nodeId, nodeName) {
+    if (!confirm('Remove node "' + nodeName + '"? This will delete the node and all its model registrations.')) return;
+    try {
+        var response = await fetch('/tools/bridge/api/nodes/' + nodeId, { method: 'DELETE' });
+        var data = await response.json();
+        if (data.success) {
+            showToast('Node removed: ' + esc(nodeName), 'success');
+            loadNodes();
+            loadModelAvailability();
+        } else {
+            showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Error removing node:', error);
+        showToast('Error removing node', 'error');
     }
 }
 
@@ -6666,56 +6712,96 @@ async function toggleBridgeSharing(nodeId, enabled) {
 // Load and display available models across bridge-enabled nodes (Phase 72)
 async function loadModelAvailability() {
     try {
-        const response = await fetch('/tools/bridge/api/bridge/models');
-        const data = await response.json();
+        var response = await fetch('/tools/bridge/api/bridge/models');
+        var data = await response.json();
 
         if (data.success) {
-            renderModelAvailability(data.models, data.summary);
+            renderLocalModels(data.local_models || []);
+            renderRemoteModels(data.all_models || [], data.summary || {});
         }
     } catch (error) {
         console.error('Error loading model availability:', error);
     }
 }
 
-function renderModelAvailability(models, summary) {
-    const container = document.getElementById('model-availability-section');
-    if (!container) return;
+function renderLocalModels(models) {
+    var grid = document.getElementById('local-models-grid');
+    var countEl = document.getElementById('local-model-count');
+    if (!grid) return;
 
-    const grid = container.querySelector('.model-grid');
-    const statsContainer = container.querySelector('.model-stats');
+    if (countEl) countEl.textContent = models.length + ' model' + (models.length !== 1 ? 's' : '');
 
-    // Update stats in inner header
-    if (statsContainer) {
-        statsContainer.innerHTML = `
-            <div class="stat"><span>${summary?.total_models || 0}</span> Models</div>
-            <div class="stat"><span>${summary?.total_nodes || 0}</span> Nodes</div>
-            <div class="stat"><span>${summary?.total_requests || 0}</span> Requests</div>
-        `;
+    if (models.length === 0) {
+        grid.innerHTML = '<div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">Local Ollama not reachable or no models installed.</div>';
+        return;
     }
 
-    // Update briefing-card header count
-    const modelStatsLink = document.getElementById('model-stats-link');
-    if (modelStatsLink) {
-        modelStatsLink.innerHTML = `<span>${summary?.total_models || 0}</span> Models`;
+    grid.innerHTML = models.map(function(m) {
+        return '<div class="model-card">' +
+            '<div class="model-name">' + esc(m.name) + '</div>' +
+            '<div class="model-meta">' +
+                (m.family ? '<span class="tag">' + esc(m.family) + '</span>' : '') +
+                (m.parameter_size ? '<span class="tag">' + esc(m.parameter_size) + '</span>' : '') +
+                (m.size_gb ? '<span class="requests">' + m.size_gb + ' GB</span>' : '') +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function renderRemoteModels(allModels, summary) {
+    var grid = document.getElementById('remote-models-grid');
+    var statsEl = document.getElementById('remote-model-stats');
+    if (!grid) return;
+
+    if (statsEl) {
+        statsEl.innerHTML = '<span>' + (summary.total_models || 0) + '</span> models &middot; <span>' + (summary.total_nodes || 0) + '</span> nodes';
     }
 
-    // Render model cards
-    if (grid) {
-        if (models.length === 0) {
-            grid.innerHTML = '<div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">No models available. Enable Bridge LLM on nodes with Ollama.</div>';
+    if (allModels.length === 0) {
+        grid.innerHTML = '<div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">No remote node models registered. Enable Bridge LLM on nodes with Ollama.</div>';
+        return;
+    }
+
+    grid.innerHTML = allModels.map(function(m) {
+        var disabled = !m.is_available;
+        var checkAttr = m.is_available ? ' checked' : '';
+        return '<div class="model-card' + (disabled ? ' disabled' : '') + '">' +
+            '<div class="model-name">' + esc(m.model_name) + '</div>' +
+            '<div class="model-meta">' +
+                (m.model_family ? '<span class="tag">' + esc(m.model_family) + '</span>' : '') +
+                (m.parameter_size ? '<span class="tag">' + esc(m.parameter_size) + '</span>' : '') +
+                '<span class="nodes">' + esc(m.node_name) + '</span>' +
+                (m.total_requests > 0 ? '<span class="requests">' + m.total_requests + ' req</span>' : '') +
+            '</div>' +
+            '<div class="model-toggle">' +
+                '<span>' + (m.is_available ? 'Enabled' : 'Disabled') + '</span>' +
+                '<label class="toggle-switch">' +
+                    '<input type="checkbox"' + checkAttr +
+                        ' onchange="toggleModelAvailability(\'' + esc(m.node_id) + '\',' + m.id + ',this.checked)">' +
+                    '<span class="toggle-slider"></span>' +
+                '</label>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+async function toggleModelAvailability(nodeId, modelId, enabled) {
+    try {
+        var response = await fetch('/tools/bridge/api/nodes/' + nodeId + '/models/' + modelId + '/toggle', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: enabled })
+        });
+        var data = await response.json();
+        if (data.success) {
+            showToast('Model ' + esc(data.model_name) + ' ' + (enabled ? 'enabled' : 'disabled'), 'success');
+            loadModelAvailability();
         } else {
-            grid.innerHTML = models.map(model => `
-                <div class="model-card">
-                    <div class="model-name">${escapeHtml(model.model_name)}</div>
-                    <div class="model-meta">
-                        ${model.model_family ? `<span class="tag">${model.model_family}</span>` : ''}
-                        ${model.parameter_size ? `<span class="tag">${model.parameter_size}</span>` : ''}
-                        <span class="nodes">${model.node_count} node${model.node_count !== 1 ? 's' : ''}</span>
-                        ${model.total_requests > 0 ? `<span class="requests">${model.total_requests} req</span>` : ''}
-                    </div>
-                </div>
-            `).join('');
+            showToast('Failed: ' + (data.error || 'Unknown error'), 'error');
         }
+    } catch (error) {
+        console.error('Error toggling model:', error);
+        showToast('Error toggling model', 'error');
     }
 }
 

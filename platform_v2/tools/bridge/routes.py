@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Dict, List
 from flask import Blueprint, render_template, jsonify, request, Response, stream_with_context
 from flask_login import login_required, current_user
+from rbac import require_permission, Permission
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import requests
@@ -245,6 +246,7 @@ def bridge_dashboard():
 
 
 @bridge_bp.route("/api/stats")
+@login_required
 def get_bridge_stats():
     """Get overall Bridge statistics"""
     try:
@@ -345,6 +347,7 @@ def get_bridge_stats():
 
 
 @bridge_bp.route("/api/stations")
+@login_required
 def get_stations():
     """Get all station configurations from database (10 stations)"""
     try:
@@ -421,6 +424,7 @@ def get_stations():
 
 
 @bridge_bp.route("/api/stations/<station_code>")
+@login_required
 def get_station_detail(station_code):
     """Get detailed info for a specific station"""
     station_code = station_code.upper()
@@ -497,6 +501,7 @@ def get_station_detail(station_code):
 
 
 @bridge_bp.route("/api/connections")
+@login_required
 def get_llm_connections():
     """Get all LLM connection statuses"""
     connections = []
@@ -531,6 +536,7 @@ def get_llm_connections():
 
 
 @bridge_bp.route("/api/connections/<connection_id>/health")
+@login_required
 def check_connection_health(connection_id):
     """Check health of a specific LLM connection"""
     if connection_id not in LLM_CONNECTIONS:
@@ -618,6 +624,7 @@ def check_api_key_status(connection_id):
 
 
 @bridge_bp.route("/api/agents")
+@login_required
 def get_bridge_agents():
     """Get agents available for station assignment"""
     try:
@@ -929,6 +936,7 @@ def delete_agent_skill(agent_id, skill_id):
 
 
 @bridge_bp.route("/api/agents/<int:agent_id>/assign-station", methods=["POST"])
+@login_required
 def assign_agent_to_station(agent_id):
     """Assign an agent to a station"""
     data = request.get_json() or {}
@@ -1021,6 +1029,7 @@ def assign_agent_to_station(agent_id):
 
 
 @bridge_bp.route("/api/agents/<int:agent_id>/unassign-station", methods=["POST"])
+@login_required
 def unassign_agent_from_station(agent_id):
     """Remove an agent from a station"""
     data = request.get_json() or {}
@@ -1078,6 +1087,7 @@ def unassign_agent_from_station(agent_id):
 
 
 @bridge_bp.route("/api/stations/assignments")
+@login_required
 def get_all_station_assignments():
     """Get all station assignments grouped by station"""
     try:
@@ -1144,6 +1154,7 @@ def get_all_station_assignments():
 
 
 @bridge_bp.route("/api/stations/unassigned-agents")
+@login_required
 def get_unassigned_agents():
     """Get agents not assigned to any station"""
     try:
@@ -1176,6 +1187,7 @@ def get_unassigned_agents():
 
 
 @bridge_bp.route("/api/stations/<station_code>/config", methods=["GET"])
+@login_required
 def get_station_config(station_code):
     """Get station configuration"""
     try:
@@ -1215,6 +1227,7 @@ def get_station_config(station_code):
 
 
 @bridge_bp.route("/api/stations/<station_code>/config", methods=["PUT"])
+@login_required
 def update_station_config(station_code):
     """Update station configuration"""
     data = request.get_json() or {}
@@ -1278,6 +1291,7 @@ def update_station_config(station_code):
 
 
 @bridge_bp.route("/api/stations/reorder", methods=["POST"])
+@login_required
 def reorder_stations():
     """Reorder stations (drag-and-drop support)"""
     data = request.get_json() or {}
@@ -1316,6 +1330,7 @@ def reorder_stations():
 
 
 @bridge_bp.route("/api/assignments/<int:assignment_id>", methods=["DELETE"])
+@login_required
 def delete_assignment(assignment_id):
     """Delete a station assignment"""
     try:
@@ -1345,6 +1360,7 @@ def delete_assignment(assignment_id):
 
 
 @bridge_bp.route("/api/assignments/<int:assignment_id>", methods=["PUT"])
+@login_required
 def update_assignment(assignment_id):
     """Update a station assignment"""
     data = request.get_json() or {}
@@ -1400,6 +1416,7 @@ def update_assignment(assignment_id):
 
 
 @bridge_bp.route("/api/stations/<station_code>/request-support", methods=["POST"])
+@login_required
 def request_station_support(station_code):
     """
     Handle additional support requests from modules.
@@ -1617,6 +1634,7 @@ def request_station_support(station_code):
 
 
 @bridge_bp.route("/api/stations/<station_code>/release-support", methods=["POST"])
+@login_required
 def release_station_support(station_code):
     """
     Release an agent from the additional_support slot.
@@ -1906,6 +1924,7 @@ def check_iaae_move_compliance(agent_id):
 
 
 @bridge_bp.route("/api/traffic")
+@login_required
 def get_traffic_stats():
     """Get throughput stats from task_execution_log (rolling 24h window)"""
     try:
@@ -1940,6 +1959,7 @@ def get_traffic_stats():
 
 
 @bridge_bp.route("/api/agent-utilization")
+@login_required
 def get_agent_utilization():
     """Get real agent activity rate over 24h (agents that executed tasks / total active)"""
     try:
@@ -1977,6 +1997,7 @@ def get_agent_utilization():
 
 
 @bridge_bp.route("/api/models/live")
+@login_required
 def get_live_models():
     """Get actual model count from live Ollama API"""
     try:
@@ -1998,6 +2019,7 @@ def get_live_models():
 
 
 @bridge_bp.route("/api/iaae/overview")
+@login_required
 def get_iaae_overview():
     """Get real IAAE compliance and welfare metrics"""
     try:
@@ -2314,6 +2336,7 @@ def get_iaae_enforcement_log():
 
 
 @bridge_bp.route("/api/archie/status")
+@login_required
 def get_archie_status():
     """Get A.R.C.H.I.E.'s current status and emotional state"""
     try:
@@ -2385,6 +2408,7 @@ def get_archie_status():
 
 
 @bridge_bp.route("/api/modules")
+@login_required
 def get_module_mapping():
     """Get mapping of modules to stations for navigation"""
     modules = []
@@ -2413,6 +2437,7 @@ def get_module_mapping():
 
 
 @bridge_bp.route("/api/llm/status")
+@login_required
 def get_llm_status():
     """Get live LLM status from Ollama + external API key checks"""
     try:
@@ -2575,6 +2600,7 @@ def verify_api_key(api_key, stored_hash):
 
 
 @bridge_bp.route("/api/nodes")
+@login_required
 def get_all_nodes():
     """Get all registered remote nodes"""
     try:
@@ -3157,6 +3183,7 @@ def node_heartbeat(node_id):
 
 
 @bridge_bp.route("/api/nodes/<node_id>")
+@login_required
 def get_node_detail(node_id):
     """Get detailed info about a specific node"""
     try:
@@ -3233,6 +3260,7 @@ def get_node_detail(node_id):
 
 
 @bridge_bp.route("/api/nodes/<node_id>", methods=["PUT"])
+@login_required
 def update_node(node_id):
     """Update a remote node configuration"""
     data = request.get_json() or {}
@@ -3289,6 +3317,8 @@ def update_node(node_id):
 
 
 @bridge_bp.route("/api/nodes/<node_id>", methods=["DELETE"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
 def delete_node(node_id):
     """Delete a remote node"""
     try:
@@ -3380,6 +3410,7 @@ def update_node_capabilities(node_id):
 
 
 @bridge_bp.route("/api/nodes/select", methods=["POST"])
+@login_required
 def select_node_for_request():
     """Select the best node for a request (load balancing)"""
     data = request.get_json() or {}
@@ -3525,6 +3556,7 @@ def node_request_complete(node_id):
 
 
 @bridge_bp.route("/api/nodes/stats")
+@login_required
 def get_node_stats():
     """Get aggregate stats across all nodes"""
     try:
@@ -3643,6 +3675,8 @@ def get_node_status(node_id):
 
 
 @bridge_bp.route("/api/nodes/<node_id>/approve", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
 def approve_node(node_id):
     """Approve a pending node registration"""
     try:
@@ -3691,6 +3725,8 @@ def approve_node(node_id):
 
 
 @bridge_bp.route("/api/nodes/<node_id>/reject", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
 def reject_node(node_id):
     """Reject a pending node registration"""
     data = request.get_json() or {}
@@ -3744,6 +3780,7 @@ def reject_node(node_id):
 
 
 @bridge_bp.route("/api/nodes/<node_id>/test", methods=["POST"])
+@login_required
 def test_node_connection(node_id):
     """Test connectivity to a remote node's Ollama instance"""
     import time
@@ -3833,6 +3870,7 @@ def test_node_connection(node_id):
 
 
 @bridge_bp.route("/api/nodes/<node_id>/health-history", methods=["GET"])
+@login_required
 def get_node_health_history(node_id):
     """Get health history for a node (for charts)"""
     hours = request.args.get("hours", 24, type=int)
@@ -3897,6 +3935,7 @@ def get_node_health_history(node_id):
 
 
 @bridge_bp.route("/api/nodes/<node_id>/stations", methods=["GET"])
+@login_required
 def get_node_stations(node_id):
     """Get all station assignments for a node"""
     try:
@@ -4241,6 +4280,7 @@ def remove_node_from_station(node_id, station_id):
 
 
 @bridge_bp.route("/api/stations/<int:station_id>/nodes", methods=["GET"])
+@login_required
 def get_station_nodes(station_id):
     """Get all nodes assigned to a station"""
     try:
@@ -4327,6 +4367,7 @@ def get_station_nodes(station_id):
 
 
 @bridge_bp.route("/api/stations/coverage", methods=["GET"])
+@login_required
 def get_all_station_coverage():
     """Get node coverage summary for all stations"""
     try:
@@ -4367,6 +4408,7 @@ def get_all_station_coverage():
 
 
 @bridge_bp.route("/api/nodes/select-for-station", methods=["POST"])
+@login_required
 def select_node_for_station_api():
     """Select the best available node for a station task"""
     data = request.get_json() or {}
@@ -4488,6 +4530,7 @@ def toggle_bridge_sharing(node_id):
 
 
 @bridge_bp.route("/api/bridge/models")
+@login_required
 def get_bridge_available_models():
     """Get all models available across bridge-enabled nodes, split local vs remote"""
     try:
@@ -4570,6 +4613,7 @@ def get_bridge_available_models():
 
 
 @bridge_bp.route("/api/nodes/<node_id>/models")
+@login_required
 def get_node_models(node_id):
     """Get Ollama models available on a specific node"""
     try:
@@ -4749,6 +4793,7 @@ def toggle_model_availability(node_id, model_id):
 
 
 @bridge_bp.route("/api/bridge/select-node", methods=["POST"])
+@login_required
 def select_node_for_model():
     """Select the best available node for a specific model"""
     data = request.get_json() or {}
@@ -4833,6 +4878,7 @@ SCHEDULER_MODES = {
 
 
 @bridge_bp.route("/api/mining/scheduler")
+@login_required
 def get_scheduler_status():
     """Get current resource scheduler status"""
     try:
@@ -4902,6 +4948,8 @@ def get_scheduler_status():
 
 
 @bridge_bp.route("/api/mining/scheduler", methods=["PUT"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
 def update_scheduler_config():
     """Update resource scheduler configuration"""
     data = request.get_json() or {}
@@ -4965,6 +5013,7 @@ def update_scheduler_config():
 
 
 @bridge_bp.route("/api/mining/contributors")
+@login_required
 def get_contributors():
     """Get mining pool contributors and their rewards"""
     try:
@@ -5030,6 +5079,7 @@ def get_contributors():
 
 
 @bridge_bp.route("/api/mining/contributors/register", methods=["POST"])
+@login_required
 def register_contributor():
     """Register a new mining contributor"""
     data = request.get_json() or {}
@@ -5077,6 +5127,7 @@ def register_contributor():
 
 
 @bridge_bp.route("/api/mining/rewards/<wallet>")
+@login_required
 def get_contributor_rewards(wallet):
     """Get reward history for a contributor"""
     try:
@@ -5132,6 +5183,7 @@ def get_contributor_rewards(wallet):
 
 
 @bridge_bp.route("/api/mining/allocate", methods=["POST"])
+@login_required
 def allocate_resource():
     """Allocate a resource for AI or mining task"""
     data = request.get_json() or {}
@@ -5233,6 +5285,7 @@ def allocate_resource():
 
 
 @bridge_bp.route("/api/mining/release/<int:allocation_id>", methods=["POST"])
+@login_required
 def release_resource(allocation_id):
     """Release an allocated resource"""
     try:
@@ -5260,6 +5313,7 @@ def release_resource(allocation_id):
 
 
 @bridge_bp.route("/api/mining/pool-stats")
+@login_required
 def get_pool_integration_stats():
     """Get mining pool stats integrated with Bridge"""
     pool_api_url = os.environ.get("POOL_API_URL", "http://localhost:8080")
@@ -5363,6 +5417,7 @@ def ide_dashboard():
 
 
 @bridge_bp.route("/api/ide/status")
+@login_required
 def ide_status():
     """API status endpoint for IDE integration health checks"""
     active_sessions = sum(1 for s in connected_ides.values() if (datetime.now() - s.last_activity).seconds < 300)
@@ -5385,6 +5440,7 @@ def ide_status():
 
 
 @bridge_bp.route("/api/ide/connect", methods=["POST"])
+@login_required
 def connect_ide():
     """
     Register a new IDE connection
@@ -5441,6 +5497,7 @@ def connect_ide():
 
 
 @bridge_bp.route("/api/ide/disconnect/<session_id>", methods=["POST"])
+@login_required
 def disconnect_ide(session_id):
     """Disconnect an IDE session"""
     if session_id in connected_ides:
@@ -5459,6 +5516,7 @@ def list_ide_sessions():
 
 
 @bridge_bp.route("/api/ide/context/<session_id>", methods=["GET", "POST"])
+@login_required
 def ide_context_api(session_id):
     """Get or update context for an IDE session"""
     if session_id not in connected_ides:
@@ -5490,6 +5548,7 @@ def ide_context_api(session_id):
 
 
 @bridge_bp.route("/api/ide/complete/<session_id>", methods=["POST"])
+@login_required
 def ide_code_completion(session_id):
     """Get AI-powered code completions"""
     if session_id not in connected_ides:
@@ -5559,6 +5618,7 @@ Provide the code completion (just the code, nothing else):"""
 
 
 @bridge_bp.route("/api/ide/actions/<session_id>", methods=["POST"])
+@login_required
 def ide_code_actions(session_id):
     """Get available code actions for a selection"""
     if session_id not in connected_ides:
@@ -5638,6 +5698,7 @@ def ide_code_actions(session_id):
 
 
 @bridge_bp.route("/api/ide/actions/<session_id>/execute", methods=["POST"])
+@login_required
 def ide_execute_action(session_id):
     """Execute a code action"""
     if session_id not in connected_ides:
@@ -5734,6 +5795,7 @@ Provide the corrected code only, no explanations."""
 
 
 @bridge_bp.route("/api/ide/diagnostics/<session_id>", methods=["POST"])
+@login_required
 def ide_get_diagnostics(session_id):
     """Get AI-powered diagnostics for a file"""
     if session_id not in connected_ides:
@@ -5758,6 +5820,7 @@ def ide_get_diagnostics(session_id):
 
 
 @bridge_bp.route("/mcp/manifest")
+@login_required
 def mcp_manifest():
     """MCP Protocol manifest for AI assistants"""
     return jsonify(
@@ -5815,6 +5878,7 @@ def mcp_manifest():
 
 
 @bridge_bp.route("/mcp/tools/<tool_name>", methods=["POST"])
+@login_required
 def mcp_tool(tool_name):
     """Execute an MCP tool"""
     try:
@@ -5877,6 +5941,7 @@ def mcp_tool(tool_name):
 
 
 @bridge_bp.route("/mcp/knowledge")
+@login_required
 def mcp_knowledge():
     """Access knowledge base via MCP"""
     query = request.args.get("query", "")
@@ -6607,6 +6672,7 @@ def get_routing_mode():
 
 @bridge_bp.route("/api/routing-mode", methods=["POST"])
 @login_required
+@require_permission(Permission.ADMIN_ACCESS)
 def set_routing_mode():
     """Set bridge routing mode: local_only, local_cloud, or full."""
     data = request.get_json() or {}
@@ -6651,6 +6717,7 @@ def get_escalation_mode():
 
 @bridge_bp.route("/api/escalation-mode", methods=["POST"])
 @login_required
+@require_permission(Permission.ADMIN_ACCESS)
 def set_escalation_mode():
     """Set bridge escalation mode: auto, ask_first, or local_only."""
     data = request.get_json() or {}
@@ -6990,6 +7057,7 @@ def get_external_providers():
 
 @bridge_bp.route("/api/external-providers", methods=["POST"])
 @login_required
+@require_permission(Permission.ADMIN_ACCESS)
 def upsert_external_provider():
     """Add or update an external AI provider API key."""
     data = request.get_json() or {}
@@ -7034,6 +7102,7 @@ def upsert_external_provider():
 
 @bridge_bp.route("/api/external-providers/<provider>/toggle", methods=["POST"])
 @login_required
+@require_permission(Permission.ADMIN_ACCESS)
 def toggle_external_provider(provider):
     """Enable/disable an external provider."""
     try:

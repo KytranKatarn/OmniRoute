@@ -8774,10 +8774,18 @@ function returnFromLounge(agentId) {
 
 async function loadContractors() {
     try {
-        var resp = await fetch('/tools/bridge/api/external-providers');
-        if (!resp.ok) throw new Error('Failed to load providers');
-        var data = await resp.json();
-        renderContractors(data.providers || []);
+        var [provResp, modeResp] = await Promise.all([
+            fetch('/tools/bridge/api/external-providers'),
+            fetch('/tools/bridge/api/routing-mode')
+        ]);
+        if (!provResp.ok) throw new Error('Failed to load providers');
+        var data = await provResp.json();
+        var routingMode = 'full';
+        if (modeResp.ok) {
+            var modeData = await modeResp.json();
+            if (modeData.success) routingMode = modeData.routing_mode || 'full';
+        }
+        renderContractors(data.providers || [], routingMode);
     } catch (e) {
         console.error('loadContractors error:', e);
         var grid = document.getElementById('contractors-grid');
@@ -8785,7 +8793,9 @@ async function loadContractors() {
     }
 }
 
-function renderContractors(providers) {
+function renderContractors(providers, routingMode) {
+    routingMode = routingMode || 'full';
+    var cloudProviders = ['minimax_cloud', 'qwen3_cloud'];
     var grid = document.getElementById('contractors-grid');
     var summaryEl = document.getElementById('contractors-summary');
     if (!grid) return;
@@ -8820,8 +8830,11 @@ function renderContractors(providers) {
         var statusText = isOverBudget ? 'Over Budget' : (isEnabled ? 'Active' : 'Inactive');
         var budgetPct = p.monthly_budget > 0 ? Math.min(100, ((p.cost_24h || 0) * 30 / p.monthly_budget) * 100) : 0;
         var budgetFillClass = budgetPct > 100 ? 'over' : (budgetPct > 75 ? 'warning' : '');
+        var isBlocked = (routingMode === 'local_only') ||
+                        (routingMode === 'local_cloud' && cloudProviders.indexOf(p.provider) === -1);
+        var blockedStyle = isBlocked ? 'position:relative;opacity:0.4;pointer-events:none;' : '';
 
-        html += '<div class="contractor-firm' + (isEnabled ? ' expanded' : '') + '">';
+        html += '<div class="contractor-firm' + (isEnabled ? ' expanded' : '') + '"' + (blockedStyle ? ' style="' + blockedStyle + '"' : '') + '>';
         html += '<div class="contractor-firm-header" onclick="this.parentElement.classList.toggle(\'expanded\')">';
         html += '<i data-lucide="chevron-right" class="chevron-icon"></i>';
         html += '<span class="contractor-firm-name">' + providerName + '</span>';
@@ -8863,6 +8876,10 @@ function renderContractors(providers) {
             html += '</div>'; // models grid
         }
         html += '</div>'; // firm body
+        if (isBlocked) {
+            var blockedText = routingMode === 'local_only' ? 'Routing: Local Only' : 'Routing: Local + Cloud Only';
+            html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:#ffaa00;padding:4px 12px;border-radius:4px;font-size:0.7rem;z-index:1;pointer-events:auto;">' + blockedText + '</div>';
+        }
         html += '</div>'; // firm
     });
 

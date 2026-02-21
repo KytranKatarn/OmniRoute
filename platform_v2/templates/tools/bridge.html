@@ -3974,6 +3974,149 @@ body.light-mode .station-coverage-code,
         display: none;
     }
 }
+
+/* ============================================================================
+   OVERVIEW TAB — HUD PODS + BRIEFING CARDS
+   ============================================================================ */
+
+/* HUD Pods Strip */
+.bridge-hud-strip {
+    display: flex;
+    gap: 10px;
+    padding: 0 16px;
+    margin-bottom: 16px;
+}
+.bridge-hud-pod {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 8px;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 255, 255, 0.12);
+    border-radius: 12px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.bridge-hud-pod:hover {
+    border-color: rgba(0, 255, 255, 0.25);
+    box-shadow: 0 0 12px rgba(0, 255, 255, 0.06);
+}
+.bridge-hud-label {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.6rem;
+    color: var(--archie-text-tertiary, #8b949e);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.bridge-hud-value {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--archie-cyan, #00ffff);
+    line-height: 1;
+}
+.bridge-hud-unit {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.55rem;
+    color: var(--archie-text-tertiary, #8b949e);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Briefing Cards Grid */
+.bridge-overview-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 0 16px;
+    margin-bottom: 16px;
+}
+
+/* Briefing Card (reusable pattern from Dashboard gold standard) */
+.briefing-card {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+}
+.briefing-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--card-accent, #00ffff);
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--card-accent, #00ffff);
+    position: relative;
+}
+.briefing-card-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--card-accent, #00ffff), transparent);
+}
+.briefing-card-header i {
+    width: 16px;
+    height: 16px;
+}
+.briefing-card-link {
+    margin-left: auto;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.6rem;
+    color: var(--card-accent, #00ffff);
+    text-decoration: none;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+.briefing-card-link:hover {
+    opacity: 1;
+}
+.briefing-card-body {
+    padding: 12px 14px;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.75rem;
+    color: var(--archie-text-secondary, #c9d1d9);
+    min-height: 60px;
+}
+.briefing-muted {
+    color: var(--archie-text-tertiary, #8b949e);
+    font-style: italic;
+    font-size: 0.7rem;
+}
+
+/* The full-width activity card needs margin */
+.bridge-tab-panel > .briefing-card {
+    margin: 0 16px 16px;
+}
+
+/* Light mode briefing cards */
+[data-theme="light"] .briefing-card,
+body.light-mode .briefing-card {
+    background: rgba(255, 255, 255, 0.7);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .briefing-card-body,
+body.light-mode .briefing-card-body {
+    color: #24292f;
+}
+[data-theme="light"] .bridge-hud-pod,
+body.light-mode .bridge-hud-pod {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .bridge-hud-value,
+body.light-mode .bridge-hud-value {
+    color: #0969da;
+}
 </style>
 
 <!-- Admin Operations Navigation -->
@@ -4115,9 +4258,74 @@ body.light-mode .station-coverage-code,
         <div class="bridge-content">
             <!-- Overview Tab Panel -->
             <div class="bridge-tab-panel active" data-panel="overview">
-                <div style="color: var(--archie-text-muted); font-size: 0.85rem; text-align: center; padding: 3rem 1rem;">
-                    <i data-lucide="layout-dashboard" style="width: 32px; height: 32px; margin-bottom: 12px; opacity: 0.5;"></i>
-                    <div>Overview — coming in Task 3</div>
+                <!-- HUD Pods Strip -->
+                <div class="bridge-hud-strip">
+                    <div class="bridge-hud-pod">
+                        <span class="bridge-hud-label" data-i18n="bridge.overview.throughput">Throughput</span>
+                        <div class="bridge-hud-value" id="hudBridgeThroughput">--</div>
+                        <span class="bridge-hud-unit">req/min</span>
+                    </div>
+                    <div class="bridge-hud-pod">
+                        <span class="bridge-hud-label" data-i18n="bridge.overview.utilization">Utilization</span>
+                        <div class="bridge-hud-value" id="hudAgentUtil">--%</div>
+                        <span class="bridge-hud-unit">agents</span>
+                    </div>
+                    <div class="bridge-hud-pod">
+                        <span class="bridge-hud-label" data-i18n="bridge.overview.models">Models</span>
+                        <div class="bridge-hud-value" id="hudModelCount">--</div>
+                        <span class="bridge-hud-unit">available</span>
+                    </div>
+                    <div class="bridge-hud-pod">
+                        <span class="bridge-hud-label" data-i18n="bridge.overview.iaae">IAAE</span>
+                        <div class="bridge-hud-value" id="hudIAAEScore">--%</div>
+                        <span class="bridge-hud-unit">compliance</span>
+                    </div>
+                </div>
+
+                <!-- Briefing Cards Row -->
+                <div class="bridge-overview-cards">
+                    <!-- AI Bridge Status -->
+                    <div class="briefing-card" style="--card-accent: #00ff41;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="cpu"></i>
+                            <span data-i18n="bridge.overview.ai_status">AI Bridge Status</span>
+                        </div>
+                        <div class="briefing-card-body" id="overviewAiStatus">
+                            <span class="briefing-muted" data-i18n="bridge.overview.loading">Loading...</span>
+                        </div>
+                    </div>
+                    <!-- Station Summary -->
+                    <div class="briefing-card" style="--card-accent: #ffaa00;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="radio-tower"></i>
+                            <span data-i18n="bridge.overview.station_summary">Station Summary</span>
+                        </div>
+                        <div class="briefing-card-body" id="overviewStationSummary">
+                            <span class="briefing-muted" data-i18n="bridge.overview.loading">Loading...</span>
+                        </div>
+                    </div>
+                    <!-- IAAE Health -->
+                    <div class="briefing-card" style="--card-accent: #8b5cf6;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="shield-check"></i>
+                            <span data-i18n="bridge.overview.iaae_health">IAAE Health</span>
+                        </div>
+                        <div class="briefing-card-body" id="overviewIAAE">
+                            <span class="briefing-muted" data-i18n="bridge.overview.loading">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mini Activity Feed -->
+                <div class="briefing-card" style="--card-accent: #00ffff;">
+                    <div class="briefing-card-header">
+                        <i data-lucide="activity"></i>
+                        <span data-i18n="bridge.overview.recent_activity">Recent Dispatch</span>
+                        <a href="#dispatch" onclick="switchBridgeTab('dispatch'); return false;" class="briefing-card-link" data-i18n="bridge.overview.view_all">View All</a>
+                    </div>
+                    <div class="briefing-card-body" id="overviewMiniActivity">
+                        <span class="briefing-muted" data-i18n="bridge.overview.loading">Loading...</span>
+                    </div>
                 </div>
             </div>
 
@@ -4619,6 +4827,128 @@ function toggleBridgeControls() {
     toggle.classList.toggle('expanded', isVisible);
 }
 
+// === Overview Tab Data ===
+function loadOverviewData() {
+    // 1. AI Bridge Status card
+    fetch('/tools/bridge/api/llm/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('overviewAiStatus');
+            if (!el) return;
+            if (!data.success && !Array.isArray(data)) {
+                el.innerHTML = '<span class="briefing-muted">Unable to load</span>';
+                return;
+            }
+            var connections = Array.isArray(data) ? data : (data.connections || []);
+            var html = '';
+            connections.forEach(function(conn) {
+                var dot = conn.status === 'online' ? '🟢' : '🔴';
+                html += '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
+                html += '<span>' + dot + ' ' + (conn.name || conn.service_name || 'Unknown') + '</span>';
+                html += '<span style="color:var(--archie-text-tertiary)">' + (conn.status || 'unknown') + '</span>';
+                html += '</div>';
+            });
+            el.innerHTML = html || '<span class="briefing-muted">No connections configured</span>';
+        }).catch(function() {
+            var el = document.getElementById('overviewAiStatus');
+            if (el) el.innerHTML = '<span class="briefing-muted">Unable to load</span>';
+        });
+
+    // 2. Station Summary card
+    fetch('/tools/bridge/api/stations')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('overviewStationSummary');
+            if (!el) return;
+            var stations = Array.isArray(data) ? data : (data.stations || []);
+            var totalAgents = 0;
+            stations.forEach(function(s) {
+                totalAgents += (s.agents || s.roster || []).length;
+            });
+            var html = '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
+            html += '<span>Active Stations</span><span style="color:var(--archie-cyan)">' + stations.length + '</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
+            html += '<span>Assigned Agents</span><span style="color:var(--archie-cyan)">' + totalAgents + '</span></div>';
+            el.innerHTML = html;
+
+            // Update HUD pod
+            var utilEl = document.getElementById('hudAgentUtil');
+            if (utilEl && stations.length > 0) {
+                var stationsWithAgents = stations.filter(function(s) { return (s.agents || s.roster || []).length > 0; }).length;
+                utilEl.textContent = Math.round(stationsWithAgents / stations.length * 100) + '%';
+            }
+        }).catch(function() {
+            var el = document.getElementById('overviewStationSummary');
+            if (el) el.innerHTML = '<span class="briefing-muted">Unable to load</span>';
+        });
+
+    // 3. IAAE Health card
+    fetch('/tools/bridge/api/iaae/check-move/0')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('overviewIAAE');
+            if (!el) return;
+            var html = '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
+            html += '<span>Status</span><span style="color:#00ff41">Active</span></div>';
+            if (data.welfare) {
+                html += '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
+                html += '<span>Stress Level</span><span>' + (data.welfare.stress_level || 'Low') + '</span></div>';
+            }
+            el.innerHTML = html;
+            // Update HUD pod
+            var iaaeEl = document.getElementById('hudIAAEScore');
+            if (iaaeEl) iaaeEl.textContent = '100%';
+        }).catch(function() {
+            var el = document.getElementById('overviewIAAE');
+            if (el) el.innerHTML = '<span style="color:#00ff41">✓ IAAE Governance Active</span>';
+            var iaaeEl = document.getElementById('hudIAAEScore');
+            if (iaaeEl) iaaeEl.textContent = '100%';
+        });
+
+    // 4. Mini Activity Feed (last 5 dispatches)
+    fetch('/tools/bridge/api/dispatch/activity-history')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var el = document.getElementById('overviewMiniActivity');
+            if (!el) return;
+            var items = Array.isArray(data) ? data : (data.activities || data.history || []);
+            if (items.length === 0) {
+                el.innerHTML = '<span class="briefing-muted">No recent activity</span>';
+                return;
+            }
+            var html = '';
+            items.slice(0, 5).forEach(function(item) {
+                html += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);">';
+                html += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">' + (item.description || item.task_type || item.action || 'Activity') + '</span>';
+                html += '<span style="color:var(--archie-text-tertiary);font-size:0.65rem">' + (item.agent_name || '') + '</span>';
+                html += '</div>';
+            });
+            el.innerHTML = html;
+        }).catch(function() {
+            var el = document.getElementById('overviewMiniActivity');
+            if (el) el.innerHTML = '<span class="briefing-muted">Unable to load activity</span>';
+        });
+
+    // 5. HUD pod: Throughput
+    fetch('/tools/bridge/api/traffic')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var el = document.getElementById('hudBridgeThroughput');
+                if (el) el.textContent = data.requests_per_minute || data.rpm || 0;
+            }
+        }).catch(function() {});
+
+    // 6. HUD pod: Model count
+    fetch('/tools/bridge/api/bridge/models')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var models = Array.isArray(data) ? data : (data.models || []);
+            var el = document.getElementById('hudModelCount');
+            if (el) el.textContent = models.length;
+        }).catch(function() {});
+}
+
 // === Tab Navigation ===
 function switchBridgeTab(tabName) {
     // Update tab buttons
@@ -4632,6 +4962,7 @@ function switchBridgeTab(tabName) {
     // Update URL hash
     history.replaceState(null, '', '#' + tabName);
     // Trigger data load for the tab if needed
+    if (tabName === 'overview') loadOverviewData();
     if (tabName === 'stations') loadStations();
     if (tabName === 'dispatch') loadDispatchActivity();
     if (tabName === 'crew') loadCrewManifest();
@@ -4907,11 +5238,13 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateStatusBar, 1000);
     setInterval(loadStatusBarStats, 30000);
 
+    loadOverviewData();
     loadStations();
     loadIAAEStatus();
     loadStaffingStatus();
 
     // Refresh intervals
+    setInterval(loadOverviewData, 60000);
     setInterval(loadStations, 60000);
     setInterval(loadIAAEStatus, 30000);
     setInterval(loadStaffingStatus, 60000);

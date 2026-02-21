@@ -4258,6 +4258,7 @@ body.light-mode .bridge-hud-value {
                             <i data-lucide="users"></i>
                             <span data-i18n="bridge.crew.active_roster">Active Roster</span>
                             <span class="briefing-card-link" id="crew-manifest-count">-- agents</span>
+                            <button onclick="openAgentFormModal()" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;">+ Add Agent</button>
                         </div>
                         <div class="briefing-card-body">
                             <div class="crew-manifest-grid" id="crew-manifest-grid">
@@ -4269,20 +4270,22 @@ body.light-mode .bridge-hud-value {
 
                 <!-- Training Sub-Panel -->
                 <div class="crew-subpanel" data-subpanel="training">
-                    <div class="briefing-card" style="--card-accent: #8b5cf6; margin: 0 16px;">
+                    <div class="briefing-card" style="--card-accent: #ffaa00; margin: 0 16px;">
                         <div class="briefing-card-header">
                             <i data-lucide="graduation-cap"></i>
                             <span data-i18n="bridge.crew.training_rooms">Training Rooms</span>
                         </div>
                         <div class="briefing-card-body">
-                            <div class="bridge-drop-zone" id="training-drop-zone"
-                                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
-                                 ondrop="handleDrop(event, 'training')">
-                                <div class="bridge-drop-zone-hint" id="training-hint">
-                                    <i data-lucide="user-plus"></i>
-                                    <span data-i18n="bridge.sidebar.drop_training">Drop agent here for training</span>
-                                </div>
-                                <div id="training-agents"></div>
+                            <!-- Send to training controls -->
+                            <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+                                <select id="training-agent-select" style="flex:1;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
+                                    <option value="">Select agent...</option>
+                                </select>
+                                <button onclick="sendToTraining()" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Send to Training</button>
+                            </div>
+                            <!-- Agents currently in training -->
+                            <div id="training-agents-list">
+                                <span class="briefing-muted" style="font-size:0.75rem;">No agents in training</span>
                             </div>
                         </div>
                     </div>
@@ -4296,14 +4299,16 @@ body.light-mode .bridge-hud-value {
                             <span data-i18n="bridge.crew.lounge_rest">Lounge / Rest</span>
                         </div>
                         <div class="briefing-card-body">
-                            <div class="bridge-drop-zone" id="lounge-drop-zone"
-                                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
-                                 ondrop="handleDrop(event, 'lounge')">
-                                <div class="bridge-drop-zone-hint" id="lounge-hint">
-                                    <i data-lucide="moon"></i>
-                                    <span data-i18n="bridge.sidebar.drop_rest">Drop agent here for rest</span>
-                                </div>
-                                <div id="lounge-agents"></div>
+                            <!-- Send to lounge controls -->
+                            <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+                                <select id="lounge-agent-select" style="flex:1;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
+                                    <option value="">Select agent...</option>
+                                </select>
+                                <button onclick="sendToLounge()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Send to Lounge</button>
+                            </div>
+                            <!-- Agents currently in lounge -->
+                            <div id="lounge-agents-list">
+                                <span class="briefing-muted" style="font-size:0.75rem;">No agents in lounge</span>
                             </div>
                         </div>
                     </div>
@@ -4692,8 +4697,66 @@ body.light-mode .bridge-hud-value {
         <div class="assignment-modal-body" id="agent-profile-body">
             <span class="briefing-muted">Loading...</span>
         </div>
-        <div class="assignment-modal-footer">
+        <div class="assignment-modal-footer" id="agent-profile-footer">
+            <button class="btn-danger" onclick="deleteAgentFromProfile()" style="margin-right:auto;font-size:0.7rem;">Delete</button>
+            <button class="btn-cancel" onclick="toggleAgentFromProfile()" style="font-size:0.7rem;">Toggle Status</button>
+            <button class="btn-submit" onclick="editAgentFromProfile()" style="font-size:0.7rem;">Edit</button>
             <button class="btn-cancel" onclick="closeAgentProfile()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Agent Create/Edit Form Modal -->
+<div class="assignment-modal-overlay" id="agent-form-modal">
+    <div class="assignment-modal" style="width: 540px; max-height: 85vh; overflow-y: auto;">
+        <div class="assignment-modal-header">
+            <span id="agent-form-title">Add Agent</span>
+            <button class="assignment-modal-close" onclick="closeAgentFormModal()">&times;</button>
+        </div>
+        <div class="assignment-modal-body">
+            <input type="hidden" id="agent-form-id" value="">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">First Name</label>
+                    <input type="text" id="agent-form-first" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
+                </div>
+                <div>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Last Name</label>
+                    <input type="text" id="agent-form-last" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
+                </div>
+                <div>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Title</label>
+                    <input type="text" id="agent-form-title-input" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
+                </div>
+                <div>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Department</label>
+                    <input type="text" id="agent-form-dept" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
+                </div>
+                <div>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Model *</label>
+                    <input type="text" id="agent-form-model" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;" placeholder="e.g. dolphin3-8k:latest">
+                </div>
+                <div>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Worker Type</label>
+                    <select id="agent-form-worker" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
+                        <option value="ai">AI</option>
+                        <option value="internal">Internal</option>
+                        <option value="contractor">Contractor</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-top:8px;">
+                <label style="font-size:0.7rem;color:var(--archie-text-muted);">Bio</label>
+                <textarea id="agent-form-bio" rows="2" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;resize:vertical;"></textarea>
+            </div>
+            <div style="margin-top:8px;">
+                <label style="font-size:0.7rem;color:var(--archie-text-muted);">System Prompt</label>
+                <textarea id="agent-form-prompt" rows="3" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;resize:vertical;"></textarea>
+            </div>
+        </div>
+        <div class="assignment-modal-footer">
+            <button class="btn-cancel" onclick="closeAgentFormModal()">Cancel</button>
+            <button class="btn-submit" onclick="saveAgent()">Save Agent</button>
         </div>
     </div>
 </div>
@@ -7490,6 +7553,8 @@ function renderCrewManifest(crew) {
     var grid = document.getElementById('crew-manifest-grid');
     var countEl = document.getElementById('crew-manifest-count');
     if (!grid) return;
+    // Also populate training/lounge selects
+    populateTrainingLoungeSelects(crew);
 
     if (countEl) {
         var working = crew.filter(function(a) { return a.status === 'working'; }).length;
@@ -7628,6 +7693,7 @@ function renderCrewManifest(crew) {
 
 // === Agent Profile Modal ===
 function openAgentProfile(agentId) {
+    _profileAgentId = agentId;
     var modal = document.getElementById('agent-profile-modal');
     var body = document.getElementById('agent-profile-body');
     var title = document.getElementById('agent-profile-title');
@@ -7718,20 +7784,34 @@ function openAgentProfile(agentId) {
             html += '</div></div>';
             html += '</div>';
 
-            // Skills
+            // Skills (with add/remove)
+            html += '<div class="briefing-card" style="--card-accent:#ffaa00;margin-bottom:10px;">';
+            html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Skills</span></div>';
+            html += '<div class="briefing-card-body">';
+            html += '<div id="profile-skills-list" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">';
             if (data.skills && data.skills.length > 0) {
-                html += '<div class="briefing-card" style="--card-accent:#ffaa00;margin-bottom:10px;">';
-                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Skills</span></div>';
-                html += '<div class="briefing-card-body" style="display:flex;flex-wrap:wrap;gap:4px;">';
                 data.skills.forEach(function(s) {
                     var level = parseInt(s.proficiency_level) || 1;
                     var dots = '';
                     for (var i = 0; i < 5; i++) dots += i < level ? '&#9679;' : '&#9675;';
                     html += '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;font-size:0.7rem;">';
-                    html += esc(s.skill_name) + ' <span style="color:var(--archie-gold);font-size:0.6rem;">' + dots + '</span></span>';
+                    html += esc(s.skill_name) + ' <span style="color:var(--archie-gold);font-size:0.6rem;">' + dots + '</span>';
+                    html += ' <span onclick="removeSkill(' + parseInt(agentId) + ',\'' + esc(String(s.id)) + '\')" style="cursor:pointer;color:#ff4444;font-size:0.6rem;margin-left:2px;" title="Remove">&times;</span>';
+                    html += '</span>';
                 });
-                html += '</div></div>';
+            } else {
+                html += '<span style="font-size:0.7rem;color:var(--archie-text-muted);">No skills</span>';
             }
+            html += '</div>';
+            // Add skill inline form
+            html += '<div style="display:flex;gap:4px;align-items:center;">';
+            html += '<input type="text" id="add-skill-name" placeholder="Skill name" style="flex:1;padding:2px 6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:3px;color:inherit;font-size:0.65rem;">';
+            html += '<select id="add-skill-level" style="padding:2px 4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:3px;color:inherit;font-size:0.65rem;">';
+            html += '<option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option>';
+            html += '</select>';
+            html += '<button onclick="addSkill(' + parseInt(agentId) + ')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 6px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Add</button>';
+            html += '</div>';
+            html += '</div></div>';
 
             // Recent Tasks
             if (data.recent_tasks && data.recent_tasks.length > 0) {
@@ -7777,6 +7857,224 @@ function openAgentProfile(agentId) {
 function closeAgentProfile() {
     var modal = document.getElementById('agent-profile-modal');
     if (modal) modal.classList.remove('active');
+}
+
+// Store current profile agent ID for edit/delete/toggle
+var _profileAgentId = null;
+
+function editAgentFromProfile() {
+    if (!_profileAgentId) return;
+    closeAgentProfile();
+    // Fetch current data and populate form
+    fetch('/tools/bridge/api/agents/' + parseInt(_profileAgentId) + '/profile')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var a = data.agent;
+            document.getElementById('agent-form-id').value = a.id;
+            document.getElementById('agent-form-first').value = a.first_name || '';
+            document.getElementById('agent-form-last').value = a.last_name || '';
+            document.getElementById('agent-form-title-input').value = a.title || '';
+            document.getElementById('agent-form-dept').value = a.department || '';
+            document.getElementById('agent-form-model').value = a.model || '';
+            document.getElementById('agent-form-worker').value = a.worker_type || 'ai';
+            document.getElementById('agent-form-bio').value = a.bio || '';
+            document.getElementById('agent-form-prompt').value = '';
+            document.getElementById('agent-form-title').textContent = 'Edit Agent';
+            document.getElementById('agent-form-modal').classList.add('active');
+        });
+}
+
+function deleteAgentFromProfile() {
+    if (!_profileAgentId) return;
+    if (!confirm('Delete this agent permanently?')) return;
+    fetch('/tools/bridge/api/agents/' + parseInt(_profileAgentId), { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                closeAgentProfile();
+                loadCrewManifest();
+            }
+        });
+}
+
+function toggleAgentFromProfile() {
+    if (!_profileAgentId) return;
+    fetch('/tools/bridge/api/agents/' + parseInt(_profileAgentId) + '/toggle', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                closeAgentProfile();
+                loadCrewManifest();
+            }
+        });
+}
+
+// === Agent Form Modal (Create/Edit) ===
+function openAgentFormModal(agentId) {
+    document.getElementById('agent-form-id').value = agentId || '';
+    document.getElementById('agent-form-first').value = '';
+    document.getElementById('agent-form-last').value = '';
+    document.getElementById('agent-form-title-input').value = '';
+    document.getElementById('agent-form-dept').value = '';
+    document.getElementById('agent-form-model').value = '';
+    document.getElementById('agent-form-worker').value = 'ai';
+    document.getElementById('agent-form-bio').value = '';
+    document.getElementById('agent-form-prompt').value = '';
+    document.getElementById('agent-form-title').textContent = agentId ? 'Edit Agent' : 'Add Agent';
+    document.getElementById('agent-form-modal').classList.add('active');
+}
+
+function closeAgentFormModal() {
+    document.getElementById('agent-form-modal').classList.remove('active');
+}
+
+function saveAgent() {
+    var id = document.getElementById('agent-form-id').value;
+    var payload = {
+        first_name: document.getElementById('agent-form-first').value,
+        last_name: document.getElementById('agent-form-last').value,
+        title: document.getElementById('agent-form-title-input').value,
+        department: document.getElementById('agent-form-dept').value,
+        model: document.getElementById('agent-form-model').value,
+        worker_type: document.getElementById('agent-form-worker').value,
+        bio: document.getElementById('agent-form-bio').value,
+    };
+    var prompt = document.getElementById('agent-form-prompt').value;
+    if (prompt) payload.system_prompt = prompt;
+
+    var url = id ? '/tools/bridge/api/agents/' + parseInt(id) : '/tools/bridge/api/agents';
+    var method = id ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            closeAgentFormModal();
+            loadCrewManifest();
+        } else {
+            alert(data.error || 'Failed to save');
+        }
+    });
+}
+
+// === Skills Management ===
+function addSkill(agentId) {
+    var nameEl = document.getElementById('add-skill-name');
+    var levelEl = document.getElementById('add-skill-level');
+    if (!nameEl || !nameEl.value.trim()) return;
+    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_name: nameEl.value.trim(), proficiency_level: parseInt(levelEl.value) })
+    }).then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) openAgentProfile(agentId);
+    });
+}
+
+function removeSkill(agentId, skillId) {
+    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/skills/' + skillId, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) openAgentProfile(agentId);
+        });
+}
+
+// === Training / Lounge Button UX ===
+function populateTrainingLoungeSelects(crew) {
+    var trainSel = document.getElementById('training-agent-select');
+    var loungeSel = document.getElementById('lounge-agent-select');
+    if (!trainSel || !loungeSel) return;
+
+    // Keep first option, clear rest
+    while (trainSel.options.length > 1) trainSel.remove(1);
+    while (loungeSel.options.length > 1) loungeSel.remove(1);
+
+    // Separate agents by status
+    var active = [], training = [], resting = [];
+    (crew || []).forEach(function(a) {
+        if (a.status === 'training') training.push(a);
+        else if (a.status === 'resting') resting.push(a);
+        else active.push(a);
+    });
+
+    // Populate selects with active agents only
+    active.forEach(function(a) {
+        var label = (a.full_name || a.name) + ' (' + a.station + ')';
+        var opt1 = new Option(label, a.id);
+        var opt2 = new Option(label, a.id);
+        trainSel.add(opt1);
+        loungeSel.add(opt2);
+    });
+
+    // Render training agents list
+    var trainList = document.getElementById('training-agents-list');
+    if (trainList) {
+        if (training.length === 0) {
+            trainList.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No agents in training</span>';
+        } else {
+            var html = '';
+            training.forEach(function(a) {
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.75rem;">';
+                html += '<span>' + (a.full_name || a.name) + '</span>';
+                html += '<button onclick="returnFromLounge(' + parseInt(a.id) + ')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 6px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Return to Duty</button>';
+                html += '</div>';
+            });
+            trainList.innerHTML = html;
+        }
+    }
+
+    // Render lounge agents list
+    var loungeList = document.getElementById('lounge-agents-list');
+    if (loungeList) {
+        if (resting.length === 0) {
+            loungeList.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No agents in lounge</span>';
+        } else {
+            var html = '';
+            resting.forEach(function(a) {
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.75rem;">';
+                html += '<span>' + (a.full_name || a.name) + '</span>';
+                html += '<button onclick="returnFromLounge(' + parseInt(a.id) + ')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 6px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Return to Duty</button>';
+                html += '</div>';
+            });
+            loungeList.innerHTML = html;
+        }
+    }
+}
+
+function sendToTraining() {
+    var sel = document.getElementById('training-agent-select');
+    if (!sel || !sel.value) return;
+    fetch('/tools/bridge/api/agents/' + parseInt(sel.value) + '/send-to-lounge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'training' })
+    }).then(function(r) { return r.json(); })
+    .then(function() { loadCrewManifest(); });
+}
+
+function sendToLounge() {
+    var sel = document.getElementById('lounge-agent-select');
+    if (!sel || !sel.value) return;
+    fetch('/tools/bridge/api/agents/' + parseInt(sel.value) + '/send-to-lounge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'rest' })
+    }).then(function(r) { return r.json(); })
+    .then(function() { loadCrewManifest(); });
+}
+
+function returnFromLounge(agentId) {
+    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/return-from-lounge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    }).then(function(r) { return r.json(); })
+    .then(function() { loadCrewManifest(); });
 }
 
 // Hook crew manifest into init + refresh

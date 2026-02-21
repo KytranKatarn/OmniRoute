@@ -635,6 +635,287 @@ def get_bridge_agents():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/agents", methods=["POST"])
+@login_required
+def create_agent():
+    """Create a new agent"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+
+    model = data.get("model")
+    if not model:
+        return jsonify({"success": False, "error": "Model is required"}), 400
+
+    first_name = data.get("first_name") or model.split(":")[0].replace("-", " ").title()
+    last_name = data.get("last_name", "Agent")
+    title = data.get("title", f"{model} Specialist")
+    department = data.get("department", "AI Operations")
+    worker_type = data.get("worker_type", "ai")
+    bio = data.get("bio", f"AI agent powered by {model}.")
+    system_prompt = data.get(
+        "system_prompt",
+        f"You are {first_name}, an AI assistant powered by {model}.",
+    )
+    temperature = data.get("temperature", 0.7)
+    max_tokens = data.get("max_tokens", 4096)
+    capabilities = data.get("capabilities")
+    if isinstance(capabilities, list):
+        capabilities = json.dumps(capabilities)
+    name = f"{first_name} {last_name}".strip()
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            INSERT INTO agents (
+                name, first_name, last_name, title, department, worker_type,
+                model, temperature, max_tokens, system_prompt, bio,
+                status, capabilities, created_at, updated_at
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'active',%s,NOW(),NOW())
+            RETURNING id, name, first_name, last_name, model
+        """,
+            (
+                name,
+                first_name,
+                last_name,
+                title,
+                department,
+                worker_type,
+                model,
+                temperature,
+                max_tokens,
+                system_prompt,
+                bio,
+                capabilities,
+            ),
+        )
+        agent = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "agent": dict(agent)})
+    except Exception as e:
+        logger.error("create_agent error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>", methods=["PUT", "PATCH"])
+@login_required
+def update_agent(agent_id):
+    """Update agent profile fields"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data"}), 400
+
+    editable = [
+        "name",
+        "first_name",
+        "last_name",
+        "title",
+        "department",
+        "bio",
+        "model",
+        "system_prompt",
+        "temperature",
+        "max_tokens",
+        "pronouns",
+        "worker_type",
+    ]
+    sets = []
+    params = []
+    for field in editable:
+        if field in data:
+            sets.append(f"{field} = %s")
+            params.append(data[field])
+
+    if not sets:
+        return jsonify({"success": False, "error": "No valid fields"}), 400
+
+    sets.append("updated_at = NOW()")
+    params.append(agent_id)
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            f"UPDATE agents SET {', '.join(sets)} WHERE id = %s RETURNING id, name, first_name, last_name, model, status",
+            params,
+        )
+        agent = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        if not agent:
+            return jsonify({"success": False, "error": "Agent not found"}), 404
+        return jsonify({"success": True, "agent": dict(agent)})
+    except Exception as e:
+        logger.error("update_agent error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>", methods=["DELETE"])
+@login_required
+def delete_agent(agent_id):
+    """Delete an agent (clears FK references first)"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT id, name FROM agents WHERE id = %s", (agent_id,))
+        agent = cur.fetchone()
+        if not agent:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Agent not found"}), 404
+
+        # Clear FK references
+        cur.execute(
+            "UPDATE unified_projects SET created_by_agent_id = NULL WHERE created_by_agent_id = %s",
+            (agent_id,),
+        )
+        cur.execute(
+            "UPDATE unified_tasks SET assigned_agent_id = NULL WHERE assigned_agent_id = %s",
+            (agent_id,),
+        )
+        cur.execute(
+            "UPDATE unified_tasks SET created_by_agent_id = NULL WHERE created_by_agent_id = %s",
+            (agent_id,),
+        )
+        cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "message": f"Agent '{agent['name']}' deleted"})
+    except Exception as e:
+        logger.error("delete_agent error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/toggle", methods=["POST"])
+@login_required
+def toggle_agent(agent_id):
+    """Toggle agent active/paused"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE agents
+            SET status = CASE WHEN status = 'active' THEN 'paused' ELSE 'active' END,
+                updated_at = NOW()
+            WHERE id = %s RETURNING status
+        """,
+            (agent_id,),
+        )
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        if not result:
+            return jsonify({"success": False, "error": "Agent not found"}), 404
+        return jsonify({"success": True, "status": result[0]})
+    except Exception as e:
+        logger.error("toggle_agent error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/skills", methods=["GET"])
+@login_required
+def get_agent_skills(agent_id):
+    """Get all skills for an agent"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, skill_name, skill_category, proficiency_level, notes,
+                   created_at, updated_at
+            FROM agent_skills WHERE agent_id = %s
+            ORDER BY proficiency_level DESC, skill_name
+        """,
+            (agent_id,),
+        )
+        skills = cur.fetchall()
+        cur.close()
+        conn.close()
+        for s in skills:
+            for k in ["created_at", "updated_at"]:
+                if s.get(k):
+                    s[k] = s[k].isoformat()
+        return jsonify({"success": True, "skills": skills})
+    except Exception as e:
+        logger.error("get_agent_skills error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/skills", methods=["POST"])
+@login_required
+def add_agent_skill(agent_id):
+    """Add or upsert a skill for an agent"""
+    import uuid as _uuid
+
+    data = request.get_json()
+    skill_name = data.get("skill_name")
+    if not skill_name:
+        return jsonify({"success": False, "error": "skill_name required"}), 400
+
+    proficiency = max(1, min(5, int(data.get("proficiency_level", 3))))
+    category = data.get("skill_category", "general")
+    notes = data.get("notes", "")
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            INSERT INTO agent_skills
+                (id, agent_id, skill_name, skill_category, proficiency_level, notes, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+            ON CONFLICT (agent_id, skill_name) DO UPDATE SET
+                proficiency_level = EXCLUDED.proficiency_level,
+                skill_category = EXCLUDED.skill_category,
+                notes = EXCLUDED.notes,
+                updated_at = NOW()
+            RETURNING id, skill_name, skill_category, proficiency_level
+        """,
+            (str(_uuid.uuid4()), agent_id, skill_name.lower().replace(" ", "_"), category, proficiency, notes),
+        )
+        skill = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "skill": dict(skill)})
+    except Exception as e:
+        logger.error("add_agent_skill error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/skills/<skill_id>", methods=["DELETE"])
+@login_required
+def delete_agent_skill(agent_id, skill_id):
+    """Remove a skill from an agent"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "DELETE FROM agent_skills WHERE id = %s AND agent_id = %s RETURNING skill_name",
+            (skill_id, agent_id),
+        )
+        result = cur.fetchone()
+        if not result:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Skill not found"}), 404
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "message": f"Skill '{result[0]}' removed"})
+    except Exception as e:
+        logger.error("delete_agent_skill error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/agents/<int:agent_id>/assign-station", methods=["POST"])
 def assign_agent_to_station(agent_id):
     """Assign an agent to a station"""

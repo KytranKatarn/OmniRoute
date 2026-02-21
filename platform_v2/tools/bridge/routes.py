@@ -1831,50 +1831,158 @@ def check_iaae_move_compliance(agent_id):
 
 @bridge_bp.route("/api/traffic")
 def get_traffic_stats():
-    """Get recent traffic and token usage statistics"""
+    """Get throughput stats from task_execution_log (rolling 24h window)"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Get hourly stats for last 24 hours
         cur.execute(
             """
-            SELECT
-                date_trunc('hour', created_at) as hour,
-                model_name,
-                COUNT(*) as request_count,
-                COALESCE(SUM(tokens_used), 0) as total_tokens,
-                COALESCE(AVG(response_time_ms), 0) as avg_latency
-            FROM token_usage_log
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-            GROUP BY date_trunc('hour', created_at), model_name
-            ORDER BY hour DESC
+            SELECT COUNT(*) as total_24h
+            FROM task_execution_log
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
         """
         )
-        hourly_stats = cur.fetchall()
-
-        # Get model breakdown
-        cur.execute(
-            """
-            SELECT
-                model_name,
-                COUNT(*) as request_count,
-                COALESCE(SUM(tokens_used), 0) as total_tokens
-            FROM token_usage_log
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-            GROUP BY model_name
-            ORDER BY total_tokens DESC
-        """
-        )
-        model_stats = cur.fetchall()
+        row = cur.fetchone()
+        total_24h = row["total_24h"] if row else 0
+        requests_per_minute = round(total_24h / 1440.0, 1)
 
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "hourly": hourly_stats, "by_model": model_stats})
+        return jsonify(
+            {
+                "success": True,
+                "requests_per_minute": requests_per_minute,
+                "total_24h": total_24h,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting traffic stats: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agent-utilization")
+def get_agent_utilization():
+    """Get real agent activity rate over 24h (agents that executed tasks / total active)"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT
+                (SELECT COUNT(DISTINCT agent_id) FROM task_execution_log
+                 WHERE created_at >= NOW() - INTERVAL '24 hours' AND agent_id IS NOT NULL) as active_agents,
+                (SELECT COUNT(*) FROM agents WHERE status = 'active') as total_agents
+        """
+        )
+        row = cur.fetchone()
+        active = row["active_agents"] or 0
+        total = row["total_agents"] or 0
+        utilization_pct = round(active / total * 100) if total > 0 else 0
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "active_agents": active,
+                "total_agents": total,
+                "utilization_pct": utilization_pct,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting agent utilization: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/models/live")
+def get_live_models():
+    """Get actual model count from live Ollama API"""
+    try:
+        resp = requests.get("http://host.docker.internal:11434/api/tags", timeout=5)
+        if resp.status_code == 200:
+            models = resp.json().get("models", [])
+            return jsonify(
+                {
+                    "success": True,
+                    "count": len(models),
+                    "models": [m["name"] for m in models],
+                }
+            )
+        return jsonify({"success": False, "error": "Ollama not responding"}), 502
+
+    except Exception as e:
+        logger.error(f"Error getting live models: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/iaae/overview")
+def get_iaae_overview():
+    """Get real IAAE compliance and welfare metrics"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Compliance: tasks approved vs total reviewed in 24h
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE event_category = 'task_approved') as approved,
+                COUNT(*) as total
+            FROM governance_audit_log
+            WHERE timestamp >= NOW() - INTERVAL '24 hours'
+        """
+        )
+        gov = cur.fetchone()
+        gov_total = gov["total"] or 0
+        gov_approved = gov["approved"] or 0
+        compliance_pct = round(gov_approved / gov_total * 100, 1) if gov_total > 0 else None
+
+        # Agent welfare: average stress and energy across active agents
+        cur.execute(
+            """
+            SELECT AVG(es.stress_level) as avg_stress, AVG(es.energy_level) as avg_energy
+            FROM agent_emotional_state es
+            JOIN agents a ON a.id = es.agent_id
+            WHERE a.status = 'active'
+        """
+        )
+        welfare = cur.fetchone()
+        avg_stress = round(float(welfare["avg_stress"]), 2) if welfare and welfare["avg_stress"] is not None else None
+        avg_energy = round(float(welfare["avg_energy"]), 2) if welfare and welfare["avg_energy"] is not None else None
+
+        # Agents currently at rest
+        cur.execute(
+            """
+            SELECT COUNT(*) as count
+            FROM agent_rest_cycles
+            WHERE ended_at IS NULL
+        """
+        )
+        rest_row = cur.fetchone()
+        agents_at_rest = rest_row["count"] or 0
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "compliance_pct": compliance_pct,
+                "avg_stress": avg_stress,
+                "avg_energy": avg_energy,
+                "agents_at_rest": agents_at_rest,
+                "governance_events_24h": gov_total,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting IAAE overview: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

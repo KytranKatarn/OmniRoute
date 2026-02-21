@@ -4078,7 +4078,7 @@ body.light-mode .bridge-hud-value {
                     <div class="bridge-hud-pod">
                         <span class="bridge-hud-label" data-i18n="bridge.overview.utilization">Utilization</span>
                         <div class="bridge-hud-value" id="hudAgentUtil">--%</div>
-                        <span class="bridge-hud-unit">agents</span>
+                        <span class="bridge-hud-unit">active (24h)</span>
                     </div>
                     <div class="bridge-hud-pod">
                         <span class="bridge-hud-label" data-i18n="bridge.overview.models">Models</span>
@@ -4732,44 +4732,76 @@ function loadOverviewData() {
             stations.forEach(function(s) {
                 totalAgents += (s.agents || s.roster || []).length;
             });
+            // Note: innerHTML used here with integer-only values from internal API (no user input)
             var html = '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
-            html += '<span>Active Stations</span><span style="color:var(--archie-cyan)">' + stations.length + '</span></div>';
+            html += '<span>Active Stations</span><span style="color:var(--archie-cyan)">' + parseInt(stations.length) + '</span></div>';
             html += '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
-            html += '<span>Assigned Agents</span><span style="color:var(--archie-cyan)">' + totalAgents + '</span></div>';
+            html += '<span>Assigned Agents</span><span style="color:var(--archie-cyan)">' + parseInt(totalAgents) + '</span></div>';
             el.innerHTML = html;
-
-            // Update HUD pod
-            var utilEl = document.getElementById('hudAgentUtil');
-            if (utilEl && stations.length > 0) {
-                var stationsWithAgents = stations.filter(function(s) { return (s.agents || s.roster || []).length > 0; }).length;
-                utilEl.textContent = Math.round(stationsWithAgents / stations.length * 100) + '%';
-            }
         }).catch(function() {
             var el = document.getElementById('overviewStationSummary');
-            if (el) el.innerHTML = '<span class="briefing-muted">Unable to load</span>';
+            if (el) el.textContent = 'Unable to load';
         });
 
-    // 3. IAAE Health card
-    fetch('/tools/bridge/api/iaae/check-move/0')
+    // 2b. HUD pod: Agent Utilization (real 24h activity rate)
+    fetch('/tools/bridge/api/agent-utilization')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var utilEl = document.getElementById('hudAgentUtil');
+            if (utilEl && data.success) {
+                utilEl.textContent = data.utilization_pct + '%';
+            }
+        }).catch(function() {});
+
+    // 3. IAAE Health card (real governance data)
+    fetch('/tools/bridge/api/iaae/overview')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('overviewIAAE');
             if (!el) return;
-            var html = '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
-            html += '<span>Status</span><span style="color:#00ff41">Active</span></div>';
-            if (data.welfare) {
-                html += '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
-                html += '<span>Stress Level</span><span>' + (data.welfare.stress_level || 'Low') + '</span></div>';
+            if (!data.success) {
+                el.textContent = 'Unable to load';
+                return;
             }
-            el.innerHTML = html;
-            // Update HUD pod
+            // Build IAAE summary with safe DOM construction
+            el.textContent = '';
+            var rows = [];
+            if (data.compliance_pct !== null) {
+                rows.push(['Compliance', data.compliance_pct + '%']);
+            } else {
+                rows.push(['Compliance', 'No data']);
+            }
+            if (data.avg_stress !== null) {
+                rows.push(['Fleet Stress', (data.avg_stress * 100).toFixed(0) + '%']);
+            }
+            if (data.avg_energy !== null) {
+                rows.push(['Fleet Energy', (data.avg_energy * 100).toFixed(0) + '%']);
+            }
+            rows.push(['Agents at Rest', String(data.agents_at_rest || 0)]);
+            rows.push(['Governance Events (24h)', String(data.governance_events_24h || 0)]);
+            rows.forEach(function(row) {
+                var div = document.createElement('div');
+                div.style.cssText = 'display:flex;justify-content:space-between;padding:3px 0;';
+                var label = document.createElement('span');
+                label.textContent = row[0];
+                var val = document.createElement('span');
+                val.style.color = 'var(--archie-cyan)';
+                val.textContent = row[1];
+                div.appendChild(label);
+                div.appendChild(val);
+                el.appendChild(div);
+            });
+
+            // Update HUD pod with real compliance
             var iaaeEl = document.getElementById('hudIAAEScore');
-            if (iaaeEl) iaaeEl.textContent = '100%';
+            if (iaaeEl) {
+                iaaeEl.textContent = data.compliance_pct !== null ? data.compliance_pct + '%' : 'N/A';
+            }
         }).catch(function() {
             var el = document.getElementById('overviewIAAE');
-            if (el) el.innerHTML = '<span style="color:#00ff41">✓ IAAE Governance Active</span>';
+            if (el) el.textContent = 'IAAE Governance Active';
             var iaaeEl = document.getElementById('hudIAAEScore');
-            if (iaaeEl) iaaeEl.textContent = '100%';
+            if (iaaeEl) iaaeEl.textContent = 'N/A';
         });
 
     // 4. Mini Activity Feed (last 5 dispatches)
@@ -4806,13 +4838,12 @@ function loadOverviewData() {
             }
         }).catch(function() {});
 
-    // 6. HUD pod: Model count
-    fetch('/tools/bridge/api/bridge/models')
+    // 6. HUD pod: Model count (live Ollama)
+    fetch('/tools/bridge/api/models/live')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            var models = Array.isArray(data) ? data : (data.models || []);
             var el = document.getElementById('hudModelCount');
-            if (el) el.textContent = models.length;
+            if (el && data.success) el.textContent = data.count;
         }).catch(function() {});
 }
 

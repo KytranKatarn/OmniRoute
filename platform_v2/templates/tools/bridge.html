@@ -1200,7 +1200,6 @@ body.light-mode .status-bar-divider {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 0.75rem;
-    padding: 1rem;
 }
 
 .crew-agent-card {
@@ -1328,6 +1327,46 @@ body.light-mode .status-bar-divider {
     .crew-manifest-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* Crew Sub-Tabs */
+.crew-subtabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 16px 12px;
+    margin-bottom: 12px;
+}
+.crew-subtab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: 6px;
+    color: var(--archie-text-tertiary, #8b949e);
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.crew-subtab i { width: 12px; height: 12px; }
+.crew-subtab:hover {
+    color: #8b5cf6;
+    border-color: rgba(139, 92, 246, 0.3);
+}
+.crew-subtab.active {
+    color: #8b5cf6;
+    border-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.08);
+}
+.crew-subpanel {
+    display: none;
+}
+.crew-subpanel.active {
+    display: block;
 }
 
 /* ============================================================================
@@ -3485,6 +3524,24 @@ body.light-mode .crew-agent-stats .stat-val,
     color: #333;
 }
 
+/* Crew Sub-Tabs — light mode */
+body.light-mode .crew-subtab,
+[data-theme="light"] .crew-subtab {
+    border-color: rgba(139, 92, 246, 0.12);
+    color: #666;
+}
+body.light-mode .crew-subtab:hover,
+[data-theme="light"] .crew-subtab:hover {
+    color: #7c3aed;
+    border-color: rgba(139, 92, 246, 0.3);
+}
+body.light-mode .crew-subtab.active,
+[data-theme="light"] .crew-subtab.active {
+    color: #7c3aed;
+    border-color: #7c3aed;
+    background: rgba(139, 92, 246, 0.06);
+}
+
 /* Node Network */
 body.light-mode .bridge-nodes-section,
 [data-theme="light"] .bridge-nodes-section {
@@ -4357,18 +4414,79 @@ body.light-mode .bridge-hud-value {
 
             <!-- Crew Tab Panel -->
             <div class="bridge-tab-panel" data-panel="crew">
-            <!-- Crew Manifest Section -->
-            <div class="crew-manifest-section" id="crew-manifest-section">
-                <div class="crew-manifest-header">
-                    <h2><i data-lucide="users"></i> <span data-i18n="bridge.sections.crew_manifest">CREW MANIFEST</span></h2>
-                    <span class="crew-manifest-count" id="crew-manifest-count">Loading...</span>
+                <!-- Crew Sub-Tabs -->
+                <div class="crew-subtabs">
+                    <button class="crew-subtab active" data-subtab="manifest" onclick="switchCrewSubtab('manifest')">
+                        <i data-lucide="users"></i>
+                        <span data-i18n="bridge.crew.manifest">Manifest</span>
+                    </button>
+                    <button class="crew-subtab" data-subtab="training" onclick="switchCrewSubtab('training')">
+                        <i data-lucide="graduation-cap"></i>
+                        <span data-i18n="bridge.crew.training">Training</span>
+                    </button>
+                    <button class="crew-subtab" data-subtab="lounge" onclick="switchCrewSubtab('lounge')">
+                        <i data-lucide="coffee"></i>
+                        <span data-i18n="bridge.crew.lounge">Lounge</span>
+                    </button>
                 </div>
-                <div class="crew-manifest-grid" id="crew-manifest-grid">
-                    <div style="color: var(--archie-text-muted); font-size: 0.75rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
-                        Loading crew manifest...
+
+                <!-- Manifest Sub-Panel -->
+                <div class="crew-subpanel active" data-subpanel="manifest">
+                    <div class="briefing-card" style="--card-accent: #8b5cf6; margin: 0 16px;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="users"></i>
+                            <span data-i18n="bridge.crew.active_roster">Active Roster</span>
+                            <span class="briefing-card-link" id="crew-manifest-count">-- agents</span>
+                        </div>
+                        <div class="briefing-card-body">
+                            <div class="crew-manifest-grid" id="crew-manifest-grid">
+                                <span class="briefing-muted">Loading crew manifest...</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+
+                <!-- Training Sub-Panel -->
+                <div class="crew-subpanel" data-subpanel="training">
+                    <div class="briefing-card" style="--card-accent: #8b5cf6; margin: 0 16px;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="graduation-cap"></i>
+                            <span data-i18n="bridge.crew.training_rooms">Training Rooms</span>
+                        </div>
+                        <div class="briefing-card-body">
+                            <div class="bridge-drop-zone" id="training-drop-zone"
+                                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+                                 ondrop="handleDrop(event, 'training')">
+                                <div class="bridge-drop-zone-hint" id="training-hint">
+                                    <i data-lucide="user-plus"></i>
+                                    <span data-i18n="bridge.sidebar.drop_training">Drop agent here for training</span>
+                                </div>
+                                <div id="training-agents"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lounge Sub-Panel -->
+                <div class="crew-subpanel" data-subpanel="lounge">
+                    <div class="briefing-card" style="--card-accent: #8b5cf6; margin: 0 16px;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="coffee"></i>
+                            <span data-i18n="bridge.crew.lounge_rest">Lounge / Rest</span>
+                        </div>
+                        <div class="briefing-card-body">
+                            <div class="bridge-drop-zone" id="lounge-drop-zone"
+                                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+                                 ondrop="handleDrop(event, 'lounge')">
+                                <div class="bridge-drop-zone-hint" id="lounge-hint">
+                                    <i data-lucide="moon"></i>
+                                    <span data-i18n="bridge.sidebar.drop_rest">Drop agent here for rest</span>
+                                </div>
+                                <div id="lounge-agents"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div><!-- /crew panel -->
 
             <!-- Network Tab Panel -->
@@ -4474,40 +4592,6 @@ body.light-mode .bridge-hud-value {
                         <div class="bridge-iaae-value" id="iaae-stress">--%</div>
                         <div class="bridge-iaae-label" data-i18n="bridge.sidebar.avg_stress">Avg Stress</div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Training Rooms -->
-            <div class="bridge-sidebar-section">
-                <div class="bridge-sidebar-title">
-                    <i data-lucide="graduation-cap"></i>
-                    <span data-i18n="bridge.sidebar.training">Training Rooms</span>
-                </div>
-                <div class="bridge-drop-zone" id="training-drop-zone"
-                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
-                     ondrop="handleDrop(event, 'training')">
-                    <div class="bridge-drop-zone-hint" id="training-hint">
-                        <i data-lucide="user-plus"></i>
-                        <span data-i18n="bridge.sidebar.drop_training">Drop agent here for training</span>
-                    </div>
-                    <div id="training-agents"></div>
-                </div>
-            </div>
-
-            <!-- Lounge -->
-            <div class="bridge-sidebar-section">
-                <div class="bridge-sidebar-title">
-                    <i data-lucide="coffee"></i>
-                    <span data-i18n="bridge.sidebar.lounge">Lounge / Rest</span>
-                </div>
-                <div class="bridge-drop-zone" id="lounge-drop-zone"
-                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
-                     ondrop="handleDrop(event, 'lounge')">
-                    <div class="bridge-drop-zone-hint" id="lounge-hint">
-                        <i data-lucide="moon"></i>
-                        <span data-i18n="bridge.sidebar.drop_rest">Drop agent here for rest</span>
-                    </div>
-                    <div id="lounge-agents"></div>
                 </div>
             </div>
 
@@ -7450,6 +7534,20 @@ function formatEta(seconds) {
     var h = Math.floor(seconds / 3600);
     var m = Math.round((seconds % 3600) / 60);
     return h + 'h ' + m + 'm';
+}
+
+// ============================================================================
+// CREW SUB-TAB SWITCHING
+// ============================================================================
+
+function switchCrewSubtab(name) {
+    document.querySelectorAll('.crew-subtab').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.subtab === name);
+    });
+    document.querySelectorAll('.crew-subpanel').forEach(function(panel) {
+        panel.classList.toggle('active', panel.dataset.subpanel === name);
+    });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // ============================================================================

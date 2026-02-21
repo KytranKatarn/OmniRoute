@@ -457,12 +457,6 @@ body.light-mode .status-bar-divider {
     transform: translateY(-2px);
 }
 
-.bridge-station-card.drag-over {
-    border-color: var(--archie-gold);
-    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-    background: rgba(255, 215, 0, 0.05);
-}
-
 /* Station Header — briefing-card-header style */
 .bridge-station-header {
     display: flex;
@@ -658,11 +652,6 @@ body.light-mode .status-bar-divider {
     border-color: var(--archie-cyan);
 }
 
-.bridge-agent-chip.dragging {
-    opacity: 0.5;
-    cursor: grabbing;
-}
-
 .bridge-agent-chip.primary {
     border-left: 3px solid var(--station-color, var(--archie-cyan));
 }
@@ -773,11 +762,6 @@ body.light-mode .status-bar-divider {
     flex-direction: column;
     gap: 6px;
     transition: all 0.3s ease;
-}
-
-.bridge-drop-zone.drag-over {
-    border-color: var(--archie-gold);
-    background: rgba(255, 215, 0, 0.05);
 }
 
 .bridge-drop-zone-hint {
@@ -1622,201 +1606,6 @@ body.light-mode .status-bar-divider {
     transition: all 0.3s ease;
 }
 
-/* ============================================================================
-   STATION ASSIGNMENTS SECTION
-   ============================================================================ */
-
-.station-assignments-section {
-    margin-top: 2rem;
-    background: var(--archie-bg-secondary);
-    border-radius: 8px;
-    border: 1px solid var(--archie-border-default);
-    overflow: hidden;
-}
-
-.station-assignments-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.5rem;
-    background: linear-gradient(90deg, rgba(139, 92, 246, 0.1), transparent);
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.station-assignments-header h2 {
-    font-family: var(--archie-font-display);
-    font-size: 1rem;
-    font-weight: 600;
-    color: #8B5CF6;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0;
-}
-
-.assignment-stats {
-    display: flex;
-    gap: 1.5rem;
-    font-size: 0.75rem;
-}
-
-.assignment-stats .stat {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.assignment-stats .stat.covered { color: var(--archie-success); }
-.assignment-stats .stat.uncovered { color: var(--archie-warning); }
-.assignment-stats .stat.total { color: var(--archie-cyan); }
-
-/* Station Coverage Grid */
-.station-coverage-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
-    padding: 1.5rem;
-}
-
-.station-coverage-card {
-    background: linear-gradient(135deg, #1a1f2e, #0d1117);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    overflow: hidden;
-    transition: all 0.3s ease;
-    border-left: 3px solid var(--archie-text-muted);
-}
-
-.station-coverage-card:hover {
-    border-color: var(--archie-cyan);
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
-}
-
-.station-coverage-card.has-nodes {
-    border-left-color: var(--archie-success);
-}
-
-.station-coverage-card.no-primary {
-    border-left-color: var(--archie-warning);
-}
-
-.station-coverage-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.station-coverage-name {
-    font-family: var(--archie-font-display);
-    font-size: 0.85rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.station-coverage-name .station-color {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-}
-
-.station-coverage-code {
-    font-size: 0.65rem;
-    color: var(--archie-text-muted);
-    background: rgba(255,255,255,0.05);
-    padding: 2px 6px;
-    border-radius: 3px;
-}
-
-.station-coverage-body {
-    padding: 12px;
-}
-
-.station-node-counts {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 10px;
-    font-size: 0.75rem;
-}
-
-.station-node-counts .count {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.station-node-counts .count.primary { color: var(--archie-success); }
-.station-node-counts .count.backup { color: var(--archie-warning); }
-.station-node-counts .count.worker { color: var(--archie-cyan); }
-
-.station-assigned-nodes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-.assigned-node-chip {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(139, 92, 246, 0.15);
-    border: 1px solid rgba(139, 92, 246, 0.3);
-    border-radius: 12px;
-    padding: 3px 8px;
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.assigned-node-chip:hover {
-    background: rgba(139, 92, 246, 0.25);
-    border-color: rgba(139, 92, 246, 0.5);
-}
-
-.assigned-node-chip .role-badge {
-    font-size: 0.6rem;
-    padding: 1px 4px;
-    border-radius: 3px;
-    text-transform: uppercase;
-    font-weight: 600;
-}
-
-.assigned-node-chip .role-badge.primary { background: var(--archie-success); color: #000; }
-.assigned-node-chip .role-badge.backup { background: var(--archie-warning); color: #000; }
-.assigned-node-chip .role-badge.worker { background: var(--archie-cyan); color: #000; }
-.assigned-node-chip .role-badge.relief { background: #8B5CF6; color: #fff; }
-
-.station-coverage-actions {
-    display: flex;
-    gap: 6px;
-    padding: 10px 12px;
-    border-top: 1px solid var(--archie-border-default);
-    background: rgba(0, 0, 0, 0.2);
-}
-
-.station-coverage-actions button {
-    flex: 1;
-    background: rgba(139, 92, 246, 0.15);
-    border: 1px solid rgba(139, 92, 246, 0.3);
-    color: #c9d1d9;
-    padding: 6px 10px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-family: var(--archie-font-display);
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.station-coverage-actions button:hover {
-    background: rgba(139, 92, 246, 0.25);
-    border-color: rgba(139, 92, 246, 0.5);
-}
-
 /* Assignment Modal */
 .assignment-modal-overlay {
     display: none;
@@ -2252,71 +2041,6 @@ body.light-mode .status-bar-divider {
 
 .toggle-switch-small input:checked + .toggle-slider-small:before {
     transform: translateX(16px);
-}
-
-/* Legacy station list styles */
-.node-stations-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.station-assignment-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 6px;
-}
-
-.station-assignment-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.station-assignment-name {
-    font-size: 0.85rem;
-    color: var(--archie-text-secondary);
-}
-
-.station-assignment-role {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-}
-
-.station-assignment-role.primary {
-    background: rgba(255, 215, 0, 0.2);
-    color: #FFD700;
-}
-
-.station-assignment-role.backup {
-    background: rgba(16, 185, 129, 0.2);
-    color: #10B981;
-}
-
-.station-assignment-role.worker {
-    background: rgba(110, 118, 129, 0.2);
-    color: #6e7681;
-}
-
-.station-assignment-actions button {
-    padding: 4px 8px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 4px;
-    color: var(--archie-text-muted);
-    font-size: 0.65rem;
-    cursor: pointer;
-}
-
-.station-assignment-actions button:hover {
-    border-color: #ef4444;
-    color: #ef4444;
 }
 
 /* AI Services Grid */
@@ -3450,13 +3174,6 @@ body.light-mode .bridge-live-dot,
     background: #00aa33;
 }
 
-/* Routing Mode */
-body.light-mode .routing-mode-control,
-[data-theme="light"] .routing-mode-control {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: rgba(0, 0, 0, 0.08);
-}
-
 body.light-mode .routing-mode-label,
 [data-theme="light"] .routing-mode-label {
     color: #666;
@@ -3961,11 +3678,6 @@ body.light-mode .station-coverage-code,
     .node-stats {
         order: 3;
         width: 100%;
-    }
-    .routing-mode-control {
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 6px;
     }
 }
 
@@ -5708,7 +5420,6 @@ const STATION_COLORS = {
 };
 
 // Global state
-let draggedAgent = null;
 let allStations = [];
 let stationNodeCoverage = {}; // Maps station_id to node data
 
@@ -5913,11 +5624,6 @@ function createStationCard(station) {
     card.dataset.stationCode = station.code;
     card.style.setProperty('--station-color', STATION_COLORS[station.code] || '#00FFFF');
 
-    // Drag and drop handlers for station
-    card.ondragover = (e) => handleDragOver(e);
-    card.ondragleave = (e) => handleDragLeave(e);
-    card.ondrop = (e) => handleDrop(e, 'station', station.id);
-
     const modules = station.modules || [];
     const agents = station.assigned_agents || [];
     const maxVisible = 3;
@@ -6024,11 +5730,8 @@ function renderAgentChip(agent, stationCode) {
 
     return `
         <div class="bridge-agent-chip ${isPrimary ? 'primary' : ''}"
-             draggable="true"
              data-agent-id="${agent.id}"
-             data-agent-name="${fullName}"
-             ondragstart="handleDragStart(event, ${agent.id}, '${fullName}')"
-             ondragend="handleDragEnd(event)">
+             data-agent-name="${fullName}">
             <img src="${avatar}" alt="${fullName}" class="bridge-agent-avatar">
             <div class="bridge-agent-info">
                 <div class="bridge-agent-name">${fullName}</div>
@@ -6067,52 +5770,6 @@ function updateStationStats(stations) {
     document.getElementById('station-count').textContent = totalStations;
     document.getElementById('agent-count').textContent = totalAgents;
     document.getElementById('stations-summary').textContent = `${totalStations} stations active`;
-}
-
-// ============================================================================
-// DRAG AND DROP
-// ============================================================================
-
-function handleDragStart(event, agentId, agentName) {
-    draggedAgent = { id: agentId, name: agentName };
-    event.target.classList.add('dragging');
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', JSON.stringify(draggedAgent));
-}
-
-function handleDragEnd(event) {
-    event.target.classList.remove('dragging');
-    draggedAgent = null;
-}
-
-function handleDragOver(event) {
-    event.preventDefault();
-    event.currentTarget.classList.add('drag-over');
-}
-
-function handleDragLeave(event) {
-    event.currentTarget.classList.remove('drag-over');
-}
-
-async function handleDrop(event, targetType, targetId = null) {
-    event.preventDefault();
-    event.currentTarget.classList.remove('drag-over');
-
-    if (!draggedAgent) return;
-
-    console.log(`Moving agent ${draggedAgent.name} to ${targetType}`, targetId);
-
-    // Show feedback (API integration deferred — PUT /api/assignments/<id> available)
-    if (targetType === 'training') {
-        showNotification(`${draggedAgent.name} moved to Training`);
-    } else if (targetType === 'lounge') {
-        showNotification(`${draggedAgent.name} moved to Lounge (Rest)`);
-    } else if (targetType === 'station') {
-        showNotification(`${draggedAgent.name} assigned to station`);
-    }
-
-    // Reload stations to reflect changes
-    // loadStations();
 }
 
 function showNotification(message) {
@@ -7293,124 +6950,6 @@ let currentStationId = null;
 let currentAssignmentId = null;
 let availableNodes = [];
 
-async function loadStationCoverage() {
-    try {
-        const response = await fetch('/tools/bridge/api/stations/coverage');
-        const data = await response.json();
-
-        if (data.success) {
-            renderStationCoverageStats(data.summary);
-            renderStationCoverageGrid(data.coverage);
-        }
-    } catch (error) {
-        console.error('Error loading station coverage:', error);
-    }
-}
-
-function renderStationCoverageStats(summary) {
-    document.getElementById('stations-covered').textContent = summary.stations_with_nodes || 0;
-    document.getElementById('stations-uncovered').textContent = summary.stations_without_primary || 0;
-    document.getElementById('total-assignments').textContent = summary.total_assignments || 0;
-}
-
-async function renderStationCoverageGrid(coverage) {
-    const grid = document.getElementById('station-coverage-grid');
-
-    // Sort: stations with nodes first, then by name
-    const sorted = [...coverage].sort((a, b) => {
-        if (a.total_nodes > 0 && b.total_nodes === 0) return -1;
-        if (a.total_nodes === 0 && b.total_nodes > 0) return 1;
-        return a.station_name.localeCompare(b.station_name);
-    });
-
-    // For each station with nodes, fetch the node details
-    const stationsWithDetails = await Promise.all(sorted.map(async (station) => {
-        if (station.total_nodes > 0) {
-            try {
-                const resp = await fetch(`/tools/bridge/api/stations/${station.station_id}/nodes`);
-                const data = await resp.json();
-                return { ...station, nodes: data.success ? data.nodes : [] };
-            } catch (e) {
-                return { ...station, nodes: [] };
-            }
-        }
-        return { ...station, nodes: [] };
-    }));
-
-    grid.innerHTML = stationsWithDetails.map(station => renderStationCoverageCard(station)).join('');
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-function renderStationCoverageCard(station) {
-    const hasNodes = station.total_nodes > 0;
-    const noPrimary = hasNodes && station.primary_nodes === 0;
-    const statusClass = hasNodes ? (noPrimary ? 'no-primary' : 'has-nodes') : '';
-
-    // Get station color from CSS variable or use default
-    const stationColors = {
-        'COMMAND': '#FFD700', 'CONSCIOUSNESS': '#FF00FF', 'HR': '#10B981',
-        'RND': '#8B5CF6', 'ENGINEERING': '#0EA5E9', 'OPERATIONS': '#FFAA00',
-        'CREATIVE': '#F472B6', 'SECURITY': '#EF4444', 'MEDICAL': '#84CC16',
-        'AWAY_TEAM': '#F59E0B', 'INFRASTRUCTURE': '#3B82F6', 'FINANCE': '#A855F7',
-        'DOCUMENTATION': '#22C55E', 'QA': '#F97316', 'ADMIN': '#6366F1'
-    };
-    const color = stationColors[station.station_code] || '#6e7681';
-
-    const nodeChips = station.nodes ? station.nodes.slice(0, 5).map(node => `
-        <div class="assigned-node-chip" onclick="showNodeAssignmentDetail('${node.node_id}', ${station.station_id})" title="${node.node_name}">
-            <span class="role-badge ${node.role}">${node.role.charAt(0).toUpperCase()}</span>
-            <span>${escapeHtml(node.node_name.substring(0, 12))}${node.node_name.length > 12 ? '...' : ''}</span>
-        </div>
-    `).join('') : '';
-
-    const moreCount = station.nodes && station.nodes.length > 5 ? station.nodes.length - 5 : 0;
-
-    return `
-        <div class="station-coverage-card ${statusClass}">
-            <div class="station-coverage-header">
-                <div class="station-coverage-name">
-                    <span class="station-color" style="background: ${color}"></span>
-                    ${escapeHtml(station.station_name)}
-                </div>
-                <span class="station-coverage-code">${station.station_code}</span>
-            </div>
-            <div class="station-coverage-body">
-                <div class="station-node-counts">
-                    <span class="count primary">
-                        <i data-lucide="star" style="width:12px;height:12px;"></i> ${station.primary_nodes} Primary
-                    </span>
-                    <span class="count backup">
-                        <i data-lucide="shield" style="width:12px;height:12px;"></i> ${station.backup_nodes} Backup
-                    </span>
-                    <span class="count worker">
-                        <i data-lucide="user" style="width:12px;height:12px;"></i> ${station.worker_nodes} Worker
-                    </span>
-                </div>
-                ${hasNodes ? `
-                    <div class="station-assigned-nodes">
-                        ${nodeChips}
-                        ${moreCount > 0 ? `<span style="font-size:0.7rem;color:var(--archie-text-muted);">+${moreCount} more</span>` : ''}
-                    </div>
-                ` : `
-                    <div style="font-size:0.75rem;color:var(--archie-text-muted);text-align:center;padding:10px 0;">
-                        No nodes assigned
-                    </div>
-                `}
-            </div>
-            <div class="station-coverage-actions">
-                <button onclick="showStationDetail(${station.station_id}, '${escapeHtml(station.station_name)}')">
-                    <i data-lucide="list" style="width:12px;height:12px;"></i> View All
-                </button>
-                <button onclick="openAssignModal(${station.station_id}, '${escapeHtml(station.station_name)}')">
-                    <i data-lucide="plus" style="width:12px;height:12px;"></i> Assign Node
-                </button>
-            </div>
-        </div>
-    `;
-}
 
 async function showStationDetail(stationId, stationName) {
     currentStationId = stationId;
@@ -7705,156 +7244,16 @@ function formatMeshAge(isoStr) {
     return days + 'd ago';
 }
 
-async function loadAgentLoans() {
-    try {
-        const resp = await fetch('/tools/bridge/api/mesh/agents/loans');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (data.success) {
-            renderAgentLoans(data.loans || []);
-        }
-    } catch (e) {
-        console.debug('Mesh loans not available:', e.message);
-    }
-}
-
-function createLoanRow(loan) {
-    const row = document.createElement('div');
-    row.className = 'mesh-loan-row';
-
-    const flow = document.createElement('span');
-    flow.className = 'loan-flow';
-    flow.textContent = (loan.source_node_name || loan.source_node_id) + ' → ' + (loan.target_node_name || loan.target_node_id);
-
-    const agent = document.createElement('span');
-    agent.className = 'loan-agent';
-    agent.textContent = loan.agent_id || '—';
-
-    const task = document.createElement('span');
-    task.className = 'loan-task';
-    task.title = loan.task_description || '';
-    task.textContent = loan.task_description || 'No description';
-
-    const status = document.createElement('span');
-    status.className = 'mesh-loan-status ' + (loan.status || '');
-    status.textContent = loan.status || '—';
-
-    row.appendChild(flow);
-    row.appendChild(agent);
-    row.appendChild(task);
-    row.appendChild(status);
-    return row;
-}
-
-function renderAgentLoans(loans) {
-    const container = document.getElementById('mesh-loans-container');
-    const headerCount = document.getElementById('mesh-loans-count');
-    const subCount = document.getElementById('mesh-loans-sub-count');
-    if (!container) return;
-
-    const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'pending');
-    if (headerCount) headerCount.textContent = loans.length;
-    if (subCount) subCount.textContent = activeLoans.length + ' active';
-
-    container.replaceChildren();
-
-    if (loans.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'mesh-empty-state';
-        empty.textContent = _t('bridge.empty.no_loans', 'No agent loans recorded');
-        container.appendChild(empty);
-        return;
-    }
-
-    loans.forEach(loan => container.appendChild(createLoanRow(loan)));
-}
-
-async function loadLearningPatterns() {
-    try {
-        const resp = await fetch('/tools/bridge/api/mesh/learning?limit=20');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (data.success) {
-            renderLearningPatterns(data.patterns || []);
-        }
-    } catch (e) {
-        console.debug('Mesh learning not available:', e.message);
-    }
-}
-
-function createLearningItem(p) {
-    const item = document.createElement('div');
-    item.className = 'mesh-learning-item';
-
-    const typeBadge = document.createElement('span');
-    typeBadge.className = 'learning-type ' + (p.pattern_type || '');
-    typeBadge.textContent = p.pattern_type || 'insight';
-
-    const body = document.createElement('div');
-    body.className = 'learning-body';
-
-    const insight = document.createElement('div');
-    insight.className = 'learning-insight';
-    insight.textContent = p.insight || p.category || '—';
-
-    const meta = document.createElement('div');
-    meta.className = 'learning-meta';
-
-    const fromSpan = document.createElement('span');
-    fromSpan.textContent = 'From: ' + (p.node_name || p.node_id || '—');
-    meta.appendChild(fromSpan);
-
-    if (p.category) {
-        const catSpan = document.createElement('span');
-        catSpan.textContent = 'Category: ' + p.category;
-        meta.appendChild(catSpan);
-    }
-
-    const ageSpan = document.createElement('span');
-    ageSpan.textContent = formatMeshAge(p.created_at);
-    meta.appendChild(ageSpan);
-
-    body.appendChild(insight);
-    body.appendChild(meta);
-    item.appendChild(typeBadge);
-    item.appendChild(body);
-    return item;
-}
-
-function renderLearningPatterns(patterns) {
-    const container = document.getElementById('mesh-learnings-container');
-    const headerCount = document.getElementById('mesh-learning-count');
-    const subCount = document.getElementById('mesh-learning-sub-count');
-    if (!container) return;
-
-    if (headerCount) headerCount.textContent = patterns.length;
-    if (subCount) subCount.textContent = patterns.length + ' patterns';
-
-    container.replaceChildren();
-
-    if (patterns.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'mesh-empty-state';
-        empty.textContent = _t('bridge.empty.no_patterns', 'No learning patterns shared');
-        container.appendChild(empty);
-        return;
-    }
-
-    patterns.forEach(p => container.appendChild(createLearningItem(p)));
-}
-
-// Load nodes and models on page load (stations loaded separately via main init)
+// Load nodes, models, dispatch, and crew on page load (stations loaded separately via main init)
 document.addEventListener('DOMContentLoaded', function() {
     loadNodes();
-    loadModelAvailability();  // Phase 72: Load available models
-    loadAgentLoans();
-    loadLearningPatterns();
-    loadDispatchActivity();  // Project #91 Phase 6
+    loadModelAvailability();
+    loadDispatchActivity();
+    loadCrewManifest();
     setInterval(loadNodes, 30000);
     setInterval(loadModelAvailability, 60000);
-    setInterval(loadAgentLoans, 30000);
-    setInterval(loadLearningPatterns, 60000);
-    setInterval(loadDispatchActivity, 15000);  // Refresh dispatch every 15s
+    setInterval(loadDispatchActivity, 15000);
+    setInterval(loadCrewManifest, 15000);
 });
 
 // ============================================================================
@@ -8540,7 +7939,7 @@ function openAgentProfile(agentId) {
 
                     // Send to rest button if at risk
                     if (wPct >= 80 || (em && (em.stress_level || 0) > 0.7)) {
-                        iHtml += '<button onclick="sendToLounge();closeAgentProfile();" style="background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);color:#ff6b6b;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">Send to Rest (Recommended)</button>';
+                        iHtml += '<button onclick="sendToLoungeById(' + parseInt(agentId) + ');closeAgentProfile();" style="background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);color:#ff6b6b;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">Send to Rest (Recommended)</button>';
                     }
 
                     iHtml += '</div></div>';
@@ -8757,7 +8156,11 @@ function sendToTraining() {
 function sendToLounge() {
     var sel = document.getElementById('lounge-agent-select');
     if (!sel || !sel.value) return;
-    fetch('/tools/bridge/api/agents/' + parseInt(sel.value) + '/send-to-lounge', {
+    sendToLoungeById(parseInt(sel.value));
+}
+
+function sendToLoungeById(agentId) {
+    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/send-to-lounge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'rest' })
@@ -9016,19 +8419,6 @@ function saveProvider() {
         showToast('Failed to save provider', 'error');
     });
 }
-
-// Hook crew manifest into init + refresh
-(function() {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            loadCrewManifest();
-            setInterval(loadCrewManifest, 15000);
-        });
-    } else {
-        loadCrewManifest();
-        setInterval(loadCrewManifest, 15000);
-    }
-})();
 
 </script>
 {% endblock %}

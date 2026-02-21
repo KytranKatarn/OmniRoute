@@ -7383,6 +7383,135 @@ def agent_emotional_state_detail(agent_id):
         return jsonify({"emotional_state": None, "last_rest": None})
 
 
+@bridge_bp.route("/api/agents/<int:agent_id>/profile")
+@login_required
+def agent_profile(agent_id):
+    """Aggregated agent profile: details, skills, emotional state, performance, memory."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Agent details
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.first_name, a.last_name, a.title,
+                   a.department, a.bio, a.model, a.status, a.avatar_url,
+                   a.pronouns, a.worker_type, a.cost_tier, a.capabilities,
+                   a.created_at, a.last_used,
+                   bs.station_code, bs.station_name, bs.color as station_color
+            FROM agents a
+            LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+            LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+            WHERE a.id = %s
+        """,
+            (agent_id,),
+        )
+        agent = cur.fetchone()
+        if not agent:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Agent not found"}), 404
+
+        for k in ["created_at", "last_used"]:
+            if agent.get(k):
+                agent[k] = agent[k].isoformat()
+
+        # Skills
+        cur.execute(
+            """
+            SELECT skill_name, skill_category, proficiency_level, notes
+            FROM agent_skills WHERE agent_id = %s
+            ORDER BY proficiency_level DESC, skill_name
+        """,
+            (agent_id,),
+        )
+        skills = cur.fetchall()
+
+        # Emotional state (latest)
+        cur.execute(
+            """
+            SELECT current_mood, mood_intensity, stress_level, energy_level,
+                   trigger_event, timestamp
+            FROM agent_emotional_state WHERE agent_id = %s
+            ORDER BY timestamp DESC LIMIT 1
+        """,
+            (agent_id,),
+        )
+        emotional = cur.fetchone()
+        if emotional and emotional.get("timestamp"):
+            emotional["timestamp"] = emotional["timestamp"].isoformat()
+
+        # Performance (24h)
+        cur.execute(
+            """
+            SELECT COUNT(*) as tasks_24h,
+                   COUNT(*) FILTER (WHERE success = TRUE) as completed,
+                   COUNT(*) FILTER (WHERE success = FALSE) as failed,
+                   COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+            FROM task_execution_log
+            WHERE agent_id = %s AND created_at >= NOW() - INTERVAL '24 hours'
+        """,
+            (agent_id,),
+        )
+        perf = cur.fetchone()
+
+        # Recent tasks (last 10)
+        cur.execute(
+            """
+            SELECT id, module_source, task_type, capability, model_used,
+                   duration_ms, success, error_message, created_at
+            FROM task_execution_log
+            WHERE agent_id = %s
+            ORDER BY created_at DESC LIMIT 10
+        """,
+            (agent_id,),
+        )
+        recent = cur.fetchall()
+        for r in recent:
+            if r.get("created_at"):
+                r["created_at"] = r["created_at"].isoformat()
+
+        # Memory highlights (top 5 by importance)
+        cur.execute(
+            """
+            SELECT memory_type, content, importance_score, source_module, created_at
+            FROM agent_memory
+            WHERE agent_id = %s AND is_deleted = FALSE
+            ORDER BY importance_score DESC NULLS LAST
+            LIMIT 5
+        """,
+            (agent_id,),
+        )
+        memories = cur.fetchall()
+        for m in memories:
+            if m.get("created_at"):
+                m["created_at"] = m["created_at"].isoformat()
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "agent": agent,
+                "skills": skills,
+                "emotional_state": emotional,
+                "performance_24h": {
+                    "tasks": perf["tasks_24h"],
+                    "completed": perf["completed"],
+                    "failed": perf["failed"],
+                    "avg_duration_ms": round(float(perf["avg_duration_ms"]), 1),
+                },
+                "recent_tasks": recent,
+                "memories": memories,
+            }
+        )
+
+    except Exception as e:
+        logger.error("agent_profile error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/dispatch/multi-agent-sessions")
 @login_required
 def multi_agent_sessions():

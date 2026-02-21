@@ -4681,6 +4681,22 @@ body.light-mode .bridge-hud-value {
         </div>
     </div>
 </div>
+
+<!-- Agent Profile Modal -->
+<div class="assignment-modal-overlay" id="agent-profile-modal">
+    <div class="assignment-modal" style="width: 640px; max-height: 85vh; overflow-y: auto;">
+        <div class="assignment-modal-header">
+            <span id="agent-profile-title">Agent Profile</span>
+            <button class="assignment-modal-close" onclick="closeAgentProfile()">&times;</button>
+        </div>
+        <div class="assignment-modal-body" id="agent-profile-body">
+            <span class="briefing-muted">Loading...</span>
+        </div>
+        <div class="assignment-modal-footer">
+            <button class="btn-cancel" onclick="closeAgentProfile()">Close</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -7501,6 +7517,8 @@ function renderCrewManifest(crew) {
         var card = document.createElement('div');
         card.className = 'crew-agent-card';
         card.setAttribute('data-station', agent.station);
+        card.style.cursor = 'pointer';
+        card.onclick = (function(id) { return function() { openAgentProfile(id); }; })(agent.id);
 
         // Top row: name + badges
         var top = document.createElement('div');
@@ -7606,6 +7624,159 @@ function renderCrewManifest(crew) {
 
         grid.appendChild(card);
     });
+}
+
+// === Agent Profile Modal ===
+function openAgentProfile(agentId) {
+    var modal = document.getElementById('agent-profile-modal');
+    var body = document.getElementById('agent-profile-body');
+    var title = document.getElementById('agent-profile-title');
+    if (!modal || !body) return;
+    body.innerHTML = '<span class="briefing-muted">Loading...</span>';
+    title.textContent = 'Agent Profile';
+    modal.classList.add('active');
+
+    fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/profile')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                body.textContent = 'Failed to load profile';
+                return;
+            }
+            var a = data.agent;
+            var esc = function(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+            var fullName = esc((a.first_name || '') + ' ' + (a.last_name || '')).trim() || esc(a.name);
+            title.textContent = fullName;
+
+            var html = '';
+
+            // Agent header
+            var stColor = a.station_color || 'var(--archie-cyan)';
+            html += '<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);">';
+            html += '<div style="width:48px;height:48px;border-radius:50%;background:' + esc(stColor) + ';display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;color:#000;">';
+            html += esc((a.first_name || a.name || '?')[0].toUpperCase());
+            html += '</div>';
+            html += '<div style="flex:1;">';
+            html += '<div style="font-size:1rem;font-weight:600;">' + fullName + '</div>';
+            html += '<div style="font-size:0.75rem;color:var(--archie-text-muted);">' + esc(a.name) + (a.title ? ' &mdash; ' + esc(a.title) : '') + '</div>';
+            html += '<div style="font-size:0.7rem;color:var(--archie-text-tertiary);">';
+            html += esc(a.department || '') + ' &bull; ' + esc(a.model || '') + ' &bull; ' + esc(a.worker_type || '') + ' &bull; ' + esc(a.pronouns || '');
+            html += '</div></div>';
+            html += '<span class="crew-status-badge ' + esc(a.status) + '" style="font-size:0.7rem;">' + esc(a.status) + '</span>';
+            html += '</div>';
+
+            // Bio
+            if (a.bio) {
+                html += '<div class="briefing-card" style="--card-accent:' + esc(stColor) + ';margin-bottom:10px;">';
+                html += '<div class="briefing-card-body" style="font-size:0.75rem;color:var(--archie-text-secondary);">' + esc(a.bio) + '</div>';
+                html += '</div>';
+            }
+
+            // Station assignment
+            if (a.station_code) {
+                html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;font-size:0.75rem;">';
+                html += '<span style="color:' + esc(stColor) + ';font-weight:600;">&#9632; ' + esc(a.station_name || a.station_code) + '</span>';
+                html += '</div>';
+            }
+
+            // Two-column layout: Performance + Emotional State
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">';
+
+            // Performance (24h)
+            var p = data.performance_24h;
+            html += '<div class="briefing-card" style="--card-accent:#00ff41;">';
+            html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Performance (24h)</span></div>';
+            html += '<div class="briefing-card-body">';
+            html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+            html += '<span>Tasks</span><span style="color:var(--archie-cyan);">' + parseInt(p.tasks) + '</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+            html += '<span>Completed</span><span style="color:#00ff41;">' + parseInt(p.completed) + '</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+            html += '<span>Failed</span><span style="color:#ff4444;">' + parseInt(p.failed) + '</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+            html += '<span>Avg Duration</span><span>' + formatDuration(p.avg_duration_ms) + '</span></div>';
+            html += '</div></div>';
+
+            // Emotional State
+            var em = data.emotional_state;
+            html += '<div class="briefing-card" style="--card-accent:#8b5cf6;">';
+            html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Wellness</span></div>';
+            html += '<div class="briefing-card-body">';
+            if (em) {
+                var moodColor = (em.stress_level || 0) <= 0.4 ? '#00ff41' : (em.stress_level || 0) <= 0.7 ? '#ffaa00' : '#ff4444';
+                html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+                html += '<span>Mood</span><span style="text-transform:capitalize;">' + esc(em.current_mood || 'neutral') + '</span></div>';
+                html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+                html += '<span>Stress</span><span style="color:' + moodColor + ';">' + Math.round((em.stress_level || 0) * 100) + '%</span></div>';
+                html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+                html += '<span>Energy</span><span>' + Math.round((em.energy_level || 0) * 100) + '%</span></div>';
+                html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+                html += '<span>Intensity</span><span>' + Math.round((em.mood_intensity || 0) * 100) + '%</span></div>';
+            } else {
+                html += '<span style="font-size:0.75rem;color:var(--archie-text-muted);">No emotional data</span>';
+            }
+            html += '</div></div>';
+            html += '</div>';
+
+            // Skills
+            if (data.skills && data.skills.length > 0) {
+                html += '<div class="briefing-card" style="--card-accent:#ffaa00;margin-bottom:10px;">';
+                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Skills</span></div>';
+                html += '<div class="briefing-card-body" style="display:flex;flex-wrap:wrap;gap:4px;">';
+                data.skills.forEach(function(s) {
+                    var level = parseInt(s.proficiency_level) || 1;
+                    var dots = '';
+                    for (var i = 0; i < 5; i++) dots += i < level ? '&#9679;' : '&#9675;';
+                    html += '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;font-size:0.7rem;">';
+                    html += esc(s.skill_name) + ' <span style="color:var(--archie-gold);font-size:0.6rem;">' + dots + '</span></span>';
+                });
+                html += '</div></div>';
+            }
+
+            // Recent Tasks
+            if (data.recent_tasks && data.recent_tasks.length > 0) {
+                html += '<div class="briefing-card" style="--card-accent:var(--archie-cyan);margin-bottom:10px;">';
+                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Recent Tasks</span></div>';
+                html += '<div class="briefing-card-body">';
+                data.recent_tasks.forEach(function(t) {
+                    var icon = t.success === true ? '&#9679;' : t.success === false ? '&#9679;' : '&#9675;';
+                    var color = t.success === true ? '#00ff41' : t.success === false ? '#ff4444' : 'var(--archie-text-muted)';
+                    html += '<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.7rem;">';
+                    html += '<span style="color:' + color + ';">' + icon + ' ' + esc(t.module_source || '') + (t.capability ? ' / ' + esc(t.capability) : '') + '</span>';
+                    html += '<span style="color:var(--archie-text-tertiary);">' + formatDuration(t.duration_ms) + '</span>';
+                    html += '</div>';
+                });
+                html += '</div></div>';
+            }
+
+            // Memory highlights
+            if (data.memories && data.memories.length > 0) {
+                html += '<div class="briefing-card" style="--card-accent:#e879f9;margin-bottom:10px;">';
+                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Memory Highlights</span></div>';
+                html += '<div class="briefing-card-body">';
+                data.memories.forEach(function(m) {
+                    var score = m.importance_score ? parseFloat(m.importance_score).toFixed(2) : '--';
+                    html += '<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.7rem;">';
+                    html += '<div style="display:flex;justify-content:space-between;">';
+                    html += '<span style="color:var(--archie-text-secondary);text-transform:capitalize;">' + esc(m.memory_type || '') + '</span>';
+                    html += '<span style="color:var(--archie-gold);">' + score + '</span>';
+                    html += '</div>';
+                    var preview = (m.content || '').substring(0, 120);
+                    html += '<div style="color:var(--archie-text-muted);font-size:0.65rem;margin-top:1px;">' + esc(preview) + (m.content && m.content.length > 120 ? '...' : '') + '</div>';
+                    html += '</div>';
+                });
+                html += '</div></div>';
+            }
+
+            body.innerHTML = html;
+        }).catch(function() {
+            body.textContent = 'Failed to load profile';
+        });
+}
+
+function closeAgentProfile() {
+    var modal = document.getElementById('agent-profile-modal');
+    if (modal) modal.classList.remove('active');
 }
 
 // Hook crew manifest into init + refresh

@@ -4,6 +4,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block module_name %}bridge{% endblock %}
@@ -49,6 +50,11 @@
 @keyframes status-pulse {
     0%, 100% { box-shadow: 0 0 4px currentColor; }
     50% { box-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
+}
+
+@keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
 }
 
 /* Main Container */
@@ -4570,7 +4576,7 @@ body.light-mode .bridge-hud-value {
             </div>
 
             <!-- Active Jobs (hidden when empty) -->
-            <div class="briefing-card" style="--card-accent: #ffaa00; display: none;" id="dispatch-jobs-section">
+            <div class="briefing-card" style="--card-accent: #ffaa00; margin: 0 16px; display: none;" id="dispatch-jobs-section">
                 <div class="briefing-card-header">
                     <i data-lucide="loader"></i>
                     <span data-i18n="bridge.dispatch.active_jobs">Active Jobs</span>
@@ -4582,7 +4588,7 @@ body.light-mode .bridge-hud-value {
             </div>
 
             <!-- Recent Dispatches -->
-            <div class="briefing-card" style="--card-accent: #00ffff;">
+            <div class="briefing-card" style="--card-accent: #00ffff; margin: 0 16px;">
                 <div class="briefing-card-header">
                     <i data-lucide="history"></i>
                     <span data-i18n="bridge.dispatch.recent">Recent Dispatches</span>
@@ -4595,7 +4601,7 @@ body.light-mode .bridge-hud-value {
             </div>
 
             <!-- Station Activity (24h) -->
-            <div class="briefing-card" style="--card-accent: #00ffff;">
+            <div class="briefing-card" style="--card-accent: #00ffff; margin: 0 16px;">
                 <div class="briefing-card-header">
                     <i data-lucide="bar-chart-3"></i>
                     <span data-i18n="bridge.dispatch.station_activity">Station Activity (24h)</span>
@@ -5018,7 +5024,7 @@ body.light-mode .bridge-hud-value {
                 <div class="node-detail-section full-width">
                     <div class="section-header">
                         <h4><i data-lucide="box"></i> LLM Models (Ollama)</h4>
-                        <button class="btn-small" onclick="syncNodeModels()"><i data-lucide="refresh-cw"></i> Sync</button>
+                        <button class="btn-small" onclick="syncNodeModels(event)"><i data-lucide="refresh-cw"></i> Sync</button>
                     </div>
                     <div id="node-models-list" class="node-models-grid">
                         <!-- Filled by JavaScript -->
@@ -6298,7 +6304,7 @@ function renderNodeCard(node) {
                     <button class="approve" onclick="approveNode('${node.node_id}')">APPROVE</button>
                     <button class="reject" onclick="rejectNode('${node.node_id}')">REJECT</button>
                 ` : `
-                    <button onclick="testNode('${node.node_id}')">TEST</button>
+                    <button onclick="testNode(event, '${node.node_id}')">TEST</button>
                     <button onclick="showNodeDetail('${node.node_id}')">DETAIL</button>
                     <button class="danger" onclick="removeNode('${node.node_id}', '${escapeHtml(node.node_name || node.node_id)}')">REMOVE</button>
                 `}
@@ -6347,7 +6353,7 @@ async function rejectNode(nodeId) {
     }
 }
 
-async function testNode(nodeId) {
+async function testNode(event, nodeId) {
     const btn = event.target;
     btn.textContent = 'TESTING...';
     btn.disabled = true;
@@ -6971,7 +6977,7 @@ async function removeNodeFromStation(stationId) {
     }
 }
 
-async function syncNodeModels() {
+async function syncNodeModels(event) {
     const btn = event.target.closest('button');
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader"></i> Syncing...';

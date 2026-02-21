@@ -6650,10 +6650,47 @@ def get_escalation_log():
 @bridge_bp.route("/api/external-providers", methods=["GET"])
 @login_required
 def get_external_providers():
-    """List external AI providers and their status (keys masked)."""
+    """List external AI providers with 24h stats, model breakdowns, and tier positions."""
+    # Smart router tier positions (0-indexed)
+    TIER_ORDER = {
+        "classify": 0,
+        "local": 1,
+        "local_analysis": 2,
+        "minimax_cloud": 3,
+        "qwen3_cloud": 4,
+        "openai": 5,
+        "perplexity": 6,
+        "grok": 7,
+        "haiku": 8,
+        "sonnet": 9,
+        "opus": 10,
+    }
+
+    # Provider-to-models mapping with their tier names
+    PROVIDER_MODELS = {
+        "openai": [
+            {"name": "gpt-4o-mini", "tier": "openai"},
+            {"name": "gpt-4o", "tier": "openai"},
+        ],
+        "perplexity": [
+            {"name": "llama-3.1-sonar-small-128k-online", "tier": "perplexity"},
+        ],
+        "xai": [
+            {"name": "grok-2", "tier": "grok"},
+        ],
+        "minimax_cloud": [
+            {"name": "minimax-m2.5", "tier": "minimax_cloud"},
+        ],
+        "qwen3_cloud": [
+            {"name": "qwen3-coder-next", "tier": "qwen3_cloud"},
+        ],
+    }
+
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Fetch DB-managed providers from external_api_keys
         cur.execute(
             """
             SELECT id, provider, is_active, monthly_budget_usd, current_month_cost_usd,
@@ -6664,16 +6701,199 @@ def get_external_providers():
             ORDER BY provider
         """
         )
-        rows = cur.fetchall()
+        db_providers = {row["provider"]: dict(row) for row in cur.fetchall()}
+
+        # 2. Fetch 24h usage stats grouped by provider and model
+        cur.execute(
+            """
+            SELECT model_name, provider,
+                   COUNT(*) as requests,
+                   COALESCE(SUM(cost_usd), 0) as cost,
+                   COALESCE(AVG(response_ms), 0) as avg_latency_ms,
+                   ROUND(100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END)
+                         / NULLIF(COUNT(*), 0), 1) as success_rate
+            FROM cloud_model_usage
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+            GROUP BY model_name, provider
+        """
+        )
+        usage_rows = cur.fetchall()
+
+        # Index stats by model_name for easy lookup
+        stats_by_model = {}
+        for row in usage_rows:
+            stats_by_model[row["model_name"]] = {
+                "requests": row["requests"],
+                "cost": float(row["cost"]),
+                "avg_latency_ms": round(float(row["avg_latency_ms"]), 1),
+                "success_rate": float(row["success_rate"]) if row["success_rate"] is not None else 100.0,
+            }
+
+        # 3. Fetch per-model disabled state from platform_settings
+        cur.execute(
+            """
+            SELECT key, value FROM platform_settings
+            WHERE key LIKE 'model_disabled:%%'
+        """
+        )
+        disabled_models = set()
+        for row in cur.fetchall():
+            # key format: model_disabled:<model_name>
+            model_name = row["key"].replace("model_disabled:", "", 1)
+            if row["value"].lower() == "true":
+                disabled_models.add(model_name)
+
         cur.close()
         conn.close()
+
+        # 4. Check if Ollama cloud API key is available (for MiniMax/Qwen3 virtual providers)
+        ollama_api_key_set = bool(os.environ.get("OLLAMA_API_KEY", "").strip())
+
+        # 5. Build the response for each provider
         result = []
-        for r in rows:
-            d = dict(r)
-            for k, v in d.items():
-                if hasattr(v, "isoformat"):
-                    d[k] = v.isoformat()
-            result.append(d)
+
+        # DB-managed providers (openai, perplexity, xai)
+        for provider_name in ["openai", "perplexity", "xai"]:
+            db_row = db_providers.get(provider_name)
+            models_def = PROVIDER_MODELS.get(provider_name, [])
+
+            is_active = db_row["is_active"] if db_row else False
+            monthly_budget = float(db_row["monthly_budget_usd"]) if db_row else 10.0
+            current_cost = float(db_row["current_month_cost_usd"]) if db_row else 0.0
+            budget_pct = round((current_cost / monthly_budget) * 100, 1) if monthly_budget > 0 else 0.0
+
+            # Aggregate 24h stats across all models for this provider
+            provider_requests = 0
+            provider_cost = 0.0
+            provider_latency_sum = 0.0
+            provider_success_sum = 0.0
+            provider_models_with_stats = 0
+
+            models_out = []
+            for m in models_def:
+                m_stats = stats_by_model.get(
+                    m["name"],
+                    {
+                        "requests": 0,
+                        "cost": 0.0,
+                        "avg_latency_ms": 0.0,
+                        "success_rate": 100.0,
+                    },
+                )
+                tier_pos = TIER_ORDER.get(m["tier"], -1)
+
+                models_out.append(
+                    {
+                        "name": m["name"],
+                        "tier": m["tier"],
+                        "tier_position": tier_pos,
+                        "enabled": m["name"] not in disabled_models,
+                        "stats_24h": m_stats,
+                    }
+                )
+
+                provider_requests += m_stats["requests"]
+                provider_cost += m_stats["cost"]
+                if m_stats["requests"] > 0:
+                    provider_latency_sum += m_stats["avg_latency_ms"]
+                    provider_success_sum += m_stats["success_rate"]
+                    provider_models_with_stats += 1
+
+            avg_latency = (
+                round(provider_latency_sum / provider_models_with_stats, 1) if provider_models_with_stats > 0 else 0.0
+            )
+            avg_success = (
+                round(provider_success_sum / provider_models_with_stats, 1) if provider_models_with_stats > 0 else 100.0
+            )
+
+            tier_positions = {m["name"]: TIER_ORDER.get(m["tier"], -1) for m in models_def}
+
+            entry = {
+                "provider": provider_name,
+                "is_active": is_active,
+                "monthly_budget_usd": monthly_budget,
+                "current_month_cost_usd": current_cost,
+                "budget_pct": budget_pct,
+                "source": "db",
+                "key_hint": db_row.get("key_hint") if db_row else None,
+                "tier_positions": tier_positions,
+                "stats_24h": {
+                    "requests": provider_requests,
+                    "cost": round(provider_cost, 6),
+                    "success_rate": avg_success,
+                    "avg_latency_ms": avg_latency,
+                },
+                "models": models_out,
+            }
+            result.append(entry)
+
+        # Cloud-config virtual providers (MiniMax Cloud, Qwen3 Cloud)
+        for provider_name in ["minimax_cloud", "qwen3_cloud"]:
+            models_def = PROVIDER_MODELS.get(provider_name, [])
+
+            provider_requests = 0
+            provider_cost = 0.0
+            provider_latency_sum = 0.0
+            provider_success_sum = 0.0
+            provider_models_with_stats = 0
+
+            models_out = []
+            for m in models_def:
+                m_stats = stats_by_model.get(
+                    m["name"],
+                    {
+                        "requests": 0,
+                        "cost": 0.0,
+                        "avg_latency_ms": 0.0,
+                        "success_rate": 100.0,
+                    },
+                )
+                tier_pos = TIER_ORDER.get(m["tier"], -1)
+
+                models_out.append(
+                    {
+                        "name": m["name"],
+                        "tier": m["tier"],
+                        "tier_position": tier_pos,
+                        "enabled": m["name"] not in disabled_models,
+                        "stats_24h": m_stats,
+                    }
+                )
+
+                provider_requests += m_stats["requests"]
+                provider_cost += m_stats["cost"]
+                if m_stats["requests"] > 0:
+                    provider_latency_sum += m_stats["avg_latency_ms"]
+                    provider_success_sum += m_stats["success_rate"]
+                    provider_models_with_stats += 1
+
+            avg_latency = (
+                round(provider_latency_sum / provider_models_with_stats, 1) if provider_models_with_stats > 0 else 0.0
+            )
+            avg_success = (
+                round(provider_success_sum / provider_models_with_stats, 1) if provider_models_with_stats > 0 else 100.0
+            )
+
+            tier_positions = {m["name"]: TIER_ORDER.get(m["tier"], -1) for m in models_def}
+
+            entry = {
+                "provider": provider_name,
+                "is_active": ollama_api_key_set,
+                "monthly_budget_usd": 0.0,
+                "current_month_cost_usd": round(provider_cost, 6),
+                "budget_pct": 0.0,
+                "source": "cloud_config",
+                "tier_positions": tier_positions,
+                "stats_24h": {
+                    "requests": provider_requests,
+                    "cost": round(provider_cost, 6),
+                    "success_rate": avg_success,
+                    "avg_latency_ms": avg_latency,
+                },
+                "models": models_out,
+            }
+            result.append(entry)
+
         return jsonify({"success": True, "providers": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

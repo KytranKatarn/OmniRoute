@@ -291,17 +291,29 @@ def get_bridge_stats():
         cur.close()
         conn.close()
 
-        # Calculate system load (simulated for now)
-        import random
+        # Get real LLM model counts from Ollama
+        llm_online = 0
+        llm_total = 0
+        try:
+            ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+            resp = requests.get(f"{ollama_host}/api/tags", timeout=3)
+            if resp.status_code == 200:
+                models = resp.json().get("models", [])
+                llm_total = len(models)
+                llm_online = llm_total  # All loaded models are online
+        except Exception:
+            pass
 
-        system_load = random.randint(25, 45)
+        # System load from active requests ratio (capped 0-100)
+        active_requests = token_stats["total_requests"] if token_stats else 0
+        system_load = min(int(active_requests / max(1, active_requests + 10) * 100), 100)
 
         return jsonify(
             {
                 "success": True,
                 "stats": {
-                    "llm_status": {"online": 5, "total": 6},
-                    "active_requests": (token_stats["total_requests"] if token_stats else 0),
+                    "llm_status": {"online": llm_online, "total": llm_total},
+                    "active_requests": active_requests,
                     "system_load": system_load,
                     "active_agents": agent_stats["active_agents"] if agent_stats else 0,
                     "tokens_24h": token_stats["total_tokens"] if token_stats else 0,
@@ -3637,10 +3649,8 @@ def approve_node(node_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Get current user ID (if available from session)
-        user_id = None
-        if hasattr(request, "user") and request.user:
-            user_id = request.user.get("id")
+        # Get current user ID from Flask-Login session
+        user_id = current_user.id if current_user.is_authenticated else None
 
         cur.execute(
             """
@@ -3690,10 +3700,8 @@ def reject_node(node_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Get current user ID
-        user_id = None
-        if hasattr(request, "user") and request.user:
-            user_id = request.user.get("id")
+        # Get current user ID from Flask-Login session
+        user_id = current_user.id if current_user.is_authenticated else None
 
         cur.execute(
             """
@@ -3855,11 +3863,13 @@ def get_node_health_history(node_id):
                 COUNT(*) FILTER (WHERE status = 'online') as online_count
             FROM node_heartbeats
             WHERE node_id = %s
-              AND created_at > NOW() - INTERVAL '%s hours'
+              AND created_at > NOW() - INTERVAL '{} hours'
             GROUP BY DATE_TRUNC('hour', created_at)
             ORDER BY hour
-        """,
-            (node["id"], hours),
+        """.format(
+                int(hours)
+            ),
+            (node["id"],),
         )
 
         history = cur.fetchall()
@@ -6081,7 +6091,7 @@ def get_dispatch_status():
         )
         agents = cur.fetchall()
 
-        # Recent dispatch activity (rolling 24h)
+        # Recent dispatch activity (rolling 24h + 1h)
         cur.execute(
             """
             SELECT COUNT(*) as total_dispatches,
@@ -6092,7 +6102,18 @@ def get_dispatch_status():
             WHERE created_at > NOW() - INTERVAL '24 hours'
         """
         )
-        dispatch_stats = cur.fetchone()
+        dispatch_stats_24h = cur.fetchone()
+
+        cur.execute(
+            """
+            SELECT COUNT(*) as total_dispatches,
+                   COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                   COUNT(CASE WHEN success = FALSE THEN 1 END) as failed
+            FROM task_execution_log
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """
+        )
+        dispatch_stats_1h = cur.fetchone()
 
         # Active tasks (in-progress right now — last 2 minutes)
         cur.execute(
@@ -6150,13 +6171,13 @@ def get_dispatch_status():
                     for a in agents
                 ],
                 "dispatch_stats": {
-                    "total_1h": dispatch_stats["total_dispatches"],
-                    "total_24h": dispatch_stats["total_dispatches"],
-                    "successful_1h": dispatch_stats["successful"],
-                    "successful_24h": dispatch_stats["successful"],
-                    "failed_1h": dispatch_stats["failed"],
-                    "failed_24h": dispatch_stats["failed"],
-                    "avg_duration_ms": round(float(dispatch_stats["avg_duration_ms"]), 1),
+                    "total_1h": dispatch_stats_1h["total_dispatches"],
+                    "total_24h": dispatch_stats_24h["total_dispatches"],
+                    "successful_1h": dispatch_stats_1h["successful"],
+                    "successful_24h": dispatch_stats_24h["successful"],
+                    "failed_1h": dispatch_stats_1h["failed"],
+                    "failed_24h": dispatch_stats_24h["failed"],
+                    "avg_duration_ms": round(float(dispatch_stats_24h["avg_duration_ms"]), 1),
                 },
                 "active_tasks": [
                     {

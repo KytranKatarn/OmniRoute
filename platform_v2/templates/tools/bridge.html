@@ -3098,6 +3098,93 @@
 }
 
 /* ============================================================================
+   TAB NAVIGATION
+   ============================================================================ */
+.bridge-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    margin-bottom: 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.bridge-tabs::-webkit-scrollbar { display: none; }
+
+.bridge-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: var(--archie-text-tertiary, #8b949e);
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+}
+.bridge-tab i {
+    width: 14px;
+    height: 14px;
+}
+.bridge-tab:hover {
+    color: var(--archie-text-secondary, #c9d1d9);
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+}
+.bridge-tab.active {
+    color: var(--archie-cyan, #00ffff);
+    border-color: var(--archie-cyan, #00ffff);
+    background: rgba(0, 255, 255, 0.06);
+}
+.bridge-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 20%;
+    width: 60%;
+    height: 2px;
+    background: var(--archie-cyan, #00ffff);
+    border-radius: 1px;
+}
+
+/* Tab panels */
+.bridge-tab-panel {
+    display: none;
+}
+.bridge-tab-panel.active {
+    display: block;
+}
+
+/* Light mode tabs */
+[data-theme="light"] .bridge-tab,
+body.light-mode .bridge-tab {
+    border-color: rgba(0, 0, 0, 0.1);
+    color: #57606a;
+}
+[data-theme="light"] .bridge-tab:hover,
+body.light-mode .bridge-tab:hover {
+    color: #24292f;
+    border-color: rgba(0, 0, 0, 0.2);
+}
+[data-theme="light"] .bridge-tab.active,
+body.light-mode .bridge-tab.active {
+    color: #0969da;
+    border-color: #0969da;
+    background: rgba(9, 105, 218, 0.06);
+}
+[data-theme="light"] .bridge-tab.active::after,
+body.light-mode .bridge-tab.active::after {
+    background: #0969da;
+}
+
+/* ============================================================================
    RESPONSIVE ADJUSTMENTS
    ============================================================================ */
 
@@ -4039,9 +4126,43 @@ body.light-mode .station-coverage-code,
         </div>
     </div>
 
+    <!-- Tab Navigation -->
+    <nav class="bridge-tabs" id="bridgeTabs">
+        <button class="bridge-tab active" data-tab="overview" onclick="switchBridgeTab('overview')">
+            <i data-lucide="layout-dashboard"></i>
+            <span data-i18n="bridge.tabs.overview">Overview</span>
+        </button>
+        <button class="bridge-tab" data-tab="stations" onclick="switchBridgeTab('stations')">
+            <i data-lucide="radio-tower"></i>
+            <span data-i18n="bridge.tabs.stations">Stations</span>
+        </button>
+        <button class="bridge-tab" data-tab="dispatch" onclick="switchBridgeTab('dispatch')">
+            <i data-lucide="activity"></i>
+            <span data-i18n="bridge.tabs.dispatch">Dispatch</span>
+        </button>
+        <button class="bridge-tab" data-tab="crew" onclick="switchBridgeTab('crew')">
+            <i data-lucide="users"></i>
+            <span data-i18n="bridge.tabs.crew">Crew</span>
+        </button>
+        <button class="bridge-tab" data-tab="network" onclick="switchBridgeTab('network')">
+            <i data-lucide="network"></i>
+            <span data-i18n="bridge.tabs.network">Network</span>
+        </button>
+    </nav>
+
     <!-- Main Content -->
     <div class="bridge-main">
         <div class="bridge-content">
+            <!-- Overview Tab Panel -->
+            <div class="bridge-tab-panel active" data-panel="overview">
+                <div style="color: var(--archie-text-muted); font-size: 0.85rem; text-align: center; padding: 3rem 1rem;">
+                    <i data-lucide="layout-dashboard" style="width: 32px; height: 32px; margin-bottom: 12px; opacity: 0.5;"></i>
+                    <div>Overview — coming in Task 3</div>
+                </div>
+            </div>
+
+            <!-- Stations Tab Panel -->
+            <div class="bridge-tab-panel" data-panel="stations">
             <!-- Command Station Hero -->
             <div class="bridge-command-section">
                 <div class="command-station">
@@ -4080,7 +4201,10 @@ body.light-mode .station-coverage-code,
                     <!-- Station cards rendered by JavaScript -->
                 </div>
             </div>
+            </div><!-- /stations panel -->
 
+            <!-- Dispatch Tab Panel -->
+            <div class="bridge-tab-panel" data-panel="dispatch">
             <!-- Dispatch Activity Section (Project #91 — Phase 6) -->
             <div class="bridge-dispatch-section">
                 <div class="bridge-dispatch-header">
@@ -4127,7 +4251,10 @@ body.light-mode .station-coverage-code,
                     </div>
                 </div>
             </div>
+            </div><!-- /dispatch panel -->
 
+            <!-- Crew Tab Panel -->
+            <div class="bridge-tab-panel" data-panel="crew">
             <!-- Crew Manifest Section -->
             <div class="crew-manifest-section" id="crew-manifest-section">
                 <div class="crew-manifest-header">
@@ -4140,7 +4267,10 @@ body.light-mode .station-coverage-code,
                     </div>
                 </div>
             </div>
+            </div><!-- /crew panel -->
 
+            <!-- Network Tab Panel -->
+            <div class="bridge-tab-panel" data-panel="network">
             <!-- Node Network Section -->
             <div class="bridge-nodes-section">
                 <div class="bridge-nodes-header">
@@ -4213,6 +4343,7 @@ body.light-mode .station-coverage-code,
                     </div>
                 </div>
             </div>
+            </div><!-- /network panel -->
 
         </div>
 
@@ -4554,6 +4685,37 @@ function toggleBridgeControls() {
     var isVisible = controls.classList.toggle('mobile-visible');
     toggle.classList.toggle('expanded', isVisible);
 }
+
+// === Tab Navigation ===
+function switchBridgeTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.bridge-tab').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    // Update panels
+    document.querySelectorAll('.bridge-tab-panel').forEach(function(panel) {
+        panel.classList.toggle('active', panel.dataset.panel === tabName);
+    });
+    // Update URL hash
+    history.replaceState(null, '', '#' + tabName);
+    // Trigger data load for the tab if needed
+    if (tabName === 'stations') loadStations();
+    if (tabName === 'dispatch') loadDispatchActivity();
+    if (tabName === 'crew') loadCrewManifest();
+    if (tabName === 'network') { loadNodes(); loadModelAvailability(); }
+    // Re-render Lucide icons for any new content
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Restore tab from URL hash on page load
+(function() {
+    var hash = window.location.hash.replace('#', '');
+    var validTabs = ['overview', 'stations', 'dispatch', 'crew', 'network'];
+    if (hash && validTabs.indexOf(hash) !== -1) {
+        // Delay to ensure DOM is ready
+        setTimeout(function() { switchBridgeTab(hash); }, 100);
+    }
+})();
 
 // === i18n helper ===
 function _t(key, fallback) {

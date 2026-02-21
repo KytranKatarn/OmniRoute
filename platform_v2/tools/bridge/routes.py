@@ -6488,7 +6488,7 @@ def get_dispatch_status():
         )
         agents = cur.fetchall()
 
-        # Recent dispatch activity (last 1 hour)
+        # Recent dispatch activity (rolling 24h)
         cur.execute(
             """
             SELECT COUNT(*) as total_dispatches,
@@ -6496,7 +6496,7 @@ def get_dispatch_status():
                    COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
                    COALESCE(AVG(duration_ms), 0) as avg_duration_ms
             FROM task_execution_log
-            WHERE created_at > NOW() - INTERVAL '1 hour'
+            WHERE created_at > NOW() - INTERVAL '24 hours'
         """
         )
         dispatch_stats = cur.fetchone()
@@ -6558,8 +6558,11 @@ def get_dispatch_status():
                 ],
                 "dispatch_stats": {
                     "total_1h": dispatch_stats["total_dispatches"],
+                    "total_24h": dispatch_stats["total_dispatches"],
                     "successful_1h": dispatch_stats["successful"],
+                    "successful_24h": dispatch_stats["successful"],
                     "failed_1h": dispatch_stats["failed"],
+                    "failed_24h": dispatch_stats["failed"],
                     "avg_duration_ms": round(float(dispatch_stats["avg_duration_ms"]), 1),
                 },
                 "active_tasks": [
@@ -6620,6 +6623,7 @@ def get_dispatch_history():
             LEFT JOIN agents a ON a.id = tel.agent_id
             LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
             LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+            WHERE tel.created_at > NOW() - INTERVAL '24 hours'
             ORDER BY tel.created_at DESC
             LIMIT %s
         """,

@@ -4173,7 +4173,7 @@ body.light-mode .bridge-hud-value {
             <!-- Dispatch Stats HUD Pods -->
             <div class="bridge-hud-strip">
                 <div class="bridge-hud-pod">
-                    <span class="bridge-hud-label" data-i18n="bridge.dispatch.per_hour">Dispatches/hr</span>
+                    <span class="bridge-hud-label" data-i18n="bridge.dispatch.total_24h">Dispatches (24h)</span>
                     <div class="bridge-hud-value" id="dispatch-total">--</div>
                     <span class="bridge-hud-unit" data-i18n="bridge.dispatch.requests">requests</span>
                 </div>
@@ -7210,16 +7210,26 @@ async function loadDispatchActivity() {
     }
 }
 
+function formatDuration(ms) {
+    if (ms == null) return '--';
+    ms = Number(ms);
+    if (ms < 1000) return ms + 'ms';
+    if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+    var m = Math.floor(ms / 60000);
+    var s = Math.round((ms % 60000) / 1000);
+    return m + 'm ' + s + 's';
+}
+
 function renderDispatchStats(stats) {
     const totalEl = document.getElementById('dispatch-total');
     const successEl = document.getElementById('dispatch-success');
     const failedEl = document.getElementById('dispatch-failed');
     const avgEl = document.getElementById('dispatch-avg-ms');
 
-    if (totalEl) totalEl.textContent = stats.total_1h || '0';
-    if (successEl) successEl.textContent = stats.successful_1h || '0';
-    if (failedEl) failedEl.textContent = stats.failed_1h || '0';
-    if (avgEl) avgEl.textContent = stats.avg_duration_ms ? Math.round(stats.avg_duration_ms) + 'ms' : '0ms';
+    if (totalEl) totalEl.textContent = stats.total_24h || stats.total_1h || '0';
+    if (successEl) successEl.textContent = stats.successful_24h || stats.successful_1h || '0';
+    if (failedEl) failedEl.textContent = stats.failed_24h || stats.failed_1h || '0';
+    if (avgEl) avgEl.textContent = formatDuration(stats.avg_duration_ms);
 }
 
 function renderDispatchHistory(history) {
@@ -7253,7 +7263,7 @@ function renderDispatchHistory(history) {
 
         const duration = document.createElement('span');
         duration.className = 'dispatch-history-duration';
-        duration.textContent = item.duration_ms ? item.duration_ms + 'ms' : '--';
+        duration.textContent = formatDuration(item.duration_ms);
 
         const time = document.createElement('span');
         time.className = 'dispatch-history-time';

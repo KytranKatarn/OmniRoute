@@ -194,39 +194,6 @@
     animation: status-pulse 1.5s infinite;
 }
 
-/* Legacy class kept for JS compatibility */
-.bridge-logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 24px;
-    background: linear-gradient(135deg, var(--archie-gold) 0%, #DAA520 100%);
-    color: #000;
-    font-family: var(--archie-font-display);
-    font-weight: 700;
-    letter-spacing: 2px;
-    clip-path: polygon(0 0, 100% 0, 90% 100%, 0 100%);
-    padding-right: 40px;
-}
-
-.bridge-logo i {
-    width: 24px;
-    height: 24px;
-}
-
-.bridge-logo-text {
-    font-size: 0.9rem;
-}
-
-.bridge-status-center {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 32px;
-    padding: 8px 24px;
-}
-
 .bridge-status-item {
     display: flex;
     align-items: center;
@@ -254,13 +221,6 @@
 .bridge-status-item .status-value {
     color: var(--archie-accent);
     font-weight: 500;
-}
-
-.bridge-status-right {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 8px 24px;
 }
 
 .bridge-time {
@@ -1321,12 +1281,6 @@ body.light-mode .status-bar-divider {
 .crew-agent-stats .stat-val {
     font-weight: 600;
     color: var(--archie-text-secondary);
-}
-
-@media (max-width: 768px) {
-    .crew-manifest-grid {
-        grid-template-columns: 1fr;
-    }
 }
 
 /* Crew Sub-Tabs */
@@ -3159,26 +3113,6 @@ body.light-mode .bridge-tab.active::after {
     background: #0969da;
 }
 
-/* ============================================================================
-   RESPONSIVE ADJUSTMENTS
-   ============================================================================ */
-
-@media (max-width: 768px) {
-    .node-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .bridge-nodes-header {
-        flex-wrap: wrap;
-        gap: 1rem;
-    }
-
-    .node-stats {
-        order: 3;
-        width: 100%;
-    }
-}
-
 /* Routing Mode Toggle (legacy — now in bridge-header-controls) */
 .routing-mode-label {
     color: var(--archie-accent);
@@ -3785,6 +3719,10 @@ body.light-mode .station-coverage-code,
         flex-wrap: wrap;
         gap: 8px;
     }
+    .node-stats {
+        order: 3;
+        width: 100%;
+    }
     .routing-mode-control {
         flex-wrap: wrap;
         justify-content: center;
@@ -3794,13 +3732,6 @@ body.light-mode .station-coverage-code,
 
 /* Fold5 Closed — 374px */
 @media (max-width: 420px) {
-    .bridge-logo-text {
-        font-size: 0.7rem;
-        letter-spacing: 1px;
-    }
-    .bridge-status-center {
-        gap: 8px;
-    }
     .bridge-status-item {
         font-size: 0.65rem;
         gap: 4px;
@@ -3812,9 +3743,6 @@ body.light-mode .station-coverage-code,
         gap: 6px;
         padding: 6px 10px;
         margin: 0 8px 8px;
-    }
-    .status-bar-label {
-        display: none;
     }
     .status-bar-value {
         font-size: 0.65rem;
@@ -3836,13 +3764,6 @@ body.light-mode .station-coverage-code,
     .btn-add-node {
         padding: 4px 10px;
         font-size: 0.6rem;
-    }
-    .bridge-sidebar-title {
-        font-size: 0.7rem;
-    }
-    .bridge-iaae-panel {
-        grid-template-columns: 1fr 1fr;
-        gap: 6px;
     }
     .mesh-header-stats {
         display: none;
@@ -4097,6 +4018,45 @@ body.light-mode .bridge-hud-pod {
 [data-theme="light"] .bridge-hud-value,
 body.light-mode .bridge-hud-value {
     color: #0969da;
+}
+
+/* ============================================================================
+   RESPONSIVE — Tabs, HUD Pods, Briefing Cards, Crew Sub-tabs
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    /* Icon-only tabs on tablet/mobile */
+    .bridge-tab span { display: none; }
+    .bridge-tab { padding: 8px 12px; }
+    .bridge-tabs { justify-content: center; }
+
+    /* Briefing cards stack to single column */
+    .bridge-overview-cards { grid-template-columns: 1fr; }
+
+    /* HUD pods wrap to 2x2 */
+    .bridge-hud-strip { flex-wrap: wrap; }
+    .bridge-hud-pod { flex: 1 1 45%; min-width: 0; }
+
+    /* Status bar wrap */
+    .bridge-status-bar .status-bar-label { display: none; }
+
+    /* Crew sub-tabs — icon-only */
+    .crew-subtabs { justify-content: center; }
+    .crew-subtab span { display: none; }
+    .crew-subtab { padding: 6px 10px; }
+}
+
+@media (max-width: 480px) {
+    /* HUD pods full-width on narrow mobile */
+    .bridge-hud-pod { flex: 1 1 100%; }
+
+    /* Status bar compact */
+    .status-bar-divider { display: none; }
+    .bridge-status-bar { justify-content: space-around; padding: 6px 8px; margin: 0 8px 8px; }
+
+    /* Tighter spacing */
+    .bridge-hud-strip { padding: 0 8px; gap: 6px; }
+    .bridge-overview-cards { padding: 0 8px; gap: 8px; }
 }
 </style>
 
@@ -5564,8 +5524,8 @@ function renderAgentChip(agent, stationCode) {
     const isPrimary = agent.assignment_type === 'primary';
     const avatar = agent.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=0d1117&color=00ffff&size=32`;
 
-    // Skill match indicator (simplified - would need API for real validation)
-    const skillMatch = true; // TODO: Get from skill validation API
+    // Skill match indicator (always true — no skill validation API)
+    const skillMatch = true;
 
     return `
         <div class="bridge-agent-chip ${isPrimary ? 'primary' : ''}"
@@ -5647,8 +5607,7 @@ async function handleDrop(event, targetType, targetId = null) {
 
     console.log(`Moving agent ${draggedAgent.name} to ${targetType}`, targetId);
 
-    // TODO: API call to update assignment
-    // For now, just show feedback
+    // Show feedback (API integration deferred — PUT /api/assignments/<id> available)
     if (targetType === 'training') {
         showNotification(`${draggedAgent.name} moved to Training`);
     } else if (targetType === 'lounge') {

@@ -5,6 +5,7 @@ services:
     container_name: archie_database
     restart: unless-stopped
     environment:
+      TZ: America/Toronto
       POSTGRES_USER: archie
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: archie
@@ -41,6 +42,7 @@ services:
     env_file:
       - .env
     environment:
+      TZ: America/Toronto
       PYTHONPATH: /mnt/archie_brain
       SECRET_KEY: ${SECRET_KEY}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}

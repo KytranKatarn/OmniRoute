@@ -4414,7 +4414,7 @@ window.timeAgo = function timeAgo(isoString) {
         bigNum.textContent = data.today_interactions || 0;
         var interLabel = document.createElement('div');
         interLabel.className = 'briefing-ai-stat-label';
-        interLabel.textContent = archieI18n.t('js.insights.interactions_today', 'Interactions Today');
+        interLabel.textContent = archieI18n.t('js.insights.interactions_24h', 'Interactions (24h)');
         interactionRow.appendChild(bigNum);
         interactionRow.appendChild(interLabel);
         stats.appendChild(interactionRow);

@@ -1047,7 +1047,7 @@ def api_dashboard_ai_status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT COUNT(*) as count FROM agents WHERE status = 'active'")
         agent_count = cur.fetchone()["count"]
-        cur.execute("SELECT COUNT(*) as count FROM task_execution_log WHERE created_at >= CURRENT_DATE")
+        cur.execute("SELECT COUNT(*) as count FROM task_execution_log WHERE created_at >= NOW() - INTERVAL '24 hours'")
         today_interactions = cur.fetchone()["count"]
         cur.execute(
             "SELECT service_name, status FROM service_status WHERE service_name IN ('ollama', 'ai_bridge', 'consciousness')"

@@ -4092,9 +4092,9 @@ body.light-mode .bridge-hud-value {
                 <!-- HUD Pods Strip -->
                 <div class="bridge-hud-strip">
                     <div class="bridge-hud-pod">
-                        <span class="bridge-hud-label" data-i18n="bridge.overview.throughput">Throughput</span>
+                        <span class="bridge-hud-label" data-i18n="bridge.overview.throughput">Throughput (24h)</span>
                         <div class="bridge-hud-value" id="hudBridgeThroughput">--</div>
-                        <span class="bridge-hud-unit">req/min</span>
+                        <span class="bridge-hud-unit" id="hudThroughputUnit">req/min</span>
                     </div>
                     <div class="bridge-hud-pod">
                         <span class="bridge-hud-label" data-i18n="bridge.overview.utilization">Utilization</span>
@@ -5085,13 +5085,17 @@ function loadOverviewData() {
             if (el) el.innerHTML = '<span class="briefing-muted">Unable to load activity</span>';
         });
 
-    // 5. HUD pod: Throughput
+    // 5. HUD pod: Throughput (24h)
     fetch('/tools/bridge/api/traffic')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
                 var el = document.getElementById('hudBridgeThroughput');
-                if (el) el.textContent = data.requests_per_minute || data.rpm || 0;
+                var unitEl = document.getElementById('hudThroughputUnit');
+                var total = data.total_24h || 0;
+                var rpm = data.requests_per_minute || 0;
+                if (el) el.textContent = total;
+                if (unitEl) unitEl.textContent = 'tasks · ' + rpm + ' req/min';
             }
         }).catch(function() {});
 

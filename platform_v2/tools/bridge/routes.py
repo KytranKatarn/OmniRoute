@@ -6907,9 +6907,17 @@ def upsert_external_provider():
     provider = data.get("provider", "").strip().lower()
     api_key = data.get("api_key", "").strip()
 
-    if provider not in ("openai", "perplexity", "xai"):
+    EXTERNAL_PROVIDERS = ("openai", "perplexity", "xai")
+    CLOUD_PROVIDERS = ("minimax_cloud", "qwen3_cloud")
+    ALL_PROVIDERS = EXTERNAL_PROVIDERS + CLOUD_PROVIDERS
+
+    if provider not in ALL_PROVIDERS:
         return jsonify({"success": False, "error": f"Unknown provider: {provider}"}), 400
-    if not api_key:
+
+    # Cloud providers use OLLAMA_API_KEY from env — no user-supplied key needed
+    if provider in CLOUD_PROVIDERS:
+        api_key = "OLLAMA_API_KEY"
+    elif not api_key:
         return jsonify({"success": False, "error": "API key required"}), 400
 
     budget = data.get("monthly_budget_usd", 10.0)
@@ -6950,6 +6958,55 @@ def toggle_external_provider(provider):
         cur.close()
         conn.close()
         return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route(
+    "/api/external-providers/<provider>/models/<path:model_name>/toggle",
+    methods=["PUT"],
+)
+@login_required
+def toggle_provider_model(provider, model_name):
+    """Enable/disable a specific model under a provider for routing."""
+    data = request.get_json() or {}
+    enabled = data.get("enabled")
+
+    if enabled is None or not isinstance(enabled, bool):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Request body must include 'enabled' (boolean)",
+                }
+            ),
+            400,
+        )
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        setting_key = f"model_disabled:{model_name}"
+        # Store as disabled flag: enabled=True means NOT disabled, so value="false"
+        disabled_value = "false" if enabled else "true"
+        cur.execute(
+            """
+            INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+            VALUES (%s, %s, 'boolean', %s, NOW())
+            ON CONFLICT (key) DO UPDATE SET
+                value = EXCLUDED.value,
+                updated_at = NOW()
+            """,
+            (
+                setting_key,
+                disabled_value,
+                f"Model routing toggle for {model_name} (provider: {provider})",
+            ),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "model": model_name, "enabled": enabled})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

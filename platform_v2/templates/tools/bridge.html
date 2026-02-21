@@ -5753,7 +5753,18 @@ async function loadIAAEStatus() {
             const statusEl = document.getElementById('iaae-status');
             if (statusEl) {
                 var fh = data.fleet_health || {};
-                statusEl.textContent = (fh.active_agents || 0) + ' OK';
+                var atRisk = fh.agents_at_risk || 0;
+                var resting = fh.agents_resting || 0;
+                if (atRisk > 0) {
+                    statusEl.textContent = atRisk + ' At Risk';
+                    statusEl.style.color = 'var(--archie-danger)';
+                } else if (resting > 0) {
+                    statusEl.textContent = resting + ' Resting';
+                    statusEl.style.color = 'var(--archie-warning)';
+                } else {
+                    statusEl.textContent = 'All Clear';
+                    statusEl.style.color = 'var(--archie-success)';
+                }
             }
         }
     } catch (error) {

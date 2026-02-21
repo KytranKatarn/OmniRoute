@@ -2092,43 +2092,87 @@ def get_module_mapping():
 
 @bridge_bp.route("/api/llm/status")
 def get_llm_status():
-    """Get status of all LLM connections"""
+    """Get live LLM status from Ollama + external API key checks"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        ollama_host = "host.docker.internal"
+        ollama_port = 11434
 
-        # Get all connections
-        cur.execute(
-            """
-            SELECT id, provider, model_name, display_name, status,
-                   last_check, last_success, last_failure,
-                   avg_latency_ms, p95_latency_ms, success_rate,
-                   total_requests, failed_requests, consecutive_failures,
-                   capabilities, endpoint_url
-            FROM llm_connections
-            ORDER BY provider, model_name
-        """
-        )
-        connections = cur.fetchall()
+        # 1. Check Ollama health
+        status, latency = check_ollama_status(ollama_host, ollama_port)
 
-        # Get summary by provider
-        cur.execute("SELECT * FROM llm_status_summary")
-        summary = cur.fetchall()
+        # 2. Get loaded models (currently in VRAM/RAM)
+        loaded_models = []
+        try:
+            resp = requests.get(f"http://{ollama_host}:{ollama_port}/api/ps", timeout=5)
+            if resp.ok:
+                for m in resp.json().get("models", []):
+                    loaded_models.append(
+                        {
+                            "name": m.get("name", "unknown"),
+                            "size": m.get("size", 0),
+                            "vram": m.get("size_vram", 0),
+                            "expires": m.get("expires_at", ""),
+                        }
+                    )
+        except Exception:
+            pass
+        loaded_names = {m["name"] for m in loaded_models}
 
-        cur.close()
-        conn.close()
+        # 3. Get all available models
+        available_models = get_ollama_models(ollama_host, ollama_port)
 
-        # Convert datetime objects to strings
-        for c in connections:
-            for key in ["last_check", "last_success", "last_failure"]:
-                if c.get(key):
-                    c[key] = c[key].isoformat()
+        # 4. Build model list with status
+        models = []
+        for name in available_models:
+            models.append(
+                {
+                    "name": name,
+                    "provider": "ollama",
+                    "status": "loaded" if name in loaded_names else "available",
+                }
+            )
+
+        # 5. Check external API keys
+        external = []
+        for conn_id, label in [
+            ("claude_api", "Claude API"),
+            ("openai_api", "OpenAI"),
+            ("grok_api", "Grok"),
+        ]:
+            key_status = check_api_key_status(conn_id)
+            external.append(
+                {
+                    "name": label,
+                    "provider": conn_id.replace("_api", ""),
+                    "status": "configured" if key_status else "no_key",
+                }
+            )
+
+        # 6. Get routing mode
+        routing_mode = "full"
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
+            row = cur.fetchone()
+            if row:
+                routing_mode = row["value"]
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
         return jsonify(
             {
                 "success": True,
-                "connections": connections,
-                "summary": summary,
+                "ollama_status": status,
+                "ollama_latency_ms": latency,
+                "loaded_models": loaded_models,
+                "models": models,
+                "external": external,
+                "routing_mode": routing_mode,
+                "total_available": len(available_models),
+                "total_loaded": len(loaded_models),
                 "timestamp": datetime.now().isoformat(),
             }
         )

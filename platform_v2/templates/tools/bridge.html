@@ -4696,26 +4696,53 @@ function toggleBridgeControls() {
 
 // === Overview Tab Data ===
 function loadOverviewData() {
-    // 1. AI Bridge Status card
+    // 1. AI Bridge Status card (live Ollama + external providers)
     fetch('/tools/bridge/api/llm/status')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var el = document.getElementById('overviewAiStatus');
             if (!el) return;
-            if (!data.success && !Array.isArray(data)) {
+            if (!data.success) {
                 el.innerHTML = '<span class="briefing-muted">Unable to load</span>';
                 return;
             }
-            var connections = Array.isArray(data) ? data : (data.connections || []);
+            // Helper: sanitize text for safe DOM insertion
+            function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
             var html = '';
-            connections.forEach(function(conn) {
-                var dot = conn.status === 'online' ? '🟢' : '🔴';
-                html += '<div style="display:flex;justify-content:space-between;padding:3px 0;">';
-                html += '<span>' + dot + ' ' + (conn.name || conn.service_name || 'Unknown') + '</span>';
-                html += '<span style="color:var(--archie-text-tertiary)">' + (conn.status || 'unknown') + '</span>';
+            // Ollama status + routing mode header
+            var ollamaDot = data.ollama_status === 'online' ? '🟢' : '🔴';
+            var mode = esc(String(data.routing_mode || 'full'));
+            html += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:4px;">';
+            html += '<span>' + ollamaDot + ' Ollama</span>';
+            html += '<span style="color:var(--archie-cyan);font-size:0.8em;text-transform:uppercase;">' + mode + '</span>';
+            html += '</div>';
+            // Loaded models (currently in memory)
+            (data.loaded_models || []).forEach(function(m) {
+                var name = esc(String(m.name || 'unknown').split(':')[0]);
+                var sizeMB = m.vram ? Math.round(m.vram / 1048576) : Math.round((m.size || 0) / 1048576);
+                html += '<div style="display:flex;justify-content:space-between;padding:2px 0;">';
+                html += '<span style="color:#00ff41;">&#9679; ' + name + '</span>';
+                html += '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">' + parseInt(sizeMB) + ' MB</span>';
                 html += '</div>';
             });
-            el.innerHTML = html || '<span class="briefing-muted">No connections configured</span>';
+            // Available (not loaded) count
+            var availCount = parseInt(data.total_available || 0) - parseInt(data.total_loaded || 0);
+            if (availCount > 0) {
+                html += '<div style="padding:2px 0;color:var(--archie-text-tertiary);font-size:0.85em;">';
+                html += '+ ' + parseInt(availCount) + ' available on disk';
+                html += '</div>';
+            }
+            // External providers (fixed labels, only status varies)
+            (data.external || []).forEach(function(ext) {
+                var dot = ext.status === 'configured' ? '🟡' : '⚫';
+                var extName = esc(String(ext.name || 'Unknown'));
+                var extStatus = esc(String(ext.status || 'unknown').replace('_', ' '));
+                html += '<div style="display:flex;justify-content:space-between;padding:2px 0;">';
+                html += '<span>' + dot + ' ' + extName + '</span>';
+                html += '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">' + extStatus + '</span>';
+                html += '</div>';
+            });
+            el.innerHTML = html;
         }).catch(function() {
             var el = document.getElementById('overviewAiStatus');
             if (el) el.innerHTML = '<span class="briefing-muted">Unable to load</span>';

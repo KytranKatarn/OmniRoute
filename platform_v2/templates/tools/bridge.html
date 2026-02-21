@@ -256,23 +256,14 @@
 }
 
 /* ============================================================================
-   MAIN LAYOUT - Sidebar + Main Content
+   MAIN LAYOUT
    ============================================================================ */
 
 .bridge-main {
     display: grid;
-    grid-template-columns: 1fr 280px;
+    grid-template-columns: 1fr;
     gap: 0;
     min-height: calc(100vh - 60px);
-}
-
-@media (max-width: 1200px) {
-    .bridge-main {
-        grid-template-columns: 1fr;
-    }
-    .bridge-sidebar {
-        display: none; /* Collapse on mobile */
-    }
 }
 
 /* ============================================================================
@@ -763,72 +754,7 @@ body.light-mode .status-bar-divider {
     font-size: 0.7rem;
 }
 
-/* ============================================================================
-   SIDEBAR - Utility Areas
-   ============================================================================ */
-
-.bridge-sidebar {
-    background: var(--archie-bg-secondary);
-    border-left: 1px solid var(--archie-border-default);
-    display: flex;
-    flex-direction: column;
-}
-
-.bridge-sidebar-section {
-    padding: 16px;
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.bridge-sidebar-title {
-    font-family: var(--archie-font-display);
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.bridge-sidebar-title i {
-    width: 14px;
-    height: 14px;
-}
-
-/* IAAE Health Panel */
-.bridge-iaae-panel {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-}
-
-.bridge-iaae-stat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 6px;
-    border: 1px solid var(--archie-border-default);
-}
-
-.bridge-iaae-value {
-    font-family: var(--archie-font-display);
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: var(--archie-cyan);
-}
-
-.bridge-iaae-stat.warning .bridge-iaae-value { color: var(--archie-warning); }
-.bridge-iaae-stat.error .bridge-iaae-value { color: var(--archie-danger); }
-
-.bridge-iaae-label {
-    font-size: 0.55rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    margin-top: 4px;
-}
+/* Sidebar removed — IAAE health and VPN nodes moved to per-tab content */
 
 /* Drop Zones - Training & Lounge */
 .bridge-drop-zone {
@@ -863,31 +789,7 @@ body.light-mode .status-bar-divider {
     height: 14px;
 }
 
-/* Remote Connections Section (VPN Nodes) */
-.bridge-remote-connections {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.bridge-remote-placeholder {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    color: var(--archie-text-muted);
-    font-size: 0.7rem;
-    text-align: center;
-    padding: 20px;
-}
-
-.bridge-remote-placeholder i {
-    width: 32px;
-    height: 32px;
-    opacity: 0.5;
-}
+/* Remote Connections CSS removed — VPN nodes moved to Network tab */
 
 /* ============================================================================
    DISPATCH ACTIVITY SECTION (Project #91 — Phase 6)
@@ -3520,37 +3422,7 @@ body.light-mode .model-card:hover,
     box-shadow: 0 0 15px rgba(217, 68, 68, 0.1);
 }
 
-/* Sidebar */
-body.light-mode .bridge-sidebar,
-[data-theme="light"] .bridge-sidebar {
-    background: rgba(245, 246, 248, 0.95);
-    border-left-color: rgba(0, 0, 0, 0.06);
-}
-
-body.light-mode .bridge-sidebar-section,
-[data-theme="light"] .bridge-sidebar-section {
-    border-bottom-color: rgba(0, 0, 0, 0.06);
-}
-
-body.light-mode .bridge-sidebar-title,
-[data-theme="light"] .bridge-sidebar-title {
-    color: #555;
-}
-
-body.light-mode .bridge-iaae-panel,
-[data-theme="light"] .bridge-iaae-panel {
-    background: rgba(0, 0, 0, 0.02);
-}
-
-body.light-mode .bridge-iaae-value,
-[data-theme="light"] .bridge-iaae-value {
-    color: #333;
-}
-
-body.light-mode .bridge-iaae-label,
-[data-theme="light"] .bridge-iaae-label {
-    color: #888;
-}
+/* Sidebar light-mode CSS removed */
 
 body.light-mode .bridge-drop-zone,
 [data-theme="light"] .bridge-drop-zone {
@@ -3563,10 +3435,7 @@ body.light-mode .bridge-drop-zone-hint,
     color: #999;
 }
 
-body.light-mode .bridge-remote-placeholder,
-[data-theme="light"] .bridge-remote-placeholder {
-    color: #888;
-}
+/* Remote placeholder light-mode CSS removed */
 
 /* Modals */
 body.light-mode .assignment-modal,
@@ -4562,49 +4431,7 @@ body.light-mode .bridge-hud-value {
 
         </div>
 
-        <!-- Sidebar -->
-        <div class="bridge-sidebar">
-            <!-- IAAE Health Monitor -->
-            <div class="bridge-sidebar-section">
-                <div class="bridge-sidebar-title">
-                    <i data-lucide="heart-pulse"></i>
-                    <span data-i18n="bridge.sidebar.iaae_health">IAAE Health Monitor</span>
-                </div>
-                <div class="bridge-iaae-panel">
-                    <div class="bridge-iaae-stat">
-                        <div class="bridge-iaae-value" id="iaae-healthy">--</div>
-                        <div class="bridge-iaae-label" data-i18n="bridge.sidebar.healthy">Healthy</div>
-                    </div>
-                    <div class="bridge-iaae-stat warning">
-                        <div class="bridge-iaae-value" id="iaae-warnings">--</div>
-                        <div class="bridge-iaae-label" data-i18n="bridge.sidebar.warnings">Warnings</div>
-                    </div>
-                    <div class="bridge-iaae-stat">
-                        <div class="bridge-iaae-value" id="iaae-energy">--%</div>
-                        <div class="bridge-iaae-label" data-i18n="bridge.sidebar.avg_energy">Avg Energy</div>
-                    </div>
-                    <div class="bridge-iaae-stat">
-                        <div class="bridge-iaae-value" id="iaae-stress">--%</div>
-                        <div class="bridge-iaae-label" data-i18n="bridge.sidebar.avg_stress">Avg Stress</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Remote Connections (VPN Nodes) -->
-            <div class="bridge-sidebar-section bridge-remote-connections">
-                <div class="bridge-sidebar-title">
-                    <i data-lucide="wifi"></i>
-                    <span data-i18n="bridge.sidebar.remote">Remote Connections</span>
-                </div>
-                <div class="bridge-remote-list" id="remote-connections-list">
-                    <div class="bridge-remote-placeholder">
-                        <i data-lucide="globe-2"></i>
-                        <span data-i18n="bridge.sidebar.vpn_nodes">VPN Connected Nodes</span>
-                        <span style="opacity:0.6;">vpn.kytranempowerment.com</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Sidebar removed: IAAE health → Overview tab (Task 15), VPN nodes → Network tab (Task 20) -->
     </div>
 </div>
 
@@ -5636,11 +5463,9 @@ async function loadIAAEStatus() {
 
         if (data.success && data.summary) {
             const s = data.summary;
-            document.getElementById('iaae-healthy').textContent = s.healthy_agents || 0;
-            document.getElementById('iaae-warnings').textContent = (s.warning_agents || 0) + (s.critical_agents || 0);
-            document.getElementById('iaae-energy').textContent = `${Math.round((s.avg_energy || 0) * 100)}%`;
-            document.getElementById('iaae-stress').textContent = `${Math.round((s.avg_stress || 0) * 100)}%`;
-            document.getElementById('iaae-status').textContent = `${s.healthy_agents || 0} OK`;
+            // Status bar indicator (always present)
+            const statusEl = document.getElementById('iaae-status');
+            if (statusEl) statusEl.textContent = `${s.healthy_agents || 0} OK`;
         }
     } catch (error) {
         console.error('Error loading IAAE status:', error);

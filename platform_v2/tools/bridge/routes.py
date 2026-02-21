@@ -6431,6 +6431,12 @@ def get_external_providers():
         ],
     }
 
+    # Rate limits per provider (Ollama cloud free-tier windows)
+    PROVIDER_RATE_LIMITS = {
+        "minimax_cloud": {"session_limit": 50, "weekly_limit": 7000},
+        "qwen3_cloud": {"session_limit": 50, "weekly_limit": 7000},
+    }
+
     try:
         with get_db_cursor(commit=False) as (conn, cur):
 
@@ -6636,6 +6642,7 @@ def get_external_providers():
             # Cloud-config virtual providers (MiniMax Cloud, Qwen3 Cloud)
             for provider_name in ["minimax_cloud", "qwen3_cloud"]:
                 models_def = PROVIDER_MODELS.get(provider_name, [])
+                rate_limits = PROVIDER_RATE_LIMITS.get(provider_name, {})
 
                 provider_requests = 0
                 provider_cost = 0.0
@@ -6658,6 +6665,16 @@ def get_external_providers():
 
                     m_alltime = alltime_by_model.get(m["name"], None)
                     m_windows = usage_windows.get(m["name"], None)
+                    if m_windows and rate_limits:
+                        m_windows["session_limit"] = rate_limits.get("session_limit")
+                        m_windows["weekly_limit"] = rate_limits.get("weekly_limit")
+                    elif rate_limits:
+                        m_windows = {
+                            "session_2h": 0,
+                            "weekly_7d": 0,
+                            "session_limit": rate_limits.get("session_limit"),
+                            "weekly_limit": rate_limits.get("weekly_limit"),
+                        }
                     models_out.append(
                         {
                             "name": m["name"],

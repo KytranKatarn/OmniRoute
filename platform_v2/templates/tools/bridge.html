@@ -8332,10 +8332,18 @@ function renderContractors(providers, routingMode, iaaeData) {
                 var mWindows = m.usage_windows || null;
                 if (mWindows) {
                     var sess = mWindows.session_2h != null ? mWindows.session_2h : 0;
+                    var sessLimit = mWindows.session_limit || null;
                     var wkly = mWindows.weekly_7d != null ? mWindows.weekly_7d : 0;
+                    var wklyLimit = mWindows.weekly_limit || null;
+                    var sessPct = sessLimit ? (sess / sessLimit * 100) : 0;
+                    var wklyPct = wklyLimit ? (wkly / wklyLimit * 100) : 0;
+                    var sessColor = sessPct > 80 ? '#ff4444' : sessPct > 50 ? '#ffaa00' : 'var(--archie-cyan)';
+                    var wklyColor = wklyPct > 80 ? '#ff4444' : wklyPct > 50 ? '#ffaa00' : 'var(--archie-cyan)';
+                    var sessStr = sess + (sessLimit ? ' / ' + sessLimit : '') + ' req';
+                    var wklyStr = wkly + (wklyLimit ? ' / ' + wklyLimit : '') + ' req';
                     html += '<div style="margin-top:4px;padding:4px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;flex-wrap:wrap;font-size:0.65rem;color:rgba(255,255,255,0.5);">';
-                    html += '<span style="display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session (2h): <span style="color:' + (sess > 50 ? '#ffaa00' : 'var(--archie-cyan)') + ';">' + sess + ' req</span></span>';
-                    html += '<span style="display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly (7d): <span style="color:' + (wkly > 500 ? '#ffaa00' : 'var(--archie-cyan)') + ';">' + wkly + ' req</span></span>';
+                    html += '<span style="display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session (2h): <span style="color:' + sessColor + ';">' + sessStr + '</span></span>';
+                    html += '<span style="display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly (7d): <span style="color:' + wklyColor + ';">' + wklyStr + '</span></span>';
                     html += '</div>';
                 }
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;">';

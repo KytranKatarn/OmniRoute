@@ -8329,6 +8329,15 @@ function renderContractors(providers, routingMode, iaaeData) {
                     html += '<div>Total cost: <span class="stat-val">$' + parseFloat(mAlltime.cost).toFixed(3) + '</span></div>';
                     html += '</div>';
                 }
+                var mWindows = m.usage_windows || null;
+                if (mWindows) {
+                    var sess = mWindows.session_2h != null ? mWindows.session_2h : 0;
+                    var wkly = mWindows.weekly_7d != null ? mWindows.weekly_7d : 0;
+                    html += '<div style="margin-top:4px;padding:4px 6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;flex-wrap:wrap;font-size:0.65rem;color:rgba(255,255,255,0.5);">';
+                    html += '<span style="display:flex;align-items:center;gap:3px;"><i data-lucide="clock" style="width:10px;height:10px;"></i> Session (2h): <span style="color:' + (sess > 50 ? '#ffaa00' : 'var(--archie-cyan)') + ';">' + sess + ' req</span></span>';
+                    html += '<span style="display:flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:10px;height:10px;"></i> Weekly (7d): <span style="color:' + (wkly > 500 ? '#ffaa00' : 'var(--archie-cyan)') + ';">' + wkly + ' req</span></span>';
+                    html += '</div>';
+                }
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
                 if (iaaeBlocked > 0) {
                     html += '<span class="contractor-iaae-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> IAAE: ' + escapeHtml(String(iaaeBlocked)) + ' blocked</span>';

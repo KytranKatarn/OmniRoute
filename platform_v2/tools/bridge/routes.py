@@ -6473,7 +6473,24 @@ def get_external_providers():
                     "success_rate": float(row["success_rate"]) if row["success_rate"] is not None else 100.0,
                 }
 
-            # 2b. Fetch all-time usage stats
+            # 2b. Fetch session (2h) and weekly (7d) usage — matches Ollama cloud limit windows
+            cur.execute(
+                """
+                SELECT model_name,
+                       COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '2 hours') as session_requests,
+                       COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as weekly_requests
+                FROM cloud_model_usage
+                GROUP BY model_name
+            """
+            )
+            usage_windows = {}
+            for row in cur.fetchall():
+                usage_windows[row["model_name"]] = {
+                    "session_2h": row["session_requests"],
+                    "weekly_7d": row["weekly_requests"],
+                }
+
+            # 2c. Fetch all-time usage stats
             cur.execute(
                 """
                 SELECT model_name,
@@ -6563,6 +6580,7 @@ def get_external_providers():
                     tier_pos = TIER_ORDER.get(m["tier"], -1)
 
                     m_alltime = alltime_by_model.get(m["name"], None)
+                    m_windows = usage_windows.get(m["name"], None)
                     models_out.append(
                         {
                             "name": m["name"],
@@ -6571,6 +6589,7 @@ def get_external_providers():
                             "enabled": m["name"] not in disabled_models,
                             "stats_24h": m_stats,
                             "stats_alltime": m_alltime,
+                            "usage_windows": m_windows,
                         }
                     )
 
@@ -6638,6 +6657,7 @@ def get_external_providers():
                     tier_pos = TIER_ORDER.get(m["tier"], -1)
 
                     m_alltime = alltime_by_model.get(m["name"], None)
+                    m_windows = usage_windows.get(m["name"], None)
                     models_out.append(
                         {
                             "name": m["name"],
@@ -6646,6 +6666,7 @@ def get_external_providers():
                             "enabled": m["name"] not in disabled_models,
                             "stats_24h": m_stats,
                             "stats_alltime": m_alltime,
+                            "usage_windows": m_windows,
                         }
                     )
 

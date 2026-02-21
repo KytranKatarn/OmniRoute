@@ -316,90 +316,71 @@
 }
 
 /* ============================================================================
-   COMMAND STATION - Hero Section
+   COMPACT STATUS BAR (replaces Command Station hero)
    ============================================================================ */
-
-.bridge-command-section {
-    padding: 24px;
-    background: linear-gradient(180deg, rgba(255, 215, 0, 0.05) 0%, transparent 100%);
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.command-station {
-    display: grid;
-    grid-template-columns: 1fr 2fr 1fr;
-    gap: 24px;
-    padding: 20px;
-    background: var(--archie-bg-secondary);
-    border: 2px solid var(--archie-gold);
-    border-radius: 8px;
-    position: relative;
-    overflow: hidden;
-}
-
-.command-station::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, transparent, var(--archie-gold), transparent);
-}
-
-.command-slot {
+.bridge-status-bar {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    padding: 16px;
-    background: rgba(255, 215, 0, 0.05);
+    gap: 12px;
+    padding: 8px 16px;
+    margin: 0 16px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 255, 255, 0.1);
     border-radius: 8px;
-    border: 1px dashed rgba(255, 215, 0, 0.3);
-    min-height: 120px;
 }
-
-.command-slot.commander {
-    border-color: var(--archie-gold);
-    background: rgba(255, 215, 0, 0.1);
-}
-
-.command-slot-label {
-    font-family: var(--archie-font-display);
-    font-size: 0.65rem;
-    color: var(--archie-gold);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 12px;
-}
-
-.command-center-display {
+.status-bar-item {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
+    gap: 6px;
 }
-
-.command-title {
-    font-family: var(--archie-font-display);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--archie-gold);
-    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-    letter-spacing: 3px;
+.status-bar-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff6b6b;
 }
-
-.command-subtitle {
+.status-bar-dot.online {
+    background: #00ff41;
+    box-shadow: 0 0 6px rgba(0, 255, 65, 0.5);
+}
+.status-bar-icon {
+    width: 14px;
+    height: 14px;
+    color: var(--archie-text-tertiary, #8b949e);
+}
+.status-bar-label {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
     font-size: 0.65rem;
-    color: var(--archie-text-muted);
+    color: var(--archie-text-tertiary, #8b949e);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.05em;
+}
+.status-bar-value {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.75rem;
+    color: var(--archie-cyan, #00ffff);
+    font-weight: 600;
+}
+.status-bar-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.1);
 }
 
-.command-modules {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
+/* Light mode status bar */
+[data-theme="light"] .bridge-status-bar,
+body.light-mode .bridge-status-bar {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+[data-theme="light"] .status-bar-value,
+body.light-mode .status-bar-value {
+    color: #0969da;
+}
+[data-theme="light"] .status-bar-divider,
+body.light-mode .status-bar-divider {
+    background: rgba(0, 0, 0, 0.1);
 }
 
 /* ============================================================================
@@ -3370,52 +3351,6 @@ body.light-mode .escalation-btn.active,
     border-color: #0088aa;
 }
 
-/* Command Station */
-body.light-mode .bridge-command-section,
-[data-theme="light"] .bridge-command-section {
-    background: linear-gradient(180deg, rgba(204, 136, 0, 0.04) 0%, transparent 100%);
-    border-bottom-color: rgba(0, 0, 0, 0.08);
-}
-
-body.light-mode .command-station,
-[data-theme="light"] .command-station {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: #cc8800;
-}
-
-body.light-mode .command-station::before,
-[data-theme="light"] .command-station::before {
-    background: linear-gradient(90deg, transparent, #cc8800, transparent);
-}
-
-body.light-mode .command-slot,
-[data-theme="light"] .command-slot {
-    background: rgba(204, 136, 0, 0.04);
-    border-color: rgba(204, 136, 0, 0.2);
-}
-
-body.light-mode .command-slot.commander,
-[data-theme="light"] .command-slot.commander {
-    background: rgba(204, 136, 0, 0.06);
-    border-color: #cc8800;
-}
-
-body.light-mode .command-slot-label,
-[data-theme="light"] .command-slot-label {
-    color: #cc8800;
-}
-
-body.light-mode .command-title,
-[data-theme="light"] .command-title {
-    color: #cc8800;
-    text-shadow: none;
-}
-
-body.light-mode .command-subtitle,
-[data-theme="light"] .command-subtitle {
-    color: #888;
-}
-
 /* Section Headers */
 body.light-mode .bridge-section-title,
 [data-theme="light"] .bridge-section-title {
@@ -3831,19 +3766,11 @@ body.light-mode .station-coverage-code,
         flex-wrap: wrap;
         justify-content: center;
     }
-    .bridge-command-section {
-        padding: 12px;
-    }
-    .command-station {
-        grid-template-columns: 1fr;
-        gap: 12px;
-        padding: 12px;
-    }
-    .command-center-display {
-        order: -1;
-    }
-    .command-title {
-        font-size: 1.1rem;
+    .bridge-status-bar {
+        gap: 8px;
+        padding: 6px 12px;
+        margin: 0 12px 8px;
+        flex-wrap: wrap;
     }
     .bridge-stations-section {
         padding: 12px;
@@ -3891,15 +3818,16 @@ body.light-mode .station-coverage-code,
     .bridge-status-item .status-label {
         display: none;
     }
-    .command-title {
-        font-size: 0.9rem;
-        letter-spacing: 1px;
+    .bridge-status-bar {
+        gap: 6px;
+        padding: 6px 10px;
+        margin: 0 8px 8px;
     }
-    .command-subtitle {
-        font-size: 0.55rem;
+    .status-bar-label {
+        display: none;
     }
-    .command-slot-label {
-        font-size: 0.55rem;
+    .status-bar-value {
+        font-size: 0.65rem;
     }
     .bridge-section-title {
         font-size: 0.75rem;
@@ -4150,6 +4078,38 @@ body.light-mode .station-coverage-code,
         </button>
     </nav>
 
+    <!-- Compact Status Bar (visible on all tabs) -->
+    <div class="bridge-status-bar">
+        <div class="status-bar-item">
+            <span class="status-bar-dot online" id="bridgeStatusDot"></span>
+            <span class="status-bar-label" data-i18n="bridge.status.bridge">Bridge</span>
+            <span class="status-bar-value" id="bridgeStatusText">Online</span>
+        </div>
+        <div class="status-bar-divider"></div>
+        <div class="status-bar-item">
+            <i data-lucide="route" class="status-bar-icon"></i>
+            <span class="status-bar-label" data-i18n="bridge.status.routing">Routing</span>
+            <span class="status-bar-value" id="statusRoutingMode">--</span>
+        </div>
+        <div class="status-bar-divider"></div>
+        <div class="status-bar-item">
+            <i data-lucide="zap" class="status-bar-icon"></i>
+            <span class="status-bar-label" data-i18n="bridge.status.interactions_24h">24h</span>
+            <span class="status-bar-value" id="statusInteractions">--</span>
+        </div>
+        <div class="status-bar-divider"></div>
+        <div class="status-bar-item">
+            <i data-lucide="users" class="status-bar-icon"></i>
+            <span class="status-bar-label" data-i18n="bridge.status.agents">Agents</span>
+            <span class="status-bar-value" id="statusAgentCount">--</span>
+        </div>
+        <div class="status-bar-divider"></div>
+        <div class="status-bar-item">
+            <i data-lucide="clock" class="status-bar-icon"></i>
+            <span class="status-bar-value" id="statusBarClock">--:--</span>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <div class="bridge-main">
         <div class="bridge-content">
@@ -4163,33 +4123,6 @@ body.light-mode .station-coverage-code,
 
             <!-- Stations Tab Panel -->
             <div class="bridge-tab-panel" data-panel="stations">
-            <!-- Command Station Hero -->
-            <div class="bridge-command-section">
-                <div class="command-station">
-                    <div class="command-slot" id="commander-slot">
-                        <div class="command-slot-label" data-i18n="bridge.command.commander">Commander</div>
-                        <div id="commander-agent">
-                            <span style="color:var(--archie-text-muted);font-size:0.7rem;">Loading...</span>
-                        </div>
-                    </div>
-
-                    <div class="command-center-display">
-                        <div class="command-title" data-i18n="bridge.command.center">COMMAND CENTER</div>
-                        <div class="command-subtitle" data-i18n="bridge.command.subtitle">A.R.C.H.I.E. Bridge Control</div>
-                        <div class="command-modules" id="command-modules">
-                            <!-- Command modules rendered here -->
-                        </div>
-                    </div>
-
-                    <div class="command-slot" id="cocommander-slot">
-                        <div class="command-slot-label" data-i18n="bridge.command.co_commander">Co-Commander</div>
-                        <div id="cocommander-agent">
-                            <span style="color:var(--archie-text-muted);font-size:0.7rem;">Loading...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Stations Grid -->
             <div class="bridge-stations-section">
                 <div class="bridge-section-header">
@@ -4914,6 +4847,48 @@ let allStations = [];
 let stationNodeCoverage = {}; // Maps station_id to node data
 
 // ============================================================================
+// STATUS BAR
+// ============================================================================
+
+function updateStatusBar() {
+    // Routing mode - read from existing header controls state
+    var activeBtn = document.querySelector('.routing-btn.active');
+    if (activeBtn) {
+        var el = document.getElementById('statusRoutingMode');
+        if (el) el.textContent = activeBtn.textContent.trim();
+    }
+
+    // Clock
+    var clock = document.getElementById('statusBarClock');
+    if (clock) {
+        var now = new Date();
+        clock.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+}
+
+function loadStatusBarStats() {
+    fetch('/tools/bridge/api/traffic')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var el = document.getElementById('statusInteractions');
+                if (el) el.textContent = data.total_today || 0;
+            }
+        }).catch(function() {});
+
+    fetch('/tools/bridge/api/agents')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success !== false) {
+                var agents = Array.isArray(data) ? data : (data.agents || []);
+                var active = agents.filter(function(a) { return a.status === 'active'; });
+                var el = document.getElementById('statusAgentCount');
+                if (el) el.textContent = active.length;
+            }
+        }).catch(function() {});
+}
+
+// ============================================================================
 // INITIALIZATION
 // ============================================================================
 
@@ -4925,6 +4900,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     updateClock();
     setInterval(updateClock, 1000);
+
+    // Status bar
+    updateStatusBar();
+    loadStatusBarStats();
+    setInterval(updateStatusBar, 1000);
+    setInterval(loadStatusBarStats, 30000);
 
     loadStations();
     loadIAAEStatus();
@@ -5026,74 +5007,8 @@ function renderStations(stations) {
 }
 
 function renderCommandStation(station) {
-    const agents = station.assigned_agents || [];
-
-    const commander = agents.find(a => a.assignment_type === 'commander' || a.first_name === 'Kytran');
-    const cocommander = agents.find(a => a.assignment_type === 'co-commander' || (a.first_name && a.first_name.includes('A.R.C.H.I.E')));
-
-    // Commander slot
-    const commanderEl = document.getElementById('commander-agent');
-    if (commander) {
-        commanderEl.innerHTML = renderCommandAgentChip(commander);
-    } else {
-        commanderEl.innerHTML = `<div class="bridge-agent-chip primary" style="border-color:var(--archie-gold);">
-            <div class="bridge-agent-info">
-                <div class="bridge-agent-name" style="color:var(--archie-gold);">Kytran</div>
-                <div class="bridge-agent-role">Administrator</div>
-            </div>
-        </div>`;
-    }
-
-    // Co-commander slot (A.R.C.H.I.E.)
-    const cocommanderEl = document.getElementById('cocommander-agent');
-    if (cocommander) {
-        cocommanderEl.innerHTML = renderCommandAgentChip(cocommander, true);
-    } else {
-        cocommanderEl.innerHTML = `<div class="bridge-agent-chip" style="border-color:var(--archie-cyan);">
-            <div class="bridge-agent-info">
-                <div class="bridge-agent-name" style="color:var(--archie-cyan);">A.R.C.H.I.E.</div>
-                <div class="bridge-agent-role" style="font-size:0.55rem;">(Autonomous Resource...)</div>
-            </div>
-        </div>`;
-    }
-
-    // Command modules
-    const modulesEl = document.getElementById('command-modules');
-    const modules = station.modules || [];
-    modulesEl.innerHTML = modules.map(m => {
-        const info = MODULE_INFO[m] || { icon: 'box', route: '#', name: m };
-        return `<a href="${info.route}" class="bridge-module-btn" title="${info.name}">
-            <i data-lucide="${info.icon}"></i>
-        </a>`;
-    }).join('');
-}
-
-function renderCommandAgentChip(agent, isArchie = false) {
-    const firstName = agent.first_name || '';
-    const lastName = agent.last_name || '';
-    let fullName = `${firstName} ${lastName}`.trim() || agent.name || 'Unknown';
-
-    let displayName = fullName;
-    let subtitle = '';
-
-    if (isArchie || firstName.includes('A.R.C.H.I.E')) {
-        displayName = 'A.R.C.H.I.E.';
-        subtitle = '(Autonomous Resource...)';
-    }
-
-    const position = agent.title || agent.name || 'Staff';
-    const avatar = agent.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0d1117&color=00ffff`;
-
-    return `
-        <div class="bridge-agent-chip primary" style="border-color:${isArchie ? 'var(--archie-cyan)' : 'var(--archie-gold)'};">
-            <img src="${avatar}" alt="${displayName}" class="bridge-agent-avatar">
-            <div class="bridge-agent-info">
-                <div class="bridge-agent-name" style="color:${isArchie ? 'var(--archie-cyan)' : 'var(--archie-gold)'};">${displayName}</div>
-                ${subtitle ? `<div class="bridge-agent-role" style="font-size:0.5rem;">${subtitle}</div>` : ''}
-                <div class="bridge-agent-role">${position}</div>
-            </div>
-        </div>
-    `;
+    // Command station hero removed — status bar handles bridge-level info.
+    // Command station agents now render in the stations grid like other stations.
 }
 
 function createStationCard(station) {

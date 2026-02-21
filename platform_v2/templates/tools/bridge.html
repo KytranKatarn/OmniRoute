@@ -8312,12 +8312,23 @@ function renderContractors(providers, routingMode, iaaeData) {
                 html += '<div class="contractor-model-meta">';
                 html += '<span>Contract Worker \u00b7 Tier ' + escapeHtml(String(mTierPos)) + '</span>';
                 html += '</div>';
+                var mAlltime = m.stats_alltime || null;
                 html += '<div class="model-stats">';
-                html += '<div>Tasks/24h: <span class="stat-val">' + (mStats.requests != null ? mStats.requests : '--') + '</span></div>';
-                html += '<div>Success: <span class="stat-val">' + (mStats.success_rate != null ? parseFloat(mStats.success_rate).toFixed(0) + '%' : '--') + '</span></div>';
+                html += '<div>Tasks/24h: <span class="stat-val">' + (mStats.requests != null ? mStats.requests : '0') + '</span></div>';
+                html += '<div>Success: <span class="stat-val">' + (mStats.success_rate != null && mStats.requests > 0 ? parseFloat(mStats.success_rate).toFixed(0) + '%' : '--') + '</span></div>';
                 html += '<div>Avg latency: <span class="stat-val">' + (mStats.avg_latency_ms != null && mStats.requests > 0 ? (parseFloat(mStats.avg_latency_ms) / 1000).toFixed(1) + 's' : '--') + '</span></div>';
-                html += '<div>Cost/24h: <span class="stat-val">$' + (mStats.cost != null ? parseFloat(mStats.cost).toFixed(3) : '--') + '</span></div>';
+                html += '<div>Cost/24h: <span class="stat-val">$' + (mStats.cost != null ? parseFloat(mStats.cost).toFixed(3) : '0.000') + '</span></div>';
                 html += '</div>';
+                if (mAlltime) {
+                    var lastUsed = mAlltime.last_used ? new Date(mAlltime.last_used) : null;
+                    var lastUsedStr = lastUsed ? lastUsed.toLocaleDateString() : '--';
+                    html += '<div class="model-stats" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">';
+                    html += '<div>Total: <span class="stat-val">' + mAlltime.requests + ' tasks</span></div>';
+                    html += '<div>Success: <span class="stat-val">' + parseFloat(mAlltime.success_rate).toFixed(0) + '%</span></div>';
+                    html += '<div>Last used: <span class="stat-val">' + lastUsedStr + '</span></div>';
+                    html += '<div>Total cost: <span class="stat-val">$' + parseFloat(mAlltime.cost).toFixed(3) + '</span></div>';
+                    html += '</div>';
+                }
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
                 if (iaaeBlocked > 0) {
                     html += '<span class="contractor-iaae-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> IAAE: ' + escapeHtml(String(iaaeBlocked)) + ' blocked</span>';

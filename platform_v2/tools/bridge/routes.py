@@ -6473,6 +6473,32 @@ def get_external_providers():
                     "success_rate": float(row["success_rate"]) if row["success_rate"] is not None else 100.0,
                 }
 
+            # 2b. Fetch all-time usage stats
+            cur.execute(
+                """
+                SELECT model_name,
+                       COUNT(*) as requests,
+                       COALESCE(SUM(cost_usd), 0) as cost,
+                       COALESCE(AVG(response_ms), 0) as avg_latency_ms,
+                       ROUND(100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END)
+                             / NULLIF(COUNT(*), 0), 1) as success_rate,
+                       MIN(created_at) as first_used,
+                       MAX(created_at) as last_used
+                FROM cloud_model_usage
+                GROUP BY model_name
+            """
+            )
+            alltime_by_model = {}
+            for row in cur.fetchall():
+                alltime_by_model[row["model_name"]] = {
+                    "requests": row["requests"],
+                    "cost": float(row["cost"]),
+                    "avg_latency_ms": round(float(row["avg_latency_ms"]), 1),
+                    "success_rate": float(row["success_rate"]) if row["success_rate"] is not None else 100.0,
+                    "first_used": row["first_used"].isoformat() if row["first_used"] else None,
+                    "last_used": row["last_used"].isoformat() if row["last_used"] else None,
+                }
+
             # 3. Fetch per-model disabled state from platform_settings
             cur.execute(
                 """
@@ -6536,6 +6562,7 @@ def get_external_providers():
                     )
                     tier_pos = TIER_ORDER.get(m["tier"], -1)
 
+                    m_alltime = alltime_by_model.get(m["name"], None)
                     models_out.append(
                         {
                             "name": m["name"],
@@ -6543,6 +6570,7 @@ def get_external_providers():
                             "tier_position": tier_pos,
                             "enabled": m["name"] not in disabled_models,
                             "stats_24h": m_stats,
+                            "stats_alltime": m_alltime,
                         }
                     )
 
@@ -6609,6 +6637,7 @@ def get_external_providers():
                     )
                     tier_pos = TIER_ORDER.get(m["tier"], -1)
 
+                    m_alltime = alltime_by_model.get(m["name"], None)
                     models_out.append(
                         {
                             "name": m["name"],
@@ -6616,6 +6645,7 @@ def get_external_providers():
                             "tier_position": tier_pos,
                             "enabled": m["name"] not in disabled_models,
                             "stats_24h": m_stats,
+                            "stats_alltime": m_alltime,
                         }
                     )
 

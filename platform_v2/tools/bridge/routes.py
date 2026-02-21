@@ -354,37 +354,46 @@ def get_stations():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Get all stations from database
+        # Single query: stations + their assigned agents via LEFT JOIN + json_agg
         cur.execute(
             """
-            SELECT id, station_code, station_name, full_name, description,
-                   color, icon, default_llm, modules, position_row, position_order
-            FROM bridge_stations
-            WHERE is_active = TRUE
-            ORDER BY position_row, position_order
+            SELECT bs.id, bs.station_code, bs.station_name, bs.full_name,
+                   bs.description, bs.color, bs.icon, bs.default_llm,
+                   bs.modules, bs.position_row, bs.position_order,
+                   COALESCE(
+                       json_agg(
+                           json_build_object(
+                               'id', a.id,
+                               'name', a.name,
+                               'first_name', a.first_name,
+                               'last_name', a.last_name,
+                               'title', a.title,
+                               'avatar_url', a.avatar_url,
+                               'model', a.model,
+                               'assignment_type', sa.assignment_type
+                           ) ORDER BY sa.priority
+                       ) FILTER (WHERE a.id IS NOT NULL),
+                       '[]'::json
+                   ) as assigned_agents
+            FROM bridge_stations bs
+            LEFT JOIN station_assignments sa
+                ON sa.station_id = bs.id AND sa.is_active = TRUE
+            LEFT JOIN agents a
+                ON sa.agent_id = a.id AND a.status = 'active'
+            WHERE bs.is_active = TRUE
+            GROUP BY bs.id, bs.station_code, bs.station_name, bs.full_name,
+                     bs.description, bs.color, bs.icon, bs.default_llm,
+                     bs.modules, bs.position_row, bs.position_order
+            ORDER BY bs.position_row, bs.position_order
         """
         )
         db_stations = cur.fetchall()
 
         stations_data = []
         for station in db_stations:
-            # Get assigned agents for this station (include full name fields)
-            cur.execute(
-                """
-                SELECT a.id, a.name, a.first_name, a.last_name, a.title,
-                       a.avatar_url, a.model, sa.assignment_type
-                FROM station_assignments sa
-                JOIN agents a ON sa.agent_id = a.id
-                WHERE sa.station_id = %s AND sa.is_active = TRUE AND a.status = 'active'
-                ORDER BY sa.priority
-            """,
-                (station["id"],),
-            )
-            assigned_agents = cur.fetchall()
-
-            # Get agent count by type
-            primary_agents = [a for a in assigned_agents if a["assignment_type"] == "primary"]
-            backup_agents = [a for a in assigned_agents if a["assignment_type"] == "backup"]
+            agents = station["assigned_agents"] or []
+            primary_count = sum(1 for a in agents if a.get("assignment_type") == "primary")
+            backup_count = sum(1 for a in agents if a.get("assignment_type") == "backup")
 
             stations_data.append(
                 {
@@ -399,10 +408,10 @@ def get_stations():
                     "modules": station["modules"] or [],
                     "position_row": station["position_row"],
                     "position_order": station["position_order"],
-                    "assigned_agents": assigned_agents,
-                    "primary_count": len(primary_agents),
-                    "backup_count": len(backup_agents),
-                    "total_agents": len(assigned_agents),
+                    "assigned_agents": agents,
+                    "primary_count": primary_count,
+                    "backup_count": backup_count,
+                    "total_agents": len(agents),
                     "status": "active",
                 }
             )

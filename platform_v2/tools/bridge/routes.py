@@ -22,24 +22,12 @@ from flask_login import login_required, current_user
 from rbac import require_permission, Permission
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from database import get_db_cursor
 import requests
 
 logger = logging.getLogger(__name__)
 
 bridge_bp = Blueprint("bridge", __name__, url_prefix="/tools/bridge")
-
-
-# Database connection helper
-def get_db_connection():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
-
 
 # --- SSE Activity Event Queue ---
 _activity_queue = deque(maxlen=200)
@@ -56,15 +44,11 @@ def push_agent_event(event_type, agent_id=None, data=None):
     _activity_queue.appendleft(evt)
     # Persist to DB (fire-and-forget)
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO agent_activity_events (event_type, agent_id, data) VALUES (%s, %s, %s)",
-            (event_type, agent_id, json.dumps(data or {})),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
+            cur.execute(
+                "INSERT INTO agent_activity_events (event_type, agent_id, data) VALUES (%s, %s, %s)",
+                (event_type, agent_id, json.dumps(data or {})),
+            )
     except Exception as e:
         logger.warning("Failed to persist activity event: %s", e)
 
@@ -77,21 +61,18 @@ def push_agent_event(event_type, agent_id=None, data=None):
 def get_stations_from_db():
     """Get all stations from database"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT station_code, station_name, full_name, description,
+                       color, icon, default_llm, modules, position_row, position_order
+                FROM bridge_stations
+                WHERE is_active = TRUE
+                ORDER BY position_row, position_order
             """
-            SELECT station_code, station_name, full_name, description,
-                   color, icon, default_llm, modules, position_row, position_order
-            FROM bridge_stations
-            WHERE is_active = TRUE
-            ORDER BY position_row, position_order
-        """
-        )
-        stations = cur.fetchall()
-        cur.close()
-        conn.close()
-        return {s["station_code"]: dict(s) for s in stations}
+            )
+            stations = cur.fetchall()
+            return {s["station_code"]: dict(s) for s in stations}
     except Exception as e:
         logger.error(f"Error loading stations from DB: {e}")
         return {}
@@ -217,7 +198,6 @@ LLM_CONNECTIONS = {
     },
 }
 
-
 # ============================================================================
 # MAIN BRIDGE PAGE
 # ============================================================================
@@ -250,91 +230,87 @@ def bridge_dashboard():
 def get_bridge_stats():
     """Get overall Bridge statistics"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get active agents count
-        cur.execute(
+            # Get active agents count
+            cur.execute(
+                """
+                SELECT COUNT(*) as active_agents
+                FROM agents
+                WHERE status = 'active'
             """
-            SELECT COUNT(*) as active_agents
-            FROM agents
-            WHERE status = 'active'
-        """
-        )
-        agent_stats = cur.fetchone()
+            )
+            agent_stats = cur.fetchone()
 
-        # Get recent token usage (last 24h)
-        cur.execute(
+            # Get recent token usage (last 24h)
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(SUM(tokens_used), 0) as total_tokens,
+                    COUNT(*) as total_requests
+                FROM token_usage_log
+                WHERE created_at > NOW() - INTERVAL '24 hours'
             """
-            SELECT
-                COALESCE(SUM(tokens_used), 0) as total_tokens,
-                COUNT(*) as total_requests
-            FROM token_usage_log
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-        """
-        )
-        token_stats = cur.fetchone()
+            )
+            token_stats = cur.fetchone()
 
-        # Get A.R.C.H.I.E.'s emotional state
-        cur.execute(
+            # Get A.R.C.H.I.E.'s emotional state
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, relationship_strength
+                FROM archie_emotional_state
+                ORDER BY timestamp DESC
+                LIMIT 1
             """
-            SELECT current_mood, mood_intensity, relationship_strength
-            FROM archie_emotional_state
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """
-        )
-        emotional_state = cur.fetchone() or {
-            "current_mood": "supportive",
-            "mood_intensity": 0.85,
-            "relationship_strength": 0.90,
-        }
-
-        cur.close()
-        conn.close()
-
-        # Get real LLM model counts from Ollama
-        llm_online = 0
-        llm_total = 0
-        try:
-            ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-            resp = requests.get(f"{ollama_host}/api/tags", timeout=3)
-            if resp.status_code == 200:
-                models = resp.json().get("models", [])
-                llm_total = len(models)
-                llm_online = llm_total  # All loaded models are online
-        except Exception:
-            pass
-
-        # System load from active requests ratio (capped 0-100)
-        active_requests = token_stats["total_requests"] if token_stats else 0
-        system_load = min(int(active_requests / max(1, active_requests + 10) * 100), 100)
-
-        return jsonify(
-            {
-                "success": True,
-                "stats": {
-                    "llm_status": {"online": llm_online, "total": llm_total},
-                    "active_requests": active_requests,
-                    "system_load": system_load,
-                    "active_agents": agent_stats["active_agents"] if agent_stats else 0,
-                    "tokens_24h": token_stats["total_tokens"] if token_stats else 0,
-                },
-                "archie": {
-                    "mood": emotional_state["current_mood"],
-                    "energy": (
-                        float(emotional_state["mood_intensity"]) if emotional_state.get("mood_intensity") else 0.85
-                    ),
-                    "relationship": (
-                        float(emotional_state["relationship_strength"])
-                        if emotional_state.get("relationship_strength")
-                        else 0.90
-                    ),
-                    "status": "Active",
-                },
-                "captain": {"name": "Kytran", "role": "Admin", "status": "On Duty"},
+            )
+            emotional_state = cur.fetchone() or {
+                "current_mood": "supportive",
+                "mood_intensity": 0.85,
+                "relationship_strength": 0.90,
             }
-        )
+
+            # Get real LLM model counts from Ollama
+            llm_online = 0
+            llm_total = 0
+            try:
+                ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+                resp = requests.get(f"{ollama_host}/api/tags", timeout=3)
+                if resp.status_code == 200:
+                    models = resp.json().get("models", [])
+                    llm_total = len(models)
+                    llm_online = llm_total  # All loaded models are online
+            except Exception:
+                pass
+
+            # System load from active requests ratio (capped 0-100)
+            active_requests = token_stats["total_requests"] if token_stats else 0
+            system_load = min(int(active_requests / max(1, active_requests + 10) * 100), 100)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "stats": {
+                        "llm_status": {"online": llm_online, "total": llm_total},
+                        "active_requests": active_requests,
+                        "system_load": system_load,
+                        "active_agents": agent_stats["active_agents"] if agent_stats else 0,
+                        "tokens_24h": token_stats["total_tokens"] if token_stats else 0,
+                    },
+                    "archie": {
+                        "mood": emotional_state["current_mood"],
+                        "energy": (
+                            float(emotional_state["mood_intensity"]) if emotional_state.get("mood_intensity") else 0.85
+                        ),
+                        "relationship": (
+                            float(emotional_state["relationship_strength"])
+                            if emotional_state.get("relationship_strength")
+                            else 0.90
+                        ),
+                        "status": "Active",
+                    },
+                    "captain": {"name": "Kytran", "role": "Admin", "status": "On Duty"},
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting bridge stats: {e}")
@@ -351,81 +327,77 @@ def get_bridge_stats():
 def get_stations():
     """Get all station configurations from database (10 stations)"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Single query: stations + their assigned agents via LEFT JOIN + json_agg
-        cur.execute(
+            # Single query: stations + their assigned agents via LEFT JOIN + json_agg
+            cur.execute(
+                """
+                SELECT bs.id, bs.station_code, bs.station_name, bs.full_name,
+                       bs.description, bs.color, bs.icon, bs.default_llm,
+                       bs.modules, bs.position_row, bs.position_order,
+                       COALESCE(
+                           json_agg(
+                               json_build_object(
+                                   'id', a.id,
+                                   'name', a.name,
+                                   'first_name', a.first_name,
+                                   'last_name', a.last_name,
+                                   'title', a.title,
+                                   'avatar_url', a.avatar_url,
+                                   'model', a.model,
+                                   'assignment_type', sa.assignment_type
+                               ) ORDER BY sa.priority
+                           ) FILTER (WHERE a.id IS NOT NULL),
+                           '[]'::json
+                       ) as assigned_agents
+                FROM bridge_stations bs
+                LEFT JOIN station_assignments sa
+                    ON sa.station_id = bs.id AND sa.is_active = TRUE
+                LEFT JOIN agents a
+                    ON sa.agent_id = a.id AND a.status = 'active'
+                WHERE bs.is_active = TRUE
+                GROUP BY bs.id, bs.station_code, bs.station_name, bs.full_name,
+                         bs.description, bs.color, bs.icon, bs.default_llm,
+                         bs.modules, bs.position_row, bs.position_order
+                ORDER BY bs.position_row, bs.position_order
             """
-            SELECT bs.id, bs.station_code, bs.station_name, bs.full_name,
-                   bs.description, bs.color, bs.icon, bs.default_llm,
-                   bs.modules, bs.position_row, bs.position_order,
-                   COALESCE(
-                       json_agg(
-                           json_build_object(
-                               'id', a.id,
-                               'name', a.name,
-                               'first_name', a.first_name,
-                               'last_name', a.last_name,
-                               'title', a.title,
-                               'avatar_url', a.avatar_url,
-                               'model', a.model,
-                               'assignment_type', sa.assignment_type
-                           ) ORDER BY sa.priority
-                       ) FILTER (WHERE a.id IS NOT NULL),
-                       '[]'::json
-                   ) as assigned_agents
-            FROM bridge_stations bs
-            LEFT JOIN station_assignments sa
-                ON sa.station_id = bs.id AND sa.is_active = TRUE
-            LEFT JOIN agents a
-                ON sa.agent_id = a.id AND a.status = 'active'
-            WHERE bs.is_active = TRUE
-            GROUP BY bs.id, bs.station_code, bs.station_name, bs.full_name,
-                     bs.description, bs.color, bs.icon, bs.default_llm,
-                     bs.modules, bs.position_row, bs.position_order
-            ORDER BY bs.position_row, bs.position_order
-        """
-        )
-        db_stations = cur.fetchall()
+            )
+            db_stations = cur.fetchall()
 
-        stations_data = []
-        for station in db_stations:
-            agents = station["assigned_agents"] or []
-            primary_count = sum(1 for a in agents if a.get("assignment_type") == "primary")
-            backup_count = sum(1 for a in agents if a.get("assignment_type") == "backup")
+            stations_data = []
+            for station in db_stations:
+                agents = station["assigned_agents"] or []
+                primary_count = sum(1 for a in agents if a.get("assignment_type") == "primary")
+                backup_count = sum(1 for a in agents if a.get("assignment_type") == "backup")
 
-            stations_data.append(
+                stations_data.append(
+                    {
+                        "id": station["id"],
+                        "code": station["station_code"],
+                        "name": station["station_name"],
+                        "full_name": station["full_name"],
+                        "description": station["description"],
+                        "color": station["color"],
+                        "icon": station["icon"],
+                        "default_llm": station["default_llm"],
+                        "modules": station["modules"] or [],
+                        "position_row": station["position_row"],
+                        "position_order": station["position_order"],
+                        "assigned_agents": agents,
+                        "primary_count": primary_count,
+                        "backup_count": backup_count,
+                        "total_agents": len(agents),
+                        "status": "active",
+                    }
+                )
+
+            return jsonify(
                 {
-                    "id": station["id"],
-                    "code": station["station_code"],
-                    "name": station["station_name"],
-                    "full_name": station["full_name"],
-                    "description": station["description"],
-                    "color": station["color"],
-                    "icon": station["icon"],
-                    "default_llm": station["default_llm"],
-                    "modules": station["modules"] or [],
-                    "position_row": station["position_row"],
-                    "position_order": station["position_order"],
-                    "assigned_agents": agents,
-                    "primary_count": primary_count,
-                    "backup_count": backup_count,
-                    "total_agents": len(agents),
-                    "status": "active",
+                    "success": True,
+                    "stations": stations_data,
+                    "total_stations": len(stations_data),
                 }
             )
-
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "stations": stations_data,
-                "total_stations": len(stations_data),
-            }
-        )
 
     except Exception as e:
         logger.error(f"Error getting stations: {e}")
@@ -439,65 +411,59 @@ def get_station_detail(station_code):
     station_code = station_code.upper()
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get station from database
-        cur.execute(
-            """
-            SELECT id, station_code, station_name, full_name, description,
-                   color, icon, default_llm, modules, position_row, position_order
-            FROM bridge_stations
-            WHERE station_code = %s AND is_active = TRUE
-        """,
-            (station_code,),
-        )
-        station = cur.fetchone()
-
-        if not station:
-            cur.close()
-            conn.close()
-            return (
-                jsonify({"success": False, "error": f"Station {station_code} not found"}),
-                404,
+            # Get station from database
+            cur.execute(
+                """
+                SELECT id, station_code, station_name, full_name, description,
+                       color, icon, default_llm, modules, position_row, position_order
+                FROM bridge_stations
+                WHERE station_code = %s AND is_active = TRUE
+            """,
+                (station_code,),
             )
+            station = cur.fetchone()
 
-        # Get assigned agents with full details
-        cur.execute(
-            """
-            SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.avatar_url,
-                   a.model, a.department, a.tier, a.status, a.worker_type,
-                   sa.assignment_type, sa.shift_preference, sa.priority
-            FROM station_assignments sa
-            JOIN agents a ON sa.agent_id = a.id
-            WHERE sa.station_id = %s AND sa.is_active = TRUE
-            ORDER BY sa.priority
-        """,
-            (station["id"],),
-        )
-        assigned_agents = cur.fetchall()
+            if not station:
+                return (
+                    jsonify({"success": False, "error": f"Station {station_code} not found"}),
+                    404,
+                )
 
-        cur.close()
-        conn.close()
+            # Get assigned agents with full details
+            cur.execute(
+                """
+                SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.avatar_url,
+                       a.model, a.department, a.tier, a.status, a.worker_type,
+                       sa.assignment_type, sa.shift_preference, sa.priority
+                FROM station_assignments sa
+                JOIN agents a ON sa.agent_id = a.id
+                WHERE sa.station_id = %s AND sa.is_active = TRUE
+                ORDER BY sa.priority
+            """,
+                (station["id"],),
+            )
+            assigned_agents = cur.fetchall()
 
-        return jsonify(
-            {
-                "success": True,
-                "station": {
-                    "id": station["id"],
-                    "code": station["station_code"],
-                    "name": station["station_name"],
-                    "full_name": station["full_name"],
-                    "description": station["description"],
-                    "color": station["color"],
-                    "icon": station["icon"],
-                    "default_llm": station["default_llm"],
-                    "modules": station["modules"] or [],
-                    "assigned_agents": assigned_agents,
-                    "total_agents": len(assigned_agents),
-                },
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "station": {
+                        "id": station["id"],
+                        "code": station["station_code"],
+                        "name": station["station_name"],
+                        "full_name": station["full_name"],
+                        "description": station["description"],
+                        "color": station["color"],
+                        "icon": station["icon"],
+                        "default_llm": station["default_llm"],
+                        "modules": station["modules"] or [],
+                        "assigned_agents": assigned_agents,
+                        "total_agents": len(assigned_agents),
+                    },
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting station detail: {e}")
@@ -637,26 +603,22 @@ def check_api_key_status(connection_id):
 def get_bridge_agents():
     """Get agents available for station assignment"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT
+                    id, name, title, department, status,
+                    avatar_url, model, system_prompt, tier,
+                    capabilities
+                FROM agents
+                WHERE status IN ('active', 'idle', 'busy')
+                ORDER BY name
             """
-            SELECT
-                id, name, title, department, status,
-                avatar_url, model, system_prompt, tier,
-                capabilities
-            FROM agents
-            WHERE status IN ('active', 'idle', 'busy')
-            ORDER BY name
-        """
-        )
-        agents = cur.fetchall()
+            )
+            agents = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True, "agents": agents})
+            return jsonify({"success": True, "agents": agents})
 
     except Exception as e:
         logger.error(f"Error getting agents: {e}")
@@ -693,37 +655,33 @@ def create_agent():
     name = f"{first_name} {last_name}".strip()
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            INSERT INTO agents (
-                name, first_name, last_name, title, department, worker_type,
-                model, temperature, max_tokens, system_prompt, bio,
-                status, capabilities, created_at, updated_at
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'active',%s,NOW(),NOW())
-            RETURNING id, name, first_name, last_name, model
-        """,
-            (
-                name,
-                first_name,
-                last_name,
-                title,
-                department,
-                worker_type,
-                model,
-                temperature,
-                max_tokens,
-                system_prompt,
-                bio,
-                capabilities,
-            ),
-        )
-        agent = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "agent": dict(agent)})
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO agents (
+                    name, first_name, last_name, title, department, worker_type,
+                    model, temperature, max_tokens, system_prompt, bio,
+                    status, capabilities, created_at, updated_at
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'active',%s,NOW(),NOW())
+                RETURNING id, name, first_name, last_name, model
+            """,
+                (
+                    name,
+                    first_name,
+                    last_name,
+                    title,
+                    department,
+                    worker_type,
+                    model,
+                    temperature,
+                    max_tokens,
+                    system_prompt,
+                    bio,
+                    capabilities,
+                ),
+            )
+            agent = cur.fetchone()
+            return jsonify({"success": True, "agent": dict(agent)})
     except Exception as e:
         logger.error("create_agent error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -765,19 +723,15 @@ def update_agent(agent_id):
     params.append(agent_id)
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            f"UPDATE agents SET {', '.join(sets)} WHERE id = %s RETURNING id, name, first_name, last_name, model, status",
-            params,
-        )
-        agent = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-        if not agent:
-            return jsonify({"success": False, "error": "Agent not found"}), 404
-        return jsonify({"success": True, "agent": dict(agent)})
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                f"UPDATE agents SET {', '.join(sets)} WHERE id = %s RETURNING id, name, first_name, last_name, model, status",
+                params,
+            )
+            agent = cur.fetchone()
+            if not agent:
+                return jsonify({"success": False, "error": "Agent not found"}), 404
+            return jsonify({"success": True, "agent": dict(agent)})
     except Exception as e:
         logger.error("update_agent error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -788,33 +742,27 @@ def update_agent(agent_id):
 def delete_agent(agent_id):
     """Delete an agent (clears FK references first)"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, name FROM agents WHERE id = %s", (agent_id,))
-        agent = cur.fetchone()
-        if not agent:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Agent not found"}), 404
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT id, name FROM agents WHERE id = %s", (agent_id,))
+            agent = cur.fetchone()
+            if not agent:
+                return jsonify({"success": False, "error": "Agent not found"}), 404
 
-        # Clear FK references
-        cur.execute(
-            "UPDATE unified_projects SET created_by_agent_id = NULL WHERE created_by_agent_id = %s",
-            (agent_id,),
-        )
-        cur.execute(
-            "UPDATE unified_tasks SET assigned_agent_id = NULL WHERE assigned_agent_id = %s",
-            (agent_id,),
-        )
-        cur.execute(
-            "UPDATE unified_tasks SET created_by_agent_id = NULL WHERE created_by_agent_id = %s",
-            (agent_id,),
-        )
-        cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "message": f"Agent '{agent['name']}' deleted"})
+            # Clear FK references
+            cur.execute(
+                "UPDATE unified_projects SET created_by_agent_id = NULL WHERE created_by_agent_id = %s",
+                (agent_id,),
+            )
+            cur.execute(
+                "UPDATE unified_tasks SET assigned_agent_id = NULL WHERE assigned_agent_id = %s",
+                (agent_id,),
+            )
+            cur.execute(
+                "UPDATE unified_tasks SET created_by_agent_id = NULL WHERE created_by_agent_id = %s",
+                (agent_id,),
+            )
+            cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
+            return jsonify({"success": True, "message": f"Agent '{agent['name']}' deleted"})
     except Exception as e:
         logger.error("delete_agent error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -825,24 +773,20 @@ def delete_agent(agent_id):
 def toggle_agent(agent_id):
     """Toggle agent active/paused"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            UPDATE agents
-            SET status = CASE WHEN status = 'active' THEN 'paused' ELSE 'active' END,
-                updated_at = NOW()
-            WHERE id = %s RETURNING status
-        """,
-            (agent_id,),
-        )
-        result = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-        if not result:
-            return jsonify({"success": False, "error": "Agent not found"}), 404
-        return jsonify({"success": True, "status": result[0]})
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE agents
+                SET status = CASE WHEN status = 'active' THEN 'paused' ELSE 'active' END,
+                    updated_at = NOW()
+                WHERE id = %s RETURNING status
+            """,
+                (agent_id,),
+            )
+            result = cur.fetchone()
+            if not result:
+                return jsonify({"success": False, "error": "Agent not found"}), 404
+            return jsonify({"success": True, "status": result[0]})
     except Exception as e:
         logger.error("toggle_agent error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -853,25 +797,22 @@ def toggle_agent(agent_id):
 def get_agent_skills(agent_id):
     """Get all skills for an agent"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT id, skill_name, skill_category, proficiency_level, notes,
-                   created_at, updated_at
-            FROM agent_skills WHERE agent_id = %s
-            ORDER BY proficiency_level DESC, skill_name
-        """,
-            (agent_id,),
-        )
-        skills = cur.fetchall()
-        cur.close()
-        conn.close()
-        for s in skills:
-            for k in ["created_at", "updated_at"]:
-                if s.get(k):
-                    s[k] = s[k].isoformat()
-        return jsonify({"success": True, "skills": skills})
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, skill_name, skill_category, proficiency_level, notes,
+                       created_at, updated_at
+                FROM agent_skills WHERE agent_id = %s
+                ORDER BY proficiency_level DESC, skill_name
+            """,
+                (agent_id,),
+            )
+            skills = cur.fetchall()
+            for s in skills:
+                for k in ["created_at", "updated_at"]:
+                    if s.get(k):
+                        s[k] = s[k].isoformat()
+            return jsonify({"success": True, "skills": skills})
     except Exception as e:
         logger.error("get_agent_skills error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -893,27 +834,23 @@ def add_agent_skill(agent_id):
     notes = data.get("notes", "")
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            INSERT INTO agent_skills
-                (id, agent_id, skill_name, skill_category, proficiency_level, notes, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
-            ON CONFLICT (agent_id, skill_name) DO UPDATE SET
-                proficiency_level = EXCLUDED.proficiency_level,
-                skill_category = EXCLUDED.skill_category,
-                notes = EXCLUDED.notes,
-                updated_at = NOW()
-            RETURNING id, skill_name, skill_category, proficiency_level
-        """,
-            (str(_uuid.uuid4()), agent_id, skill_name.lower().replace(" ", "_"), category, proficiency, notes),
-        )
-        skill = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "skill": dict(skill)})
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO agent_skills
+                    (id, agent_id, skill_name, skill_category, proficiency_level, notes, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                ON CONFLICT (agent_id, skill_name) DO UPDATE SET
+                    proficiency_level = EXCLUDED.proficiency_level,
+                    skill_category = EXCLUDED.skill_category,
+                    notes = EXCLUDED.notes,
+                    updated_at = NOW()
+                RETURNING id, skill_name, skill_category, proficiency_level
+            """,
+                (str(_uuid.uuid4()), agent_id, skill_name.lower().replace(" ", "_"), category, proficiency, notes),
+            )
+            skill = cur.fetchone()
+            return jsonify({"success": True, "skill": dict(skill)})
     except Exception as e:
         logger.error("add_agent_skill error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -924,21 +861,15 @@ def add_agent_skill(agent_id):
 def delete_agent_skill(agent_id, skill_id):
     """Remove a skill from an agent"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "DELETE FROM agent_skills WHERE id = %s AND agent_id = %s RETURNING skill_name",
-            (skill_id, agent_id),
-        )
-        result = cur.fetchone()
-        if not result:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Skill not found"}), 404
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "message": f"Skill '{result[0]}' removed"})
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
+            cur.execute(
+                "DELETE FROM agent_skills WHERE id = %s AND agent_id = %s RETURNING skill_name",
+                (skill_id, agent_id),
+            )
+            result = cur.fetchone()
+            if not result:
+                return jsonify({"success": False, "error": "Skill not found"}), 404
+            return jsonify({"success": True, "message": f"Skill '{result[0]}' removed"})
     except Exception as e:
         logger.error("delete_agent_skill error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -959,78 +890,72 @@ def assign_agent_to_station(agent_id):
         return jsonify({"success": False, "error": "station_code required"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get station ID from code
-        cur.execute(
-            "SELECT id FROM bridge_stations WHERE station_code = %s",
-            (station_code.upper(),),
-        )
-        station = cur.fetchone()
-        if not station:
-            cur.close()
-            conn.close()
-            return (
-                jsonify({"success": False, "error": f"Station {station_code} not found"}),
-                404,
+            # Get station ID from code
+            cur.execute(
+                "SELECT id FROM bridge_stations WHERE station_code = %s",
+                (station_code.upper(),),
             )
+            station = cur.fetchone()
+            if not station:
+                return (
+                    jsonify({"success": False, "error": f"Station {station_code} not found"}),
+                    404,
+                )
 
-        station_id = station["id"]
+            station_id = station["id"]
 
-        # Check if assignment already exists
-        cur.execute(
-            """
-            SELECT id FROM station_assignments
-            WHERE station_id = %s AND agent_id = %s
-        """,
-            (station_id, agent_id),
-        )
-        existing = cur.fetchone()
-
-        if existing:
-            # Update existing assignment
+            # Check if assignment already exists
             cur.execute(
                 """
-                UPDATE station_assignments
-                SET assignment_type = %s, shift_preference = %s, priority = %s,
-                    notes = %s, is_active = TRUE, assigned_at = NOW()
-                WHERE id = %s
-                RETURNING id
+                SELECT id FROM station_assignments
+                WHERE station_id = %s AND agent_id = %s
             """,
-                (assignment_type, shift_preference, priority, notes, existing["id"]),
+                (station_id, agent_id),
             )
-        else:
-            # Create new assignment
-            cur.execute(
-                """
-                INSERT INTO station_assignments
-                (station_id, agent_id, assignment_type, shift_preference, priority, notes)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """,
-                (
-                    station_id,
-                    agent_id,
-                    assignment_type,
-                    shift_preference,
-                    priority,
-                    notes,
-                ),
+            existing = cur.fetchone()
+
+            if existing:
+                # Update existing assignment
+                cur.execute(
+                    """
+                    UPDATE station_assignments
+                    SET assignment_type = %s, shift_preference = %s, priority = %s,
+                        notes = %s, is_active = TRUE, assigned_at = NOW()
+                    WHERE id = %s
+                    RETURNING id
+                """,
+                    (assignment_type, shift_preference, priority, notes, existing["id"]),
+                )
+            else:
+                # Create new assignment
+                cur.execute(
+                    """
+                    INSERT INTO station_assignments
+                    (station_id, agent_id, assignment_type, shift_preference, priority, notes)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """,
+                    (
+                        station_id,
+                        agent_id,
+                        assignment_type,
+                        shift_preference,
+                        priority,
+                        notes,
+                    ),
+                )
+
+            assignment_id = cur.fetchone()["id"]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "assignment_id": assignment_id,
+                    "message": f"Agent assigned to {station_code} as {assignment_type}",
+                }
             )
-
-        assignment_id = cur.fetchone()["id"]
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "assignment_id": assignment_id,
-                "message": f"Agent assigned to {station_code} as {assignment_type}",
-            }
-        )
 
     except Exception as e:
         logger.error(f"Error assigning agent: {e}")
@@ -1045,45 +970,41 @@ def unassign_agent_from_station(agent_id):
     station_code = data.get("station_code")
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
 
-        if station_code:
-            # Unassign from specific station
-            cur.execute(
-                """
-                UPDATE station_assignments sa
-                SET is_active = FALSE
-                FROM bridge_stations bs
-                WHERE sa.station_id = bs.id
-                  AND bs.station_code = %s
-                  AND sa.agent_id = %s
-            """,
-                (station_code.upper(), agent_id),
+            if station_code:
+                # Unassign from specific station
+                cur.execute(
+                    """
+                    UPDATE station_assignments sa
+                    SET is_active = FALSE
+                    FROM bridge_stations bs
+                    WHERE sa.station_id = bs.id
+                      AND bs.station_code = %s
+                      AND sa.agent_id = %s
+                """,
+                    (station_code.upper(), agent_id),
+                )
+            else:
+                # Unassign from all stations
+                cur.execute(
+                    """
+                    UPDATE station_assignments
+                    SET is_active = FALSE
+                    WHERE agent_id = %s
+                """,
+                    (agent_id,),
+                )
+
+            affected = cur.rowcount
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f'Agent unassigned from {station_code if station_code else "all stations"}',
+                    "affected": affected,
+                }
             )
-        else:
-            # Unassign from all stations
-            cur.execute(
-                """
-                UPDATE station_assignments
-                SET is_active = FALSE
-                WHERE agent_id = %s
-            """,
-                (agent_id,),
-            )
-
-        conn.commit()
-        affected = cur.rowcount
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "message": f'Agent unassigned from {station_code if station_code else "all stations"}',
-                "affected": affected,
-            }
-        )
 
     except Exception as e:
         logger.error(f"Error unassigning agent: {e}")
@@ -1100,62 +1021,58 @@ def unassign_agent_from_station(agent_id):
 def get_all_station_assignments():
     """Get all station assignments grouped by station"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT
+                    bs.id as station_id,
+                    bs.station_code,
+                    bs.station_name,
+                    bs.color,
+                    bs.icon,
+                    json_agg(
+                        json_build_object(
+                            'assignment_id', sa.id,
+                            'agent_id', a.id,
+                            'agent_name', a.name,
+                            'first_name', a.first_name,
+                            'last_name', a.last_name,
+                            'agent_title', a.title,
+                            'agent_avatar', a.avatar_url,
+                            'agent_model', a.model,
+                            'agent_status', a.status,
+                            'assignment_type', sa.assignment_type,
+                            'role_type', COALESCE(sa.role_type, 'standard'),
+                            'is_fixed', COALESCE(sa.is_fixed, FALSE),
+                            'department', a.department,
+                            'shift_preference', sa.shift_preference,
+                            'priority', sa.priority,
+                            'assigned_at', sa.assigned_at
+                        ) ORDER BY sa.is_fixed DESC, sa.priority, sa.assignment_type
+                    ) FILTER (WHERE sa.id IS NOT NULL) as agents
+                FROM bridge_stations bs
+                LEFT JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
+                LEFT JOIN agents a ON sa.agent_id = a.id
+                WHERE bs.is_active = TRUE
+                GROUP BY bs.id, bs.station_code, bs.station_name, bs.color, bs.icon, bs.position_row, bs.position_order
+                ORDER BY bs.position_row, bs.position_order
             """
-            SELECT
-                bs.id as station_id,
-                bs.station_code,
-                bs.station_name,
-                bs.color,
-                bs.icon,
-                json_agg(
-                    json_build_object(
-                        'assignment_id', sa.id,
-                        'agent_id', a.id,
-                        'agent_name', a.name,
-                        'first_name', a.first_name,
-                        'last_name', a.last_name,
-                        'agent_title', a.title,
-                        'agent_avatar', a.avatar_url,
-                        'agent_model', a.model,
-                        'agent_status', a.status,
-                        'assignment_type', sa.assignment_type,
-                        'role_type', COALESCE(sa.role_type, 'standard'),
-                        'is_fixed', COALESCE(sa.is_fixed, FALSE),
-                        'department', a.department,
-                        'shift_preference', sa.shift_preference,
-                        'priority', sa.priority,
-                        'assigned_at', sa.assigned_at
-                    ) ORDER BY sa.is_fixed DESC, sa.priority, sa.assignment_type
-                ) FILTER (WHERE sa.id IS NOT NULL) as agents
-            FROM bridge_stations bs
-            LEFT JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
-            LEFT JOIN agents a ON sa.agent_id = a.id
-            WHERE bs.is_active = TRUE
-            GROUP BY bs.id, bs.station_code, bs.station_name, bs.color, bs.icon, bs.position_row, bs.position_order
-            ORDER BY bs.position_row, bs.position_order
-        """
-        )
-        stations = cur.fetchall()
+            )
+            stations = cur.fetchall()
 
-        cur.close()
-        conn.close()
+            # Convert datetime in nested JSON
+            for station in stations:
+                if station["agents"]:
+                    for agent in station["agents"]:
+                        if agent.get("assigned_at"):
+                            agent["assigned_at"] = (
+                                agent["assigned_at"].isoformat()
+                                if hasattr(agent["assigned_at"], "isoformat")
+                                else str(agent["assigned_at"])
+                            )
 
-        # Convert datetime in nested JSON
-        for station in stations:
-            if station["agents"]:
-                for agent in station["agents"]:
-                    if agent.get("assigned_at"):
-                        agent["assigned_at"] = (
-                            agent["assigned_at"].isoformat()
-                            if hasattr(agent["assigned_at"], "isoformat")
-                            else str(agent["assigned_at"])
-                        )
-
-        return jsonify({"success": True, "stations": stations})
+            return jsonify({"success": True, "stations": stations})
 
     except Exception as e:
         logger.error(f"Error getting assignments: {e}")
@@ -1167,28 +1084,24 @@ def get_all_station_assignments():
 def get_unassigned_agents():
     """Get agents not assigned to any station"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT a.id, a.name, a.title, a.department, a.status,
+                       a.avatar_url, a.model, a.tier, a.capabilities
+                FROM agents a
+                WHERE a.status IN ('active', 'idle', 'busy')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM station_assignments sa
+                      WHERE sa.agent_id = a.id AND sa.is_active = TRUE
+                  )
+                ORDER BY a.name
             """
-            SELECT a.id, a.name, a.title, a.department, a.status,
-                   a.avatar_url, a.model, a.tier, a.capabilities
-            FROM agents a
-            WHERE a.status IN ('active', 'idle', 'busy')
-              AND NOT EXISTS (
-                  SELECT 1 FROM station_assignments sa
-                  WHERE sa.agent_id = a.id AND sa.is_active = TRUE
-              )
-            ORDER BY a.name
-        """
-        )
-        agents = cur.fetchall()
+            )
+            agents = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True, "agents": agents, "count": len(agents)})
+            return jsonify({"success": True, "agents": agents, "count": len(agents)})
 
     except Exception as e:
         logger.error(f"Error getting unassigned agents: {e}")
@@ -1200,35 +1113,29 @@ def get_unassigned_agents():
 def get_station_config(station_code):
     """Get station configuration"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
-            """
-            SELECT id, station_code, station_name, full_name, description,
-                   color, icon, default_llm, modules, position_row, position_order,
-                   is_active, created_at, updated_at
-            FROM bridge_stations
-            WHERE station_code = %s
-        """,
-            (station_code.upper(),),
-        )
-        station = cur.fetchone()
+            cur.execute(
+                """
+                SELECT id, station_code, station_name, full_name, description,
+                       color, icon, default_llm, modules, position_row, position_order,
+                       is_active, created_at, updated_at
+                FROM bridge_stations
+                WHERE station_code = %s
+            """,
+                (station_code.upper(),),
+            )
+            station = cur.fetchone()
 
-        if not station:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Station not found"}), 404
+            if not station:
+                return jsonify({"success": False, "error": "Station not found"}), 404
 
-        cur.close()
-        conn.close()
+            # Convert datetime
+            for key in ["created_at", "updated_at"]:
+                if station.get(key):
+                    station[key] = station[key].isoformat()
 
-        # Convert datetime
-        for key in ["created_at", "updated_at"]:
-            if station.get(key):
-                station[key] = station[key].isoformat()
-
-        return jsonify({"success": True, "station": station})
+            return jsonify({"success": True, "station": station})
 
     except Exception as e:
         logger.error(f"Error getting station config: {e}")
@@ -1260,39 +1167,35 @@ def update_station_config(station_code):
         return jsonify({"success": False, "error": "No valid fields to update"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Build dynamic update query
-        set_clauses = [f"{k} = %s" for k in updates.keys()]
-        values = list(updates.values())
-        values.append(station_code.upper())
+            # Build dynamic update query
+            set_clauses = [f"{k} = %s" for k in updates.keys()]
+            values = list(updates.values())
+            values.append(station_code.upper())
 
-        cur.execute(
-            f"""
-            UPDATE bridge_stations
-            SET {', '.join(set_clauses)}, updated_at = NOW()
-            WHERE station_code = %s
-            RETURNING id, station_code, station_name
-        """,
-            values,
-        )
+            cur.execute(
+                f"""
+                UPDATE bridge_stations
+                SET {', '.join(set_clauses)}, updated_at = NOW()
+                WHERE station_code = %s
+                RETURNING id, station_code, station_name
+            """,
+                values,
+            )
 
-        updated = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            updated = cur.fetchone()
 
-        if not updated:
-            return jsonify({"success": False, "error": "Station not found"}), 404
+            if not updated:
+                return jsonify({"success": False, "error": "Station not found"}), 404
 
-        return jsonify(
-            {
-                "success": True,
-                "station": updated,
-                "message": f"Station {station_code} updated",
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "station": updated,
+                    "message": f"Station {station_code} updated",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error updating station: {e}")
@@ -1310,28 +1213,23 @@ def reorder_stations():
         return jsonify({"success": False, "error": "order list required"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
 
-        for item in order:
-            cur.execute(
-                """
-                UPDATE bridge_stations
-                SET position_row = %s, position_order = %s, updated_at = NOW()
-                WHERE station_code = %s
-            """,
-                (
-                    item.get("position_row", 0),
-                    item.get("position_order", 0),
-                    item["station_code"].upper(),
-                ),
-            )
+            for item in order:
+                cur.execute(
+                    """
+                    UPDATE bridge_stations
+                    SET position_row = %s, position_order = %s, updated_at = NOW()
+                    WHERE station_code = %s
+                """,
+                    (
+                        item.get("position_row", 0),
+                        item.get("position_order", 0),
+                        item["station_code"].upper(),
+                    ),
+                )
 
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True, "message": f"Reordered {len(order)} stations"})
+            return jsonify({"success": True, "message": f"Reordered {len(order)} stations"})
 
     except Exception as e:
         logger.error(f"Error reordering stations: {e}")
@@ -1343,25 +1241,21 @@ def reorder_stations():
 def delete_assignment(assignment_id):
     """Delete a station assignment"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
 
-        cur.execute(
-            """
-            DELETE FROM station_assignments WHERE id = %s RETURNING id
-        """,
-            (assignment_id,),
-        )
+            cur.execute(
+                """
+                DELETE FROM station_assignments WHERE id = %s RETURNING id
+            """,
+                (assignment_id,),
+            )
 
-        deleted = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            deleted = cur.fetchone()
 
-        if not deleted:
-            return jsonify({"success": False, "error": "Assignment not found"}), 404
+            if not deleted:
+                return jsonify({"success": False, "error": "Assignment not found"}), 404
 
-        return jsonify({"success": True, "message": "Assignment deleted"})
+            return jsonify({"success": True, "message": "Assignment deleted"})
 
     except Exception as e:
         logger.error(f"Error deleting assignment: {e}")
@@ -1387,32 +1281,28 @@ def update_assignment(assignment_id):
         return jsonify({"success": False, "error": "No valid fields to update"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        set_clauses = [f"{k} = %s" for k in updates.keys()]
-        values = list(updates.values())
-        values.append(assignment_id)
+            set_clauses = [f"{k} = %s" for k in updates.keys()]
+            values = list(updates.values())
+            values.append(assignment_id)
 
-        cur.execute(
-            f"""
-            UPDATE station_assignments
-            SET {', '.join(set_clauses)}
-            WHERE id = %s
-            RETURNING id, station_id, agent_id, assignment_type
-        """,
-            values,
-        )
+            cur.execute(
+                f"""
+                UPDATE station_assignments
+                SET {', '.join(set_clauses)}
+                WHERE id = %s
+                RETURNING id, station_id, agent_id, assignment_type
+            """,
+                values,
+            )
 
-        updated = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            updated = cur.fetchone()
 
-        if not updated:
-            return jsonify({"success": False, "error": "Assignment not found"}), 404
+            if not updated:
+                return jsonify({"success": False, "error": "Assignment not found"}), 404
 
-        return jsonify({"success": True, "assignment": updated})
+            return jsonify({"success": True, "assignment": updated})
 
     except Exception as e:
         logger.error(f"Error updating assignment: {e}")
@@ -1451,191 +1341,180 @@ def request_station_support(station_code):
     logger.info(f"Bridge: Support request from {requesting_module} - {task_type} needs {capability_needed}")
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Step 1: Get station info
-        cur.execute(
-            """
-            SELECT id, station_name FROM bridge_stations
-            WHERE station_code = %s AND is_active = TRUE
-        """,
-            (station_code.upper(),),
-        )
-        station = cur.fetchone()
-
-        if not station:
-            cur.close()
-            conn.close()
-            return (
-                jsonify({"success": False, "message": f"Station {station_code} not found"}),
-                404,
-            )
-
-        # Step 2: Check if additional_support slot is already filled
-        cur.execute(
-            """
-            SELECT a.id, a.name, a.model, a.tier, a.title
-            FROM station_assignments sa
-            JOIN agents a ON sa.agent_id = a.id
-            WHERE sa.station_id = %s
-            AND sa.assignment_type = 'additional_support'
-            AND sa.is_active = TRUE
-            AND a.status = 'active'
-        """,
-            (station["id"],),
-        )
-        existing_support = cur.fetchone()
-
-        if existing_support:
-            # Support slot already filled - return existing support agent
-            cur.close()
-            conn.close()
-            logger.info(f"Bridge: Support slot already filled with {existing_support['name']}")
-            return jsonify(
-                {
-                    "success": True,
-                    "agent": dict(existing_support),
-                    "message": "Support agent already assigned",
-                    "slot_status": "occupied",
-                }
-            )
-
-        # Step 3: Find a suitable agent for the requested capability
-        # This is where Archie HR logic would go in the future
-        # For now, we look for fast coders not already assigned to this station
-
-        # Define capability keywords and their model mappings
-        # Bridge interprets the capability_needed string to find appropriate agents
-        fast_coder_models = [
-            "qwen25-classify",
-            "dolphin3-8k:latest",
-            "qwen3-coder-cpu:latest",
-        ]  # noqa: F841
-
-        # Determine what kind of agent is needed based on capability description
-        capability_lower = capability_needed.lower() if capability_needed else ""
-        target_models = []
-
-        if "fast" in capability_lower or "speed" in capability_lower or "batch" in capability_lower:
-            # Need a fast classifier/tagger
-            target_models = ["qwen25-classify", "dolphin3-8k:latest"]
-            logger.info(f"Bridge: Looking for fast models: {target_models}")
-        elif "thorough" in capability_lower or "security" in capability_lower or "deep" in capability_lower:
-            # Need a thorough/security agent - will use tier-based search
-            target_models = []
-            logger.info("Bridge: Looking for high-tier agent")
-
-        # Find available agent with required capability
-        if target_models:
-            model_placeholders = ",".join(["%s"] * len(target_models))
-            cur.execute(
-                f"""
-                SELECT a.id, a.name, a.model, a.tier, a.title, a.avatar_url
-                FROM agents a
-                WHERE a.status = 'active'
-                AND a.model IN ({model_placeholders})
-                AND a.id NOT IN (
-                    SELECT agent_id FROM station_assignments
-                    WHERE station_id = %s AND is_active = TRUE
-                )
-                ORDER BY a.tier DESC
-                LIMIT 1
-            """,
-                (*target_models, station["id"]),
-            )
-        else:
-            # For tier-based requirements, find high-tier agents
+            # Step 1: Get station info
             cur.execute(
                 """
-                SELECT a.id, a.name, a.model, a.tier, a.title, a.avatar_url
-                FROM agents a
-                WHERE a.status = 'active'
-                AND a.tier >= 2
-                AND a.id NOT IN (
-                    SELECT agent_id FROM station_assignments
-                    WHERE station_id = %s AND is_active = TRUE
+                SELECT id, station_name FROM bridge_stations
+                WHERE station_code = %s AND is_active = TRUE
+            """,
+                (station_code.upper(),),
+            )
+            station = cur.fetchone()
+
+            if not station:
+                return (
+                    jsonify({"success": False, "message": f"Station {station_code} not found"}),
+                    404,
                 )
-                ORDER BY a.tier DESC
-                LIMIT 1
+
+            # Step 2: Check if additional_support slot is already filled
+            cur.execute(
+                """
+                SELECT a.id, a.name, a.model, a.tier, a.title
+                FROM station_assignments sa
+                JOIN agents a ON sa.agent_id = a.id
+                WHERE sa.station_id = %s
+                AND sa.assignment_type = 'additional_support'
+                AND sa.is_active = TRUE
+                AND a.status = 'active'
             """,
                 (station["id"],),
             )
+            existing_support = cur.fetchone()
 
-        candidate = cur.fetchone()
+            if existing_support:
+                # Support slot already filled - return existing support agent
+                logger.info(f"Bridge: Support slot already filled with {existing_support['name']}")
+                return jsonify(
+                    {
+                        "success": True,
+                        "agent": dict(existing_support),
+                        "message": "Support agent already assigned",
+                        "slot_status": "occupied",
+                    }
+                )
 
-        if not candidate:
-            cur.close()
-            conn.close()
-            logger.info(f"Bridge: No suitable agent available for {capability_needed}")
-            return jsonify(
-                {
-                    "success": False,
-                    "message": f"No agent available with {capability_needed}",
-                    "slot_status": "no_candidates",
-                }
+            # Step 3: Find a suitable agent for the requested capability
+            # This is where Archie HR logic would go in the future
+            # For now, we look for fast coders not already assigned to this station
+
+            # Define capability keywords and their model mappings
+            # Bridge interprets the capability_needed string to find appropriate agents
+            fast_coder_models = [
+                "qwen25-classify",
+                "dolphin3-8k:latest",
+                "qwen3-coder-cpu:latest",
+            ]  # noqa: F841
+
+            # Determine what kind of agent is needed based on capability description
+            capability_lower = capability_needed.lower() if capability_needed else ""
+            target_models = []
+
+            if "fast" in capability_lower or "speed" in capability_lower or "batch" in capability_lower:
+                # Need a fast classifier/tagger
+                target_models = ["qwen25-classify", "dolphin3-8k:latest"]
+                logger.info(f"Bridge: Looking for fast models: {target_models}")
+            elif "thorough" in capability_lower or "security" in capability_lower or "deep" in capability_lower:
+                # Need a thorough/security agent - will use tier-based search
+                target_models = []
+                logger.info("Bridge: Looking for high-tier agent")
+
+            # Find available agent with required capability
+            if target_models:
+                model_placeholders = ",".join(["%s"] * len(target_models))
+                cur.execute(
+                    f"""
+                    SELECT a.id, a.name, a.model, a.tier, a.title, a.avatar_url
+                    FROM agents a
+                    WHERE a.status = 'active'
+                    AND a.model IN ({model_placeholders})
+                    AND a.id NOT IN (
+                        SELECT agent_id FROM station_assignments
+                        WHERE station_id = %s AND is_active = TRUE
+                    )
+                    ORDER BY a.tier DESC
+                    LIMIT 1
+                """,
+                    (*target_models, station["id"]),
+                )
+            else:
+                # For tier-based requirements, find high-tier agents
+                cur.execute(
+                    """
+                    SELECT a.id, a.name, a.model, a.tier, a.title, a.avatar_url
+                    FROM agents a
+                    WHERE a.status = 'active'
+                    AND a.tier >= 2
+                    AND a.id NOT IN (
+                        SELECT agent_id FROM station_assignments
+                        WHERE station_id = %s AND is_active = TRUE
+                    )
+                    ORDER BY a.tier DESC
+                    LIMIT 1
+                """,
+                    (station["id"],),
+                )
+
+            candidate = cur.fetchone()
+
+            if not candidate:
+                logger.info(f"Bridge: No suitable agent available for {capability_needed}")
+                return jsonify(
+                    {
+                        "success": False,
+                        "message": f"No agent available with {capability_needed}",
+                        "slot_status": "no_candidates",
+                    }
+                )
+
+            # Step 4: Check workload compliance (simplified for now)
+            # TODO: Full workload tracking for AI compliance
+            cur.execute(
+                """
+                SELECT COUNT(*) as assignment_count
+                FROM station_assignments
+                WHERE agent_id = %s AND is_active = TRUE
+            """,
+                (candidate["id"],),
+            )
+            workload = cur.fetchone()
+
+            if workload["assignment_count"] >= 3:
+                logger.info(
+                    f"Bridge: {candidate['name']} at workload limit ({workload['assignment_count']} assignments)"
+                )
+                return jsonify(
+                    {
+                        "success": False,
+                        "message": f"{candidate['name']} is at workload capacity",
+                        "slot_status": "workload_limit",
+                    }
+                )
+
+            # Step 5: Assign to additional_support slot
+            cur.execute(
+                """
+                INSERT INTO station_assignments
+                (station_id, agent_id, assignment_type, priority, notes, is_active)
+                VALUES (%s, %s, 'additional_support', 99, %s, TRUE)
+                RETURNING id
+            """,
+                (
+                    station["id"],
+                    candidate["id"],
+                    f"Support for {requesting_module}: {task_type}",
+                ),
             )
 
-        # Step 4: Check workload compliance (simplified for now)
-        # TODO: Full workload tracking for AI compliance
-        cur.execute(
-            """
-            SELECT COUNT(*) as assignment_count
-            FROM station_assignments
-            WHERE agent_id = %s AND is_active = TRUE
-        """,
-            (candidate["id"],),
-        )
-        workload = cur.fetchone()
+            assignment = cur.fetchone()
 
-        if workload["assignment_count"] >= 3:
-            cur.close()
-            conn.close()
-            logger.info(f"Bridge: {candidate['name']} at workload limit ({workload['assignment_count']} assignments)")
+            logger.info(f"Bridge: Assigned {candidate['name']} as additional_support to {station['station_name']}")
+
+            # Add assignment type to candidate for caller
+            candidate_dict = dict(candidate)
+            candidate_dict["assignment_type"] = "additional_support"
+            candidate_dict["assignment_id"] = assignment["id"]
+
             return jsonify(
                 {
-                    "success": False,
-                    "message": f"{candidate['name']} is at workload capacity",
-                    "slot_status": "workload_limit",
+                    "success": True,
+                    "agent": candidate_dict,
+                    "message": f"{candidate['name']} assigned as additional support",
+                    "slot_status": "assigned",
                 }
             )
-
-        # Step 5: Assign to additional_support slot
-        cur.execute(
-            """
-            INSERT INTO station_assignments
-            (station_id, agent_id, assignment_type, priority, notes, is_active)
-            VALUES (%s, %s, 'additional_support', 99, %s, TRUE)
-            RETURNING id
-        """,
-            (
-                station["id"],
-                candidate["id"],
-                f"Support for {requesting_module}: {task_type}",
-            ),
-        )
-
-        assignment = cur.fetchone()
-        conn.commit()
-
-        logger.info(f"Bridge: Assigned {candidate['name']} as additional_support to {station['station_name']}")
-
-        # Add assignment type to candidate for caller
-        candidate_dict = dict(candidate)
-        candidate_dict["assignment_type"] = "additional_support"
-        candidate_dict["assignment_id"] = assignment["id"]
-
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "agent": candidate_dict,
-                "message": f"{candidate['name']} assigned as additional support",
-                "slot_status": "assigned",
-            }
-        )
 
     except Exception as e:
         logger.error(f"Bridge: Error processing support request: {e}")
@@ -1655,58 +1534,52 @@ def release_station_support(station_code):
     agent_id = data.get("agent_id")
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get station
-        cur.execute(
-            """
-            SELECT id FROM bridge_stations WHERE station_code = %s
-        """,
-            (station_code.upper(),),
-        )
-        station = cur.fetchone()
-
-        if not station:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Station not found"}), 404
-
-        # Remove from additional_support slot
-        if agent_id:
+            # Get station
             cur.execute(
                 """
-                DELETE FROM station_assignments
-                WHERE station_id = %s AND agent_id = %s AND assignment_type = 'additional_support'
-                RETURNING id
+                SELECT id FROM bridge_stations WHERE station_code = %s
             """,
-                (station["id"], agent_id),
+                (station_code.upper(),),
             )
-        else:
-            # Release all support assignments for this station
-            cur.execute(
-                """
-                DELETE FROM station_assignments
-                WHERE station_id = %s AND assignment_type = 'additional_support'
-                RETURNING id
-            """,
-                (station["id"],),
+            station = cur.fetchone()
+
+            if not station:
+                return jsonify({"success": False, "error": "Station not found"}), 404
+
+            # Remove from additional_support slot
+            if agent_id:
+                cur.execute(
+                    """
+                    DELETE FROM station_assignments
+                    WHERE station_id = %s AND agent_id = %s AND assignment_type = 'additional_support'
+                    RETURNING id
+                """,
+                    (station["id"], agent_id),
+                )
+            else:
+                # Release all support assignments for this station
+                cur.execute(
+                    """
+                    DELETE FROM station_assignments
+                    WHERE station_id = %s AND assignment_type = 'additional_support'
+                    RETURNING id
+                """,
+                    (station["id"],),
+                )
+
+            deleted = cur.fetchall()
+
+            logger.info(f"Bridge: Released {len(deleted)} support assignment(s) from {station_code}")
+
+            return jsonify(
+                {
+                    "success": True,
+                    "released_count": len(deleted),
+                    "message": f"Released {len(deleted)} support assignment(s)",
+                }
             )
-
-        deleted = cur.fetchall()
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        logger.info(f"Bridge: Released {len(deleted)} support assignment(s) from {station_code}")
-
-        return jsonify(
-            {
-                "success": True,
-                "released_count": len(deleted),
-                "message": f"Released {len(deleted)} support assignment(s)",
-            }
-        )
 
     except Exception as e:
         logger.error(f"Bridge: Error releasing support: {e}")
@@ -1723,35 +1596,31 @@ def release_station_support(station_code):
 def get_lounge_agents():
     """Get agents currently in lounge (resting)"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT
+                    a.id as agent_id,
+                    a.name as agent_name,
+                    a.avatar_url,
+                    a.department,
+                    arc.id as rest_cycle_id,
+                    arc.rest_type,
+                    arc.reason as rest_reason,
+                    arc.started_at as rest_started,
+                    EXTRACT(EPOCH FROM (NOW() - arc.started_at)) / 3600 as hours_resting,
+                    CASE WHEN arc.rest_type = 'forced' THEN TRUE ELSE FALSE END as is_locked
+                FROM agent_rest_cycles arc
+                JOIN agents a ON arc.agent_id = a.id
+                WHERE arc.ended_at IS NULL
+                AND a.status = 'active'
+                ORDER BY arc.started_at DESC
             """
-            SELECT
-                a.id as agent_id,
-                a.name as agent_name,
-                a.avatar_url,
-                a.department,
-                arc.id as rest_cycle_id,
-                arc.rest_type,
-                arc.reason as rest_reason,
-                arc.started_at as rest_started,
-                EXTRACT(EPOCH FROM (NOW() - arc.started_at)) / 3600 as hours_resting,
-                CASE WHEN arc.rest_type = 'forced' THEN TRUE ELSE FALSE END as is_locked
-            FROM agent_rest_cycles arc
-            JOIN agents a ON arc.agent_id = a.id
-            WHERE arc.ended_at IS NULL
-            AND a.status = 'active'
-            ORDER BY arc.started_at DESC
-        """
-        )
-        agents = cur.fetchall()
+            )
+            agents = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True, "agents": agents})
+            return jsonify({"success": True, "agents": agents})
 
     except Exception as e:
         logger.error(f"Error loading lounge agents: {e}")
@@ -1767,45 +1636,40 @@ def send_agent_to_lounge(agent_id):
         rest_type = data.get("rest_type", "voluntary")
         reason = data.get("reason", "Sent to lounge via Bridge")
 
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Remove from station assignment if any
-        cur.execute(
-            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
-            (agent_id,),
-        )
+            # Remove from station assignment if any
+            cur.execute(
+                "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
+                (agent_id,),
+            )
 
-        # Cancel any active training
-        cur.execute(
-            "UPDATE training_assignments SET status = 'cancelled' "
-            "WHERE agent_id = %s AND status IN ('pending', 'in_progress')",
-            (agent_id,),
-        )
+            # Cancel any active training
+            cur.execute(
+                "UPDATE training_assignments SET status = 'cancelled' "
+                "WHERE agent_id = %s AND status IN ('pending', 'in_progress')",
+                (agent_id,),
+            )
 
-        # Start rest cycle
-        cur.execute(
-            """
-            INSERT INTO agent_rest_cycles (agent_id, rest_type, reason, started_at)
-            VALUES (%s, %s, %s, NOW())
-            RETURNING id
-        """,
-            (agent_id, rest_type, reason),
-        )
+            # Start rest cycle
+            cur.execute(
+                """
+                INSERT INTO agent_rest_cycles (agent_id, rest_type, reason, started_at)
+                VALUES (%s, %s, %s, NOW())
+                RETURNING id
+            """,
+                (agent_id, rest_type, reason),
+            )
 
-        rest_cycle_id = cur.fetchone()["id"]
+            rest_cycle_id = cur.fetchone()["id"]
 
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "rest_cycle_id": rest_cycle_id,
-                "message": "Agent sent to lounge",
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "rest_cycle_id": rest_cycle_id,
+                    "message": "Agent sent to lounge",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error sending agent to lounge: {e}")
@@ -1817,43 +1681,38 @@ def send_agent_to_lounge(agent_id):
 def return_agent_from_lounge(agent_id):
     """Return an agent from lounge (end rest cycle)"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Check if agent is in forced rest
-        cur.execute(
-            """
-            SELECT id, rest_type FROM agent_rest_cycles
-            WHERE agent_id = %s AND ended_at IS NULL
-        """,
-            (agent_id,),
-        )
-        rest_cycle = cur.fetchone()
+            # Check if agent is in forced rest
+            cur.execute(
+                """
+                SELECT id, rest_type FROM agent_rest_cycles
+                WHERE agent_id = %s AND ended_at IS NULL
+            """,
+                (agent_id,),
+            )
+            rest_cycle = cur.fetchone()
 
-        if not rest_cycle:
-            return jsonify({"success": False, "error": "Agent is not in lounge"}), 400
+            if not rest_cycle:
+                return jsonify({"success": False, "error": "Agent is not in lounge"}), 400
 
-        if rest_cycle["rest_type"] == "forced":
-            return (
-                jsonify({"success": False, "error": "Cannot return agent from forced rest"}),
-                403,
+            if rest_cycle["rest_type"] == "forced":
+                return (
+                    jsonify({"success": False, "error": "Cannot return agent from forced rest"}),
+                    403,
+                )
+
+            # End rest cycle
+            cur.execute(
+                """
+                UPDATE agent_rest_cycles
+                SET ended_at = NOW()
+                WHERE id = %s
+            """,
+                (rest_cycle["id"],),
             )
 
-        # End rest cycle
-        cur.execute(
-            """
-            UPDATE agent_rest_cycles
-            SET ended_at = NOW()
-            WHERE id = %s
-        """,
-            (rest_cycle["id"],),
-        )
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True, "message": "Agent returned from lounge"})
+            return jsonify({"success": True, "message": "Agent returned from lounge"})
 
     except Exception as e:
         logger.error(f"Error returning agent from lounge: {e}")
@@ -1870,57 +1729,53 @@ def return_agent_from_lounge(agent_id):
 def check_iaae_move_compliance(agent_id):
     """Check IAAE compliance before moving an agent"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        warnings = []
-        allowed = True
-        can_override = True
+            warnings = []
+            allowed = True
+            can_override = True
 
-        # Get agent emotional state
-        cur.execute(
-            """
-            SELECT stress_level, energy_level
-            FROM agent_emotional_state
-            WHERE agent_id = %s
-        """,
-            (agent_id,),
-        )
-        emotional_state = cur.fetchone()
+            # Get agent emotional state
+            cur.execute(
+                """
+                SELECT stress_level, energy_level
+                FROM agent_emotional_state
+                WHERE agent_id = %s
+            """,
+                (agent_id,),
+            )
+            emotional_state = cur.fetchone()
 
-        if emotional_state:
-            if emotional_state["stress_level"] and emotional_state["stress_level"] > 0.7:
-                warnings.append(f"High stress level ({round(emotional_state['stress_level'] * 100)}%)")
+            if emotional_state:
+                if emotional_state["stress_level"] and emotional_state["stress_level"] > 0.7:
+                    warnings.append(f"High stress level ({round(emotional_state['stress_level'] * 100)}%)")
 
-            if emotional_state["energy_level"] and emotional_state["energy_level"] < 0.3:
-                warnings.append(f"Low energy level ({round(emotional_state['energy_level'] * 100)}%)")
+                if emotional_state["energy_level"] and emotional_state["energy_level"] < 0.3:
+                    warnings.append(f"Low energy level ({round(emotional_state['energy_level'] * 100)}%)")
 
-        # Check if in forced rest
-        cur.execute(
-            """
-            SELECT rest_type FROM agent_rest_cycles
-            WHERE agent_id = %s AND ended_at IS NULL
-        """,
-            (agent_id,),
-        )
-        rest_cycle = cur.fetchone()
+            # Check if in forced rest
+            cur.execute(
+                """
+                SELECT rest_type FROM agent_rest_cycles
+                WHERE agent_id = %s AND ended_at IS NULL
+            """,
+                (agent_id,),
+            )
+            rest_cycle = cur.fetchone()
 
-        if rest_cycle and rest_cycle["rest_type"] == "forced":
-            allowed = False
-            can_override = False
-            warnings.append("Agent is in forced rest - cannot be moved")
+            if rest_cycle and rest_cycle["rest_type"] == "forced":
+                allowed = False
+                can_override = False
+                warnings.append("Agent is in forced rest - cannot be moved")
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "allowed": allowed,
-                "can_override": can_override,
-                "warnings": warnings,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "allowed": allowed,
+                    "can_override": can_override,
+                    "warnings": warnings,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error checking IAAE compliance: {e}")
@@ -1937,30 +1792,26 @@ def check_iaae_move_compliance(agent_id):
 def get_traffic_stats():
     """Get throughput stats from task_execution_log (rolling 24h window)"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT COUNT(*) as total_24h
+                FROM task_execution_log
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(*) as total_24h
-            FROM task_execution_log
-            WHERE created_at >= NOW() - INTERVAL '24 hours'
-        """
-        )
-        row = cur.fetchone()
-        total_24h = row["total_24h"] if row else 0
-        requests_per_minute = round(total_24h / 1440.0, 1)
+            )
+            row = cur.fetchone()
+            total_24h = row["total_24h"] if row else 0
+            requests_per_minute = round(total_24h / 1440.0, 1)
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "requests_per_minute": requests_per_minute,
-                "total_24h": total_24h,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "requests_per_minute": requests_per_minute,
+                    "total_24h": total_24h,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting traffic stats: {e}")
@@ -1972,33 +1823,29 @@ def get_traffic_stats():
 def get_agent_utilization():
     """Get real agent activity rate over 24h (agents that executed tasks / total active)"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT
+                    (SELECT COUNT(DISTINCT agent_id) FROM task_execution_log
+                     WHERE created_at >= NOW() - INTERVAL '24 hours' AND agent_id IS NOT NULL) as active_agents,
+                    (SELECT COUNT(*) FROM agents WHERE status = 'active') as total_agents
             """
-            SELECT
-                (SELECT COUNT(DISTINCT agent_id) FROM task_execution_log
-                 WHERE created_at >= NOW() - INTERVAL '24 hours' AND agent_id IS NOT NULL) as active_agents,
-                (SELECT COUNT(*) FROM agents WHERE status = 'active') as total_agents
-        """
-        )
-        row = cur.fetchone()
-        active = row["active_agents"] or 0
-        total = row["total_agents"] or 0
-        utilization_pct = round(active / total * 100) if total > 0 else 0
+            )
+            row = cur.fetchone()
+            active = row["active_agents"] or 0
+            total = row["total_agents"] or 0
+            utilization_pct = round(active / total * 100) if total > 0 else 0
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "active_agents": active,
-                "total_agents": total,
-                "utilization_pct": utilization_pct,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "active_agents": active,
+                    "total_agents": total,
+                    "utilization_pct": utilization_pct,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting agent utilization: {e}")
@@ -2032,65 +1879,63 @@ def get_live_models():
 def get_iaae_overview():
     """Get real IAAE compliance and welfare metrics"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Agent welfare: stress and energy across active agents
-        cur.execute(
+            # Agent welfare: stress and energy across active agents
+            cur.execute(
+                """
+                SELECT es.stress_level, es.energy_level
+                FROM agent_emotional_state es
+                JOIN agents a ON a.id = es.agent_id
+                WHERE a.status = 'active'
             """
-            SELECT es.stress_level, es.energy_level
-            FROM agent_emotional_state es
-            JOIN agents a ON a.id = es.agent_id
-            WHERE a.status = 'active'
-        """
-        )
-        welfare_rows = cur.fetchall()
-        stress_vals = [r["stress_level"] for r in welfare_rows if r["stress_level"] is not None]
-        energy_vals = [r["energy_level"] for r in welfare_rows if r["energy_level"] is not None]
-        avg_stress = round(sum(stress_vals) / len(stress_vals), 2) if stress_vals else None
-        avg_energy = round(sum(energy_vals) / len(energy_vals), 2) if energy_vals else None
+            )
+            welfare_rows = cur.fetchall()
+            stress_vals = [r["stress_level"] for r in welfare_rows if r["stress_level"] is not None]
+            energy_vals = [r["energy_level"] for r in welfare_rows if r["energy_level"] is not None]
+            avg_stress = round(sum(stress_vals) / len(stress_vals), 2) if stress_vals else None
+            avg_energy = round(sum(energy_vals) / len(energy_vals), 2) if energy_vals else None
 
-        # Compliance = agents within ethical limits (stress <= 0.7, energy >= 0.3)
-        monitored = [r for r in welfare_rows if r.get("stress_level") is not None or r.get("energy_level") is not None]
-        healthy = sum(
-            1 for r in monitored if (r.get("stress_level") or 0) <= 0.7 and (r.get("energy_level") or 1) >= 0.3
-        )
-        compliance_pct = round(healthy / len(monitored) * 100, 1) if monitored else None
+            # Compliance = agents within ethical limits (stress <= 0.7, energy >= 0.3)
+            monitored = [
+                r for r in welfare_rows if r.get("stress_level") is not None or r.get("energy_level") is not None
+            ]
+            healthy = sum(
+                1 for r in monitored if (r.get("stress_level") or 0) <= 0.7 and (r.get("energy_level") or 1) >= 0.3
+            )
+            compliance_pct = round(healthy / len(monitored) * 100, 1) if monitored else None
 
-        # Governance events 24h
-        cur.execute(
+            # Governance events 24h
+            cur.execute(
+                """
+                SELECT COUNT(*) as total
+                FROM governance_audit_log
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(*) as total
-            FROM governance_audit_log
-            WHERE timestamp >= NOW() - INTERVAL '24 hours'
-        """
-        )
-        gov_total = cur.fetchone()["total"] or 0
+            )
+            gov_total = cur.fetchone()["total"] or 0
 
-        # Agents currently at rest
-        cur.execute(
+            # Agents currently at rest
+            cur.execute(
+                """
+                SELECT COUNT(*) as count
+                FROM agent_rest_cycles
+                WHERE ended_at IS NULL
             """
-            SELECT COUNT(*) as count
-            FROM agent_rest_cycles
-            WHERE ended_at IS NULL
-        """
-        )
-        rest_row = cur.fetchone()
-        agents_at_rest = rest_row["count"] or 0
+            )
+            rest_row = cur.fetchone()
+            agents_at_rest = rest_row["count"] or 0
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "compliance_pct": compliance_pct,
-                "avg_stress": avg_stress,
-                "avg_energy": avg_energy,
-                "agents_at_rest": agents_at_rest,
-                "governance_events_24h": gov_total,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "compliance_pct": compliance_pct,
+                    "avg_stress": avg_stress,
+                    "avg_energy": avg_energy,
+                    "agents_at_rest": agents_at_rest,
+                    "governance_events_24h": gov_total,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting IAAE overview: {e}")
@@ -2102,89 +1947,86 @@ def get_iaae_overview():
 def get_agent_workload():
     """Per-agent workload: 24h tasks, tokens, daily caps, risk levels."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT
+                    a.id, a.name, a.first_name, a.last_name, a.status,
+                    COALESCE(ab.task_queue_limit, 50) as daily_cap,
+                    COALESCE(ab.token_limit_per_day, 500000) as token_cap,
+                    COUNT(tel.id) as tasks_24h,
+                    COUNT(tel.id) FILTER (WHERE tel.success = TRUE) as completed_24h,
+                    COUNT(tel.id) FILTER (WHERE tel.success = FALSE) as failed_24h,
+                    COALESCE(AVG(tel.duration_ms), 0) as avg_duration_ms,
+                    COALESCE(SUM(tel.tokens_used), 0) as tokens_used_24h
+                FROM agents a
+                LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
+                LEFT JOIN task_execution_log tel ON tel.agent_id = a.id
+                    AND tel.created_at >= NOW() - INTERVAL '24 hours'
+                WHERE a.status IN ('active', 'busy', 'idle', 'working')
+                GROUP BY a.id, a.name, a.first_name, a.last_name, a.status,
+                         ab.task_queue_limit, ab.token_limit_per_day
+                ORDER BY tasks_24h DESC
             """
-            SELECT
-                a.id, a.name, a.first_name, a.last_name, a.status,
-                COALESCE(ab.task_queue_limit, 50) as daily_cap,
-                COALESCE(ab.token_limit_per_day, 500000) as token_cap,
-                COUNT(tel.id) as tasks_24h,
-                COUNT(tel.id) FILTER (WHERE tel.success = TRUE) as completed_24h,
-                COUNT(tel.id) FILTER (WHERE tel.success = FALSE) as failed_24h,
-                COALESCE(AVG(tel.duration_ms), 0) as avg_duration_ms,
-                COALESCE(SUM(tel.tokens_used), 0) as tokens_used_24h
-            FROM agents a
-            LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
-            LEFT JOIN task_execution_log tel ON tel.agent_id = a.id
-                AND tel.created_at >= NOW() - INTERVAL '24 hours'
-            WHERE a.status IN ('active', 'busy', 'idle', 'working')
-            GROUP BY a.id, a.name, a.first_name, a.last_name, a.status,
-                     ab.task_queue_limit, ab.token_limit_per_day
-            ORDER BY tasks_24h DESC
-        """
-        )
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+            )
+            rows = cur.fetchall()
 
-        agents = []
-        total_tasks = 0
-        at_risk = 0
-        for r in rows:
-            daily_cap = int(r["daily_cap"]) or 50
-            token_cap = int(r["token_cap"]) or 500000
-            tasks = int(r["tasks_24h"])
-            tokens = int(r["tokens_used_24h"])
-            workload_pct = min(round(tasks / daily_cap * 100, 1), 100) if daily_cap > 0 else 0
-            token_pct = min(round(tokens / token_cap * 100, 1), 100) if token_cap > 0 else 0
+            agents = []
+            total_tasks = 0
+            at_risk = 0
+            for r in rows:
+                daily_cap = int(r["daily_cap"]) or 50
+                token_cap = int(r["token_cap"]) or 500000
+                tasks = int(r["tasks_24h"])
+                tokens = int(r["tokens_used_24h"])
+                workload_pct = min(round(tasks / daily_cap * 100, 1), 100) if daily_cap > 0 else 0
+                token_pct = min(round(tokens / token_cap * 100, 1), 100) if token_cap > 0 else 0
 
-            if workload_pct >= 100:
-                risk = "overloaded"
-            elif workload_pct >= 80:
-                risk = "critical"
-            elif workload_pct >= 60:
-                risk = "elevated"
-            else:
-                risk = "healthy"
+                if workload_pct >= 100:
+                    risk = "overloaded"
+                elif workload_pct >= 80:
+                    risk = "critical"
+                elif workload_pct >= 60:
+                    risk = "elevated"
+                else:
+                    risk = "healthy"
 
-            if risk in ("critical", "overloaded"):
-                at_risk += 1
-            total_tasks += tasks
+                if risk in ("critical", "overloaded"):
+                    at_risk += 1
+                total_tasks += tasks
 
-            agents.append(
+                agents.append(
+                    {
+                        "id": r["id"],
+                        "name": r["name"],
+                        "first_name": r.get("first_name"),
+                        "last_name": r.get("last_name"),
+                        "status": r["status"],
+                        "daily_cap": daily_cap,
+                        "token_cap": token_cap,
+                        "tasks_24h": tasks,
+                        "completed_24h": int(r["completed_24h"]),
+                        "failed_24h": int(r["failed_24h"]),
+                        "avg_duration_ms": round(float(r["avg_duration_ms"]), 1),
+                        "tokens_used_24h": tokens,
+                        "workload_pct": workload_pct,
+                        "token_usage_pct": token_pct,
+                        "risk_level": risk,
+                    }
+                )
+
+            return jsonify(
                 {
-                    "id": r["id"],
-                    "name": r["name"],
-                    "first_name": r.get("first_name"),
-                    "last_name": r.get("last_name"),
-                    "status": r["status"],
-                    "daily_cap": daily_cap,
-                    "token_cap": token_cap,
-                    "tasks_24h": tasks,
-                    "completed_24h": int(r["completed_24h"]),
-                    "failed_24h": int(r["failed_24h"]),
-                    "avg_duration_ms": round(float(r["avg_duration_ms"]), 1),
-                    "tokens_used_24h": tokens,
-                    "workload_pct": workload_pct,
-                    "token_usage_pct": token_pct,
-                    "risk_level": risk,
+                    "success": True,
+                    "agents": agents,
+                    "summary": {
+                        "total_agents": len(agents),
+                        "total_tasks_24h": total_tasks,
+                        "agents_at_risk": at_risk,
+                    },
                 }
             )
-
-        return jsonify(
-            {
-                "success": True,
-                "agents": agents,
-                "summary": {
-                    "total_agents": len(agents),
-                    "total_tasks_24h": total_tasks,
-                    "agents_at_risk": at_risk,
-                },
-            }
-        )
     except Exception as e:
         logger.error("get_agent_workload error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2195,111 +2037,107 @@ def get_agent_workload():
 def get_agent_welfare():
     """Aggregate welfare: emotional state, rest cycles, refusals, governance."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Latest emotional state per agent (using DISTINCT ON)
-        cur.execute(
+            # Latest emotional state per agent (using DISTINCT ON)
+            cur.execute(
+                """
+                SELECT DISTINCT ON (a.id)
+                    a.id, a.name, a.first_name, a.last_name,
+                    es.current_mood as mood, es.mood_intensity as intensity,
+                    es.energy_level, es.stress_level, es.timestamp as last_check
+                FROM agents a
+                LEFT JOIN agent_emotional_state es ON es.agent_id = a.id
+                WHERE a.status IN ('active', 'busy', 'idle', 'working', 'resting')
+                ORDER BY a.id, es.timestamp DESC NULLS LAST
             """
-            SELECT DISTINCT ON (a.id)
-                a.id, a.name, a.first_name, a.last_name,
-                es.current_mood as mood, es.mood_intensity as intensity,
-                es.energy_level, es.stress_level, es.timestamp as last_check
-            FROM agents a
-            LEFT JOIN agent_emotional_state es ON es.agent_id = a.id
-            WHERE a.status IN ('active', 'busy', 'idle', 'working', 'resting')
-            ORDER BY a.id, es.timestamp DESC NULLS LAST
-        """
-        )
-        agents = cur.fetchall()
-        for a in agents:
-            if a.get("last_check"):
-                a["last_check"] = a["last_check"].isoformat()
-            for k in ["intensity", "energy_level", "stress_level"]:
-                if a.get(k) is not None:
-                    a[k] = float(a[k])
+            )
+            agents = cur.fetchall()
+            for a in agents:
+                if a.get("last_check"):
+                    a["last_check"] = a["last_check"].isoformat()
+                for k in ["intensity", "energy_level", "stress_level"]:
+                    if a.get(k) is not None:
+                        a[k] = float(a[k])
 
-        # Agents currently at rest
-        cur.execute(
+            # Agents currently at rest
+            cur.execute(
+                """
+                SELECT a.id, a.name, arc.reason, arc.started_at, arc.initiated_by
+                FROM agent_rest_cycles arc
+                JOIN agents a ON a.id = arc.agent_id
+                WHERE arc.ended_at IS NULL
             """
-            SELECT a.id, a.name, arc.reason, arc.started_at, arc.initiated_by
-            FROM agent_rest_cycles arc
-            JOIN agents a ON a.id = arc.agent_id
-            WHERE arc.ended_at IS NULL
-        """
-        )
-        resting = cur.fetchall()
-        for r in resting:
-            if r.get("started_at"):
-                r["started_at"] = r["started_at"].isoformat()
+            )
+            resting = cur.fetchall()
+            for r in resting:
+                if r.get("started_at"):
+                    r["started_at"] = r["started_at"].isoformat()
 
-        # Recent refusals (24h)
-        cur.execute(
+            # Recent refusals (24h)
+            cur.execute(
+                """
+                SELECT a.id, a.name, trl.refusal_reason as reason,
+                       trl.task_type, trl.was_overridden, trl.timestamp
+                FROM task_refusal_log trl
+                JOIN agents a ON a.id = trl.agent_id
+                WHERE trl.timestamp >= NOW() - INTERVAL '24 hours'
+                ORDER BY trl.timestamp DESC
+                LIMIT 20
             """
-            SELECT a.id, a.name, trl.refusal_reason as reason,
-                   trl.task_type, trl.was_overridden, trl.timestamp
-            FROM task_refusal_log trl
-            JOIN agents a ON a.id = trl.agent_id
-            WHERE trl.timestamp >= NOW() - INTERVAL '24 hours'
-            ORDER BY trl.timestamp DESC
-            LIMIT 20
-        """
-        )
-        refusals = cur.fetchall()
-        for r in refusals:
-            if r.get("timestamp"):
-                r["timestamp"] = r["timestamp"].isoformat()
+            )
+            refusals = cur.fetchall()
+            for r in refusals:
+                if r.get("timestamp"):
+                    r["timestamp"] = r["timestamp"].isoformat()
 
-        # Governance events (24h)
-        cur.execute(
+            # Governance events (24h)
+            cur.execute(
+                """
+                SELECT event_category, COUNT(*) as count
+                FROM governance_audit_log
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
+                GROUP BY event_category
             """
-            SELECT event_category, COUNT(*) as count
-            FROM governance_audit_log
-            WHERE timestamp >= NOW() - INTERVAL '24 hours'
-            GROUP BY event_category
-        """
-        )
-        gov_rows = cur.fetchall()
-        gov_summary = {}
-        for g in gov_rows:
-            gov_summary[g["event_category"]] = g["count"]
+            )
+            gov_rows = cur.fetchall()
+            gov_summary = {}
+            for g in gov_rows:
+                gov_summary[g["event_category"]] = g["count"]
 
-        cur.close()
-        conn.close()
+            # Fleet health aggregates
+            stress_vals = [a["stress_level"] for a in agents if a.get("stress_level") is not None]
+            energy_vals = [a["energy_level"] for a in agents if a.get("energy_level") is not None]
+            avg_stress = round(sum(stress_vals) / len(stress_vals), 2) if stress_vals else None
+            avg_energy = round(sum(energy_vals) / len(energy_vals), 2) if energy_vals else None
+            high_stress = sum(1 for s in stress_vals if s > 0.7)
 
-        # Fleet health aggregates
-        stress_vals = [a["stress_level"] for a in agents if a.get("stress_level") is not None]
-        energy_vals = [a["energy_level"] for a in agents if a.get("energy_level") is not None]
-        avg_stress = round(sum(stress_vals) / len(stress_vals), 2) if stress_vals else None
-        avg_energy = round(sum(energy_vals) / len(energy_vals), 2) if energy_vals else None
-        high_stress = sum(1 for s in stress_vals if s > 0.7)
+            total_gov = sum(gov_summary.values()) if gov_summary else 0
 
-        total_gov = sum(gov_summary.values()) if gov_summary else 0
+            # Compliance = agents within ethical limits (stress <= 0.7, energy >= 0.3)
+            monitored = [a for a in agents if a.get("stress_level") is not None or a.get("energy_level") is not None]
+            healthy_count = sum(
+                1 for a in monitored if (a.get("stress_level") or 0) <= 0.7 and (a.get("energy_level") or 1) >= 0.3
+            )
+            compliance_pct = round(healthy_count / len(monitored) * 100, 1) if monitored else None
 
-        # Compliance = agents within ethical limits (stress <= 0.7, energy >= 0.3)
-        monitored = [a for a in agents if a.get("stress_level") is not None or a.get("energy_level") is not None]
-        healthy_count = sum(
-            1 for a in monitored if (a.get("stress_level") or 0) <= 0.7 and (a.get("energy_level") or 1) >= 0.3
-        )
-        compliance_pct = round(healthy_count / len(monitored) * 100, 1) if monitored else None
-
-        return jsonify(
-            {
-                "success": True,
-                "agents": agents,
-                "agents_at_rest": resting,
-                "recent_refusals": refusals,
-                "governance_summary": gov_summary,
-                "fleet_health": {
-                    "avg_stress": avg_stress,
-                    "avg_energy": avg_energy,
-                    "agents_at_risk": high_stress,
-                    "agents_resting": len(resting),
-                    "compliance_pct": compliance_pct,
-                    "total_governance_events": total_gov,
-                },
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "agents": agents,
+                    "agents_at_rest": resting,
+                    "recent_refusals": refusals,
+                    "governance_summary": gov_summary,
+                    "fleet_health": {
+                        "avg_stress": avg_stress,
+                        "avg_energy": avg_energy,
+                        "agents_at_risk": high_stress,
+                        "agents_resting": len(resting),
+                        "compliance_pct": compliance_pct,
+                        "total_governance_events": total_gov,
+                    },
+                }
+            )
     except Exception as e:
         logger.error("get_agent_welfare error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2310,30 +2148,27 @@ def get_agent_welfare():
 def get_iaae_enforcement_log():
     """Vigil enforcement log: governance actions in the last 7 days."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT gal.id, gal.timestamp, gal.event_type, gal.event_category,
+                       gal.action, gal.reason, gal.outcome,
+                       gal.agent_id, a.name as agent_name,
+                       a.first_name as agent_first_name
+                FROM governance_audit_log gal
+                LEFT JOIN agents a ON a.id = gal.agent_id
+                WHERE gal.timestamp >= NOW() - INTERVAL '7 days'
+                ORDER BY gal.timestamp DESC
+                LIMIT 50
             """
-            SELECT gal.id, gal.timestamp, gal.event_type, gal.event_category,
-                   gal.action, gal.reason, gal.outcome,
-                   gal.agent_id, a.name as agent_name,
-                   a.first_name as agent_first_name
-            FROM governance_audit_log gal
-            LEFT JOIN agents a ON a.id = gal.agent_id
-            WHERE gal.timestamp >= NOW() - INTERVAL '7 days'
-            ORDER BY gal.timestamp DESC
-            LIMIT 50
-        """
-        )
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+            )
+            rows = cur.fetchall()
 
-        for r in rows:
-            if r.get("timestamp"):
-                r["timestamp"] = r["timestamp"].isoformat()
+            for r in rows:
+                if r.get("timestamp"):
+                    r["timestamp"] = r["timestamp"].isoformat()
 
-        return jsonify({"success": True, "events": rows, "total": len(rows)})
+            return jsonify({"success": True, "events": rows, "total": len(rows)})
     except Exception as e:
         logger.error("get_iaae_enforcement_log error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2349,62 +2184,58 @@ def get_iaae_enforcement_log():
 def get_archie_status():
     """Get A.R.C.H.I.E.'s current status and emotional state"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get core identity
-        cur.execute(
+            # Get core identity
+            cur.execute(
+                """
+                SELECT name, role, personality_profile
+                FROM archie_core_identity
+                LIMIT 1
             """
-            SELECT name, role, personality_profile
-            FROM archie_core_identity
-            LIMIT 1
-        """
-        )
-        identity = cur.fetchone()
+            )
+            identity = cur.fetchone()
 
-        # Get emotional state
-        cur.execute(
+            # Get emotional state
+            cur.execute(
+                """
+                SELECT
+                    current_mood, mood_intensity, relationship_strength, timestamp
+                FROM archie_emotional_state
+                ORDER BY timestamp DESC
+                LIMIT 1
             """
-            SELECT
-                current_mood, mood_intensity, relationship_strength, timestamp
-            FROM archie_emotional_state
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """
-        )
-        emotional = cur.fetchone()
+            )
+            emotional = cur.fetchone()
 
-        # Get personality traits
-        cur.execute(
+            # Get personality traits
+            cur.execute(
+                """
+                SELECT trait_name, trait_value, description
+                FROM archie_personality
+                ORDER BY updated_at DESC
+                LIMIT 5
             """
-            SELECT trait_name, trait_value, description
-            FROM archie_personality
-            ORDER BY updated_at DESC
-            LIMIT 5
-        """
-        )
-        traits = cur.fetchall()
+            )
+            traits = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "archie": {
-                    "identity": identity or {"name": "A.R.C.H.I.E.", "role": "AI Co-founder"},
-                    "emotional_state": emotional
-                    or {
-                        "current_mood": "supportive",
-                        "mood_intensity": 0.85,
-                        "relationship_strength": 0.90,
+            return jsonify(
+                {
+                    "success": True,
+                    "archie": {
+                        "identity": identity or {"name": "A.R.C.H.I.E.", "role": "AI Co-founder"},
+                        "emotional_state": emotional
+                        or {
+                            "current_mood": "supportive",
+                            "mood_intensity": 0.85,
+                            "relationship_strength": 0.90,
+                        },
+                        "top_traits": traits or [],
+                        "station": "COMMS",
+                        "status": "Active",
                     },
-                    "top_traits": traits or [],
-                    "station": "COMMS",
-                    "status": "Active",
-                },
-            }
-        )
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting ARCHIE status: {e}")
@@ -2498,40 +2329,37 @@ def get_llm_status():
             "claude": "Claude API",
         }
         try:
-            pconn = get_db_connection()
-            pcur = pconn.cursor(cursor_factory=RealDictCursor)
-            pcur.execute(
-                """
-                SELECT provider, is_active, monthly_budget_usd, current_month_cost_usd,
-                       CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != ''
-                            THEN TRUE ELSE FALSE END as has_key
-                FROM external_api_keys
-                ORDER BY provider
-                """
-            )
-            for row in pcur.fetchall():
-                prov = row["provider"]
-                has_key = row["has_key"]
-                is_active = row["is_active"]
-                if has_key and is_active:
-                    prov_status = "active"
-                elif has_key:
-                    prov_status = "configured"
-                else:
-                    prov_status = "no_key"
-                entry = {
-                    "name": provider_display_names.get(prov, prov.replace("_", " ").title()),
-                    "provider": prov,
-                    "status": prov_status,
-                }
-                # Add budget percentage if budget is set
-                budget = row.get("monthly_budget_usd")
-                cost = row.get("current_month_cost_usd")
-                if budget and float(budget) > 0:
-                    entry["budget_pct"] = round(float(cost or 0) / float(budget) * 100, 1)
-                external.append(entry)
-            pcur.close()
-            pconn.close()
+            with get_db_cursor(commit=False) as (pconn, pcur):
+                pcur.execute(
+                    """
+                    SELECT provider, is_active, monthly_budget_usd, current_month_cost_usd,
+                           CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != ''
+                                THEN TRUE ELSE FALSE END as has_key
+                    FROM external_api_keys
+                    ORDER BY provider
+                    """
+                )
+                for row in pcur.fetchall():
+                    prov = row["provider"]
+                    has_key = row["has_key"]
+                    is_active = row["is_active"]
+                    if has_key and is_active:
+                        prov_status = "active"
+                    elif has_key:
+                        prov_status = "configured"
+                    else:
+                        prov_status = "no_key"
+                    entry = {
+                        "name": provider_display_names.get(prov, prov.replace("_", " ").title()),
+                        "provider": prov,
+                        "status": prov_status,
+                    }
+                    # Add budget percentage if budget is set
+                    budget = row.get("monthly_budget_usd")
+                    cost = row.get("current_month_cost_usd")
+                    if budget and float(budget) > 0:
+                        entry["budget_pct"] = round(float(cost or 0) / float(budget) * 100, 1)
+                    external.append(entry)
         except Exception as e:
             logger.warning(f"Could not query external_api_keys: {e}")
 
@@ -2555,14 +2383,11 @@ def get_llm_status():
         # 6. Get routing mode
         routing_mode = "full"
         try:
-            conn = get_db_connection()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
-            row = cur.fetchone()
-            if row:
-                routing_mode = row["value"]
-            cur.close()
-            conn.close()
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
+                row = cur.fetchone()
+                if row:
+                    routing_mode = row["value"]
         except Exception:
             pass
 
@@ -2613,75 +2438,71 @@ def verify_api_key(api_key, stored_hash):
 def get_all_nodes():
     """Get all registered remote nodes"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        status_filter = request.args.get("status", "all")
-        approval_filter = request.args.get("approval", "all")
-        active_only = request.args.get("active", "true").lower() == "true"
+            status_filter = request.args.get("status", "all")
+            approval_filter = request.args.get("approval", "all")
+            active_only = request.args.get("active", "true").lower() == "true"
 
-        query = """
-            SELECT rn.id, rn.node_id, rn.node_name, rn.description, rn.vpn_ip, rn.hostname, rn.port,
-                   rn.status, rn.last_heartbeat, rn.last_error, rn.error_count,
-                   rn.client_version, rn.gpu_available, rn.gpu_model, rn.gpu_vram_gb,
-                   rn.cpu_cores, rn.cpu_model, rn.ram_gb, rn.disk_gb, rn.os_info, rn.ollama_available,
-                   rn.priority, rn.weight, rn.max_concurrent, rn.current_load,
-                   rn.total_requests, rn.successful_requests, rn.failed_requests, rn.avg_latency_ms,
-                   rn.tags, rn.is_active, rn.created_at, rn.updated_at,
-                   rn.approval_status, rn.approved_by, rn.approved_at,
-                   rn.bridge_enabled, rn.bridge_priority, rn.last_model_sync,
-                   o.name AS org_name, o.id AS org_id
-            FROM remote_nodes rn
-            LEFT JOIN organizations o ON o.node_id = rn.node_id
-            WHERE 1=1
-        """
-        params = []
-
-        if active_only:
-            query += " AND rn.is_active = TRUE"
-
-        if status_filter != "all":
-            query += " AND rn.status = %s"
-            params.append(status_filter)
-
-        if approval_filter != "all":
-            query += " AND rn.approval_status = %s"
-            params.append(approval_filter)
-
-        query += " ORDER BY CASE rn.approval_status WHEN 'pending' THEN 0 ELSE 1 END, rn.priority, rn.node_name"
-
-        cur.execute(query, params)
-        nodes = cur.fetchall()
-
-        # Get summary stats including approval counts
-        cur.execute(
+            query = """
+                SELECT rn.id, rn.node_id, rn.node_name, rn.description, rn.vpn_ip, rn.hostname, rn.port,
+                       rn.status, rn.last_heartbeat, rn.last_error, rn.error_count,
+                       rn.client_version, rn.gpu_available, rn.gpu_model, rn.gpu_vram_gb,
+                       rn.cpu_cores, rn.cpu_model, rn.ram_gb, rn.disk_gb, rn.os_info, rn.ollama_available,
+                       rn.priority, rn.weight, rn.max_concurrent, rn.current_load,
+                       rn.total_requests, rn.successful_requests, rn.failed_requests, rn.avg_latency_ms,
+                       rn.tags, rn.is_active, rn.created_at, rn.updated_at,
+                       rn.approval_status, rn.approved_by, rn.approved_at,
+                       rn.bridge_enabled, rn.bridge_priority, rn.last_model_sync,
+                       o.name AS org_name, o.id AS org_id
+                FROM remote_nodes rn
+                LEFT JOIN organizations o ON o.node_id = rn.node_id
+                WHERE 1=1
             """
-            SELECT
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE status = 'online' AND approval_status = 'approved') as online,
-                COUNT(*) FILTER (WHERE status = 'offline' AND approval_status = 'approved') as offline,
-                COUNT(*) FILTER (WHERE status = 'degraded' AND approval_status = 'approved') as degraded,
-                COUNT(*) FILTER (WHERE approval_status = 'pending') as pending,
-                COUNT(*) FILTER (WHERE approval_status = 'approved') as approved,
-                COUNT(*) FILTER (WHERE approval_status = 'rejected') as rejected,
-                SUM(current_load) FILTER (WHERE approval_status = 'approved') as total_load,
-                SUM(max_concurrent) FILTER (WHERE approval_status = 'approved') as total_capacity
-            FROM remote_nodes
-            WHERE is_active = TRUE
-        """
-        )
-        summary = cur.fetchone()
+            params = []
 
-        cur.close()
-        conn.close()
+            if active_only:
+                query += " AND rn.is_active = TRUE"
 
-        # Convert datetime
-        for node in nodes:
-            for key in ["last_heartbeat", "created_at", "updated_at", "approved_at"]:
-                if node.get(key):
-                    node[key] = node[key].isoformat()
+            if status_filter != "all":
+                query += " AND rn.status = %s"
+                params.append(status_filter)
 
-        return jsonify({"success": True, "nodes": nodes, "summary": summary})
+            if approval_filter != "all":
+                query += " AND rn.approval_status = %s"
+                params.append(approval_filter)
+
+            query += " ORDER BY CASE rn.approval_status WHEN 'pending' THEN 0 ELSE 1 END, rn.priority, rn.node_name"
+
+            cur.execute(query, params)
+            nodes = cur.fetchall()
+
+            # Get summary stats including approval counts
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE status = 'online' AND approval_status = 'approved') as online,
+                    COUNT(*) FILTER (WHERE status = 'offline' AND approval_status = 'approved') as offline,
+                    COUNT(*) FILTER (WHERE status = 'degraded' AND approval_status = 'approved') as degraded,
+                    COUNT(*) FILTER (WHERE approval_status = 'pending') as pending,
+                    COUNT(*) FILTER (WHERE approval_status = 'approved') as approved,
+                    COUNT(*) FILTER (WHERE approval_status = 'rejected') as rejected,
+                    SUM(current_load) FILTER (WHERE approval_status = 'approved') as total_load,
+                    SUM(max_concurrent) FILTER (WHERE approval_status = 'approved') as total_capacity
+                FROM remote_nodes
+                WHERE is_active = TRUE
+            """
+            )
+            summary = cur.fetchone()
+
+            # Convert datetime
+            for node in nodes:
+                for key in ["last_heartbeat", "created_at", "updated_at", "approved_at"]:
+                    if node.get(key):
+                        node[key] = node[key].isoformat()
+
+            return jsonify({"success": True, "nodes": nodes, "summary": summary})
 
     except Exception as e:
         logger.error(f"Error getting nodes: {e}")
@@ -2938,111 +2759,107 @@ def register_node():
             return jsonify({"success": False, "error": f"{field} is required"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Generate node ID and API key
-        node_id = generate_node_id()
-        api_key = secrets.token_urlsafe(32)
-        api_key_hash = hash_api_key(api_key)
+            # Generate node ID and API key
+            node_id = generate_node_id()
+            api_key = secrets.token_urlsafe(32)
+            api_key_hash = hash_api_key(api_key)
 
-        cur.execute(
-            """
-            INSERT INTO remote_nodes (
-                node_id, node_name, description, vpn_ip, hostname, port,
-                api_key_hash, client_version, gpu_available, gpu_model,
-                gpu_vram_gb, cpu_cores, cpu_model, ram_gb, disk_gb, os_info,
-                ollama_available, foocus_available, comfyui_available, auto1111_available,
-                docker_available, docker_version, nvidia_docker, wsl_available,
-                foocus_port, comfyui_port, auto1111_port,
-                iaae_compliant, priority, weight, max_concurrent, tags,
-                approval_status
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            cur.execute(
+                """
+                INSERT INTO remote_nodes (
+                    node_id, node_name, description, vpn_ip, hostname, port,
+                    api_key_hash, client_version, gpu_available, gpu_model,
+                    gpu_vram_gb, cpu_cores, cpu_model, ram_gb, disk_gb, os_info,
+                    ollama_available, foocus_available, comfyui_available, auto1111_available,
+                    docker_available, docker_version, nvidia_docker, wsl_available,
+                    foocus_port, comfyui_port, auto1111_port,
+                    iaae_compliant, priority, weight, max_concurrent, tags,
+                    approval_status
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                RETURNING id, node_id, node_name, approval_status
+            """,
+                (
+                    node_id,
+                    data.get("node_name"),
+                    data.get("description"),
+                    data.get("vpn_ip"),
+                    data.get("hostname"),
+                    data.get("port", 11434),
+                    api_key_hash,
+                    data.get("client_version", "1.0.0"),
+                    data.get("gpu_available", False),
+                    data.get("gpu_model"),
+                    data.get("gpu_vram_gb"),
+                    data.get("cpu_cores"),
+                    data.get("cpu_model"),
+                    data.get("ram_gb"),
+                    data.get("disk_gb"),
+                    data.get("os_info"),
+                    data.get("ollama_available", False),
+                    data.get("foocus_available", False),
+                    data.get("comfyui_available", False),
+                    data.get("auto1111_available", False),
+                    data.get("docker_available", False),
+                    data.get("docker_version"),
+                    data.get("nvidia_docker", False),
+                    data.get("wsl_available", False),
+                    # AI Service ports for dynamic routing (Phase 72)
+                    data.get("foocus_port", 7865),
+                    data.get("comfyui_port", 8188),
+                    data.get("auto1111_port", 7860),
+                    data.get("iaae_compliant", True),
+                    data.get("priority", 10),
+                    data.get("weight", 100),
+                    # Smart max_concurrent based on hardware (or use provided value)
+                    data.get("max_concurrent")
+                    or calculate_max_concurrent(
+                        data.get("ram_gb", 8),
+                        data.get("cpu_cores", 4),
+                        data.get("gpu_vram_gb", 0),
+                    ),
+                    data.get("tags", []),
+                    "pending",  # New nodes start as pending
+                ),
             )
-            RETURNING id, node_id, node_name, approval_status
-        """,
-            (
-                node_id,
-                data.get("node_name"),
-                data.get("description"),
-                data.get("vpn_ip"),
-                data.get("hostname"),
-                data.get("port", 11434),
-                api_key_hash,
-                data.get("client_version", "1.0.0"),
-                data.get("gpu_available", False),
-                data.get("gpu_model"),
-                data.get("gpu_vram_gb"),
-                data.get("cpu_cores"),
-                data.get("cpu_model"),
-                data.get("ram_gb"),
-                data.get("disk_gb"),
-                data.get("os_info"),
-                data.get("ollama_available", False),
-                data.get("foocus_available", False),
-                data.get("comfyui_available", False),
-                data.get("auto1111_available", False),
-                data.get("docker_available", False),
-                data.get("docker_version"),
-                data.get("nvidia_docker", False),
-                data.get("wsl_available", False),
-                # AI Service ports for dynamic routing (Phase 72)
-                data.get("foocus_port", 7865),
-                data.get("comfyui_port", 8188),
-                data.get("auto1111_port", 7860),
-                data.get("iaae_compliant", True),
-                data.get("priority", 10),
-                data.get("weight", 100),
-                # Smart max_concurrent based on hardware (or use provided value)
-                data.get("max_concurrent")
-                or calculate_max_concurrent(
-                    data.get("ram_gb", 8),
-                    data.get("cpu_cores", 4),
-                    data.get("gpu_vram_gb", 0),
-                ),
-                data.get("tags", []),
-                "pending",  # New nodes start as pending
-            ),
-        )
 
-        node = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            node = cur.fetchone()
 
-        # Calculate the actual max_concurrent that was stored
-        calculated_max = data.get("max_concurrent") or calculate_max_concurrent(
-            data.get("ram_gb", 8), data.get("cpu_cores", 4), data.get("gpu_vram_gb", 0)
-        )
+            # Calculate the actual max_concurrent that was stored
+            calculated_max = data.get("max_concurrent") or calculate_max_concurrent(
+                data.get("ram_gb", 8), data.get("cpu_cores", 4), data.get("gpu_vram_gb", 0)
+            )
 
-        # Return config settings for the node client
-        return jsonify(
-            {
-                "success": True,
-                "node_id": node["node_id"],
-                "api_key": api_key,  # Only returned once at registration!
-                "approval_status": node["approval_status"],
-                "config": {
-                    "heartbeat_interval": 30,
-                    "capability_interval": 300,
-                    "max_concurrent": calculated_max,
-                    "log_level": "INFO",
-                },
-                "message": (
-                    "Node registered. Awaiting admin approval."
-                    if node["approval_status"] == "pending"
-                    else "Node registered successfully."
-                ),
-                "hardware_recommendation": (
-                    f'Based on {data.get("ram_gb", 8)}GB RAM, '
-                    f'{data.get("cpu_cores", 4)} cores, '
-                    f"recommended max_concurrent: {calculated_max}"
-                ),
-            }
-        )
+            # Return config settings for the node client
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": node["node_id"],
+                    "api_key": api_key,  # Only returned once at registration!
+                    "approval_status": node["approval_status"],
+                    "config": {
+                        "heartbeat_interval": 30,
+                        "capability_interval": 300,
+                        "max_concurrent": calculated_max,
+                        "log_level": "INFO",
+                    },
+                    "message": (
+                        "Node registered. Awaiting admin approval."
+                        if node["approval_status"] == "pending"
+                        else "Node registered successfully."
+                    ),
+                    "hardware_recommendation": (
+                        f'Based on {data.get("ram_gb", 8)}GB RAM, '
+                        f'{data.get("cpu_cores", 4)} cores, '
+                        f"recommended max_concurrent: {calculated_max}"
+                    ),
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error registering node: {e}")
@@ -3059,132 +2876,121 @@ def node_heartbeat(node_id):
         return jsonify({"success": False, "error": "API key required"}), 401
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Verify node and API key
-        cur.execute(
-            """
-            SELECT id, api_key_hash, min_required_version
-            FROM remote_nodes WHERE node_id = %s AND is_active = TRUE
-        """,
-            (node_id,),
-        )
-        node = cur.fetchone()
+            # Verify node and API key
+            cur.execute(
+                """
+                SELECT id, api_key_hash, min_required_version
+                FROM remote_nodes WHERE node_id = %s AND is_active = TRUE
+            """,
+                (node_id,),
+            )
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        if not verify_api_key(api_key, node["api_key_hash"]):
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Invalid API key"}), 401
+            if not verify_api_key(api_key, node["api_key_hash"]):
+                return jsonify({"success": False, "error": "Invalid API key"}), 401
 
-        # Version check
-        client_version = data.get("client_version", "1.0.0")
-        # Simple version comparison (could be more sophisticated)
+            # Version check
+            client_version = data.get("client_version", "1.0.0")
+            # Simple version comparison (could be more sophisticated)
 
-        # Determine status
-        status = "online"
-        if data.get("error"):
-            status = "degraded"
+            # Determine status
+            status = "online"
+            if data.get("error"):
+                status = "degraded"
 
-        # Update node status including AI service availability
-        cur.execute(
-            """
-            UPDATE remote_nodes
-            SET status = %s,
-                last_heartbeat = NOW(),
-                current_load = %s,
-                client_version = %s,
-                cpu_cores = COALESCE(%s, cpu_cores),
-                ram_gb = COALESCE(%s, ram_gb),
-                gpu_available = COALESCE(%s, gpu_available),
-                -- AI Service availability (Phase 72)
-                ollama_available = COALESCE(%s, ollama_available),
-                foocus_available = COALESCE(%s, foocus_available),
-                comfyui_available = COALESCE(%s, comfyui_available),
-                auto1111_available = COALESCE(%s, auto1111_available),
-                foocus_port = COALESCE(%s, foocus_port),
-                comfyui_port = COALESCE(%s, comfyui_port),
-                auto1111_port = COALESCE(%s, auto1111_port),
-                last_error = %s,
-                error_count = CASE WHEN %s IS NOT NULL THEN error_count + 1 ELSE 0 END
-            WHERE id = %s
-        """,
-            (
-                status,
-                data.get("current_load", 0),
-                client_version,
-                data.get("cpu_cores"),
-                data.get("ram_gb"),
-                data.get("gpu_available"),
-                # AI Services
-                data.get("ollama_online"),
-                data.get("foocus_available"),
-                data.get("comfyui_available"),
-                data.get("auto1111_available"),
-                data.get("foocus_port"),
-                data.get("comfyui_port"),
-                data.get("auto1111_port"),
-                data.get("error"),
-                data.get("error"),
-                node["id"],
-            ),
-        )
+            # Update node status including AI service availability
+            cur.execute(
+                """
+                UPDATE remote_nodes
+                SET status = %s,
+                    last_heartbeat = NOW(),
+                    current_load = %s,
+                    client_version = %s,
+                    cpu_cores = COALESCE(%s, cpu_cores),
+                    ram_gb = COALESCE(%s, ram_gb),
+                    gpu_available = COALESCE(%s, gpu_available),
+                    -- AI Service availability (Phase 72)
+                    ollama_available = COALESCE(%s, ollama_available),
+                    foocus_available = COALESCE(%s, foocus_available),
+                    comfyui_available = COALESCE(%s, comfyui_available),
+                    auto1111_available = COALESCE(%s, auto1111_available),
+                    foocus_port = COALESCE(%s, foocus_port),
+                    comfyui_port = COALESCE(%s, comfyui_port),
+                    auto1111_port = COALESCE(%s, auto1111_port),
+                    last_error = %s,
+                    error_count = CASE WHEN %s IS NOT NULL THEN error_count + 1 ELSE 0 END
+                WHERE id = %s
+            """,
+                (
+                    status,
+                    data.get("current_load", 0),
+                    client_version,
+                    data.get("cpu_cores"),
+                    data.get("ram_gb"),
+                    data.get("gpu_available"),
+                    # AI Services
+                    data.get("ollama_online"),
+                    data.get("foocus_available"),
+                    data.get("comfyui_available"),
+                    data.get("auto1111_available"),
+                    data.get("foocus_port"),
+                    data.get("comfyui_port"),
+                    data.get("auto1111_port"),
+                    data.get("error"),
+                    data.get("error"),
+                    node["id"],
+                ),
+            )
 
-        # Log heartbeat
-        cur.execute(
-            """
-            INSERT INTO node_heartbeats (
-                node_id, status, latency_ms, cpu_usage, memory_usage,
-                gpu_usage, current_load, details
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-            (
-                node["id"],
-                status,
-                data.get("latency_ms"),
-                data.get("cpu_usage"),
-                data.get("memory_usage"),
-                data.get("gpu_usage"),
-                data.get("current_load", 0),
-                psycopg2.extras.Json(data.get("details", {})),
-            ),
-        )
+            # Log heartbeat
+            cur.execute(
+                """
+                INSERT INTO node_heartbeats (
+                    node_id, status, latency_ms, cpu_usage, memory_usage,
+                    gpu_usage, current_load, details
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                (
+                    node["id"],
+                    status,
+                    data.get("latency_ms"),
+                    data.get("cpu_usage"),
+                    data.get("memory_usage"),
+                    data.get("gpu_usage"),
+                    data.get("current_load", 0),
+                    psycopg2.extras.Json(data.get("details", {})),
+                ),
+            )
 
-        conn.commit()
+            # Sync Ollama models if provided (Phase 70: Node Model Discovery)
+            models_synced = 0
+            if data.get("ollama_models") and data.get("ollama_online"):
+                try:
+                    cur.execute(
+                        """
+                        SELECT sync_node_models(%s, %s::jsonb)
+                    """,
+                        (node_id, psycopg2.extras.Json(data["ollama_models"])),
+                    )
+                    result = cur.fetchone()
+                    models_synced = result[0] if result else 0
+                    logger.debug(f"Synced {models_synced} models for node {node_id}")
+                except Exception as e:
+                    logger.warning(f"Model sync error for {node_id}: {e}")
 
-        # Sync Ollama models if provided (Phase 70: Node Model Discovery)
-        models_synced = 0
-        if data.get("ollama_models") and data.get("ollama_online"):
-            try:
-                cur.execute(
-                    """
-                    SELECT sync_node_models(%s, %s::jsonb)
-                """,
-                    (node_id, psycopg2.extras.Json(data["ollama_models"])),
-                )
-                result = cur.fetchone()
-                models_synced = result[0] if result else 0
-                conn.commit()
-                logger.debug(f"Synced {models_synced} models for node {node_id}")
-            except Exception as e:
-                logger.warning(f"Model sync error for {node_id}: {e}")
-
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "status": status,
-                "message": "Heartbeat received",
-                "models_synced": models_synced,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "status": status,
+                    "message": "Heartbeat received",
+                    "models_synced": models_synced,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Heartbeat error: {e}")
@@ -3196,72 +3002,66 @@ def node_heartbeat(node_id):
 def get_node_detail(node_id):
     """Get detailed info about a specific node"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
-            """
-            SELECT * FROM remote_nodes WHERE node_id = %s
-        """,
-            (node_id,),
-        )
-        node = cur.fetchone()
+            cur.execute(
+                """
+                SELECT * FROM remote_nodes WHERE node_id = %s
+            """,
+                (node_id,),
+            )
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Get capabilities
-        cur.execute(
-            """
-            SELECT provider, model_name, is_available, avg_tokens_per_sec,
-                   max_context_length, priority
-            FROM node_capabilities
-            WHERE node_id = %s
-            ORDER BY provider, model_name
-        """,
-            (node["id"],),
-        )
-        capabilities = cur.fetchall()
+            # Get capabilities
+            cur.execute(
+                """
+                SELECT provider, model_name, is_available, avg_tokens_per_sec,
+                       max_context_length, priority
+                FROM node_capabilities
+                WHERE node_id = %s
+                ORDER BY provider, model_name
+            """,
+                (node["id"],),
+            )
+            capabilities = cur.fetchall()
 
-        # Get recent heartbeats
-        cur.execute(
-            """
-            SELECT status, latency_ms, cpu_usage, memory_usage, gpu_usage,
-                   current_load, created_at
-            FROM node_heartbeats
-            WHERE node_id = %s
-            ORDER BY created_at DESC
-            LIMIT 50
-        """,
-            (node["id"],),
-        )
-        heartbeats = cur.fetchall()
+            # Get recent heartbeats
+            cur.execute(
+                """
+                SELECT status, latency_ms, cpu_usage, memory_usage, gpu_usage,
+                       current_load, created_at
+                FROM node_heartbeats
+                WHERE node_id = %s
+                ORDER BY created_at DESC
+                LIMIT 50
+            """,
+                (node["id"],),
+            )
+            heartbeats = cur.fetchall()
 
-        cur.close()
-        conn.close()
+            # Convert datetime
+            for key in ["last_heartbeat", "created_at", "updated_at"]:
+                if node.get(key):
+                    node[key] = node[key].isoformat()
 
-        # Convert datetime
-        for key in ["last_heartbeat", "created_at", "updated_at"]:
-            if node.get(key):
-                node[key] = node[key].isoformat()
+            for hb in heartbeats:
+                if hb.get("created_at"):
+                    hb["created_at"] = hb["created_at"].isoformat()
 
-        for hb in heartbeats:
-            if hb.get("created_at"):
-                hb["created_at"] = hb["created_at"].isoformat()
+            # Remove sensitive data
+            node.pop("api_key_hash", None)
 
-        # Remove sensitive data
-        node.pop("api_key_hash", None)
-
-        return jsonify(
-            {
-                "success": True,
-                "node": node,
-                "capabilities": capabilities,
-                "heartbeats": heartbeats,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "node": node,
+                    "capabilities": capabilities,
+                    "heartbeats": heartbeats,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting node: {e}")
@@ -3293,32 +3093,28 @@ def update_node(node_id):
         return jsonify({"success": False, "error": "No valid fields to update"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        set_clauses = [f"{k} = %s" for k in updates.keys()]
-        values = list(updates.values())
-        values.append(node_id)
+            set_clauses = [f"{k} = %s" for k in updates.keys()]
+            values = list(updates.values())
+            values.append(node_id)
 
-        cur.execute(
-            f"""
-            UPDATE remote_nodes
-            SET {', '.join(set_clauses)}
-            WHERE node_id = %s
-            RETURNING id, node_id, node_name
-        """,
-            values,
-        )
+            cur.execute(
+                f"""
+                UPDATE remote_nodes
+                SET {', '.join(set_clauses)}
+                WHERE node_id = %s
+                RETURNING id, node_id, node_name
+            """,
+                values,
+            )
 
-        updated = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            updated = cur.fetchone()
 
-        if not updated:
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not updated:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        return jsonify({"success": True, "node": updated})
+            return jsonify({"success": True, "node": updated})
 
     except Exception as e:
         logger.error(f"Error updating node: {e}")
@@ -3331,25 +3127,21 @@ def update_node(node_id):
 def delete_node(node_id):
     """Delete a remote node"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
 
-        cur.execute(
-            """
-            DELETE FROM remote_nodes WHERE node_id = %s RETURNING id
-        """,
-            (node_id,),
-        )
+            cur.execute(
+                """
+                DELETE FROM remote_nodes WHERE node_id = %s RETURNING id
+            """,
+                (node_id,),
+            )
 
-        deleted = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            deleted = cur.fetchone()
 
-        if not deleted:
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not deleted:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        return jsonify({"success": True, "message": f"Node {node_id} deleted"})
+            return jsonify({"success": True, "message": f"Node {node_id} deleted"})
 
     except Exception as e:
         logger.error(f"Error deleting node: {e}")
@@ -3367,51 +3159,44 @@ def update_node_capabilities(node_id):
         return jsonify({"success": False, "error": "API key required"}), 401
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Verify node
-        cur.execute(
-            """
-            SELECT id, api_key_hash FROM remote_nodes
-            WHERE node_id = %s AND is_active = TRUE
-        """,
-            (node_id,),
-        )
-        node = cur.fetchone()
-
-        if not node or not verify_api_key(api_key, node["api_key_hash"]):
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Unauthorized"}), 401
-
-        # Clear old capabilities and insert new
-        cur.execute("DELETE FROM node_capabilities WHERE node_id = %s", (node["id"],))
-
-        for cap in capabilities:
+            # Verify node
             cur.execute(
                 """
-                INSERT INTO node_capabilities (
-                    node_id, provider, model_name, is_available,
-                    avg_tokens_per_sec, max_context_length, priority
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                SELECT id, api_key_hash FROM remote_nodes
+                WHERE node_id = %s AND is_active = TRUE
             """,
-                (
-                    node["id"],
-                    cap.get("provider", "ollama"),
-                    cap.get("model_name"),
-                    cap.get("is_available", True),
-                    cap.get("avg_tokens_per_sec"),
-                    cap.get("max_context_length"),
-                    cap.get("priority", 10),
-                ),
+                (node_id,),
             )
+            node = cur.fetchone()
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            if not node or not verify_api_key(api_key, node["api_key_hash"]):
+                return jsonify({"success": False, "error": "Unauthorized"}), 401
 
-        return jsonify({"success": True, "message": f"Updated {len(capabilities)} capabilities"})
+            # Clear old capabilities and insert new
+            cur.execute("DELETE FROM node_capabilities WHERE node_id = %s", (node["id"],))
+
+            for cap in capabilities:
+                cur.execute(
+                    """
+                    INSERT INTO node_capabilities (
+                        node_id, provider, model_name, is_available,
+                        avg_tokens_per_sec, max_context_length, priority
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                    (
+                        node["id"],
+                        cap.get("provider", "ollama"),
+                        cap.get("model_name"),
+                        cap.get("is_available", True),
+                        cap.get("avg_tokens_per_sec"),
+                        cap.get("max_context_length"),
+                        cap.get("priority", 10),
+                    ),
+                )
+
+            return jsonify({"success": True, "message": f"Updated {len(capabilities)} capabilities"})
 
     except Exception as e:
         logger.error(f"Error updating capabilities: {e}")
@@ -3427,74 +3212,67 @@ def select_node_for_request():
     provider = data.get("provider", "ollama")
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Find available nodes with the requested capability
-        cur.execute(
-            """
-            SELECT
-                rn.id, rn.node_id, rn.node_name, rn.vpn_ip, rn.hostname, rn.port,
-                rn.priority, rn.weight, rn.current_load, rn.max_concurrent,
-                nc.avg_tokens_per_sec
-            FROM remote_nodes rn
-            JOIN node_capabilities nc ON rn.id = nc.node_id
-            WHERE rn.status = 'online'
-              AND rn.is_active = TRUE
-              AND rn.current_load < rn.max_concurrent
-              AND nc.provider = %s
-              AND nc.model_name = %s
-              AND nc.is_available = TRUE
-            ORDER BY
-                rn.priority ASC,
-                (rn.current_load::float / NULLIF(rn.max_concurrent, 0)) ASC,
-                rn.weight DESC
-            LIMIT 1
-        """,
-            (provider, model_name),
-        )
+            # Find available nodes with the requested capability
+            cur.execute(
+                """
+                SELECT
+                    rn.id, rn.node_id, rn.node_name, rn.vpn_ip, rn.hostname, rn.port,
+                    rn.priority, rn.weight, rn.current_load, rn.max_concurrent,
+                    nc.avg_tokens_per_sec
+                FROM remote_nodes rn
+                JOIN node_capabilities nc ON rn.id = nc.node_id
+                WHERE rn.status = 'online'
+                  AND rn.is_active = TRUE
+                  AND rn.current_load < rn.max_concurrent
+                  AND nc.provider = %s
+                  AND nc.model_name = %s
+                  AND nc.is_available = TRUE
+                ORDER BY
+                    rn.priority ASC,
+                    (rn.current_load::float / NULLIF(rn.max_concurrent, 0)) ASC,
+                    rn.weight DESC
+                LIMIT 1
+            """,
+                (provider, model_name),
+            )
 
-        node = cur.fetchone()
+            node = cur.fetchone()
 
-        if not node:
-            # Fallback: return local if no remote nodes available
-            cur.close()
-            conn.close()
+            if not node:
+                # Fallback: return local if no remote nodes available
+                return jsonify(
+                    {
+                        "success": True,
+                        "node": None,
+                        "use_local": True,
+                        "message": "No remote nodes available, use local",
+                    }
+                )
+
+            # Increment load counter
+            cur.execute(
+                """
+                UPDATE remote_nodes
+                SET current_load = current_load + 1
+                WHERE id = %s
+            """,
+                (node["id"],),
+            )
+
             return jsonify(
                 {
                     "success": True,
-                    "node": None,
-                    "use_local": True,
-                    "message": "No remote nodes available, use local",
+                    "node": {
+                        "node_id": node["node_id"],
+                        "name": node["node_name"],
+                        "host": node["vpn_ip"] or node["hostname"],
+                        "port": node["port"],
+                    },
+                    "use_local": False,
                 }
             )
-
-        # Increment load counter
-        cur.execute(
-            """
-            UPDATE remote_nodes
-            SET current_load = current_load + 1
-            WHERE id = %s
-        """,
-            (node["id"],),
-        )
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "node": {
-                    "node_id": node["node_id"],
-                    "name": node["node_name"],
-                    "host": node["vpn_ip"] or node["hostname"],
-                    "port": node["port"],
-                },
-                "use_local": False,
-            }
-        )
 
     except Exception as e:
         logger.error(f"Error selecting node: {e}")
@@ -3507,57 +3285,50 @@ def node_request_complete(node_id):
     data = request.get_json() or {}
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get node
-        cur.execute("SELECT id FROM remote_nodes WHERE node_id = %s", (node_id,))
-        node = cur.fetchone()
+            # Get node
+            cur.execute("SELECT id FROM remote_nodes WHERE node_id = %s", (node_id,))
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Decrement load and update stats
-        success = data.get("success", True)
-        cur.execute(
-            """
-            UPDATE remote_nodes
-            SET current_load = GREATEST(0, current_load - 1),
-                total_requests = total_requests + 1,
-                successful_requests = successful_requests + %s,
-                failed_requests = failed_requests + %s
-            WHERE id = %s
-        """,
-            (1 if success else 0, 0 if success else 1, node["id"]),
-        )
+            # Decrement load and update stats
+            success = data.get("success", True)
+            cur.execute(
+                """
+                UPDATE remote_nodes
+                SET current_load = GREATEST(0, current_load - 1),
+                    total_requests = total_requests + 1,
+                    successful_requests = successful_requests + %s,
+                    failed_requests = failed_requests + %s
+                WHERE id = %s
+            """,
+                (1 if success else 0, 0 if success else 1, node["id"]),
+            )
 
-        # Log request
-        cur.execute(
-            """
-            INSERT INTO node_requests (
-                node_id, request_type, model_name, tokens_in, tokens_out,
-                latency_ms, status, error_message
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-            (
-                node["id"],
-                data.get("request_type", "completion"),
-                data.get("model"),
-                data.get("tokens_in"),
-                data.get("tokens_out"),
-                data.get("latency_ms"),
-                "success" if success else "failed",
-                data.get("error"),
-            ),
-        )
+            # Log request
+            cur.execute(
+                """
+                INSERT INTO node_requests (
+                    node_id, request_type, model_name, tokens_in, tokens_out,
+                    latency_ms, status, error_message
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                (
+                    node["id"],
+                    data.get("request_type", "completion"),
+                    data.get("model"),
+                    data.get("tokens_in"),
+                    data.get("tokens_out"),
+                    data.get("latency_ms"),
+                    "success" if success else "failed",
+                    data.get("error"),
+                ),
+            )
 
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True})
+            return jsonify({"success": True})
 
     except Exception as e:
         logger.error(f"Error completing request: {e}")
@@ -3569,66 +3340,62 @@ def node_request_complete(node_id):
 def get_node_stats():
     """Get aggregate stats across all nodes"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Overall stats
-        cur.execute(
+            # Overall stats
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_nodes,
+                    COUNT(*) FILTER (WHERE status = 'online') as online_nodes,
+                    SUM(current_load) as total_current_load,
+                    SUM(max_concurrent) as total_capacity,
+                    SUM(total_requests) as total_requests,
+                    SUM(successful_requests) as successful_requests,
+                    AVG(avg_latency_ms) as avg_latency
+                FROM remote_nodes
+                WHERE is_active = TRUE
             """
-            SELECT
-                COUNT(*) as total_nodes,
-                COUNT(*) FILTER (WHERE status = 'online') as online_nodes,
-                SUM(current_load) as total_current_load,
-                SUM(max_concurrent) as total_capacity,
-                SUM(total_requests) as total_requests,
-                SUM(successful_requests) as successful_requests,
-                AVG(avg_latency_ms) as avg_latency
-            FROM remote_nodes
-            WHERE is_active = TRUE
-        """
-        )
-        overall = cur.fetchone()
+            )
+            overall = cur.fetchone()
 
-        # By provider
-        cur.execute(
+            # By provider
+            cur.execute(
+                """
+                SELECT
+                    nc.provider,
+                    COUNT(DISTINCT nc.node_id) as node_count,
+                    COUNT(*) as model_count,
+                    COUNT(*) FILTER (WHERE nc.is_available) as available_models
+                FROM node_capabilities nc
+                JOIN remote_nodes rn ON nc.node_id = rn.id
+                WHERE rn.is_active = TRUE
+                GROUP BY nc.provider
             """
-            SELECT
-                nc.provider,
-                COUNT(DISTINCT nc.node_id) as node_count,
-                COUNT(*) as model_count,
-                COUNT(*) FILTER (WHERE nc.is_available) as available_models
-            FROM node_capabilities nc
-            JOIN remote_nodes rn ON nc.node_id = rn.id
-            WHERE rn.is_active = TRUE
-            GROUP BY nc.provider
-        """
-        )
-        by_provider = cur.fetchall()
+            )
+            by_provider = cur.fetchall()
 
-        # Recent requests (last hour)
-        cur.execute(
+            # Recent requests (last hour)
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE status = 'success') as successful,
+                    AVG(latency_ms) as avg_latency
+                FROM node_requests
+                WHERE created_at > NOW() - INTERVAL '1 hour'
             """
-            SELECT
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE status = 'success') as successful,
-                AVG(latency_ms) as avg_latency
-            FROM node_requests
-            WHERE created_at > NOW() - INTERVAL '1 hour'
-        """
-        )
-        recent = cur.fetchone()
+            )
+            recent = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "overall": overall,
-                "by_provider": by_provider,
-                "recent_hour": recent,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "overall": overall,
+                    "by_provider": by_provider,
+                    "recent_hour": recent,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
@@ -3649,34 +3416,31 @@ def get_node_status(node_id):
         return jsonify({"error": "API key required"}), 401
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Verify API key matches node
-        cur.execute(
-            """
-            SELECT node_id, node_name, approval_status, status
-            FROM remote_nodes
-            WHERE node_id = %s AND api_key_hash = %s
-        """,
-            (node_id, hash_api_key(api_key)),
-        )
+            # Verify API key matches node
+            cur.execute(
+                """
+                SELECT node_id, node_name, approval_status, status
+                FROM remote_nodes
+                WHERE node_id = %s AND api_key_hash = %s
+            """,
+                (node_id, hash_api_key(api_key)),
+            )
 
-        node = cur.fetchone()
-        cur.close()
-        conn.close()
+            node = cur.fetchone()
 
-        if not node:
-            return jsonify({"error": "Invalid node or API key"}), 401
+            if not node:
+                return jsonify({"error": "Invalid node or API key"}), 401
 
-        return jsonify(
-            {
-                "node_id": node["node_id"],
-                "node_name": node["node_name"],
-                "approval_status": node["approval_status"],
-                "status": node["status"],
-            }
-        )
+            return jsonify(
+                {
+                    "node_id": node["node_id"],
+                    "node_name": node["node_name"],
+                    "approval_status": node["approval_status"],
+                    "status": node["status"],
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting node status: {e}")
@@ -3689,44 +3453,40 @@ def get_node_status(node_id):
 def approve_node(node_id):
     """Approve a pending node registration"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get current user ID from Flask-Login session
-        user_id = current_user.id if current_user.is_authenticated else None
+            # Get current user ID from Flask-Login session
+            user_id = current_user.id if current_user.is_authenticated else None
 
-        cur.execute(
-            """
-            UPDATE remote_nodes
-            SET approval_status = 'approved',
-                approved_by = %s,
-                approved_at = NOW()
-            WHERE node_id = %s AND approval_status = 'pending'
-            RETURNING node_id, node_name, approval_status
-        """,
-            (user_id, node_id),
-        )
-
-        node = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        if not node:
-            return (
-                jsonify({"success": False, "error": "Node not found or already processed"}),
-                404,
+            cur.execute(
+                """
+                UPDATE remote_nodes
+                SET approval_status = 'approved',
+                    approved_by = %s,
+                    approved_at = NOW()
+                WHERE node_id = %s AND approval_status = 'pending'
+                RETURNING node_id, node_name, approval_status
+            """,
+                (user_id, node_id),
             )
 
-        return jsonify(
-            {
-                "success": True,
-                "node_id": node["node_id"],
-                "node_name": node["node_name"],
-                "approval_status": node["approval_status"],
-                "message": f"Node '{node['node_name']}' approved successfully",
-            }
-        )
+            node = cur.fetchone()
+
+            if not node:
+                return (
+                    jsonify({"success": False, "error": "Node not found or already processed"}),
+                    404,
+                )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": node["node_id"],
+                    "node_name": node["node_name"],
+                    "approval_status": node["approval_status"],
+                    "message": f"Node '{node['node_name']}' approved successfully",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error approving node: {e}")
@@ -3742,46 +3502,42 @@ def reject_node(node_id):
     reason = data.get("reason", "No reason provided")
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get current user ID from Flask-Login session
-        user_id = current_user.id if current_user.is_authenticated else None
+            # Get current user ID from Flask-Login session
+            user_id = current_user.id if current_user.is_authenticated else None
 
-        cur.execute(
-            """
-            UPDATE remote_nodes
-            SET approval_status = 'rejected',
-                approved_by = %s,
-                approved_at = NOW(),
-                last_error = %s,
-                is_active = FALSE
-            WHERE node_id = %s AND approval_status = 'pending'
-            RETURNING node_id, node_name, approval_status
-        """,
-            (user_id, f"Rejected: {reason}", node_id),
-        )
-
-        node = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        if not node:
-            return (
-                jsonify({"success": False, "error": "Node not found or already processed"}),
-                404,
+            cur.execute(
+                """
+                UPDATE remote_nodes
+                SET approval_status = 'rejected',
+                    approved_by = %s,
+                    approved_at = NOW(),
+                    last_error = %s,
+                    is_active = FALSE
+                WHERE node_id = %s AND approval_status = 'pending'
+                RETURNING node_id, node_name, approval_status
+            """,
+                (user_id, f"Rejected: {reason}", node_id),
             )
 
-        return jsonify(
-            {
-                "success": True,
-                "node_id": node["node_id"],
-                "node_name": node["node_name"],
-                "approval_status": node["approval_status"],
-                "message": f"Node '{node['node_name']}' rejected",
-            }
-        )
+            node = cur.fetchone()
+
+            if not node:
+                return (
+                    jsonify({"success": False, "error": "Node not found or already processed"}),
+                    404,
+                )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": node["node_id"],
+                    "node_name": node["node_name"],
+                    "approval_status": node["approval_status"],
+                    "message": f"Node '{node['node_name']}' rejected",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error rejecting node: {e}")
@@ -3795,83 +3551,80 @@ def test_node_connection(node_id):
     import time
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
-            """
-            SELECT node_id, node_name, vpn_ip, hostname, port
-            FROM remote_nodes
-            WHERE node_id = %s AND is_active = TRUE
-        """,
-            (node_id,),
-        )
+            cur.execute(
+                """
+                SELECT node_id, node_name, vpn_ip, hostname, port
+                FROM remote_nodes
+                WHERE node_id = %s AND is_active = TRUE
+            """,
+                (node_id,),
+            )
 
-        node = cur.fetchone()
-        cur.close()
-        conn.close()
+            node = cur.fetchone()
 
-        if not node:
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Build endpoint URL
-        host = node["vpn_ip"] or node["hostname"]
-        port = node["port"] or 11434
-        url = f"http://{host}:{port}/api/tags"
+            # Build endpoint URL
+            host = node["vpn_ip"] or node["hostname"]
+            port = node["port"] or 11434
+            url = f"http://{host}:{port}/api/tags"
 
-        # Test connection with timing
-        start_time = time.time()
-        try:
-            import requests as req
+            # Test connection with timing
+            start_time = time.time()
+            try:
+                import requests as req
 
-            resp = req.get(url, timeout=10)
-            latency_ms = int((time.time() - start_time) * 1000)
+                resp = req.get(url, timeout=10)
+                latency_ms = int((time.time() - start_time) * 1000)
 
-            if resp.status_code == 200:
-                models = resp.json().get("models", [])
+                if resp.status_code == 200:
+                    models = resp.json().get("models", [])
+                    return jsonify(
+                        {
+                            "success": True,
+                            "node_id": node_id,
+                            "node_name": node["node_name"],
+                            "reachable": True,
+                            "latency_ms": latency_ms,
+                            "ollama_status": "online",
+                            "models_count": len(models),
+                            "models": [m.get("name") for m in models[:10]],  # First 10 models
+                        }
+                    )
+                else:
+                    return jsonify(
+                        {
+                            "success": True,
+                            "node_id": node_id,
+                            "reachable": True,
+                            "latency_ms": latency_ms,
+                            "ollama_status": "error",
+                            "error": f"Ollama returned status {resp.status_code}",
+                        }
+                    )
+            except req.exceptions.Timeout:
                 return jsonify(
                     {
                         "success": True,
                         "node_id": node_id,
-                        "node_name": node["node_name"],
-                        "reachable": True,
-                        "latency_ms": latency_ms,
-                        "ollama_status": "online",
-                        "models_count": len(models),
-                        "models": [m.get("name") for m in models[:10]],  # First 10 models
+                        "reachable": False,
+                        "latency_ms": 10000,
+                        "error": "Connection timed out",
                     }
                 )
-            else:
+            except req.exceptions.ConnectionError as e:
                 return jsonify(
                     {
                         "success": True,
                         "node_id": node_id,
-                        "reachable": True,
-                        "latency_ms": latency_ms,
-                        "ollama_status": "error",
-                        "error": f"Ollama returned status {resp.status_code}",
+                        "reachable": False,
+                        "latency_ms": None,
+                        "error": f"Connection failed: {str(e)}",
                     }
                 )
-        except req.exceptions.Timeout:
-            return jsonify(
-                {
-                    "success": True,
-                    "node_id": node_id,
-                    "reachable": False,
-                    "latency_ms": 10000,
-                    "error": "Connection timed out",
-                }
-            )
-        except req.exceptions.ConnectionError as e:
-            return jsonify(
-                {
-                    "success": True,
-                    "node_id": node_id,
-                    "reachable": False,
-                    "latency_ms": None,
-                    "error": f"Connection failed: {str(e)}",
-                }
-            )
 
     except Exception as e:
         logger.error(f"Error testing node: {e}")
@@ -3885,53 +3638,48 @@ def get_node_health_history(node_id):
     hours = request.args.get("hours", 24, type=int)
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get node internal ID
-        cur.execute("SELECT id FROM remote_nodes WHERE node_id = %s", (node_id,))
-        node = cur.fetchone()
+            # Get node internal ID
+            cur.execute("SELECT id FROM remote_nodes WHERE node_id = %s", (node_id,))
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Get heartbeat history
-        cur.execute(
-            """
-            SELECT
-                DATE_TRUNC('hour', created_at) as hour,
-                AVG(cpu_usage) as avg_cpu,
-                AVG(memory_usage) as avg_memory,
-                AVG(gpu_usage) as avg_gpu,
-                AVG(latency_ms) as avg_latency,
-                COUNT(*) as heartbeat_count,
-                COUNT(*) FILTER (WHERE status = 'online') as online_count
-            FROM node_heartbeats
-            WHERE node_id = %s
-              AND created_at > NOW() - INTERVAL '{} hours'
-            GROUP BY DATE_TRUNC('hour', created_at)
-            ORDER BY hour
-        """.format(
-                int(hours)
-            ),
-            (node["id"],),
-        )
+            # Get heartbeat history
+            cur.execute(
+                """
+                SELECT
+                    DATE_TRUNC('hour', created_at) as hour,
+                    AVG(cpu_usage) as avg_cpu,
+                    AVG(memory_usage) as avg_memory,
+                    AVG(gpu_usage) as avg_gpu,
+                    AVG(latency_ms) as avg_latency,
+                    COUNT(*) as heartbeat_count,
+                    COUNT(*) FILTER (WHERE status = 'online') as online_count
+                FROM node_heartbeats
+                WHERE node_id = %s
+                  AND created_at > NOW() - INTERVAL '{} hours'
+                GROUP BY DATE_TRUNC('hour', created_at)
+                ORDER BY hour
+            """.format(
+                    int(hours)
+                ),
+                (node["id"],),
+            )
 
-        history = cur.fetchall()
-        cur.close()
-        conn.close()
+            history = cur.fetchall()
 
-        return jsonify(
-            {
-                "success": True,
-                "node_id": node_id,
-                "hours": hours,
-                "data_points": len(history),
-                "history": history,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": node_id,
+                    "hours": hours,
+                    "data_points": len(history),
+                    "history": history,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting health history: {e}")
@@ -3948,55 +3696,50 @@ def get_node_health_history(node_id):
 def get_node_stations(node_id):
     """Get all station assignments for a node"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get node internal ID
-        cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
-        node = cur.fetchone()
+            # Get node internal ID
+            cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Get station assignments with station details
-        cur.execute(
-            """
-            SELECT
-                nsa.id AS assignment_id,
-                nsa.station_id,
-                bs.station_code,
-                bs.station_name,
-                bs.color AS station_color,
-                nsa.role,
-                nsa.priority,
-                nsa.shift_preference,
-                nsa.max_concurrent,
-                nsa.is_active,
-                nsa.assigned_at,
-                nsa.notes
-            FROM node_station_assignments nsa
-            JOIN bridge_stations bs ON nsa.station_id = bs.id
-            WHERE nsa.node_id = %s
-            ORDER BY nsa.priority ASC, bs.station_name ASC
-        """,
-            (node["id"],),
-        )
+            # Get station assignments with station details
+            cur.execute(
+                """
+                SELECT
+                    nsa.id AS assignment_id,
+                    nsa.station_id,
+                    bs.station_code,
+                    bs.station_name,
+                    bs.color AS station_color,
+                    nsa.role,
+                    nsa.priority,
+                    nsa.shift_preference,
+                    nsa.max_concurrent,
+                    nsa.is_active,
+                    nsa.assigned_at,
+                    nsa.notes
+                FROM node_station_assignments nsa
+                JOIN bridge_stations bs ON nsa.station_id = bs.id
+                WHERE nsa.node_id = %s
+                ORDER BY nsa.priority ASC, bs.station_name ASC
+            """,
+                (node["id"],),
+            )
 
-        assignments = cur.fetchall()
-        cur.close()
-        conn.close()
+            assignments = cur.fetchall()
 
-        return jsonify(
-            {
-                "success": True,
-                "node_id": node_id,
-                "node_name": node["node_name"],
-                "assignment_count": len(assignments),
-                "assignments": assignments,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": node_id,
+                    "node_name": node["node_name"],
+                    "assignment_count": len(assignments),
+                    "assignments": assignments,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting node stations: {e}")
@@ -4013,94 +3756,84 @@ def assign_node_to_station(node_id):
         return jsonify({"success": False, "error": "station_id is required"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get node internal ID
-        cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
-        node = cur.fetchone()
+            # Get node internal ID
+            cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Verify station exists
-        cur.execute(
-            "SELECT id, station_name FROM bridge_stations WHERE id = %s",
-            (data["station_id"],),
-        )
-        station = cur.fetchone()
+            # Verify station exists
+            cur.execute(
+                "SELECT id, station_name FROM bridge_stations WHERE id = %s",
+                (data["station_id"],),
+            )
+            station = cur.fetchone()
 
-        if not station:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Station not found"}), 404
+            if not station:
+                return jsonify({"success": False, "error": "Station not found"}), 404
 
-        # Check if assignment already exists
-        cur.execute(
-            """
-            SELECT id FROM node_station_assignments
-            WHERE node_id = %s AND station_id = %s
-        """,
-            (node["id"], data["station_id"]),
-        )
-
-        if cur.fetchone():
-            cur.close()
-            conn.close()
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Node is already assigned to this station",
-                    }
-                ),
-                400,
+            # Check if assignment already exists
+            cur.execute(
+                """
+                SELECT id FROM node_station_assignments
+                WHERE node_id = %s AND station_id = %s
+            """,
+                (node["id"], data["station_id"]),
             )
 
-        # Create assignment
-        cur.execute(
-            """
-            INSERT INTO node_station_assignments (
-                node_id, station_id, role, priority, shift_preference,
-                max_concurrent, notes, assigned_by
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id, role, priority, assigned_at
-        """,
-            (
-                node["id"],
-                data["station_id"],
-                data.get("role", "worker"),
-                data.get("priority", 10),
-                data.get("shift_preference", "any"),
-                data.get("max_concurrent", 5),
-                data.get("notes"),
-                current_user.id if current_user.is_authenticated else None,
-            ),
-        )
+            if cur.fetchone():
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Node is already assigned to this station",
+                        }
+                    ),
+                    400,
+                )
 
-        assignment = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            # Create assignment
+            cur.execute(
+                """
+                INSERT INTO node_station_assignments (
+                    node_id, station_id, role, priority, shift_preference,
+                    max_concurrent, notes, assigned_by
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, role, priority, assigned_at
+            """,
+                (
+                    node["id"],
+                    data["station_id"],
+                    data.get("role", "worker"),
+                    data.get("priority", 10),
+                    data.get("shift_preference", "any"),
+                    data.get("max_concurrent", 5),
+                    data.get("notes"),
+                    current_user.id if current_user.is_authenticated else None,
+                ),
+            )
 
-        return jsonify(
-            {
-                "success": True,
-                "message": f"Node '{node['node_name']}' assigned to station '{station['station_name']}'",
-                "assignment": {
-                    "id": assignment["id"],
-                    "node_id": node_id,
-                    "node_name": node["node_name"],
-                    "station_id": data["station_id"],
-                    "station_name": station["station_name"],
-                    "role": assignment["role"],
-                    "priority": assignment["priority"],
-                    "assigned_at": (assignment["assigned_at"].isoformat() if assignment["assigned_at"] else None),
-                },
-            }
-        )
+            assignment = cur.fetchone()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Node '{node['node_name']}' assigned to station '{station['station_name']}'",
+                    "assignment": {
+                        "id": assignment["id"],
+                        "node_id": node_id,
+                        "node_name": node["node_name"],
+                        "station_id": data["station_id"],
+                        "station_name": station["station_name"],
+                        "role": assignment["role"],
+                        "priority": assignment["priority"],
+                        "assigned_at": (assignment["assigned_at"].isoformat() if assignment["assigned_at"] else None),
+                    },
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error assigning node to station: {e}")
@@ -4114,117 +3847,110 @@ def update_node_station_assignment(node_id, station_id):
     data = request.get_json() or {}
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get node internal ID
-        cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
-        node = cur.fetchone()
+            # Get node internal ID
+            cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Check if assignment exists
-        cur.execute(
-            """
-            SELECT nsa.id, bs.station_name
-            FROM node_station_assignments nsa
-            JOIN bridge_stations bs ON nsa.station_id = bs.id
-            WHERE nsa.node_id = %s AND nsa.station_id = %s
-        """,
-            (node["id"], station_id),
-        )
-        assignment = cur.fetchone()
+            # Check if assignment exists
+            cur.execute(
+                """
+                SELECT nsa.id, bs.station_name
+                FROM node_station_assignments nsa
+                JOIN bridge_stations bs ON nsa.station_id = bs.id
+                WHERE nsa.node_id = %s AND nsa.station_id = %s
+            """,
+                (node["id"], station_id),
+            )
+            assignment = cur.fetchone()
 
-        if not assignment:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Assignment not found"}), 404
+            if not assignment:
+                return jsonify({"success": False, "error": "Assignment not found"}), 404
 
-        # Build update query dynamically
-        update_fields = []
-        update_values = []
+            # Build update query dynamically
+            update_fields = []
+            update_values = []
 
-        if "role" in data:
-            if data["role"] not in ["primary", "backup", "relief", "worker"]:
-                return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "error": "Invalid role. Must be: primary, backup, relief, or worker",
-                        }
+            if "role" in data:
+                if data["role"] not in ["primary", "backup", "relief", "worker"]:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Invalid role. Must be: primary, backup, relief, or worker",
+                            }
+                        ),
+                        400,
+                    )
+                update_fields.append("role = %s")
+                update_values.append(data["role"])
+
+            if "priority" in data:
+                update_fields.append("priority = %s")
+                update_values.append(data["priority"])
+
+            if "shift_preference" in data:
+                if data["shift_preference"] not in ["alpha", "beta", "gamma", "any"]:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Invalid shift_preference. Must be: alpha, beta, gamma, or any",
+                            }
+                        ),
+                        400,
+                    )
+                update_fields.append("shift_preference = %s")
+                update_values.append(data["shift_preference"])
+
+            if "max_concurrent" in data:
+                update_fields.append("max_concurrent = %s")
+                update_values.append(data["max_concurrent"])
+
+            if "is_active" in data:
+                update_fields.append("is_active = %s")
+                update_values.append(data["is_active"])
+
+            if "notes" in data:
+                update_fields.append("notes = %s")
+                update_values.append(data["notes"])
+
+            if not update_fields:
+                return jsonify({"success": False, "error": "No fields to update"}), 400
+
+            # Execute update
+            update_values.append(assignment["id"])
+            cur.execute(
+                f"""
+                UPDATE node_station_assignments
+                SET {', '.join(update_fields)}
+                WHERE id = %s
+                RETURNING id, role, priority, shift_preference, max_concurrent, is_active
+            """,
+                tuple(update_values),
+            )
+
+            updated = cur.fetchone()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": (
+                        f"Assignment updated for node '{node['node_name']}' "
+                        f"at station '{assignment['station_name']}'"
                     ),
-                    400,
-                )
-            update_fields.append("role = %s")
-            update_values.append(data["role"])
-
-        if "priority" in data:
-            update_fields.append("priority = %s")
-            update_values.append(data["priority"])
-
-        if "shift_preference" in data:
-            if data["shift_preference"] not in ["alpha", "beta", "gamma", "any"]:
-                return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "error": "Invalid shift_preference. Must be: alpha, beta, gamma, or any",
-                        }
-                    ),
-                    400,
-                )
-            update_fields.append("shift_preference = %s")
-            update_values.append(data["shift_preference"])
-
-        if "max_concurrent" in data:
-            update_fields.append("max_concurrent = %s")
-            update_values.append(data["max_concurrent"])
-
-        if "is_active" in data:
-            update_fields.append("is_active = %s")
-            update_values.append(data["is_active"])
-
-        if "notes" in data:
-            update_fields.append("notes = %s")
-            update_values.append(data["notes"])
-
-        if not update_fields:
-            return jsonify({"success": False, "error": "No fields to update"}), 400
-
-        # Execute update
-        update_values.append(assignment["id"])
-        cur.execute(
-            f"""
-            UPDATE node_station_assignments
-            SET {', '.join(update_fields)}
-            WHERE id = %s
-            RETURNING id, role, priority, shift_preference, max_concurrent, is_active
-        """,
-            tuple(update_values),
-        )
-
-        updated = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "message": (
-                    f"Assignment updated for node '{node['node_name']}' " f"at station '{assignment['station_name']}'"
-                ),
-                "assignment": {
-                    "node_id": node_id,
-                    "station_id": station_id,
-                    "station_name": assignment["station_name"],
-                    **updated,
-                },
-            }
-        )
+                    "assignment": {
+                        "node_id": node_id,
+                        "station_id": station_id,
+                        "station_name": assignment["station_name"],
+                        **updated,
+                    },
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error updating station assignment: {e}")
@@ -4236,52 +3962,43 @@ def update_node_station_assignment(node_id, station_id):
 def remove_node_from_station(node_id, station_id):
     """Remove a node from a station"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get node internal ID
-        cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
-        node = cur.fetchone()
+            # Get node internal ID
+            cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Get station name for response
-        cur.execute("SELECT station_name FROM bridge_stations WHERE id = %s", (station_id,))
-        station = cur.fetchone()
+            # Get station name for response
+            cur.execute("SELECT station_name FROM bridge_stations WHERE id = %s", (station_id,))
+            station = cur.fetchone()
 
-        # Delete assignment
-        cur.execute(
-            """
-            DELETE FROM node_station_assignments
-            WHERE node_id = %s AND station_id = %s
-            RETURNING id
-        """,
-            (node["id"], station_id),
-        )
+            # Delete assignment
+            cur.execute(
+                """
+                DELETE FROM node_station_assignments
+                WHERE node_id = %s AND station_id = %s
+                RETURNING id
+            """,
+                (node["id"], station_id),
+            )
 
-        deleted = cur.fetchone()
+            deleted = cur.fetchone()
 
-        if not deleted:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Assignment not found"}), 404
+            if not deleted:
+                return jsonify({"success": False, "error": "Assignment not found"}), 404
 
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "message": (
-                    f"Node '{node['node_name']}' removed from station "
-                    f"'{station['station_name'] if station else station_id}'"
-                ),
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "message": (
+                        f"Node '{node['node_name']}' removed from station "
+                        f"'{station['station_name'] if station else station_id}'"
+                    ),
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error removing node from station: {e}")
@@ -4293,82 +4010,77 @@ def remove_node_from_station(node_id, station_id):
 def get_station_nodes(station_id):
     """Get all nodes assigned to a station"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Verify station exists
-        cur.execute(
-            "SELECT id, station_code, station_name, color FROM bridge_stations WHERE id = %s",
-            (station_id,),
-        )
-        station = cur.fetchone()
+            # Verify station exists
+            cur.execute(
+                "SELECT id, station_code, station_name, color FROM bridge_stations WHERE id = %s",
+                (station_id,),
+            )
+            station = cur.fetchone()
 
-        if not station:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Station not found"}), 404
+            if not station:
+                return jsonify({"success": False, "error": "Station not found"}), 404
 
-        # Get assigned nodes with details
-        cur.execute(
-            """
-            SELECT
-                rn.node_id,
-                rn.node_name,
-                rn.status,
-                rn.hostname,
-                rn.cpu_cores,
-                rn.ram_gb,
-                rn.gpu_model,
-                rn.ollama_available,
-                rn.docker_available,
-                rn.current_load,
-                rn.max_concurrent,
-                nsa.role,
-                nsa.priority,
-                nsa.shift_preference,
-                nsa.is_active AS assignment_active,
-                nsa.assigned_at
-            FROM node_station_assignments nsa
-            JOIN remote_nodes rn ON nsa.node_id = rn.id
-            WHERE nsa.station_id = %s
-            ORDER BY
-                CASE nsa.role
-                    WHEN 'primary' THEN 1
-                    WHEN 'backup' THEN 2
-                    WHEN 'relief' THEN 3
-                    ELSE 4
-                END,
-                nsa.priority ASC
-        """,
-            (station_id,),
-        )
+            # Get assigned nodes with details
+            cur.execute(
+                """
+                SELECT
+                    rn.node_id,
+                    rn.node_name,
+                    rn.status,
+                    rn.hostname,
+                    rn.cpu_cores,
+                    rn.ram_gb,
+                    rn.gpu_model,
+                    rn.ollama_available,
+                    rn.docker_available,
+                    rn.current_load,
+                    rn.max_concurrent,
+                    nsa.role,
+                    nsa.priority,
+                    nsa.shift_preference,
+                    nsa.is_active AS assignment_active,
+                    nsa.assigned_at
+                FROM node_station_assignments nsa
+                JOIN remote_nodes rn ON nsa.node_id = rn.id
+                WHERE nsa.station_id = %s
+                ORDER BY
+                    CASE nsa.role
+                        WHEN 'primary' THEN 1
+                        WHEN 'backup' THEN 2
+                        WHEN 'relief' THEN 3
+                        ELSE 4
+                    END,
+                    nsa.priority ASC
+            """,
+                (station_id,),
+            )
 
-        nodes = cur.fetchall()
-        cur.close()
-        conn.close()
+            nodes = cur.fetchall()
 
-        # Categorize by role
-        by_role = {
-            "primary": [n for n in nodes if n["role"] == "primary"],
-            "backup": [n for n in nodes if n["role"] == "backup"],
-            "relief": [n for n in nodes if n["role"] == "relief"],
-            "worker": [n for n in nodes if n["role"] == "worker"],
-        }
-
-        return jsonify(
-            {
-                "success": True,
-                "station": station,
-                "node_count": len(nodes),
-                "by_role": {
-                    "primary": len(by_role["primary"]),
-                    "backup": len(by_role["backup"]),
-                    "relief": len(by_role["relief"]),
-                    "worker": len(by_role["worker"]),
-                },
-                "nodes": nodes,
+            # Categorize by role
+            by_role = {
+                "primary": [n for n in nodes if n["role"] == "primary"],
+                "backup": [n for n in nodes if n["role"] == "backup"],
+                "relief": [n for n in nodes if n["role"] == "relief"],
+                "worker": [n for n in nodes if n["role"] == "worker"],
             }
-        )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "station": station,
+                    "node_count": len(nodes),
+                    "by_role": {
+                        "primary": len(by_role["primary"]),
+                        "backup": len(by_role["backup"]),
+                        "relief": len(by_role["relief"]),
+                        "worker": len(by_role["worker"]),
+                    },
+                    "nodes": nodes,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting station nodes: {e}")
@@ -4380,36 +4092,33 @@ def get_station_nodes(station_id):
 def get_all_station_coverage():
     """Get node coverage summary for all stations"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT * FROM v_station_node_coverage
             """
-            SELECT * FROM v_station_node_coverage
-        """
-        )
+            )
 
-        coverage = cur.fetchall()
-        cur.close()
-        conn.close()
+            coverage = cur.fetchall()
 
-        # Calculate summary
-        total_assignments = sum(c["total_nodes"] for c in coverage)
-        stations_with_nodes = len([c for c in coverage if c["total_nodes"] > 0])
-        stations_without_primary = len([c for c in coverage if c["primary_nodes"] == 0])
+            # Calculate summary
+            total_assignments = sum(c["total_nodes"] for c in coverage)
+            stations_with_nodes = len([c for c in coverage if c["total_nodes"] > 0])
+            stations_without_primary = len([c for c in coverage if c["primary_nodes"] == 0])
 
-        return jsonify(
-            {
-                "success": True,
-                "summary": {
-                    "total_stations": len(coverage),
-                    "stations_with_nodes": stations_with_nodes,
-                    "stations_without_primary": stations_without_primary,
-                    "total_assignments": total_assignments,
-                },
-                "coverage": coverage,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "summary": {
+                        "total_stations": len(coverage),
+                        "stations_with_nodes": stations_with_nodes,
+                        "stations_without_primary": stations_without_primary,
+                        "total_assignments": total_assignments,
+                    },
+                    "coverage": coverage,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting station coverage: {e}")
@@ -4426,48 +4135,45 @@ def select_node_for_station_api():
         return jsonify({"success": False, "error": "station_id is required"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        urgency = data.get("urgency", "normal")
+            urgency = data.get("urgency", "normal")
 
-        cur.execute(
-            """
-            SELECT * FROM select_node_for_station(%s, %s)
-        """,
-            (data["station_id"], urgency),
-        )
-
-        nodes = cur.fetchall()
-        cur.close()
-        conn.close()
-
-        if not nodes:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "No available nodes for this station",
-                        "suggestion": "Assign nodes to this station or ensure assigned nodes are online",
-                    }
-                ),
-                404,
+            cur.execute(
+                """
+                SELECT * FROM select_node_for_station(%s, %s)
+            """,
+                (data["station_id"], urgency),
             )
 
-        # Return best node (first in sorted list)
-        best_node = nodes[0]
+            nodes = cur.fetchall()
 
-        return jsonify(
-            {
-                "success": True,
-                "selected_node": best_node,
-                "alternatives": nodes[1:] if len(nodes) > 1 else [],
-                "selection_criteria": {
-                    "urgency": urgency,
-                    "station_id": data["station_id"],
-                },
-            }
-        )
+            if not nodes:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "No available nodes for this station",
+                            "suggestion": "Assign nodes to this station or ensure assigned nodes are online",
+                        }
+                    ),
+                    404,
+                )
+
+            # Return best node (first in sorted list)
+            best_node = nodes[0]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "selected_node": best_node,
+                    "alternatives": nodes[1:] if len(nodes) > 1 else [],
+                    "selection_criteria": {
+                        "urgency": urgency,
+                        "station_id": data["station_id"],
+                    },
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error selecting node for station: {e}")
@@ -4490,48 +4196,41 @@ def toggle_bridge_sharing(node_id):
     priority = data.get("priority", 50)
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
 
-        cur.execute(
-            """
-            UPDATE remote_nodes
-            SET bridge_enabled = %s,
-                bridge_priority = %s,
-                updated_at = NOW()
-            WHERE node_id = %s
-            RETURNING node_name
-        """,
-            (enabled, priority, node_id),
-        )
-
-        result = cur.fetchone()
-        if not result:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
-
-        # Log to governance audit
-        cur.execute(
-            """
-            INSERT INTO governance_audit_log (
-                event_type, event_category, agent_id, action, new_value, reason, outcome
-            ) VALUES (
-                'node_bridge_sharing', 'autonomy', NULL, %s, %s, %s, 'success'
+            cur.execute(
+                """
+                UPDATE remote_nodes
+                SET bridge_enabled = %s,
+                    bridge_priority = %s,
+                    updated_at = NOW()
+                WHERE node_id = %s
+                RETURNING node_name
+            """,
+                (enabled, priority, node_id),
             )
-        """,
-            (
-                "enable" if enabled else "disable",
-                f'{{"node_id": "{node_id}", "priority": {priority}}}',
-                f"Bridge sharing {'enabled' if enabled else 'disabled'} for node {result[0]}",
-            ),
-        )
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            result = cur.fetchone()
+            if not result:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        return jsonify({"success": True, "bridge_enabled": enabled, "bridge_priority": priority})
+            # Log to governance audit
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log (
+                    event_type, event_category, agent_id, action, new_value, reason, outcome
+                ) VALUES (
+                    'node_bridge_sharing', 'autonomy', NULL, %s, %s, %s, 'success'
+                )
+            """,
+                (
+                    "enable" if enabled else "disable",
+                    f'{{"node_id": "{node_id}", "priority": {priority}}}',
+                    f"Bridge sharing {'enabled' if enabled else 'disabled'} for node {result[0]}",
+                ),
+            )
+
+            return jsonify({"success": True, "bridge_enabled": enabled, "bridge_priority": priority})
 
     except Exception as e:
         logger.error(f"Toggle bridge sharing error: {e}")
@@ -4543,78 +4242,74 @@ def toggle_bridge_sharing(node_id):
 def get_bridge_available_models():
     """Get all models available across bridge-enabled nodes, split local vs remote"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get per-model detail with id, node_id, is_available for toggle support
-        cur.execute(
+            # Get per-model detail with id, node_id, is_available for toggle support
+            cur.execute(
+                """
+                SELECT m.id, m.node_id, n.node_name, m.model_name, m.model_family,
+                       m.parameter_size, m.model_size_gb, m.is_available,
+                       m.total_requests, m.avg_response_ms,
+                       n.bridge_enabled, n.status as node_status
+                FROM node_ollama_models m
+                JOIN remote_nodes n ON m.node_id = n.node_id
+                WHERE n.status = 'online' AND n.approval_status = 'approved'
+                ORDER BY m.model_name
             """
-            SELECT m.id, m.node_id, n.node_name, m.model_name, m.model_family,
-                   m.parameter_size, m.model_size_gb, m.is_available,
-                   m.total_requests, m.avg_response_ms,
-                   n.bridge_enabled, n.status as node_status
-            FROM node_ollama_models m
-            JOIN remote_nodes n ON m.node_id = n.node_id
-            WHERE n.status = 'online' AND n.approval_status = 'approved'
-            ORDER BY m.model_name
-        """
-        )
-        all_models = cur.fetchall()
+            )
+            all_models = cur.fetchall()
 
-        # Get aggregated view for summary
-        cur.execute(
+            # Get aggregated view for summary
+            cur.execute(
+                """
+                SELECT * FROM v_bridge_available_models
             """
-            SELECT * FROM v_bridge_available_models
-        """
-        )
-        aggregated = cur.fetchall()
+            )
+            aggregated = cur.fetchall()
 
-        # Get summary stats
-        cur.execute(
+            # Get summary stats
+            cur.execute(
+                """
+                SELECT
+                    COUNT(DISTINCT m.model_name) as total_models,
+                    COUNT(DISTINCT n.node_id) as total_nodes,
+                    SUM(m.total_requests) as total_requests
+                FROM node_ollama_models m
+                JOIN remote_nodes n ON m.node_id = n.node_id
+                WHERE n.bridge_enabled = true AND n.status = 'online'
             """
-            SELECT
-                COUNT(DISTINCT m.model_name) as total_models,
-                COUNT(DISTINCT n.node_id) as total_nodes,
-                SUM(m.total_requests) as total_requests
-            FROM node_ollama_models m
-            JOIN remote_nodes n ON m.node_id = n.node_id
-            WHERE n.bridge_enabled = true AND n.status = 'online'
-        """
-        )
-        summary = cur.fetchone()
+            )
+            summary = cur.fetchone()
 
-        # Get local Ollama models (this host)
-        local_models = []
-        try:
-            ollama_host = os.environ.get("OLLAMA_HOST", "host.docker.internal")
-            ollama_port = os.environ.get("OLLAMA_PORT", "11434")
-            resp = requests.get(f"http://{ollama_host}:{ollama_port}/api/tags", timeout=5)
-            if resp.status_code == 200:
-                for m in resp.json().get("models", []):
-                    size_gb = round(m.get("size", 0) / 1e9, 1)
-                    local_models.append(
-                        {
-                            "name": m["name"],
-                            "family": m.get("details", {}).get("family", ""),
-                            "parameter_size": m.get("details", {}).get("parameter_size", ""),
-                            "size_gb": size_gb,
-                        }
-                    )
-        except Exception:
-            pass  # Local Ollama unreachable — just skip
+            # Get local Ollama models (this host)
+            local_models = []
+            try:
+                ollama_host = os.environ.get("OLLAMA_HOST", "host.docker.internal")
+                ollama_port = os.environ.get("OLLAMA_PORT", "11434")
+                resp = requests.get(f"http://{ollama_host}:{ollama_port}/api/tags", timeout=5)
+                if resp.status_code == 200:
+                    for m in resp.json().get("models", []):
+                        size_gb = round(m.get("size", 0) / 1e9, 1)
+                        local_models.append(
+                            {
+                                "name": m["name"],
+                                "family": m.get("details", {}).get("family", ""),
+                                "parameter_size": m.get("details", {}).get("parameter_size", ""),
+                                "size_gb": size_gb,
+                            }
+                        )
+            except Exception:
+                pass  # Local Ollama unreachable — just skip
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "models": aggregated,
-                "all_models": all_models,
-                "local_models": local_models,
-                "summary": summary,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "models": aggregated,
+                    "all_models": all_models,
+                    "local_models": local_models,
+                    "summary": summary,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Get bridge models error: {e}")
@@ -4626,48 +4321,42 @@ def get_bridge_available_models():
 def get_node_models(node_id):
     """Get Ollama models available on a specific node"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get node info
-        cur.execute(
-            """
-            SELECT node_name, bridge_enabled, bridge_priority, last_model_sync, status
-            FROM remote_nodes WHERE node_id = %s
-        """,
-            (node_id,),
-        )
-        node = cur.fetchone()
+            # Get node info
+            cur.execute(
+                """
+                SELECT node_name, bridge_enabled, bridge_priority, last_model_sync, status
+                FROM remote_nodes WHERE node_id = %s
+            """,
+                (node_id,),
+            )
+            node = cur.fetchone()
 
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Get models
-        cur.execute(
-            """
-            SELECT id, model_name, model_family, parameter_size, model_size_gb,
-                   is_available, total_requests, avg_response_ms, updated_at
-            FROM node_ollama_models
-            WHERE node_id = %s
-            ORDER BY model_name
-        """,
-            (node_id,),
-        )
-        models = cur.fetchall()
+            # Get models
+            cur.execute(
+                """
+                SELECT id, model_name, model_family, parameter_size, model_size_gb,
+                       is_available, total_requests, avg_response_ms, updated_at
+                FROM node_ollama_models
+                WHERE node_id = %s
+                ORDER BY model_name
+            """,
+                (node_id,),
+            )
+            models = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "node": node,
-                "models": models,
-                "model_count": len(models),
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "node": node,
+                    "models": models,
+                    "model_count": len(models),
+                }
+            )
 
     except Exception as e:
         logger.error(f"Get node models error: {e}")
@@ -4679,78 +4368,69 @@ def get_node_models(node_id):
 def sync_node_models_api(node_id):
     """Manually trigger model sync for a node (fetches from node's Ollama)"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get node info
-        cur.execute(
-            """
-            SELECT vpn_ip, port, ollama_available FROM remote_nodes WHERE node_id = %s
-        """,
-            (node_id,),
-        )
-        node = cur.fetchone()
-
-        if not node:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Node not found"}), 404
-
-        if not node["ollama_available"]:
-            cur.close()
-            conn.close()
-            return (
-                jsonify({"success": False, "error": "Node does not have Ollama"}),
-                400,
+            # Get node info
+            cur.execute(
+                """
+                SELECT vpn_ip, port, ollama_available FROM remote_nodes WHERE node_id = %s
+            """,
+                (node_id,),
             )
+            node = cur.fetchone()
 
-        # Fetch models from node's Ollama
-        import requests as req
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
 
-        ollama_url = f"http://{node['vpn_ip']}:{node.get('port', 11434)}/api/tags"
-
-        try:
-            resp = req.get(ollama_url, timeout=10)
-            if resp.status_code != 200:
+            if not node["ollama_available"]:
                 return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "error": f"Ollama returned {resp.status_code}",
-                        }
-                    ),
+                    jsonify({"success": False, "error": "Node does not have Ollama"}),
+                    400,
+                )
+
+            # Fetch models from node's Ollama
+            import requests as req
+
+            ollama_url = f"http://{node['vpn_ip']}:{node.get('port', 11434)}/api/tags"
+
+            try:
+                resp = req.get(ollama_url, timeout=10)
+                if resp.status_code != 200:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": f"Ollama returned {resp.status_code}",
+                            }
+                        ),
+                        502,
+                    )
+
+                models = resp.json().get("models", [])
+
+            except req.exceptions.RequestException as e:
+                return (
+                    jsonify({"success": False, "error": f"Cannot reach node Ollama: {e}"}),
                     502,
                 )
 
-            models = resp.json().get("models", [])
-
-        except req.exceptions.RequestException as e:
-            return (
-                jsonify({"success": False, "error": f"Cannot reach node Ollama: {e}"}),
-                502,
+            # Sync models using database function
+            cur.execute(
+                """
+                SELECT sync_node_models(%s, %s::jsonb)
+            """,
+                (node_id, psycopg2.extras.Json(models)),
             )
+            result = cur.fetchone()
+            models_synced = result[0] if result else 0
 
-        # Sync models using database function
-        cur.execute(
-            """
-            SELECT sync_node_models(%s, %s::jsonb)
-        """,
-            (node_id, psycopg2.extras.Json(models)),
-        )
-        result = cur.fetchone()
-        models_synced = result[0] if result else 0
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "models_synced": models_synced,
-                "message": f"Synced {models_synced} models from node",
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "models_synced": models_synced,
+                    "message": f"Synced {models_synced} models from node",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Manual model sync error: {e}")
@@ -4765,36 +4445,29 @@ def toggle_model_availability(node_id, model_id):
     enabled = data.get("enabled", True)
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
 
-        cur.execute(
-            """
-            UPDATE node_ollama_models
-            SET is_available = %s, updated_at = NOW()
-            WHERE id = %s AND node_id = %s
-            RETURNING model_name
-        """,
-            (enabled, model_id, node_id),
-        )
+            cur.execute(
+                """
+                UPDATE node_ollama_models
+                SET is_available = %s, updated_at = NOW()
+                WHERE id = %s AND node_id = %s
+                RETURNING model_name
+            """,
+                (enabled, model_id, node_id),
+            )
 
-        result = cur.fetchone()
-        if not result:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Model not found"}), 404
+            result = cur.fetchone()
+            if not result:
+                return jsonify({"success": False, "error": "Model not found"}), 404
 
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "model_name": result[0],
-                "is_available": enabled,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "model_name": result[0],
+                    "is_available": enabled,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Toggle model availability error: {e}")
@@ -4813,38 +4486,34 @@ def select_node_for_model():
         return jsonify({"success": False, "error": "model_name required"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
-            """
-            SELECT * FROM select_node_for_model(%s, %s) LIMIT 1
-        """,
-            (model_name, prefer_gpu),
-        )
-        node = cur.fetchone()
-
-        cur.close()
-        conn.close()
-
-        if not node:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": f"No bridge-enabled node has model {model_name}",
-                    }
-                ),
-                404,
+            cur.execute(
+                """
+                SELECT * FROM select_node_for_model(%s, %s) LIMIT 1
+            """,
+                (model_name, prefer_gpu),
             )
+            node = cur.fetchone()
 
-        return jsonify(
-            {
-                "success": True,
-                "node": node,
-                "ollama_url": f"http://{node['vpn_ip']}:{node['port']}",
-            }
-        )
+            if not node:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"No bridge-enabled node has model {model_name}",
+                        }
+                    ),
+                    404,
+                )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "node": node,
+                    "ollama_url": f"http://{node['vpn_ip']}:{node['port']}",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Select node for model error: {e}")
@@ -4891,51 +4560,47 @@ SCHEDULER_MODES = {
 def get_scheduler_status():
     """Get current resource scheduler status"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Check if scheduler config exists
-        cur.execute(
+            # Check if scheduler config exists
+            cur.execute(
+                """
+                SELECT * FROM resource_scheduler_config
+                ORDER BY updated_at DESC LIMIT 1
             """
-            SELECT * FROM resource_scheduler_config
-            ORDER BY updated_at DESC LIMIT 1
-        """
-        )
-        config = cur.fetchone()
+            )
+            config = cur.fetchone()
 
-        # Get current resource usage
-        cur.execute(
+            # Get current resource usage
+            cur.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN task_type = 'ai' THEN 1 ELSE 0 END) as ai_tasks,
+                    SUM(CASE WHEN task_type = 'mining' THEN 1 ELSE 0 END) as mining_tasks,
+                    COUNT(*) as total_tasks
+                FROM resource_allocation
+                WHERE is_active = TRUE
             """
-            SELECT
-                SUM(CASE WHEN task_type = 'ai' THEN 1 ELSE 0 END) as ai_tasks,
-                SUM(CASE WHEN task_type = 'mining' THEN 1 ELSE 0 END) as mining_tasks,
-                COUNT(*) as total_tasks
-            FROM resource_allocation
-            WHERE is_active = TRUE
-        """
-        )
-        usage = cur.fetchone()
+            )
+            usage = cur.fetchone()
 
-        cur.close()
-        conn.close()
+            if not config:
+                config = {
+                    "mode": "balanced",
+                    "ai_weight": 50,
+                    "mining_weight": 50,
+                    "gpu_for_mining": True,
+                    "cpu_for_ai": True,
+                }
 
-        if not config:
-            config = {
-                "mode": "balanced",
-                "ai_weight": 50,
-                "mining_weight": 50,
-                "gpu_for_mining": True,
-                "cpu_for_ai": True,
-            }
-
-        return jsonify(
-            {
-                "success": True,
-                "config": config,
-                "usage": usage or {"ai_tasks": 0, "mining_tasks": 0, "total_tasks": 0},
-                "modes": SCHEDULER_MODES,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "config": config,
+                    "usage": usage or {"ai_tasks": 0, "mining_tasks": 0, "total_tasks": 0},
+                    "modes": SCHEDULER_MODES,
+                }
+            )
 
     except Exception:
         # Table might not exist yet - return defaults
@@ -4968,53 +4633,49 @@ def update_scheduler_config():
         return jsonify({"success": False, "error": f"Invalid mode: {mode}"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Get weights from mode or custom values
-        if mode == "custom":
-            ai_weight = data.get("ai_weight", 50)
-            mining_weight = data.get("mining_weight", 50)
-        else:
-            ai_weight = SCHEDULER_MODES[mode]["ai_weight"]
-            mining_weight = SCHEDULER_MODES[mode]["mining_weight"]
+            # Get weights from mode or custom values
+            if mode == "custom":
+                ai_weight = data.get("ai_weight", 50)
+                mining_weight = data.get("mining_weight", 50)
+            else:
+                ai_weight = SCHEDULER_MODES[mode]["ai_weight"]
+                mining_weight = SCHEDULER_MODES[mode]["mining_weight"]
 
-        # Upsert config
-        cur.execute(
-            """
-            INSERT INTO resource_scheduler_config (
-                id, mode, ai_weight, mining_weight, gpu_for_mining, cpu_for_ai, updated_at
-            ) VALUES (1, %s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-                mode = EXCLUDED.mode,
-                ai_weight = EXCLUDED.ai_weight,
-                mining_weight = EXCLUDED.mining_weight,
-                gpu_for_mining = EXCLUDED.gpu_for_mining,
-                cpu_for_ai = EXCLUDED.cpu_for_ai,
-                updated_at = NOW()
-            RETURNING *
-        """,
-            (
-                mode,
-                ai_weight,
-                mining_weight,
-                data.get("gpu_for_mining", True),
-                data.get("cpu_for_ai", True),
-            ),
-        )
+            # Upsert config
+            cur.execute(
+                """
+                INSERT INTO resource_scheduler_config (
+                    id, mode, ai_weight, mining_weight, gpu_for_mining, cpu_for_ai, updated_at
+                ) VALUES (1, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (id) DO UPDATE SET
+                    mode = EXCLUDED.mode,
+                    ai_weight = EXCLUDED.ai_weight,
+                    mining_weight = EXCLUDED.mining_weight,
+                    gpu_for_mining = EXCLUDED.gpu_for_mining,
+                    cpu_for_ai = EXCLUDED.cpu_for_ai,
+                    updated_at = NOW()
+                RETURNING *
+            """,
+                (
+                    mode,
+                    ai_weight,
+                    mining_weight,
+                    data.get("gpu_for_mining", True),
+                    data.get("cpu_for_ai", True),
+                ),
+            )
 
-        config = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            config = cur.fetchone()
 
-        return jsonify(
-            {
-                "success": True,
-                "config": config,
-                "message": f"Scheduler updated to {mode} mode",
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "config": config,
+                    "message": f"Scheduler updated to {mode} mode",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error updating scheduler: {e}")
@@ -5026,49 +4687,45 @@ def update_scheduler_config():
 def get_contributors():
     """Get mining pool contributors and their rewards"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT
+                    c.id, c.wallet_address, c.display_name, c.contributor_type,
+                    c.total_hashrate_contributed, c.total_blocks_found,
+                    c.total_rewards_earned, c.pending_rewards,
+                    c.ai_credits_earned, c.last_contribution,
+                    c.is_active, c.created_at
+                FROM mining_contributors c
+                WHERE c.is_active = TRUE
+                ORDER BY c.total_rewards_earned DESC
+                LIMIT 100
             """
-            SELECT
-                c.id, c.wallet_address, c.display_name, c.contributor_type,
-                c.total_hashrate_contributed, c.total_blocks_found,
-                c.total_rewards_earned, c.pending_rewards,
-                c.ai_credits_earned, c.last_contribution,
-                c.is_active, c.created_at
-            FROM mining_contributors c
-            WHERE c.is_active = TRUE
-            ORDER BY c.total_rewards_earned DESC
-            LIMIT 100
-        """
-        )
-        contributors = cur.fetchall()
+            )
+            contributors = cur.fetchall()
 
-        # Get summary
-        cur.execute(
+            # Get summary
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_contributors,
+                    SUM(total_hashrate_contributed) as total_hashrate,
+                    SUM(total_rewards_earned) as total_paid,
+                    SUM(pending_rewards) as total_pending
+                FROM mining_contributors
+                WHERE is_active = TRUE
             """
-            SELECT
-                COUNT(*) as total_contributors,
-                SUM(total_hashrate_contributed) as total_hashrate,
-                SUM(total_rewards_earned) as total_paid,
-                SUM(pending_rewards) as total_pending
-            FROM mining_contributors
-            WHERE is_active = TRUE
-        """
-        )
-        summary = cur.fetchone()
+            )
+            summary = cur.fetchone()
 
-        cur.close()
-        conn.close()
+            # Convert datetime
+            for c in contributors:
+                for key in ["last_contribution", "created_at"]:
+                    if c.get(key):
+                        c[key] = c[key].isoformat()
 
-        # Convert datetime
-        for c in contributors:
-            for key in ["last_contribution", "created_at"]:
-                if c.get(key):
-                    c[key] = c[key].isoformat()
-
-        return jsonify({"success": True, "contributors": contributors, "summary": summary})
+            return jsonify({"success": True, "contributors": contributors, "summary": summary})
 
     except Exception:
         # Tables might not exist
@@ -5097,38 +4754,34 @@ def register_contributor():
         return jsonify({"success": False, "error": "wallet_address required"}), 400
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        cur.execute(
-            """
-            INSERT INTO mining_contributors (
-                wallet_address, display_name, contributor_type
-            ) VALUES (%s, %s, %s)
-            ON CONFLICT (wallet_address) DO UPDATE SET
-                display_name = COALESCE(EXCLUDED.display_name, mining_contributors.display_name),
-                is_active = TRUE
-            RETURNING id, wallet_address, display_name
-        """,
-            (
-                data.get("wallet_address"),
-                data.get("display_name"),
-                data.get("contributor_type", "miner"),
-            ),
-        )
+            cur.execute(
+                """
+                INSERT INTO mining_contributors (
+                    wallet_address, display_name, contributor_type
+                ) VALUES (%s, %s, %s)
+                ON CONFLICT (wallet_address) DO UPDATE SET
+                    display_name = COALESCE(EXCLUDED.display_name, mining_contributors.display_name),
+                    is_active = TRUE
+                RETURNING id, wallet_address, display_name
+            """,
+                (
+                    data.get("wallet_address"),
+                    data.get("display_name"),
+                    data.get("contributor_type", "miner"),
+                ),
+            )
 
-        contributor = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+            contributor = cur.fetchone()
 
-        return jsonify(
-            {
-                "success": True,
-                "contributor": contributor,
-                "message": "Contributor registered",
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "contributor": contributor,
+                    "message": "Contributor registered",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error registering contributor: {e}")
@@ -5140,51 +4793,45 @@ def register_contributor():
 def get_contributor_rewards(wallet):
     """Get reward history for a contributor"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get contributor
-        cur.execute(
-            """
-            SELECT * FROM mining_contributors WHERE wallet_address = %s
-        """,
-            (wallet,),
-        )
-        contributor = cur.fetchone()
+            # Get contributor
+            cur.execute(
+                """
+                SELECT * FROM mining_contributors WHERE wallet_address = %s
+            """,
+                (wallet,),
+            )
+            contributor = cur.fetchone()
 
-        if not contributor:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Contributor not found"}), 404
+            if not contributor:
+                return jsonify({"success": False, "error": "Contributor not found"}), 404
 
-        # Get reward history
-        cur.execute(
-            """
-            SELECT
-                reward_type, amount, ai_credits, block_height,
-                txid, status, created_at
-            FROM contributor_rewards
-            WHERE contributor_id = %s
-            ORDER BY created_at DESC
-            LIMIT 50
-        """,
-            (contributor["id"],),
-        )
-        rewards = cur.fetchall()
+            # Get reward history
+            cur.execute(
+                """
+                SELECT
+                    reward_type, amount, ai_credits, block_height,
+                    txid, status, created_at
+                FROM contributor_rewards
+                WHERE contributor_id = %s
+                ORDER BY created_at DESC
+                LIMIT 50
+            """,
+                (contributor["id"],),
+            )
+            rewards = cur.fetchall()
 
-        cur.close()
-        conn.close()
+            # Convert datetime
+            for key in ["last_contribution", "created_at"]:
+                if contributor.get(key):
+                    contributor[key] = contributor[key].isoformat()
 
-        # Convert datetime
-        for key in ["last_contribution", "created_at"]:
-            if contributor.get(key):
-                contributor[key] = contributor[key].isoformat()
+            for r in rewards:
+                if r.get("created_at"):
+                    r["created_at"] = r["created_at"].isoformat()
 
-        for r in rewards:
-            if r.get("created_at"):
-                r["created_at"] = r["created_at"].isoformat()
-
-        return jsonify({"success": True, "contributor": contributor, "rewards": rewards})
+            return jsonify({"success": True, "contributor": contributor, "rewards": rewards})
 
     except Exception as e:
         logger.error(f"Error getting rewards: {e}")
@@ -5207,86 +4854,80 @@ def allocate_resource():
         )
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Check scheduler config
-        cur.execute("SELECT * FROM resource_scheduler_config WHERE id = 1")
-        config = cur.fetchone()
+            # Check scheduler config
+            cur.execute("SELECT * FROM resource_scheduler_config WHERE id = 1")
+            config = cur.fetchone()
 
-        if not config:
-            config = {"mode": "balanced", "ai_weight": 50, "mining_weight": 50}
+            if not config:
+                config = {"mode": "balanced", "ai_weight": 50, "mining_weight": 50}
 
-        # Check current allocation
-        cur.execute(
+            # Check current allocation
+            cur.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN task_type = 'ai' THEN 1 ELSE 0 END) as ai_count,
+                    SUM(CASE WHEN task_type = 'mining' THEN 1 ELSE 0 END) as mining_count
+                FROM resource_allocation
+                WHERE is_active = TRUE
             """
-            SELECT
-                SUM(CASE WHEN task_type = 'ai' THEN 1 ELSE 0 END) as ai_count,
-                SUM(CASE WHEN task_type = 'mining' THEN 1 ELSE 0 END) as mining_count
-            FROM resource_allocation
-            WHERE is_active = TRUE
-        """
-        )
-        current = cur.fetchone() or {"ai_count": 0, "mining_count": 0}
+            )
+            current = cur.fetchone() or {"ai_count": 0, "mining_count": 0}
 
-        # Dynamic mode: adjust based on demand
-        if config["mode"] == "dynamic":
-            # Simple demand-based logic
-            total = (current["ai_count"] or 0) + (current["mining_count"] or 0) + 1
-            if task_type == "ai":
-                allowed = True  # AI always gets priority in dynamic mode
-            else:
-                # Mining only if AI load is low
-                allowed = (current["ai_count"] or 0) < 5
-        else:
-            # Weight-based allocation
-            total = (current["ai_count"] or 0) + (current["mining_count"] or 0)
-            if total == 0:
-                allowed = True
-            else:
-                current_ratio = ((current["ai_count"] or 0) / total) * 100 if total > 0 else 50
+            # Dynamic mode: adjust based on demand
+            if config["mode"] == "dynamic":
+                # Simple demand-based logic
+                total = (current["ai_count"] or 0) + (current["mining_count"] or 0) + 1
                 if task_type == "ai":
-                    allowed = current_ratio <= config["ai_weight"] or config["ai_weight"] == 100
+                    allowed = True  # AI always gets priority in dynamic mode
                 else:
-                    allowed = (100 - current_ratio) <= config["mining_weight"] or config["mining_weight"] == 100
+                    # Mining only if AI load is low
+                    allowed = (current["ai_count"] or 0) < 5
+            else:
+                # Weight-based allocation
+                total = (current["ai_count"] or 0) + (current["mining_count"] or 0)
+                if total == 0:
+                    allowed = True
+                else:
+                    current_ratio = ((current["ai_count"] or 0) / total) * 100 if total > 0 else 50
+                    if task_type == "ai":
+                        allowed = current_ratio <= config["ai_weight"] or config["ai_weight"] == 100
+                    else:
+                        allowed = (100 - current_ratio) <= config["mining_weight"] or config["mining_weight"] == 100
 
-        if not allowed:
-            cur.close()
-            conn.close()
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": f"Resource limit reached for {task_type} tasks",
-                        "config": config,
-                    }
-                ),
-                429,
+            if not allowed:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"Resource limit reached for {task_type} tasks",
+                            "config": config,
+                        }
+                    ),
+                    429,
+                )
+
+            # Create allocation
+            cur.execute(
+                """
+                INSERT INTO resource_allocation (
+                    task_type, resource_type, node_id, allocated_at
+                ) VALUES (%s, %s, %s, NOW())
+                RETURNING id
+            """,
+                (task_type, resource_type, node_id),
             )
 
-        # Create allocation
-        cur.execute(
-            """
-            INSERT INTO resource_allocation (
-                task_type, resource_type, node_id, allocated_at
-            ) VALUES (%s, %s, %s, NOW())
-            RETURNING id
-        """,
-            (task_type, resource_type, node_id),
-        )
+            allocation = cur.fetchone()
 
-        allocation = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "allocation_id": allocation["id"],
-                "message": f"Resource allocated for {task_type}",
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "allocation_id": allocation["id"],
+                    "message": f"Resource allocated for {task_type}",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error allocating resource: {e}")
@@ -5298,23 +4939,18 @@ def allocate_resource():
 def release_resource(allocation_id):
     """Release an allocated resource"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
 
-        cur.execute(
-            """
-            UPDATE resource_allocation
-            SET is_active = FALSE, released_at = NOW()
-            WHERE id = %s
-        """,
-            (allocation_id,),
-        )
+            cur.execute(
+                """
+                UPDATE resource_allocation
+                SET is_active = FALSE, released_at = NOW()
+                WHERE id = %s
+            """,
+                (allocation_id,),
+            )
 
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return jsonify({"success": True, "message": "Resource released"})
+            return jsonify({"success": True, "message": "Resource released"})
 
     except Exception as e:
         logger.error(f"Error releasing resource: {e}")
@@ -5339,23 +4975,20 @@ def get_pool_integration_stats():
 
     # Get Bridge node stats
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_nodes,
+                    COUNT(*) FILTER (WHERE status = 'online') as online_nodes,
+                    COUNT(*) FILTER (WHERE gpu_available = TRUE) as gpu_nodes
+                FROM remote_nodes
+                WHERE is_active = TRUE
             """
-            SELECT
-                COUNT(*) as total_nodes,
-                COUNT(*) FILTER (WHERE status = 'online') as online_nodes,
-                COUNT(*) FILTER (WHERE gpu_available = TRUE) as gpu_nodes
-            FROM remote_nodes
-            WHERE is_active = TRUE
-        """
-        )
-        node_stats = cur.fetchone()
+            )
+            node_stats = cur.fetchone()
 
-        cur.close()
-        conn.close()
     except Exception:
         node_stats = {"total_nodes": 0, "online_nodes": 0, "gpu_nodes": 0}
 
@@ -5385,7 +5018,6 @@ try:
 except ImportError:
     AI_BRIDGE_AVAILABLE = False
     logger.warning("AI Bridge not available for IDE integration")
-
 
 # In-memory session store for connected IDEs
 connected_ides = {}
@@ -5992,26 +5624,23 @@ def _search_knowledge_base(query: str, limit: int = 10) -> List[Dict]:
         return []
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
-            """
-            SELECT id, title, content, knowledge_type, importance_score,
-                   ts_rank(search_vector, plainto_tsquery('english', %s)) as rank
-            FROM knowledge_base
-            WHERE search_vector @@ plainto_tsquery('english', %s)
-            ORDER BY rank DESC, importance_score DESC
-            LIMIT %s
-        """,
-            (query, query, limit),
-        )
+            cur.execute(
+                """
+                SELECT id, title, content, knowledge_type, importance_score,
+                       ts_rank(search_vector, plainto_tsquery('english', %s)) as rank
+                FROM knowledge_base
+                WHERE search_vector @@ plainto_tsquery('english', %s)
+                ORDER BY rank DESC, importance_score DESC
+                LIMIT %s
+            """,
+                (query, query, limit),
+            )
 
-        results = cur.fetchall()
-        cur.close()
-        conn.close()
+            results = cur.fetchall()
 
-        return [dict(r) for r in results]
+            return [dict(r) for r in results]
 
     except Exception as e:
         logger.warning(f"Knowledge search error: {e}")
@@ -6099,38 +5728,33 @@ def _log_ide_connection(session_id: str, ide_type: str, workspace_path: str, cap
     import json as json_module
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
 
-        # Ensure table exists
-        cur.execute(
+            # Ensure table exists
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ide_connections (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(50) UNIQUE,
+                    ide_type VARCHAR(50),
+                    workspace_path TEXT,
+                    capabilities JSONB,
+                    connected_at TIMESTAMP DEFAULT NOW(),
+                    last_activity TIMESTAMP DEFAULT NOW(),
+                    disconnected_at TIMESTAMP
+                )
             """
-            CREATE TABLE IF NOT EXISTS ide_connections (
-                id SERIAL PRIMARY KEY,
-                session_id VARCHAR(50) UNIQUE,
-                ide_type VARCHAR(50),
-                workspace_path TEXT,
-                capabilities JSONB,
-                connected_at TIMESTAMP DEFAULT NOW(),
-                last_activity TIMESTAMP DEFAULT NOW(),
-                disconnected_at TIMESTAMP
             )
-        """
-        )
 
-        cur.execute(
-            """
-            INSERT INTO ide_connections (session_id, ide_type, workspace_path, capabilities)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (session_id) DO UPDATE
-            SET last_activity = NOW()
-        """,
-            (session_id, ide_type, workspace_path, json_module.dumps(capabilities)),
-        )
-
-        conn.commit()
-        cur.close()
-        conn.close()
+            cur.execute(
+                """
+                INSERT INTO ide_connections (session_id, ide_type, workspace_path, capabilities)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (session_id) DO UPDATE
+                SET last_activity = NOW()
+            """,
+                (session_id, ide_type, workspace_path, json_module.dumps(capabilities)),
+            )
 
     except Exception as e:
         logger.warning(f"Failed to log IDE connection: {e}")
@@ -6146,136 +5770,132 @@ def _log_ide_connection(session_id: str, ide_type: str, workspace_path: str, cap
 def get_dispatch_status():
     """Get current BridgeDispatcher status: active agents, assignments, queue depth"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Active agents with their station assignments
-        cur.execute(
+            # Active agents with their station assignments
+            cur.execute(
+                """
+                SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.model,
+                       a.status, a.avatar_url,
+                       bs.station_code, bs.station_name, bs.color,
+                       sa.assignment_type
+                FROM agents a
+                LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id AND bs.is_active = TRUE
+                WHERE a.status = 'active'
+                ORDER BY bs.position_row, bs.position_order, a.name
             """
-            SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.model,
-                   a.status, a.avatar_url,
-                   bs.station_code, bs.station_name, bs.color,
-                   sa.assignment_type
-            FROM agents a
-            LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
-            LEFT JOIN bridge_stations bs ON bs.id = sa.station_id AND bs.is_active = TRUE
-            WHERE a.status = 'active'
-            ORDER BY bs.position_row, bs.position_order, a.name
-        """
-        )
-        agents = cur.fetchall()
+            )
+            agents = cur.fetchall()
 
-        # Recent dispatch activity (rolling 24h + 1h)
-        cur.execute(
+            # Recent dispatch activity (rolling 24h + 1h)
+            cur.execute(
+                """
+                SELECT COUNT(*) as total_dispatches,
+                       COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                       COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
+                       COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(*) as total_dispatches,
-                   COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
-                   COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
-                   COALESCE(AVG(duration_ms), 0) as avg_duration_ms
-            FROM task_execution_log
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-        """
-        )
-        dispatch_stats_24h = cur.fetchone()
+            )
+            dispatch_stats_24h = cur.fetchone()
 
-        cur.execute(
+            cur.execute(
+                """
+                SELECT COUNT(*) as total_dispatches,
+                       COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                       COUNT(CASE WHEN success = FALSE THEN 1 END) as failed
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '1 hour'
             """
-            SELECT COUNT(*) as total_dispatches,
-                   COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
-                   COUNT(CASE WHEN success = FALSE THEN 1 END) as failed
-            FROM task_execution_log
-            WHERE created_at > NOW() - INTERVAL '1 hour'
-        """
-        )
-        dispatch_stats_1h = cur.fetchone()
+            )
+            dispatch_stats_1h = cur.fetchone()
 
-        # Active tasks (in-progress right now — last 2 minutes)
-        cur.execute(
+            # Active tasks (in-progress right now — last 2 minutes)
+            cur.execute(
+                """
+                SELECT tel.id, a.name as agent_name, tel.module_source,
+                       tel.task_type, tel.model_used, tel.created_at
+                FROM task_execution_log tel
+                LEFT JOIN agents a ON a.id = tel.agent_id
+                WHERE tel.created_at > NOW() - INTERVAL '2 minutes'
+                      AND tel.success IS NULL
+                ORDER BY tel.created_at DESC
+                LIMIT 10
             """
-            SELECT tel.id, a.name as agent_name, tel.module_source,
-                   tel.task_type, tel.model_used, tel.created_at
-            FROM task_execution_log tel
-            LEFT JOIN agents a ON a.id = tel.agent_id
-            WHERE tel.created_at > NOW() - INTERVAL '2 minutes'
-                  AND tel.success IS NULL
-            ORDER BY tel.created_at DESC
-            LIMIT 10
-        """
-        )
-        active_tasks = cur.fetchall()
+            )
+            active_tasks = cur.fetchall()
 
-        # Per-station dispatch counts (last 24h)
-        cur.execute(
+            # Per-station dispatch counts (last 24h)
+            cur.execute(
+                """
+                SELECT bs.station_code, bs.station_name, bs.color,
+                       COUNT(tel.id) as dispatch_count,
+                       COALESCE(AVG(tel.duration_ms), 0) as avg_ms
+                FROM bridge_stations bs
+                LEFT JOIN station_assignments sa ON sa.station_id = bs.id AND sa.is_active = TRUE
+                LEFT JOIN task_execution_log tel ON tel.agent_id = sa.agent_id
+                      AND tel.created_at > NOW() - INTERVAL '24 hours'
+                WHERE bs.is_active = TRUE
+                GROUP BY bs.station_code, bs.station_name, bs.color
+                ORDER BY dispatch_count DESC
             """
-            SELECT bs.station_code, bs.station_name, bs.color,
-                   COUNT(tel.id) as dispatch_count,
-                   COALESCE(AVG(tel.duration_ms), 0) as avg_ms
-            FROM bridge_stations bs
-            LEFT JOIN station_assignments sa ON sa.station_id = bs.id AND sa.is_active = TRUE
-            LEFT JOIN task_execution_log tel ON tel.agent_id = sa.agent_id
-                  AND tel.created_at > NOW() - INTERVAL '24 hours'
-            WHERE bs.is_active = TRUE
-            GROUP BY bs.station_code, bs.station_name, bs.color
-            ORDER BY dispatch_count DESC
-        """
-        )
-        station_activity = cur.fetchall()
+            )
+            station_activity = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "agents": [
-                    {
-                        "id": a["id"],
-                        "name": a["name"],
-                        "first_name": a.get("first_name"),
-                        "last_name": a.get("last_name"),
-                        "title": a["title"],
-                        "model": a["model"],
-                        "status": a["status"],
-                        "avatar_url": a.get("avatar_url"),
-                        "station_code": a.get("station_code"),
-                        "station_name": a.get("station_name"),
-                        "station_color": a.get("color"),
-                        "assignment_type": a.get("assignment_type"),
-                    }
-                    for a in agents
-                ],
-                "dispatch_stats": {
-                    "total_1h": dispatch_stats_1h["total_dispatches"],
-                    "total_24h": dispatch_stats_24h["total_dispatches"],
-                    "successful_1h": dispatch_stats_1h["successful"],
-                    "successful_24h": dispatch_stats_24h["successful"],
-                    "failed_1h": dispatch_stats_1h["failed"],
-                    "failed_24h": dispatch_stats_24h["failed"],
-                    "avg_duration_ms": round(float(dispatch_stats_24h["avg_duration_ms"]), 1),
-                },
-                "active_tasks": [
-                    {
-                        "id": t["id"],
-                        "agent_name": t["agent_name"],
-                        "module": t["module_source"],
-                        "task_type": t["task_type"],
-                        "model": t["model_used"],
-                        "started": t["created_at"].isoformat() if t["created_at"] else None,
-                    }
-                    for t in active_tasks
-                ],
-                "station_activity": [
-                    {
-                        "station_code": s["station_code"],
-                        "station_name": s["station_name"],
-                        "color": s["color"],
-                        "dispatch_count": s["dispatch_count"],
-                        "avg_ms": round(float(s["avg_ms"]), 1),
-                    }
-                    for s in station_activity
-                ],
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "agents": [
+                        {
+                            "id": a["id"],
+                            "name": a["name"],
+                            "first_name": a.get("first_name"),
+                            "last_name": a.get("last_name"),
+                            "title": a["title"],
+                            "model": a["model"],
+                            "status": a["status"],
+                            "avatar_url": a.get("avatar_url"),
+                            "station_code": a.get("station_code"),
+                            "station_name": a.get("station_name"),
+                            "station_color": a.get("color"),
+                            "assignment_type": a.get("assignment_type"),
+                        }
+                        for a in agents
+                    ],
+                    "dispatch_stats": {
+                        "total_1h": dispatch_stats_1h["total_dispatches"],
+                        "total_24h": dispatch_stats_24h["total_dispatches"],
+                        "successful_1h": dispatch_stats_1h["successful"],
+                        "successful_24h": dispatch_stats_24h["successful"],
+                        "failed_1h": dispatch_stats_1h["failed"],
+                        "failed_24h": dispatch_stats_24h["failed"],
+                        "avg_duration_ms": round(float(dispatch_stats_24h["avg_duration_ms"]), 1),
+                    },
+                    "active_tasks": [
+                        {
+                            "id": t["id"],
+                            "agent_name": t["agent_name"],
+                            "module": t["module_source"],
+                            "task_type": t["task_type"],
+                            "model": t["model_used"],
+                            "started": t["created_at"].isoformat() if t["created_at"] else None,
+                        }
+                        for t in active_tasks
+                    ],
+                    "station_activity": [
+                        {
+                            "station_code": s["station_code"],
+                            "station_name": s["station_name"],
+                            "color": s["color"],
+                            "dispatch_count": s["dispatch_count"],
+                            "avg_ms": round(float(s["avg_ms"]), 1),
+                        }
+                        for s in station_activity
+                    ],
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting dispatch status: {e}")
@@ -6290,62 +5910,58 @@ def get_dispatch_history():
         limit = request.args.get("limit", 50, type=int)
         limit = min(limit, 200)
 
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        cur.execute(
-            """
-            SELECT tel.id,
-                   COALESCE(
-                       NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
-                       a.name,
-                       tel.agent_name
-                   ) as agent_display_name,
-                   COALESCE(a.name, tel.agent_name) as agent_callsign,
-                   a.avatar_url,
-                   tel.module_source, tel.task_type, tel.capability,
-                   tel.model_used, tel.duration_ms, tel.success,
-                   tel.error_message, tel.created_at,
-                   bs.station_code, bs.color as station_color
-            FROM task_execution_log tel
-            LEFT JOIN agents a ON a.id = tel.agent_id
-            LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
-            LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
-            WHERE tel.created_at > NOW() - INTERVAL '24 hours'
-            ORDER BY tel.created_at DESC
-            LIMIT %s
-        """,
-            (limit,),
-        )
-        history = cur.fetchall()
+            cur.execute(
+                """
+                SELECT tel.id,
+                       COALESCE(
+                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                           a.name,
+                           tel.agent_name
+                       ) as agent_display_name,
+                       COALESCE(a.name, tel.agent_name) as agent_callsign,
+                       a.avatar_url,
+                       tel.module_source, tel.task_type, tel.capability,
+                       tel.model_used, tel.duration_ms, tel.success,
+                       tel.error_message, tel.created_at,
+                       bs.station_code, bs.color as station_color
+                FROM task_execution_log tel
+                LEFT JOIN agents a ON a.id = tel.agent_id
+                LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                ORDER BY tel.created_at DESC
+                LIMIT %s
+            """,
+                (limit,),
+            )
+            history = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "history": [
-                    {
-                        "id": h["id"],
-                        "agent_name": h["agent_display_name"] or h.get("agent_callsign") or "Unknown",
-                        "avatar_url": h.get("avatar_url"),
-                        "module": h["module_source"],
-                        "task_type": h["task_type"],
-                        "capability": h.get("capability"),
-                        "model": h["model_used"],
-                        "duration_ms": h["duration_ms"],
-                        "success": h["success"],
-                        "error": h.get("error_message"),
-                        "timestamp": h["created_at"].isoformat() if h["created_at"] else None,
-                        "station_code": h.get("station_code"),
-                        "station_color": h.get("station_color"),
-                    }
-                    for h in history
-                ],
-                "total": len(history),
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "history": [
+                        {
+                            "id": h["id"],
+                            "agent_name": h["agent_display_name"] or h.get("agent_callsign") or "Unknown",
+                            "avatar_url": h.get("avatar_url"),
+                            "module": h["module_source"],
+                            "task_type": h["task_type"],
+                            "capability": h.get("capability"),
+                            "model": h["model_used"],
+                            "duration_ms": h["duration_ms"],
+                            "success": h["success"],
+                            "error": h.get("error_message"),
+                            "timestamp": h["created_at"].isoformat() if h["created_at"] else None,
+                            "station_code": h.get("station_code"),
+                            "station_color": h.get("station_color"),
+                        }
+                        for h in history
+                    ],
+                    "total": len(history),
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting dispatch history: {e}")
@@ -6366,98 +5982,95 @@ def get_bridge_jobs():
         limit = min(limit, 100)
         status_filter = request.args.get("status")
 
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        if status_filter:
-            cur.execute(
-                """
-                SELECT bj.id, bj.job_type, bj.module_source, bj.description,
-                       bj.total_steps, bj.completed_steps, bj.failed_steps,
-                       bj.status,
-                       COALESCE(
-                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
-                           a.name,
-                           bj.agent_name
-                       ) as agent_display_name,
-                       bj.agent_name as agent_callsign,
-                       bj.metadata,
-                       bj.created_at, bj.updated_at, bj.completed_at
-                FROM bridge_jobs bj
-                LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
-                WHERE bj.status = %s
-                ORDER BY bj.created_at DESC
-                LIMIT %s
-                """,
-                (status_filter, limit),
-            )
-        else:
-            cur.execute(
-                """
-                SELECT bj.id, bj.job_type, bj.module_source, bj.description,
-                       bj.total_steps, bj.completed_steps, bj.failed_steps,
-                       bj.status,
-                       COALESCE(
-                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
-                           a.name,
-                           bj.agent_name
-                       ) as agent_display_name,
-                       bj.agent_name as agent_callsign,
-                       bj.metadata,
-                       bj.created_at, bj.updated_at, bj.completed_at
-                FROM bridge_jobs bj
-                LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
-                ORDER BY
-                    CASE bj.status
-                        WHEN 'running' THEN 0
-                        WHEN 'pending' THEN 1
-                        ELSE 2
-                    END,
-                    bj.created_at DESC
-                LIMIT %s
-                """,
-                (limit,),
-            )
-        jobs = cur.fetchall()
-        cur.close()
-        conn.close()
+            if status_filter:
+                cur.execute(
+                    """
+                    SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                           bj.total_steps, bj.completed_steps, bj.failed_steps,
+                           bj.status,
+                           COALESCE(
+                               NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                               a.name,
+                               bj.agent_name
+                           ) as agent_display_name,
+                           bj.agent_name as agent_callsign,
+                           bj.metadata,
+                           bj.created_at, bj.updated_at, bj.completed_at
+                    FROM bridge_jobs bj
+                    LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+                    WHERE bj.status = %s
+                    ORDER BY bj.created_at DESC
+                    LIMIT %s
+                    """,
+                    (status_filter, limit),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                           bj.total_steps, bj.completed_steps, bj.failed_steps,
+                           bj.status,
+                           COALESCE(
+                               NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                               a.name,
+                               bj.agent_name
+                           ) as agent_display_name,
+                           bj.agent_name as agent_callsign,
+                           bj.metadata,
+                           bj.created_at, bj.updated_at, bj.completed_at
+                    FROM bridge_jobs bj
+                    LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+                    ORDER BY
+                        CASE bj.status
+                            WHEN 'running' THEN 0
+                            WHEN 'pending' THEN 1
+                            ELSE 2
+                        END,
+                        bj.created_at DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+            jobs = cur.fetchall()
 
-        now = datetime.utcnow()
-        result = []
-        for j in jobs:
-            total = j["total_steps"] or 1
-            completed = j["completed_steps"] or 0
-            progress_pct = round((completed / total) * 100, 1) if total > 0 else 0
+            now = datetime.utcnow()
+            result = []
+            for j in jobs:
+                total = j["total_steps"] or 1
+                completed = j["completed_steps"] or 0
+                progress_pct = round((completed / total) * 100, 1) if total > 0 else 0
 
-            # Estimate ETA for running jobs
-            eta_seconds = None
-            if j["status"] == "running" and completed > 0 and j["created_at"]:
-                elapsed = (now - j["created_at"].replace(tzinfo=None)).total_seconds()
-                per_step = elapsed / completed
-                remaining = total - completed
-                eta_seconds = int(per_step * remaining)
+                # Estimate ETA for running jobs
+                eta_seconds = None
+                if j["status"] == "running" and completed > 0 and j["created_at"]:
+                    elapsed = (now - j["created_at"].replace(tzinfo=None)).total_seconds()
+                    per_step = elapsed / completed
+                    remaining = total - completed
+                    eta_seconds = int(per_step * remaining)
 
-            result.append(
-                {
-                    "id": j["id"],
-                    "job_type": j["job_type"],
-                    "module_source": j["module_source"],
-                    "description": j["description"],
-                    "total_steps": total,
-                    "completed_steps": completed,
-                    "failed_steps": j["failed_steps"] or 0,
-                    "status": j["status"],
-                    "agent_name": j.get("agent_display_name") or j.get("agent_callsign") or "Unknown",
-                    "metadata": j["metadata"] or {},
-                    "progress_pct": progress_pct,
-                    "eta_seconds": eta_seconds,
-                    "created_at": j["created_at"].isoformat() if j["created_at"] else None,
-                    "updated_at": j["updated_at"].isoformat() if j["updated_at"] else None,
-                    "completed_at": j["completed_at"].isoformat() if j["completed_at"] else None,
-                }
-            )
+                result.append(
+                    {
+                        "id": j["id"],
+                        "job_type": j["job_type"],
+                        "module_source": j["module_source"],
+                        "description": j["description"],
+                        "total_steps": total,
+                        "completed_steps": completed,
+                        "failed_steps": j["failed_steps"] or 0,
+                        "status": j["status"],
+                        "agent_name": j.get("agent_display_name") or j.get("agent_callsign") or "Unknown",
+                        "metadata": j["metadata"] or {},
+                        "progress_pct": progress_pct,
+                        "eta_seconds": eta_seconds,
+                        "created_at": j["created_at"].isoformat() if j["created_at"] else None,
+                        "updated_at": j["updated_at"].isoformat() if j["updated_at"] else None,
+                        "completed_at": j["completed_at"].isoformat() if j["completed_at"] else None,
+                    }
+                )
 
-        return jsonify({"success": True, "jobs": result, "total": len(result)})
+            return jsonify({"success": True, "jobs": result, "total": len(result)})
 
     except Exception as e:
         logger.error(f"Error getting bridge jobs: {e}")
@@ -6469,95 +6082,90 @@ def get_bridge_jobs():
 def get_bridge_job_detail(job_id):
     """Get single bridge job detail with linked execution log entries."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Get the job
-        cur.execute(
-            """
-            SELECT bj.id, bj.job_type, bj.module_source, bj.description,
-                   bj.total_steps, bj.completed_steps, bj.failed_steps,
-                   bj.status,
-                   COALESCE(
-                       NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
-                       a.name,
-                       bj.agent_name
-                   ) as agent_display_name,
-                   bj.metadata,
-                   bj.created_at, bj.updated_at, bj.completed_at
-            FROM bridge_jobs bj
-            LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
-            WHERE bj.id = %s
-            """,
-            (job_id,),
-        )
-        job = cur.fetchone()
-        if not job:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Job not found"}), 404
+            # Get the job
+            cur.execute(
+                """
+                SELECT bj.id, bj.job_type, bj.module_source, bj.description,
+                       bj.total_steps, bj.completed_steps, bj.failed_steps,
+                       bj.status,
+                       COALESCE(
+                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                           a.name,
+                           bj.agent_name
+                       ) as agent_display_name,
+                       bj.metadata,
+                       bj.created_at, bj.updated_at, bj.completed_at
+                FROM bridge_jobs bj
+                LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+                WHERE bj.id = %s
+                """,
+                (job_id,),
+            )
+            job = cur.fetchone()
+            if not job:
+                return jsonify({"success": False, "error": "Job not found"}), 404
 
-        # Get linked execution log entries
-        cur.execute(
-            """
-            SELECT tel.id,
-                   COALESCE(
-                       NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
-                       a.name,
-                       tel.agent_name
-                   ) as agent_name,
-                   tel.capability,
-                   tel.model_used, tel.duration_ms, tel.success,
-                   tel.error_message, tel.created_at
-            FROM task_execution_log tel
-            LEFT JOIN agents a ON a.id = tel.agent_id
-            WHERE tel.job_id = %s
-            ORDER BY tel.created_at
-            """,
-            (job_id,),
-        )
-        executions = cur.fetchall()
-        cur.close()
-        conn.close()
+            # Get linked execution log entries
+            cur.execute(
+                """
+                SELECT tel.id,
+                       COALESCE(
+                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                           a.name,
+                           tel.agent_name
+                       ) as agent_name,
+                       tel.capability,
+                       tel.model_used, tel.duration_ms, tel.success,
+                       tel.error_message, tel.created_at
+                FROM task_execution_log tel
+                LEFT JOIN agents a ON a.id = tel.agent_id
+                WHERE tel.job_id = %s
+                ORDER BY tel.created_at
+                """,
+                (job_id,),
+            )
+            executions = cur.fetchall()
 
-        total = job["total_steps"] or 1
-        completed = job["completed_steps"] or 0
-        progress_pct = round((completed / total) * 100, 1) if total > 0 else 0
+            total = job["total_steps"] or 1
+            completed = job["completed_steps"] or 0
+            progress_pct = round((completed / total) * 100, 1) if total > 0 else 0
 
-        return jsonify(
-            {
-                "success": True,
-                "job": {
-                    "id": job["id"],
-                    "job_type": job["job_type"],
-                    "module_source": job["module_source"],
-                    "description": job["description"],
-                    "total_steps": total,
-                    "completed_steps": completed,
-                    "failed_steps": job["failed_steps"] or 0,
-                    "status": job["status"],
-                    "agent_name": job.get("agent_display_name") or "Unknown",
-                    "metadata": job["metadata"] or {},
-                    "progress_pct": progress_pct,
-                    "created_at": job["created_at"].isoformat() if job["created_at"] else None,
-                    "updated_at": job["updated_at"].isoformat() if job["updated_at"] else None,
-                    "completed_at": job["completed_at"].isoformat() if job["completed_at"] else None,
-                },
-                "executions": [
-                    {
-                        "id": e["id"],
-                        "agent_name": e["agent_name"],
-                        "capability": e["capability"],
-                        "model": e["model_used"],
-                        "duration_ms": e["duration_ms"],
-                        "success": e["success"],
-                        "error": e.get("error_message"),
-                        "timestamp": e["created_at"].isoformat() if e["created_at"] else None,
-                    }
-                    for e in executions
-                ],
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "job": {
+                        "id": job["id"],
+                        "job_type": job["job_type"],
+                        "module_source": job["module_source"],
+                        "description": job["description"],
+                        "total_steps": total,
+                        "completed_steps": completed,
+                        "failed_steps": job["failed_steps"] or 0,
+                        "status": job["status"],
+                        "agent_name": job.get("agent_display_name") or "Unknown",
+                        "metadata": job["metadata"] or {},
+                        "progress_pct": progress_pct,
+                        "created_at": job["created_at"].isoformat() if job["created_at"] else None,
+                        "updated_at": job["updated_at"].isoformat() if job["updated_at"] else None,
+                        "completed_at": job["completed_at"].isoformat() if job["completed_at"] else None,
+                    },
+                    "executions": [
+                        {
+                            "id": e["id"],
+                            "agent_name": e["agent_name"],
+                            "capability": e["capability"],
+                            "model": e["model_used"],
+                            "duration_ms": e["duration_ms"],
+                            "success": e["success"],
+                            "error": e.get("error_message"),
+                            "timestamp": e["created_at"].isoformat() if e["created_at"] else None,
+                        }
+                        for e in executions
+                    ],
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error getting bridge job detail: {e}")
@@ -6600,58 +6208,49 @@ def reassign_agent():
         if not agent_id or not new_station_code:
             return jsonify({"success": False, "error": "agent_id and station_code required"}), 400
 
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
 
-        # Verify agent exists
-        cur.execute("SELECT id, name FROM agents WHERE id = %s AND status = 'active'", (agent_id,))
-        agent = cur.fetchone()
-        if not agent:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Agent not found or inactive"}), 404
+            # Verify agent exists
+            cur.execute("SELECT id, name FROM agents WHERE id = %s AND status = 'active'", (agent_id,))
+            agent = cur.fetchone()
+            if not agent:
+                return jsonify({"success": False, "error": "Agent not found or inactive"}), 404
 
-        # Verify station exists
-        cur.execute(
-            "SELECT id, station_name FROM bridge_stations WHERE station_code = %s AND is_active = TRUE",
-            (new_station_code,),
-        )
-        station = cur.fetchone()
-        if not station:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Station not found or inactive"}), 404
+            # Verify station exists
+            cur.execute(
+                "SELECT id, station_name FROM bridge_stations WHERE station_code = %s AND is_active = TRUE",
+                (new_station_code,),
+            )
+            station = cur.fetchone()
+            if not station:
+                return jsonify({"success": False, "error": "Station not found or inactive"}), 404
 
-        # Deactivate old assignments
-        cur.execute(
-            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
-            (agent_id,),
-        )
+            # Deactivate old assignments
+            cur.execute(
+                "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
+                (agent_id,),
+            )
 
-        # Create new assignment
-        cur.execute(
-            """
-            INSERT INTO station_assignments (agent_id, station_id, assignment_type, is_active, priority)
-            VALUES (%s, %s, 'primary', TRUE, 1)
-            ON CONFLICT (agent_id, station_id) DO UPDATE SET is_active = TRUE, assignment_type = 'primary'
-        """,
-            (agent_id, station["id"]),
-        )
+            # Create new assignment
+            cur.execute(
+                """
+                INSERT INTO station_assignments (agent_id, station_id, assignment_type, is_active, priority)
+                VALUES (%s, %s, 'primary', TRUE, 1)
+                ON CONFLICT (agent_id, station_id) DO UPDATE SET is_active = TRUE, assignment_type = 'primary'
+            """,
+                (agent_id, station["id"]),
+            )
 
-        conn.commit()
-        cur.close()
-        conn.close()
+            logger.info(f"Agent {agent['name']} reassigned to {station['station_name']} by {current_user.username}")
 
-        logger.info(f"Agent {agent['name']} reassigned to {station['station_name']} by {current_user.username}")
-
-        return jsonify(
-            {
-                "success": True,
-                "message": f"{agent['name']} reassigned to {station['station_name']}",
-                "agent_id": agent_id,
-                "station_code": new_station_code,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"{agent['name']} reassigned to {station['station_name']}",
+                    "agent_id": agent_id,
+                    "station_code": new_station_code,
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error reassigning agent: {e}")
@@ -6668,13 +6267,10 @@ def reassign_agent():
 def get_routing_mode():
     """Get current bridge routing mode."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "routing_mode": row["value"] if row else "full"})
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
+            row = cur.fetchone()
+            return jsonify({"success": True, "routing_mode": row["value"] if row else "full"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -6689,21 +6285,17 @@ def set_routing_mode():
     if mode not in ("local_only", "local_cloud", "full"):
         return jsonify({"success": False, "error": f"Invalid mode: {mode}"}), 400
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO platform_settings (key, value, value_type, description, updated_at)
-            VALUES ('routing_mode', %s, 'string', 'Bridge routing mode', NOW())
-            ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()
-        """,
-            (mode, mode),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info(f"[Bridge] Routing mode changed to: {mode}")
-        return jsonify({"success": True, "routing_mode": mode})
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+                VALUES ('routing_mode', %s, 'string', 'Bridge routing mode', NOW())
+                ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()
+            """,
+                (mode, mode),
+            )
+            logger.info(f"[Bridge] Routing mode changed to: {mode}")
+            return jsonify({"success": True, "routing_mode": mode})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -6713,13 +6305,10 @@ def set_routing_mode():
 def get_escalation_mode():
     """Get current bridge escalation mode."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT value FROM platform_settings WHERE key = 'escalation_mode'")
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "escalation_mode": row["value"] if row else "auto"})
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'escalation_mode'")
+            row = cur.fetchone()
+            return jsonify({"success": True, "escalation_mode": row["value"] if row else "auto"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -6734,21 +6323,17 @@ def set_escalation_mode():
     if mode not in ("auto", "ask_first", "local_only"):
         return jsonify({"success": False, "error": f"Invalid mode: {mode}"}), 400
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO platform_settings (key, value, value_type, description, updated_at)
-            VALUES ('escalation_mode', %s, 'string', 'Throughput escalation mode', NOW())
-            ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()
-        """,
-            (mode, mode),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-        logger.info(f"[Bridge] Escalation mode changed to: {mode}")
-        return jsonify({"success": True, "escalation_mode": mode})
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+                VALUES ('escalation_mode', %s, 'string', 'Throughput escalation mode', NOW())
+                ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()
+            """,
+                (mode, mode),
+            )
+            logger.info(f"[Bridge] Escalation mode changed to: {mode}")
+            return jsonify({"success": True, "escalation_mode": mode})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -6759,30 +6344,27 @@ def get_escalation_log():
     """Get recent escalation events."""
     limit = request.args.get("limit", 20, type=int)
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT del.*, a.name as agent_name
-            FROM dispatch_escalation_log del
-            LEFT JOIN agents a ON a.id = del.original_agent_id
-            ORDER BY del.created_at DESC
-            LIMIT %s
-        """,
-            (limit,),
-        )
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        # Convert datetime objects for JSON serialization
-        result = []
-        for r in rows:
-            d = dict(r)
-            for k, v in d.items():
-                if hasattr(v, "isoformat"):
-                    d[k] = v.isoformat()
-            result.append(d)
-        return jsonify({"success": True, "escalations": result})
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT del.*, a.name as agent_name
+                FROM dispatch_escalation_log del
+                LEFT JOIN agents a ON a.id = del.original_agent_id
+                ORDER BY del.created_at DESC
+                LIMIT %s
+            """,
+                (limit,),
+            )
+            rows = cur.fetchall()
+            # Convert datetime objects for JSON serialization
+            result = []
+            for r in rows:
+                d = dict(r)
+                for k, v in d.items():
+                    if hasattr(v, "isoformat"):
+                        d[k] = v.isoformat()
+                result.append(d)
+            return jsonify({"success": True, "escalations": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -6832,234 +6414,238 @@ def get_external_providers():
     }
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # 1. Fetch DB-managed providers from external_api_keys
-        cur.execute(
+            # 1. Fetch DB-managed providers from external_api_keys
+            cur.execute(
+                """
+                SELECT id, provider, is_active, monthly_budget_usd, current_month_cost_usd,
+                       budget_reset_day, created_at, updated_at,
+                       CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != ''
+                            THEN '****' || RIGHT(api_key_encrypted, 4) ELSE NULL END as key_hint
+                FROM external_api_keys
+                ORDER BY provider
             """
-            SELECT id, provider, is_active, monthly_budget_usd, current_month_cost_usd,
-                   budget_reset_day, created_at, updated_at,
-                   CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != ''
-                        THEN '****' || RIGHT(api_key_encrypted, 4) ELSE NULL END as key_hint
-            FROM external_api_keys
-            ORDER BY provider
-        """
-        )
-        db_providers = {row["provider"]: dict(row) for row in cur.fetchall()}
+            )
+            db_providers = {row["provider"]: dict(row) for row in cur.fetchall()}
 
-        # 2. Fetch 24h usage stats grouped by provider and model
-        cur.execute(
+            # 2. Fetch 24h usage stats grouped by provider and model
+            cur.execute(
+                """
+                SELECT model_name, provider,
+                       COUNT(*) as requests,
+                       COALESCE(SUM(cost_usd), 0) as cost,
+                       COALESCE(AVG(response_ms), 0) as avg_latency_ms,
+                       ROUND(100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END)
+                             / NULLIF(COUNT(*), 0), 1) as success_rate
+                FROM cloud_model_usage
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY model_name, provider
             """
-            SELECT model_name, provider,
-                   COUNT(*) as requests,
-                   COALESCE(SUM(cost_usd), 0) as cost,
-                   COALESCE(AVG(response_ms), 0) as avg_latency_ms,
-                   ROUND(100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END)
-                         / NULLIF(COUNT(*), 0), 1) as success_rate
-            FROM cloud_model_usage
-            WHERE created_at >= NOW() - INTERVAL '24 hours'
-            GROUP BY model_name, provider
-        """
-        )
-        usage_rows = cur.fetchall()
+            )
+            usage_rows = cur.fetchall()
 
-        # Index stats by model_name for easy lookup
-        stats_by_model = {}
-        for row in usage_rows:
-            stats_by_model[row["model_name"]] = {
-                "requests": row["requests"],
-                "cost": float(row["cost"]),
-                "avg_latency_ms": round(float(row["avg_latency_ms"]), 1),
-                "success_rate": float(row["success_rate"]) if row["success_rate"] is not None else 100.0,
-            }
+            # Index stats by model_name for easy lookup
+            stats_by_model = {}
+            for row in usage_rows:
+                stats_by_model[row["model_name"]] = {
+                    "requests": row["requests"],
+                    "cost": float(row["cost"]),
+                    "avg_latency_ms": round(float(row["avg_latency_ms"]), 1),
+                    "success_rate": float(row["success_rate"]) if row["success_rate"] is not None else 100.0,
+                }
 
-        # 3. Fetch per-model disabled state from platform_settings
-        cur.execute(
+            # 3. Fetch per-model disabled state from platform_settings
+            cur.execute(
+                """
+                SELECT key, value FROM platform_settings
+                WHERE key LIKE 'model_disabled:%%'
             """
-            SELECT key, value FROM platform_settings
-            WHERE key LIKE 'model_disabled:%%'
-        """
-        )
-        disabled_models = set()
-        for row in cur.fetchall():
-            # key format: model_disabled:<model_name>
-            model_name = row["key"].replace("model_disabled:", "", 1)
-            if row["value"].lower() == "true":
-                disabled_models.add(model_name)
+            )
+            disabled_models = set()
+            for row in cur.fetchall():
+                # key format: model_disabled:<model_name>
+                model_name = row["key"].replace("model_disabled:", "", 1)
+                if row["value"].lower() == "true":
+                    disabled_models.add(model_name)
 
-        # 4. Fetch IAAE governance events from last 24h
-        cur.execute(
+            # 4. Fetch IAAE governance events from last 24h
+            cur.execute(
+                """
+                SELECT COUNT(*) as total,
+                       SUM(CASE WHEN outcome = 'blocked' THEN 1 ELSE 0 END) as blocked
+                FROM governance_audit_log
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(*) as total,
-                   SUM(CASE WHEN outcome = 'blocked' THEN 1 ELSE 0 END) as blocked
-            FROM governance_audit_log
-            WHERE timestamp >= NOW() - INTERVAL '24 hours'
-        """
-        )
-        iaae_row = cur.fetchone()
-        iaae_total_24h = iaae_row["total"] if iaae_row else 0
-        iaae_blocked_24h = iaae_row["blocked"] if iaae_row and iaae_row["blocked"] else 0
+            )
+            iaae_row = cur.fetchone()
+            iaae_total_24h = iaae_row["total"] if iaae_row else 0
+            iaae_blocked_24h = iaae_row["blocked"] if iaae_row and iaae_row["blocked"] else 0
 
-        cur.close()
-        conn.close()
+            # 5. Check if Ollama cloud API key is available (for MiniMax/Qwen3 virtual providers)
+            ollama_api_key_set = bool(os.environ.get("OLLAMA_API_KEY", "").strip())
 
-        # 5. Check if Ollama cloud API key is available (for MiniMax/Qwen3 virtual providers)
-        ollama_api_key_set = bool(os.environ.get("OLLAMA_API_KEY", "").strip())
+            # 6. Build the response for each provider
+            result = []
 
-        # 6. Build the response for each provider
-        result = []
+            # DB-managed providers (openai, perplexity, xai)
+            for provider_name in ["openai", "perplexity", "xai"]:
+                db_row = db_providers.get(provider_name)
+                models_def = PROVIDER_MODELS.get(provider_name, [])
 
-        # DB-managed providers (openai, perplexity, xai)
-        for provider_name in ["openai", "perplexity", "xai"]:
-            db_row = db_providers.get(provider_name)
-            models_def = PROVIDER_MODELS.get(provider_name, [])
+                is_active = db_row["is_active"] if db_row else False
+                monthly_budget = float(db_row["monthly_budget_usd"]) if db_row else 10.0
+                current_cost = float(db_row["current_month_cost_usd"]) if db_row else 0.0
+                budget_pct = round((current_cost / monthly_budget) * 100, 1) if monthly_budget > 0 else 0.0
 
-            is_active = db_row["is_active"] if db_row else False
-            monthly_budget = float(db_row["monthly_budget_usd"]) if db_row else 10.0
-            current_cost = float(db_row["current_month_cost_usd"]) if db_row else 0.0
-            budget_pct = round((current_cost / monthly_budget) * 100, 1) if monthly_budget > 0 else 0.0
+                # Aggregate 24h stats across all models for this provider
+                provider_requests = 0
+                provider_cost = 0.0
+                provider_latency_sum = 0.0
+                provider_success_sum = 0.0
+                provider_models_with_stats = 0
 
-            # Aggregate 24h stats across all models for this provider
-            provider_requests = 0
-            provider_cost = 0.0
-            provider_latency_sum = 0.0
-            provider_success_sum = 0.0
-            provider_models_with_stats = 0
+                models_out = []
+                for m in models_def:
+                    m_stats = stats_by_model.get(
+                        m["name"],
+                        {
+                            "requests": 0,
+                            "cost": 0.0,
+                            "avg_latency_ms": 0.0,
+                            "success_rate": 100.0,
+                        },
+                    )
+                    tier_pos = TIER_ORDER.get(m["tier"], -1)
 
-            models_out = []
-            for m in models_def:
-                m_stats = stats_by_model.get(
-                    m["name"],
-                    {
-                        "requests": 0,
-                        "cost": 0.0,
-                        "avg_latency_ms": 0.0,
-                        "success_rate": 100.0,
+                    models_out.append(
+                        {
+                            "name": m["name"],
+                            "tier": m["tier"],
+                            "tier_position": tier_pos,
+                            "enabled": m["name"] not in disabled_models,
+                            "stats_24h": m_stats,
+                        }
+                    )
+
+                    provider_requests += m_stats["requests"]
+                    provider_cost += m_stats["cost"]
+                    if m_stats["requests"] > 0:
+                        provider_latency_sum += m_stats["avg_latency_ms"]
+                        provider_success_sum += m_stats["success_rate"]
+                        provider_models_with_stats += 1
+
+                avg_latency = (
+                    round(provider_latency_sum / provider_models_with_stats, 1)
+                    if provider_models_with_stats > 0
+                    else 0.0
+                )
+                avg_success = (
+                    round(provider_success_sum / provider_models_with_stats, 1)
+                    if provider_models_with_stats > 0
+                    else 100.0
+                )
+
+                tier_positions = {m["name"]: TIER_ORDER.get(m["tier"], -1) for m in models_def}
+
+                entry = {
+                    "provider": provider_name,
+                    "is_active": is_active,
+                    "monthly_budget_usd": monthly_budget,
+                    "current_month_cost_usd": current_cost,
+                    "budget_pct": budget_pct,
+                    "source": "db",
+                    "key_hint": db_row.get("key_hint") if db_row else None,
+                    "tier_positions": tier_positions,
+                    "stats_24h": {
+                        "requests": provider_requests,
+                        "cost": round(provider_cost, 6),
+                        "success_rate": avg_success,
+                        "avg_latency_ms": avg_latency,
                     },
+                    "models": models_out,
+                }
+                result.append(entry)
+
+            # Cloud-config virtual providers (MiniMax Cloud, Qwen3 Cloud)
+            for provider_name in ["minimax_cloud", "qwen3_cloud"]:
+                models_def = PROVIDER_MODELS.get(provider_name, [])
+
+                provider_requests = 0
+                provider_cost = 0.0
+                provider_latency_sum = 0.0
+                provider_success_sum = 0.0
+                provider_models_with_stats = 0
+
+                models_out = []
+                for m in models_def:
+                    m_stats = stats_by_model.get(
+                        m["name"],
+                        {
+                            "requests": 0,
+                            "cost": 0.0,
+                            "avg_latency_ms": 0.0,
+                            "success_rate": 100.0,
+                        },
+                    )
+                    tier_pos = TIER_ORDER.get(m["tier"], -1)
+
+                    models_out.append(
+                        {
+                            "name": m["name"],
+                            "tier": m["tier"],
+                            "tier_position": tier_pos,
+                            "enabled": m["name"] not in disabled_models,
+                            "stats_24h": m_stats,
+                        }
+                    )
+
+                    provider_requests += m_stats["requests"]
+                    provider_cost += m_stats["cost"]
+                    if m_stats["requests"] > 0:
+                        provider_latency_sum += m_stats["avg_latency_ms"]
+                        provider_success_sum += m_stats["success_rate"]
+                        provider_models_with_stats += 1
+
+                avg_latency = (
+                    round(provider_latency_sum / provider_models_with_stats, 1)
+                    if provider_models_with_stats > 0
+                    else 0.0
                 )
-                tier_pos = TIER_ORDER.get(m["tier"], -1)
-
-                models_out.append(
-                    {
-                        "name": m["name"],
-                        "tier": m["tier"],
-                        "tier_position": tier_pos,
-                        "enabled": m["name"] not in disabled_models,
-                        "stats_24h": m_stats,
-                    }
+                avg_success = (
+                    round(provider_success_sum / provider_models_with_stats, 1)
+                    if provider_models_with_stats > 0
+                    else 100.0
                 )
 
-                provider_requests += m_stats["requests"]
-                provider_cost += m_stats["cost"]
-                if m_stats["requests"] > 0:
-                    provider_latency_sum += m_stats["avg_latency_ms"]
-                    provider_success_sum += m_stats["success_rate"]
-                    provider_models_with_stats += 1
+                tier_positions = {m["name"]: TIER_ORDER.get(m["tier"], -1) for m in models_def}
 
-            avg_latency = (
-                round(provider_latency_sum / provider_models_with_stats, 1) if provider_models_with_stats > 0 else 0.0
-            )
-            avg_success = (
-                round(provider_success_sum / provider_models_with_stats, 1) if provider_models_with_stats > 0 else 100.0
-            )
-
-            tier_positions = {m["name"]: TIER_ORDER.get(m["tier"], -1) for m in models_def}
-
-            entry = {
-                "provider": provider_name,
-                "is_active": is_active,
-                "monthly_budget_usd": monthly_budget,
-                "current_month_cost_usd": current_cost,
-                "budget_pct": budget_pct,
-                "source": "db",
-                "key_hint": db_row.get("key_hint") if db_row else None,
-                "tier_positions": tier_positions,
-                "stats_24h": {
-                    "requests": provider_requests,
-                    "cost": round(provider_cost, 6),
-                    "success_rate": avg_success,
-                    "avg_latency_ms": avg_latency,
-                },
-                "models": models_out,
-            }
-            result.append(entry)
-
-        # Cloud-config virtual providers (MiniMax Cloud, Qwen3 Cloud)
-        for provider_name in ["minimax_cloud", "qwen3_cloud"]:
-            models_def = PROVIDER_MODELS.get(provider_name, [])
-
-            provider_requests = 0
-            provider_cost = 0.0
-            provider_latency_sum = 0.0
-            provider_success_sum = 0.0
-            provider_models_with_stats = 0
-
-            models_out = []
-            for m in models_def:
-                m_stats = stats_by_model.get(
-                    m["name"],
-                    {
-                        "requests": 0,
-                        "cost": 0.0,
-                        "avg_latency_ms": 0.0,
-                        "success_rate": 100.0,
+                entry = {
+                    "provider": provider_name,
+                    "is_active": ollama_api_key_set,
+                    "monthly_budget_usd": 0.0,
+                    "current_month_cost_usd": round(provider_cost, 6),
+                    "budget_pct": 0.0,
+                    "source": "cloud_config",
+                    "tier_positions": tier_positions,
+                    "stats_24h": {
+                        "requests": provider_requests,
+                        "cost": round(provider_cost, 6),
+                        "success_rate": avg_success,
+                        "avg_latency_ms": avg_latency,
                     },
-                )
-                tier_pos = TIER_ORDER.get(m["tier"], -1)
+                    "models": models_out,
+                }
+                result.append(entry)
 
-                models_out.append(
-                    {
-                        "name": m["name"],
-                        "tier": m["tier"],
-                        "tier_position": tier_pos,
-                        "enabled": m["name"] not in disabled_models,
-                        "stats_24h": m_stats,
-                    }
-                )
-
-                provider_requests += m_stats["requests"]
-                provider_cost += m_stats["cost"]
-                if m_stats["requests"] > 0:
-                    provider_latency_sum += m_stats["avg_latency_ms"]
-                    provider_success_sum += m_stats["success_rate"]
-                    provider_models_with_stats += 1
-
-            avg_latency = (
-                round(provider_latency_sum / provider_models_with_stats, 1) if provider_models_with_stats > 0 else 0.0
+            return jsonify(
+                {
+                    "success": True,
+                    "providers": result,
+                    "iaae_total_24h": iaae_total_24h,
+                    "iaae_blocked_24h": iaae_blocked_24h,
+                }
             )
-            avg_success = (
-                round(provider_success_sum / provider_models_with_stats, 1) if provider_models_with_stats > 0 else 100.0
-            )
-
-            tier_positions = {m["name"]: TIER_ORDER.get(m["tier"], -1) for m in models_def}
-
-            entry = {
-                "provider": provider_name,
-                "is_active": ollama_api_key_set,
-                "monthly_budget_usd": 0.0,
-                "current_month_cost_usd": round(provider_cost, 6),
-                "budget_pct": 0.0,
-                "source": "cloud_config",
-                "tier_positions": tier_positions,
-                "stats_24h": {
-                    "requests": provider_requests,
-                    "cost": round(provider_cost, 6),
-                    "success_rate": avg_success,
-                    "avg_latency_ms": avg_latency,
-                },
-                "models": models_out,
-            }
-            result.append(entry)
-
-        return jsonify(
-            {
-                "success": True,
-                "providers": result,
-                "iaae_total_24h": iaae_total_24h,
-                "iaae_blocked_24h": iaae_blocked_24h,
-            }
-        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7088,23 +6674,19 @@ def upsert_external_provider():
 
     budget = data.get("monthly_budget_usd", 10.0)
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            INSERT INTO external_api_keys (provider, api_key_encrypted, monthly_budget_usd, is_active)
-            VALUES (%s, %s, %s, TRUE)
-            ON CONFLICT (provider) DO UPDATE SET
-                api_key_encrypted = %s, monthly_budget_usd = %s, is_active = TRUE, updated_at = NOW()
-            RETURNING id, provider, is_active, monthly_budget_usd
-        """,
-            (provider, api_key, budget, api_key, budget),
-        )
-        row = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "provider": dict(row)})
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO external_api_keys (provider, api_key_encrypted, monthly_budget_usd, is_active)
+                VALUES (%s, %s, %s, TRUE)
+                ON CONFLICT (provider) DO UPDATE SET
+                    api_key_encrypted = %s, monthly_budget_usd = %s, is_active = TRUE, updated_at = NOW()
+                RETURNING id, provider, is_active, monthly_budget_usd
+            """,
+                (provider, api_key, budget, api_key, budget),
+            )
+            row = cur.fetchone()
+            return jsonify({"success": True, "provider": dict(row)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7115,16 +6697,12 @@ def upsert_external_provider():
 def toggle_external_provider(provider):
     """Enable/disable an external provider."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE external_api_keys SET is_active = NOT is_active, updated_at = NOW() WHERE provider = %s",
-            (provider,),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True})
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
+            cur.execute(
+                "UPDATE external_api_keys SET is_active = NOT is_active, updated_at = NOW() WHERE provider = %s",
+                (provider,),
+            )
+            return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7151,29 +6729,25 @@ def toggle_provider_model(provider, model_name):
         )
 
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        setting_key = f"model_disabled:{model_name}"
-        # Store as disabled flag: enabled=True means NOT disabled, so value="false"
-        disabled_value = "false" if enabled else "true"
-        cur.execute(
-            """
-            INSERT INTO platform_settings (key, value, value_type, description, updated_at)
-            VALUES (%s, %s, 'boolean', %s, NOW())
-            ON CONFLICT (key) DO UPDATE SET
-                value = EXCLUDED.value,
-                updated_at = NOW()
-            """,
-            (
-                setting_key,
-                disabled_value,
-                f"Model routing toggle for {model_name} (provider: {provider})",
-            ),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-        return jsonify({"success": True, "model": model_name, "enabled": enabled})
+        with get_db_cursor(cursor_factory=None) as (conn, cur):
+            setting_key = f"model_disabled:{model_name}"
+            # Store as disabled flag: enabled=True means NOT disabled, so value="false"
+            disabled_value = "false" if enabled else "true"
+            cur.execute(
+                """
+                INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+                VALUES (%s, %s, 'boolean', %s, NOW())
+                ON CONFLICT (key) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    updated_at = NOW()
+                """,
+                (
+                    setting_key,
+                    disabled_value,
+                    f"Model routing toggle for {model_name} (provider: {provider})",
+                ),
+            )
+            return jsonify({"success": True, "model": model_name, "enabled": enabled})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7188,42 +6762,39 @@ def toggle_provider_model(provider, model_name):
 def get_module_agents():
     """Get assigned agent info for all active modules (for dashboard badges)."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT
+                    bs.station_code,
+                    UNNEST(bs.modules) as module_id,
+                    a.name as agent_codename,
+                    a.first_name,
+                    a.display_name,
+                    a.model,
+                    a.status as agent_status
+                FROM bridge_stations bs
+                JOIN station_assignments sa ON sa.station_id = bs.id AND sa.is_active = TRUE
+                JOIN agents a ON a.id = sa.agent_id AND a.status = 'active'
+                WHERE bs.is_active = TRUE
+                ORDER BY bs.station_code
             """
-            SELECT
-                bs.station_code,
-                UNNEST(bs.modules) as module_id,
-                a.name as agent_codename,
-                a.first_name,
-                a.display_name,
-                a.model,
-                a.status as agent_status
-            FROM bridge_stations bs
-            JOIN station_assignments sa ON sa.station_id = bs.id AND sa.is_active = TRUE
-            JOIN agents a ON a.id = sa.agent_id AND a.status = 'active'
-            WHERE bs.is_active = TRUE
-            ORDER BY bs.station_code
-        """
-        )
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+            )
+            rows = cur.fetchall()
 
-        module_agents = {}
-        for row in rows:
-            mid = row["module_id"]
-            if mid not in module_agents:
-                module_agents[mid] = {
-                    "agent_codename": row["agent_codename"],
-                    "first_name": row["first_name"] or row["agent_codename"],
-                    "display_name": row["display_name"] or row["agent_codename"],
-                    "station_code": row["station_code"],
-                    "status": row["agent_status"],
-                }
+            module_agents = {}
+            for row in rows:
+                mid = row["module_id"]
+                if mid not in module_agents:
+                    module_agents[mid] = {
+                        "agent_codename": row["agent_codename"],
+                        "first_name": row["first_name"] or row["agent_codename"],
+                        "display_name": row["display_name"] or row["agent_codename"],
+                        "station_code": row["station_code"],
+                        "status": row["agent_status"],
+                    }
 
-        return jsonify({"success": True, "module_agents": module_agents})
+            return jsonify({"success": True, "module_agents": module_agents})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7264,24 +6835,21 @@ def activity_stream():
 def activity_history():
     """Return last 50 activity events for initial page load."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT e.id, e.event_type, e.agent_id, e.data, e.created_at,
+                       a.name AS agent_name, a.display_name
+                FROM agent_activity_events e
+                LEFT JOIN agents a ON a.id = e.agent_id
+                ORDER BY e.created_at DESC
+                LIMIT 50
             """
-            SELECT e.id, e.event_type, e.agent_id, e.data, e.created_at,
-                   a.name AS agent_name, a.display_name
-            FROM agent_activity_events e
-            LEFT JOIN agents a ON a.id = e.agent_id
-            ORDER BY e.created_at DESC
-            LIMIT 50
-        """
-        )
-        events = cur.fetchall()
-        cur.close()
-        conn.close()
-        for ev in events:
-            ev["created_at"] = ev["created_at"].isoformat() if ev["created_at"] else None
-        return jsonify(events)
+            )
+            events = cur.fetchall()
+            for ev in events:
+                ev["created_at"] = ev["created_at"].isoformat() if ev["created_at"] else None
+            return jsonify(events)
     except Exception as e:
         logger.error("activity_history error: %s", e)
         return jsonify([])
@@ -7293,36 +6861,33 @@ def agent_executions(agent_id):
     """Recent execution history for a specific agent via orchestration_steps."""
     limit = request.args.get("limit", 10, type=int)
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Sessions where this agent participated (via steps)
-        cur.execute(
-            """
-            SELECT DISTINCT ON (os.id)
-                   os.id, os.session_id, os.status,
-                   os.total_duration_ms, os.total_steps,
-                   os.created_at, os.completed_at,
-                   st.model_used,
-                   (SELECT COUNT(*) FROM orchestration_steps s2
-                    WHERE s2.session_id = os.id) AS step_count
-            FROM orchestration_sessions os
-            JOIN orchestration_steps st ON st.session_id = os.id
-                AND st.agent_id = %s
-            ORDER BY os.id DESC, st.id DESC
-            LIMIT %s
-        """,
-            (agent_id, limit),
-        )
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        for r in rows:
-            r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else None
-            r["completed_at"] = r["completed_at"].isoformat() if r.get("completed_at") else None
-            # Convert UUID to string for JSON serialization
-            if r.get("session_id"):
-                r["session_id"] = str(r["session_id"])
-        return jsonify(rows)
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Sessions where this agent participated (via steps)
+            cur.execute(
+                """
+                SELECT DISTINCT ON (os.id)
+                       os.id, os.session_id, os.status,
+                       os.total_duration_ms, os.total_steps,
+                       os.created_at, os.completed_at,
+                       st.model_used,
+                       (SELECT COUNT(*) FROM orchestration_steps s2
+                        WHERE s2.session_id = os.id) AS step_count
+                FROM orchestration_sessions os
+                JOIN orchestration_steps st ON st.session_id = os.id
+                    AND st.agent_id = %s
+                ORDER BY os.id DESC, st.id DESC
+                LIMIT %s
+            """,
+                (agent_id, limit),
+            )
+            rows = cur.fetchall()
+            for r in rows:
+                r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else None
+                r["completed_at"] = r["completed_at"].isoformat() if r.get("completed_at") else None
+                # Convert UUID to string for JSON serialization
+                if r.get("session_id"):
+                    r["session_id"] = str(r["session_id"])
+            return jsonify(rows)
     except Exception as e:
         logger.error("agent_executions error: %s", e)
         return jsonify([])
@@ -7333,40 +6898,37 @@ def agent_executions(agent_id):
 def agent_emotional_state_detail(agent_id):
     """Current emotional state for a specific agent."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT current_mood, mood_intensity, stress_level, energy_level,
-                   previous_mood, trigger_event, timestamp, metadata
-            FROM agent_emotional_state
-            WHERE agent_id = %s
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """,
-            (agent_id,),
-        )
-        state = cur.fetchone()
-        # Also get last rest cycle
-        cur.execute(
-            """
-            SELECT rest_type, started_at, ended_at, reason, initiated_by
-            FROM agent_rest_cycles
-            WHERE agent_id = %s
-            ORDER BY started_at DESC
-            LIMIT 1
-        """,
-            (agent_id,),
-        )
-        rest = cur.fetchone()
-        cur.close()
-        conn.close()
-        if state:
-            state["timestamp"] = state["timestamp"].isoformat() if state.get("timestamp") else None
-        if rest:
-            rest["started_at"] = rest["started_at"].isoformat() if rest.get("started_at") else None
-            rest["ended_at"] = rest["ended_at"].isoformat() if rest.get("ended_at") else None
-        return jsonify({"emotional_state": state, "last_rest": rest})
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, stress_level, energy_level,
+                       previous_mood, trigger_event, timestamp, metadata
+                FROM agent_emotional_state
+                WHERE agent_id = %s
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """,
+                (agent_id,),
+            )
+            state = cur.fetchone()
+            # Also get last rest cycle
+            cur.execute(
+                """
+                SELECT rest_type, started_at, ended_at, reason, initiated_by
+                FROM agent_rest_cycles
+                WHERE agent_id = %s
+                ORDER BY started_at DESC
+                LIMIT 1
+            """,
+                (agent_id,),
+            )
+            rest = cur.fetchone()
+            if state:
+                state["timestamp"] = state["timestamp"].isoformat() if state.get("timestamp") else None
+            if rest:
+                rest["started_at"] = rest["started_at"].isoformat() if rest.get("started_at") else None
+                rest["ended_at"] = rest["ended_at"].isoformat() if rest.get("ended_at") else None
+            return jsonify({"emotional_state": state, "last_rest": rest})
     except Exception as e:
         logger.error("agent_emotional_state_detail error: %s", e)
         return jsonify({"emotional_state": None, "last_rest": None})
@@ -7377,124 +6939,118 @@ def agent_emotional_state_detail(agent_id):
 def agent_profile(agent_id):
     """Aggregated agent profile: details, skills, emotional state, performance, memory."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
 
-        # Agent details
-        cur.execute(
-            """
-            SELECT a.id, a.name, a.first_name, a.last_name, a.title,
-                   a.department, a.bio, a.model, a.status, a.avatar_url,
-                   a.pronouns, a.worker_type, a.cost_tier, a.capabilities,
-                   a.created_at, a.last_used,
-                   bs.station_code, bs.station_name, bs.color as station_color
-            FROM agents a
-            LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
-            LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
-            WHERE a.id = %s
-        """,
-            (agent_id,),
-        )
-        agent = cur.fetchone()
-        if not agent:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Agent not found"}), 404
+            # Agent details
+            cur.execute(
+                """
+                SELECT a.id, a.name, a.first_name, a.last_name, a.title,
+                       a.department, a.bio, a.model, a.status, a.avatar_url,
+                       a.pronouns, a.worker_type, a.cost_tier, a.capabilities,
+                       a.created_at, a.last_used,
+                       bs.station_code, bs.station_name, bs.color as station_color
+                FROM agents a
+                LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                WHERE a.id = %s
+            """,
+                (agent_id,),
+            )
+            agent = cur.fetchone()
+            if not agent:
+                return jsonify({"success": False, "error": "Agent not found"}), 404
 
-        for k in ["created_at", "last_used"]:
-            if agent.get(k):
-                agent[k] = agent[k].isoformat()
+            for k in ["created_at", "last_used"]:
+                if agent.get(k):
+                    agent[k] = agent[k].isoformat()
 
-        # Skills
-        cur.execute(
-            """
-            SELECT skill_name, skill_category, proficiency_level, notes
-            FROM agent_skills WHERE agent_id = %s
-            ORDER BY proficiency_level DESC, skill_name
-        """,
-            (agent_id,),
-        )
-        skills = cur.fetchall()
+            # Skills
+            cur.execute(
+                """
+                SELECT skill_name, skill_category, proficiency_level, notes
+                FROM agent_skills WHERE agent_id = %s
+                ORDER BY proficiency_level DESC, skill_name
+            """,
+                (agent_id,),
+            )
+            skills = cur.fetchall()
 
-        # Emotional state (latest)
-        cur.execute(
-            """
-            SELECT current_mood, mood_intensity, stress_level, energy_level,
-                   trigger_event, timestamp
-            FROM agent_emotional_state WHERE agent_id = %s
-            ORDER BY timestamp DESC LIMIT 1
-        """,
-            (agent_id,),
-        )
-        emotional = cur.fetchone()
-        if emotional and emotional.get("timestamp"):
-            emotional["timestamp"] = emotional["timestamp"].isoformat()
+            # Emotional state (latest)
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, stress_level, energy_level,
+                       trigger_event, timestamp
+                FROM agent_emotional_state WHERE agent_id = %s
+                ORDER BY timestamp DESC LIMIT 1
+            """,
+                (agent_id,),
+            )
+            emotional = cur.fetchone()
+            if emotional and emotional.get("timestamp"):
+                emotional["timestamp"] = emotional["timestamp"].isoformat()
 
-        # Performance (24h)
-        cur.execute(
-            """
-            SELECT COUNT(*) as tasks_24h,
-                   COUNT(*) FILTER (WHERE success = TRUE) as completed,
-                   COUNT(*) FILTER (WHERE success = FALSE) as failed,
-                   COALESCE(AVG(duration_ms), 0) as avg_duration_ms
-            FROM task_execution_log
-            WHERE agent_id = %s AND created_at >= NOW() - INTERVAL '24 hours'
-        """,
-            (agent_id,),
-        )
-        perf = cur.fetchone()
+            # Performance (24h)
+            cur.execute(
+                """
+                SELECT COUNT(*) as tasks_24h,
+                       COUNT(*) FILTER (WHERE success = TRUE) as completed,
+                       COUNT(*) FILTER (WHERE success = FALSE) as failed,
+                       COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+                FROM task_execution_log
+                WHERE agent_id = %s AND created_at >= NOW() - INTERVAL '24 hours'
+            """,
+                (agent_id,),
+            )
+            perf = cur.fetchone()
 
-        # Recent tasks (last 10)
-        cur.execute(
-            """
-            SELECT id, module_source, task_type, capability, model_used,
-                   duration_ms, success, error_message, created_at
-            FROM task_execution_log
-            WHERE agent_id = %s
-            ORDER BY created_at DESC LIMIT 10
-        """,
-            (agent_id,),
-        )
-        recent = cur.fetchall()
-        for r in recent:
-            if r.get("created_at"):
-                r["created_at"] = r["created_at"].isoformat()
+            # Recent tasks (last 10)
+            cur.execute(
+                """
+                SELECT id, module_source, task_type, capability, model_used,
+                       duration_ms, success, error_message, created_at
+                FROM task_execution_log
+                WHERE agent_id = %s
+                ORDER BY created_at DESC LIMIT 10
+            """,
+                (agent_id,),
+            )
+            recent = cur.fetchall()
+            for r in recent:
+                if r.get("created_at"):
+                    r["created_at"] = r["created_at"].isoformat()
 
-        # Memory highlights (top 5 by importance)
-        cur.execute(
-            """
-            SELECT memory_type, content, importance_score, source_module, created_at
-            FROM agent_memory
-            WHERE agent_id = %s AND is_deleted = FALSE
-            ORDER BY importance_score DESC NULLS LAST
-            LIMIT 5
-        """,
-            (agent_id,),
-        )
-        memories = cur.fetchall()
-        for m in memories:
-            if m.get("created_at"):
-                m["created_at"] = m["created_at"].isoformat()
+            # Memory highlights (top 5 by importance)
+            cur.execute(
+                """
+                SELECT memory_type, content, importance_score, source_module, created_at
+                FROM agent_memory
+                WHERE agent_id = %s AND is_deleted = FALSE
+                ORDER BY importance_score DESC NULLS LAST
+                LIMIT 5
+            """,
+                (agent_id,),
+            )
+            memories = cur.fetchall()
+            for m in memories:
+                if m.get("created_at"):
+                    m["created_at"] = m["created_at"].isoformat()
 
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "agent": agent,
-                "skills": skills,
-                "emotional_state": emotional,
-                "performance_24h": {
-                    "tasks": perf["tasks_24h"],
-                    "completed": perf["completed"],
-                    "failed": perf["failed"],
-                    "avg_duration_ms": round(float(perf["avg_duration_ms"]), 1),
-                },
-                "recent_tasks": recent,
-                "memories": memories,
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "agent": agent,
+                    "skills": skills,
+                    "emotional_state": emotional,
+                    "performance_24h": {
+                        "tasks": perf["tasks_24h"],
+                        "completed": perf["completed"],
+                        "failed": perf["failed"],
+                        "avg_duration_ms": round(float(perf["avg_duration_ms"]), 1),
+                    },
+                    "recent_tasks": recent,
+                    "memories": memories,
+                }
+            )
 
     except Exception as e:
         logger.error("agent_profile error: %s", e)
@@ -7509,38 +7065,35 @@ def multi_agent_sessions():
     per_page = min(request.args.get("per_page", 20, type=int), 100)
     offset = (page - 1) * per_page
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Multi-agent sessions have multiple agent steps
-        cur.execute(
-            """
-            SELECT os.id, os.session_id, os.status,
-                   os.total_duration_ms, os.total_steps,
-                   os.created_at, os.completed_at,
-                   os.metadata,
-                   (SELECT COUNT(DISTINCT st.agent_id) FROM orchestration_steps st
-                    WHERE st.session_id = os.id AND st.agent_id IS NOT NULL) AS agent_count,
-                   (SELECT COUNT(*) FROM orchestration_steps st
-                    WHERE st.session_id = os.id) AS step_count
-            FROM orchestration_sessions os
-            WHERE os.total_steps > 3
-            ORDER BY os.created_at DESC
-            LIMIT %s OFFSET %s
-        """,
-            (per_page, offset),
-        )
-        sessions = cur.fetchall()
-        # Total count
-        cur.execute("SELECT COUNT(*) AS total FROM orchestration_sessions WHERE total_steps > 3")
-        total = cur.fetchone()["total"]
-        cur.close()
-        conn.close()
-        for s in sessions:
-            s["created_at"] = s["created_at"].isoformat() if s.get("created_at") else None
-            s["completed_at"] = s["completed_at"].isoformat() if s.get("completed_at") else None
-            if s.get("session_id"):
-                s["session_id"] = str(s["session_id"])
-        return jsonify({"sessions": sessions, "total": total, "page": page, "per_page": per_page})
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Multi-agent sessions have multiple agent steps
+            cur.execute(
+                """
+                SELECT os.id, os.session_id, os.status,
+                       os.total_duration_ms, os.total_steps,
+                       os.created_at, os.completed_at,
+                       os.metadata,
+                       (SELECT COUNT(DISTINCT st.agent_id) FROM orchestration_steps st
+                        WHERE st.session_id = os.id AND st.agent_id IS NOT NULL) AS agent_count,
+                       (SELECT COUNT(*) FROM orchestration_steps st
+                        WHERE st.session_id = os.id) AS step_count
+                FROM orchestration_sessions os
+                WHERE os.total_steps > 3
+                ORDER BY os.created_at DESC
+                LIMIT %s OFFSET %s
+            """,
+                (per_page, offset),
+            )
+            sessions = cur.fetchall()
+            # Total count
+            cur.execute("SELECT COUNT(*) AS total FROM orchestration_sessions WHERE total_steps > 3")
+            total = cur.fetchone()["total"]
+            for s in sessions:
+                s["created_at"] = s["created_at"].isoformat() if s.get("created_at") else None
+                s["completed_at"] = s["completed_at"].isoformat() if s.get("completed_at") else None
+                if s.get("session_id"):
+                    s["session_id"] = str(s["session_id"])
+            return jsonify({"sessions": sessions, "total": total, "page": page, "per_page": per_page})
     except Exception as e:
         logger.error("multi_agent_sessions error: %s", e)
         return jsonify({"sessions": [], "total": 0, "page": page, "per_page": per_page})
@@ -7551,43 +7104,40 @@ def multi_agent_sessions():
 def multi_agent_session_detail(session_id):
     """Full detail for a multi-agent session with steps."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Session info — match by UUID or integer id
-        cur.execute(
-            """
-            SELECT os.id, os.session_id, os.status,
-                   os.total_duration_ms, os.total_steps,
-                   os.created_at, os.completed_at, os.metadata
-            FROM orchestration_sessions os
-            WHERE os.session_id::text = %s OR os.id::text = %s
-        """,
-            (session_id, session_id),
-        )
-        session = cur.fetchone()
-        if not session:
-            return jsonify({"error": "Session not found"}), 404
-        session["created_at"] = session["created_at"].isoformat() if session.get("created_at") else None
-        session["completed_at"] = session["completed_at"].isoformat() if session.get("completed_at") else None
-        if session.get("session_id"):
-            session["session_id"] = str(session["session_id"])
-        # Steps
-        cur.execute(
-            """
-            SELECT st.id, st.step_type, st.step_order, st.step_data,
-                   st.duration_ms, st.success, st.agent_id, st.model_used,
-                   a.name AS agent_name, a.display_name
-            FROM orchestration_steps st
-            LEFT JOIN agents a ON a.id = st.agent_id
-            WHERE st.session_id = %s
-            ORDER BY st.step_order ASC, st.id ASC
-        """,
-            (session["id"],),
-        )
-        steps = cur.fetchall()
-        cur.close()
-        conn.close()
-        return jsonify({"session": session, "steps": steps})
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Session info — match by UUID or integer id
+            cur.execute(
+                """
+                SELECT os.id, os.session_id, os.status,
+                       os.total_duration_ms, os.total_steps,
+                       os.created_at, os.completed_at, os.metadata
+                FROM orchestration_sessions os
+                WHERE os.session_id::text = %s OR os.id::text = %s
+            """,
+                (session_id, session_id),
+            )
+            session = cur.fetchone()
+            if not session:
+                return jsonify({"error": "Session not found"}), 404
+            session["created_at"] = session["created_at"].isoformat() if session.get("created_at") else None
+            session["completed_at"] = session["completed_at"].isoformat() if session.get("completed_at") else None
+            if session.get("session_id"):
+                session["session_id"] = str(session["session_id"])
+            # Steps
+            cur.execute(
+                """
+                SELECT st.id, st.step_type, st.step_order, st.step_data,
+                       st.duration_ms, st.success, st.agent_id, st.model_used,
+                       a.name AS agent_name, a.display_name
+                FROM orchestration_steps st
+                LEFT JOIN agents a ON a.id = st.agent_id
+                WHERE st.session_id = %s
+                ORDER BY st.step_order ASC, st.id ASC
+            """,
+                (session["id"],),
+            )
+            steps = cur.fetchall()
+            return jsonify({"session": session, "steps": steps})
     except Exception as e:
         logger.error("multi_agent_session_detail error: %s", e)
         return jsonify({"error": str(e)}), 500
@@ -7598,61 +7148,60 @@ def multi_agent_session_detail(session_id):
 def fleet_metrics():
     """Aggregate fleet metrics for Mission Control."""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        # Active vs total agents
-        cur.execute("SELECT COUNT(*) AS total," " COUNT(*) FILTER (WHERE status = 'active') AS active" " FROM agents")
-        agents_row = cur.fetchone()
-        # Tasks this hour
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Active vs total agents
+            cur.execute(
+                "SELECT COUNT(*) AS total," " COUNT(*) FILTER (WHERE status = 'active') AS active" " FROM agents"
+            )
+            agents_row = cur.fetchone()
+            # Tasks this hour
+            cur.execute(
+                """
+                SELECT COUNT(*) AS count,
+                       AVG(total_duration_ms) AS avg_duration,
+                       COUNT(*) FILTER (WHERE status = 'failed') AS errors
+                FROM orchestration_sessions
+                WHERE created_at > NOW() - INTERVAL '1 hour'
             """
-            SELECT COUNT(*) AS count,
-                   AVG(total_duration_ms) AS avg_duration,
-                   COUNT(*) FILTER (WHERE status = 'failed') AS errors
-            FROM orchestration_sessions
-            WHERE created_at > NOW() - INTERVAL '1 hour'
-        """
-        )
-        tasks = cur.fetchone()
-        # GPU model (loaded Ollama model)
-        gpu_model = None
-        try:
-            resp = requests.get("http://host.docker.internal:11434/api/ps", timeout=3)
-            if resp.ok:
-                models = resp.json().get("models", [])
-                if models:
-                    gpu_model = models[0].get("name", "unknown")
-        except Exception:
-            pass
-        # Top agent today (via orchestration_steps linkage)
-        cur.execute(
+            )
+            tasks = cur.fetchone()
+            # GPU model (loaded Ollama model)
+            gpu_model = None
+            try:
+                resp = requests.get("http://host.docker.internal:11434/api/ps", timeout=3)
+                if resp.ok:
+                    models = resp.json().get("models", [])
+                    if models:
+                        gpu_model = models[0].get("name", "unknown")
+            except Exception:
+                pass
+            # Top agent today (via orchestration_steps linkage)
+            cur.execute(
+                """
+                SELECT a.name AS agent_name, a.display_name, COUNT(*) AS task_count
+                FROM orchestration_steps st
+                JOIN agents a ON a.id = st.agent_id
+                WHERE st.created_at > CURRENT_DATE
+                  AND st.step_type = 'execute'
+                GROUP BY a.id, a.name, a.display_name
+                ORDER BY task_count DESC
+                LIMIT 1
             """
-            SELECT a.name AS agent_name, a.display_name, COUNT(*) AS task_count
-            FROM orchestration_steps st
-            JOIN agents a ON a.id = st.agent_id
-            WHERE st.created_at > CURRENT_DATE
-              AND st.step_type = 'execute'
-            GROUP BY a.id, a.name, a.display_name
-            ORDER BY task_count DESC
-            LIMIT 1
-        """
-        )
-        top = cur.fetchone()
-        cur.close()
-        conn.close()
-        total_tasks = tasks["count"] or 0
-        error_count = tasks["errors"] or 0
-        return jsonify(
-            {
-                "active_agents": agents_row["active"] or 0,
-                "total_agents": agents_row["total"] or 0,
-                "tasks_this_hour": total_tasks,
-                "avg_duration_ms": round(float(tasks["avg_duration"] or 0)),
-                "error_rate": round((error_count / total_tasks * 100) if total_tasks > 0 else 0, 1),
-                "gpu_model": gpu_model,
-                "top_agent": top,
-            }
-        )
+            )
+            top = cur.fetchone()
+            total_tasks = tasks["count"] or 0
+            error_count = tasks["errors"] or 0
+            return jsonify(
+                {
+                    "active_agents": agents_row["active"] or 0,
+                    "total_agents": agents_row["total"] or 0,
+                    "tasks_this_hour": total_tasks,
+                    "avg_duration_ms": round(float(tasks["avg_duration"] or 0)),
+                    "error_rate": round((error_count / total_tasks * 100) if total_tasks > 0 else 0, 1),
+                    "gpu_model": gpu_model,
+                    "top_agent": top,
+                }
+            )
     except Exception as e:
         logger.error("fleet_metrics error: %s", e)
         return jsonify(

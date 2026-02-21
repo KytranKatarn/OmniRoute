@@ -5746,14 +5746,15 @@ function showNotification(message) {
 
 async function loadIAAEStatus() {
     try {
-        const response = await fetch('/tools/hr-management/api/iaae/summary');
+        const response = await fetch('/tools/bridge/api/agents/welfare');
         const data = await response.json();
 
-        if (data.success && data.summary) {
-            const s = data.summary;
-            // Status bar indicator (always present)
+        if (data.success) {
             const statusEl = document.getElementById('iaae-status');
-            if (statusEl) statusEl.textContent = `${s.healthy_agents || 0} OK`;
+            if (statusEl) {
+                var fh = data.fleet_health || {};
+                statusEl.textContent = (fh.active_agents || 0) + ' OK';
+            }
         }
     } catch (error) {
         console.error('Error loading IAAE status:', error);
@@ -5766,20 +5767,24 @@ async function loadIAAEStatus() {
 
 async function loadStaffingStatus() {
     try {
-        const response = await fetch('/tools/hr-management/api/shifts/status');
+        const response = await fetch('/tools/bridge/api/agents/workload');
         const data = await response.json();
 
-        if (data.success && data.staffing) {
-            const s = data.staffing;
+        if (data.success) {
             const badge = document.getElementById('staffing-badge');
             const text = document.getElementById('staffing-text');
+            var agents = data.agents || [];
+            var active = agents.filter(function(a) { return a.status === 'active'; }).length;
+            var total = agents.length;
 
-            if (s.staffing_status.includes('Full')) {
-                badge.className = 'staffing-badge full-staff';
-                text.textContent = 'Full Staff (9-5)';
-            } else {
-                badge.className = 'staffing-badge reduced-staff';
-                text.textContent = s.staffing_status;
+            if (badge && text) {
+                if (active === total && total > 0) {
+                    badge.className = 'staffing-badge full-staff';
+                    text.textContent = 'Full Staff';
+                } else {
+                    badge.className = 'staffing-badge reduced-staff';
+                    text.textContent = active + '/' + total + ' Active';
+                }
             }
         }
     } catch (error) {
@@ -5986,7 +5991,7 @@ async function removeNode(nodeId, nodeName) {
         var response = await fetch('/tools/bridge/api/nodes/' + nodeId, { method: 'DELETE' });
         var data = await response.json();
         if (data.success) {
-            showToast('Node removed: ' + esc(nodeName), 'success');
+            showToast('Node removed: ' + escapeHtml(nodeName), 'success');
             loadNodes();
             loadModelAvailability();
         } else {
@@ -6738,10 +6743,10 @@ function renderLocalModels(models) {
 
     grid.innerHTML = models.map(function(m) {
         return '<div class="model-card">' +
-            '<div class="model-name">' + esc(m.name) + '</div>' +
+            '<div class="model-name">' + escapeHtml(m.name) + '</div>' +
             '<div class="model-meta">' +
-                (m.family ? '<span class="tag">' + esc(m.family) + '</span>' : '') +
-                (m.parameter_size ? '<span class="tag">' + esc(m.parameter_size) + '</span>' : '') +
+                (m.family ? '<span class="tag">' + escapeHtml(m.family) + '</span>' : '') +
+                (m.parameter_size ? '<span class="tag">' + escapeHtml(m.parameter_size) + '</span>' : '') +
                 (m.size_gb ? '<span class="requests">' + m.size_gb + ' GB</span>' : '') +
             '</div>' +
         '</div>';
@@ -6766,18 +6771,18 @@ function renderRemoteModels(allModels, summary) {
         var disabled = !m.is_available;
         var checkAttr = m.is_available ? ' checked' : '';
         return '<div class="model-card' + (disabled ? ' disabled' : '') + '">' +
-            '<div class="model-name">' + esc(m.model_name) + '</div>' +
+            '<div class="model-name">' + escapeHtml(m.model_name) + '</div>' +
             '<div class="model-meta">' +
-                (m.model_family ? '<span class="tag">' + esc(m.model_family) + '</span>' : '') +
-                (m.parameter_size ? '<span class="tag">' + esc(m.parameter_size) + '</span>' : '') +
-                '<span class="nodes">' + esc(m.node_name) + '</span>' +
+                (m.model_family ? '<span class="tag">' + escapeHtml(m.model_family) + '</span>' : '') +
+                (m.parameter_size ? '<span class="tag">' + escapeHtml(m.parameter_size) + '</span>' : '') +
+                '<span class="nodes">' + escapeHtml(m.node_name) + '</span>' +
                 (m.total_requests > 0 ? '<span class="requests">' + m.total_requests + ' req</span>' : '') +
             '</div>' +
             '<div class="model-toggle">' +
                 '<span>' + (m.is_available ? 'Enabled' : 'Disabled') + '</span>' +
                 '<label class="toggle-switch">' +
                     '<input type="checkbox"' + checkAttr +
-                        ' onchange="toggleModelAvailability(\'' + esc(m.node_id) + '\',' + m.id + ',this.checked)">' +
+                        ' onchange="toggleModelAvailability(\'' + escapeHtml(m.node_id) + '\',' + m.id + ',this.checked)">' +
                     '<span class="toggle-slider"></span>' +
                 '</label>' +
             '</div>' +
@@ -6794,7 +6799,7 @@ async function toggleModelAvailability(nodeId, modelId, enabled) {
         });
         var data = await response.json();
         if (data.success) {
-            showToast('Model ' + esc(data.model_name) + ' ' + (enabled ? 'enabled' : 'disabled'), 'success');
+            showToast('Model ' + escapeHtml(data.model_name) + ' ' + (enabled ? 'enabled' : 'disabled'), 'success');
             loadModelAvailability();
         } else {
             showToast('Failed: ' + (data.error || 'Unknown error'), 'error');

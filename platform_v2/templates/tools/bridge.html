@@ -4915,12 +4915,19 @@ function loadOverviewData() {
             html += '<span>' + ollamaDot + ' Ollama</span>';
             html += '<span style="color:var(--archie-cyan);font-size:0.8em;text-transform:uppercase;">' + mode + '</span>';
             html += '</div>';
-            // Build VRAM lookup from loaded_models for size display
+            // Build VRAM lookup from loaded_models (for active memory usage)
             var vramMap = {};
             (data.loaded_models || []).forEach(function(m) {
                 var sizeMB = m.vram ? Math.round(m.vram / 1048576) : Math.round((m.size || 0) / 1048576);
                 vramMap[m.name] = sizeMB;
             });
+            // Helper: format bytes to human-readable size
+            function fmtSize(bytes) {
+                if (!bytes || bytes < 1024) return '';
+                var gb = bytes / (1024 * 1024 * 1024);
+                if (gb >= 1) return gb.toFixed(1) + ' GB';
+                return Math.round(bytes / (1024 * 1024)) + ' MB';
+            }
             // Unified model list — assigned (green) first, then unassigned (gray)
             var allModels = (data.models || []).sort(function(a, b) {
                 if (a.assigned && !b.assigned) return -1;
@@ -4940,8 +4947,7 @@ function loadOverviewData() {
                 var isAssigned = m.assigned;
                 var nameColor = isAssigned ? '#00ff41' : 'var(--archie-text-secondary)';
                 var label = isAssigned ? 'assigned' : 'idle';
-                var sizeStr = '';
-                if (vramMap[m.name]) sizeStr = parseInt(vramMap[m.name]) + ' MB';
+                var sizeStr = fmtSize(m.size || 0);
                 html += '<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.8em;">';
                 html += '<span style="color:' + nameColor + ';">&#9679; ' + name + '</span>';
                 html += '<span style="color:var(--archie-text-tertiary);font-size:0.85em;">' + (sizeStr ? sizeStr + ' &middot; ' : '') + label + '</span>';
@@ -5182,10 +5188,27 @@ function loadOverviewData() {
                 return;
             }
             var html = '';
-            items.slice(0, 5).forEach(function(item) {
-                html += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);">';
-                html += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">' + (item.description || item.task_type || item.action || 'Activity') + '</span>';
-                html += '<span style="color:var(--archie-text-tertiary);font-size:0.65rem">' + (item.agent_name || '') + '</span>';
+            items.slice(0, 8).forEach(function(item) {
+                var agent = item.agent_name || 'Unknown';
+                var module = item.module_source || '';
+                var cap = item.capability || item.task_type || '';
+                var detail = module + (cap ? ' / ' + cap : '');
+                var dot = item.success === false ? '🔴' : '🟢';
+                // Relative time (timestamps are UTC)
+                var timeAgo = '';
+                if (item.created_at) {
+                    var diff = Date.now() - new Date(item.created_at).getTime();
+                    var mins = Math.max(0, Math.floor(diff / 60000));
+                    if (mins < 1) timeAgo = 'now';
+                    else if (mins < 60) timeAgo = mins + 'm';
+                    else if (mins < 1440) timeAgo = Math.floor(mins / 60) + 'h';
+                    else timeAgo = Math.floor(mins / 1440) + 'd';
+                }
+                html += '<div style="display:flex;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);gap:6px;font-size:0.8em">';
+                html += '<span style="flex-shrink:0">' + dot + '</span>';
+                html += '<span style="color:var(--archie-cyan);white-space:nowrap;min-width:60px">' + agent + '</span>';
+                html += '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;color:var(--archie-text-tertiary);font-size:0.85em">' + detail + '</span>';
+                if (timeAgo) html += '<span style="color:var(--archie-text-muted);font-size:0.8em;white-space:nowrap">' + timeAgo + '</span>';
                 html += '</div>';
             });
             el.innerHTML = html;

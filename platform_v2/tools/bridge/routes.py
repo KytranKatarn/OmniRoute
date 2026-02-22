@@ -524,7 +524,9 @@ def check_connection_health(connection_id):
 
     if conn_info["type"] == "local":
         status, latency = check_ollama_status(conn_info["host"], conn_info["port"])
-        available_models = get_ollama_models(conn_info["host"], conn_info["port"]) if status == "online" else []
+        available_models = (
+            list(get_ollama_models(conn_info["host"], conn_info["port"]).keys()) if status == "online" else []
+        )
     else:
         status = check_api_key_status(connection_id)
         latency = None
@@ -567,15 +569,15 @@ def check_ollama_status(host, port):
 
 
 def get_ollama_models(host, port):
-    """Get list of available Ollama models"""
+    """Get list of available Ollama models with sizes"""
     try:
         response = requests.get(f"http://{host}:{port}/api/tags", timeout=5)
         if response.status_code == 200:
             data = response.json()
-            return [model["name"] for model in data.get("models", [])]
+            return {model["name"]: model.get("size", 0) for model in data.get("models", [])}
     except Exception as e:
         logger.error(f"Error getting Ollama models: {e}")
-    return []
+    return {}
 
 
 def check_api_key_status(connection_id):
@@ -2305,7 +2307,7 @@ def get_llm_status():
             pass
         loaded_names = {m["name"] for m in loaded_models}
 
-        # 3. Get all available models
+        # 3. Get all available models (dict of name -> size_bytes)
         available_models = get_ollama_models(ollama_host, ollama_port)
 
         # 3b. Get models in use — assigned to agents OR configured in active tiers
@@ -2323,9 +2325,9 @@ def get_llm_status():
         except Exception:
             pass
 
-        # 4. Build model list with status
+        # 4. Build model list with status and size
         models = []
-        for name in available_models:
+        for name, size_bytes in available_models.items():
             # Check assignment: match with or without :latest suffix
             is_assigned = name in assigned_models or name.split(":")[0] in {m.split(":")[0] for m in assigned_models}
             models.append(
@@ -2334,6 +2336,7 @@ def get_llm_status():
                     "provider": "ollama",
                     "status": "loaded" if name in loaded_names else "available",
                     "assigned": is_assigned,
+                    "size": size_bytes,
                 }
             )
 
@@ -6965,22 +6968,41 @@ def activity_stream():
 @bridge_bp.route("/api/dispatch/activity-history")
 @login_required
 def activity_history():
-    """Return last 50 activity events for initial page load."""
+    """Return last 50 dispatch events for initial page load (merged from task executions + bridge interactions)."""
     try:
         with get_db_cursor(commit=False) as (conn, cur):
             cur.execute(
                 """
-                SELECT e.id, e.event_type, e.agent_id, e.data, e.created_at,
-                       a.name AS agent_name, a.display_name
-                FROM agent_activity_events e
-                LEFT JOIN agents a ON a.id = e.agent_id
-                ORDER BY e.created_at DESC
+                (
+                    SELECT tel.id, 'task' AS source,
+                           COALESCE(NULLIF(a.first_name, ''), a.name, tel.agent_name) AS agent_name,
+                           tel.module_source, tel.task_type, tel.capability,
+                           tel.model_used, tel.success, tel.created_at
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.id = tel.agent_id
+                    ORDER BY tel.created_at DESC
+                    LIMIT 50
+                )
+                UNION ALL
+                (
+                    SELECT b.id, 'bridge' AS source,
+                           COALESCE(NULLIF(a.first_name, ''), a.name, 'ARCHIE') AS agent_name,
+                           b.module_name AS module_source,
+                           b.intent_type AS task_type,
+                           'reflection' AS capability,
+                           b.model_used, b.success, b.created_at
+                    FROM bridge_interaction_log b
+                    LEFT JOIN agents a ON a.id = b.agent_id
+                    ORDER BY b.created_at DESC
+                    LIMIT 50
+                )
+                ORDER BY created_at DESC
                 LIMIT 50
             """
             )
             events = cur.fetchall()
             for ev in events:
-                ev["created_at"] = ev["created_at"].isoformat() if ev["created_at"] else None
+                ev["created_at"] = ev["created_at"].isoformat() + "Z" if ev["created_at"] else None
             return jsonify(events)
     except Exception as e:
         logger.error("activity_history error: %s", e)

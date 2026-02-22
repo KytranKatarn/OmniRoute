@@ -267,7 +267,7 @@
 
 .bridge-main {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0;
     min-height: calc(100vh - 60px);
 }
@@ -3881,7 +3881,7 @@ body.light-mode .station-coverage-code,
 /* Briefing Cards Grid */
 .bridge-overview-cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
     padding: 0 16px;
     margin-bottom: 16px;
@@ -3894,6 +3894,7 @@ body.light-mode .station-coverage-code,
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     overflow: hidden;
+    min-width: 0;
 }
 .briefing-card-header {
     display: flex;
@@ -3939,12 +3940,72 @@ body.light-mode .station-coverage-code,
     font-size: 0.75rem;
     color: var(--archie-text-secondary, #c9d1d9);
     min-height: 60px;
+    min-width: 0;
+    overflow: hidden;
 }
 .briefing-muted {
     color: var(--archie-text-tertiary, #8b949e);
     font-style: italic;
     font-size: 0.7rem;
 }
+
+/* Vigil's Log filter buttons */
+.vigil-filter-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: var(--archie-text-muted);
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.65rem;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.vigil-filter-btn:hover {
+    background: rgba(255, 107, 107, 0.1);
+    border-color: rgba(255, 107, 107, 0.3);
+}
+.vigil-filter-btn.active {
+    background: rgba(255, 107, 107, 0.2);
+    border-color: rgba(255, 107, 107, 0.5);
+    color: #ff6b6b;
+}
+
+/* Vigil log table */
+.vigil-log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.75rem;
+}
+.vigil-log-table th {
+    text-align: left;
+    padding: 6px 8px;
+    color: var(--archie-text-muted);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    white-space: nowrap;
+}
+.vigil-log-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: var(--archie-text-secondary);
+}
+.vigil-log-table tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+.vigil-sev-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+.vigil-sev-critical { background: #ff4444; }
+.vigil-sev-warning  { background: #ffaa00; }
+.vigil-sev-info     { background: #00ff41; }
 
 /* The full-width activity card needs margin */
 .bridge-tab-panel > .briefing-card {
@@ -3982,7 +4043,7 @@ body.light-mode .bridge-hud-value {
     .bridge-tabs { justify-content: center; }
 
     /* Briefing cards stack to single column */
-    .bridge-overview-cards { grid-template-columns: 1fr; }
+    .bridge-overview-cards { grid-template-columns: minmax(0, 1fr); }
 
     /* HUD pods wrap to 2x2 */
     .bridge-hud-strip { flex-wrap: wrap; }
@@ -4213,6 +4274,7 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card-header">
                         <i data-lucide="shield-alert"></i>
                         <span>Vigil's Log</span>
+                        <a href="#" onclick="openVigilLogModal(); return false;" class="briefing-card-link">View All</a>
                     </div>
                     <div class="briefing-card-body" id="overviewVigilLog">
                         <span class="briefing-muted">Loading...</span>
@@ -4880,6 +4942,34 @@ body.light-mode .bridge-hud-value {
         </div>
     </div>
 </div>
+
+<!-- Vigil's Log Full Modal -->
+<div class="assignment-modal-overlay" id="vigil-log-modal">
+    <div class="assignment-modal" style="width: 700px;">
+        <div class="assignment-modal-header" style="background: linear-gradient(90deg, rgba(255, 107, 107, 0.2), transparent); border-color: rgba(255, 107, 107, 0.3);">
+            <h3 style="color: #ff6b6b; display:flex; align-items:center; gap:8px;"><i data-lucide="shield-alert" style="width:18px;height:18px;"></i> Vigil's Log</h3>
+            <button class="assignment-modal-close" onclick="closeVigilLogModal()">&times;</button>
+        </div>
+        <!-- Filters -->
+        <div style="display:flex;gap:8px;padding:10px 1.5rem 0;flex-wrap:wrap;">
+            <button class="vigil-filter-btn active" data-filter="all" onclick="filterVigilLog('all')">All</button>
+            <button class="vigil-filter-btn" data-filter="dispatch" onclick="filterVigilLog('dispatch')">Dispatch</button>
+            <button class="vigil-filter-btn" data-filter="welfare" onclick="filterVigilLog('welfare')">Welfare</button>
+            <button class="vigil-filter-btn" data-filter="governance" onclick="filterVigilLog('governance')">Governance</button>
+            <button class="vigil-filter-btn" data-filter="archie_wellness" onclick="filterVigilLog('archie_wellness')">ARCHIE</button>
+        </div>
+        <div class="assignment-modal-body" id="vigil-log-modal-body" style="max-height:55vh;overflow-y:auto;">
+            <div style="text-align:center;color:var(--archie-text-muted);padding:2rem;">Loading...</div>
+        </div>
+        <div class="assignment-modal-footer" style="justify-content:space-between;align-items:center;">
+            <span id="vigil-log-page-info" style="font-size:0.7rem;color:var(--archie-text-muted);font-family:var(--archie-font-mono);">Page 1</span>
+            <div style="display:flex;gap:8px;">
+                <button class="btn-cancel" id="vigil-prev-btn" onclick="vigilLogPage(-1)" disabled>&larr; Prev</button>
+                <button class="btn-cancel" id="vigil-next-btn" onclick="vigilLogPage(1)">Next &rarr;</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -5143,13 +5233,13 @@ function loadOverviewData() {
             el.textContent = '';
             var sevColors = { critical: '#ff4444', warning: '#ffaa00', info: '#00ff41' };
             var sevIcons = { critical: '\u26a0', warning: '\u25cf', info: '\u25cf' };
-            var catIcons = { welfare: '\u2764', governance: '\u26a1', autonomy: '\u26a1', archie_wellness: '\u2606' };
+            var catIcons = { welfare: '\u2764', governance: '\u26a1', autonomy: '\u26a1', archie_wellness: '\u2606', dispatch: '\u2716' };
             var shown = data.events.slice(0, 7);
             shown.forEach(function(ev) {
                 var row = document.createElement('div');
-                row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.7rem;gap:6px;';
+                row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.7rem;gap:6px;min-width:0;';
                 var left = document.createElement('div');
-                left.style.cssText = 'display:flex;align-items:center;gap:4px;overflow:hidden;';
+                left.style.cssText = 'display:flex;align-items:center;gap:4px;overflow:hidden;min-width:0;flex:1;';
                 var color = sevColors[ev.severity] || '#888';
                 var icon = document.createElement('span');
                 icon.style.cssText = 'color:' + color + ';flex-shrink:0;';
@@ -5157,12 +5247,12 @@ function loadOverviewData() {
                 left.appendChild(icon);
                 if (ev.agent_name) {
                     var nameEl = document.createElement('span');
-                    nameEl.style.cssText = 'color:var(--archie-cyan);white-space:nowrap;';
+                    nameEl.style.cssText = 'color:var(--archie-cyan);white-space:nowrap;flex-shrink:0;';
                     nameEl.textContent = ev.agent_name;
                     left.appendChild(nameEl);
                 }
                 var desc = document.createElement('span');
-                desc.style.cssText = 'color:' + color + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                desc.style.cssText = 'color:' + color + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1;';
                 desc.textContent = ev.label || 'event';
                 left.appendChild(desc);
                 row.appendChild(left);
@@ -5176,9 +5266,11 @@ function loadOverviewData() {
                 el.appendChild(row);
             });
             if (data.total > 7) {
-                var more = document.createElement('div');
-                more.style.cssText = 'font-size:0.65rem;color:var(--archie-text-muted);padding-top:3px;';
+                var more = document.createElement('a');
+                more.href = '#';
+                more.style.cssText = 'display:block;font-size:0.65rem;color:var(--archie-text-muted);padding-top:3px;text-decoration:none;cursor:pointer;';
                 more.textContent = '+ ' + (data.total - 7) + ' more events';
+                more.addEventListener('click', function(e) { e.preventDefault(); openVigilLogModal(); });
                 el.appendChild(more);
             }
         }).catch(function() {
@@ -5249,6 +5341,136 @@ function loadOverviewData() {
             if (el && data.success) el.textContent = data.count;
         }).catch(function() {});
 }
+
+// === Vigil's Log Modal (paginated full view) ===
+var _vigilState = { page: 1, perPage: 20, filter: 'all', totalPages: 1 };
+
+function openVigilLogModal() {
+    _vigilState.page = 1;
+    _vigilState.filter = 'all';
+    document.querySelectorAll('.vigil-filter-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-filter') === 'all');
+    });
+    document.getElementById('vigil-log-modal').classList.add('active');
+    loadVigilLogPage();
+}
+
+function closeVigilLogModal() {
+    document.getElementById('vigil-log-modal').classList.remove('active');
+}
+
+function filterVigilLog(cat) {
+    _vigilState.filter = cat;
+    _vigilState.page = 1;
+    document.querySelectorAll('.vigil-filter-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-filter') === cat);
+    });
+    loadVigilLogPage();
+}
+
+function vigilLogPage(delta) {
+    _vigilState.page = Math.max(1, Math.min(_vigilState.totalPages, _vigilState.page + delta));
+    loadVigilLogPage();
+}
+
+function _vigilMakeText(tag, text, style) {
+    var el = document.createElement(tag);
+    el.textContent = text;
+    if (style) el.style.cssText = style;
+    return el;
+}
+
+function loadVigilLogPage() {
+    var body = document.getElementById('vigil-log-modal-body');
+    body.textContent = '';
+    body.appendChild(_vigilMakeText('div', 'Loading...', 'text-align:center;color:var(--archie-text-muted);padding:2rem;'));
+
+    var url = '/tools/bridge/api/iaae/enforcement-log-full?page=' + _vigilState.page +
+              '&per_page=' + _vigilState.perPage +
+              '&filter=' + _vigilState.filter;
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            body.textContent = '';
+            if (!data.success) {
+                body.appendChild(_vigilMakeText('div', 'Error loading log', 'color:#ff4444;padding:1rem;'));
+                return;
+            }
+            _vigilState.totalPages = data.total_pages || 1;
+            var events = data.events || [];
+            if (events.length === 0) {
+                body.appendChild(_vigilMakeText('div', 'No events found', 'text-align:center;color:var(--archie-text-muted);padding:2rem;'));
+                updateVigilPagination(data);
+                return;
+            }
+            var sevColors = { critical: '#ff4444', warning: '#ffaa00', info: '#00ff41' };
+            var catLabels = { welfare: 'Welfare', governance: 'Governance', autonomy: 'Autonomy', archie_wellness: 'ARCHIE', dispatch: 'Dispatch' };
+
+            var table = document.createElement('table');
+            table.className = 'vigil-log-table';
+            var thead = document.createElement('thead');
+            var headerRow = document.createElement('tr');
+            ['', 'Time', 'Category', 'Agent', 'Details'].forEach(function(h) {
+                headerRow.appendChild(_vigilMakeText('th', h, ''));
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            var tbody = document.createElement('tbody');
+            events.forEach(function(ev) {
+                var color = sevColors[ev.severity] || '#888';
+                var tr = document.createElement('tr');
+
+                // Severity dot
+                var tdDot = document.createElement('td');
+                var dot = document.createElement('span');
+                dot.className = 'vigil-sev-dot vigil-sev-' + (ev.severity || 'info');
+                tdDot.appendChild(dot);
+                tr.appendChild(tdDot);
+
+                // Time
+                var ts = '';
+                if (ev.timestamp) {
+                    var d = new Date(ev.timestamp);
+                    ts = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+                         d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                }
+                tr.appendChild(_vigilMakeText('td', ts, 'white-space:nowrap;font-size:0.7rem;color:var(--archie-text-tertiary);'));
+
+                // Category
+                tr.appendChild(_vigilMakeText('td', catLabels[ev.event_category] || ev.event_category || '\u2014', 'font-size:0.7rem;'));
+
+                // Agent
+                tr.appendChild(_vigilMakeText('td', ev.agent_name || '\u2014', 'color:var(--archie-cyan);white-space:nowrap;'));
+
+                // Details
+                tr.appendChild(_vigilMakeText('td', ev.label || '', 'max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + color + ';'));
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            body.appendChild(table);
+            updateVigilPagination(data);
+        })
+        .catch(function() {
+            body.textContent = '';
+            body.appendChild(_vigilMakeText('div', 'Failed to load enforcement log', 'color:#ff4444;padding:1rem;'));
+        });
+}
+
+function updateVigilPagination(data) {
+    var info = document.getElementById('vigil-log-page-info');
+    var prevBtn = document.getElementById('vigil-prev-btn');
+    var nextBtn = document.getElementById('vigil-next-btn');
+    if (info) info.textContent = 'Page ' + (data.page || 1) + ' of ' + (data.total_pages || 1) + ' (' + (data.total || 0) + ' events)';
+    if (prevBtn) prevBtn.disabled = (data.page || 1) <= 1;
+    if (nextBtn) nextBtn.disabled = (data.page || 1) >= (data.total_pages || 1);
+}
+
+// Close vigil modal on overlay click
+document.getElementById('vigil-log-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeVigilLogModal();
+});
 
 // === Tab Navigation ===
 function switchBridgeTab(tabName) {
@@ -5503,7 +5725,7 @@ function loadStatusBarStats() {
         .then(function(data) {
             if (data.success) {
                 var el = document.getElementById('statusInteractions');
-                if (el) el.textContent = data.total_today || 0;
+                if (el) el.textContent = data.total_24h || 0;
             }
         }).catch(function() {});
 

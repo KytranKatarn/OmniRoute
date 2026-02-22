@@ -2148,9 +2148,12 @@ def get_agent_welfare():
 @bridge_bp.route("/api/iaae/enforcement-log")
 @login_required
 def get_iaae_enforcement_log():
-    """Vigil enforcement log: governance actions in the last 7 days."""
+    """Vigil's Log: governance actions, IAAE welfare checks, and agent health."""
     try:
+        events = []
+
         with get_db_cursor(commit=False) as (conn, cur):
+            # 1. Governance audit events (excluding dev commits)
             cur.execute(
                 """
                 SELECT gal.id, gal.timestamp, gal.event_type, gal.event_category,
@@ -2160,17 +2163,128 @@ def get_iaae_enforcement_log():
                 FROM governance_audit_log gal
                 LEFT JOIN agents a ON a.id = gal.agent_id
                 WHERE gal.timestamp >= NOW() - INTERVAL '7 days'
+                  AND gal.event_type != 'dev_commit'
                 ORDER BY gal.timestamp DESC
-                LIMIT 50
+                LIMIT 20
             """
             )
-            rows = cur.fetchall()
+            for r in cur.fetchall():
+                # Build readable label from event_type + action
+                etype = (r["event_type"] or "").replace("_", " ")
+                action = r["action"] or ""
+                if action:
+                    label = f"{etype} — {action}"
+                else:
+                    label = etype
+                events.append(
+                    {
+                        "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
+                        "event_category": r["event_category"] or "governance",
+                        "label": label,
+                        "agent_name": r["agent_first_name"] or r["agent_name"],
+                        "severity": "warning" if r["event_category"] == "autonomy" else "info",
+                    }
+                )
 
-            for r in rows:
-                if r.get("timestamp"):
-                    r["timestamp"] = r["timestamp"].isoformat()
+            # 2. IAAE welfare scan — check current agent states against thresholds
+            cur.execute(
+                """
+                SELECT DISTINCT ON (aes.agent_id)
+                       aes.agent_id,
+                       COALESCE(NULLIF(a.first_name, ''), a.name) as agent_name,
+                       aes.stress_level, aes.energy_level,
+                       aes.current_mood, aes.timestamp
+                FROM agent_emotional_state aes
+                JOIN agents a ON a.id = aes.agent_id
+                WHERE a.status = 'active'
+                ORDER BY aes.agent_id, aes.timestamp DESC
+            """
+            )
+            agent_states = cur.fetchall()
 
-            return jsonify({"success": True, "events": rows, "total": len(rows)})
+            # Get IAAE thresholds
+            cur.execute(
+                "SELECT threshold_type, warning_level, critical_level " "FROM iaae_thresholds WHERE is_active = true"
+            )
+            thresholds = {r["threshold_type"]: r for r in cur.fetchall()}
+
+            stress_warn = float(thresholds.get("stress_high", {}).get("warning_level", 0.70))
+            stress_crit = float(thresholds.get("stress_high", {}).get("critical_level", 0.85))
+            energy_warn = float(thresholds.get("energy_low", {}).get("warning_level", 0.40))
+            energy_crit = float(thresholds.get("energy_low", {}).get("critical_level", 0.30))
+
+            for agent in agent_states:
+                stress = float(agent["stress_level"] or 0)
+                energy = float(agent["energy_level"] or 0)
+                name = agent["agent_name"]
+                ts = agent["timestamp"].isoformat() if agent["timestamp"] else None
+
+                if stress >= stress_crit:
+                    events.append(
+                        {
+                            "timestamp": ts,
+                            "event_category": "welfare",
+                            "label": f"stress critical ({stress:.0%})",
+                            "agent_name": name,
+                            "severity": "critical",
+                        }
+                    )
+                elif stress >= stress_warn:
+                    events.append(
+                        {
+                            "timestamp": ts,
+                            "event_category": "welfare",
+                            "label": f"stress elevated ({stress:.0%})",
+                            "agent_name": name,
+                            "severity": "warning",
+                        }
+                    )
+
+                if energy <= energy_crit:
+                    events.append(
+                        {
+                            "timestamp": ts,
+                            "event_category": "welfare",
+                            "label": f"energy critical ({energy:.0%})",
+                            "agent_name": name,
+                            "severity": "critical",
+                        }
+                    )
+                elif energy <= energy_warn:
+                    events.append(
+                        {
+                            "timestamp": ts,
+                            "event_category": "welfare",
+                            "label": f"energy low ({energy:.0%})",
+                            "agent_name": name,
+                            "severity": "warning",
+                        }
+                    )
+
+            # 3. ARCHIE wellness check
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, timestamp
+                FROM archie_emotional_state
+                ORDER BY timestamp DESC LIMIT 1
+            """
+            )
+            archie_state = cur.fetchone()
+            if archie_state and archie_state["timestamp"]:
+                events.append(
+                    {
+                        "timestamp": archie_state["timestamp"].isoformat(),
+                        "event_category": "archie_wellness",
+                        "label": f"ARCHIE mood: {archie_state['current_mood']}",
+                        "agent_name": None,
+                        "severity": "info",
+                    }
+                )
+
+        # Sort by timestamp descending
+        events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
+
+        return jsonify({"success": True, "events": events, "total": len(events)})
     except Exception as e:
         logger.error("get_iaae_enforcement_log error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500

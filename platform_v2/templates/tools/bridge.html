@@ -5141,34 +5141,44 @@ function loadOverviewData() {
                 return;
             }
             el.textContent = '';
-            var shown = data.events.slice(0, 5);
+            var sevColors = { critical: '#ff4444', warning: '#ffaa00', info: '#00ff41' };
+            var sevIcons = { critical: '\u26a0', warning: '\u25cf', info: '\u25cf' };
+            var catIcons = { welfare: '\u2764', governance: '\u26a1', autonomy: '\u26a1', archie_wellness: '\u2606' };
+            var shown = data.events.slice(0, 7);
             shown.forEach(function(ev) {
                 var row = document.createElement('div');
-                row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.7rem;';
+                row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.7rem;gap:6px;';
                 var left = document.createElement('div');
-                var catColors = { task_blocked: '#ff4444', rest_initiated: '#8b5cf6', task_reassigned: '#ffaa00', escalation: '#ff6b6b', task_approved: '#00ff41' };
-                var dot = document.createElement('span');
-                dot.style.cssText = 'color:' + (catColors[ev.event_category] || '#888') + ';margin-right:4px;';
-                dot.textContent = '\u25cf';
-                left.appendChild(dot);
+                left.style.cssText = 'display:flex;align-items:center;gap:4px;overflow:hidden;';
+                var color = sevColors[ev.severity] || '#888';
+                var icon = document.createElement('span');
+                icon.style.cssText = 'color:' + color + ';flex-shrink:0;';
+                icon.textContent = catIcons[ev.event_category] || sevIcons[ev.severity] || '\u25cf';
+                left.appendChild(icon);
+                if (ev.agent_name) {
+                    var nameEl = document.createElement('span');
+                    nameEl.style.cssText = 'color:var(--archie-cyan);white-space:nowrap;';
+                    nameEl.textContent = ev.agent_name;
+                    left.appendChild(nameEl);
+                }
                 var desc = document.createElement('span');
-                var agentName = ev.agent_first_name || ev.agent_name || '';
-                desc.textContent = (ev.event_category || '').replace(/_/g, ' ') + (agentName ? ' \u2014 ' + agentName : '');
+                desc.style.cssText = 'color:' + color + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                desc.textContent = ev.label || 'event';
                 left.appendChild(desc);
                 row.appendChild(left);
                 if (ev.timestamp) {
                     var ts = document.createElement('span');
-                    ts.style.cssText = 'color:var(--archie-text-tertiary);font-size:0.65rem;white-space:nowrap;';
+                    ts.style.cssText = 'color:var(--archie-text-tertiary);font-size:0.65rem;white-space:nowrap;flex-shrink:0;';
                     var d = new Date(ev.timestamp);
                     ts.textContent = d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
                     row.appendChild(ts);
                 }
                 el.appendChild(row);
             });
-            if (data.total > 5) {
+            if (data.total > 7) {
                 var more = document.createElement('div');
                 more.style.cssText = 'font-size:0.65rem;color:var(--archie-text-muted);padding-top:3px;';
-                more.textContent = '+ ' + (data.total - 5) + ' more events (7d)';
+                more.textContent = '+ ' + (data.total - 7) + ' more events';
                 el.appendChild(more);
             }
         }).catch(function() {

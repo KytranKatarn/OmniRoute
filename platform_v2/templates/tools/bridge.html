@@ -429,6 +429,710 @@ body.light-mode .status-bar-divider {
     gap: 16px;
 }
 
+/* ========================================================================== */
+/* SPATIAL BRIDGE LAYOUT — Starship Bridge Top-Down View                      */
+/* ========================================================================== */
+
+/* Main layout container */
+.bridge-spatial-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: relative;
+    padding: 8px 0;
+}
+
+/* --- Viewscreen (CRT-styled central screen) --- */
+.bridge-viewscreen {
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+        0 0 20px rgba(0, 255, 255, 0.08),
+        inset 0 0 40px rgba(0, 0, 0, 0.4);
+}
+
+/* CRT scanline overlay */
+.bridge-viewscreen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 255, 255, 0.015) 2px,
+        rgba(0, 255, 255, 0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Screen glow */
+.bridge-viewscreen::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 12px;
+    box-shadow: 0 0 30px rgba(0, 255, 255, 0.06);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.bridge-viewscreen-header {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--archie-cyan, #00ffff);
+    text-align: center;
+    padding: 10px 16px 6px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    position: relative;
+    z-index: 2;
+}
+
+.bridge-viewscreen-feed {
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 8px 12px;
+    position: relative;
+    z-index: 2;
+}
+
+.bridge-viewscreen-feed::-webkit-scrollbar {
+    width: 4px;
+}
+
+.bridge-viewscreen-feed::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.bridge-viewscreen-empty {
+    color: var(--archie-text-muted, #6e7681);
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 24px 0;
+    opacity: 0.6;
+}
+
+.bridge-viewscreen-event {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.72rem;
+    transition: background 0.2s;
+}
+
+.bridge-viewscreen-event:hover {
+    background: rgba(0, 255, 255, 0.04);
+}
+
+.bridge-viewscreen-event:last-child {
+    border-bottom: none;
+}
+
+.viewscreen-time {
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 0.68rem;
+    min-width: 60px;
+    flex-shrink: 0;
+}
+
+.viewscreen-agent {
+    color: var(--archie-cyan, #00ffff);
+    font-weight: 600;
+    white-space: nowrap;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.viewscreen-arrow {
+    color: var(--archie-text-muted, #6e7681);
+    flex-shrink: 0;
+    font-size: 0.65rem;
+}
+
+.viewscreen-station {
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.viewscreen-detail {
+    color: var(--archie-text-secondary, #8b949e);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+}
+
+.viewscreen-status {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+}
+
+.viewscreen-status.success { color: var(--archie-success, #10b981); }
+.viewscreen-status.fail { color: var(--archie-danger, #ef4444); }
+
+.bridge-viewscreen-statusbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 16px;
+    border-top: 1px solid rgba(0, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.3);
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.68rem;
+    color: var(--archie-text-muted, #6e7681);
+    position: relative;
+    z-index: 2;
+}
+
+.viewscreen-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.viewscreen-stat-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--archie-success, #10b981);
+    box-shadow: 0 0 6px var(--archie-success, #10b981);
+}
+
+/* --- Station Zones Grid --- */
+.bridge-spatial-stations {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+}
+
+/* --- Station Zone (glass panel) --- */
+.bridge-station-zone {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px;
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow 0.4s ease, border-color 0.4s ease;
+    cursor: pointer;
+}
+
+/* Top gradient accent bar */
+.bridge-station-zone::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg,
+        transparent,
+        var(--station-color, #00ffff),
+        transparent
+    );
+    opacity: 0.6;
+}
+
+.bridge-station-zone:hover {
+    border-color: color-mix(in srgb, var(--station-color, #00ffff) 30%, transparent);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--station-color, #00ffff) 12%, transparent);
+}
+
+/* Dispatch active glow (enhanced when receiving dispatch arc) */
+.bridge-station-zone.dispatch-active {
+    border-color: color-mix(in srgb, var(--station-color, #00ffff) 50%, transparent);
+    box-shadow:
+        0 0 25px color-mix(in srgb, var(--station-color, #00ffff) 20%, transparent),
+        0 0 50px color-mix(in srgb, var(--station-color, #00ffff) 10%, transparent);
+}
+
+/* --- Zone Header --- */
+.bridge-zone-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.bridge-zone-header i {
+    width: 16px;
+    height: 16px;
+    color: var(--station-color, #00ffff);
+    flex-shrink: 0;
+}
+
+.bridge-zone-name {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--archie-text-primary, #e6edf3);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bridge-zone-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.bridge-zone-status.online {
+    background: var(--archie-success, #10b981);
+    box-shadow: 0 0 6px var(--archie-success, #10b981);
+}
+
+.bridge-zone-status.offline {
+    background: var(--archie-danger, #ef4444);
+}
+
+.bridge-zone-status.standby {
+    background: var(--archie-warning, #f59e0b);
+}
+
+.bridge-zone-badge {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.6rem;
+    color: var(--archie-text-muted, #6e7681);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+/* --- Agent Node Container --- */
+.bridge-zone-agents {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 6px 0;
+}
+
+/* --- Zone Footer --- */
+.bridge-zone-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.6rem;
+    color: var(--archie-text-muted, #6e7681);
+}
+
+.bridge-zone-footer span {
+    opacity: 0.7;
+}
+
+/* --- Agent Node (Circular Avatar) --- */
+.bridge-agent-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    position: relative;
+    transition: transform 0.2s ease;
+    cursor: pointer;
+}
+
+.bridge-agent-node:hover {
+    transform: scale(1.1);
+}
+
+/* Show tooltip on hover */
+.bridge-agent-node:hover .agent-node-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Avatar wrapper — outer ring area */
+.agent-node-avatar-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+/* Avatar circle */
+.agent-node-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* Initials fallback */
+.agent-node-initials {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #fff;
+    background: rgba(0, 255, 255, 0.15);
+}
+
+/* --- Halo Ring (status indicator) --- */
+.agent-node-halo {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+/* Idle — slow breathe animation */
+.agent-node-halo.idle {
+    border: 1px solid color-mix(in srgb, var(--station-color, #00ffff) 40%, transparent);
+    animation: agent-breathe 4s ease-in-out infinite;
+}
+
+/* Active — bright pulse */
+.agent-node-halo.active {
+    border: 3px solid var(--station-color, #00ffff);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--station-color, #00ffff) 40%, transparent);
+    animation: agent-pulse 1.5s ease-in-out infinite;
+}
+
+/* Error — red alert flash */
+.agent-node-halo.error {
+    border: 2px solid var(--archie-danger, #ef4444);
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+    animation: agent-alert 0.8s ease-in-out infinite;
+}
+
+/* Commander — gold ring with pulse */
+.agent-node-halo.commander {
+    border: 3px solid #FFD700;
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
+    animation: agent-pulse 2s ease-in-out infinite;
+}
+
+/* --- Commander Star Badge --- */
+.agent-node-commander-star {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #FFD700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+}
+
+.agent-node-commander-star i {
+    width: 10px;
+    height: 10px;
+    color: #000;
+}
+
+/* --- Agent Label (first name below avatar) --- */
+.agent-node-label {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.58rem;
+    color: var(--archie-text-secondary, #8b949e);
+    text-align: center;
+    max-width: 56px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Agent Tooltip (hover popup) --- */
+.agent-node-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+    z-index: 100;
+    pointer-events: none;
+}
+
+.agent-node-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(0, 255, 255, 0.2);
+}
+
+.agent-node-tooltip-name {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.68rem;
+    color: var(--archie-text-primary, #e6edf3);
+    margin-bottom: 2px;
+}
+
+.agent-node-tooltip-role {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.6rem;
+    color: var(--archie-text-muted, #6e7681);
+}
+
+.agent-node-tooltip-type {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.55rem;
+    color: var(--archie-text-muted, #6e7681);
+    opacity: 0.7;
+    margin-top: 2px;
+}
+
+/* --- Unstaffed Zone Message --- */
+.bridge-zone-unstaffed {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--archie-text-muted, #6e7681);
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.65rem;
+    opacity: 0.5;
+    padding: 8px 0;
+}
+
+.bridge-zone-unstaffed i {
+    width: 14px;
+    height: 14px;
+}
+
+/* --- Keyframe Animations --- */
+@keyframes agent-pulse {
+    0%, 100% { box-shadow: 0 0 8px color-mix(in srgb, var(--station-color, #00ffff) 30%, transparent); }
+    50% { box-shadow: 0 0 18px color-mix(in srgb, var(--station-color, #00ffff) 60%, transparent); }
+}
+
+@keyframes agent-breathe {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.9; }
+}
+
+@keyframes agent-alert {
+    0%, 100% { box-shadow: 0 0 6px rgba(239, 68, 68, 0.3); border-color: rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.7); border-color: rgba(239, 68, 68, 0.9); }
+}
+
+@keyframes arc-draw {
+    from { stroke-dashoffset: var(--arc-length, 300); }
+    to { stroke-dashoffset: 0; }
+}
+
+/* --- SVG Dispatch Arc Overlay --- */
+.bridge-dispatch-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    overflow: visible;
+}
+
+.bridge-dispatch-arc {
+    fill: none;
+    stroke-width: 2px;
+    stroke-linecap: round;
+    opacity: 1;
+    transition: opacity 1.2s ease;
+}
+
+.bridge-dispatch-arc.fading {
+    opacity: 0;
+}
+
+/* --- Mobile Responsive (< 768px) --- */
+@media (max-width: 768px) {
+    .bridge-spatial-stations {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .bridge-viewscreen-feed {
+        max-height: 120px;
+    }
+
+    .bridge-viewscreen-header {
+        font-size: 0.6rem;
+        letter-spacing: 2px;
+        padding: 8px 12px 4px;
+    }
+
+    .bridge-station-zone {
+        padding: 10px;
+    }
+
+    .bridge-zone-agents {
+        gap: 8px;
+    }
+
+    .agent-node-avatar-wrap {
+        width: 34px;
+        height: 34px;
+    }
+
+    .agent-node-avatar,
+    .agent-node-initials {
+        width: 30px;
+        height: 30px;
+        font-size: 0.55rem;
+    }
+
+    .agent-node-label {
+        display: none;
+    }
+
+    .bridge-dispatch-overlay {
+        display: none;
+    }
+
+    .bridge-viewscreen-statusbar {
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 0.6rem;
+    }
+}
+
+/* --- Light Mode Overrides --- */
+[data-theme="light"] .bridge-viewscreen,
+body.light-mode .bridge-viewscreen {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(0, 150, 180, 0.2);
+    box-shadow:
+        0 0 20px rgba(0, 150, 180, 0.06),
+        inset 0 0 40px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .bridge-viewscreen::before,
+body.light-mode .bridge-viewscreen::before {
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 100, 130, 0.02) 2px,
+        rgba(0, 100, 130, 0.02) 4px
+    );
+}
+
+[data-theme="light"] .bridge-viewscreen-empty,
+body.light-mode .bridge-viewscreen-empty {
+    color: #6b7280;
+}
+
+[data-theme="light"] .bridge-viewscreen-event,
+body.light-mode .bridge-viewscreen-event {
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .bridge-viewscreen-event:hover,
+body.light-mode .bridge-viewscreen-event:hover {
+    background: rgba(0, 150, 180, 0.04);
+}
+
+[data-theme="light"] .bridge-viewscreen-statusbar,
+body.light-mode .bridge-viewscreen-statusbar {
+    background: rgba(0, 0, 0, 0.03);
+    border-top-color: rgba(0, 150, 180, 0.1);
+}
+
+[data-theme="light"] .bridge-station-zone,
+body.light-mode .bridge-station-zone {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .bridge-station-zone:hover,
+body.light-mode .bridge-station-zone:hover {
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .bridge-zone-header,
+body.light-mode .bridge-zone-header {
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .bridge-zone-name,
+body.light-mode .bridge-zone-name {
+    color: #1f2937;
+}
+
+[data-theme="light"] .agent-node-initials,
+body.light-mode .agent-node-initials {
+    color: #1f2937;
+    background: rgba(0, 150, 180, 0.12);
+}
+
+[data-theme="light"] .agent-node-tooltip,
+body.light-mode .agent-node-tooltip {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .agent-node-tooltip-name,
+body.light-mode .agent-node-tooltip-name {
+    color: #1f2937;
+}
+
+[data-theme="light"] .bridge-zone-footer,
+body.light-mode .bridge-zone-footer {
+    border-top-color: rgba(0, 0, 0, 0.04);
+    color: #6b7280;
+}
+
+[data-theme="light"] .bridge-zone-unstaffed,
+body.light-mode .bridge-zone-unstaffed {
+    color: #9ca3af;
+}
+
+/* ========================================================================== */
+/* END SPATIAL BRIDGE LAYOUT                                                  */
+/* ========================================================================== */
+
 /* Station Card — Briefing-Card Pattern */
 .bridge-station-card {
     background: rgba(0, 0, 0, 0.4);
@@ -4294,33 +4998,41 @@ body.light-mode .bridge-hud-value {
                 </div>
             </div>
 
-            <!-- Stations Tab Panel -->
+            <!-- Stations Tab Panel — Spatial Bridge Layout -->
             <div class="bridge-tab-panel" data-panel="stations">
-            <!-- Stations Grid -->
-            <div class="bridge-stations-section">
-                <div class="bridge-section-header">
-                    <h2 class="bridge-section-title" data-i18n="bridge.sections.active_stations">Active Stations</h2>
-                    <span class="bridge-section-count" id="stations-summary" data-i18n="bridge.loading.stations">Loading stations...</span>
-                </div>
-
-                <!-- Command Team Indicator -->
-                <div class="bridge-command-team" id="commandTeamRow">
-                    <div class="command-team-badge" id="commanderBadge">
-                        <i data-lucide="star"></i>
-                        <span class="command-team-role" data-i18n="bridge.command.commander">Commander</span>
-                        <span class="command-team-name" id="commanderName">--</span>
+                <div class="bridge-spatial-layout" id="bridgeSpatialLayout">
+                    <!-- Viewscreen -->
+                    <div class="bridge-viewscreen" id="bridgeViewscreen">
+                        <div class="bridge-viewscreen-header">
+                            <span data-i18n="bridge.viewscreen.title">Main Viewscreen</span>
+                        </div>
+                        <div class="bridge-viewscreen-feed" id="viewscreenFeed">
+                            <div class="bridge-viewscreen-empty" data-i18n="bridge.viewscreen.loading">Awaiting dispatch data...</div>
+                        </div>
+                        <div class="bridge-viewscreen-statusbar" id="viewscreenStatusbar">
+                            <span class="viewscreen-stat">
+                                <span class="viewscreen-stat-dot"></span>
+                                <span id="viewscreenThroughput">-- req/hr</span>
+                            </span>
+                            <span class="viewscreen-stat">
+                                <span id="viewscreenSuccess">--% success</span>
+                            </span>
+                            <span class="viewscreen-stat">
+                                <span id="viewscreenAgentCount">-- agents</span>
+                            </span>
+                        </div>
                     </div>
-                    <div class="command-team-badge" id="coCommanderBadge">
-                        <i data-lucide="shield"></i>
-                        <span class="command-team-role" data-i18n="bridge.command.co_commander">Co-Commander</span>
-                        <span class="command-team-name" id="coCommanderName">--</span>
-                    </div>
-                </div>
 
-                <div class="bridge-stations-grid" id="stations-grid">
-                    <!-- Station cards rendered by JavaScript -->
+                    <!-- Station Zones Grid -->
+                    <div class="bridge-spatial-stations" id="bridgeSpatialStations">
+                        <!-- Station zones rendered by JavaScript -->
+                    </div>
+
+                    <!-- SVG Dispatch Arc Overlay -->
+                    <svg class="bridge-dispatch-overlay" id="dispatchArcOverlay">
+                        <!-- Arcs drawn dynamically by JS -->
+                    </svg>
                 </div>
-            </div>
             </div><!-- /stations panel -->
 
             <!-- Dispatch Tab Panel -->
@@ -5836,20 +6548,32 @@ async function loadStations() {
     }
 }
 
+// Station layout order — defines spatial position in bridge grid
+// Row 1 (back): CONSCIOUSNESS, RND, SECURITY, CREATIVE
+// Row 2 (middle): ENGINEERING, COMMAND, OPERATIONS, HR
+// Row 3 (front): MEDICAL, AWAY_TEAM, QA
+const STATION_LAYOUT_ORDER = [
+    'CONSCIOUSNESS', 'RND', 'SECURITY', 'CREATIVE',
+    'ENGINEERING', 'COMMAND', 'OPERATIONS', 'HR',
+    'MEDICAL', 'AWAY_TEAM', 'QA'
+];
+
 function renderStations(stations) {
-    const grid = document.getElementById('stations-grid');
-    grid.innerHTML = '';
+    const container = document.getElementById('bridgeSpatialStations');
+    if (!container) return;
+    container.innerHTML = '';
 
-    // Extract command station for the command team badges
-    const commandStation = stations.find(s => s.code === 'COMMAND');
-    if (commandStation) {
-        renderCommandTeamBadges(commandStation);
-    }
+    // Sort stations by spatial layout order; unknown stations go to the end
+    const sorted = [...stations].sort((a, b) => {
+        const ai = STATION_LAYOUT_ORDER.indexOf(a.code);
+        const bi = STATION_LAYOUT_ORDER.indexOf(b.code);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
 
-    // Render ALL stations (including command) in the grid
-    stations.forEach(station => {
-        const card = createStationCard(station);
-        grid.appendChild(card);
+    // Create zones and append
+    sorted.forEach(station => {
+        const zone = createStationZone(station);
+        container.appendChild(zone);
     });
 
     // Reinitialize Lucide icons
@@ -5858,194 +6582,132 @@ function renderStations(stations) {
     }
 }
 
-function renderCommandTeamBadges(station) {
-    const agents = station.assigned_agents || [];
-    const primaryAgents = agents.filter(a => a.assignment_type === 'primary');
-    const backupAgents = agents.filter(a => a.assignment_type === 'backup');
-
-    // Commander = first primary agent on the COMMAND station
-    const commander = primaryAgents[0];
-    const coCommander = primaryAgents[1] || backupAgents[0];
-
-    const commanderNameEl = document.getElementById('commanderName');
-    const coCommanderNameEl = document.getElementById('coCommanderName');
-
-    if (commanderNameEl) {
-        if (commander) {
-            const name = `${commander.first_name || ''} ${commander.last_name || ''}`.trim() || commander.name || 'Unknown';
-            commanderNameEl.textContent = name;
-        } else {
-            commanderNameEl.textContent = '--';
-        }
-    }
-
-    if (coCommanderNameEl) {
-        if (coCommander) {
-            const name = `${coCommander.first_name || ''} ${coCommander.last_name || ''}`.trim() || coCommander.name || 'Unknown';
-            coCommanderNameEl.textContent = name;
-        } else {
-            coCommanderNameEl.textContent = '--';
-        }
-    }
-}
-
-function renderCommandStation(station) {
-    // Legacy no-op — command station now renders in the grid via renderStations().
-}
-
-function createStationCard(station) {
-    const card = document.createElement('div');
-    card.className = 'bridge-station-card';
-    card.dataset.stationId = station.id;
-    card.dataset.stationCode = station.code;
-    card.style.setProperty('--station-color', STATION_COLORS[station.code] || '#00FFFF');
+function createStationZone(station) {
+    const zone = document.createElement('div');
+    zone.className = 'bridge-station-zone';
+    zone.dataset.stationId = station.id;
+    zone.dataset.stationCode = station.code;
+    zone.style.setProperty('--station-color', STATION_COLORS[station.code] || '#00FFFF');
 
     const modules = station.modules || [];
     const agents = station.assigned_agents || [];
-    const maxVisible = 3;
-    const visibleAgents = agents.slice(0, maxVisible);
-    const hiddenAgents = agents.slice(maxVisible);
+    const stationIcon = station.icon || 'box';
+    const stationStatus = station.status || 'online';
 
     // Get node coverage for this station
     const coverage = stationNodeCoverage[station.code] || {};
-    const nodes = coverage.nodes || [];
     const totalNodes = coverage.total_nodes || 0;
-    const primaryNodes = coverage.primary_nodes || 0;
 
-    // Module buttons
-    const moduleButtons = modules.map(m => {
-        const info = MODULE_INFO[m] || { icon: 'box', route: '#', name: m };
-        return `<a href="${info.route}" class="bridge-module-btn" title="${info.name}" onclick="event.stopPropagation();">
-            <i data-lucide="${info.icon}"></i>
-        </a>`;
-    }).join('');
-
-    // Agent chips
-    const agentChips = visibleAgents.map(agent => renderAgentChip(agent, station.code)).join('');
-
-    // Hidden agents
-    let hiddenSection = '';
-    if (hiddenAgents.length > 0) {
-        const hiddenChips = hiddenAgents.map(agent => renderAgentChip(agent, station.code)).join('');
-        hiddenSection = `
-            <div class="bridge-hidden-agents" id="hidden-${station.id}">
-                ${hiddenChips}
-            </div>
-            <button class="bridge-expand-btn" onclick="event.stopPropagation(); toggleExpand('${station.id}', this)">
-                <span>Show all (${agents.length})</span>
-                <i data-lucide="chevron-down"></i>
-            </button>
-        `;
+    // Build agent nodes HTML
+    let agentNodesHtml = '';
+    if (agents.length > 0) {
+        agentNodesHtml = agents.map(agent => renderAgentNode(agent, station.code)).join('');
+    } else {
+        agentNodesHtml = '<div class="bridge-zone-unstaffed">'
+            + '<i data-lucide="alert-triangle"></i>'
+            + '<span>' + _t('bridge.station.unstaffed', 'Unstaffed') + '</span>'
+            + '</div>';
     }
 
-    // Node support chips
-    const nodeChips = nodes.slice(0, 3).map(node => {
-        const roleIcon = node.role === 'primary' ? 'star' : (node.role === 'backup' ? 'shield' : 'cpu');
-        const roleColor = node.role === 'primary' ? '#FFD700' : (node.role === 'backup' ? '#10B981' : '#6e7681');
-        const statusDot = node.status === 'online' ? 'var(--archie-success)' : 'var(--archie-text-muted)';
-        return `
-            <div class="station-node-chip" title="${node.node_name} (${node.role})" onclick="event.stopPropagation(); showNodeDetail('${node.node_id}')">
-                <span class="node-status-dot" style="background:${statusDot};"></span>
-                <i data-lucide="${roleIcon}" style="width:10px;height:10px;color:${roleColor};"></i>
-                <span class="node-chip-name">${escapeHtml((node.node_name || '').substring(0, 10))}${(node.node_name || '').length > 10 ? '...' : ''}</span>
-            </div>
-        `;
-    }).join('');
+    zone.innerHTML = '<div class="bridge-zone-header">'
+        + '<i data-lucide="' + escapeHtml(stationIcon) + '"></i>'
+        + '<span class="bridge-zone-name">' + escapeHtml(station.name) + '</span>'
+        + '<span class="bridge-zone-status ' + escapeHtml(stationStatus) + '"></span>'
+        + '<span class="bridge-zone-badge">' + modules.length + ' ' + _t('bridge.station.modules', 'mod') + '</span>'
+        + '</div>'
+        + '<div class="bridge-zone-agents">'
+        + agentNodesHtml
+        + '</div>'
+        + '<div class="bridge-zone-footer">'
+        + '<span>' + modules.length + ' ' + _t('bridge.station.modules', 'modules') + '</span>'
+        + '<span>&middot;</span>'
+        + '<span>' + totalNodes + ' ' + _t('bridge.station.nodes', 'nodes') + '</span>'
+        + '</div>';
 
-    const moreNodes = totalNodes > 3 ? `<span class="more-nodes">+${totalNodes - 3}</span>` : '';
+    // Click to open station detail (reuse existing)
+    zone.addEventListener('click', function(e) {
+        // Don't trigger if clicking an agent node (let agent click handle it)
+        if (e.target.closest('.bridge-agent-node')) return;
+        if (typeof showStationDetail === 'function') {
+            showStationDetail(station.id, station.name);
+        }
+    });
 
-    // Node support section HTML
-    const nodeSection = totalNodes > 0 ? `
-        <div class="bridge-station-nodes">
-            <div class="bridge-station-nodes-label">
-                <i data-lucide="server" style="width:12px;height:12px;"></i>
-                ${_t('bridge.station.node_support', 'Node Support')}
-                <span class="node-count-badge">${primaryNodes}P/${totalNodes}</span>
-            </div>
-            <div class="station-node-list">
-                ${nodeChips}${moreNodes}
-            </div>
-        </div>
-    ` : '';
-
-    const stationIcon = station.icon || 'box';
-
-    card.innerHTML = `
-        <div class="bridge-station-header">
-            <i data-lucide="${stationIcon}" class="bridge-station-icon"></i>
-            <div class="bridge-station-name">${station.name}</div>
-            <div class="bridge-station-status ${station.status || 'online'}"></div>
-            <div class="bridge-station-badge">${modules.length} ${_t('bridge.station.modules', 'modules')}</div>
-        </div>
-        <div class="bridge-station-modules">
-            ${moduleButtons || '<span style="color:var(--archie-text-muted);font-size:0.65rem;">' + _t('bridge.station.no_modules', 'No modules') + '</span>'}
-        </div>
-        <div class="bridge-station-team">
-            <div class="bridge-station-team-label">${_t('bridge.station.assigned_team', 'Assigned Team')}</div>
-            <div class="bridge-agent-list">
-                ${agentChips || '<div class="bridge-station-empty"><i data-lucide="alert-triangle" style="width:14px;height:14px;margin-right:4px;"></i> ' + _t('bridge.station.unstaffed', 'Unstaffed') + '</div>'}
-            </div>
-            ${hiddenSection}
-        </div>
-        ${nodeSection}
-    `;
-
-    return card;
+    return zone;
 }
 
-function renderAgentChip(agent, stationCode) {
+function renderAgentNode(agent, stationCode) {
     const firstName = agent.first_name || '';
     const lastName = agent.last_name || '';
-    const fullName = `${firstName} ${lastName}`.trim() || agent.name || 'Unknown';
+    const fullName = (firstName + ' ' + lastName).trim() || agent.name || 'Unknown';
     const position = agent.title || agent.name || 'Staff';
     const isPrimary = agent.assignment_type === 'primary';
-    const avatar = agent.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=0d1117&color=00ffff&size=32`;
+    const isCommander = stationCode === 'COMMAND' && isPrimary;
 
-    // Skill match indicator (always true — no skill validation API)
-    const skillMatch = true;
+    // Determine halo class
+    var haloClass = 'idle';
+    if (isCommander) {
+        haloClass = 'commander';
+    } else if (isPrimary) {
+        haloClass = 'active';
+    }
 
-    return `
-        <div class="bridge-agent-chip ${isPrimary ? 'primary' : ''}"
-             data-agent-id="${agent.id}"
-             data-agent-name="${fullName}">
-            <img src="${avatar}" alt="${fullName}" class="bridge-agent-avatar">
-            <div class="bridge-agent-info">
-                <div class="bridge-agent-name">${fullName}</div>
-                <div class="bridge-agent-role">${position}</div>
-            </div>
-            <div class="bridge-agent-skill-badge ${skillMatch ? 'match' : 'warning'}">
-                <i data-lucide="${skillMatch ? 'check' : 'alert-triangle'}"></i>
-            </div>
-        </div>
-    `;
+    // Initials with station-color tinted background
+    const initials = getInitials(fullName);
+    const stationColor = STATION_COLORS[stationCode] || '#00FFFF';
+
+    // Commander star badge
+    const commanderStar = isCommander
+        ? '<div class="agent-node-commander-star"><i data-lucide="star"></i></div>'
+        : '';
+
+    // Assignment type label
+    const typeLabel = isPrimary
+        ? _t('bridge.agent.primary', 'Primary')
+        : _t('bridge.agent.backup', 'Backup');
+
+    const displayName = firstName || fullName.split(' ')[0];
+
+    return '<div class="bridge-agent-node" data-agent-id="' + agent.id + '">'
+        + '<div class="agent-node-avatar-wrap">'
+        + '<div class="agent-node-initials" style="background: color-mix(in srgb, ' + stationColor + ' 20%, rgba(0,0,0,0.6));">'
+        + escapeHtml(initials)
+        + '</div>'
+        + '<div class="agent-node-halo ' + haloClass + '"></div>'
+        + commanderStar
+        + '</div>'
+        + '<div class="agent-node-label">' + escapeHtml(displayName) + '</div>'
+        + '<div class="agent-node-tooltip">'
+        + '<div class="agent-node-tooltip-name">' + escapeHtml(fullName) + '</div>'
+        + '<div class="agent-node-tooltip-role">' + escapeHtml(position) + '</div>'
+        + '<div class="agent-node-tooltip-type">' + escapeHtml(typeLabel) + '</div>'
+        + '</div>'
+        + '</div>';
 }
 
-function toggleExpand(stationId, button) {
-    const hiddenDiv = document.getElementById(`hidden-${stationId}`);
-    if (!hiddenDiv) return;
-
-    const isExpanded = hiddenDiv.classList.contains('visible');
-    hiddenDiv.classList.toggle('visible', !isExpanded);
-    button.classList.toggle('expanded', !isExpanded);
-
-    const text = button.querySelector('span');
-    if (text) {
-        const totalAgents = button.parentElement.querySelectorAll('.bridge-agent-chip').length;
-        text.textContent = isExpanded ? `Show all (${totalAgents})` : 'Show less';
+function getInitials(name) {
+    if (!name) return '??';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) {
+        return parts[0].substring(0, 2).toUpperCase();
     }
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons({ nodes: [button] });
-    }
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 function updateStationStats(stations) {
-    const totalStations = stations.length;
     const totalAgents = stations.reduce((sum, s) => sum + (s.assigned_agents?.length || 0), 0);
 
-    document.getElementById('station-count').textContent = totalStations;
-    document.getElementById('agent-count').textContent = totalAgents;
-    document.getElementById('stations-summary').textContent = `${totalStations} stations active`;
+    // Update viewscreen agent count
+    const agentCountEl = document.getElementById('viewscreenAgentCount');
+    if (agentCountEl) {
+        agentCountEl.textContent = totalAgents + ' agents';
+    }
+
+    // Also update overview HUD counters if they exist
+    const stationCountEl = document.getElementById('station-count');
+    if (stationCountEl) stationCountEl.textContent = stations.length;
+    const agentHudEl = document.getElementById('agent-count');
+    if (agentHudEl) agentHudEl.textContent = totalAgents;
 }
 
 function showNotification(message) {

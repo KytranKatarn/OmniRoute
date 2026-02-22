@@ -378,8 +378,65 @@ class BridgeDispatcher:
             conn.commit()
             cur.close()
             conn.close()
+            # After logging, update agent emotional state based on recent performance
+            self._update_agent_welfare(result.agent_id, result.success)
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Failed to log execution: {e}")
+
+    def _update_agent_welfare(self, agent_id: Optional[int], success: bool):
+        """Update agent emotional state after each dispatch using 1-hour rolling window."""
+        if not agent_id:
+            return
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            # Get 1-hour rolling window stats
+            cur.execute(
+                """
+                SELECT COUNT(*) as total,
+                       COUNT(*) FILTER (WHERE success = false) as failures
+                FROM task_execution_log
+                WHERE agent_id = %s
+                  AND created_at >= NOW() - INTERVAL '1 hour'
+                """,
+                (agent_id,),
+            )
+            row = cur.fetchone()
+            total = row[0] if row else 0
+            failures = row[1] if row else 0
+
+            if total == 0:
+                cur.close()
+                conn.close()
+                return
+
+            utilization = min(total / 20.0, 1.0)
+            error_rate = (failures / total) * 100 if total > 0 else 0
+            stress = min(utilization, 1.0)
+            energy = max(1.0 - stress * 0.5 - error_rate / 200, 0.1)
+
+            mood = "focused"
+            if stress >= 0.85:
+                mood = "overwhelmed"
+            elif stress >= 0.6:
+                mood = "busy"
+            elif energy <= 0.3:
+                mood = "fatigued"
+
+            cur.execute(
+                """
+                UPDATE agent_emotional_state
+                SET stress_level = %s, energy_level = %s,
+                    current_mood = %s, timestamp = NOW()
+                WHERE agent_id = %s
+                """,
+                (round(stress, 3), round(energy, 3), mood, agent_id),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Welfare update skipped: {e}")
 
     def _get_escalation_threshold(self) -> int:
         """Read escalation threshold from platform_settings."""

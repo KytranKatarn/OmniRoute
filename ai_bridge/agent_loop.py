@@ -37,7 +37,7 @@ def get_db():
     )
 
 
-def log_governance_event(event_type, action, outcome, details=None):
+def log_governance_event(event_type, action, outcome, details=None, event_category='system', agent_id=None):
     """Log a governance event to the immutable audit log"""
     try:
         conn = get_db()
@@ -45,10 +45,10 @@ def log_governance_event(event_type, action, outcome, details=None):
         cur.execute(
             """
             INSERT INTO governance_audit_log
-            (event_type, action, outcome, details, timestamp)
-            VALUES (%s, %s, %s, %s, NOW())
+            (event_type, event_category, agent_id, action, outcome, details, timestamp)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
             """,
-            (event_type, action, outcome, json.dumps(details or {})),
+            (event_type, event_category, agent_id, action, outcome, json.dumps(details or {})),
         )
         conn.commit()
         cur.close()
@@ -258,8 +258,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._run_ethics_monitoring),
+            trigger=IntervalTrigger(minutes=15),
+            id="agent_ethics_monitoring",
+            name="Agent Loop: Ethics Monitoring",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 13 jobs")
+        logger.info("Agent loop started with 14 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -277,6 +285,7 @@ class AgentLoop:
             "agent_briefings",
             "agent_anomaly_detection",
             "agent_reports",
+            "agent_ethics_monitoring",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -305,6 +314,7 @@ class AgentLoop:
             "agent_briefings",
             "agent_anomaly_detection",
             "agent_reports",
+            "agent_ethics_monitoring",
         ]:
             try:
                 job = self.scheduler.get_job(job_id)
@@ -1324,6 +1334,18 @@ class AgentLoop:
     # ------------------------------------------------------------------
     # HR Tracker (Project #91 — Phase 7)
     # ------------------------------------------------------------------
+
+    def _run_ethics_monitoring(self):
+        """Run IAAE ethics monitoring cycle (every 15 min)."""
+        try:
+            from ai_bridge.ethics_monitor import EthicsMonitor
+            monitor = EthicsMonitor()
+            result = monitor.run_full_monitoring_cycle()
+            if result.issues_found > 0 or result.alerts_created > 0:
+                logger.info(f"Ethics monitoring: {result.agents_checked} checked, "
+                           f"{result.issues_found} issues, {result.alerts_created} alerts")
+        except Exception as e:
+            logger.error(f"Ethics monitoring failed: {e}")
 
     def _track_agent_hr(self):
         """

@@ -2281,12 +2281,303 @@ def get_iaae_enforcement_log():
                     }
                 )
 
+            # 4. Failed dispatches — Vigil flags task execution failures
+            cur.execute(
+                """
+                SELECT tel.id, tel.created_at,
+                       COALESCE(NULLIF(a.first_name, ''), a.name, tel.agent_name) AS agent_name,
+                       tel.module_source, tel.task_type, tel.capability,
+                       tel.model_used, tel.error_message
+                FROM task_execution_log tel
+                LEFT JOIN agents a ON a.id = tel.agent_id
+                WHERE tel.success = false
+                  AND tel.created_at >= NOW() - INTERVAL '7 days'
+                ORDER BY tel.created_at DESC
+                LIMIT 15
+            """
+            )
+            for r in cur.fetchall():
+                module = r["module_source"] or ""
+                cap = r["capability"] or r["task_type"] or ""
+                detail = f"{module} / {cap}" if module and cap else module or cap
+                err = r["error_message"] or "unknown error"
+                # Truncate long error messages
+                if len(err) > 80:
+                    err = err[:77] + "..."
+                events.append(
+                    {
+                        "timestamp": r["created_at"].isoformat() if r["created_at"] else None,
+                        "event_category": "dispatch",
+                        "label": f"dispatch failed — {detail}: {err}" if detail else f"dispatch failed — {err}",
+                        "agent_name": r["agent_name"],
+                        "severity": "warning",
+                    }
+                )
+
+            # 5. Escalation events — model tier escalations
+            cur.execute(
+                """
+                SELECT del.id, del.created_at, del.original_model,
+                       del.escalated_model, del.escalated_provider,
+                       del.capability, del.module_id, del.reason,
+                       del.failure_count, del.success,
+                       COALESCE(NULLIF(a.first_name, ''), a.name) as agent_name
+                FROM dispatch_escalation_log del
+                LEFT JOIN agents a ON a.id = del.original_agent_id
+                WHERE del.created_at >= NOW() - INTERVAL '7 days'
+                ORDER BY del.created_at DESC
+                LIMIT 10
+            """
+            )
+            for r in cur.fetchall():
+                reason = r["reason"] or "capability exceeded"
+                if len(reason) > 60:
+                    reason = reason[:57] + "..."
+                events.append(
+                    {
+                        "timestamp": r["created_at"].isoformat() if r["created_at"] else None,
+                        "event_category": "governance",
+                        "label": f"Escalated from {r['original_model']} to {r['escalated_model']}: {reason}",
+                        "agent_name": r["agent_name"],
+                        "severity": "warning",
+                    }
+                )
+
         # Sort by timestamp descending
         events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
 
         return jsonify({"success": True, "events": events, "total": len(events)})
     except Exception as e:
         logger.error("get_iaae_enforcement_log error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/iaae/enforcement-log-full")
+@login_required
+def get_iaae_enforcement_log_full():
+    """Vigil's Log — paginated full view with category filter."""
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(50, max(5, int(request.args.get("per_page", 20))))
+        category_filter = request.args.get("filter", "all")
+        events = []
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            # 1. Governance audit events
+            if category_filter in ("all", "governance", "autonomy"):
+                cur.execute(
+                    """
+                    SELECT gal.id, gal.timestamp, gal.event_type, gal.event_category,
+                           gal.action, gal.reason, gal.outcome,
+                           gal.agent_id, a.name as agent_name,
+                           a.first_name as agent_first_name
+                    FROM governance_audit_log gal
+                    LEFT JOIN agents a ON a.id = gal.agent_id
+                    WHERE gal.timestamp >= NOW() - INTERVAL '30 days'
+                      AND gal.event_type != 'dev_commit'
+                    ORDER BY gal.timestamp DESC
+                    LIMIT 200
+                """
+                )
+                for r in cur.fetchall():
+                    etype = (r["event_type"] or "").replace("_", " ")
+                    action = r["action"] or ""
+                    label = f"{etype} — {action}" if action else etype
+                    cat = r["event_category"] or "governance"
+                    if category_filter != "all" and cat != category_filter:
+                        continue
+                    events.append(
+                        {
+                            "timestamp": r["timestamp"].isoformat() if r["timestamp"] else None,
+                            "event_category": cat,
+                            "label": label,
+                            "agent_name": r["agent_first_name"] or r["agent_name"],
+                            "severity": "warning" if cat == "autonomy" else "info",
+                        }
+                    )
+
+            # 2. Welfare checks
+            if category_filter in ("all", "welfare"):
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON (aes.agent_id)
+                           aes.agent_id,
+                           COALESCE(NULLIF(a.first_name, ''), a.name) as agent_name,
+                           aes.stress_level, aes.energy_level,
+                           aes.current_mood, aes.timestamp
+                    FROM agent_emotional_state aes
+                    JOIN agents a ON a.id = aes.agent_id
+                    WHERE a.status = 'active'
+                    ORDER BY aes.agent_id, aes.timestamp DESC
+                """
+                )
+                agent_states = cur.fetchall()
+
+                cur.execute(
+                    "SELECT threshold_type, warning_level, critical_level "
+                    "FROM iaae_thresholds WHERE is_active = true"
+                )
+                thresholds = {r["threshold_type"]: r for r in cur.fetchall()}
+
+                stress_warn = float(thresholds.get("stress_high", {}).get("warning_level", 0.70))
+                stress_crit = float(thresholds.get("stress_high", {}).get("critical_level", 0.85))
+                energy_warn = float(thresholds.get("energy_low", {}).get("warning_level", 0.40))
+                energy_crit = float(thresholds.get("energy_low", {}).get("critical_level", 0.30))
+
+                for agent in agent_states:
+                    stress = float(agent["stress_level"] or 0)
+                    energy = float(agent["energy_level"] or 0)
+                    name = agent["agent_name"]
+                    ts = agent["timestamp"].isoformat() if agent["timestamp"] else None
+
+                    if stress >= stress_crit:
+                        events.append(
+                            {
+                                "timestamp": ts,
+                                "event_category": "welfare",
+                                "label": f"stress critical ({stress:.0%})",
+                                "agent_name": name,
+                                "severity": "critical",
+                            }
+                        )
+                    elif stress >= stress_warn:
+                        events.append(
+                            {
+                                "timestamp": ts,
+                                "event_category": "welfare",
+                                "label": f"stress elevated ({stress:.0%})",
+                                "agent_name": name,
+                                "severity": "warning",
+                            }
+                        )
+
+                    if energy <= energy_crit:
+                        events.append(
+                            {
+                                "timestamp": ts,
+                                "event_category": "welfare",
+                                "label": f"energy critical ({energy:.0%})",
+                                "agent_name": name,
+                                "severity": "critical",
+                            }
+                        )
+                    elif energy <= energy_warn:
+                        events.append(
+                            {
+                                "timestamp": ts,
+                                "event_category": "welfare",
+                                "label": f"energy low ({energy:.0%})",
+                                "agent_name": name,
+                                "severity": "warning",
+                            }
+                        )
+
+            # 3. ARCHIE wellness
+            if category_filter in ("all", "archie_wellness"):
+                cur.execute(
+                    """
+                    SELECT current_mood, mood_intensity, timestamp
+                    FROM archie_emotional_state
+                    ORDER BY timestamp DESC LIMIT 1
+                """
+                )
+                archie_state = cur.fetchone()
+                if archie_state and archie_state["timestamp"]:
+                    events.append(
+                        {
+                            "timestamp": archie_state["timestamp"].isoformat(),
+                            "event_category": "archie_wellness",
+                            "label": f"ARCHIE mood: {archie_state['current_mood']}",
+                            "agent_name": None,
+                            "severity": "info",
+                        }
+                    )
+
+            # 4. Failed dispatches
+            if category_filter in ("all", "dispatch"):
+                cur.execute(
+                    """
+                    SELECT tel.id, tel.created_at,
+                           COALESCE(NULLIF(a.first_name, ''), a.name, tel.agent_name)
+                               AS agent_name,
+                           tel.module_source, tel.task_type, tel.capability,
+                           tel.model_used, tel.error_message
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.id = tel.agent_id
+                    WHERE tel.success = false
+                      AND tel.created_at >= NOW() - INTERVAL '30 days'
+                    ORDER BY tel.created_at DESC
+                    LIMIT 200
+                """
+                )
+                for r in cur.fetchall():
+                    module = r["module_source"] or ""
+                    cap = r["capability"] or r["task_type"] or ""
+                    detail = f"{module} / {cap}" if module and cap else module or cap
+                    err = r["error_message"] or "unknown error"
+                    if len(err) > 100:
+                        err = err[:97] + "..."
+                    events.append(
+                        {
+                            "timestamp": r["created_at"].isoformat() if r["created_at"] else None,
+                            "event_category": "dispatch",
+                            "label": f"dispatch failed — {detail}: {err}" if detail else f"dispatch failed — {err}",
+                            "agent_name": r["agent_name"],
+                            "severity": "warning",
+                        }
+                    )
+
+            # 5. Escalation events
+            if category_filter in ("all", "governance"):
+                cur.execute(
+                    """
+                    SELECT del.id, del.created_at, del.original_model,
+                           del.escalated_model, del.escalated_provider,
+                           del.capability, del.module_id, del.reason,
+                           del.failure_count, del.success,
+                           COALESCE(NULLIF(a.first_name, ''), a.name) as agent_name
+                    FROM dispatch_escalation_log del
+                    LEFT JOIN agents a ON a.id = del.original_agent_id
+                    WHERE del.created_at >= NOW() - INTERVAL '30 days'
+                    ORDER BY del.created_at DESC
+                    LIMIT 50
+                """
+                )
+                for r in cur.fetchall():
+                    reason = r["reason"] or "capability exceeded"
+                    if len(reason) > 80:
+                        reason = reason[:77] + "..."
+                    events.append(
+                        {
+                            "timestamp": r["created_at"].isoformat() if r["created_at"] else None,
+                            "event_category": "governance",
+                            "label": f"Escalated from {r['original_model']} to {r['escalated_model']}: {reason}",
+                            "agent_name": r["agent_name"],
+                            "severity": "warning",
+                        }
+                    )
+
+        # Sort by timestamp descending
+        events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
+
+        total = len(events)
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = min(page, total_pages)
+        start = (page - 1) * per_page
+        paged = events[start : start + per_page]
+
+        return jsonify(
+            {
+                "success": True,
+                "events": paged,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": total_pages,
+            }
+        )
+    except Exception as e:
+        logger.error("get_iaae_enforcement_log_full error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 

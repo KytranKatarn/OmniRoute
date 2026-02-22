@@ -6482,6 +6482,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(loadStations, 60000);
     setInterval(loadIAAEStatus, 30000);
     setInterval(loadStaffingStatus, 60000);
+    setInterval(loadViewscreenData, 30000);
 
     // Initialize Lucide icons
     if (typeof lucide !== 'undefined') {
@@ -6542,6 +6543,7 @@ async function loadStations() {
 
             renderStations(stationsData.stations);
             updateStationStats(stationsData.stations);
+            loadViewscreenData();
         }
     } catch (error) {
         console.error('Error loading stations:', error);
@@ -6708,6 +6710,106 @@ function updateStationStats(stations) {
     if (stationCountEl) stationCountEl.textContent = stations.length;
     const agentHudEl = document.getElementById('agent-count');
     if (agentHudEl) agentHudEl.textContent = totalAgents;
+}
+
+// ============================================================================
+// VIEWSCREEN DATA LOADING
+// ============================================================================
+
+function getStationForModule(moduleName) {
+    if (!moduleName) return 'COMMAND';
+
+    // First: check allStations for an exact module match
+    if (allStations && allStations.length > 0) {
+        for (const station of allStations) {
+            if (station.modules && station.modules.includes(moduleName)) {
+                return station.code;
+            }
+        }
+    }
+
+    // Fallback heuristics on lowercased name
+    const lower = moduleName.toLowerCase();
+    if (lower.includes('consciousness') || lower.includes('knowledge')) return 'CONSCIOUSNESS';
+    if (lower.includes('security') || lower.includes('vigil')) return 'SECURITY';
+    if (lower.includes('bridge') || lower.includes('chat')) return 'COMMAND';
+    if (lower.includes('email') || lower.includes('telegram')) return 'OPERATIONS';
+    return 'COMMAND';
+}
+
+function renderViewscreen(events, trafficData) {
+    const feedEl = document.getElementById('viewscreenFeed');
+    if (!feedEl) return;
+
+    // Handle empty state
+    if (!events || events.length === 0) {
+        feedEl.innerHTML = '<div class="bridge-viewscreen-empty">No recent dispatch activity</div>';
+    } else {
+        let html = '';
+        for (const evt of events) {
+            const stationCode = getStationForModule(evt.module_source);
+            const stationColor = STATION_COLORS[stationCode] || '#00FFFF';
+
+            // Parse time from created_at (ISO string)
+            let timeStr = '--:--:--';
+            if (evt.created_at) {
+                const d = new Date(evt.created_at);
+                if (!isNaN(d.getTime())) {
+                    timeStr = d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+            }
+
+            // Success status icon
+            let statusHtml = '<span class="viewscreen-status pending">&hellip;</span>';
+            if (evt.success === true) {
+                statusHtml = '<span class="viewscreen-status success">&check;</span>';
+            } else if (evt.success === false) {
+                statusHtml = '<span class="viewscreen-status fail">&cross;</span>';
+            }
+
+            html += '<div class="bridge-viewscreen-event" data-station-code="' + escapeHtml(stationCode) + '">'
+                + '<span class="viewscreen-time">' + escapeHtml(timeStr) + '</span>'
+                + '<span class="viewscreen-agent">' + escapeHtml(evt.agent_name || 'Unknown') + '</span>'
+                + '<span class="viewscreen-arrow">&rarr;</span>'
+                + '<span class="viewscreen-station" style="color:' + stationColor + '">' + escapeHtml(stationCode) + '</span>'
+                + '<span class="viewscreen-detail">' + escapeHtml(evt.model_used || '') + '</span>'
+                + statusHtml
+                + '</div>';
+        }
+        feedEl.innerHTML = html;
+    }
+
+    // Update statusbar: throughput
+    const throughputEl = document.getElementById('viewscreenThroughput');
+    if (throughputEl && trafficData) {
+        const rpm = parseFloat(trafficData.requests_per_minute) || 0;
+        throughputEl.textContent = rpm.toFixed(1) + ' req/min';
+    }
+
+    // Update statusbar: success rate from events
+    const successEl = document.getElementById('viewscreenSuccess');
+    if (successEl && events && events.length > 0) {
+        const successCount = events.filter(function(e) { return e.success === true; }).length;
+        const pct = Math.round(successCount / events.length * 100);
+        successEl.textContent = pct + '% success';
+    }
+}
+
+async function loadViewscreenData() {
+    try {
+        const [activityResp, trafficResp] = await Promise.all([
+            fetch('/tools/bridge/api/dispatch/activity-history'),
+            fetch('/tools/bridge/api/traffic')
+        ]);
+
+        const activityData = await activityResp.json();
+        const trafficData = await trafficResp.json();
+
+        const events = Array.isArray(activityData) ? activityData : (activityData.events || []);
+        renderViewscreen(events.slice(0, 5), trafficData);
+    } catch (error) {
+        console.error('Error loading viewscreen data:', error);
+    }
 }
 
 function showNotification(message) {

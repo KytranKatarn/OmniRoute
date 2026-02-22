@@ -63,13 +63,13 @@ VALUES
 
     -- 7. Google Gemini
     ('gemini', 'Google Gemini', 'https://generativelanguage.googleapis.com/v1beta/openai', 'gemini-2.0-flash', 'api_key', 'GEMINI_API_KEY', FALSE, 9,
-     '[{"name": "gemini-2.0-flash", "max_tokens": 8192, "cost_per_1k": {"input": 0.0, "output": 0.0}}, {"name": "gemini-2.5-pro-preview-05-06", "max_tokens": 65536, "cost_per_1k": {"input": 0.00125, "output": 0.01}}]'::jsonb,
+     '[{"name": "gemini-2.0-flash", "max_tokens": 8192, "cost_per_1k": {"input": 0.0, "output": 0.0}}, {"name": "gemini-2.5-flash", "max_tokens": 65536, "cost_per_1k": {"input": 0.0, "output": 0.0}}]'::jsonb,
      '{"free": {"session_limit": 15, "weekly_limit": 1500}, "pro": {"session_limit": null, "weekly_limit": null}}'::jsonb,
      FALSE),
 
     -- 8. Cerebras
-    ('cerebras', 'Cerebras', 'https://api.cerebras.ai/v1', 'llama-3.3-70b', 'api_key', 'CEREBRAS_API_KEY', FALSE, 10,
-     '[{"name": "llama-3.3-70b", "max_tokens": 8192, "cost_per_1k": {"input": 0.00085, "output": 0.0012}}]'::jsonb,
+    ('cerebras', 'Cerebras', 'https://api.cerebras.ai/v1', 'llama3.1-8b', 'api_key', 'CEREBRAS_API_KEY', FALSE, 10,
+     '[{"name": "llama3.1-8b", "max_tokens": 8192, "cost_per_1k": {"input": 0.0001, "output": 0.0001}}, {"name": "qwen-3-235b-a22b-instruct-2507", "max_tokens": 8192, "cost_per_1k": {"input": 0.001, "output": 0.001}}]'::jsonb,
      '{"free": {"session_limit": 30, "weekly_limit": 8400}, "pro": {"session_limit": null, "weekly_limit": null}}'::jsonb,
      FALSE),
 
@@ -80,8 +80,8 @@ VALUES
      FALSE),
 
     -- 10. Cohere
-    ('cohere', 'Cohere', 'https://api.cohere.com/compatibility/v1', 'command-r-plus', 'api_key', 'COHERE_API_KEY', FALSE, 12,
-     '[{"name": "command-r-plus", "max_tokens": 4096, "cost_per_1k": {"input": 0.0025, "output": 0.01}}, {"name": "command-r", "max_tokens": 4096, "cost_per_1k": {"input": 0.00015, "output": 0.0006}}]'::jsonb,
+    ('cohere', 'Cohere', 'https://api.cohere.com/compatibility/v1', 'command-a-03-2025', 'api_key', 'COHERE_API_KEY', FALSE, 12,
+     '[{"name": "command-a-03-2025", "max_tokens": 4096, "cost_per_1k": {"input": 0.0025, "output": 0.01}}, {"name": "command-r-08-2024", "max_tokens": 4096, "cost_per_1k": {"input": 0.00015, "output": 0.0006}}]'::jsonb,
      '{"free": {"session_limit": 20, "weekly_limit": 1000}, "pro": {"session_limit": null, "weekly_limit": null}}'::jsonb,
      FALSE),
 

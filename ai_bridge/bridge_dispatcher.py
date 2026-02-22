@@ -287,22 +287,22 @@ class BridgeDispatcher:
         try:
             from archie_bridge import call_ollama, call_ollama_json, call_ollama_cloud
 
-            # Route to external providers
-            if model in ("gpt-4o-mini", "gpt-4o"):
-                from external_providers import call_openai
-                return call_openai(prompt, model=model, system_prompt=system_prompt,
-                                 json_mode=json_mode, timeout=timeout)
-            if model.startswith("llama-3.1-sonar"):
-                from external_providers import call_perplexity
-                return call_perplexity(prompt, model=model, system_prompt=system_prompt,
-                                      json_mode=json_mode, timeout=timeout)
-            if model.startswith("grok"):
-                from external_providers import call_grok
-                return call_grok(prompt, model=model, system_prompt=system_prompt,
-                               json_mode=json_mode, timeout=timeout)
+            # Route to external providers — dynamic lookup from contractor_providers DB
+            from external_providers import get_provider_for_model, call_external, _get_provider_config
 
-            # Route cloud models
-            if ":cloud" in model or model in ("minimax-m2.5", "qwen3-coder-next"):
+            ext_provider_key = get_provider_for_model(model)
+            if ext_provider_key:
+                ext_config = _get_provider_config(ext_provider_key)
+                if ext_config and ext_config.get("is_cloud_proxy"):
+                    return call_ollama_cloud(prompt, model=model, system_prompt=system_prompt)
+                if ext_config:
+                    return call_external(
+                        ext_provider_key, prompt, model=model,
+                        system_prompt=system_prompt, json_mode=json_mode, timeout=timeout,
+                    )
+
+            # Route cloud models (fallback for :cloud suffix convention)
+            if ":cloud" in model:
                 return call_ollama_cloud(prompt, model=model, system_prompt=system_prompt)
 
             # JSON mode

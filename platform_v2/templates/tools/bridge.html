@@ -8230,7 +8230,8 @@ function renderContractors(providers, routingMode, iaaeData) {
     routingMode = routingMode || 'full';
     iaaeData = iaaeData || { iaae_total_24h: 0, iaae_blocked_24h: 0 };
     var iaaeBlocked = iaaeData.iaae_blocked_24h || 0;
-    var cloudProviders = ['minimax_cloud', 'qwen3_cloud'];
+    // Dynamic cloud provider check — use is_cloud_proxy from API data
+    var cloudProviders = providers.filter(function(p) { return p.is_cloud_proxy; }).map(function(p) { return p.provider; });
     var grid = document.getElementById('contractors-grid');
     var summaryEl = document.getElementById('contractors-summary');
     if (!grid) return;
@@ -8256,7 +8257,7 @@ function renderContractors(providers, routingMode, iaaeData) {
 
     var html = '';
     providers.forEach(function(p) {
-        var providerName = escapeHtml((p.name || p.provider || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }));
+        var providerName = escapeHtml(p.display_name || (p.name || p.provider || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }));
         var providerKey = escapeHtml(p.provider || p.name || '');
         // Get first tier position from tier_positions map
         var tierPositions = p.tier_positions || {};
@@ -8437,71 +8438,156 @@ function openAddProviderModal(editProviderName) {
     var existing = document.querySelector('.provider-modal-overlay');
     if (existing) existing.remove();
 
-    // Fetch current data to pre-fill fields
-    fetch('/tools/bridge/api/external-providers')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        var providers = data.providers || [];
-        var current = editProviderName ? providers.find(function(p) { return p.provider === editProviderName; }) : null;
+    // Fetch both contractor-providers definitions AND current key data in parallel
+    Promise.all([
+        fetch('/tools/bridge/api/contractor-providers').then(function(r) { return r.json(); }),
+        fetch('/tools/bridge/api/external-providers').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var cpData = results[0];
+        var epData = results[1];
+        var contractorProviders = cpData.providers || [];
+        var configuredProviders = epData.providers || [];
+        var current = editProviderName ? configuredProviders.find(function(p) { return p.provider === editProviderName; }) : null;
 
         var overlay = document.createElement('div');
         overlay.className = 'provider-modal-overlay';
         overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 
-        var providerOptions = [
-            { value: 'openai', label: 'OpenAI' },
-            { value: 'perplexity', label: 'Perplexity' },
-            { value: 'xai', label: 'xAI' },
-            { value: 'minimax_cloud', label: 'MiniMax Cloud' },
-            { value: 'qwen3_cloud', label: 'Qwen3 Cloud' }
-        ];
-
-        var selectHtml = providerOptions.map(function(opt) {
-            var selected = (editProviderName && editProviderName === opt.value) ? ' selected' : '';
-            return '<option value="' + opt.value + '"' + selected + '>' + escapeHtml(opt.label) + '</option>';
-        }).join('');
+        // Build provider options dynamically from contractor_providers table
+        var providerOptions = contractorProviders.map(function(cp) {
+            return { value: cp.provider_key, label: cp.display_name, is_cloud_proxy: cp.is_cloud_proxy };
+        });
 
         var budgetVal = current ? (current.monthly_budget_usd || 10) : 10;
         var currentTier = current ? (current.account_tier || 'free') : 'free';
-        var isCloud = editProviderName && ['minimax_cloud', 'qwen3_cloud'].indexOf(editProviderName) !== -1;
-        var authNote = isCloud
-            ? '<div style="margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);">Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)</div>'
-            : '';
+        var isCloud = editProviderName && providerOptions.some(function(opt) { return opt.value === editProviderName && opt.is_cloud_proxy; });
         var keyPlaceholder = current && current.key_hint ? 'Current: ' + current.key_hint + ' (leave blank to keep)' : 'sk-... or key';
 
         var tierOptions = [
             { value: 'free', label: 'Free' },
             { value: 'pro', label: 'Pro' },
             { value: 'pay_as_you_go', label: 'Pay As You Go' },
-            { value: 'enterprise', label: 'Enterprise' }
+            { value: 'enterprise', label: 'Enterprise' },
+            { value: 'max', label: 'Max' }
         ];
-        var tierSelectHtml = tierOptions.map(function(opt) {
-            var sel = opt.value === currentTier ? ' selected' : '';
-            return '<option value="' + opt.value + '"' + sel + '>' + escapeHtml(opt.label) + '</option>';
-        }).join('');
 
+        // Build modal using safe DOM construction
         var modal = document.createElement('div');
         modal.className = 'provider-modal';
-        modal.innerHTML = '<h3><i data-lucide="building-2" style="width:18px;height:18px;"></i> ' + (editProviderName ? 'Edit' : 'Add') + ' Provider</h3>' +
-            '<label>Provider</label>' +
-            '<select id="provider-modal-name" ' + (editProviderName ? 'disabled' : '') + '>' +
-            '<option value="">Select provider...</option>' +
-            selectHtml +
-            '</select>' +
-            authNote +
-            '<label>Account Tier</label>' +
-            '<select id="provider-modal-tier">' + tierSelectHtml + '</select>' +
-            '<label>API Key</label>' +
-            '<input type="password" id="provider-modal-key" placeholder="' + escapeHtml(keyPlaceholder) + '">' +
-            '<label>Monthly Budget ($)</label>' +
-            '<input type="number" id="provider-modal-budget" value="' + budgetVal + '" min="0" step="1">' +
-            '<div class="provider-modal-buttons">' +
-            '<button class="btn-cancel" onclick="this.closest(\'.provider-modal-overlay\').remove()">Cancel</button>' +
-            '<button class="btn-save" onclick="saveProvider()">Save</button>' +
-            '</div>';
+
+        // Header
+        var h3 = document.createElement('h3');
+        var icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'building-2');
+        icon.style.cssText = 'width:18px;height:18px;';
+        h3.appendChild(icon);
+        h3.appendChild(document.createTextNode(' ' + (editProviderName ? 'Edit' : 'Add') + ' Provider'));
+        modal.appendChild(h3);
+
+        // Provider select
+        var lbl1 = document.createElement('label');
+        lbl1.textContent = 'Provider';
+        modal.appendChild(lbl1);
+        var provSelect = document.createElement('select');
+        provSelect.id = 'provider-modal-name';
+        if (editProviderName) provSelect.disabled = true;
+        var defOpt = document.createElement('option');
+        defOpt.value = '';
+        defOpt.textContent = 'Select provider...';
+        provSelect.appendChild(defOpt);
+        providerOptions.forEach(function(opt) {
+            var o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (editProviderName && editProviderName === opt.value) o.selected = true;
+            provSelect.appendChild(o);
+        });
+        modal.appendChild(provSelect);
+
+        // Auth note container
+        var authNoteDiv = document.createElement('div');
+        authNoteDiv.id = 'provider-modal-auth-note';
+        if (isCloud) {
+            var noteInner = document.createElement('div');
+            noteInner.style.cssText = 'margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);';
+            noteInner.textContent = 'Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)';
+            authNoteDiv.appendChild(noteInner);
+        }
+        modal.appendChild(authNoteDiv);
+
+        // Account tier select
+        var lbl2 = document.createElement('label');
+        lbl2.textContent = 'Account Tier';
+        modal.appendChild(lbl2);
+        var tierSelect = document.createElement('select');
+        tierSelect.id = 'provider-modal-tier';
+        tierOptions.forEach(function(opt) {
+            var o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (opt.value === currentTier) o.selected = true;
+            tierSelect.appendChild(o);
+        });
+        modal.appendChild(tierSelect);
+
+        // API key input
+        var lbl3 = document.createElement('label');
+        lbl3.textContent = 'API Key';
+        modal.appendChild(lbl3);
+        var keyInput = document.createElement('input');
+        keyInput.type = 'password';
+        keyInput.id = 'provider-modal-key';
+        keyInput.placeholder = keyPlaceholder;
+        modal.appendChild(keyInput);
+
+        // Budget input
+        var lbl4 = document.createElement('label');
+        lbl4.textContent = 'Monthly Budget ($)';
+        modal.appendChild(lbl4);
+        var budgetInput = document.createElement('input');
+        budgetInput.type = 'number';
+        budgetInput.id = 'provider-modal-budget';
+        budgetInput.value = budgetVal;
+        budgetInput.min = '0';
+        budgetInput.step = '1';
+        modal.appendChild(budgetInput);
+
+        // Buttons
+        var btnDiv = document.createElement('div');
+        btnDiv.className = 'provider-modal-buttons';
+        var cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-cancel';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = function() { overlay.remove(); };
+        var saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-save';
+        saveBtn.textContent = 'Save';
+        saveBtn.onclick = function() { saveProvider(); };
+        btnDiv.appendChild(cancelBtn);
+        btnDiv.appendChild(saveBtn);
+        modal.appendChild(btnDiv);
 
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
+
+        // Dynamic auth note update when provider changes
+        if (!editProviderName) {
+            provSelect.addEventListener('change', function() {
+                var sel = this.value;
+                var cp = providerOptions.find(function(o) { return o.value === sel; });
+                var noteEl = document.getElementById('provider-modal-auth-note');
+                if (noteEl) {
+                    while (noteEl.firstChild) noteEl.removeChild(noteEl.firstChild);
+                    if (cp && cp.is_cloud_proxy) {
+                        var noteInner = document.createElement('div');
+                        noteInner.style.cssText = 'margin:6px 0 8px;padding:6px 8px;background:rgba(0,255,255,0.06);border:1px solid rgba(0,255,255,0.15);border-radius:4px;font-size:0.72rem;color:var(--archie-cyan);';
+                        noteInner.textContent = 'Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)';
+                        noteEl.appendChild(noteInner);
+                    }
+                }
+            });
+        }
+
         if (typeof lucide !== 'undefined') lucide.createIcons();
     });
 }

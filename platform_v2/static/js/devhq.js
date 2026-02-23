@@ -955,6 +955,15 @@
     updateClock();
     setInterval(updateClock, 1000);
 
+    // Always populate header stats regardless of which tab is shown
+    api("/api/overview").then(function (data) {
+      if (!data.success) return;
+      var activeCount = data.project_stats.active || 0;
+      var openTasks = data.task_stats.open_tasks || 0;
+      document.getElementById("hqProjectCount").textContent = activeCount;
+      document.getElementById("hqTaskCount").textContent = openTasks;
+    }).catch(function () {});
+
     // Hash deep-linking
     var hash = window.location.hash.replace("#", "");
     var validTabs = ["overview", "projects", "tasks", "knowledge", "schema", "api", "integrations"];

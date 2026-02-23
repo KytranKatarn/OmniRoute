@@ -7020,10 +7020,16 @@ def create_agent_from_gap():
                 cur.execute(
                     """
                     UPDATE autonomy_approval_queue
-                    SET status = 'approved', approved_by = %s, approved_at = NOW()
+                    SET status = 'executed', approved_by = %s, approved_at = NOW(),
+                        executed_at = NOW(),
+                        execution_result = %s::jsonb
                     WHERE id = %s
                 """,
-                    (current_user.id, approval_id),
+                    (
+                        current_user.id,
+                        json.dumps({"agent_id": agent_id, "source": "manual"}),
+                        approval_id,
+                    ),
                 )
                 return jsonify({"success": True, "agent_id": agent_id})
             else:

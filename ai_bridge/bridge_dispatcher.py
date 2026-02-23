@@ -201,6 +201,7 @@ class BridgeDispatcher:
         self._welfare_cache = {}  # agent_id → {stress, energy, mood, resting, budget}
         self._welfare_cache_time = 0
         self._welfare_cache_ttl = 30  # Refresh every 30 seconds
+        self._busy_agents = set()  # agent names with running bridge_jobs
 
     def _get_db(self):
         """Get database connection."""
@@ -373,6 +374,12 @@ class BridgeDispatcher:
                     "token_limit_per_day": r["token_limit_per_day"] or 100000,
                 }
 
+            # Busy agents (running bridge_jobs)
+            cur.execute("""
+                SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'
+            """)
+            self._busy_agents = {r["agent_name"] for r in cur.fetchall()}
+
             cur.close()
             conn.close()
 
@@ -478,8 +485,8 @@ class BridgeDispatcher:
         # ------------------------------------------------------------------
         # Availability score — idle agents preferred
         # ------------------------------------------------------------------
-        busy_job = self._check_agent_busy(agent_name)
-        availability_score = 0.2 if busy_job else 1.0
+        is_busy = agent_name in getattr(self, "_busy_agents", set())
+        availability_score = 0.2 if is_busy else 1.0
 
         # ------------------------------------------------------------------
         # Budget score — agents with more headroom preferred
@@ -741,6 +748,8 @@ class BridgeDispatcher:
             conn.commit()
             cur.close()
             conn.close()
+            # Invalidate welfare cache so next dispatch sees fresh state
+            self._welfare_cache_time = 0
         except Exception as e:
             logger.debug(f"[BridgeDispatcher] Welfare update skipped: {e}")
 
@@ -1219,14 +1228,15 @@ class BridgeDispatcher:
                     token_reset_at = NOW() + INTERVAL '1 day', updated_at = NOW()
                 WHERE agent_id = %s AND token_reset_at < NOW()
             """, (tokens_used, agent_id))
-            # Normal increment (only if not just reset)
-            cur.execute("""
-                UPDATE agent_budgets
-                SET current_task_count = current_task_count + 1,
-                    tokens_used_today = tokens_used_today + %s,
-                    updated_at = NOW()
-                WHERE agent_id = %s AND token_reset_at >= NOW()
-            """, (tokens_used, agent_id))
+            if cur.rowcount == 0:
+                # No reset needed — normal increment
+                cur.execute("""
+                    UPDATE agent_budgets
+                    SET current_task_count = current_task_count + 1,
+                        tokens_used_today = tokens_used_today + %s,
+                        updated_at = NOW()
+                    WHERE agent_id = %s
+                """, (tokens_used, agent_id))
             conn.commit()
             cur.close()
             conn.close()
@@ -1333,6 +1343,28 @@ class BridgeDispatcher:
             )
             return False
 
+        # Safety rails: max sub-agents and generation depth
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM agents WHERE parent_agent_id = 2")
+            sub_count = cur.fetchone()[0]
+            cur.execute(
+                "SELECT max_sub_agents FROM agent_budgets WHERE agent_id = 2"
+            )
+            row = cur.fetchone()
+            max_subs = row[0] if row else 20
+            cur.close()
+            conn.close()
+            if sub_count >= max_subs:
+                logger.warning(
+                    f"[BridgeDispatcher] Max sub-agents reached ({sub_count}/{max_subs}), "
+                    f"cannot create agent for {capability}"
+                )
+                return False
+        except Exception as rail_err:
+            logger.debug(f"[BridgeDispatcher] Safety rail check error: {rail_err}")
+
         # Build suggested agent profile
         suggested_model = self._STATION_DEFAULT_MODEL.get(
             station_code, "dolphin3-8k:latest"
@@ -1394,6 +1426,15 @@ class BridgeDispatcher:
         Returns:
             New agent_id on success, None on failure.
         """
+        _STATION_DEPARTMENT = {
+            "COMMAND": "Command",
+            "ANALYTICS": "Analytics",
+            "ENGINEERING": "Engineering",
+            "OPERATIONS": "Operations",
+            "CREATIVE": "Creative",
+            "RESEARCH": "Research",
+        }
+
         capability = approval_data.get("capability", "general")
         station_code = approval_data.get("station_code", "COMMAND")
         suggested_name = approval_data.get("suggested_name", f"Auto-{capability}")
@@ -1404,6 +1445,12 @@ class BridgeDispatcher:
         suggested_skills = approval_data.get("suggested_skills", [capability])
         reason = approval_data.get("reason", "Dynamic creation via dispatcher")
 
+        # Parse name for first_name / last_name
+        parts = suggested_name.split("-", 1)
+        first_name = parts[0] if parts else suggested_name
+        last_name = parts[1] if len(parts) > 1 else ""
+        department = _STATION_DEPARTMENT.get(station_code, station_code)
+
         try:
             conn = self._get_db()
             cur = conn.cursor()
@@ -1413,11 +1460,13 @@ class BridgeDispatcher:
                 """
                 INSERT INTO agents (
                     name, model, status, department, title,
+                    first_name, last_name,
                     worker_type, cost_tier, agent_generation,
                     parent_agent_id, created_by_agent_id,
                     system_prompt, temperature, max_tokens
                 ) VALUES (
                     %s, %s, 'active', %s, %s,
+                    %s, %s,
                     'internal', 'free', 1,
                     2, 2,
                     %s, 0.5, 4096
@@ -1427,8 +1476,10 @@ class BridgeDispatcher:
                 (
                     suggested_name,
                     suggested_model,
-                    station_code,
-                    f"Auto-created {capability} specialist",
+                    department,
+                    f"{capability.replace('_', ' ').title()} Specialist",
+                    first_name,
+                    last_name,
                     f"You are {suggested_name}, a specialist in {capability} "
                     f"at the {station_code} station.",
                 ),

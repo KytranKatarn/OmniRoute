@@ -36,7 +36,6 @@ CAPABILITY_STATION_MAP = {
     "dispatch": "COMMAND",
     "governance": "COMMAND",
     "orchestration": "COMMAND",
-
     # Analytics station capabilities
     "classify": "ANALYTICS",
     "sentiment": "ANALYTICS",
@@ -45,7 +44,6 @@ CAPABILITY_STATION_MAP = {
     "pattern_recognition": "ANALYTICS",
     "embedding": "ANALYTICS",
     "vision": "ANALYTICS",
-
     # Engineering station capabilities
     "code": "ENGINEERING",
     "code_analysis": "ENGINEERING",
@@ -55,7 +53,6 @@ CAPABILITY_STATION_MAP = {
     "schema_design": "ENGINEERING",
     "api_design": "ENGINEERING",
     "deployment": "ENGINEERING",
-
     # Operations station capabilities
     "operations": "OPERATIONS",
     "system_monitoring": "OPERATIONS",
@@ -68,7 +65,6 @@ CAPABILITY_STATION_MAP = {
     "webhook": "OPERATIONS",
     "ha_integration": "OPERATIONS",
     "automation": "OPERATIONS",
-
     # Creative station capabilities
     "content_writing": "CREATIVE",
     "email_composition": "CREATIVE",
@@ -82,7 +78,6 @@ CAPABILITY_STATION_MAP = {
     "audio_tts": "CREATIVE",
     "audio_music": "CREATIVE",
     "media_editing": "CREATIVE",
-
     # Research station capabilities
     "knowledge_analysis": "RESEARCH",
     "summarize": "RESEARCH",
@@ -90,13 +85,10 @@ CAPABILITY_STATION_MAP = {
     "fact_checking": "RESEARCH",
     "semantic_search": "RESEARCH",
     "context_retrieval": "RESEARCH",
-
     # Creative station — translation (language content creation)
     "translate": "CREATIVE",
-
     # Analytics — language detection (classification task)
     "detect_language": "ANALYTICS",
-
     # Generic fallbacks
     "analysis": "ANALYTICS",
     "general": "COMMAND",
@@ -142,10 +134,20 @@ AGENT_SPECIALIZATION = {
     },
 }
 
+# Scoring weights for multi-factor agent selection
+SELECTION_WEIGHTS = {
+    "skills": 0.35,
+    "specialization": 0.25,
+    "welfare": 0.20,
+    "availability": 0.15,
+    "budget": 0.05,
+}
+
 
 @dataclass
 class DispatchResult:
     """Result from a dispatched work request."""
+
     success: bool
     response: str
     agent_name: str
@@ -196,7 +198,7 @@ class BridgeDispatcher:
         # Failure tracking for escalation
         self._failure_tracker = {}  # (agent_id, capability) -> count
         # Welfare cache — shorter TTL for near-real-time welfare awareness
-        self._welfare_cache = {}   # agent_id → {stress, energy, mood, resting, budget}
+        self._welfare_cache = {}  # agent_id → {stress, energy, mood, resting, budget}
         self._welfare_cache_time = 0
         self._welfare_cache_ttl = 30  # Refresh every 30 seconds
 
@@ -206,10 +208,12 @@ class BridgeDispatcher:
             return self._db_getter()
         try:
             from config import get_db
+
             self._db_getter = get_db
             return get_db()
         except ImportError:
             import psycopg2
+
             return psycopg2.connect(
                 host=os.getenv("DB_HOST", "192.168.1.200"),
                 port=os.getenv("DB_PORT", "5432"),
@@ -226,6 +230,7 @@ class BridgeDispatcher:
 
         try:
             from psycopg2.extras import RealDictCursor
+
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("""
@@ -268,13 +273,16 @@ class BridgeDispatcher:
                 if agent_ids:
                     conn2 = self._get_db()
                     cur2 = conn2.cursor(cursor_factory=RealDictCursor)
-                    cur2.execute("""
+                    cur2.execute(
+                        """
                         SELECT agent_id, skill_name, skill_category,
                                proficiency_level
                         FROM agent_skills
                         WHERE agent_id = ANY(%s)
                         ORDER BY agent_id, proficiency_level DESC
-                    """, (agent_ids,))
+                    """,
+                        (agent_ids,),
+                    )
                     skills_rows = cur2.fetchall()
                     cur2.close()
                     conn2.close()
@@ -294,7 +302,9 @@ class BridgeDispatcher:
                     for name, info in self._agent_cache.items():
                         info["skills"] = skills_by_agent.get(info["id"], {})
             except Exception as skills_err:
-                logger.warning(f"[BridgeDispatcher] Skills cache load failed: {skills_err}")
+                logger.warning(
+                    f"[BridgeDispatcher] Skills cache load failed: {skills_err}"
+                )
 
             self._cache_time = now
             logger.info(f"[BridgeDispatcher] Cached {len(self._agent_cache)} agents")
@@ -311,11 +321,15 @@ class BridgeDispatcher:
         - budget: dict with task/token usage and limits (from agent_budgets)
         """
         now = time.time()
-        if self._welfare_cache and (now - self._welfare_cache_time) < self._welfare_cache_ttl:
+        if (
+            self._welfare_cache
+            and (now - self._welfare_cache_time) < self._welfare_cache_ttl
+        ):
             return
 
         try:
             from psycopg2.extras import RealDictCursor
+
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -364,47 +378,184 @@ class BridgeDispatcher:
 
             # Merge into unified welfare cache
             # Collect all agent IDs from any of the three sources
-            all_ids = set(emotional_map.keys()) | set(resting_map.keys()) | set(budget_map.keys())
+            all_ids = (
+                set(emotional_map.keys())
+                | set(resting_map.keys())
+                | set(budget_map.keys())
+            )
             welfare = {}
             for aid in all_ids:
-                emo = emotional_map.get(aid, {"stress": 0.0, "energy": 0.8, "mood": "neutral"})
+                emo = emotional_map.get(
+                    aid, {"stress": 0.0, "energy": 0.8, "mood": "neutral"}
+                )
                 welfare[aid] = {
                     "stress": emo["stress"],
                     "energy": emo["energy"],
                     "mood": emo["mood"],
                     "resting": aid in resting_map,
                     "rest_type": resting_map.get(aid),
-                    "budget": budget_map.get(aid, {
-                        "current_task_count": 0,
-                        "task_queue_limit": 10,
-                        "tokens_used_today": 0,
-                        "token_limit_per_day": 100000,
-                    }),
+                    "budget": budget_map.get(
+                        aid,
+                        {
+                            "current_task_count": 0,
+                            "task_queue_limit": 10,
+                            "tokens_used_today": 0,
+                            "token_limit_per_day": 100000,
+                        },
+                    ),
                 }
 
             self._welfare_cache = welfare
             self._welfare_cache_time = now
-            logger.debug(f"[BridgeDispatcher] Welfare cache refreshed: {len(welfare)} agents")
+            logger.debug(
+                f"[BridgeDispatcher] Welfare cache refreshed: {len(welfare)} agents"
+            )
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Welfare cache refresh failed: {e}")
 
-    def _select_agent(self, capability: str, station_code: str) -> Optional[Dict]:
-        """Select the best agent for a capability within a station."""
-        self._refresh_agent_cache()
+    def _score_agent(
+        self,
+        agent_name: str,
+        agent_info: Dict,
+        capability: str,
+        station_code: str,
+    ) -> tuple:
+        """Score an agent for a given capability and station.
 
-        # Check station specialization map
+        Returns:
+            (score, block_reason_or_None) — score is 0.0 if hard-blocked.
+        """
+        agent_id = agent_info.get("id")
+        welfare = self._welfare_cache.get(agent_id, {})
+        budget = welfare.get("budget", {})
+
+        # ------------------------------------------------------------------
+        # Hard blocks (score = 0, agent cannot be selected)
+        # ------------------------------------------------------------------
+        if welfare.get("resting"):
+            return (
+                0.0,
+                f"{agent_name} is resting ({welfare.get('rest_type', 'unknown')})",
+            )
+
+        task_count = budget.get("current_task_count", 0)
+        task_limit = budget.get("task_queue_limit", 10)
+        if task_limit > 0 and task_count >= task_limit:
+            return (
+                0.0,
+                f"{agent_name} budget exhausted ({task_count}/{task_limit} tasks)",
+            )
+
+        stress = welfare.get("stress", 0.0)
+        energy = welfare.get("energy", 0.8)
+        if stress >= 0.9 and energy <= 0.15:
+            return (
+                0.0,
+                f"{agent_name} critical welfare (stress={stress}, energy={energy})",
+            )
+
+        # ------------------------------------------------------------------
+        # Skills score
+        # ------------------------------------------------------------------
+        skill_entry = agent_info.get("skills", {}).get(capability, {})
+        if skill_entry:
+            skills_score = skill_entry.get("level", 1) / 5.0
+        else:
+            skills_score = 0.3  # generous default — agent may still handle it
+
+        # ------------------------------------------------------------------
+        # Specialization score
+        # ------------------------------------------------------------------
         station_specs = AGENT_SPECIALIZATION.get(station_code, {})
-        agent_name = station_specs.get(capability, station_specs.get("default"))
+        preferred = station_specs.get(capability, station_specs.get("default"))
+        specialization_score = 1.0 if agent_name == preferred else 0.0
 
-        if agent_name and agent_name in self._agent_cache:
-            return self._agent_cache[agent_name]
+        # ------------------------------------------------------------------
+        # Welfare score — healthier agents score higher
+        # ------------------------------------------------------------------
+        welfare_score = (1.0 - stress) * energy
 
-        # Fallback: find any agent at this station
+        # ------------------------------------------------------------------
+        # Availability score — idle agents preferred
+        # ------------------------------------------------------------------
+        busy_job = self._check_agent_busy(agent_name)
+        availability_score = 0.2 if busy_job else 1.0
+
+        # ------------------------------------------------------------------
+        # Budget score — agents with more headroom preferred
+        # ------------------------------------------------------------------
+        if task_limit == 0:
+            budget_score = 1.0
+        else:
+            budget_score = max(1.0 - (task_count / task_limit), 0.0)
+
+        # ------------------------------------------------------------------
+        # Composite weighted score
+        # ------------------------------------------------------------------
+        composite = (
+            SELECTION_WEIGHTS["skills"] * skills_score
+            + SELECTION_WEIGHTS["specialization"] * specialization_score
+            + SELECTION_WEIGHTS["welfare"] * welfare_score
+            + SELECTION_WEIGHTS["availability"] * availability_score
+            + SELECTION_WEIGHTS["budget"] * budget_score
+        )
+
+        return (round(composite, 4), None)
+
+    def _select_agent(self, capability: str, station_code: str) -> Optional[Dict]:
+        """Select the best agent for a capability within a station.
+
+        Uses multi-factor scoring: skills, specialization, welfare,
+        availability, and budget headroom.  Hard-blocked agents (resting,
+        budget exhausted, critical welfare) are filtered out.
+        """
+        self._refresh_agent_cache()
+        self._refresh_welfare_cache()
+
+        # Gather all candidates assigned to this station
+        candidates = []
         for name, info in self._agent_cache.items():
-            if info["station_code"] == station_code:
-                return {**info, "name": name}
+            if info.get("station_code") == station_code:
+                candidates.append((name, info))
 
-        return None
+        if not candidates:
+            logger.warning(
+                f"[BridgeDispatcher] No agents at station={station_code} "
+                f"for capability='{capability}'"
+            )
+            return None
+
+        # Score each candidate
+        scored = []
+        blocked = []
+        for name, info in candidates:
+            score, block_reason = self._score_agent(
+                name, info, capability, station_code
+            )
+            if score > 0:
+                scored.append((score, name, info))
+            else:
+                blocked.append((name, block_reason))
+
+        if not scored:
+            reasons = "; ".join(f"{n}: {r}" for n, r in blocked)
+            logger.warning(
+                f"[BridgeDispatcher] All {len(blocked)} agent(s) blocked for "
+                f"capability='{capability}' station='{station_code}': {reasons}"
+            )
+            return None
+
+        # Sort descending by score, pick the best
+        scored.sort(key=lambda x: x[0], reverse=True)
+        best_score, best_name, best_info = scored[0]
+
+        logger.info(
+            f"[BridgeDispatcher] Selected {best_name} (score={best_score}) for "
+            f"capability='{capability}' station='{station_code}' "
+            f"({len(scored)} eligible, {len(blocked)} blocked)"
+        )
+
+        return best_info
 
     def _execute_llm(
         self,
@@ -421,22 +572,34 @@ class BridgeDispatcher:
             from archie_bridge import call_ollama, call_ollama_json, call_ollama_cloud
 
             # Route to external providers — dynamic lookup from contractor_providers DB
-            from external_providers import get_provider_for_model, call_external, _get_provider_config
+            from external_providers import (
+                get_provider_for_model,
+                call_external,
+                _get_provider_config,
+            )
 
             ext_provider_key = get_provider_for_model(model)
             if ext_provider_key:
                 ext_config = _get_provider_config(ext_provider_key)
                 if ext_config and ext_config.get("is_cloud_proxy"):
-                    return call_ollama_cloud(prompt, model=model, system_prompt=system_prompt)
+                    return call_ollama_cloud(
+                        prompt, model=model, system_prompt=system_prompt
+                    )
                 if ext_config:
                     return call_external(
-                        ext_provider_key, prompt, model=model,
-                        system_prompt=system_prompt, json_mode=json_mode, timeout=timeout,
+                        ext_provider_key,
+                        prompt,
+                        model=model,
+                        system_prompt=system_prompt,
+                        json_mode=json_mode,
+                        timeout=timeout,
                     )
 
             # Route cloud models (fallback for :cloud suffix convention)
             if ":cloud" in model:
-                return call_ollama_cloud(prompt, model=model, system_prompt=system_prompt)
+                return call_ollama_cloud(
+                    prompt, model=model, system_prompt=system_prompt
+                )
 
             # JSON mode
             if json_mode:
@@ -466,9 +629,19 @@ class BridgeDispatcher:
             )
         except ImportError:
             logger.error("[BridgeDispatcher] archie_bridge not available")
-            return {"success": False, "error": "archie_bridge not available", "model": model}
+            return {
+                "success": False,
+                "error": "archie_bridge not available",
+                "model": model,
+            }
 
-    def _log_execution(self, result: DispatchResult, module_id: str, user_id: Optional[int] = None, job_id: Optional[int] = None):
+    def _log_execution(
+        self,
+        result: DispatchResult,
+        module_id: str,
+        user_id: Optional[int] = None,
+        job_id: Optional[int] = None,
+    ):
         """Log execution to task_execution_log for HR tracking."""
         try:
             conn = self._get_db()
@@ -576,7 +749,9 @@ class BridgeDispatcher:
         try:
             conn = self._get_db()
             cur = conn.cursor()
-            cur.execute("SELECT value FROM platform_settings WHERE key = 'escalation_threshold'")
+            cur.execute(
+                "SELECT value FROM platform_settings WHERE key = 'escalation_threshold'"
+            )
             row = cur.fetchone()
             cur.close()
             conn.close()
@@ -589,7 +764,9 @@ class BridgeDispatcher:
         try:
             conn = self._get_db()
             cur = conn.cursor()
-            cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
+            cur.execute(
+                "SELECT value FROM platform_settings WHERE key = 'routing_mode'"
+            )
             row = cur.fetchone()
             cur.close()
             conn.close()
@@ -608,7 +785,9 @@ class BridgeDispatcher:
         try:
             conn = self._get_db()
             cur = conn.cursor()
-            cur.execute("SELECT value FROM platform_settings WHERE key = 'escalation_mode'")
+            cur.execute(
+                "SELECT value FROM platform_settings WHERE key = 'escalation_mode'"
+            )
             row = cur.fetchone()
             cur.close()
             conn.close()
@@ -622,7 +801,9 @@ class BridgeDispatcher:
         "qwen3-coder-next:cloud",
     ]
 
-    def _check_agent_busy(self, agent_name: str, exclude_job_id: int = None) -> Optional[Dict]:
+    def _check_agent_busy(
+        self, agent_name: str, exclude_job_id: int = None
+    ) -> Optional[Dict]:
         """Check if agent has a running bridge_job. Returns job dict or None.
 
         Args:
@@ -716,7 +897,9 @@ class BridgeDispatcher:
             try:
                 from agent_loop import request_approval
 
-                cloud_model = self.FREE_CLOUD_MODELS[0] if self.FREE_CLOUD_MODELS else "unknown"
+                cloud_model = (
+                    self.FREE_CLOUD_MODELS[0] if self.FREE_CLOUD_MODELS else "unknown"
+                )
                 request_approval(
                     action_type="cloud_throughput_escalation",
                     action_data={
@@ -750,7 +933,9 @@ class BridgeDispatcher:
                     success=None,
                 )
             except Exception as esc_err:
-                logger.warning(f"[BridgeDispatcher] ask_first approval request failed: {esc_err}")
+                logger.warning(
+                    f"[BridgeDispatcher] ask_first approval request failed: {esc_err}"
+                )
             return None  # Caller proceeds with local (busy) agent
 
         start = time.time()
@@ -805,7 +990,10 @@ class BridgeDispatcher:
                     prompt_tokens=llm_result.get("prompt_tokens", 0),
                     completion_tokens=llm_result.get("completion_tokens", 0),
                     provider="ollama_cloud",
-                    metadata={"escalation": "throughput_free_cloud", "original_agent": agent_name},
+                    metadata={
+                        "escalation": "throughput_free_cloud",
+                        "original_agent": agent_name,
+                    },
                 )
                 self._log_execution(result, module_id, user_id, job_id=job_id)
                 return result
@@ -821,9 +1009,7 @@ class BridgeDispatcher:
         try:
             from agent_loop import request_approval
 
-            next_tier = self._get_next_tier(
-                self.FREE_CLOUD_MODELS[-1], capability
-            )
+            next_tier = self._get_next_tier(self.FREE_CLOUD_MODELS[-1], capability)
             if next_tier and next_tier["is_paid"]:
                 request_approval(
                     action_type="cloud_throughput_escalation",
@@ -857,7 +1043,9 @@ class BridgeDispatcher:
                     success=None,
                 )
         except Exception as esc_err:
-            logger.warning(f"[BridgeDispatcher] Throughput approval request failed: {esc_err}")
+            logger.warning(
+                f"[BridgeDispatcher] Throughput approval request failed: {esc_err}"
+            )
 
         return None  # Caller proceeds with original (busy) agent
 
@@ -893,21 +1081,25 @@ class BridgeDispatcher:
                         f"Dispatched {capability} to {cloud_model} (free cloud). "
                         f"Module: {module_id} | Duration: {duration_ms}ms"
                     ),
-                    json.dumps({
-                        "original_agent": agent_name,
-                        "cloud_model": cloud_model,
-                        "capability": capability,
-                        "module_id": module_id,
-                        "busy_job": busy_job,
-                        "duration_ms": duration_ms,
-                    }),
+                    json.dumps(
+                        {
+                            "original_agent": agent_name,
+                            "cloud_model": cloud_model,
+                            "capability": capability,
+                            "module_id": module_id,
+                            "busy_job": busy_job,
+                            "duration_ms": duration_ms,
+                        }
+                    ),
                 ),
             )
             conn.commit()
             cur.close()
             conn.close()
         except Exception as e:
-            logger.warning(f"[BridgeDispatcher] _notify_throughput_escalation failed: {e}")
+            logger.warning(
+                f"[BridgeDispatcher] _notify_throughput_escalation failed: {e}"
+            )
 
     def _track_failure(self, agent_id: int, capability: str) -> int:
         """Increment failure count, return new count."""
@@ -923,13 +1115,16 @@ class BridgeDispatcher:
         """Find the next escalation tier above current model."""
         try:
             from smart_router import SmartRouter, TIER_ORDER
+
             router = SmartRouter()
             available = router.get_available_tiers()
             configs = router._get_model_configs()
 
             current_tier = None
             for tier_name, config in configs.items():
-                if config.model_name == current_model or current_model.startswith(config.model_name.split(":")[0]):
+                if config.model_name == current_model or current_model.startswith(
+                    config.model_name.split(":")[0]
+                ):
                     current_tier = tier_name
                     break
 
@@ -943,7 +1138,11 @@ class BridgeDispatcher:
                     continue
                 if found_current and tier in configs:
                     config = configs[tier]
-                    is_paid = tier in ("haiku", "sonnet", "opus") or config.provider not in ("ollama", "ollama_cloud")
+                    is_paid = tier in (
+                        "haiku",
+                        "sonnet",
+                        "opus",
+                    ) or config.provider not in ("ollama", "ollama_cloud")
                     return {
                         "tier": tier,
                         "model": config.model_name,
@@ -955,23 +1154,47 @@ class BridgeDispatcher:
             logger.warning(f"[BridgeDispatcher] get_next_tier failed: {e}")
             return None
 
-    def _log_escalation(self, original_agent_id, original_model, escalated_model,
-                         escalated_provider, capability, module_id, reason,
-                         failure_count, approval_method="auto", success=None, cost=0):
+    def _log_escalation(
+        self,
+        original_agent_id,
+        original_model,
+        escalated_model,
+        escalated_provider,
+        capability,
+        module_id,
+        reason,
+        failure_count,
+        approval_method="auto",
+        success=None,
+        cost=0,
+    ):
         """Log an escalation event to dispatch_escalation_log."""
         try:
             conn = self._get_db()
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO dispatch_escalation_log
                 (original_agent_id, original_model, escalated_model, escalated_provider,
                  capability, module_id, reason, failure_count, cost_usd,
                  approved_by, approval_method, success)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (original_agent_id, original_model, escalated_model, escalated_provider,
-                  capability, module_id, reason, failure_count, cost,
-                  "system" if approval_method == "auto" else None,
-                  approval_method, success))
+            """,
+                (
+                    original_agent_id,
+                    original_model,
+                    escalated_model,
+                    escalated_provider,
+                    capability,
+                    module_id,
+                    reason,
+                    failure_count,
+                    cost,
+                    "system" if approval_method == "auto" else None,
+                    approval_method,
+                    success,
+                ),
+            )
             conn.commit()
             cur.close()
             conn.close()
@@ -1028,13 +1251,16 @@ class BridgeDispatcher:
                 f"[BridgeDispatcher] No agent for capability='{capability}' "
                 f"station='{station_code}', falling back to COMMAND"
             )
-            agent = self._agent_cache.get("ARCHIE", {
-                "id": 2,
-                "model": "dolphin3-8k:latest",
-                "system_prompt": None,
-                "temperature": 0.5,
-                "station_code": "COMMAND",
-            })
+            agent = self._agent_cache.get(
+                "ARCHIE",
+                {
+                    "id": 2,
+                    "model": "dolphin3-8k:latest",
+                    "system_prompt": None,
+                    "temperature": 0.5,
+                    "station_code": "COMMAND",
+                },
+            )
             station_code = "COMMAND"
 
         # 3. Determine model and system prompt
@@ -1060,6 +1286,7 @@ class BridgeDispatcher:
         # 3b. Inject learnings if available
         try:
             from bridge_learning import inject_learnings
+
             prompt = inject_learnings(agent_name, capability, prompt)
         except ImportError:
             pass
@@ -1069,8 +1296,7 @@ class BridgeDispatcher:
         routing_mode = self._get_routing_mode()
         is_cloud = ":cloud" in model or model in ("minimax-m2.5", "qwen3-coder-next")
         is_paid_external = any(
-            model.startswith(p)
-            for p in ("gpt-4o", "llama-3.1-sonar", "grok", "claude")
+            model.startswith(p) for p in ("gpt-4o", "llama-3.1-sonar", "grok", "claude")
         )
 
         if routing_mode == "local_only" and (is_cloud or is_paid_external):
@@ -1154,20 +1380,30 @@ class BridgeDispatcher:
                         f"{model} -> {next_tier['model']} (free, {failure_count} failures)"
                     )
                     escalated_result = self._execute_llm(
-                        model=next_tier["model"], prompt=prompt,
-                        system_prompt=system_prompt, json_mode=json_mode,
-                        prefer_gpu=prefer_gpu, timeout=timeout,
+                        model=next_tier["model"],
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        json_mode=json_mode,
+                        prefer_gpu=prefer_gpu,
+                        timeout=timeout,
                     )
                     if escalated_result.get("success"):
                         self._reset_failure(agent.get("id", 0), capability)
                         self._log_escalation(
-                            agent.get("id"), model, next_tier["model"],
-                            next_tier["provider"], capability, module_id,
-                            f"{failure_count} consecutive failures", failure_count,
-                            approval_method="auto", success=True,
+                            agent.get("id"),
+                            model,
+                            next_tier["model"],
+                            next_tier["provider"],
+                            capability,
+                            module_id,
+                            f"{failure_count} consecutive failures",
+                            failure_count,
+                            approval_method="auto",
+                            success=True,
                         )
                         try:
                             from bridge_learning import capture_learning
+
                             capture_learning(
                                 failed_result=llm_result,
                                 success_result=escalated_result,
@@ -1188,6 +1424,7 @@ class BridgeDispatcher:
                     )
                     try:
                         from agent_loop import request_approval
+
                         request_approval(
                             action_type="escalation",
                             action_data={
@@ -1203,12 +1440,20 @@ class BridgeDispatcher:
                             tier=2,
                         )
                     except Exception as esc_err:
-                        logger.warning(f"[BridgeDispatcher] Approval submission failed: {esc_err}")
+                        logger.warning(
+                            f"[BridgeDispatcher] Approval submission failed: {esc_err}"
+                        )
                     self._log_escalation(
-                        agent.get("id"), model, next_tier["model"],
-                        next_tier["provider"], capability, module_id,
-                        f"{failure_count} failures, awaiting approval", failure_count,
-                        approval_method="telegram", success=None,
+                        agent.get("id"),
+                        model,
+                        next_tier["model"],
+                        next_tier["provider"],
+                        capability,
+                        module_id,
+                        f"{failure_count} failures, awaiting approval",
+                        failure_count,
+                        approval_method="telegram",
+                        success=None,
                     )
         else:
             self._reset_failure(agent.get("id", 0), capability)
@@ -1223,8 +1468,12 @@ class BridgeDispatcher:
             station_code=station_code,
             capability=capability,
             duration_ms=duration_ms,
-            prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
-            completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
+            prompt_tokens=llm_result.get(
+                "prompt_tokens", llm_result.get("prompt_eval_count", 0)
+            ),
+            completion_tokens=llm_result.get(
+                "completion_tokens", llm_result.get("eval_count", 0)
+            ),
             provider=llm_result.get("provider", "ollama"),
             error=llm_result.get("error"),
             metadata={"module_id": module_id, "priority": priority},
@@ -1274,14 +1523,18 @@ class BridgeDispatcher:
         # Find which station owns this module
         try:
             from psycopg2.extras import RealDictCursor
+
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT station_code, modules
                 FROM bridge_stations
                 WHERE is_active = TRUE AND %s = ANY(modules)
                 LIMIT 1
-            """, (module_id,))
+            """,
+                (module_id,),
+            )
             row = cur.fetchone()
             cur.close()
             conn.close()
@@ -1455,7 +1708,12 @@ class BridgeDispatcher:
                         updated_at = NOW()
                     WHERE id = %s
                     """,
-                    (completed_steps, failed_steps, json.dumps(metadata_update), job_id),
+                    (
+                        completed_steps,
+                        failed_steps,
+                        json.dumps(metadata_update),
+                        job_id,
+                    ),
                 )
             else:
                 cur.execute(
@@ -1610,7 +1868,9 @@ class BridgeDispatcher:
                 stats_map[r["agent_name"]] = {
                     "dispatches": r["dispatches"],
                     "success_rate": round(float(r["success_rate"] or 0), 2),
-                    "avg_duration_sec": round(float(r["avg_duration_sec"] or 0) / 1000, 1),
+                    "avg_duration_sec": round(
+                        float(r["avg_duration_sec"] or 0) / 1000, 1
+                    ),
                 }
 
             # --- Learning count per agent (from task_execution_log unique capabilities) ---
@@ -1654,24 +1914,36 @@ class BridgeDispatcher:
                 last = info.get("last_name", "")
                 full_name = f"{first} {last}".strip() if (first or last) else name
 
-                manifest.append({
-                    "name": name,
-                    "full_name": full_name,
-                    "title": info.get("title", ""),
-                    "agent_id": agent_id,
-                    "station": info.get("station_code", "COMMAND"),
-                    "model": model,
-                    "hardware": hw,
-                    "status": status,
-                    "wellness": wellness_map.get(agent_id, {
-                        "stress": 0.0, "energy": 1.0, "mood": "neutral",
-                    }),
-                    "current_job": jobs_map.get(name),
-                    "stats_24h": stats_map.get(name, {
-                        "dispatches": 0, "success_rate": 0.0, "avg_duration_sec": 0,
-                    }),
-                    "learning_count": learning_map.get(name, 0),
-                })
+                manifest.append(
+                    {
+                        "name": name,
+                        "full_name": full_name,
+                        "title": info.get("title", ""),
+                        "agent_id": agent_id,
+                        "station": info.get("station_code", "COMMAND"),
+                        "model": model,
+                        "hardware": hw,
+                        "status": status,
+                        "wellness": wellness_map.get(
+                            agent_id,
+                            {
+                                "stress": 0.0,
+                                "energy": 1.0,
+                                "mood": "neutral",
+                            },
+                        ),
+                        "current_job": jobs_map.get(name),
+                        "stats_24h": stats_map.get(
+                            name,
+                            {
+                                "dispatches": 0,
+                                "success_rate": 0.0,
+                                "avg_duration_sec": 0,
+                            },
+                        ),
+                        "learning_count": learning_map.get(name, 0),
+                    }
+                )
 
             return manifest
 
@@ -1688,12 +1960,14 @@ class BridgeDispatcher:
             sc = info["station_code"]
             if sc not in stations:
                 stations[sc] = {"agents": [], "active": True}
-            stations[sc]["agents"].append({
-                "name": name,
-                "id": info["id"],
-                "model": info["model"],
-                "status": "active",
-            })
+            stations[sc]["agents"].append(
+                {
+                    "name": name,
+                    "id": info["id"],
+                    "model": info["model"],
+                    "status": "active",
+                }
+            )
 
         return {
             "total_agents": len(self._agent_cache),

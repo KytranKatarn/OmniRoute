@@ -7605,6 +7605,125 @@ def get_station_dispatch(station_code):
         return jsonify([])
 
 
+@bridge_bp.route("/api/stations/<station_code>/metrics")
+@login_required
+def get_station_metrics(station_code):
+    """Get performance metrics for a station (24h window)"""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Get agent IDs assigned to this station
+            cur.execute(
+                """
+                SELECT sa.agent_id
+                FROM station_assignments sa
+                JOIN bridge_stations bs ON bs.id = sa.station_id
+                WHERE bs.station_code = %s AND sa.is_active = TRUE
+            """,
+                (station_code,),
+            )
+            agent_ids = [r["agent_id"] for r in cur.fetchall()]
+
+            if not agent_ids:
+                return jsonify(
+                    {
+                        "success": True,
+                        "metrics": {
+                            "requests_24h": 0,
+                            "avg_response_ms": 0,
+                            "tokens_24h": 0,
+                            "success_rate": 0,
+                        },
+                    }
+                )
+
+            # Aggregate from bridge_interaction_log
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_requests,
+                    COALESCE(AVG(execution_time_ms), 0)::int AS avg_response_ms,
+                    COALESCE(SUM(tokens_used), 0) AS total_tokens,
+                    CASE WHEN COUNT(*) > 0
+                        THEN ROUND(100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END) / COUNT(*), 1)
+                        ELSE 0
+                    END AS success_rate
+                FROM bridge_interaction_log
+                WHERE agent_id = ANY(%s)
+                AND created_at > NOW() - INTERVAL '24 hours'
+            """,
+                (agent_ids,),
+            )
+            stats = cur.fetchone()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "metrics": {
+                        "requests_24h": stats["total_requests"],
+                        "avg_response_ms": stats["avg_response_ms"],
+                        "tokens_24h": int(stats["total_tokens"]),
+                        "success_rate": float(stats["success_rate"]),
+                    },
+                }
+            )
+    except Exception as e:
+        logger.error(f"Error getting station metrics: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/stations/<station_code>/module-preview/<module_id>")
+@login_required
+def get_module_preview(station_code, module_id):
+    """Get preview data for a module in station context"""
+    from module_registry import get_module_by_id
+
+    mod = get_module_by_id(module_id)
+    if not mod:
+        return jsonify({"success": False, "error": "Module not found"}), 404
+
+    result = {
+        "id": mod.id,
+        "name": mod.name,
+        "icon": mod.icon,
+        "route": mod.route,
+        "description": mod.description,
+        "version": mod.version,
+        "category": mod.category.value if hasattr(mod.category, "value") else str(mod.category),
+        "tags": mod.tags,
+        "stats": {},
+    }
+
+    # Module-specific stat queries (best-effort)
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            if module_id == "email-manager":
+                cur.execute("SELECT COUNT(*) AS count FROM email_messages WHERE created_at > NOW() - INTERVAL '7 days'")
+                r = cur.fetchone()
+                if r:
+                    result["stats"]["emails_7d"] = r["count"]
+            elif module_id == "backup-manager":
+                cur.execute("SELECT COUNT(*) AS count FROM backup_history WHERE status = 'completed'")
+                r = cur.fetchone()
+                if r:
+                    result["stats"]["completed_backups"] = r["count"]
+            elif module_id == "bridge":
+                cur.execute(
+                    "SELECT COUNT(*) AS count FROM bridge_interaction_log WHERE created_at > NOW() - INTERVAL '24 hours'"
+                )
+                r = cur.fetchone()
+                if r:
+                    result["stats"]["interactions_24h"] = r["count"]
+            elif module_id == "consciousness":
+                cur.execute("SELECT COUNT(*) AS count FROM knowledge_base WHERE status = 'active'")
+                r = cur.fetchone()
+                if r:
+                    result["stats"]["active_entries"] = r["count"]
+    except Exception:
+        pass  # Stats are optional — don't fail if table doesn't exist
+
+    return jsonify({"success": True, "module": result})
+
+
 @bridge_bp.route("/api/agents/<int:agent_id>/executions")
 @login_required
 def agent_executions(agent_id):

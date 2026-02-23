@@ -8162,14 +8162,165 @@ function renderNodeCards(container, nodes, stationColor) {
 }
 async function loadConsoleMetrics(stationCodes) {
     var panel = document.getElementById('lcarsMetricsPanel');
-    if (panel) { panel.textContent = ''; var el = document.createElement('div'); el.className = 'lcars-empty'; el.textContent = 'Loading metrics...'; panel.appendChild(el); }
+    if (!panel) return;
+    panel.textContent = '';
+
+    var loadingEl = document.createElement('div');
+    loadingEl.className = 'lcars-empty';
+    loadingEl.textContent = 'Loading metrics...';
+    panel.appendChild(loadingEl);
+
+    var totals = { requests_24h: 0, avg_response_ms: 0, tokens_24h: 0, success_rate: 0 };
+    var fetchCount = 0;
+
+    for (var i = 0; i < stationCodes.length; i++) {
+        try {
+            var resp = await fetch('/tools/bridge/api/stations/' + encodeURIComponent(stationCodes[i]) + '/metrics');
+            var data = await resp.json();
+            if (data.success && data.metrics) {
+                totals.requests_24h += data.metrics.requests_24h;
+                totals.avg_response_ms += data.metrics.avg_response_ms;
+                totals.tokens_24h += data.metrics.tokens_24h;
+                totals.success_rate += data.metrics.success_rate;
+                fetchCount++;
+            }
+        } catch (e) {
+            console.error('Metrics fetch error for', stationCodes[i], e);
+        }
+    }
+    if (fetchCount > 1) {
+        totals.avg_response_ms = Math.round(totals.avg_response_ms / fetchCount);
+        totals.success_rate = Math.round((totals.success_rate / fetchCount) * 10) / 10;
+    }
+
+    panel.textContent = '';
+
+    var grid = document.createElement('div');
+    grid.className = 'lcars-metrics-grid';
+
+    var cards = [
+        { label: 'Requests (24h)', value: totals.requests_24h.toLocaleString() },
+        { label: 'Avg Response', value: totals.avg_response_ms + 'ms' },
+        { label: 'Tokens Used', value: totals.tokens_24h.toLocaleString() },
+        { label: 'Success Rate', value: totals.success_rate + '%' }
+    ];
+
+    for (var j = 0; j < cards.length; j++) {
+        var cardData = cards[j];
+        var el = document.createElement('div');
+        el.className = 'lcars-metric-card';
+
+        var val = document.createElement('div');
+        val.className = 'lcars-metric-value';
+        val.textContent = cardData.value;
+        el.appendChild(val);
+
+        var lbl = document.createElement('div');
+        lbl.className = 'lcars-metric-label';
+        lbl.textContent = cardData.label;
+        el.appendChild(lbl);
+
+        grid.appendChild(el);
+    }
+
+    panel.appendChild(grid);
 }
-function showModulePreview(mod) {
+async function showModulePreview(mod) {
     var panel = document.getElementById('lcarsModulePreviewPanel');
-    if (panel) { panel.textContent = ''; var el = document.createElement('div'); el.className = 'lcars-empty'; el.textContent = 'Module preview coming soon...'; panel.appendChild(el); }
+    if (!panel) return;
+
+    // Switch to preview panel
     document.querySelectorAll('.lcars-tab-panel').forEach(function(p) {
         p.classList.toggle('active', p.dataset.consolePanel === 'module-preview');
     });
+
+    panel.textContent = '';
+
+    // Back link
+    var backLink = document.createElement('div');
+    backLink.className = 'lcars-back-link';
+    backLink.textContent = '\u2190 Back to Station';
+    backLink.addEventListener('click', function() {
+        switchConsoleTab('crew');
+    });
+    panel.appendChild(backLink);
+
+    var card = document.createElement('div');
+    card.className = 'lcars-module-preview';
+
+    // Header with icon + name
+    var header = document.createElement('div');
+    header.className = 'lcars-module-preview-header';
+    var icon = document.createElement('i');
+    icon.setAttribute('data-lucide', mod.icon || 'box');
+    header.appendChild(icon);
+    var name = document.createElement('div');
+    name.className = 'lcars-module-preview-name';
+    name.textContent = mod.name;
+    header.appendChild(name);
+    card.appendChild(header);
+
+    // Description (strip HTML tags safely)
+    if (mod.description) {
+        var desc = document.createElement('div');
+        desc.className = 'lcars-module-preview-desc';
+        // Strip HTML by creating a temp element
+        var tempEl = document.createElement('div');
+        tempEl.textContent = mod.description;
+        // If description contains HTML entities, parse them
+        var cleanText = mod.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        desc.textContent = cleanText;
+        card.appendChild(desc);
+    }
+
+    // Fetch preview stats if we have a station context
+    if (_consoleCurrentZone && mod.id) {
+        try {
+            var stationCode = _consoleCurrentZone.zoneInfo.stations[0];
+            var resp = await fetch('/tools/bridge/api/stations/' + encodeURIComponent(stationCode) + '/module-preview/' + encodeURIComponent(mod.id));
+            var data = await resp.json();
+            if (data.success && data.module && data.module.stats) {
+                var statsKeys = Object.keys(data.module.stats);
+                if (statsKeys.length > 0) {
+                    var statsDiv = document.createElement('div');
+                    statsDiv.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;';
+                    for (var k = 0; k < statsKeys.length; k++) {
+                        var key = statsKeys[k];
+                        var statVal = data.module.stats[key];
+                        var pill = document.createElement('div');
+                        pill.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px 12px;text-align:center;';
+
+                        var pillVal = document.createElement('div');
+                        pillVal.style.cssText = 'font-family:Orbitron,sans-serif;font-weight:700;color:var(--station-color);';
+                        pillVal.textContent = String(statVal);
+                        pill.appendChild(pillVal);
+
+                        var pillLabel = document.createElement('div');
+                        pillLabel.style.cssText = 'font-size:0.6rem;opacity:0.5;text-transform:uppercase;letter-spacing:0.05em;';
+                        pillLabel.textContent = key.replace(/_/g, ' ');
+                        pill.appendChild(pillLabel);
+
+                        statsDiv.appendChild(pill);
+                    }
+                    card.appendChild(statsDiv);
+                }
+            }
+        } catch (e) {
+            // Stats are optional — silently skip
+        }
+    }
+
+    // Open Module button
+    if (mod.route) {
+        var btn = document.createElement('a');
+        btn.className = 'lcars-module-open-btn';
+        btn.href = mod.route;
+        btn.textContent = 'Open Module \u2192';
+        card.appendChild(btn);
+    }
+
+    panel.appendChild(card);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // ── Warp-In Intro ──

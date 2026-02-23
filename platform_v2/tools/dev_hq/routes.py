@@ -632,16 +632,27 @@ def api_create_decision():
 @admin_hub_only
 def api_activity():
     limit = min(int(request.args.get("limit", 30)), 100)
+    project_id = request.args.get("project_id")
+    activity_type = request.args.get("activity_type")
     with get_db_connection() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cur.execute(
-                """SELECT pa.*, up.name as project_name
-                FROM project_activity pa
-                LEFT JOIN unified_projects up ON pa.project_id = up.id
-                ORDER BY pa.created_at DESC LIMIT %s""",
-                (limit,),
+            query = (
+                "SELECT pa.*, up.name as project_name"
+                " FROM project_activity pa"
+                " LEFT JOIN unified_projects up ON pa.project_id = up.id"
+                " WHERE 1=1"
             )
+            params = []
+            if project_id:
+                query += " AND pa.project_id = %s"
+                params.append(int(project_id))
+            if activity_type:
+                query += " AND pa.activity_type = %s"
+                params.append(activity_type)
+            query += " ORDER BY pa.created_at DESC LIMIT %s"
+            params.append(limit)
+            cur.execute(query, params)
             return jsonify({"success": True, "activity": [dict(r) for r in cur.fetchall()]})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500

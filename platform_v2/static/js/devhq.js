@@ -572,12 +572,12 @@
   function loadProjectActivity(projectId) {
     setHtml("projSubActivity", '<div class="devhq-loading">Loading activity</div>');
 
-    api("/api/activity?limit=50").then(function (data) {
+    api("/api/activity?project_id=" + projectId + "&limit=50").then(function (data) {
       if (!data.success) {
         setHtml("projSubActivity", '<div class="devhq-empty">Error loading activity</div>');
         return;
       }
-      var items = data.activity.filter(function (a) { return a.project_id === projectId; });
+      var items = data.activity;
       if (!items.length) {
         setHtml("projSubActivity", '<div class="devhq-empty">No activity recorded for this project</div>');
         return;
@@ -587,7 +587,12 @@
         task_created: "plus-circle",
         status_change: "arrow-right-circle",
         task_completed: "check-circle",
-        decision: "gavel",
+        decision: "scale",
+        doc_created: "file-text",
+        doc_updated: "file-edit",
+        idea_promoted: "rocket",
+        idea_created: "lightbulb",
+        knowledge_added: "book-open",
       };
       setHtml("projSubActivity", '<div class="devhq-activity-list">' + items.map(function (a) {
         var icon = typeIcons[a.activity_type] || "activity";
@@ -726,6 +731,7 @@
   function taskPage(dir) {
     _taskState.page += dir;
     if (_taskState.page < 0) _taskState.page = 0;
+    if (_currentProject) loadProjectTasks(_currentProject.id);
   }
 
   /* ========================================================================
@@ -858,6 +864,7 @@
     p.then(function () {
       closeModal("ideaModal");
       _cache.ideas = false;
+      _cache.overview = false;
       loadIdeas();
     }).catch(function (err) {
       alert("Error: " + err.message);
@@ -867,7 +874,7 @@
   function deleteIdea(id) {
     if (!confirm("Delete this idea?")) return;
     api("/api/ideas/" + id, { method: "DELETE" })
-      .then(function () { _cache.ideas = false; loadIdeas(); })
+      .then(function () { _cache.ideas = false; _cache.overview = false; loadIdeas(); })
       .catch(function (err) { alert("Error: " + err.message); });
   }
 
@@ -1277,6 +1284,7 @@
         if (!data.success) { alert("Error: " + (data.error || "Failed")); return; }
         closeModal("decisionModal");
         _cache.decisions = false;
+        _cache.overview = false;
         loadDecisions();
       })
       .catch(function (err) { alert("Error: " + err.message); });

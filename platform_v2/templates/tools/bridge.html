@@ -6256,12 +6256,14 @@ body.light-mode .bridge-hud-value {
             <button class="lcars-tab-pill" data-console-tab="dispatch">DSPCH</button>
             <button class="lcars-tab-pill" data-console-tab="nodes">NODES</button>
             <button class="lcars-tab-pill" data-console-tab="metrics">STATS</button>
+            <button class="lcars-tab-pill" data-console-tab="memory">MEM</button>
         </div>
         <div class="lcars-tab-content" id="lcarsTabContent">
             <div class="lcars-tab-panel active" data-console-panel="crew" id="lcarsCrewPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="dispatch" id="lcarsDispatchPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="nodes" id="lcarsNodesPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="metrics" id="lcarsMetricsPanel"></div>
+            <div class="lcars-tab-panel" data-console-panel="memory" id="lcarsMemoryPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="module-preview" id="lcarsModulePreviewPanel"></div>
         </div>
     </div>
@@ -7805,6 +7807,7 @@ function switchConsoleTab(tabName) {
     if (tabName === 'dispatch') loadConsoleDispatch(zoneInfo.stations);
     if (tabName === 'nodes') loadConsoleNodes(zd, zoneInfo.color);
     if (tabName === 'metrics') loadConsoleMetrics(zoneInfo.stations);
+    if (tabName === 'memory') loadConsoleMemory();
 }
 
 // Wire up tab pill clicks
@@ -8253,6 +8256,568 @@ async function loadConsoleMetrics(stationCodes) {
 
     panel.appendChild(grid);
 }
+
+// === CONSOLE MEMORY TAB ===
+
+var _consoleMemoryData = [];   // cached across filter calls
+var _consoleMemoryAgents = []; // agent list for the current zone
+
+var MEMORY_TYPE_COLORS = {
+    general:     '#6ee7b7',
+    skill:       '#93c5fd',
+    preference:  '#c4b5fd',
+    interaction: '#fca5a5'
+};
+
+function memoryTypeColor(type) {
+    return MEMORY_TYPE_COLORS[type] || '#94a3b8';
+}
+
+async function loadConsoleMemory() {
+    var panel = document.getElementById('lcarsMemoryPanel');
+    if (!panel) return;
+    panel.textContent = '';
+
+    var loadingEl = document.createElement('div');
+    loadingEl.className = 'lcars-empty';
+    loadingEl.textContent = 'Loading memories\u2026';
+    panel.appendChild(loadingEl);
+
+    // Gather agents from the current zone
+    var agents = [];
+    if (_consoleCurrentZone && _consoleCurrentZone.zd && _consoleCurrentZone.zd.agents) {
+        agents = _consoleCurrentZone.zd.agents;
+    }
+    _consoleMemoryAgents = agents;
+
+    if (agents.length === 0) {
+        panel.textContent = '';
+        var emptyEl = document.createElement('div');
+        emptyEl.className = 'lcars-empty';
+        emptyEl.textContent = 'No crew assigned \u2014 no memories to display';
+        panel.appendChild(emptyEl);
+        return;
+    }
+
+    // Fetch memories for all agents in this zone
+    var allMemories = [];
+    for (var i = 0; i < agents.length; i++) {
+        var agent = agents[i];
+        try {
+            var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agent.id) + '/memory?per_page=50');
+            var json = await resp.json();
+            if (json.success && json.data) {
+                for (var j = 0; j < json.data.length; j++) {
+                    var m = json.data[j];
+                    m._agent_name = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.name || 'Agent ' + agent.id;
+                    m._agent_id = agent.id;
+                    allMemories.push(m);
+                }
+            }
+        } catch (e) {
+            console.error('Memory fetch error for agent', agent.id, e);
+        }
+    }
+
+    // Sort by importance descending
+    allMemories.sort(function(a, b) {
+        return (b.importance_score || 0) - (a.importance_score || 0);
+    });
+
+    _consoleMemoryData = allMemories;
+    panel.textContent = '';
+    renderConsoleMemoryUI(panel, allMemories);
+}
+
+function renderConsoleMemoryUI(panel, memories) {
+    // --- Header row: count + ADD button ---
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px;';
+
+    var countLabel = document.createElement('div');
+    countLabel.style.cssText = 'font-family:var(--font-mono);font-size:0.7rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.08em;';
+    countLabel.textContent = memories.length + ' MEMOR' + (memories.length === 1 ? 'Y' : 'IES');
+    header.appendChild(countLabel);
+
+    var addBtn = document.createElement('button');
+    addBtn.style.cssText = 'background:rgba(0,255,255,0.15);border:1px solid rgba(0,255,255,0.3);color:#0ff;font-size:0.65rem;padding:3px 10px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);letter-spacing:0.06em;';
+    addBtn.textContent = '+ ADD';
+    addBtn.addEventListener('click', showAddMemoryForm);
+    header.appendChild(addBtn);
+
+    panel.appendChild(header);
+
+    // --- Filter bar: type dropdown + search ---
+    var filterBar = document.createElement('div');
+    filterBar.style.cssText = 'display:flex;gap:6px;margin-bottom:10px;';
+
+    var typeSelect = document.createElement('select');
+    typeSelect.id = 'memoryFilterType';
+    typeSelect.style.cssText = 'background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#fff;font-size:0.65rem;padding:4px 6px;border-radius:4px;font-family:var(--font-mono);flex:0 0 auto;';
+    var typeOptions = ['all', 'general', 'skill', 'preference', 'interaction'];
+    for (var t = 0; t < typeOptions.length; t++) {
+        var opt = document.createElement('option');
+        opt.value = typeOptions[t];
+        opt.textContent = typeOptions[t].toUpperCase();
+        typeSelect.appendChild(opt);
+    }
+    typeSelect.addEventListener('change', filterConsoleMemories);
+    filterBar.appendChild(typeSelect);
+
+    var searchInput = document.createElement('input');
+    searchInput.id = 'memoryFilterSearch';
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search\u2026';
+    searchInput.style.cssText = 'background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#fff;font-size:0.65rem;padding:4px 8px;border-radius:4px;font-family:var(--font-mono);flex:1;min-width:0;';
+    searchInput.addEventListener('input', filterConsoleMemories);
+    filterBar.appendChild(searchInput);
+
+    panel.appendChild(filterBar);
+
+    // --- Cards container ---
+    var cardsContainer = document.createElement('div');
+    cardsContainer.id = 'memoryCardsContainer';
+    panel.appendChild(cardsContainer);
+
+    renderMemoryCards(cardsContainer, memories);
+}
+
+function renderMemoryCards(container, memories) {
+    container.textContent = '';
+
+    if (memories.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'lcars-empty';
+        empty.textContent = 'No memories match the current filter';
+        container.appendChild(empty);
+        return;
+    }
+
+    for (var i = 0; i < memories.length; i++) {
+        var m = memories[i];
+        var card = document.createElement('div');
+        card.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:10px;margin-bottom:8px;';
+
+        // Top row: content + type badge
+        var topRow = document.createElement('div');
+        topRow.style.cssText = 'display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;';
+
+        var contentEl = document.createElement('div');
+        contentEl.style.cssText = 'flex:1;font-size:0.72rem;color:rgba(255,255,255,0.85);line-height:1.4;word-break:break-word;';
+        var contentText = m.content || '';
+        if (contentText.length > 120) contentText = contentText.substring(0, 120) + '\u2026';
+        contentEl.textContent = contentText;
+        topRow.appendChild(contentEl);
+
+        var typeBadge = document.createElement('span');
+        var tColor = memoryTypeColor(m.memory_type);
+        typeBadge.style.cssText = 'flex-shrink:0;font-size:0.55rem;padding:2px 6px;border-radius:3px;border:1px solid ' + tColor + ';color:' + tColor + ';text-transform:uppercase;letter-spacing:0.05em;font-family:var(--font-mono);';
+        typeBadge.textContent = m.memory_type || 'unknown';
+        topRow.appendChild(typeBadge);
+
+        card.appendChild(topRow);
+
+        // Importance bar
+        var impScore = Math.max(0, Math.min(1, m.importance_score || 0));
+        var barOuter = document.createElement('div');
+        barOuter.style.cssText = 'height:3px;background:rgba(255,255,255,0.08);border-radius:2px;margin-bottom:6px;overflow:hidden;';
+        var barInner = document.createElement('div');
+        barInner.style.cssText = 'height:100%;border-radius:2px;background:var(--station-color,#0ff);width:' + (impScore * 100) + '%;transition:width 0.3s;';
+        barOuter.appendChild(barInner);
+        card.appendChild(barOuter);
+
+        // Bottom row: agent name + score + actions
+        var bottomRow = document.createElement('div');
+        bottomRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:0.6rem;';
+
+        var agentLabel = document.createElement('span');
+        agentLabel.style.cssText = 'color:rgba(255,255,255,0.45);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        agentLabel.textContent = m._agent_name || 'Agent';
+        bottomRow.appendChild(agentLabel);
+
+        var scoreLabel = document.createElement('span');
+        scoreLabel.style.cssText = 'color:var(--station-color,#0ff);font-family:var(--font-mono);font-size:0.6rem;';
+        scoreLabel.textContent = (impScore * 100).toFixed(0) + '%';
+        bottomRow.appendChild(scoreLabel);
+
+        // Edit button
+        var editBtn = document.createElement('button');
+        editBtn.style.cssText = 'background:none;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);font-size:0.55rem;padding:2px 6px;border-radius:3px;cursor:pointer;font-family:var(--font-mono);';
+        editBtn.textContent = 'EDIT';
+        editBtn.dataset.memoryId = m.id;
+        editBtn.dataset.agentId = m._agent_id;
+        editBtn.addEventListener('click', function() {
+            editMemory(parseInt(this.dataset.memoryId), parseInt(this.dataset.agentId));
+        });
+        bottomRow.appendChild(editBtn);
+
+        // Delete button
+        var delBtn = document.createElement('button');
+        delBtn.style.cssText = 'background:none;border:1px solid rgba(255,100,100,0.25);color:rgba(255,100,100,0.6);font-size:0.55rem;padding:2px 6px;border-radius:3px;cursor:pointer;font-family:var(--font-mono);';
+        delBtn.textContent = 'DEL';
+        delBtn.dataset.memoryId = m.id;
+        delBtn.dataset.agentId = m._agent_id;
+        delBtn.addEventListener('click', function() {
+            deleteMemory(parseInt(this.dataset.memoryId), parseInt(this.dataset.agentId));
+        });
+        bottomRow.appendChild(delBtn);
+
+        card.appendChild(bottomRow);
+        container.appendChild(card);
+    }
+}
+
+function filterConsoleMemories() {
+    var typeEl = document.getElementById('memoryFilterType');
+    var searchEl = document.getElementById('memoryFilterSearch');
+    var container = document.getElementById('memoryCardsContainer');
+    if (!container) return;
+
+    var filterType = typeEl ? typeEl.value : 'all';
+    var searchText = searchEl ? searchEl.value.toLowerCase().trim() : '';
+
+    var filtered = _consoleMemoryData.filter(function(m) {
+        if (filterType !== 'all' && m.memory_type !== filterType) return false;
+        if (searchText && (m.content || '').toLowerCase().indexOf(searchText) === -1) return false;
+        return true;
+    });
+
+    renderMemoryCards(container, filtered);
+}
+
+function showAddMemoryForm() {
+    // Build overlay
+    var overlay = document.createElement('div');
+    overlay.id = 'memoryFormOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10001;display:flex;align-items:center;justify-content:center;';
+
+    var modal = document.createElement('div');
+    modal.style.cssText = 'background:rgba(12,16,28,0.98);border:1px solid rgba(0,255,255,0.2);border-radius:10px;padding:20px;width:340px;max-width:90vw;max-height:80vh;overflow-y:auto;';
+
+    // Title
+    var title = document.createElement('div');
+    title.style.cssText = 'font-family:var(--font-mono);font-size:0.8rem;color:#0ff;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.1em;';
+    title.textContent = 'Add Memory';
+    modal.appendChild(title);
+
+    // Agent selector
+    var agentLabel = document.createElement('label');
+    agentLabel.style.cssText = 'display:block;font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;';
+    agentLabel.textContent = 'Agent';
+    modal.appendChild(agentLabel);
+
+    var agentSelect = document.createElement('select');
+    agentSelect.id = 'memoryFormAgent';
+    agentSelect.style.cssText = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;padding:6px 8px;border-radius:4px;margin-bottom:12px;font-family:var(--font-mono);';
+    for (var a = 0; a < _consoleMemoryAgents.length; a++) {
+        var ag = _consoleMemoryAgents[a];
+        var opt = document.createElement('option');
+        opt.value = ag.id;
+        opt.textContent = [ag.first_name, ag.last_name].filter(Boolean).join(' ') || ag.name || 'Agent ' + ag.id;
+        agentSelect.appendChild(opt);
+    }
+    modal.appendChild(agentSelect);
+
+    // Content textarea
+    var contentLabel = document.createElement('label');
+    contentLabel.style.cssText = 'display:block;font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;';
+    contentLabel.textContent = 'Content';
+    modal.appendChild(contentLabel);
+
+    var contentArea = document.createElement('textarea');
+    contentArea.id = 'memoryFormContent';
+    contentArea.rows = 4;
+    contentArea.style.cssText = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;padding:8px;border-radius:4px;margin-bottom:12px;font-family:var(--font-mono);resize:vertical;box-sizing:border-box;';
+    contentArea.placeholder = 'Memory content\u2026';
+    modal.appendChild(contentArea);
+
+    // Type dropdown
+    var typeLabel = document.createElement('label');
+    typeLabel.style.cssText = 'display:block;font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;';
+    typeLabel.textContent = 'Type';
+    modal.appendChild(typeLabel);
+
+    var typeSelect = document.createElement('select');
+    typeSelect.id = 'memoryFormType';
+    typeSelect.style.cssText = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;padding:6px 8px;border-radius:4px;margin-bottom:12px;font-family:var(--font-mono);';
+    var types = ['general', 'skill', 'preference', 'interaction'];
+    for (var ti = 0; ti < types.length; ti++) {
+        var tOpt = document.createElement('option');
+        tOpt.value = types[ti];
+        tOpt.textContent = types[ti].charAt(0).toUpperCase() + types[ti].slice(1);
+        typeSelect.appendChild(tOpt);
+    }
+    modal.appendChild(typeSelect);
+
+    // Importance slider
+    var impLabel = document.createElement('label');
+    impLabel.style.cssText = 'display:block;font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;';
+    impLabel.textContent = 'Importance';
+    modal.appendChild(impLabel);
+
+    var impRow = document.createElement('div');
+    impRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:16px;';
+
+    var impSlider = document.createElement('input');
+    impSlider.type = 'range';
+    impSlider.id = 'memoryFormImportance';
+    impSlider.min = '0';
+    impSlider.max = '100';
+    impSlider.value = '50';
+    impSlider.style.cssText = 'flex:1;accent-color:#0ff;';
+
+    var impVal = document.createElement('span');
+    impVal.id = 'memoryFormImpVal';
+    impVal.style.cssText = 'font-family:var(--font-mono);font-size:0.7rem;color:var(--station-color,#0ff);min-width:32px;text-align:right;';
+    impVal.textContent = '50%';
+
+    impSlider.addEventListener('input', function() {
+        document.getElementById('memoryFormImpVal').textContent = this.value + '%';
+    });
+
+    impRow.appendChild(impSlider);
+    impRow.appendChild(impVal);
+    modal.appendChild(impRow);
+
+    // Buttons
+    var btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.style.cssText = 'background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);font-size:0.65rem;padding:6px 14px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);';
+    cancelBtn.textContent = 'CANCEL';
+    cancelBtn.addEventListener('click', function() {
+        var ov = document.getElementById('memoryFormOverlay');
+        if (ov) ov.remove();
+    });
+    btnRow.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement('button');
+    saveBtn.style.cssText = 'background:rgba(0,255,255,0.15);border:1px solid rgba(0,255,255,0.3);color:#0ff;font-size:0.65rem;padding:6px 14px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);';
+    saveBtn.textContent = 'SAVE';
+    saveBtn.addEventListener('click', submitNewMemory);
+    btnRow.appendChild(saveBtn);
+
+    modal.appendChild(btnRow);
+    overlay.appendChild(modal);
+
+    // Click overlay backdrop to close
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.remove();
+    });
+
+    document.body.appendChild(overlay);
+}
+
+async function submitNewMemory() {
+    var agentId = document.getElementById('memoryFormAgent').value;
+    var content = document.getElementById('memoryFormContent').value.trim();
+    var memoryType = document.getElementById('memoryFormType').value;
+    var importance = parseInt(document.getElementById('memoryFormImportance').value) / 100;
+
+    if (!content) {
+        showToast('Content is required', 'error');
+        return;
+    }
+
+    try {
+        var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agentId) + '/memory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content, memory_type: memoryType, importance_score: importance })
+        });
+        var json = await resp.json();
+        if (json.success) {
+            showToast('Memory created', 'success');
+            var ov = document.getElementById('memoryFormOverlay');
+            if (ov) ov.remove();
+            loadConsoleMemory();
+        } else {
+            showToast('Error: ' + (json.error || 'Failed'), 'error');
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+async function editMemory(memoryId, agentId) {
+    // Fetch current memory
+    try {
+        var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId));
+        var json = await resp.json();
+        if (!json.success || !json.data) {
+            showToast('Could not load memory', 'error');
+            return;
+        }
+        var mem = json.data;
+
+        // Build overlay
+        var overlay = document.createElement('div');
+        overlay.id = 'memoryFormOverlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10001;display:flex;align-items:center;justify-content:center;';
+
+        var modal = document.createElement('div');
+        modal.style.cssText = 'background:rgba(12,16,28,0.98);border:1px solid rgba(0,255,255,0.2);border-radius:10px;padding:20px;width:340px;max-width:90vw;max-height:80vh;overflow-y:auto;';
+
+        // Title
+        var title = document.createElement('div');
+        title.style.cssText = 'font-family:var(--font-mono);font-size:0.8rem;color:#0ff;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.1em;';
+        title.textContent = 'Edit Memory #' + memoryId;
+        modal.appendChild(title);
+
+        // Content textarea
+        var contentLabel = document.createElement('label');
+        contentLabel.style.cssText = 'display:block;font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;';
+        contentLabel.textContent = 'Content';
+        modal.appendChild(contentLabel);
+
+        var contentArea = document.createElement('textarea');
+        contentArea.id = 'memoryEditContent';
+        contentArea.rows = 4;
+        contentArea.style.cssText = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;padding:8px;border-radius:4px;margin-bottom:12px;font-family:var(--font-mono);resize:vertical;box-sizing:border-box;';
+        contentArea.value = mem.content || '';
+        modal.appendChild(contentArea);
+
+        // Type dropdown
+        var typeLabel = document.createElement('label');
+        typeLabel.style.cssText = 'display:block;font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;';
+        typeLabel.textContent = 'Type';
+        modal.appendChild(typeLabel);
+
+        var typeSelect = document.createElement('select');
+        typeSelect.id = 'memoryEditType';
+        typeSelect.style.cssText = 'width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.7rem;padding:6px 8px;border-radius:4px;margin-bottom:12px;font-family:var(--font-mono);';
+        var types = ['general', 'skill', 'preference', 'interaction'];
+        for (var ti = 0; ti < types.length; ti++) {
+            var tOpt = document.createElement('option');
+            tOpt.value = types[ti];
+            tOpt.textContent = types[ti].charAt(0).toUpperCase() + types[ti].slice(1);
+            if (types[ti] === mem.memory_type) tOpt.selected = true;
+            typeSelect.appendChild(tOpt);
+        }
+        modal.appendChild(typeSelect);
+
+        // Importance slider
+        var impLabel = document.createElement('label');
+        impLabel.style.cssText = 'display:block;font-size:0.6rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;';
+        impLabel.textContent = 'Importance';
+        modal.appendChild(impLabel);
+
+        var impRow = document.createElement('div');
+        impRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:16px;';
+
+        var currentImp = Math.round((mem.importance_score || 0.5) * 100);
+        var impSlider = document.createElement('input');
+        impSlider.type = 'range';
+        impSlider.id = 'memoryEditImportance';
+        impSlider.min = '0';
+        impSlider.max = '100';
+        impSlider.value = String(currentImp);
+        impSlider.style.cssText = 'flex:1;accent-color:#0ff;';
+
+        var impVal = document.createElement('span');
+        impVal.id = 'memoryEditImpVal';
+        impVal.style.cssText = 'font-family:var(--font-mono);font-size:0.7rem;color:var(--station-color,#0ff);min-width:32px;text-align:right;';
+        impVal.textContent = currentImp + '%';
+
+        impSlider.addEventListener('input', function() {
+            document.getElementById('memoryEditImpVal').textContent = this.value + '%';
+        });
+
+        impRow.appendChild(impSlider);
+        impRow.appendChild(impVal);
+        modal.appendChild(impRow);
+
+        // Buttons
+        var btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.style.cssText = 'background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);font-size:0.65rem;padding:6px 14px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);';
+        cancelBtn.textContent = 'CANCEL';
+        cancelBtn.addEventListener('click', function() {
+            var ov = document.getElementById('memoryFormOverlay');
+            if (ov) ov.remove();
+        });
+        btnRow.appendChild(cancelBtn);
+
+        var saveBtn = document.createElement('button');
+        saveBtn.style.cssText = 'background:rgba(0,255,255,0.15);border:1px solid rgba(0,255,255,0.3);color:#0ff;font-size:0.65rem;padding:6px 14px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);';
+        saveBtn.textContent = 'SAVE';
+        saveBtn.addEventListener('click', function() {
+            submitEditMemory(memoryId, agentId);
+        });
+        btnRow.appendChild(saveBtn);
+
+        modal.appendChild(btnRow);
+        overlay.appendChild(modal);
+
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) overlay.remove();
+        });
+
+        document.body.appendChild(overlay);
+    } catch (e) {
+        showToast('Error loading memory: ' + e.message, 'error');
+    }
+}
+
+async function submitEditMemory(memoryId, agentId) {
+    var content = document.getElementById('memoryEditContent').value.trim();
+    var memoryType = document.getElementById('memoryEditType').value;
+    var importance = parseInt(document.getElementById('memoryEditImportance').value) / 100;
+
+    if (!content) {
+        showToast('Content is required', 'error');
+        return;
+    }
+
+    try {
+        var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content, memory_type: memoryType, importance_score: importance })
+        });
+        var json = await resp.json();
+        if (json.success) {
+            showToast('Memory updated', 'success');
+            var ov = document.getElementById('memoryFormOverlay');
+            if (ov) ov.remove();
+            loadConsoleMemory();
+        } else {
+            showToast('Error: ' + (json.error || 'Failed'), 'error');
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+async function deleteMemory(memoryId, agentId) {
+    if (!confirm('Delete memory #' + memoryId + '? This is a soft delete.')) return;
+
+    var reason = prompt('Deletion reason (optional):', 'Manual deletion from Bridge console');
+    if (reason === null) return; // user cancelled
+
+    try {
+        var resp = await fetch('/tools/bridge/api/agents/' + encodeURIComponent(agentId) + '/memory/' + encodeURIComponent(memoryId), {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason || 'Manual deletion from Bridge console' })
+        });
+        var json = await resp.json();
+        if (json.success) {
+            showToast('Memory deleted', 'success');
+            loadConsoleMemory();
+        } else {
+            showToast('Error: ' + (json.error || 'Failed'), 'error');
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+// === END CONSOLE MEMORY TAB ===
+
 async function showModulePreview(mod) {
     var panel = document.getElementById('lcarsModulePreviewPanel');
     if (!panel) return;
@@ -9771,6 +10336,11 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function escHtml(s) {
+    if (typeof s !== 'string') s = String(s == null ? '' : s);
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function showToast(message, type = 'info') {

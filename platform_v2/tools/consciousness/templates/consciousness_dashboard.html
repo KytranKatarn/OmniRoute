@@ -780,20 +780,190 @@
           </div>
         </div>
 
+        <!-- ════════════════════════════════════════════════════════ -->
+        <!-- Insights Panel                                            -->
+        <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-insights">
-            <div class="cs-loading" data-i18n="common.loading">Loading...</div>
+          <div class="cs-subtabs">
+            <button class="cs-subtab active" onclick="switchInsightsSubtab('analytics')">Analytics</button>
+            <button class="cs-subtab" onclick="switchInsightsSubtab('sessions')">Sessions</button>
+            <button class="cs-subtab" onclick="switchInsightsSubtab('improvements')">Improvements</button>
+          </div>
+          <div class="cs-subpanel active" id="insights-analytics">
+            <div class="cs-stats" style="margin-bottom:20px;">
+              <div class="cs-stat purple">
+                <div class="cs-stat-icon"><i data-lucide="zap"></i></div>
+                <div class="cs-stat-value" id="insightsBridgeTotal">--</div>
+                <div class="cs-stat-label">Bridge Calls (7d)</div>
+              </div>
+              <div class="cs-stat blue">
+                <div class="cs-stat-icon"><i data-lucide="clock"></i></div>
+                <div class="cs-stat-value" id="insightsAvgTime">--</div>
+                <div class="cs-stat-label">Avg Response (ms)</div>
+              </div>
+              <div class="cs-stat green">
+                <div class="cs-stat-icon"><i data-lucide="hash"></i></div>
+                <div class="cs-stat-value" id="insightsTokens">--</div>
+                <div class="cs-stat-label">Total Tokens (7d)</div>
+              </div>
+              <div class="cs-stat amber">
+                <div class="cs-stat-icon"><i data-lucide="book-plus"></i></div>
+                <div class="cs-stat-value" id="insightsGrowth">--</div>
+                <div class="cs-stat-label">New Knowledge (7d)</div>
+              </div>
+            </div>
+            <div id="analyticsDetail"><div class="cs-empty">Detailed analytics coming soon</div></div>
+          </div>
+          <div class="cs-subpanel" id="insights-sessions">
+            <div id="sessionsList"><div class="cs-loading">Loading sessions...</div></div>
+          </div>
+          <div class="cs-subpanel" id="insights-improvements">
+            <div id="improvementsList"><div class="cs-loading">Loading improvements...</div></div>
+          </div>
         </div>
 
+        <!-- ════════════════════════════════════════════════════════ -->
+        <!-- Languages Panel                                           -->
+        <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-languages">
-            <div class="cs-loading" data-i18n="common.loading">Loading...</div>
+          <div class="cs-subtabs">
+            <button class="cs-subtab active" onclick="switchLangSubtab('dashboard')">Dashboard</button>
+            <button class="cs-subtab" onclick="switchLangSubtab('browser')">Browser</button>
+            <button class="cs-subtab" onclick="switchLangSubtab('review')">Review</button>
+            <button class="cs-subtab" onclick="switchLangSubtab('glossary')">Glossary</button>
+          </div>
+          <div class="cs-subpanel active" id="lang-dashboard">
+            <div class="cs-stats" style="margin-bottom:20px;">
+              <div class="cs-stat purple">
+                <div class="cs-stat-icon"><i data-lucide="languages"></i></div>
+                <div class="cs-stat-value" id="langTotalKeys">--</div>
+                <div class="cs-stat-label">Total Keys</div>
+              </div>
+              <div class="cs-stat green">
+                <div class="cs-stat-icon"><i data-lucide="check-circle"></i></div>
+                <div class="cs-stat-value" id="langApproved">--</div>
+                <div class="cs-stat-label">Approved</div>
+              </div>
+              <div class="cs-stat blue">
+                <div class="cs-stat-icon"><i data-lucide="globe"></i></div>
+                <div class="cs-stat-value" id="langLanguages">8</div>
+                <div class="cs-stat-label">Languages</div>
+              </div>
+              <div class="cs-stat amber">
+                <div class="cs-stat-icon"><i data-lucide="alert-circle"></i></div>
+                <div class="cs-stat-value" id="langPending">--</div>
+                <div class="cs-stat-label">Pending Review</div>
+              </div>
+            </div>
+            <div id="langCoverageGrid"><div class="cs-loading">Loading coverage...</div></div>
+          </div>
+          <div class="cs-subpanel" id="lang-browser">
+            <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+              <input type="text" id="langSearch" placeholder="Search translations..."
+                     style="flex:1; min-width:200px; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;"
+                     oninput="debounceReload('langBrowser', loadLangBrowser)">
+              <select id="langFilterLang" onchange="_cache.langBrowser=false; loadLangBrowser()"
+                      style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="pt">Portuguese</option>
+                <option value="de">German</option>
+                <option value="zh">Chinese</option>
+                <option value="ar">Arabic</option>
+                <option value="he">Hebrew</option>
+              </select>
+            </div>
+            <div id="langBrowserTable"><div class="cs-loading">Loading...</div></div>
+          </div>
+          <div class="cs-subpanel" id="lang-review">
+            <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+              <select id="langReviewLang" onchange="loadLangReview()"
+                      style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="pt">Portuguese</option>
+                <option value="de">German</option>
+                <option value="zh">Chinese</option>
+                <option value="ar">Arabic</option>
+                <option value="he">Hebrew</option>
+              </select>
+            </div>
+            <div id="langReviewList"><div class="cs-loading">Loading pending reviews...</div></div>
+          </div>
+          <div class="cs-subpanel" id="lang-glossary">
+            <div id="langGlossaryList"><div class="cs-loading">Loading glossary...</div></div>
+          </div>
         </div>
 
+        <!-- ════════════════════════════════════════════════════════ -->
+        <!-- GitHub Panel                                              -->
+        <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-github">
-            <div class="cs-loading" data-i18n="common.loading">Loading...</div>
+          <div class="cs-subtabs">
+            <button class="cs-subtab active" onclick="switchGithubSubtab('repos')">Repos</button>
+            <button class="cs-subtab" onclick="switchGithubSubtab('search')">Search</button>
+          </div>
+          <div class="cs-subpanel active" id="gh-repos">
+            <div id="ghRepoGrid"><div class="cs-loading">Loading repositories...</div></div>
+          </div>
+          <div class="cs-subpanel" id="gh-search">
+            <div style="margin-bottom:16px;">
+              <input type="text" id="ghSearchInput" placeholder="Search indexed code..."
+                     style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;"
+                     onkeydown="if(event.key==='Enter')searchGithub()">
+            </div>
+            <div id="ghSearchResults"><div class="cs-empty">Enter a query to search indexed code</div></div>
+          </div>
         </div>
 
+        <!-- ════════════════════════════════════════════════════════ -->
+        <!-- Integration Panel                                         -->
+        <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-integration">
-            <div class="cs-loading" data-i18n="common.loading">Loading...</div>
+          <div class="cs-stats" style="margin-bottom:20px;">
+            <div class="cs-stat green" id="intDevhq">
+              <div class="cs-stat-icon"><i data-lucide="folder-kanban"></i></div>
+              <div class="cs-stat-value" id="intDevhqStatus">--</div>
+              <div class="cs-stat-label">Dev HQ</div>
+            </div>
+            <div class="cs-stat blue" id="intBridge">
+              <div class="cs-stat-icon"><i data-lucide="radio-tower"></i></div>
+              <div class="cs-stat-value" id="intBridgeStatus">--</div>
+              <div class="cs-stat-label">Bridge</div>
+            </div>
+            <div class="cs-stat purple" id="intOllama">
+              <div class="cs-stat-icon"><i data-lucide="cpu"></i></div>
+              <div class="cs-stat-value" id="intOllamaStatus">--</div>
+              <div class="cs-stat-label">Ollama</div>
+            </div>
+            <div class="cs-stat amber" id="intGithub">
+              <div class="cs-stat-icon"><i data-lucide="github"></i></div>
+              <div class="cs-stat-value" id="intGithubStatus">--</div>
+              <div class="cs-stat-label">GitHub</div>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div class="cs-card">
+              <div class="cs-card-header">Translation Pipeline</div>
+              <div class="cs-card-body">
+                <p style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-bottom:12px;">
+                  Test that translations route through Bridge (ADR-013)
+                </p>
+                <button id="testPipelineBtn" onclick="testPipeline()"
+                        style="padding:8px 16px; background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.4); border-radius:6px; color:#8b5cf6; cursor:pointer; font-size:0.85rem;">
+                  Test Pipeline
+                </button>
+                <div id="pipelineResult" style="margin-top:12px;"></div>
+              </div>
+            </div>
+            <div class="cs-card">
+              <div class="cs-card-header">Dev HQ Activity</div>
+              <div class="cs-card-body" id="intDevhqActivity">
+                <div class="cs-loading">Loading...</div>
+              </div>
+            </div>
+          </div>
         </div>
 
     </div><!-- /.cs-body -->

@@ -36,6 +36,73 @@ def register_insights_routes(bp, admin_required):
     """Register all insights/analytics routes on the consciousness blueprint."""
 
     # ==================================================================
+    # INSIGHTS SUMMARY (for consciousness.js dashboard)
+    # ==================================================================
+
+    @bp.route("/api/insights/summary")
+    @login_required
+    @admin_required
+    def api_insights_summary():
+        """Analytics overview for the Insights tab."""
+        conn = _get_db()
+        cur = None
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            # Bridge stats (last 7 days)
+            cur.execute(
+                """
+                SELECT count(*) as total,
+                       avg(execution_time_ms) as avg_time,
+                       sum(tokens_used) as total_tokens,
+                       count(DISTINCT model_used) as models_used
+                FROM bridge_interaction_log
+                WHERE created_at > now() - interval '7 days'
+            """
+            )
+            bridge = cur.fetchone()
+            # Knowledge growth
+            cur.execute(
+                """
+                SELECT count(*) as new_entries
+                FROM knowledge_base
+                WHERE created_at > now() - interval '7 days'
+                  AND knowledge_type != 'archie_v1'
+            """
+            )
+            growth = cur.fetchone()
+            # Sessions count
+            sessions_total = 0
+            try:
+                cur.execute("SELECT count(*) as total FROM collaboration_sessions")
+                sessions_row = cur.fetchone()
+                if sessions_row:
+                    sessions_total = sessions_row["total"]
+            except Exception:
+                conn.rollback()
+            return jsonify(
+                {
+                    "success": True,
+                    "bridge_stats": {
+                        "total": bridge["total"] if bridge else 0,
+                        "avg_time_ms": round(float(bridge["avg_time"] or 0)) if bridge else 0,
+                        "total_tokens": bridge["total_tokens"] if bridge else 0,
+                        "models_used": bridge["models_used"] if bridge else 0,
+                    },
+                    "knowledge_growth": growth["new_entries"] if growth else 0,
+                    "sessions": sessions_total,
+                }
+            )
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if cur:
+                cur.close()
+            conn.close()
+
+    # ==================================================================
     # ANALYTICS
     # ==================================================================
 

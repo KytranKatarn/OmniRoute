@@ -401,10 +401,337 @@ window.showAgentProfile = function(agentId) {
     console.error("showAgentProfile error:", err);
   });
 };
-function loadInsights() { setHtml("panel-insights", '<div class="cs-loading">Insights tab \u2014 coming soon</div>'); }
-function loadLanguages() { setHtml("panel-languages", '<div class="cs-loading">Languages tab \u2014 coming soon</div>'); }
-function loadGitHub() { setHtml("panel-github", '<div class="cs-loading">GitHub tab \u2014 coming soon</div>'); }
-function loadIntegration() { setHtml("panel-integration", '<div class="cs-loading">Integration tab \u2014 coming soon</div>'); }
+/* ── Insights Tab ──────────────────────────────────── */
+
+window.switchInsightsSubtab = function(sub) {
+  document.querySelectorAll("#panel-insights .cs-subtab").forEach(function(b) {
+    b.classList.toggle("active", b.textContent.toLowerCase() === sub);
+  });
+  document.querySelectorAll("#panel-insights .cs-subpanel").forEach(function(p) {
+    p.classList.toggle("active", p.id === "insights-" + sub);
+  });
+  if (sub === "sessions") loadSessions();
+  if (sub === "improvements") loadImprovements();
+};
+
+function loadInsights() {
+  api("/api/insights/summary").then(function(data) {
+    if (!data.success) return;
+    setHtml("insightsBridgeTotal", data.bridge_stats.total || 0);
+    setHtml("insightsAvgTime", data.bridge_stats.avg_time_ms || 0);
+    setHtml("insightsTokens", data.bridge_stats.total_tokens || 0);
+    setHtml("insightsGrowth", data.knowledge_growth || 0);
+    refreshIcons();
+  }).catch(function(err) {
+    console.error("loadInsights error:", err);
+  });
+}
+
+function loadSessions() {
+  api("/sessions").then(function(data) {
+    var sessions = data.sessions || [];
+    if (!sessions.length) {
+      setHtml("sessionsList", '<div class="cs-empty">No sessions found</div>');
+      return;
+    }
+    var html = '<table class="cs-table"><thead><tr><th>Session</th><th>Topic</th><th>Status</th><th>Started</th></tr></thead><tbody>';
+    sessions.slice(0, 20).forEach(function(s) {
+      html += '<tr><td>' + escHtml(s.session_name || s.primary_topic || "Session #" + s.id) + '</td>' +
+        '<td>' + escHtml(s.primary_topic || "\u2014") + '</td>' +
+        '<td><span class="cs-badge">' + escHtml(s.processing_status || "\u2014") + '</span></td>' +
+        '<td>' + formatAge(s.started_at || s.compact_triggered_at) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    setHtml("sessionsList", html);
+  }).catch(function() {
+    setHtml("sessionsList", '<div class="cs-empty">Sessions unavailable</div>');
+  });
+}
+
+function loadImprovements() {
+  api("/improvements").then(function(data) {
+    var items = data.improvements || data.proposals || [];
+    if (!items.length) {
+      setHtml("improvementsList", '<div class="cs-empty">No improvement proposals</div>');
+      return;
+    }
+    var html = '<table class="cs-table"><thead><tr><th>Title</th><th>Type</th><th>Importance</th><th>Created</th></tr></thead><tbody>';
+    items.slice(0, 20).forEach(function(p) {
+      html += '<tr><td>' + escHtml(p.title || p.description || "Proposal") + '</td>' +
+        '<td><span class="cs-badge">' + escHtml(p.knowledge_type || "\u2014") + '</span></td>' +
+        '<td>' + (p.importance_score ? p.importance_score.toFixed(2) : "\u2014") + '</td>' +
+        '<td>' + formatAge(p.created_at) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    setHtml("improvementsList", html);
+  }).catch(function() {
+    setHtml("improvementsList", '<div class="cs-empty">Improvements unavailable</div>');
+  });
+}
+
+/* ── Languages Tab ─────────────────────────────────── */
+
+window.switchLangSubtab = function(sub) {
+  document.querySelectorAll("#panel-languages .cs-subtab").forEach(function(b) {
+    b.classList.toggle("active", b.textContent.toLowerCase() === sub);
+  });
+  document.querySelectorAll("#panel-languages .cs-subpanel").forEach(function(p) {
+    p.classList.toggle("active", p.id === "lang-" + sub);
+  });
+  if (sub === "browser") loadLangBrowser();
+  if (sub === "review") loadLangReview();
+  if (sub === "glossary") loadLangGlossary();
+};
+
+function loadLanguages() {
+  // Load dashboard stats — aggregate across all languages
+  api("/api/translations/stats").then(function(data) {
+    if (!data.success || !data.stats) return;
+    var totalKeys = 0;
+    var totalApproved = 0;
+    var totalPending = 0;
+    Object.keys(data.stats).forEach(function(lang) {
+      var s = data.stats[lang];
+      totalKeys += s.total || 0;
+      totalApproved += s.approved || 0;
+      totalPending += s.pending || 0;
+    });
+    setHtml("langTotalKeys", totalKeys);
+    setHtml("langApproved", totalApproved);
+    setHtml("langPending", totalPending);
+  }).catch(function() {});
+
+  // Module coverage
+  api("/api/translations/module-coverage").then(function(data) {
+    var modules = data.modules || data.coverage || [];
+    if (!modules.length) {
+      setHtml("langCoverageGrid", '<div class="cs-empty">No coverage data</div>');
+      return;
+    }
+    var html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">';
+    modules.forEach(function(m) {
+      var pct = m.coverage_pct || m.percentage || 0;
+      var color = pct >= 90 ? "green" : pct >= 50 ? "amber" : "red";
+      html += '<div class="cs-card" style="padding:12px;">' +
+        '<div style="font-weight:600; color:#fff; font-size:0.85rem;">' + escHtml(m.module || m.name) + '</div>' +
+        '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4);">' +
+          '<span class="cs-badge ' + color + '">' + pct + '%</span> ' +
+          (m.translated || 0) + '/' + (m.total || 0) +
+        '</div></div>';
+    });
+    html += '</div>';
+    setHtml("langCoverageGrid", html);
+  }).catch(function() {
+    setHtml("langCoverageGrid", '<div class="cs-empty">Coverage data unavailable</div>');
+  });
+}
+
+function loadLangBrowser() {
+  var search = document.getElementById("langSearch");
+  var lang = document.getElementById("langFilterLang");
+  var params = "?language=" + (lang ? lang.value : "fr");
+  if (search && search.value) params += "&search=" + encodeURIComponent(search.value);
+
+  api("/api/translations/browser" + params).then(function(data) {
+    var items = data.translations || [];
+    if (!items.length) {
+      setHtml("langBrowserTable", '<div class="cs-empty">No translations found</div>');
+      return;
+    }
+    var html = '<table class="cs-table"><thead><tr><th>Key</th><th>English</th><th>Translation</th><th>Status</th></tr></thead><tbody>';
+    items.slice(0, 50).forEach(function(t) {
+      html += '<tr><td>' + escHtml(t.key) + '</td>' +
+        '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis;">' + escHtml(t.english || "\u2014") + '</td>' +
+        '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis;">' + escHtml(t.target || "\u2014") + '</td>' +
+        '<td><span class="cs-badge">' + escHtml(t.status || "\u2014") + '</span></td></tr>';
+    });
+    html += '</tbody></table>';
+    setHtml("langBrowserTable", html);
+  }).catch(function() {
+    setHtml("langBrowserTable", '<div class="cs-empty">Error loading translations</div>');
+  });
+}
+
+function loadLangReview() {
+  var lang = document.getElementById("langReviewLang");
+  var params = "?language=" + (lang ? lang.value : "fr") + "&status=pending_review";
+
+  api("/api/translations/review" + params).then(function(data) {
+    var items = data.translations || [];
+    if (!items.length) {
+      setHtml("langReviewList", '<div class="cs-empty">No pending reviews</div>');
+      return;
+    }
+    var html = '<table class="cs-table"><thead><tr><th>Key</th><th>Language</th><th>Text</th><th>Generated By</th></tr></thead><tbody>';
+    items.slice(0, 30).forEach(function(t) {
+      html += '<tr><td>' + escHtml(t.key) + '</td>' +
+        '<td>' + escHtml(t.language) + '</td>' +
+        '<td style="max-width:300px; overflow:hidden; text-overflow:ellipsis;">' + escHtml(t.text || "\u2014") + '</td>' +
+        '<td>' + escHtml(t.generated_by || "\u2014") + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    setHtml("langReviewList", html);
+  }).catch(function() {
+    setHtml("langReviewList", '<div class="cs-empty">Review data unavailable</div>');
+  });
+}
+
+function loadLangGlossary() {
+  api("/api/translation-memory?language=fr").then(function(data) {
+    var items = data.entries || data.glossary || [];
+    if (!items.length) {
+      setHtml("langGlossaryList", '<div class="cs-empty">No glossary entries</div>');
+      return;
+    }
+    var html = '<table class="cs-table"><thead><tr><th>Source</th><th>Translation</th><th>Language</th><th>Category</th></tr></thead><tbody>';
+    items.forEach(function(g) {
+      html += '<tr><td>' + escHtml(g.source_text) + '</td>' +
+        '<td>' + escHtml(g.translated_text) + '</td>' +
+        '<td>' + escHtml(g.language) + '</td>' +
+        '<td>' + escHtml(g.category || "\u2014") + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    setHtml("langGlossaryList", html);
+  }).catch(function() {
+    setHtml("langGlossaryList", '<div class="cs-empty">Glossary unavailable</div>');
+  });
+}
+
+/* ── GitHub Tab ────────────────────────────────────── */
+
+window.switchGithubSubtab = function(sub) {
+  document.querySelectorAll("#panel-github .cs-subtab").forEach(function(b) {
+    b.classList.toggle("active", b.textContent.toLowerCase() === sub);
+  });
+  document.querySelectorAll("#panel-github .cs-subpanel").forEach(function(p) {
+    p.classList.toggle("active", p.id === "gh-" + sub);
+  });
+};
+
+function loadGitHub() {
+  api("/api/github/repos").then(function(data) {
+    if (!data.success) return;
+    var repos = data.repos || [];
+    if (!repos.length) {
+      setHtml("ghRepoGrid", '<div class="cs-empty">No repositories indexed</div>');
+      return;
+    }
+    var html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">';
+    repos.forEach(function(r) {
+      var statusColor = r.indexed ? "green" : "amber";
+      html += '<div class="cs-card" style="padding:16px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+          '<div style="font-weight:600; color:#fff; font-size:0.9rem;">' + escHtml(r.repo_name) + '</div>' +
+          '<span class="cs-badge ' + statusColor + '">' + (r.indexed ? 'Indexed' : 'Pending') + '</span>' +
+        '</div>' +
+        '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4);">' +
+          '<div>' + (r.indexed_files || 0) + ' files indexed</div>' +
+          '<div>Type: ' + escHtml(r.repo_type || "\u2014") + '</div>' +
+          (r.indexed_at ? '<div>Last indexed: ' + formatAge(r.indexed_at) + '</div>' : '') +
+        '</div></div>';
+    });
+    html += '</div>';
+    setHtml("ghRepoGrid", html);
+  }).catch(function(err) {
+    console.error("loadGitHub error:", err);
+    setHtml("ghRepoGrid", '<div class="cs-empty">Error loading repos</div>');
+  });
+}
+
+window.searchGithub = function() {
+  var q = document.getElementById("ghSearchInput").value;
+  if (!q) return;
+  setHtml("ghSearchResults", '<div class="cs-loading">Searching...</div>');
+  api("/github/search-semantic", { method: "POST", body: { query: q, limit: 20 } }).then(function(data) {
+    var results = data.results || [];
+    if (!results.length) {
+      setHtml("ghSearchResults", '<div class="cs-empty">No results found</div>');
+      return;
+    }
+    var html = '<table class="cs-table"><thead><tr><th>File</th><th>Score</th><th>Snippet</th></tr></thead><tbody>';
+    results.forEach(function(r) {
+      html += '<tr><td>' + escHtml(r.file_name || r.file_path || "\u2014") + '</td>' +
+        '<td>' + (r.similarity ? r.similarity.toFixed(2) : "\u2014") + '</td>' +
+        '<td style="max-width:400px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escHtml((r.content || "").substring(0, 100)) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    setHtml("ghSearchResults", html);
+  }).catch(function() {
+    setHtml("ghSearchResults", '<div class="cs-empty">Search error</div>');
+  });
+};
+
+/* ── Integration Tab ──────────────────────────────── */
+
+function loadIntegration() {
+  // System health
+  api("/api/integration/health").then(function(data) {
+    if (!data.success) return;
+    var sys = data.systems;
+    Object.keys(sys).forEach(function(key) {
+      var s = sys[key];
+      var statusEl = document.getElementById("int" + key.charAt(0).toUpperCase() + key.slice(1) + "Status");
+      if (statusEl) statusEl.textContent = s.status === "online" ? (s.projects || s.stations || s.repos || "Online") : "Offline";
+    });
+    refreshIcons();
+  }).catch(function() {});
+
+  // Dev HQ summary
+  api("/api/integration/devhq-summary").then(function(data) {
+    if (!data.success) return;
+    var html = '';
+    if (data.projects && data.projects.length) {
+      html += '<div style="margin-bottom:12px; font-size:0.78rem; color:rgba(255,255,255,0.4);">Recent Projects</div>';
+      data.projects.forEach(function(p) {
+        html += '<div class="cs-activity-item">' +
+          '<i data-lucide="folder"></i>' +
+          '<div class="cs-activity-text">' + escHtml(p.name || p.title) + '</div>' +
+          '<span class="cs-badge">' + escHtml(p.status) + '</span>' +
+          '</div>';
+      });
+    }
+    if (data.decisions && data.decisions.length) {
+      html += '<div style="margin-top:12px; margin-bottom:8px; font-size:0.78rem; color:rgba(255,255,255,0.4);">Recent Decisions</div>';
+      data.decisions.slice(0, 3).forEach(function(d) {
+        html += '<div class="cs-activity-item">' +
+          '<i data-lucide="landmark"></i>' +
+          '<div class="cs-activity-text">' + escHtml(d.title) + '</div>' +
+          '<span class="cs-activity-time">' + formatAge(d.created_at) + '</span>' +
+          '</div>';
+      });
+    }
+    if (!html) html = '<div class="cs-empty">No recent Dev HQ activity</div>';
+    setHtml("intDevhqActivity", html);
+    refreshIcons();
+  }).catch(function() {
+    setHtml("intDevhqActivity", '<div class="cs-empty">Dev HQ data unavailable</div>');
+  });
+}
+
+window.testPipeline = function() {
+  var btn = document.getElementById("testPipelineBtn");
+  if (btn) btn.disabled = true;
+  setHtml("pipelineResult", '<div class="cs-loading">Testing pipeline...</div>');
+  api("/api/integration/test-pipeline", { method: "POST" }).then(function(data) {
+    if (!data.success) return;
+    var html = data.steps.map(function(s) {
+      var icon = s.status === "ok" ? "\u2713" : s.status === "warning" ? "\u26A0" : "\u2717";
+      var cls = s.status === "ok" ? "green" : s.status === "warning" ? "amber" : "red";
+      return '<div class="cs-pipeline-step ' + cls + '">' +
+        '<span class="cs-pipeline-icon">' + icon + '</span>' +
+        '<span>' + escHtml(s.step) + '</span>' +
+        (s.ms ? '<span class="cs-pipeline-ms">' + s.ms + 'ms</span>' : '') +
+        (s.model ? '<span class="cs-badge">' + escHtml(s.model) + '</span>' : '') +
+        (s.error ? '<span class="cs-error">' + escHtml(s.error) + '</span>' : '') +
+        '</div>';
+    }).join("");
+    setHtml("pipelineResult", html);
+    if (btn) btn.disabled = false;
+  }).catch(function() {
+    setHtml("pipelineResult", '<div class="cs-empty">Pipeline test failed</div>');
+    if (btn) btn.disabled = false;
+  });
+};
 
 /* ── Init ──────────────────────────────────────────── */
 

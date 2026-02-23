@@ -3,6 +3,8 @@
 Extracted from routes.py as part of the Consciousness module refactor.
 Handles:
 - Cross-module health status (Dev HQ, Bridge, Ollama, GitHub)
+- Pipeline test (ADR-013 compliance)
+- Dev HQ summary for cross-module view
 """
 
 import logging
@@ -11,7 +13,7 @@ import urllib.request
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import jsonify
+from flask import jsonify, request
 from flask_login import login_required
 
 logger = logging.getLogger(__name__)
@@ -63,3 +65,119 @@ def register_integration_routes(bp, admin_required):
                     },
                 }
             )
+
+    @bp.route("/api/integration/test-pipeline", methods=["POST"])
+    @login_required
+    @admin_required
+    def api_test_pipeline():
+        """Test translation pipeline -- verify it routes through Bridge."""
+        import time
+
+        steps = []
+        # Step 1: Call translation service
+        start = time.time()
+        try:
+            from ai_bridge.translation_service import translate_text
+
+            result = translate_text("Hello, how are you?", "fr")
+            elapsed = round((time.time() - start) * 1000)
+            steps.append(
+                {
+                    "step": "Translation Service",
+                    "status": "ok",
+                    "ms": elapsed,
+                    "result": str(result)[:100],
+                }
+            )
+        except Exception as e:
+            steps.append(
+                {
+                    "step": "Translation Service",
+                    "status": "error",
+                    "error": str(e)[:200],
+                }
+            )
+        # Step 2: Check Bridge log
+        conn = None
+        cur = None
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, model_used, tokens_used, execution_time_ms, created_at
+                FROM bridge_interaction_log ORDER BY created_at DESC LIMIT 1
+            """
+            )
+            log_entry = cur.fetchone()
+            if log_entry:
+                steps.append(
+                    {
+                        "step": "Bridge Log Entry",
+                        "status": "ok",
+                        "model": log_entry.get("model_used", "unknown"),
+                        "tokens": log_entry.get("tokens_used", 0),
+                    }
+                )
+            else:
+                steps.append(
+                    {
+                        "step": "Bridge Log Entry",
+                        "status": "warning",
+                        "note": "No recent log entry",
+                    }
+                )
+        except Exception as e:
+            steps.append(
+                {
+                    "step": "Bridge Log Check",
+                    "status": "error",
+                    "error": str(e)[:200],
+                }
+            )
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+        return jsonify({"success": True, "steps": steps})
+
+    @bp.route("/api/integration/devhq-summary")
+    @login_required
+    @admin_required
+    def api_devhq_summary():
+        """Latest Dev HQ data for cross-module view."""
+        conn = _get_db()
+        cur = None
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, name, status, priority, created_at
+                FROM unified_projects ORDER BY created_at DESC LIMIT 5
+            """
+            )
+            projects = cur.fetchall()
+            cur.execute(
+                """
+                SELECT title, decision, context, created_at
+                FROM project_decisions ORDER BY created_at DESC LIMIT 5
+            """
+            )
+            decisions = cur.fetchall()
+            return jsonify(
+                {
+                    "success": True,
+                    "projects": [dict(p) for p in projects],
+                    "decisions": [dict(d) for d in decisions],
+                }
+            )
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if cur:
+                cur.close()
+            conn.close()

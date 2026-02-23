@@ -699,6 +699,15 @@ def update_agent(agent_id):
             agent = cur.fetchone()
             if not agent:
                 return jsonify({"success": False, "error": "Agent not found"}), 404
+
+            # Invalidate dispatcher cache so crew manifest reflects changes immediately
+            try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                get_dispatcher()._cache_time = 0
+            except Exception:
+                pass
+
             return jsonify({"success": True, "agent": dict(agent)})
     except Exception as e:
         logger.error("update_agent error: %s", e)
@@ -730,6 +739,14 @@ def delete_agent(agent_id):
                 (agent_id,),
             )
             cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
+
+            try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                get_dispatcher()._cache_time = 0
+            except Exception:
+                pass
+
             return jsonify({"success": True, "message": f"Agent '{agent['name']}' deleted"})
     except Exception as e:
         logger.error("delete_agent error: %s", e)
@@ -754,6 +771,14 @@ def toggle_agent(agent_id):
             result = cur.fetchone()
             if not result:
                 return jsonify({"success": False, "error": "Agent not found"}), 404
+
+            try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                get_dispatcher()._cache_time = 0
+            except Exception:
+                pass
+
             return jsonify({"success": True, "status": result[0]})
     except Exception as e:
         logger.error("toggle_agent error: %s", e)
@@ -6389,7 +6414,7 @@ def agent_profile(agent_id):
             # Skills
             cur.execute(
                 """
-                SELECT skill_name, skill_category, proficiency_level, notes
+                SELECT id, skill_name, skill_category, proficiency_level, notes
                 FROM agent_skills WHERE agent_id = %s
                 ORDER BY proficiency_level DESC, skill_name
             """,

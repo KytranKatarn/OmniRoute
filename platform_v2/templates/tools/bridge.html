@@ -6496,6 +6496,10 @@ body.light-mode .bridge-hud-value {
         </div>
         <div class="assignment-modal-body">
             <input type="hidden" id="agent-form-id" value="">
+            <div style="margin-bottom:8px;">
+                <label style="font-size:0.7rem;color:var(--archie-text-muted);">Codename</label>
+                <input type="text" id="agent-form-name" placeholder="e.g. Sentinel, Vigil" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                 <div>
                     <label style="font-size:0.7rem;color:var(--archie-text-muted);">First Name</label>
@@ -11655,6 +11659,7 @@ function editAgentFromProfile() {
             if (!data.success) return;
             var a = data.agent;
             document.getElementById('agent-form-id').value = a.id;
+            document.getElementById('agent-form-name').value = a.name || '';
             document.getElementById('agent-form-first').value = a.first_name || '';
             document.getElementById('agent-form-last').value = a.last_name || '';
             document.getElementById('agent-form-title-input').value = a.title || '';
@@ -11696,6 +11701,7 @@ function toggleAgentFromProfile() {
 // === Agent Form Modal (Create/Edit) ===
 function openAgentFormModal(agentId) {
     document.getElementById('agent-form-id').value = agentId || '';
+    document.getElementById('agent-form-name').value = '';
     document.getElementById('agent-form-first').value = '';
     document.getElementById('agent-form-last').value = '';
     document.getElementById('agent-form-title-input').value = '';
@@ -11723,6 +11729,8 @@ function saveAgent() {
         worker_type: document.getElementById('agent-form-worker').value,
         bio: document.getElementById('agent-form-bio').value,
     };
+    var nameVal = document.getElementById('agent-form-name').value.trim();
+    if (nameVal) payload.name = nameVal;
     var prompt = document.getElementById('agent-form-prompt').value;
     if (prompt) payload.system_prompt = prompt;
 

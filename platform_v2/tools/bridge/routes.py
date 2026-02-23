@@ -6467,6 +6467,353 @@ def agent_profile(agent_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# --- Agent Memory CRUD ---
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/memory", methods=["GET"])
+@login_required
+def get_agent_memories(agent_id):
+    """Get agent memories with pagination and filters"""
+    try:
+        # Pagination
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+        offset = (page - 1) * per_page
+
+        # Filters
+        memory_type = request.args.get("memory_type")
+        include_deleted = request.args.get("include_deleted", "false").lower() == "true"
+        search = request.args.get("search")
+
+        # Build query
+        conditions = ["agent_id = %s"]
+        params = [agent_id]
+
+        if not include_deleted:
+            conditions.append("is_deleted = FALSE")
+
+        if memory_type:
+            conditions.append("memory_type = %s")
+            params.append(memory_type)
+
+        if search:
+            conditions.append("(content ILIKE %s OR memory_type ILIKE %s)")
+            params.extend([f"%{search}%", f"%{search}%"])
+
+        where_clause = " AND ".join(conditions)
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Get total count
+            cur.execute(f"SELECT COUNT(*) FROM agent_memory WHERE {where_clause}", params)
+            total = cur.fetchone()["count"]
+
+            # Get memories
+            cur.execute(
+                f"""
+                SELECT id, agent_id, memory_type, content, importance_score,
+                       context, source_module, emotional_valence,
+                       is_deleted, deleted_at, deleted_by, deletion_reason,
+                       created_at, last_accessed, access_count,
+                       decay_immunity, reinforcement_count
+                FROM agent_memory
+                WHERE {where_clause}
+                ORDER BY importance_score DESC NULLS LAST, created_at DESC
+                LIMIT %s OFFSET %s
+            """,
+                params + [per_page, offset],
+            )
+
+            memories = cur.fetchall()
+
+        return jsonify(
+            {
+                "success": True,
+                "data": [dict(m) for m in memories],
+                "count": len(memories),
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+            }
+        )
+    except Exception as e:
+        logger.error("get_agent_memories error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/memory", methods=["POST"])
+@login_required
+def create_agent_memory(agent_id):
+    """Create new agent memory"""
+    try:
+        data = request.get_json()
+
+        if not data.get("content"):
+            return (
+                jsonify({"success": False, "error": "content is required"}),
+                400,
+            )
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            # Verify agent exists
+            cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
+            if not cur.fetchone():
+                return jsonify({"success": False, "error": "Agent not found"}), 404
+
+            cur.execute(
+                """
+                INSERT INTO agent_memory (agent_id, memory_type, content, importance_score, context, source_module)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id, agent_id, memory_type, content, importance_score, context, source_module, created_at
+            """,
+                (
+                    agent_id,
+                    data.get("memory_type", "general"),
+                    data["content"],
+                    data.get("importance_score", 0.5),
+                    json.dumps(data["context"]) if isinstance(data.get("context"), dict) else data.get("context"),
+                    data.get("source_module"),
+                ),
+            )
+
+            memory = cur.fetchone()
+
+            # Log governance event
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                (event_type, event_category, agent_id, user_id, action, target_table, target_id, new_value, outcome)
+                VALUES ('memory_created', 'data_management', %s, %s, 'create_memory', 'agent_memory', %s, %s, 'success')
+            """,
+                (
+                    agent_id,
+                    current_user.id,
+                    memory["id"],
+                    json.dumps(dict(memory), default=str),
+                ),
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(memory),
+                "message": "Memory created successfully",
+            }
+        )
+    except Exception as e:
+        logger.error("create_agent_memory error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["GET"])
+@login_required
+def get_agent_memory(agent_id, memory_id):
+    """Get specific agent memory"""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT * FROM agent_memory
+                WHERE id = %s AND agent_id = %s
+            """,
+                (memory_id, agent_id),
+            )
+
+            memory = cur.fetchone()
+
+        if not memory:
+            return jsonify({"success": False, "error": "Memory not found"}), 404
+
+        return jsonify({"success": True, "data": dict(memory)})
+    except Exception as e:
+        logger.error("get_agent_memory error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["PUT"])
+@login_required
+def update_agent_memory(agent_id, memory_id):
+    """Update agent memory"""
+    try:
+        data = request.get_json()
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            # Get old value for audit
+            cur.execute(
+                "SELECT * FROM agent_memory WHERE id = %s AND agent_id = %s",
+                (memory_id, agent_id),
+            )
+            old_memory = cur.fetchone()
+
+            if not old_memory:
+                return jsonify({"success": False, "error": "Memory not found"}), 404
+
+            # Build update
+            updates = []
+            params = []
+
+            if "content" in data:
+                updates.append("content = %s")
+                params.append(data["content"])
+
+            if "importance_score" in data:
+                updates.append("importance_score = %s")
+                params.append(data["importance_score"])
+
+            if "context" in data:
+                updates.append("context = %s")
+                params.append(json.dumps(data["context"]) if isinstance(data["context"], dict) else data["context"])
+
+            if "memory_type" in data:
+                updates.append("memory_type = %s")
+                params.append(data["memory_type"])
+
+            if "emotional_valence" in data:
+                updates.append("emotional_valence = %s")
+                params.append(data["emotional_valence"])
+
+            if "source_module" in data:
+                updates.append("source_module = %s")
+                params.append(data["source_module"])
+
+            if not updates:
+                return jsonify({"success": False, "error": "No fields to update"}), 400
+
+            updates.append("last_accessed = NOW()")
+            params.extend([memory_id, agent_id])
+
+            cur.execute(
+                f"""
+                UPDATE agent_memory SET {', '.join(updates)}
+                WHERE id = %s AND agent_id = %s
+                RETURNING *
+            """,
+                params,
+            )
+
+            updated = cur.fetchone()
+
+            # Log governance event
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                (event_type, event_category, agent_id, user_id,
+                 action, target_table, target_id, old_value,
+                 new_value, outcome)
+                VALUES ('memory_updated', 'data_management', %s, %s, 'update_memory', 'agent_memory', %s, %s, %s, 'success')
+            """,
+                (
+                    agent_id,
+                    current_user.id,
+                    memory_id,
+                    json.dumps(dict(old_memory), default=str),
+                    json.dumps(dict(updated), default=str),
+                ),
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(updated),
+                "message": "Memory updated successfully",
+            }
+        )
+    except Exception as e:
+        logger.error("update_agent_memory error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["DELETE"])
+@login_required
+def delete_agent_memory(agent_id, memory_id):
+    """Soft delete agent memory using database function"""
+    try:
+        data = request.get_json() or {}
+        reason = data.get("reason", "Manual deletion by admin")
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            # Use the database soft_delete function
+            try:
+                cur.execute(
+                    "SELECT soft_delete_agent_memory(%s, %s, %s) as deleted",
+                    (memory_id, current_user.id, reason),
+                )
+                result = cur.fetchone()
+
+                if not result or not result["deleted"]:
+                    return (
+                        jsonify({"success": False, "error": "Memory not found or already deleted"}),
+                        404,
+                    )
+            except Exception:
+                # Fallback: manual soft delete if DB function doesn't exist
+                cur.execute(
+                    """
+                    UPDATE agent_memory
+                    SET is_deleted = TRUE, deleted_at = NOW(), deleted_by = %s, deletion_reason = %s
+                    WHERE id = %s AND agent_id = %s AND is_deleted = FALSE
+                    RETURNING id
+                """,
+                    (current_user.id, reason, memory_id, agent_id),
+                )
+                deleted = cur.fetchone()
+                if not deleted:
+                    return (
+                        jsonify({"success": False, "error": "Memory not found or already deleted"}),
+                        404,
+                    )
+
+        return jsonify({"success": True, "message": "Memory soft-deleted successfully"})
+    except Exception as e:
+        logger.error("delete_agent_memory error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>/restore", methods=["POST"])
+@login_required
+def restore_agent_memory(agent_id, memory_id):
+    """Restore soft-deleted agent memory"""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE agent_memory
+                SET is_deleted = FALSE, deleted_at = NULL, deleted_by = NULL, deletion_reason = NULL
+                WHERE id = %s AND agent_id = %s AND is_deleted = TRUE
+                RETURNING *
+            """,
+                (memory_id, agent_id),
+            )
+
+            restored = cur.fetchone()
+
+            if not restored:
+                return (
+                    jsonify({"success": False, "error": "Memory not found or not deleted"}),
+                    404,
+                )
+
+            # Log governance event
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                (event_type, event_category, agent_id, user_id, action, target_table, target_id, outcome)
+                VALUES ('memory_restored', 'data_management', %s, %s, 'restore_memory', 'agent_memory', %s, 'success')
+            """,
+                (agent_id, current_user.id, memory_id),
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(restored),
+                "message": "Memory restored successfully",
+            }
+        )
+    except Exception as e:
+        logger.error("restore_agent_memory error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/dispatch/multi-agent-sessions")
 @login_required
 def multi_agent_sessions():

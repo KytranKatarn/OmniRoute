@@ -1202,6 +1202,38 @@ class BridgeDispatcher:
             logger.warning(f"[BridgeDispatcher] Failed to log escalation: {e}")
 
     # ========================================================================
+    # BUDGET TRACKING
+    # ========================================================================
+
+    def _increment_agent_budget(self, agent_id: Optional[int], tokens_used: int = 0):
+        """Increment agent's daily task count and token usage after successful dispatch."""
+        if not agent_id:
+            return
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            # Reset if past the daily reset time, then increment
+            cur.execute("""
+                UPDATE agent_budgets
+                SET current_task_count = 1, tokens_used_today = %s,
+                    token_reset_at = NOW() + INTERVAL '1 day', updated_at = NOW()
+                WHERE agent_id = %s AND token_reset_at < NOW()
+            """, (tokens_used, agent_id))
+            # Normal increment (only if not just reset)
+            cur.execute("""
+                UPDATE agent_budgets
+                SET current_task_count = current_task_count + 1,
+                    tokens_used_today = tokens_used_today + %s,
+                    updated_at = NOW()
+                WHERE agent_id = %s AND token_reset_at >= NOW()
+            """, (tokens_used, agent_id))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Budget increment skipped: {e}")
+
+    # ========================================================================
     # DYNAMIC AGENT CREATION
     # ========================================================================
 
@@ -1824,6 +1856,13 @@ class BridgeDispatcher:
 
         # 6. Log for HR tracking
         self._log_execution(result, module_id, user_id, job_id=job_id)
+
+        # 6b. Increment agent budget tracking
+        if result.success:
+            self._increment_agent_budget(
+                agent.get("id"),
+                tokens_used=result.prompt_tokens + result.completion_tokens,
+            )
 
         return result
 

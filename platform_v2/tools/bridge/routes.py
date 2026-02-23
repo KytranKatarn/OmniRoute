@@ -435,6 +435,53 @@ def get_stations():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/modules/metadata", methods=["POST"])
+@login_required
+def get_modules_metadata():
+    """Get metadata for a list of module names (icon, route, description)"""
+    from module_registry import get_enabled_modules
+
+    data = request.get_json() or {}
+    module_names = data.get("modules", [])
+
+    registry = {m.id: m for m in get_enabled_modules()}
+    # Build name-to-module lookup for fuzzy matching
+    name_lookup = {}
+    for m in get_enabled_modules():
+        name_lookup[m.name.lower()] = m
+        name_lookup[m.id.lower()] = m
+        for tag in m.tags:
+            if tag.lower() not in name_lookup:
+                name_lookup[tag.lower()] = m
+
+    results = []
+    for name in module_names:
+        mod = registry.get(name) or name_lookup.get(name.lower().replace(" ", "-")) or name_lookup.get(name.lower())
+        if mod:
+            results.append(
+                {
+                    "id": mod.id,
+                    "name": mod.name,
+                    "icon": mod.icon,
+                    "route": mod.route,
+                    "description": mod.description,
+                    "category": mod.category.value if hasattr(mod.category, "value") else str(mod.category),
+                }
+            )
+        else:
+            results.append(
+                {
+                    "id": name,
+                    "name": name.replace("-", " ").replace("_", " ").title(),
+                    "icon": "box",
+                    "route": None,
+                    "description": "",
+                    "category": "unknown",
+                }
+            )
+    return jsonify({"success": True, "modules": results})
+
+
 @bridge_bp.route("/api/stations/<station_code>")
 @login_required
 def get_station_detail(station_code):

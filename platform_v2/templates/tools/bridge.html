@@ -7597,9 +7597,9 @@ function createIsometricZone(zoneName, zoneInfo, zd) {
     floorGlow.className = 'iso-station-floor-glow';
     el.appendChild(floorGlow);
 
-    // Click handler → open zone info modal
+    // Click handler → open LCARS station console
     el.addEventListener('click', function() {
-        showZoneInfo(zoneName, zoneInfo, zd);
+        openStationConsole(zoneName, zoneInfo, zd);
     });
 
     return el;
@@ -7716,6 +7716,259 @@ function showZoneInfo(zoneName, zoneInfo, zd) {
     }
 
     modal.classList.add('active');
+}
+
+// === LCARS STATION CONSOLE ===
+
+let _consoleCurrentZone = null;
+let _consoleDispatchTimer = null;
+let _consoleNodeCache = {};
+
+function openStationConsole(zoneName, zoneInfo, zd) {
+    const panel = document.getElementById('lcarsConsole');
+    const backdrop = document.getElementById('lcarsConsoleBackdrop');
+    if (!panel || !backdrop) return;
+
+    _consoleCurrentZone = { zoneName, zoneInfo, zd };
+
+    // Set station color
+    panel.style.setProperty('--station-color', zoneInfo.color);
+
+    // Set title
+    document.getElementById('lcarsConsoleTitle').textContent = zoneInfo.label + ' Station';
+    document.getElementById('lcarsConsoleSubtitle').textContent = zoneInfo.stations.join(' \u2022 ');
+
+    // Build module rail
+    buildModuleRail(zd.modules, zoneInfo.color);
+
+    // Load crew tab (default, no API call needed)
+    renderCrewTab(zd.agents, zoneInfo.color);
+
+    // Reset to crew tab
+    switchConsoleTab('crew');
+
+    // Open panel
+    backdrop.classList.add('active');
+    panel.classList.add('open');
+
+    // Close handlers
+    backdrop.onclick = closeStationConsole;
+    document.getElementById('lcarsConsoleClose').onclick = closeStationConsole;
+
+    // Escape key
+    document.addEventListener('keydown', _consoleEscHandler);
+}
+
+function closeStationConsole() {
+    const panel = document.getElementById('lcarsConsole');
+    const backdrop = document.getElementById('lcarsConsoleBackdrop');
+    if (panel) panel.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('active');
+    document.removeEventListener('keydown', _consoleEscHandler);
+
+    // Stop dispatch auto-refresh
+    if (_consoleDispatchTimer) {
+        clearInterval(_consoleDispatchTimer);
+        _consoleDispatchTimer = null;
+    }
+    _consoleCurrentZone = null;
+}
+
+function _consoleEscHandler(e) {
+    if (e.key === 'Escape') closeStationConsole();
+}
+
+function switchConsoleTab(tabName) {
+    // Update pills
+    document.querySelectorAll('.lcars-tab-pill').forEach(function(pill) {
+        pill.classList.toggle('active', pill.dataset.consoleTab === tabName);
+    });
+    // Update panels
+    document.querySelectorAll('.lcars-tab-panel').forEach(function(panel) {
+        panel.classList.toggle('active', panel.dataset.consolePanel === tabName);
+    });
+    // Deselect any active module icon
+    document.querySelectorAll('.lcars-module-icon').forEach(function(icon) {
+        icon.classList.remove('active');
+    });
+
+    // Load data for tab
+    if (!_consoleCurrentZone) return;
+    var zd = _consoleCurrentZone.zd;
+    var zoneInfo = _consoleCurrentZone.zoneInfo;
+
+    if (tabName === 'dispatch') loadConsoleDispatch(zoneInfo.stations);
+    if (tabName === 'nodes') loadConsoleNodes(zd, zoneInfo.color);
+    if (tabName === 'metrics') loadConsoleMetrics(zoneInfo.stations);
+}
+
+// Wire up tab pill clicks
+document.getElementById('lcarsTabRail').addEventListener('click', function(e) {
+    var pill = e.target.closest('.lcars-tab-pill');
+    if (pill) switchConsoleTab(pill.dataset.consoleTab);
+});
+
+// === MODULE ICON RAIL ===
+
+// Module metadata cache
+var _moduleMetadataCache = {};
+
+async function buildModuleRail(moduleNames, stationColor) {
+    var rail = document.getElementById('lcarsModuleRail');
+    if (!rail) return;
+    rail.textContent = '';
+
+    if (!moduleNames || moduleNames.length === 0) {
+        rail.style.display = 'none';
+        return;
+    }
+    rail.style.display = 'flex';
+
+    // Fetch uncached module metadata
+    var uncached = moduleNames.filter(function(n) { return !_moduleMetadataCache[n]; });
+    if (uncached.length > 0) {
+        try {
+            var resp = await fetch('/tools/bridge/api/modules/metadata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ modules: uncached })
+            });
+            var data = await resp.json();
+            if (data.success) {
+                for (var i = 0; i < data.modules.length; i++) {
+                    var m = data.modules[i];
+                    _moduleMetadataCache[m.id] = m;
+                    // Also cache by original request name
+                    if (uncached[i]) _moduleMetadataCache[uncached[i]] = m;
+                }
+            }
+        } catch (e) {
+            console.error('Error fetching module metadata:', e);
+        }
+    }
+
+    // Build icon elements
+    for (var j = 0; j < moduleNames.length; j++) {
+        var name = moduleNames[j];
+        var mod = _moduleMetadataCache[name] || { id: name, name: name, icon: 'box', route: null, description: '' };
+
+        var iconEl = document.createElement('div');
+        iconEl.className = 'lcars-module-icon';
+        iconEl.dataset.moduleId = mod.id || name;
+
+        var lucideIcon = document.createElement('i');
+        lucideIcon.setAttribute('data-lucide', mod.icon || 'box');
+        iconEl.appendChild(lucideIcon);
+
+        var tooltip = document.createElement('div');
+        tooltip.className = 'lcars-module-tooltip';
+        tooltip.textContent = mod.name;
+        iconEl.appendChild(tooltip);
+
+        // Click handler (use closure to capture mod)
+        (function(capturedMod, capturedIconEl) {
+            capturedIconEl.addEventListener('click', function() {
+                showModulePreview(capturedMod);
+                document.querySelectorAll('.lcars-module-icon').forEach(function(el) { el.classList.remove('active'); });
+                capturedIconEl.classList.add('active');
+                document.querySelectorAll('.lcars-tab-pill').forEach(function(p) { p.classList.remove('active'); });
+            });
+        })(mod, iconEl);
+
+        rail.appendChild(iconEl);
+    }
+
+    // Re-render Lucide icons
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// === CREW TAB CONTENT ===
+
+function renderCrewTab(agents, stationColor) {
+    var panel = document.getElementById('lcarsCrewPanel');
+    if (!panel) return;
+    panel.textContent = '';
+
+    if (!agents || agents.length === 0) {
+        var emptyEl = document.createElement('div');
+        emptyEl.className = 'lcars-empty';
+        emptyEl.textContent = 'No crew assigned to this station';
+        panel.appendChild(emptyEl);
+        return;
+    }
+
+    var label = document.createElement('div');
+    label.className = 'lcars-section-label';
+    label.textContent = 'ASSIGNED CREW';
+    panel.appendChild(label);
+
+    for (var i = 0; i < agents.length; i++) {
+        var agent = agents[i];
+        var row = document.createElement('div');
+        row.className = 'lcars-crew-row';
+
+        var avatarUrl = agent.avatar_url || ('https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(agent.name || 'agent'));
+        var img = document.createElement('img');
+        img.className = 'lcars-crew-avatar';
+        img.src = avatarUrl;
+        img.alt = agent.name || '';
+        img.onerror = function() { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=fallback'; };
+        row.appendChild(img);
+
+        var info = document.createElement('div');
+        info.style.cssText = 'flex:1;min-width:0;';
+
+        var nameEl = document.createElement('div');
+        nameEl.className = 'lcars-crew-name';
+        var displayName = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.name || 'Unknown';
+        nameEl.textContent = displayName;
+        info.appendChild(nameEl);
+
+        if (agent.title) {
+            var titleEl = document.createElement('div');
+            titleEl.style.cssText = 'font-size:0.7rem;opacity:0.5;';
+            titleEl.textContent = agent.title;
+            info.appendChild(titleEl);
+        }
+
+        var modelEl = document.createElement('div');
+        modelEl.className = 'lcars-crew-model';
+        modelEl.textContent = agent.model || 'No model';
+        info.appendChild(modelEl);
+
+        row.appendChild(info);
+
+        if (agent.assignment_type) {
+            var badge = document.createElement('span');
+            badge.className = 'lcars-role-badge';
+            badge.textContent = agent.assignment_type.toUpperCase();
+            row.appendChild(badge);
+        }
+
+        panel.appendChild(row);
+    }
+}
+
+// === CONSOLE STUBS (Tasks 7-10) ===
+
+async function loadConsoleDispatch(stationCodes) {
+    var panel = document.getElementById('lcarsDispatchPanel');
+    if (panel) { panel.textContent = ''; var el = document.createElement('div'); el.className = 'lcars-empty'; el.textContent = 'Loading dispatch data...'; panel.appendChild(el); }
+}
+async function loadConsoleNodes(zd, stationColor) {
+    var panel = document.getElementById('lcarsNodesPanel');
+    if (panel) { panel.textContent = ''; var el = document.createElement('div'); el.className = 'lcars-empty'; el.textContent = 'Loading node data...'; panel.appendChild(el); }
+}
+async function loadConsoleMetrics(stationCodes) {
+    var panel = document.getElementById('lcarsMetricsPanel');
+    if (panel) { panel.textContent = ''; var el = document.createElement('div'); el.className = 'lcars-empty'; el.textContent = 'Loading metrics...'; panel.appendChild(el); }
+}
+function showModulePreview(mod) {
+    var panel = document.getElementById('lcarsModulePreviewPanel');
+    if (panel) { panel.textContent = ''; var el = document.createElement('div'); el.className = 'lcars-empty'; el.textContent = 'Module preview coming soon...'; panel.appendChild(el); }
+    document.querySelectorAll('.lcars-tab-panel').forEach(function(p) {
+        p.classList.toggle('active', p.dataset.consolePanel === 'module-preview');
+    });
 }
 
 // ── Warp-In Intro ──

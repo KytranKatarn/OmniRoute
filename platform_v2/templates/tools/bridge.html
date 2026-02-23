@@ -5941,6 +5941,10 @@ body.light-mode .bridge-hud-value {
                         <i data-lucide="building-2"></i>
                         <span data-i18n="bridge.crew.contractors">Contractors</span>
                     </button>
+                    <button class="crew-subtab" data-subtab="leaderboard" onclick="switchCrewSubtab('leaderboard')">
+                        <i data-lucide="trophy"></i>
+                        <span data-i18n="bridge.crew.leaderboard">Leaderboard</span>
+                    </button>
                 </div>
 
                 <!-- Manifest Sub-Panel -->
@@ -6018,6 +6022,22 @@ body.light-mode .bridge-hud-value {
                         <div class="briefing-card-body">
                             <div id="contractors-grid">
                                 <span class="briefing-muted">Loading contractors...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Leaderboard Sub-Panel -->
+                <div class="crew-subpanel" data-subpanel="leaderboard">
+                    <div class="briefing-card" style="--card-accent: #fbbf24; margin: 0 16px;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="trophy"></i>
+                            <span data-i18n="bridge.crew.leaderboard">Performance Leaderboard</span>
+                            <button onclick="loadLeaderboard()" style="margin-left:auto;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;padding:3px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;">Refresh</button>
+                        </div>
+                        <div class="briefing-card-body">
+                            <div id="leaderboard-container">
+                                <span class="briefing-muted">Loading leaderboard...</span>
                             </div>
                         </div>
                     </div>
@@ -10950,7 +10970,90 @@ function switchCrewSubtab(name) {
         panel.classList.toggle('active', panel.dataset.subpanel === name);
     });
     if (name === 'contractors') loadContractors();
+    if (name === 'leaderboard') loadLeaderboard();
     if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// ============================================================================
+// LEADERBOARD
+// ============================================================================
+
+async function loadLeaderboard() {
+    var container = document.getElementById('leaderboard-container');
+    if (!container) return;
+    container.textContent = '';
+    var loading = document.createElement('span');
+    loading.className = 'briefing-muted';
+    loading.textContent = 'Loading leaderboard...';
+    container.appendChild(loading);
+
+    try {
+        var resp = await fetch('/tools/bridge/api/agents/performance/leaderboard?limit=10');
+        var data = await resp.json();
+        container.textContent = '';
+
+        if (!data.success || !data.leaderboard || data.leaderboard.length === 0) {
+            var empty = document.createElement('span');
+            empty.className = 'briefing-muted';
+            empty.textContent = 'No performance data available yet.';
+            container.appendChild(empty);
+            return;
+        }
+
+        var list = document.createElement('div');
+        list.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
+
+        data.leaderboard.forEach(function(entry, idx) {
+            var rank = idx + 1;
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:6px;font-size:0.75rem;';
+
+            // Medal / rank
+            var medal = document.createElement('span');
+            medal.style.cssText = 'width:24px;text-align:center;font-size:0.85rem;';
+            if (rank === 1) { medal.textContent = '\u2B50'; medal.title = 'Gold'; }
+            else if (rank === 2) { medal.textContent = '\uD83E\uDD48'; medal.title = 'Silver'; medal.style.fontSize = '0.85rem'; }
+            else if (rank === 3) { medal.textContent = '\uD83E\uDD49'; medal.title = 'Bronze'; medal.style.fontSize = '0.85rem'; }
+            else { medal.textContent = '#' + rank; medal.style.color = 'var(--archie-text-muted)'; medal.style.fontSize = '0.7rem'; }
+            row.appendChild(medal);
+
+            // Agent name
+            var name = document.createElement('span');
+            name.style.cssText = 'flex:1;font-weight:600;color:var(--archie-text-primary);';
+            name.textContent = (entry.first_name || '') + ' ' + (entry.last_name || entry.agent_name || '');
+            row.appendChild(name);
+
+            // Tasks completed
+            var tasks = document.createElement('span');
+            tasks.style.cssText = 'color:var(--archie-cyan);font-size:0.7rem;min-width:50px;text-align:right;';
+            tasks.textContent = (parseInt(entry.tasks_completed) || 0) + ' tasks';
+            row.appendChild(tasks);
+
+            // Success rate
+            var rate = document.createElement('span');
+            var pct = parseFloat(entry.success_rate) || 0;
+            var rateColor = pct >= 90 ? '#00ff41' : pct >= 70 ? '#ffaa00' : '#ff4444';
+            rate.style.cssText = 'min-width:45px;text-align:right;font-size:0.7rem;color:' + rateColor + ';';
+            rate.textContent = pct.toFixed(0) + '%';
+            row.appendChild(rate);
+
+            // Score
+            var score = document.createElement('span');
+            score.style.cssText = 'min-width:40px;text-align:right;font-size:0.7rem;color:var(--archie-gold);font-weight:600;';
+            score.textContent = parseFloat(entry.score || 0).toFixed(1);
+            row.appendChild(score);
+
+            list.appendChild(row);
+        });
+
+        container.appendChild(list);
+    } catch (e) {
+        container.textContent = '';
+        var err = document.createElement('span');
+        err.className = 'briefing-muted';
+        err.textContent = 'No performance data available yet.';
+        container.appendChild(err);
+    }
 }
 
 // ============================================================================
@@ -11315,7 +11418,71 @@ function openAgentProfile(agentId) {
             // IAAE Welfare & Compliance section (placeholder, filled async)
             html += '<div id="profile-iaae-section"></div>';
 
+            // Work History section (placeholder, filled async)
+            html += '<div id="profile-work-history-section"></div>';
+
             body.innerHTML = html;
+
+            // Async fetch work history for this agent
+            fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/work-history')
+                .then(function(r) { return r.json(); })
+                .then(function(whData) {
+                    var whSection = document.getElementById('profile-work-history-section');
+                    if (!whSection || !whData.success) return;
+                    var proposals = whData.proposals || [];
+                    if (proposals.length === 0) return;
+
+                    var card = document.createElement('div');
+                    card.className = 'briefing-card';
+                    card.style.cssText = '--card-accent:#60a5fa;margin-bottom:10px;';
+
+                    var header = document.createElement('div');
+                    header.className = 'briefing-card-header';
+                    header.style.cssText = 'font-size:0.7rem;';
+                    var headerSpan = document.createElement('span');
+                    headerSpan.textContent = 'Work History \u2014 Proposals';
+                    header.appendChild(headerSpan);
+                    card.appendChild(header);
+
+                    var cardBody = document.createElement('div');
+                    cardBody.className = 'briefing-card-body';
+
+                    // Show last 5 proposals
+                    var shown = proposals.slice(0, 5);
+                    shown.forEach(function(p) {
+                        var row = document.createElement('div');
+                        row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.7rem;';
+
+                        var badge = document.createElement('span');
+                        var statusText = (p.status || 'unknown').toLowerCase();
+                        var statusColor = statusText === 'deployed' ? '#6ee7b7' : statusText === 'approved' ? '#93c5fd' : 'rgba(255,255,255,0.3)';
+                        badge.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:' + statusColor + ';flex-shrink:0;';
+                        badge.title = statusText;
+                        row.appendChild(badge);
+
+                        var titleSpan = document.createElement('span');
+                        titleSpan.style.cssText = 'flex:1;color:var(--archie-text-secondary);';
+                        titleSpan.textContent = p.title || 'Untitled';
+                        row.appendChild(titleSpan);
+
+                        var statusSpan = document.createElement('span');
+                        statusSpan.style.cssText = 'color:' + statusColor + ';font-size:0.65rem;text-transform:capitalize;';
+                        statusSpan.textContent = statusText;
+                        row.appendChild(statusSpan);
+
+                        cardBody.appendChild(row);
+                    });
+
+                    // Aggregate summary
+                    var deployed = proposals.filter(function(p) { return (p.status || '').toLowerCase() === 'deployed'; }).length;
+                    var summary = document.createElement('div');
+                    summary.style.cssText = 'margin-top:6px;font-size:0.65rem;color:var(--archie-text-muted);';
+                    summary.textContent = deployed + '/' + proposals.length + ' proposals deployed';
+                    cardBody.appendChild(summary);
+
+                    card.appendChild(cardBody);
+                    whSection.appendChild(card);
+                }).catch(function() {});
 
             // Async fetch workload data for this agent
             fetch('/tools/bridge/api/agents/workload')

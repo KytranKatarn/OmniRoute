@@ -705,6 +705,123 @@
     vertical-align: middle;
 }
 
+/* --- Split-pane Editor --- */
+.devhq-split-editor { display: flex; gap: 16px; }
+.devhq-split-editor .editor-pane { flex: 1; min-width: 0; }
+.devhq-split-editor .preview-pane {
+    flex: 1; min-width: 0;
+    background: var(--archie-bg-primary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-y: auto;
+    max-height: 400px;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--archie-text-primary);
+}
+.devhq-split-editor .preview-pane h1,
+.devhq-split-editor .preview-pane h2,
+.devhq-split-editor .preview-pane h3 { color: var(--archie-orange); margin: 12px 0 8px; }
+.devhq-split-editor .preview-pane code {
+    background: rgba(255,170,0,0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+.devhq-split-editor .preview-pane pre {
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-x: auto;
+}
+
+/* --- Project Detail --- */
+.devhq-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+.devhq-back-btn {
+    background: none; border: 1px solid var(--archie-border-default);
+    border-radius: 8px; padding: 6px 10px; cursor: pointer;
+    color: var(--archie-text-muted);
+    transition: all 0.2s;
+}
+.devhq-back-btn:hover { border-color: var(--archie-orange); color: var(--archie-orange); }
+
+/* --- Sub-tabs --- */
+.devhq-sub-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--archie-border-default);
+    padding-bottom: 8px;
+}
+.devhq-sub-tab {
+    padding: 6px 14px;
+    background: none;
+    border: none;
+    color: var(--archie-text-muted);
+    font-family: var(--archie-font-mono);
+    font-size: 0.72rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+.devhq-sub-tab:hover { color: var(--archie-text-secondary); }
+.devhq-sub-tab.active { color: var(--archie-orange); border-bottom-color: var(--archie-orange); }
+.devhq-sub-panel { display: none; }
+.devhq-sub-panel.active { display: block; }
+
+/* --- Markdown rendered content --- */
+.devhq-md-content { font-size: 0.78rem; line-height: 1.6; color: var(--archie-text-primary); }
+.devhq-md-content h1, .devhq-md-content h2, .devhq-md-content h3 { color: var(--archie-orange); margin: 16px 0 8px; }
+.devhq-md-content code { background: rgba(255,170,0,0.08); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+.devhq-md-content pre { background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 12px 0; }
+.devhq-md-content a { color: var(--archie-cyan); text-decoration: none; }
+.devhq-md-content a:hover { text-decoration: underline; }
+.devhq-md-content ul, .devhq-md-content ol { padding-left: 20px; }
+.devhq-md-content blockquote { border-left: 3px solid var(--archie-orange); padding-left: 12px; margin: 12px 0; color: var(--archie-text-muted); }
+.devhq-md-content table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.devhq-md-content th, .devhq-md-content td { padding: 8px 12px; border: 1px solid var(--archie-border-default); text-align: left; }
+.devhq-md-content th { background: var(--archie-bg-secondary); color: var(--archie-orange); font-size: 0.72rem; text-transform: uppercase; }
+
+/* --- Idea cards --- */
+.devhq-idea-card {
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 12px;
+    padding: 16px 20px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+.devhq-idea-card:hover { border-color: var(--archie-orange); box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+
+/* --- Roadmap pill button --- */
+.devhq-pill-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--archie-border-default);
+    background: transparent;
+    color: var(--archie-text-muted);
+    font-family: var(--archie-font-mono);
+    font-size: 0.68rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.devhq-pill-btn:hover, .devhq-pill-btn.active {
+    border-color: var(--archie-orange);
+    color: var(--archie-orange);
+    background: rgba(255,170,0,0.06);
+}
+
 /* --- Light Mode --- */
 [data-theme="light"] .devhq,
 body.light-mode .devhq {
@@ -773,6 +890,20 @@ body.light-mode .devhq-task-table-row,
 body.light-mode .devhq-task-card { background: #f6f8fa; border-color: #d8dee4; }
 [data-theme="light"] .devhq-kb-item,
 body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
+[data-theme="light"] .devhq-split-editor .preview-pane,
+body.light-mode .devhq-split-editor .preview-pane { background: #f6f8fa; border-color: #d8dee4; }
+[data-theme="light"] .devhq-detail-header,
+body.light-mode .devhq-detail-header { background: #fff; border-color: #d8dee4; }
+[data-theme="light"] .devhq-idea-card,
+body.light-mode .devhq-idea-card { background: #fff; border-color: #d8dee4; }
+[data-theme="light"] .devhq-sub-tab.active,
+body.light-mode .devhq-sub-tab.active { color: #d4820a; border-bottom-color: #d4820a; }
+[data-theme="light"] .devhq-md-content h1,
+[data-theme="light"] .devhq-md-content h2,
+[data-theme="light"] .devhq-md-content h3,
+body.light-mode .devhq-md-content h1,
+body.light-mode .devhq-md-content h2,
+body.light-mode .devhq-md-content h3 { color: #d4820a; }
 
 /* --- Responsive --- */
 @media (max-width: 768px) {
@@ -791,6 +922,9 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
     .devhq-task-table-row { display: none; }
     .devhq-header-status { gap: 12px; }
     div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    .devhq-split-editor { flex-direction: column; }
+    .devhq-detail-header { flex-wrap: wrap; gap: 10px; }
+    .devhq-sub-tabs { overflow-x: auto; scrollbar-width: none; }
 }
 @media (max-width: 374px) {
     .devhq-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -828,7 +962,7 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
         </div>
     </div>
 
-    <!-- Tab Navigation -->
+    <!-- Tab Navigation (6 tabs) -->
     <nav class="devhq-tabs" id="devhqTabs">
         <button class="devhq-tab active" data-tab="overview" onclick="switchDevHQTab('overview')">
             <i data-lucide="layout-dashboard"></i>
@@ -838,25 +972,21 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
             <i data-lucide="folder-kanban"></i>
             <span data-i18n="devhq.tabs.projects">Projects</span>
         </button>
-        <button class="devhq-tab" data-tab="tasks" onclick="switchDevHQTab('tasks')">
-            <i data-lucide="list-checks"></i>
-            <span data-i18n="devhq.tabs.tasks">Tasks</span>
+        <button class="devhq-tab" data-tab="ideas" onclick="switchDevHQTab('ideas')">
+            <i data-lucide="lightbulb"></i>
+            <span data-i18n="devhq.tabs.ideas">Ideas</span>
         </button>
         <button class="devhq-tab" data-tab="knowledge" onclick="switchDevHQTab('knowledge')">
             <i data-lucide="book-open"></i>
             <span data-i18n="devhq.tabs.knowledge">Knowledge</span>
         </button>
-        <button class="devhq-tab" data-tab="schema" onclick="switchDevHQTab('schema')">
-            <i data-lucide="database"></i>
-            <span data-i18n="devhq.tabs.schema">Schema</span>
+        <button class="devhq-tab" data-tab="decisions" onclick="switchDevHQTab('decisions')">
+            <i data-lucide="scale"></i>
+            <span data-i18n="devhq.tabs.decisions">Decisions</span>
         </button>
-        <button class="devhq-tab" data-tab="api" onclick="switchDevHQTab('api')">
-            <i data-lucide="file-code"></i>
-            <span data-i18n="devhq.tabs.api">API</span>
-        </button>
-        <button class="devhq-tab" data-tab="integrations" onclick="switchDevHQTab('integrations')">
-            <i data-lucide="plug"></i>
-            <span data-i18n="devhq.tabs.integrations">Integrations</span>
+        <button class="devhq-tab" data-tab="system" onclick="switchDevHQTab('system')">
+            <i data-lucide="settings"></i>
+            <span data-i18n="devhq.tabs.system">System</span>
         </button>
     </nav>
 
@@ -902,15 +1032,15 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
                                 <i data-lucide="folder-plus"></i>
                                 <span data-i18n="devhq.actions.new_project">New Project</span>
                             </div>
-                            <div class="devhq-quick-action" onclick="switchDevHQTab('tasks');setTimeout(function(){openTaskModal()},100)">
-                                <i data-lucide="plus-circle"></i>
-                                <span data-i18n="devhq.actions.new_task">New Task</span>
+                            <div class="devhq-quick-action" onclick="switchDevHQTab('ideas');setTimeout(function(){openIdeaModal()},100)">
+                                <i data-lucide="lightbulb"></i>
+                                <span data-i18n="devhq.actions.new_idea">New Idea</span>
                             </div>
                             <div class="devhq-quick-action" onclick="switchDevHQTab('knowledge')">
                                 <i data-lucide="search"></i>
                                 <span data-i18n="devhq.actions.search_kb">Search Knowledge</span>
                             </div>
-                            <div class="devhq-quick-action" onclick="switchDevHQTab('integrations')">
+                            <div class="devhq-quick-action" onclick="switchDevHQTab('system')">
                                 <i data-lucide="heart-pulse"></i>
                                 <span data-i18n="devhq.actions.health_check">Health Check</span>
                             </div>
@@ -927,40 +1057,130 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
         </div>
     </div>
 
-    <!-- ===== TAB 2: PROJECTS ===== -->
+    <!-- ===== TAB 2: PROJECTS (with detail sub-view) ===== -->
     <div class="devhq-panel" id="panel-projects">
-        <div class="devhq-filters">
-            <select id="projFilterStatus"><option value="">All Status</option><option value="active">Active</option><option value="completed">Completed</option><option value="on_hold">On Hold</option><option value="archived">Archived</option></select>
-            <select id="projFilterPriority"><option value="">All Priority</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
-            <input type="text" id="projFilterSearch" placeholder="Search projects...">
-            <button class="devhq-btn primary" onclick="openProjectModal()">+ New Project</button>
+        <!-- Projects List View (default) -->
+        <div id="projectsView">
+            <div class="devhq-filters">
+                <select id="projFilterStatus">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="on_hold">On Hold</option>
+                    <option value="archived">Archived</option>
+                </select>
+                <select id="projFilterPriority">
+                    <option value="">All Priority</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+                <input type="text" id="projFilterSearch" placeholder="Search projects...">
+                <button class="devhq-btn primary" onclick="openProjectModal()">+ New Project</button>
+            </div>
+            <div id="projectsGrid" class="devhq-project-grid">
+                <div class="devhq-loading">Loading projects</div>
+            </div>
         </div>
-        <div id="projectsGrid" class="devhq-project-grid"><div class="devhq-loading">Loading projects</div></div>
+
+        <!-- Project Detail View (hidden by default) -->
+        <div id="projectDetail" style="display:none;">
+            <div class="devhq-detail-header" id="projectDetailHeader">
+                <button class="devhq-back-btn" onclick="closeProjectDetail()">
+                    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i>
+                </button>
+                <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <span id="projDetailName" style="font-family:'Orbitron',sans-serif;font-size:0.9rem;font-weight:600;color:var(--archie-orange);"></span>
+                        <span id="projDetailStatus" class="devhq-badge"></span>
+                        <span id="projDetailPriority" class="devhq-badge"></span>
+                    </div>
+                    <div id="projDetailDesc" style="font-size:0.75rem;color:var(--archie-text-muted);margin-top:6px;"></div>
+                    <div style="margin-top:8px;">
+                        <div class="devhq-progress" style="width:200px;"><div class="devhq-progress-fill" id="projDetailProgress" style="width:0%;"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Project Sub-tabs -->
+            <div class="devhq-sub-tabs">
+                <button class="devhq-sub-tab active" onclick="switchProjectSubTab('tasks')" data-subtab="tasks">
+                    <i data-lucide="list-checks" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Tasks
+                </button>
+                <button class="devhq-sub-tab" onclick="switchProjectSubTab('decisions')" data-subtab="decisions">
+                    <i data-lucide="scale" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Decisions
+                </button>
+                <button class="devhq-sub-tab" onclick="switchProjectSubTab('docs')" data-subtab="docs">
+                    <i data-lucide="file-text" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Docs
+                </button>
+                <button class="devhq-sub-tab" onclick="switchProjectSubTab('activity')" data-subtab="activity">
+                    <i data-lucide="activity" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Activity
+                </button>
+            </div>
+
+            <!-- Sub-panels -->
+            <div class="devhq-sub-panel active" id="projSubTasks">
+                <div class="devhq-loading">Loading tasks</div>
+            </div>
+            <div class="devhq-sub-panel" id="projSubDecisions">
+                <div class="devhq-loading">Loading decisions</div>
+            </div>
+            <div class="devhq-sub-panel" id="projSubDocs">
+                <div class="devhq-loading">Loading documents</div>
+            </div>
+            <div class="devhq-sub-panel" id="projSubActivity">
+                <div class="devhq-loading">Loading activity</div>
+            </div>
+        </div>
     </div>
 
-    <!-- ===== TAB 3: TASKS ===== -->
-    <div class="devhq-panel" id="panel-tasks">
+    <!-- ===== TAB 3: IDEAS (NEW) ===== -->
+    <div class="devhq-panel" id="panel-ideas">
         <div class="devhq-filters">
-            <select id="taskFilterStatus"><option value="">All Status</option><option value="pending">Pending</option><option value="in_progress">In Progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select>
-            <select id="taskFilterPriority"><option value="">All Priority</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
-            <select id="taskFilterProject"><option value="">All Projects</option></select>
-            <input type="text" id="taskFilterSearch" placeholder="Search tasks...">
-            <button class="devhq-btn primary" onclick="openTaskModal()">+ New Task</button>
+            <select id="ideaFilterCategory">
+                <option value="">All Categories</option>
+                <option value="feature">Feature</option>
+                <option value="improvement">Improvement</option>
+                <option value="research">Research</option>
+                <option value="integration">Integration</option>
+            </select>
+            <select id="ideaFilterStatus">
+                <option value="">All Status</option>
+                <option value="new">New</option>
+                <option value="exploring">Exploring</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="promoted">Promoted</option>
+            </select>
+            <input type="text" id="ideaFilterSearch" placeholder="Search ideas...">
+            <button class="devhq-btn primary" onclick="openIdeaModal()">+ New Idea</button>
         </div>
-        <div id="tasksContainer"><div class="devhq-loading">Loading tasks</div></div>
-        <div class="devhq-pagination" id="tasksPagination" style="display:none;">
-            <button class="devhq-btn small secondary" id="tasksPrev" onclick="taskPage(-1)">Prev</button>
-            <span id="tasksPageInfo">--</span>
-            <button class="devhq-btn small secondary" id="tasksNext" onclick="taskPage(1)">Next</button>
+        <div id="ideasGrid" class="devhq-project-grid">
+            <div class="devhq-loading">Loading ideas</div>
+        </div>
+        <div class="devhq-pagination" id="ideasPagination" style="display:none;">
+            <button class="devhq-btn small secondary" id="ideasPrev" onclick="ideaPage(-1)">Prev</button>
+            <span id="ideasPageInfo">--</span>
+            <button class="devhq-btn small secondary" id="ideasNext" onclick="ideaPage(1)">Next</button>
         </div>
     </div>
 
-    <!-- ===== TAB 4: KNOWLEDGE ===== -->
+    <!-- ===== TAB 4: KNOWLEDGE (enhanced) ===== -->
     <div class="devhq-panel" id="panel-knowledge">
         <div class="devhq-filters">
             <input type="text" id="kbSearch" placeholder="Search knowledge base..." style="flex:1;">
-            <select id="kbTypeFilter"><option value="">All Types</option><option value="documentation">Documentation</option><option value="code">Code</option><option value="config">Config</option><option value="vault_note">Vault Notes</option></select>
+            <select id="kbTypeFilter">
+                <option value="">All Types</option>
+                <option value="documentation">Documentation</option>
+                <option value="code">Code</option>
+                <option value="config">Config</option>
+                <option value="vault_note">Vault Notes</option>
+            </select>
             <select id="kbCategory"><option value="">All Categories</option></select>
+            <button class="devhq-pill-btn" id="kbRoadmapBtn" onclick="toggleKbRoadmap()">
+                <i data-lucide="map" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Roadmaps
+            </button>
             <button class="devhq-btn primary" onclick="openKbModal()">+ New Document</button>
         </div>
         <div id="kbResults"><div class="devhq-loading">Loading knowledge</div></div>
@@ -971,43 +1191,102 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
         </div>
     </div>
 
-    <!-- ===== TAB 5: SCHEMA ===== -->
-    <div class="devhq-panel" id="panel-schema">
-        <div class="devhq-schema-layout">
-            <div class="devhq-card">
-                <div class="devhq-card-header">Tables</div>
-                <div class="devhq-card-body compact">
-                    <input type="text" id="schemaSearch" placeholder="Filter tables..." style="width:100%;padding:6px 10px;background:var(--archie-bg-primary);border:1px solid var(--archie-border-default);border-radius:6px;color:var(--archie-text-primary);font-family:var(--archie-font-mono);font-size:0.72rem;margin-bottom:8px;">
-                    <div class="devhq-table-list" id="schemaTableList"><div class="devhq-loading">Loading schema</div></div>
+    <!-- ===== TAB 5: DECISIONS (NEW) ===== -->
+    <div class="devhq-panel" id="panel-decisions">
+        <div class="devhq-filters">
+            <select id="decFilterProject"><option value="">All Projects</option></select>
+            <select id="decFilterStatus">
+                <option value="">All Status</option>
+                <option value="accepted">Accepted</option>
+                <option value="proposed">Proposed</option>
+                <option value="deprecated">Deprecated</option>
+                <option value="superseded">Superseded</option>
+            </select>
+            <input type="text" id="decFilterSearch" placeholder="Search decisions...">
+            <button class="devhq-btn primary" onclick="openDecisionModal()">+ New Decision</button>
+        </div>
+        <div id="decisionsContainer"><div class="devhq-loading">Loading decisions</div></div>
+        <div class="devhq-pagination" id="decisionsPagination" style="display:none;">
+            <button class="devhq-btn small secondary" id="decisionsPrev" onclick="decisionPage(-1)">Prev</button>
+            <span id="decisionsPageInfo">--</span>
+            <button class="devhq-btn small secondary" id="decisionsNext" onclick="decisionPage(1)">Next</button>
+        </div>
+    </div>
+
+    <!-- ===== TAB 6: SYSTEM (merges Schema + API + Integrations) ===== -->
+    <div class="devhq-panel" id="panel-system">
+        <!-- Integrations Section -->
+        <div class="devhq-card" id="systemIntegrations">
+            <div class="devhq-card-header" onclick="toggleSystemSection('systemIntBody')" style="cursor:pointer;">
+                <span><i data-lucide="plug" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i>Integrations</span>
+                <i data-lucide="chevron-down" id="systemIntChevron" style="width:16px;height:16px;transition:transform 0.2s;"></i>
+            </div>
+            <div class="devhq-card-body" id="systemIntBody">
+                <div class="devhq-integrations-grid" id="integrationsGrid">
+                    <div class="devhq-loading">Loading integrations</div>
+                </div>
+                <div class="devhq-card" style="margin-top:16px;">
+                    <div class="devhq-card-header">MCP Tool Registry</div>
+                    <div class="devhq-card-body" id="mcpToolRegistry">
+                        <div class="devhq-loading">Loading tool registry</div>
+                    </div>
+                </div>
+                <div class="devhq-card" style="margin-top:16px;">
+                    <div class="devhq-card-header">Claude Configuration</div>
+                    <div class="devhq-card-body" id="claudeConfigPanel">
+                        <div class="devhq-loading">Loading Claude config</div>
+                    </div>
                 </div>
             </div>
-            <div class="devhq-card">
-                <div class="devhq-card-header" id="schemaDetailHeader">Select a table</div>
-                <div class="devhq-card-body" id="schemaDetail"><div class="devhq-empty">Click a table to view its columns</div></div>
+        </div>
+
+        <!-- Schema Section -->
+        <div class="devhq-card" id="systemSchema">
+            <div class="devhq-card-header" onclick="toggleSystemSection('systemSchemaBody')" style="cursor:pointer;">
+                <span><i data-lucide="database" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i>Database Schema</span>
+                <i data-lucide="chevron-down" id="systemSchemaChevron" style="width:16px;height:16px;transition:transform 0.2s;"></i>
+            </div>
+            <div class="devhq-card-body" id="systemSchemaBody" style="display:none;">
+                <div class="devhq-schema-layout">
+                    <div class="devhq-card">
+                        <div class="devhq-card-header">Tables</div>
+                        <div class="devhq-card-body compact">
+                            <input type="text" id="schemaSearch" placeholder="Filter tables..." style="width:100%;padding:6px 10px;background:var(--archie-bg-primary);border:1px solid var(--archie-border-default);border-radius:6px;color:var(--archie-text-primary);font-family:var(--archie-font-mono);font-size:0.72rem;margin-bottom:8px;">
+                            <div class="devhq-table-list" id="schemaTableList">
+                                <div class="devhq-loading">Loading schema</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="devhq-card">
+                        <div class="devhq-card-header" id="schemaDetailHeader">Select a table</div>
+                        <div class="devhq-card-body" id="schemaDetail">
+                            <div class="devhq-empty">Click a table to view its columns</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- ===== TAB 6: API ===== -->
-    <div class="devhq-panel" id="panel-api">
-        <div class="devhq-filters"><input type="text" id="apiSearch" placeholder="Search endpoints..." style="flex:1;"></div>
-        <div id="apiDocsContainer"><div class="devhq-loading">Loading API documentation</div></div>
-    </div>
-
-    <!-- ===== TAB 7: INTEGRATIONS ===== -->
-    <div class="devhq-panel" id="panel-integrations">
-        <div class="devhq-integrations-grid" id="integrationsGrid"><div class="devhq-loading">Loading integrations</div></div>
-        <div class="devhq-card">
-            <div class="devhq-card-header">MCP Tool Registry</div>
-            <div class="devhq-card-body" id="mcpToolRegistry"><div class="devhq-loading">Loading tool registry</div></div>
-        </div>
-        <div class="devhq-card">
-            <div class="devhq-card-header">Claude Configuration</div>
-            <div class="devhq-card-body" id="claudeConfigPanel"><div class="devhq-loading">Loading Claude config</div></div>
+        <!-- API Section -->
+        <div class="devhq-card" id="systemApi">
+            <div class="devhq-card-header" onclick="toggleSystemSection('systemApiBody')" style="cursor:pointer;">
+                <span><i data-lucide="file-code" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i>API Documentation</span>
+                <i data-lucide="chevron-down" id="systemApiChevron" style="width:16px;height:16px;transition:transform 0.2s;"></i>
+            </div>
+            <div class="devhq-card-body" id="systemApiBody" style="display:none;">
+                <div class="devhq-filters">
+                    <input type="text" id="apiSearch" placeholder="Search endpoints..." style="flex:1;">
+                </div>
+                <div id="apiDocsContainer">
+                    <div class="devhq-loading">Loading API documentation</div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- ===== MODALS ===== -->
+
+    <!-- Project Modal (existing) -->
     <div class="devhq-modal-overlay" id="projectModal" style="display:none;" onclick="if(event.target===this)closeModal('projectModal')">
         <div class="devhq-modal">
             <div class="devhq-modal-header">
@@ -1028,6 +1307,8 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
             </div>
         </div>
     </div>
+
+    <!-- Task Modal (existing) -->
     <div class="devhq-modal-overlay" id="taskModal" style="display:none;" onclick="if(event.target===this)closeModal('taskModal')">
         <div class="devhq-modal">
             <div class="devhq-modal-header">
@@ -1050,8 +1331,10 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
             </div>
         </div>
     </div>
+
+    <!-- Knowledge Modal (upgraded with split-pane) -->
     <div class="devhq-modal-overlay" id="kbModal" style="display:none;" onclick="if(event.target===this)closeModal('kbModal')">
-        <div class="devhq-modal" style="max-width:700px;">
+        <div class="devhq-modal" style="max-width:900px;">
             <div class="devhq-modal-header">
                 <span class="devhq-modal-title" id="kbModalTitle">New Document</span>
                 <button class="devhq-modal-close" onclick="closeModal('kbModal')">&times;</button>
@@ -1060,7 +1343,17 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
                 <input type="hidden" id="kbEditId">
                 <div class="devhq-field"><label>Title</label><input type="text" id="kbTitle" placeholder="Document title"></div>
                 <div class="devhq-field"><label>Category</label><input type="text" id="kbCategoryInput" placeholder="e.g. admin_ops, ai_command"></div>
-                <div class="devhq-field"><label>Content</label><textarea id="kbContent" placeholder="Write content..." style="min-height:250px;"></textarea></div>
+                <div class="devhq-split-editor">
+                    <div class="editor-pane">
+                        <div class="devhq-field" style="margin-bottom:0;">
+                            <label>Content</label>
+                            <textarea id="kbContent" placeholder="Write content (Markdown supported)..." style="min-height:300px;" oninput="updateKbPreview()"></textarea>
+                        </div>
+                    </div>
+                    <div class="preview-pane devhq-md-content" id="kbPreview">
+                        <div style="color:var(--archie-text-muted);font-size:0.72rem;">Preview will appear here...</div>
+                    </div>
+                </div>
             </div>
             <div class="devhq-modal-footer">
                 <button class="devhq-btn secondary" onclick="closeModal('kbModal')">Cancel</button>
@@ -1068,7 +1361,126 @@ body.light-mode .devhq-kb-item { background: #f6f8fa; border-color: #d8dee4; }
             </div>
         </div>
     </div>
+
+    <!-- Idea Modal (NEW) -->
+    <div class="devhq-modal-overlay" id="ideaModal" style="display:none;" onclick="if(event.target===this)closeModal('ideaModal')">
+        <div class="devhq-modal">
+            <div class="devhq-modal-header">
+                <span class="devhq-modal-title" id="ideaModalTitle">New Idea</span>
+                <button class="devhq-modal-close" onclick="closeModal('ideaModal')">&times;</button>
+            </div>
+            <div class="devhq-modal-body">
+                <input type="hidden" id="ideaEditId">
+                <div class="devhq-field"><label>Title</label><input type="text" id="ideaTitle" placeholder="Idea title"></div>
+                <div class="devhq-field"><label>Description</label><textarea id="ideaDesc" placeholder="Describe your idea..."></textarea></div>
+                <div class="devhq-field">
+                    <label>Category</label>
+                    <select id="ideaCategory">
+                        <option value="feature">Feature</option>
+                        <option value="improvement">Improvement</option>
+                        <option value="research">Research</option>
+                        <option value="integration">Integration</option>
+                    </select>
+                </div>
+                <div class="devhq-field">
+                    <label>Priority (1-10)</label>
+                    <select id="ideaPriority">
+                        <option value="5">5 - Medium</option>
+                        <option value="1">1 - Lowest</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8 - High</option>
+                        <option value="9">9</option>
+                        <option value="10">10 - Highest</option>
+                    </select>
+                </div>
+                <div class="devhq-field"><label>Tags</label><input type="text" id="ideaTags" placeholder="Comma-separated tags"></div>
+            </div>
+            <div class="devhq-modal-footer">
+                <button class="devhq-btn secondary" onclick="closeModal('ideaModal')">Cancel</button>
+                <button class="devhq-btn primary" id="ideaSubmitBtn" onclick="submitIdea()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Decision Modal (NEW) -->
+    <div class="devhq-modal-overlay" id="decisionModal" style="display:none;" onclick="if(event.target===this)closeModal('decisionModal')">
+        <div class="devhq-modal" style="max-width:700px;">
+            <div class="devhq-modal-header">
+                <span class="devhq-modal-title" id="decisionModalTitle">New Decision</span>
+                <button class="devhq-modal-close" onclick="closeModal('decisionModal')">&times;</button>
+            </div>
+            <div class="devhq-modal-body">
+                <input type="hidden" id="decisionEditId">
+                <div class="devhq-field"><label>Title</label><input type="text" id="decisionTitle" placeholder="Decision title (e.g. ADR-032: ...)"></div>
+                <div class="devhq-field"><label>Project</label><select id="decisionProject"><option value="">Select project...</option></select></div>
+                <div class="devhq-field"><label>Context</label><textarea id="decisionContext" placeholder="What is the context or problem?"></textarea></div>
+                <div class="devhq-field"><label>Decision</label><textarea id="decisionText" placeholder="What was decided?"></textarea></div>
+                <div class="devhq-field"><label>Alternatives Considered</label><textarea id="decisionAlternatives" placeholder="What other options were considered?"></textarea></div>
+                <div class="devhq-field"><label>Consequences</label><textarea id="decisionConsequences" placeholder="What are the consequences of this decision?"></textarea></div>
+                <div class="devhq-field">
+                    <label>Status</label>
+                    <select id="decisionStatus">
+                        <option value="proposed">Proposed</option>
+                        <option value="accepted">Accepted</option>
+                        <option value="deprecated">Deprecated</option>
+                    </select>
+                </div>
+                <div class="devhq-field"><label>Tags</label><input type="text" id="decisionTags" placeholder="Comma-separated tags"></div>
+            </div>
+            <div class="devhq-modal-footer">
+                <button class="devhq-btn secondary" onclick="closeModal('decisionModal')">Cancel</button>
+                <button class="devhq-btn primary" id="decisionSubmitBtn" onclick="submitDecision()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Doc Modal (NEW) -->
+    <div class="devhq-modal-overlay" id="projectDocModal" style="display:none;" onclick="if(event.target===this)closeModal('projectDocModal')">
+        <div class="devhq-modal" style="max-width:900px;">
+            <div class="devhq-modal-header">
+                <span class="devhq-modal-title" id="projectDocModalTitle">New Document</span>
+                <button class="devhq-modal-close" onclick="closeModal('projectDocModal')">&times;</button>
+            </div>
+            <div class="devhq-modal-body">
+                <div class="devhq-field"><label>Title</label><input type="text" id="projectDocTitle" placeholder="Document title"></div>
+                <div class="devhq-field">
+                    <label>Type</label>
+                    <select id="projectDocType">
+                        <option value="design">Design Doc</option>
+                        <option value="spec">Specification</option>
+                        <option value="notes">Notes</option>
+                        <option value="runbook">Runbook</option>
+                        <option value="adr">ADR</option>
+                    </select>
+                </div>
+                <div class="devhq-split-editor">
+                    <div class="editor-pane">
+                        <div class="devhq-field" style="margin-bottom:0;">
+                            <label>Content</label>
+                            <textarea id="projectDocContent" placeholder="Write content (Markdown supported)..." style="min-height:300px;" oninput="updateProjectDocPreview()"></textarea>
+                        </div>
+                    </div>
+                    <div class="preview-pane devhq-md-content" id="projectDocPreview">
+                        <div style="color:var(--archie-text-muted);font-size:0.72rem;">Preview will appear here...</div>
+                    </div>
+                </div>
+                <div class="devhq-field" style="margin-top:14px;"><label>Tags</label><input type="text" id="projectDocTags" placeholder="Comma-separated tags"></div>
+            </div>
+            <div class="devhq-modal-footer">
+                <button class="devhq-btn secondary" onclick="closeModal('projectDocModal')">Cancel</button>
+                <button class="devhq-btn primary" id="projectDocSubmitBtn" onclick="submitProjectDoc()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Scripts + Dev HQ JS -->
+    <script src="/static/js/vendor/marked.min.js"></script>
+    <script src="/static/js/vendor/purify.min.js"></script>
+    <script src="/static/js/devhq.js"></script>
 </div>
 
-<script src="/static/js/devhq.js"></script>
 {% endblock %}

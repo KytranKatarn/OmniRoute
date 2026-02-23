@@ -1187,6 +1187,38 @@ class AgentLoop:
                 )
             conn.commit()
 
+            # 1b. Handle rejected media_generation items — update media queue
+            cur.execute("""
+                SELECT id, action_type, action_data
+                FROM autonomy_approval_queue
+                WHERE status = 'rejected' AND action_type = 'media_generation'
+                  AND updated_at > NOW() - INTERVAL '5 minutes'
+                """)
+            rejected_media = cur.fetchall()
+            for item in rejected_media:
+                try:
+                    rdata = item["action_data"] if isinstance(item["action_data"], dict) else json.loads(item["action_data"])
+                    queue_id = rdata.get("queue_id")
+                    if queue_id:
+                        cur.execute(
+                            """
+                            UPDATE media_generation_queue
+                            SET status = 'rejected', completed_at = NOW()
+                            WHERE id = %s AND status = 'awaiting_approval'
+                            """,
+                            (queue_id,),
+                        )
+                    # Mark as handled so we don't re-process
+                    cur.execute(
+                        "UPDATE autonomy_approval_queue SET status = 'expired', updated_at = NOW() WHERE id = %s",
+                        (item["id"],),
+                    )
+                    logger.info(f"Rejected media generation #{queue_id} (approval #{item['id']})")
+                except Exception as rej_err:
+                    logger.error(f"Failed to handle rejected media #{item['id']}: {rej_err}")
+            if rejected_media:
+                conn.commit()
+
             # 2. Execute approved items
             cur.execute("""
                 SELECT id, action_type, action_data, tier, requested_by, reason
@@ -1293,6 +1325,104 @@ class AgentLoop:
             )
             return {"status_code": resp.status_code, "response": resp.text[:500]}
 
+        elif action_type == "media_generation":
+            # Approved paid media generation — update queue and generate
+            queue_id = data.get("queue_id")
+            if not queue_id:
+                return {"error": "No queue_id in action_data"}
+
+            try:
+                from external_providers import generate_media
+
+                # Update queue status to generating
+                cur.execute(
+                    """
+                    UPDATE media_generation_queue
+                    SET status = 'generating', started_at = NOW()
+                    WHERE id = %s AND status = 'awaiting_approval'
+                    RETURNING id, request_type, prompt, params, provider_key
+                    """,
+                    (queue_id,),
+                )
+                queue_row = cur.fetchone()
+                conn.commit()
+
+                if not queue_row:
+                    return {"error": f"Queue entry {queue_id} not found or not awaiting approval"}
+
+                # Build the generation request
+                gen_params = queue_row["params"] if isinstance(queue_row["params"], dict) else json.loads(queue_row["params"] or "{}")
+                gen_request = {
+                    "type": queue_row["request_type"],
+                    "prompt": queue_row["prompt"],
+                    "params": gen_params,
+                }
+
+                result = generate_media(queue_row["provider_key"], gen_request)
+
+                if result.get("success"):
+                    # Save asset to media_assets
+                    cur.execute(
+                        """
+                        INSERT INTO media_assets
+                        (asset_type, title, prompt, file_path, file_size_bytes,
+                         mime_type, provider_key, model_used, cost_usd,
+                         generation_params, created_by)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (
+                            queue_row["request_type"],
+                            gen_request["prompt"][:100],
+                            gen_request["prompt"],
+                            result.get("file_path", ""),
+                            result.get("file_size", 0),
+                            result.get("mime_type", ""),
+                            queue_row["provider_key"],
+                            result.get("model", ""),
+                            result.get("cost", 0),
+                            json.dumps(gen_params),
+                            data.get("requested_by_user_id"),
+                        ),
+                    )
+                    asset_id = cur.fetchone()["id"]
+
+                    cur.execute(
+                        """
+                        UPDATE media_generation_queue
+                        SET status = 'completed', result_asset_id = %s,
+                            model_used = %s, completed_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (asset_id, result.get("model", ""), queue_id),
+                    )
+                    conn.commit()
+                    return {"executed": True, "asset_id": asset_id, "file_path": result.get("file_path")}
+                else:
+                    cur.execute(
+                        """
+                        UPDATE media_generation_queue
+                        SET status = 'failed', error_message = %s, completed_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (result.get("error", "Unknown error")[:500], queue_id),
+                    )
+                    conn.commit()
+                    return {"executed": False, "error": result.get("error")}
+
+            except Exception as media_err:
+                logger.error(f"Media generation execution failed: {media_err}")
+                cur.execute(
+                    """
+                    UPDATE media_generation_queue
+                    SET status = 'failed', error_message = %s, completed_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (str(media_err)[:500], queue_id),
+                )
+                conn.commit()
+                return {"executed": False, "error": str(media_err)}
+
         elif action_type == "cloud_throughput_escalation":
             # Approved paid cloud escalation — dispatch via bridge
             try:
@@ -1326,6 +1456,20 @@ class AgentLoop:
             except Exception as esc_err:
                 logger.error(f"Cloud throughput escalation failed: {esc_err}")
                 return {"executed": False, "error": str(esc_err)}
+
+        elif action_type == "create_agent":
+            try:
+                from bridge_dispatcher import get_dispatcher
+                dispatcher = get_dispatcher()
+                agent_id = dispatcher._create_agent_from_approval(data)
+                if agent_id:
+                    logger.info(f"Agent created from approval #{item['id']}: agent_id={agent_id}")
+                    return {"executed": True, "agent_id": agent_id}
+                else:
+                    return {"executed": False, "error": "Creation returned None"}
+            except Exception as create_err:
+                logger.error(f"Agent creation from approval failed: {create_err}")
+                return {"executed": False, "error": str(create_err)}
 
         else:
             logger.warning(f"Unknown approved action type: {action_type}")

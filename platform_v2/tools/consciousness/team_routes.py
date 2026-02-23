@@ -1,0 +1,684 @@
+"""Team Routes -- Agent directory, performance, emotional state
+
+Extracted from routes.py as part of the Consciousness module refactor.
+Handles:
+- Team directory (/team)
+- Agent listing, detail, performance, leaderboard
+- Team awareness data (comprehensive agent+department stats)
+- Emotional state and timeline
+"""
+
+import logging
+import os
+import traceback
+
+import psycopg2
+import psycopg2.extras
+from psycopg2.extras import RealDictCursor
+from flask import jsonify, render_template, request
+from flask_login import login_required
+
+logger = logging.getLogger(__name__)
+
+
+def _get_db():
+    """Get database connection"""
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST", "archie_database"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", "archiepass"),
+    )
+
+
+def register_team_routes(bp, admin_required):
+    """Register all team-related routes on the consciousness blueprint."""
+
+    # ==================================================================
+    # TEAM DIRECTORY
+    # ==================================================================
+
+    @bp.route("/team")
+    @login_required
+    @admin_required
+    def team_awareness():
+        """Team directory - all agents, performance, capabilities"""
+        return render_template("team_awareness.html")
+
+    # ==================================================================
+    # AGENT LISTING & DETAILS
+    # ==================================================================
+
+    @bp.route("/team/agents", methods=["GET"])
+    @login_required
+    @admin_required
+    def get_agents():
+        """Get all agents with their capabilities and metrics"""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Query from agents table (the actual team members)
+            cur.execute(
+                """
+                SELECT
+                    a.id,
+                    a.name,
+                    a.first_name,
+                    a.last_name,
+                    a.title,
+                    a.department,
+                    a.worker_type,
+                    a.status,
+                    a.tier,
+                    a.model,
+                    a.total_tasks_completed as tasks_completed,
+                    a.success_rate,
+                    a.total_tokens_used as tokens_used,
+                    a.total_cost,
+                    a.last_used,
+                    at.name as agent_type
+                FROM agents a
+                LEFT JOIN agent_types at ON a.type_id = at.id
+                WHERE a.status = 'active'
+                ORDER BY a.name
+                LIMIT 50
+            """
+            )
+
+            agents = cur.fetchall()
+
+            # Convert to serializable format
+            for agent in agents:
+                if agent.get("last_used"):
+                    agent["last_used"] = agent["last_used"].isoformat()
+                # Ensure worker_type has a default
+                if not agent.get("worker_type"):
+                    agent["worker_type"] = "internal"
+                # Calculate display name
+                if agent.get("first_name") and agent.get("last_name"):
+                    agent["full_name"] = f"{agent['first_name']} {agent['last_name']}"
+                else:
+                    agent["full_name"] = agent.get("name", "Unknown")
+                # Ensure role fallback
+                agent["role"] = agent.get("title") or agent.get("agent_type") or "Agent"
+
+            cur.close()
+            conn.close()
+
+            return jsonify({"success": True, "agents": agents})
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/team/agents/<int:agent_id>", methods=["GET"])
+    @login_required
+    @admin_required
+    def get_agent_details(agent_id):
+        """Get detailed information about a specific agent"""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            cur.execute(
+                """
+                SELECT * FROM users WHERE id = %s AND is_agent = TRUE
+            """,
+                (agent_id,),
+            )
+
+            agent = cur.fetchone()
+
+            if not agent:
+                return jsonify({"error": "Agent not found"}), 404
+
+            # Get recent tasks
+            cur.execute(
+                """
+                SELECT * FROM agent_tasks
+                WHERE agent_id = %s
+                ORDER BY created_at DESC
+                LIMIT 10
+            """,
+                (agent_id,),
+            )
+
+            recent_tasks = cur.fetchall()
+
+            cur.close()
+            conn.close()
+
+            return jsonify({"agent": agent, "recent_tasks": recent_tasks})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ==================================================================
+    # PERFORMANCE
+    # ==================================================================
+
+    @bp.route("/team/agents/<int:agent_id>/performance", methods=["GET"])
+    @login_required
+    @admin_required
+    def get_agent_performance(agent_id):
+        """Get agent performance metrics"""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_tasks,
+                    COUNT(*) FILTER (WHERE status = 'completed') as completed_tasks,
+                    COUNT(*) FILTER (WHERE status = 'failed') as failed_tasks,
+                    AVG(CASE WHEN completion_time IS NOT NULL
+                        THEN EXTRACT(EPOCH FROM completion_time - created_at)
+                        ELSE NULL END) as avg_completion_seconds
+                FROM agent_tasks
+                WHERE agent_id = %s
+            """,
+                (agent_id,),
+            )
+
+            performance = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            return jsonify(performance)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/team/leaderboard", methods=["GET"])
+    @login_required
+    @admin_required
+    def performance_leaderboard():
+        """Get agent performance leaderboard"""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            cur.execute(
+                """
+                SELECT
+                    u.id,
+                    u.username,
+                    u.full_name,
+                    COUNT(at.id) as total_tasks,
+                    COUNT(at.id) FILTER (WHERE at.status = 'completed') as completed_tasks,
+                    ROUND(AVG(CASE WHEN at.status = 'completed' THEN 1.0 ELSE 0.0 END)::numeric, 2) as success_rate
+                FROM users u
+                LEFT JOIN agent_tasks at ON u.id = at.agent_id
+                WHERE u.is_agent = TRUE
+                GROUP BY u.id
+                ORDER BY success_rate DESC, completed_tasks DESC
+                LIMIT 20
+            """
+            )
+
+            leaderboard = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            return jsonify({"leaderboard": leaderboard})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ==================================================================
+    # TEAM AWARENESS DATA (COMPREHENSIVE)
+    # ==================================================================
+
+    @bp.route("/team-awareness-data", methods=["GET"])
+    @login_required
+    @admin_required
+    def get_team_awareness_data():
+        """Get A.R.C.H.I.E.'s team awareness - all agents and their details (ENHANCED)"""
+        print("🧠 [BACKEND] get_team_awareness_data called - COMPREHENSIVE MODE")
+
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        try:
+            # Get all active agents with comprehensive details
+            cur.execute(
+                """
+                SELECT
+                    a.id, a.name, a.first_name, a.last_name, a.email,
+                    a.title, a.department, a.pronouns, a.bio,
+                    a.tier, a.model, a.status,
+                    a.monthly_budget, a.total_cost, a.total_tokens_used,
+                    a.last_used, a.created_at,
+                    a.worker_type, a.requires_api_approval, a.api_provider,
+                    a.cost_tier, a.api_enabled, a.api_key_configured,
+                    at.name as agent_type, at.category as type_category
+                FROM agents a
+                LEFT JOIN agent_types at ON a.type_id = at.id
+                WHERE a.status = 'active'
+                ORDER BY a.department, a.first_name
+            """
+            )
+            agents = cur.fetchall()
+
+            # Get department summary
+            cur.execute(
+                """
+                SELECT
+                    department,
+                    COUNT(*) as agent_count,
+                    SUM(CASE WHEN worker_type = 'internal' THEN 1 ELSE 0 END) as internal_count,
+                    SUM(CASE WHEN worker_type = 'contract' THEN 1 ELSE 0 END) as contract_count,
+                    SUM(monthly_budget) as total_budget,
+                    SUM(total_cost) as total_spent
+                FROM agents
+                WHERE status = 'active'
+                GROUP BY department
+                ORDER BY agent_count DESC
+            """
+            )
+            departments = cur.fetchall()
+
+            # Get overall statistics
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_agents,
+                    COUNT(DISTINCT department) as total_departments,
+                    SUM(monthly_budget) as total_budget,
+                    SUM(total_cost) as total_cost,
+                    SUM(total_tokens_used) as total_tokens,
+                    COUNT(CASE WHEN last_used >= NOW() - INTERVAL '7 days' THEN 1 END) as active_last_week,
+                    SUM(CASE WHEN worker_type = 'internal' THEN 1 ELSE 0 END) as internal_agents,
+                    SUM(CASE WHEN worker_type = 'contract' THEN 1 ELSE 0 END) as contract_agents,
+                    SUM(CASE WHEN worker_type = 'contract' AND api_enabled = TRUE THEN 1 ELSE 0 END) as contract_enabled,
+                    SUM(CASE WHEN worker_type = 'contract' AND api_enabled = FALSE THEN 1 ELSE 0 END) as contract_disabled
+                FROM agents
+                WHERE status = 'active'
+            """
+            )
+            stats = cur.fetchone()
+
+            # Organize agents by department
+            by_department = {}
+            for agent in agents:
+                dept = agent["department"] or "Unassigned"
+                if dept not in by_department:
+                    by_department[dept] = []
+                by_department[dept].append(dict(agent))
+
+            cur.close()
+            conn.close()
+
+            # Convert datetime objects to ISO format
+            for agent in agents:
+                if agent["last_used"]:
+                    agent["last_used"] = agent["last_used"].isoformat()
+                if agent["created_at"]:
+                    agent["created_at"] = agent["created_at"].isoformat()
+
+            result = {
+                "success": True,
+                "team": {
+                    "agents": [dict(a) for a in agents],
+                    "by_department": by_department,
+                    "departments": [dict(d) for d in departments],
+                    "statistics": dict(stats),
+                },
+            }
+
+            print(
+                f"🧠 [BACKEND] Returning {stats['total_agents']} agents across {stats['total_departments']} departments"
+            )
+            return jsonify(result)
+
+        except Exception as e:
+            print("❌ [BACKEND] Error in get_team_awareness_data:")
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/team-awareness", methods=["GET"])
+    @login_required
+    @admin_required
+    def get_team_awareness():
+        """Get A.R.C.H.I.E.'s team awareness - all agents and their details"""
+        print("🧠 [BACKEND] get_team_awareness called")
+
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        try:
+            # Get all active agents
+            cur.execute(
+                """
+                SELECT
+                    a.id, a.name, a.first_name, a.last_name, a.email,
+                    a.title, a.department, a.pronouns, a.bio,
+                    a.tier, a.model, a.status,
+                    a.monthly_budget, a.total_cost, a.total_tokens_used,
+                    a.last_used, a.created_at,
+                    a.worker_type, a.requires_api_approval, a.api_provider,
+                    a.cost_tier, a.api_enabled, a.api_key_configured,
+                    at.name as agent_type, at.category as type_category
+                FROM agents a
+                LEFT JOIN agent_types at ON a.type_id = at.id
+                WHERE a.status = 'active'
+                ORDER BY a.department, a.first_name
+            """
+            )
+            agents = cur.fetchall()
+
+            # Get department summary
+            cur.execute(
+                """
+                SELECT
+                    department,
+                    COUNT(*) as agent_count,
+                    SUM(CASE WHEN worker_type = 'internal' THEN 1 ELSE 0 END) as internal_count,
+                    SUM(CASE WHEN worker_type = 'contract' THEN 1 ELSE 0 END) as contract_count,
+                    SUM(monthly_budget) as total_budget,
+                    SUM(total_cost) as total_spent
+                FROM agents
+                WHERE status = 'active'
+                GROUP BY department
+                ORDER BY agent_count DESC
+            """
+            )
+            departments = cur.fetchall()
+
+            # Get overall statistics
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_agents,
+                    COUNT(DISTINCT department) as total_departments,
+                    SUM(monthly_budget) as total_budget,
+                    SUM(total_cost) as total_cost,
+                    SUM(total_tokens_used) as total_tokens,
+                    COUNT(CASE WHEN last_used >= NOW() - INTERVAL '7 days' THEN 1 END) as active_last_week,
+                    SUM(CASE WHEN worker_type = 'internal' THEN 1 ELSE 0 END) as internal_agents,
+                    SUM(CASE WHEN worker_type = 'contract' THEN 1 ELSE 0 END) as contract_agents,
+                    SUM(CASE WHEN worker_type = 'contract' AND api_enabled = TRUE THEN 1 ELSE 0 END) as contract_enabled,
+                    SUM(CASE WHEN worker_type = 'contract' AND api_enabled = FALSE THEN 1 ELSE 0 END) as contract_disabled
+                FROM agents
+                WHERE status = 'active'
+            """
+            )
+            stats = cur.fetchone()
+
+            # Organize agents by department
+            by_department = {}
+            for agent in agents:
+                dept = agent["department"] or "Unassigned"
+                if dept not in by_department:
+                    by_department[dept] = []
+                by_department[dept].append(dict(agent))
+
+            cur.close()
+            conn.close()
+
+            # Convert datetime objects to ISO format
+            for agent in agents:
+                if agent["last_used"]:
+                    agent["last_used"] = agent["last_used"].isoformat()
+                if agent["created_at"]:
+                    agent["created_at"] = agent["created_at"].isoformat()
+
+            result = {
+                "success": True,
+                "team": {
+                    "agents": [dict(a) for a in agents],
+                    "by_department": by_department,
+                    "departments": [dict(d) for d in departments],
+                    "statistics": dict(stats),
+                },
+            }
+
+            print(
+                f"🧠 [BACKEND] Returning {stats['total_agents']} agents across {stats['total_departments']} departments"
+            )
+            return jsonify(result)
+
+        except Exception as e:
+            print("❌ [BACKEND] Error in get_team_awareness:")
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ==================================================================
+    # EMOTIONAL STATE
+    # ==================================================================
+
+    @bp.route("/emotions/timeline", methods=["GET"])
+    @login_required
+    @admin_required
+    def get_emotional_timeline():
+        """Get ARCHIE's emotional state over time with mood labels and stress data"""
+
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        try:
+            days = request.args.get("days", 30, type=int)
+
+            # Get emotional state history with mood labels
+            cur.execute(
+                """
+                SELECT
+                    DATE(timestamp) as date,
+                    AVG(CASE WHEN current_mood = 'happy' THEN 1.0
+                             WHEN current_mood = 'curious' THEN 0.8
+                             WHEN current_mood = 'focused' THEN 0.6
+                             WHEN current_mood = 'neutral' THEN 0.5
+                             WHEN current_mood = 'confused' THEN 0.3
+                             WHEN current_mood = 'frustrated' THEN 0.2
+                             ELSE 0.5 END) as avg_mood_score,
+                    AVG(mood_intensity) as avg_energy,
+                    AVG(relationship_strength) as avg_confidence,
+                    COUNT(*) as measurement_count,
+                    MODE() WITHIN GROUP (ORDER BY current_mood) as dominant_mood
+                FROM archie_emotional_state
+                WHERE timestamp > NOW() - INTERVAL '%s days'
+                GROUP BY DATE(timestamp)
+                ORDER BY date ASC
+            """,
+                (days,),
+            )
+            timeline = cur.fetchall()
+
+            # Get stress data from agent_emotional_state if available
+            cur.execute(
+                """
+                SELECT
+                    DATE(timestamp) as date,
+                    AVG(stress_level) as avg_stress,
+                    AVG(energy_level) as avg_agent_energy
+                FROM agent_emotional_state
+                WHERE timestamp > NOW() - INTERVAL '%s days'
+                GROUP BY DATE(timestamp)
+                ORDER BY date ASC
+            """,
+                (days,),
+            )
+            stress_data = {str(r["date"]): r for r in cur.fetchall()}
+
+            # Merge stress data into timeline
+            for entry in timeline:
+                date_key = str(entry["date"])
+                if date_key in stress_data:
+                    entry["avg_stress"] = stress_data[date_key]["avg_stress"]
+                    entry["avg_agent_energy"] = stress_data[date_key]["avg_agent_energy"]
+
+            # Get current emotional state
+            cur.execute(
+                """
+                SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
+                       relationship_strength as confidence, user_id, notes
+                FROM archie_emotional_state
+                ORDER BY timestamp DESC LIMIT 1
+            """
+            )
+            current_state = cur.fetchone()
+
+            cur.close()
+            conn.close()
+
+            return jsonify({"timeline": timeline, "current_state": current_state})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/emotional-state", methods=["GET"])
+    @login_required
+    @admin_required
+    def emotional_state():
+        """Get current emotional state with rich data from multiple tables"""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Main emotional state with extra fields
+            cur.execute(
+                """
+                SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
+                       relationship_strength as confidence, user_id, notes,
+                       mood_context, conversation_tone,
+                       user_happiness_detected, user_stress_detected
+                FROM archie_emotional_state
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """
+            )
+            state = cur.fetchone()
+
+            # Agent emotional state (ARCHIE's own feelings)
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, energy_level, stress_level,
+                       trigger_event, previous_mood, mood_duration_minutes
+                FROM agent_emotional_state
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """
+            )
+            agent_state = cur.fetchone()
+
+            # Recent mood transitions — derived from archie_emotional_state via LAG()
+            cur.execute(
+                """
+                SELECT current_mood, previous_mood, trigger_event, mood_duration_minutes, timestamp
+                FROM (
+                    SELECT current_mood,
+                           LAG(current_mood) OVER (ORDER BY timestamp) as previous_mood,
+                           notes as trigger_event,
+                           EXTRACT(EPOCH FROM (timestamp - LAG(timestamp) OVER (ORDER BY timestamp))) / 60 as mood_duration_minutes,
+                           timestamp
+                    FROM archie_emotional_state
+                    ORDER BY timestamp DESC
+                ) sub
+                WHERE previous_mood IS NOT NULL AND current_mood != previous_mood
+                ORDER BY timestamp DESC
+                LIMIT 10
+            """
+            )
+            mood_transitions = cur.fetchall()
+
+            # Recent emotional memories
+            cur.execute(
+                """
+                SELECT event_type, context_summary, user_emotion_detected,
+                       emotional_intensity, relationship_impact, event_timestamp
+                FROM emotional_memory
+                ORDER BY event_timestamp DESC
+                LIMIT 15
+            """
+            )
+            emotional_memories = cur.fetchall()
+
+            # Mood distribution
+            cur.execute(
+                """
+                SELECT current_mood, COUNT(*) as count
+                FROM archie_emotional_state
+                GROUP BY current_mood
+                ORDER BY count DESC
+            """
+            )
+            mood_distribution = cur.fetchall()
+
+            # Sentiment summary from mood_context JSONB
+            cur.execute(
+                """
+                SELECT
+                    mood_context->'sentiment'->>'user_emotion' as detected_emotion,
+                    COUNT(*) as count
+                FROM archie_emotional_state
+                WHERE mood_context IS NOT NULL
+                  AND mood_context->'sentiment'->>'user_emotion' IS NOT NULL
+                GROUP BY detected_emotion
+                ORDER BY count DESC
+            """
+            )
+            sentiment_summary = cur.fetchall()
+
+            # Latest sentiment details
+            cur.execute(
+                """
+                SELECT mood_context->'sentiment'->'emotional_signals' as signals,
+                       mood_context->'trust'->>'user_satisfaction' as satisfaction,
+                       mood_context->'sentiment'->'indicators' as indicators
+                FROM archie_emotional_state
+                WHERE mood_context IS NOT NULL
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """
+            )
+            latest_sentiment = cur.fetchone()
+
+            # Data freshness counts
+            cur.execute("SELECT COUNT(*) as cnt FROM archie_emotional_state")
+            state_count = cur.fetchone()["cnt"]
+            cur.execute("SELECT COUNT(*) as cnt FROM emotional_memory")
+            memory_count = cur.fetchone()["cnt"]
+
+            # Relationship strength per user
+            cur.execute(
+                """
+                SELECT aes.user_id, u.username,
+                       aes.relationship_strength, aes.current_mood,
+                       aes.timestamp
+                FROM archie_emotional_state aes
+                JOIN users u ON aes.user_id = u.id
+                WHERE aes.user_id IS NOT NULL
+                AND aes.id IN (
+                    SELECT MAX(id) FROM archie_emotional_state
+                    WHERE user_id IS NOT NULL
+                    GROUP BY user_id
+                )
+                ORDER BY aes.relationship_strength DESC
+            """
+            )
+            relationships = cur.fetchall()
+
+            cur.close()
+            conn.close()
+
+            result = dict(state) if state else {"mood": "neutral", "energy": 0.5, "confidence": 0.5}
+            if agent_state:
+                result["agent_state"] = dict(agent_state)
+            result["mood_transitions"] = [dict(t) for t in mood_transitions]
+            result["emotional_memories"] = [dict(m) for m in emotional_memories]
+            result["relationships"] = [dict(r) for r in relationships]
+            result["mood_distribution"] = [dict(d) for d in mood_distribution]
+            result["sentiment_summary"] = [dict(s) for s in sentiment_summary]
+            result["latest_sentiment"] = dict(latest_sentiment) if latest_sentiment else None
+            result["data_freshness"] = {
+                "latest_state": (str(state["timestamp"]) if state and state.get("timestamp") else None),
+                "total_states": state_count,
+                "total_memories": memory_count,
+            }
+            result["computed"] = {
+                "energy": float(state.get("energy", 0.5)) if state else 0.5,
+                "confidence": float(state.get("confidence", 0.5)) if state else 0.5,
+                "stress": (float(agent_state.get("stress_level", 0)) if agent_state else None),
+                "has_agent_data": agent_state is not None,
+            }
+
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500

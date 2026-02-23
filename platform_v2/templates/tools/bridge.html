@@ -5143,13 +5143,13 @@ body.light-mode .bridge-hud-value {
 
     <!-- Tab Navigation -->
     <nav class="bridge-tabs" id="bridgeTabs">
-        <button class="bridge-tab active" data-tab="overview" onclick="switchBridgeTab('overview')">
-            <i data-lucide="layout-dashboard"></i>
-            <span data-i18n="bridge.tabs.overview">Overview</span>
-        </button>
-        <button class="bridge-tab" data-tab="stations" onclick="switchBridgeTab('stations')">
+        <button class="bridge-tab active" data-tab="stations" onclick="switchBridgeTab('stations')">
             <i data-lucide="radio-tower"></i>
             <span data-i18n="bridge.tabs.stations">Stations</span>
+        </button>
+        <button class="bridge-tab" data-tab="overview" onclick="switchBridgeTab('overview')">
+            <i data-lucide="layout-dashboard"></i>
+            <span data-i18n="bridge.tabs.overview">Overview</span>
         </button>
         <button class="bridge-tab" data-tab="dispatch" onclick="switchBridgeTab('dispatch')">
             <i data-lucide="activity"></i>
@@ -5201,7 +5201,7 @@ body.light-mode .bridge-hud-value {
     <div class="bridge-main">
         <div class="bridge-content">
             <!-- Overview Tab Panel -->
-            <div class="bridge-tab-panel active" data-panel="overview">
+            <div class="bridge-tab-panel" data-panel="overview">
                 <!-- HUD Pods Strip -->
                 <div class="bridge-hud-strip">
                     <div class="bridge-hud-pod">
@@ -5286,7 +5286,7 @@ body.light-mode .bridge-hud-value {
             </div>
 
             <!-- Stations Tab Panel — Isometric Bridge Layout -->
-            <div class="bridge-tab-panel" data-panel="stations">
+            <div class="bridge-tab-panel active" data-panel="stations">
                 <div class="iso-bridge-room" id="bridgeSpatialLayout">
                     <!-- Warp-In Intro Overlay -->
                     <div class="iso-warp-overlay" id="isoWarpOverlay">
@@ -6548,10 +6548,12 @@ function switchBridgeTab(tabName) {
 // Restore tab from URL hash on page load
 (function() {
     var hash = window.location.hash.replace('#', '');
-    var validTabs = ['overview', 'stations', 'dispatch', 'crew', 'network'];
+    var validTabs = ['stations', 'overview', 'dispatch', 'crew', 'network'];
     if (hash && validTabs.indexOf(hash) !== -1) {
-        // Delay to ensure DOM is ready
         setTimeout(function() { switchBridgeTab(hash); }, 100);
+    } else {
+        // Default: load stations tab data (warp-in animation)
+        setTimeout(function() { switchBridgeTab('stations'); }, 100);
     }
 })();
 

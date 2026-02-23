@@ -523,6 +523,191 @@ def register_team_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ==================================================================
+    # TEAM ROSTER & AGENT PROFILE (Agent Command Center)
+    # ==================================================================
+
+    @bp.route("/api/team/roster")
+    @login_required
+    @admin_required
+    def api_team_roster():
+        """Agent roster with profiles, skills, emotions, station assignments."""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            cur.execute(
+                """
+                SELECT ap.id, ap.first_name, ap.last_name, ap.full_name,
+                       ap.title, ap.department, ap.bio, ap.status, ap.agent_type,
+                       ap.category, ap.model, ap.tier,
+                       aes.current_mood, aes.mood_intensity, aes.energy_level,
+                       aes.stress_level, aes.timestamp as mood_updated,
+                       avp.profile_name as voice_profile, avp.engine as voice_engine,
+                       avp.language as voice_language,
+                       sa.id as assignment_id, bs.station_name, bs.station_code
+                FROM agent_profiles ap
+                LEFT JOIN agent_emotional_state aes ON aes.agent_id = ap.id
+                LEFT JOIN agent_voice_profiles avp ON avp.agent_id = ap.id AND avp.is_active = true
+                LEFT JOIN station_assignments sa ON sa.agent_id = ap.id AND sa.is_active = true
+                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                ORDER BY ap.id
+            """
+            )
+            agents = cur.fetchall()
+
+            # Skills per agent
+            cur.execute(
+                """
+                SELECT agent_id, skill_name, skill_category, proficiency_level
+                FROM agent_skills ORDER BY agent_id, proficiency_level DESC
+            """
+            )
+            skills_raw = cur.fetchall()
+
+            skills_map = {}
+            for s in skills_raw:
+                aid = s["agent_id"]
+                if aid not in skills_map:
+                    skills_map[aid] = []
+                skills_map[aid].append(
+                    {
+                        "name": s["skill_name"],
+                        "category": s["skill_category"],
+                        "level": s["proficiency_level"],
+                    }
+                )
+
+            result = []
+            for a in agents:
+                agent = dict(a)
+                agent["skills"] = skills_map.get(a["id"], [])
+                agent["skill_count"] = len(agent["skills"])
+                result.append(agent)
+
+            cur.close()
+            conn.close()
+
+            return jsonify({"success": True, "agents": result})
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/team/agents/<int:agent_id>/profile")
+    @login_required
+    @admin_required
+    def api_agent_profile(agent_id):
+        """Full agent personnel file for detail modal."""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            cur.execute("SELECT * FROM agent_profiles WHERE id = %s", (agent_id,))
+            agent = cur.fetchone()
+            if not agent:
+                cur.close()
+                conn.close()
+                return jsonify({"success": False, "error": "Agent not found"}), 404
+
+            # Identity traits (from agent_identity table, NOT agent_personalities)
+            cur.execute(
+                """
+                SELECT identity_key, identity_value, confidence
+                FROM agent_identity WHERE agent_id = %s ORDER BY identity_key
+            """,
+                (agent_id,),
+            )
+            identity = cur.fetchall()
+
+            # Skills
+            cur.execute(
+                """
+                SELECT skill_name, skill_category, proficiency_level, notes
+                FROM agent_skills WHERE agent_id = %s ORDER BY proficiency_level DESC
+            """,
+                (agent_id,),
+            )
+            skills = cur.fetchall()
+
+            # Emotional history (last 30) — timestamp column, NOT created_at
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, energy_level, stress_level,
+                       trigger_event, timestamp
+                FROM agent_emotional_state
+                WHERE agent_id = %s ORDER BY timestamp DESC LIMIT 30
+            """,
+                (agent_id,),
+            )
+            emotions = cur.fetchall()
+
+            # Voice profile
+            cur.execute(
+                """
+                SELECT * FROM agent_voice_profiles
+                WHERE agent_id = %s AND is_active = true
+            """,
+                (agent_id,),
+            )
+            voice = cur.fetchone()
+
+            # Learning log
+            cur.execute(
+                """
+                SELECT learned_from, skill_name, confidence, context_summary, created_at
+                FROM agent_learning_log WHERE agent_id = %s ORDER BY created_at DESC LIMIT 20
+            """,
+                (agent_id,),
+            )
+            learning = cur.fetchall()
+
+            # Rest cycles — started_at column, NOT timestamp
+            cur.execute(
+                """
+                SELECT rest_type, started_at, ended_at, reason,
+                       stress_at_start, energy_at_start
+                FROM agent_rest_cycles WHERE agent_id = %s ORDER BY started_at DESC LIMIT 10
+            """,
+                (agent_id,),
+            )
+            rest = cur.fetchall()
+
+            # Station assignment
+            cur.execute(
+                """
+                SELECT sa.*, bs.station_name, bs.station_code, bs.color
+                FROM station_assignments sa
+                JOIN bridge_stations bs ON bs.id = sa.station_id
+                WHERE sa.agent_id = %s AND sa.is_active = true
+            """,
+                (agent_id,),
+            )
+            station = cur.fetchone()
+
+            cur.close()
+            conn.close()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "agent": dict(agent),
+                    "identity": [dict(i) for i in identity],
+                    "skills": [dict(s) for s in skills],
+                    "emotions": [dict(e) for e in emotions],
+                    "voice": dict(voice) if voice else None,
+                    "learning": [dict(l) for l in learning],
+                    "rest_cycles": [dict(r) for r in rest],
+                    "station": dict(station) if station else None,
+                }
+            )
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ==================================================================
+    # EMOTIONAL STATE
+    # ==================================================================
+
     @bp.route("/emotional-state", methods=["GET"])
     @login_required
     @admin_required

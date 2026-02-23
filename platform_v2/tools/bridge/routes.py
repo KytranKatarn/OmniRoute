@@ -25,6 +25,18 @@ from psycopg2.extras import RealDictCursor
 from database import get_db_cursor
 import requests
 
+try:
+    from ai_bridge.agent_performance_tracker import (
+        get_agent_performance,
+        update_agent_performance,
+        get_top_performers,
+        log_agent_action,
+    )
+
+    _HAS_PERFORMANCE_TRACKER = True
+except ImportError:
+    _HAS_PERFORMANCE_TRACKER = False
+
 logger = logging.getLogger(__name__)
 
 bridge_bp = Blueprint("bridge", __name__, url_prefix="/tools/bridge")
@@ -6811,6 +6823,113 @@ def restore_agent_memory(agent_id, memory_id):
         )
     except Exception as e:
         logger.error("restore_agent_memory error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# --- Agent Performance ---
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/performance", methods=["GET"])
+@login_required
+def get_agent_performance_data(agent_id):
+    """Get performance metrics for an agent."""
+    if not _HAS_PERFORMANCE_TRACKER:
+        return jsonify({"success": False, "error": "Performance tracker not available"}), 501
+    performance = get_agent_performance(agent_id)
+    if performance is None:
+        return jsonify({"success": False, "error": "No performance data"}), 404
+    return jsonify({"success": True, "performance": performance})
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/performance/update", methods=["POST"])
+@login_required
+def update_agent_performance_metrics(agent_id):
+    """Recalculate performance metrics for an agent."""
+    if not _HAS_PERFORMANCE_TRACKER:
+        return jsonify({"success": False, "error": "Performance tracker not available"}), 501
+    success = update_agent_performance(agent_id)
+    return jsonify({"success": success, "message": f"Performance metrics updated for agent #{agent_id}"})
+
+
+@bridge_bp.route("/api/agents/performance/leaderboard", methods=["GET"])
+@login_required
+def get_performance_leaderboard():
+    """Get top performing agents."""
+    if not _HAS_PERFORMANCE_TRACKER:
+        return jsonify({"success": False, "error": "Performance tracker not available"}), 501
+    limit = request.args.get("limit", 10, type=int)
+    leaderboard = get_top_performers(limit=limit)
+    return jsonify({"success": True, "leaderboard": leaderboard})
+
+
+@bridge_bp.route("/api/agents/<int:agent_id>/work-history", methods=["GET"])
+@login_required
+def get_agent_work_history(agent_id):
+    """Get work history: proposals, discussions, stats."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Improvement proposals
+            cur.execute(
+                """
+                SELECT id, title, status, category, priority,
+                       proposed_at, deployed_at, test_status, escalation_status
+                FROM improvement_proposals
+                WHERE assigned_agent_id = %s OR contractor_agent_id = %s
+                ORDER BY proposed_at DESC LIMIT 20
+            """,
+                (agent_id, agent_id),
+            )
+            proposals = [dict(r) for r in cur.fetchall()]
+
+            # Discussions
+            cur.execute(
+                """
+                SELECT DISTINCT d.id, d.topic, d.status, d.created_at,
+                       (SELECT COUNT(*) FROM agent_discussion_messages
+                        WHERE discussion_id = d.id AND agent_id = %s) as message_count
+                FROM agent_discussions d
+                JOIN agent_discussion_messages m ON d.id = m.discussion_id
+                WHERE m.agent_id = %s
+                ORDER BY d.created_at DESC LIMIT 10
+            """,
+                (agent_id, agent_id),
+            )
+            discussions = [dict(r) for r in cur.fetchall()]
+
+            # Performance stats
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE assigned_agent_id = %s) as proposals_assigned,
+                    COUNT(*) FILTER (WHERE assigned_agent_id = %s AND status = 'deployed') as proposals_deployed,
+                    COUNT(*) FILTER (WHERE contractor_agent_id = %s) as contractor_consultations,
+                    COUNT(*) FILTER (WHERE contractor_agent_id = %s AND status = 'deployed') as contractor_successes
+                FROM improvement_proposals
+            """,
+                (agent_id, agent_id, agent_id, agent_id),
+            )
+            row = cur.fetchone()
+            stats = dict(row) if row else {}
+
+            # Serialize datetimes for JSON
+            for p in proposals:
+                for k in ("proposed_at", "deployed_at"):
+                    if p.get(k) and hasattr(p[k], "isoformat"):
+                        p[k] = p[k].isoformat()
+            for d in discussions:
+                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+                    d["created_at"] = d["created_at"].isoformat()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "proposals": proposals,
+                    "discussions": discussions,
+                    "stats": stats,
+                }
+            )
+    except Exception as e:
+        logger.error(f"Error getting work history for agent {agent_id}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

@@ -6042,25 +6042,72 @@ body.light-mode .bridge-hud-value {
 
                 <!-- Lounge Sub-Panel -->
                 <div class="crew-subpanel" data-subpanel="lounge">
-                    <div class="briefing-card" style="--card-accent: #8b5cf6; margin: 0 16px;">
+
+                    <!-- 1. Wellness Summary — 3-column row -->
+                    <div style="display:flex;gap:10px;margin:0 16px 10px 16px;">
+                        <div id="wellness-healthy" style="flex:1;text-align:center;padding:10px 6px;background:rgba(0,255,65,0.06);border:1px solid rgba(0,255,65,0.2);border-radius:8px;">
+                            <div style="font-size:1.4rem;font-weight:700;color:#00ff41;">--</div>
+                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;">Healthy</div>
+                        </div>
+                        <div id="wellness-at-risk" style="flex:1;text-align:center;padding:10px 6px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:8px;">
+                            <div style="font-size:1.4rem;font-weight:700;color:#f59e0b;">--</div>
+                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;">At Risk</div>
+                        </div>
+                        <div id="wellness-resting" style="flex:1;text-align:center;padding:10px 6px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.2);border-radius:8px;">
+                            <div style="font-size:1.4rem;font-weight:700;color:#8b5cf6;">--</div>
+                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;">Resting</div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Burnout Risk Alerts card -->
+                    <div class="briefing-card" style="--card-accent: #ef4444; margin: 0 16px 10px 16px;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="heart-pulse"></i>
+                            <span>Burnout Risk Alerts</span>
+                        </div>
+                        <div class="briefing-card-body">
+                            <div id="burnout-alerts">
+                                <span class="briefing-muted" style="font-size:0.75rem;">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Lounge / Rest card -->
+                    <div class="briefing-card" style="--card-accent: #8b5cf6; margin: 0 16px 10px 16px;">
                         <div class="briefing-card-header">
                             <i data-lucide="coffee"></i>
                             <span data-i18n="bridge.crew.lounge_rest">Lounge / Rest</span>
                         </div>
                         <div class="briefing-card-body">
                             <!-- Send to lounge controls -->
-                            <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
-                                <select id="lounge-agent-select" style="flex:1;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
+                            <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+                                <select id="lounge-agent-select" style="flex:1;min-width:100px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
                                     <option value="">Select agent...</option>
                                 </select>
-                                <button onclick="sendToLounge()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Send to Lounge</button>
+                                <input id="lounge-reason-input" type="text" placeholder="Reason (optional)" style="flex:1;min-width:80px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
+                                <button onclick="sendToLounge()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Send to Rest</button>
                             </div>
                             <!-- Agents currently in lounge -->
                             <div id="lounge-agents-list">
-                                <span class="briefing-muted" style="font-size:0.75rem;">No agents in lounge</span>
+                                <span class="briefing-muted" style="font-size:0.75rem;">Loading...</span>
                             </div>
                         </div>
                     </div>
+
+                    <!-- 4. Rest History card (collapsed by default) -->
+                    <div class="briefing-card" style="--card-accent: rgba(139,92,246,0.5); margin: 0 16px;">
+                        <div class="briefing-card-header" style="cursor:pointer;" onclick="toggleRestHistory()">
+                            <i data-lucide="history"></i>
+                            <span>Rest History</span>
+                            <span id="rest-history-toggle-label" style="margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.4);">Show</span>
+                        </div>
+                        <div id="rest-history-body" class="briefing-card-body" style="display:none;">
+                            <div id="rest-history-list">
+                                <span class="briefing-muted" style="font-size:0.75rem;">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Contractors Sub-Panel -->
@@ -11124,6 +11171,7 @@ function switchCrewSubtab(name) {
     if (name === 'contractors') loadContractors();
     if (name === 'leaderboard') loadLeaderboard();
     if (name === 'training') loadTrainingTab();
+    if (name === 'lounge') loadLoungeTab();
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -11833,12 +11881,10 @@ function removeSkill(agentId, skillId) {
 // === Training / Lounge Button UX ===
 function populateTrainingLoungeSelects(crew) {
     var trainSel = document.getElementById('training-agent-select');
-    var loungeSel = document.getElementById('lounge-agent-select');
-    if (!trainSel || !loungeSel) return;
+    if (!trainSel) return;
 
     // Keep first option, clear rest
     while (trainSel.options.length > 1) trainSel.remove(1);
-    while (loungeSel.options.length > 1) loungeSel.remove(1);
 
     // Separate agents by status
     var active = [], training = [], resting = [];
@@ -11848,13 +11894,11 @@ function populateTrainingLoungeSelects(crew) {
         else active.push(a);
     });
 
-    // Populate selects with active agents only
+    // Populate training select with active agents only
     active.forEach(function(a) {
         var label = (a.full_name || a.name) + ' (' + a.station + ')';
         var opt1 = new Option(label, a.id);
-        var opt2 = new Option(label, a.id);
         trainSel.add(opt1);
-        loungeSel.add(opt2);
     });
 
     // Render training agents list
@@ -11874,37 +11918,36 @@ function populateTrainingLoungeSelects(crew) {
         }
     }
 
-    // Render lounge agents list
-    var loungeList = document.getElementById('lounge-agents-list');
-    if (loungeList) {
-        if (resting.length === 0) {
-            loungeList.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No agents in lounge</span>';
-        } else {
-            var html = '';
-            resting.forEach(function(a) {
-                html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.75rem;">';
-                html += '<span>' + (a.full_name || a.name) + '</span>';
-                html += '<button onclick="returnFromLounge(' + parseInt(a.id) + ')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 6px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Return to Duty</button>';
-                html += '</div>';
-            });
-            loungeList.innerHTML = html;
-        }
-    }
 }
 
 function sendToLounge() {
     var sel = document.getElementById('lounge-agent-select');
     if (!sel || !sel.value) return;
-    sendToLoungeById(parseInt(sel.value));
+    var reasonEl = document.getElementById('lounge-reason-input');
+    var reason = (reasonEl && reasonEl.value.trim()) ? reasonEl.value.trim() : 'rest';
+    fetch('/tools/bridge/api/agents/' + parseInt(sel.value) + '/send-to-lounge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason, rest_type: 'voluntary' })
+    }).then(function(r) { return r.json(); })
+    .then(function() {
+        sel.value = '';
+        if (reasonEl) reasonEl.value = '';
+        loadCrewManifest();
+        if (typeof loadLoungeTab === 'function') loadLoungeTab();
+    });
 }
 
 function sendToLoungeById(agentId) {
     fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/send-to-lounge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'rest' })
+        body: JSON.stringify({ reason: 'rest', rest_type: 'voluntary' })
     }).then(function(r) { return r.json(); })
-    .then(function() { loadCrewManifest(); });
+    .then(function() {
+        loadCrewManifest();
+        if (typeof loadLoungeTab === 'function') loadLoungeTab();
+    });
 }
 
 function returnFromLounge(agentId) {
@@ -11913,7 +11956,10 @@ function returnFromLounge(agentId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
     }).then(function(r) { return r.json(); })
-    .then(function() { loadCrewManifest(); });
+    .then(function() {
+        loadCrewManifest();
+        if (typeof loadLoungeTab === 'function') loadLoungeTab();
+    });
 }
 
 // ============================================================================
@@ -12194,6 +12240,206 @@ async function loadTrainingHistory() {
     } catch (e) {
         console.error('loadTrainingHistory error:', e);
         if (container) container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading history</span>';
+    }
+}
+
+// ============================================================================
+// LOUNGE TAB — Wellness Dashboard, Burnout Alerts, Rest Cards, History
+// ============================================================================
+
+var _restHistoryLoaded = false;
+
+function loadLoungeTab() {
+    loadWellnessSummary();
+    loadLoungeAgents();
+    populateLoungeAgentSelect();
+}
+
+async function populateLoungeAgentSelect() {
+    var sel = document.getElementById('lounge-agent-select');
+    if (!sel) return;
+    try {
+        var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
+        var data = await resp.json();
+        if (!data.success) return;
+        sel.innerHTML = '<option value="">Select agent...</option>';
+        (data.crew || []).forEach(function(a) {
+            if (a.status !== 'resting') {
+                var opt = new Option((a.full_name || a.name) + ' (' + a.station + ')', a.id);
+                sel.add(opt);
+            }
+        });
+    } catch (e) {
+        console.error('populateLoungeAgentSelect error:', e);
+    }
+}
+
+async function loadWellnessSummary() {
+    var healthyEl = document.getElementById('wellness-healthy');
+    var atRiskEl = document.getElementById('wellness-at-risk');
+    var restingEl = document.getElementById('wellness-resting');
+    var alertsEl = document.getElementById('burnout-alerts');
+    try {
+        var resp = await fetch('/tools/bridge/api/lounge/wellness');
+        var data = await resp.json();
+        if (!data.success) return;
+
+        var s = data.summary || {};
+        if (healthyEl) healthyEl.querySelector('div').textContent = (s.healthy != null) ? s.healthy : 0;
+        if (atRiskEl) atRiskEl.querySelector('div').textContent = (s.at_risk != null) ? s.at_risk : 0;
+        if (restingEl) restingEl.querySelector('div').textContent = (s.resting != null) ? s.resting : 0;
+
+        // Burnout alerts
+        if (!alertsEl) return;
+        var alerts = data.burnout_alerts || [];
+        if (alerts.length === 0) {
+            alertsEl.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No burnout risks detected</span>';
+            return;
+        }
+        var html = '';
+        alerts.forEach(function(a) {
+            var stressColor = a.stress > 80 ? '#ef4444' : a.stress > 60 ? '#f59e0b' : '#00ff41';
+            var energyColor = a.energy < 20 ? '#ef4444' : a.energy < 40 ? '#f59e0b' : '#00ff41';
+            html += '<div style="padding:8px;margin-bottom:6px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:6px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+            html += '<span style="font-size:0.75rem;font-weight:600;color:#fbbf24;">' + (a.full_name || a.agent_name) + '</span>';
+            html += '<button onclick="sendToLoungeById(' + parseInt(a.agent_id) + ')" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Send to Rest</button>';
+            html += '</div>';
+            // Stress gauge
+            html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+            html += '<span style="font-size:0.65rem;color:rgba(255,255,255,0.5);width:42px;">Stress</span>';
+            html += '<div style="flex:1;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;">';
+            html += '<div style="width:' + Math.min(a.stress || 0, 100) + '%;height:100%;background:' + stressColor + ';border-radius:2px;"></div>';
+            html += '</div>';
+            html += '<span style="font-size:0.6rem;color:' + stressColor + ';">' + (a.stress || 0) + '%</span>';
+            html += '</div>';
+            // Energy gauge
+            html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">';
+            html += '<span style="font-size:0.65rem;color:rgba(255,255,255,0.5);width:42px;">Energy</span>';
+            html += '<div style="flex:1;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;">';
+            html += '<div style="width:' + Math.min(a.energy || 0, 100) + '%;height:100%;background:' + energyColor + ';border-radius:2px;"></div>';
+            html += '</div>';
+            html += '<span style="font-size:0.6rem;color:' + energyColor + ';">' + (a.energy || 0) + '%</span>';
+            html += '</div>';
+            // Reasons
+            if (a.reasons && a.reasons.length > 0) {
+                html += '<div style="font-size:0.65rem;color:rgba(255,255,255,0.4);margin-top:2px;">' + a.reasons.join(', ') + '</div>';
+            }
+            html += '</div>';
+        });
+        alertsEl.innerHTML = html;
+    } catch (e) {
+        console.error('loadWellnessSummary error:', e);
+        if (alertsEl) alertsEl.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading wellness data</span>';
+    }
+}
+
+async function loadLoungeAgents() {
+    var container = document.getElementById('lounge-agents-list');
+    if (!container) return;
+    try {
+        var resp = await fetch('/tools/bridge/api/lounge');
+        var data = await resp.json();
+        if (!data.success) {
+            container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading lounge</span>';
+            return;
+        }
+        var agents = data.agents || [];
+        if (agents.length === 0) {
+            container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No agents currently resting</span>';
+            return;
+        }
+        var html = '';
+        agents.forEach(function(a) {
+            var hours = a.hours_resting ? parseFloat(a.hours_resting).toFixed(1) : '0.0';
+            var stressColor = (a.stress_at_start || 0) > 80 ? '#ef4444' : (a.stress_at_start || 0) > 60 ? '#f59e0b' : '#00ff41';
+            html += '<div style="padding:8px;margin-bottom:6px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:6px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+            html += '<span style="font-size:0.75rem;font-weight:600;color:#c4b5fd;">' + String.fromCodePoint(0x2615) + ' ' + (a.full_name || a.name) + '</span>';
+            html += '<button onclick="returnFromLounge(' + parseInt(a.agent_id) + ')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Return to Duty</button>';
+            html += '</div>';
+            html += '<div style="display:flex;gap:12px;font-size:0.65rem;color:rgba(255,255,255,0.5);">';
+            html += '<span>' + String.fromCodePoint(0x23F1) + ' ' + hours + 'h</span>';
+            if (a.rest_type) html += '<span style="text-transform:capitalize;">' + a.rest_type + '</span>';
+            if (a.stress_at_start != null) html += '<span>Stress@entry: <span style="color:' + stressColor + ';">' + a.stress_at_start + '%</span></span>';
+            html += '</div>';
+            if (a.rest_reason && a.rest_reason !== 'rest') {
+                html += '<div style="font-size:0.65rem;color:rgba(255,255,255,0.4);margin-top:3px;font-style:italic;">' + a.rest_reason + '</div>';
+            }
+            html += '</div>';
+        });
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('loadLoungeAgents error:', e);
+        container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading lounge agents</span>';
+    }
+}
+
+function toggleRestHistory() {
+    var body = document.getElementById('rest-history-body');
+    var label = document.getElementById('rest-history-toggle-label');
+    if (!body) return;
+    var isHidden = body.style.display === 'none';
+    body.style.display = isHidden ? 'block' : 'none';
+    if (label) label.textContent = isHidden ? 'Hide' : 'Show';
+    if (isHidden && !_restHistoryLoaded) {
+        loadRestHistory();
+    }
+}
+
+async function loadRestHistory() {
+    var container = document.getElementById('rest-history-list');
+    if (!container) return;
+    _restHistoryLoaded = true;
+    container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Loading history...</span>';
+    try {
+        var resp = await fetch('/tools/bridge/api/lounge/history');
+        var data = await resp.json();
+        if (!data.success) {
+            container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading history</span>';
+            return;
+        }
+        var history = data.history || [];
+        if (history.length === 0) {
+            container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No rest history yet</span>';
+            return;
+        }
+        var html = '';
+        history.forEach(function(h) {
+            var hours = h.hours_rested ? parseFloat(h.hours_rested).toFixed(1) : '?';
+            var stressDelta = '';
+            if (h.stress_at_start != null && h.stress_at_end != null) {
+                var diff = h.stress_at_end - h.stress_at_start;
+                var diffColor = diff <= 0 ? '#00ff41' : '#ef4444';
+                stressDelta = '<span style="color:' + diffColor + ';">' + h.stress_at_start + '% ' + String.fromCodePoint(0x2192) + ' ' + h.stress_at_end + '%</span>';
+            }
+            var energyDelta = '';
+            if (h.energy_at_start != null && h.energy_at_end != null) {
+                var eDiff = h.energy_at_end - h.energy_at_start;
+                var eDiffColor = eDiff >= 0 ? '#00ff41' : '#ef4444';
+                energyDelta = '<span style="color:' + eDiffColor + ';">' + h.energy_at_start + '% ' + String.fromCodePoint(0x2192) + ' ' + h.energy_at_end + '%</span>';
+            }
+            var endDate = h.ended_at ? new Date(h.ended_at).toLocaleDateString() + ' ' + new Date(h.ended_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'ongoing';
+            html += '<div style="padding:6px 8px;margin-bottom:4px;background:rgba(139,92,246,0.04);border:1px solid rgba(139,92,246,0.1);border-radius:5px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">';
+            html += '<span style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.7);">' + (h.full_name || h.agent_name) + '</span>';
+            html += '<span style="font-size:0.6rem;color:rgba(255,255,255,0.35);">' + endDate + '</span>';
+            html += '</div>';
+            html += '<div style="display:flex;gap:10px;font-size:0.6rem;color:rgba(255,255,255,0.45);flex-wrap:wrap;">';
+            html += '<span>' + hours + 'h rested</span>';
+            if (h.rest_type) html += '<span style="text-transform:capitalize;">' + h.rest_type + '</span>';
+            if (stressDelta) html += '<span>Stress: ' + stressDelta + '</span>';
+            if (energyDelta) html += '<span>Energy: ' + energyDelta + '</span>';
+            html += '</div>';
+            if (h.reason && h.reason !== 'rest') {
+                html += '<div style="font-size:0.6rem;color:rgba(255,255,255,0.3);margin-top:2px;font-style:italic;">' + h.reason + '</div>';
+            }
+            html += '</div>';
+        });
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('loadRestHistory error:', e);
+        container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading history</span>';
     }
 }
 

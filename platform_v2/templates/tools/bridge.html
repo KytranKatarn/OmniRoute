@@ -973,6 +973,507 @@ body.light-mode .status-bar-divider {
     }
 }
 
+/* === LCARS Station Console Panel === */
+
+.lcars-console-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 300ms ease;
+}
+
+.lcars-console-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.lcars-console {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 420px;
+    height: 100vh;
+    background: linear-gradient(180deg, rgba(12, 16, 28, 0.98) 0%, rgba(8, 10, 20, 0.99) 100%);
+    border-left: 2px solid var(--station-color, #00ffff);
+    z-index: 1000;
+    transform: translateX(100%);
+    transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: -8px 0 40px rgba(0, 0, 0, 0.6);
+}
+
+.lcars-console.open {
+    transform: translateX(0);
+}
+
+/* LCARS Elbow Header */
+.lcars-console-header {
+    position: relative;
+    padding: 20px 20px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lcars-console-elbow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 60px;
+    height: 50px;
+    border-top: 4px solid var(--station-color, #00ffff);
+    border-left: 4px solid var(--station-color, #00ffff);
+    border-top-left-radius: 24px;
+    opacity: 0.8;
+}
+
+.lcars-console-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--station-color, #00ffff);
+    text-shadow: 0 0 16px color-mix(in srgb, var(--station-color, #00ffff) 40%, transparent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.lcars-console-subtitle {
+    font-size: 0.65rem;
+    opacity: 0.5;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+.lcars-console-close {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.6);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    transition: all 200ms ease;
+    flex-shrink: 0;
+}
+
+.lcars-console-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Module Icon Rail */
+.lcars-module-rail {
+    display: flex;
+    gap: 6px;
+    padding: 10px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.lcars-module-rail::-webkit-scrollbar { display: none; }
+
+.lcars-module-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 200ms ease;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.lcars-module-icon:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--station-color, #00ffff);
+}
+
+.lcars-module-icon.active {
+    background: color-mix(in srgb, var(--station-color, #00ffff) 15%, transparent);
+    border-color: var(--station-color, #00ffff);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--station-color, #00ffff) 20%, transparent);
+}
+
+.lcars-module-icon i {
+    width: 18px;
+    height: 18px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.lcars-module-icon.active i {
+    color: var(--station-color, #00ffff);
+}
+
+.lcars-module-tooltip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 150ms ease;
+}
+
+.lcars-module-icon:hover .lcars-module-tooltip {
+    opacity: 1;
+}
+
+/* Content Area — Tab Rail + Content */
+.lcars-console-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.lcars-tab-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 8px;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+.lcars-tab-pill {
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 12px 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 200ms ease;
+    white-space: nowrap;
+}
+
+.lcars-tab-pill:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.lcars-tab-pill.active {
+    background: color-mix(in srgb, var(--station-color, #00ffff) 20%, transparent);
+    border-color: var(--station-color, #00ffff);
+    color: var(--station-color, #00ffff);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--station-color, #00ffff) 15%, transparent);
+}
+
+.lcars-tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+/* Tab content panels */
+.lcars-tab-panel { display: none; }
+.lcars-tab-panel.active { display: block; }
+
+/* Crew tab */
+.lcars-crew-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border-left: 3px solid var(--station-color, #00ffff);
+    background: rgba(255, 255, 255, 0.02);
+    margin-bottom: 6px;
+}
+
+.lcars-crew-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.lcars-crew-name { font-weight: 600; font-size: 0.85rem; }
+
+.lcars-crew-model {
+    font-size: 0.65rem;
+    opacity: 0.4;
+    font-family: 'Courier New', monospace;
+}
+
+.lcars-role-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--station-color, #00ffff) 20%, transparent);
+    color: var(--station-color, #00ffff);
+}
+
+/* Dispatch tab */
+.lcars-dispatch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.75rem;
+}
+
+.lcars-dispatch-time {
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    opacity: 0.5;
+    flex-shrink: 0;
+    width: 50px;
+}
+
+.lcars-dispatch-model {
+    font-size: 0.65rem;
+    opacity: 0.6;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lcars-dispatch-status {
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.lcars-dispatch-latency {
+    font-family: 'Courier New', monospace;
+    font-size: 0.6rem;
+    opacity: 0.5;
+    width: 48px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+/* Node cards */
+.lcars-node-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+
+.lcars-node-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.lcars-node-hostname { font-weight: 600; font-size: 0.8rem; flex: 1; }
+
+.lcars-node-specs {
+    display: flex;
+    gap: 10px;
+    font-size: 0.65rem;
+    opacity: 0.5;
+}
+
+.lcars-node-load {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+
+.lcars-node-load-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--station-color, #00ffff);
+    transition: width 500ms ease;
+}
+
+/* Metrics grid */
+.lcars-metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.lcars-metric-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    border-top: 2px solid var(--station-color, #00ffff);
+}
+
+.lcars-metric-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--station-color, #00ffff);
+}
+
+.lcars-metric-label {
+    font-size: 0.6rem;
+    opacity: 0.5;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+/* Module preview */
+.lcars-module-preview {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.lcars-module-preview-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.lcars-module-preview-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--station-color, #00ffff);
+}
+
+.lcars-module-preview-desc {
+    font-size: 0.75rem;
+    opacity: 0.6;
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+.lcars-module-open-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--station-color, #00ffff) 15%, transparent);
+    border: 1px solid var(--station-color, #00ffff);
+    color: var(--station-color, #00ffff);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 200ms ease;
+    text-decoration: none;
+}
+
+.lcars-module-open-btn:hover {
+    background: color-mix(in srgb, var(--station-color, #00ffff) 25%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--station-color, #00ffff) 20%, transparent);
+}
+
+.lcars-back-link {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    margin-bottom: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.lcars-back-link:hover { color: rgba(255, 255, 255, 0.8); }
+
+/* Section headers */
+.lcars-section-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.4;
+    margin-bottom: 8px;
+    margin-top: 14px;
+}
+
+.lcars-section-label:first-child { margin-top: 0; }
+
+/* Empty state */
+.lcars-empty {
+    text-align: center;
+    padding: 30px 10px;
+    opacity: 0.4;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .lcars-console { width: 360px; }
+    .lcars-tab-pill { font-size: 0.5rem; padding: 10px 5px; }
+    .lcars-console-title { font-size: 0.9rem; }
+}
+
+@media (max-width: 480px) {
+    .lcars-console { width: 100vw; border-left: none; border-top: 2px solid var(--station-color, #00ffff); }
+    .lcars-tab-rail { flex-direction: row; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 8px; }
+    .lcars-tab-pill { writing-mode: horizontal-tb; transform: none; }
+}
+
+/* Light mode for LCARS console */
+[data-theme="light"] .lcars-console,
+body.light-mode .lcars-console {
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(241, 245, 249, 0.99) 100%);
+    box-shadow: -8px 0 40px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .lcars-crew-row,
+body.light-mode .lcars-crew-row {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="light"] .lcars-node-card,
+[data-theme="light"] .lcars-metric-card,
+[data-theme="light"] .lcars-module-preview,
+body.light-mode .lcars-node-card,
+body.light-mode .lcars-metric-card,
+body.light-mode .lcars-module-preview {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
 /* --- Light Mode Overrides --- */
 [data-theme="light"] .bridge-viewscreen,
 body.light-mode .bridge-viewscreen {
@@ -5733,6 +6234,35 @@ body.light-mode .bridge-hud-value {
         </div>
         <div class="assignment-modal-footer">
             <button class="btn-cancel" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- LCARS Station Console Panel -->
+<div class="lcars-console-backdrop" id="lcarsConsoleBackdrop"></div>
+<div class="lcars-console" id="lcarsConsole">
+    <div class="lcars-console-header">
+        <div class="lcars-console-elbow"></div>
+        <div style="flex:1;padding-left:20px;">
+            <div class="lcars-console-title" id="lcarsConsoleTitle">STATION</div>
+            <div class="lcars-console-subtitle" id="lcarsConsoleSubtitle"></div>
+        </div>
+        <button class="lcars-console-close" id="lcarsConsoleClose">&times;</button>
+    </div>
+    <div class="lcars-module-rail" id="lcarsModuleRail"></div>
+    <div class="lcars-console-body">
+        <div class="lcars-tab-rail" id="lcarsTabRail">
+            <button class="lcars-tab-pill active" data-console-tab="crew">CREW</button>
+            <button class="lcars-tab-pill" data-console-tab="dispatch">DSPCH</button>
+            <button class="lcars-tab-pill" data-console-tab="nodes">NODES</button>
+            <button class="lcars-tab-pill" data-console-tab="metrics">STATS</button>
+        </div>
+        <div class="lcars-tab-content" id="lcarsTabContent">
+            <div class="lcars-tab-panel active" data-console-panel="crew" id="lcarsCrewPanel"></div>
+            <div class="lcars-tab-panel" data-console-panel="dispatch" id="lcarsDispatchPanel"></div>
+            <div class="lcars-tab-panel" data-console-panel="nodes" id="lcarsNodesPanel"></div>
+            <div class="lcars-tab-panel" data-console-panel="metrics" id="lcarsMetricsPanel"></div>
+            <div class="lcars-tab-panel" data-console-panel="module-preview" id="lcarsModulePreviewPanel"></div>
         </div>
     </div>
 </div>

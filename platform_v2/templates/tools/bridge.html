@@ -7722,6 +7722,7 @@ function showZoneInfo(zoneName, zoneInfo, zd) {
 
 let _consoleCurrentZone = null;
 let _consoleDispatchTimer = null;
+let _consoleEventSource = null;
 let _consoleNodeCache = {};
 
 function openStationConsole(zoneName, zoneInfo, zd) {
@@ -7770,6 +7771,10 @@ function closeStationConsole() {
     if (_consoleDispatchTimer) {
         clearInterval(_consoleDispatchTimer);
         _consoleDispatchTimer = null;
+    }
+    if (_consoleEventSource) {
+        _consoleEventSource.close();
+        _consoleEventSource = null;
     }
     _consoleCurrentZone = null;
 }
@@ -8032,9 +8037,32 @@ async function loadConsoleDispatch(stationCodes) {
         }
     }
 
+    // Initial load via fetch (immediate data)
     await fetchAndRender();
-    // Auto-refresh every 15s
-    _consoleDispatchTimer = setInterval(fetchAndRender, 15000);
+
+    // Real-time updates via SSE
+    try {
+        if (_consoleEventSource) _consoleEventSource.close();
+        _consoleEventSource = new EventSource('/tools/bridge/api/dispatch/stream');
+        _consoleEventSource.onmessage = function(e) {
+            try {
+                var evt = JSON.parse(e.data);
+                var stationMatch = stationCodes.some(function(code) {
+                    return evt.data && evt.data.station_code === code;
+                });
+                if (stationMatch || !evt.data || !evt.data.station_code) {
+                    fetchAndRender();
+                }
+            } catch(err) { /* ignore parse errors */ }
+        };
+        _consoleEventSource.onerror = function() {
+            if (_consoleEventSource) _consoleEventSource.close();
+            _consoleEventSource = null;
+            _consoleDispatchTimer = setInterval(fetchAndRender, 15000);
+        };
+    } catch(sseErr) {
+        _consoleDispatchTimer = setInterval(fetchAndRender, 15000);
+    }
 }
 async function loadConsoleNodes(zd, stationColor) {
     var panel = document.getElementById('lcarsNodesPanel');

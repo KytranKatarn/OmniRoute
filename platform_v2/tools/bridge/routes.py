@@ -41,6 +41,8 @@ def _get_cached_ollama_tags():
         return _ollama_tags_cache["models"], _ollama_tags_cache["count"]
     try:
         host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+        if not host.startswith("http"):
+            host = f"http://{host}"
         resp = requests.get(f"{host}/api/tags", timeout=3)
         if resp.status_code == 200:
             models = resp.json().get("models", [])
@@ -51,6 +53,30 @@ def _get_cached_ollama_tags():
     except Exception:
         pass
     return _ollama_tags_cache["models"], _ollama_tags_cache["count"]
+
+
+# Ollama ps cache (avoid hitting Ollama /api/ps on every poll)
+_ollama_ps_cache = {"models": [], "time": 0}
+
+
+def _get_cached_ollama_ps():
+    """Get loaded Ollama models with 30s cache"""
+    now = time.time()
+    if _ollama_ps_cache["time"] and (now - _ollama_ps_cache["time"]) < _OLLAMA_CACHE_TTL:
+        return _ollama_ps_cache["models"]
+    try:
+        host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+        if not host.startswith("http"):
+            host = f"http://{host}"
+        resp = requests.get(f"{host}/api/ps", timeout=3)
+        if resp.status_code == 200:
+            models = resp.json().get("models", [])
+            _ollama_ps_cache["models"] = models
+            _ollama_ps_cache["time"] = now
+            return models
+    except Exception:
+        pass
+    return _ollama_ps_cache["models"]
 
 
 # --- SSE Activity Event Queue ---
@@ -1786,22 +1812,8 @@ def get_agent_utilization():
 @login_required
 def get_live_models():
     """Get actual model count from live Ollama API"""
-    try:
-        resp = requests.get("http://host.docker.internal:11434/api/tags", timeout=5)
-        if resp.status_code == 200:
-            models = resp.json().get("models", [])
-            return jsonify(
-                {
-                    "success": True,
-                    "count": len(models),
-                    "models": [m["name"] for m in models],
-                }
-            )
-        return jsonify({"success": False, "error": "Ollama not responding"}), 502
-
-    except Exception as e:
-        logger.error(f"Error getting live models: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+    models, count = _get_cached_ollama_tags()
+    return jsonify({"success": True, "count": count, "models": [m["name"] for m in models]})
 
 
 @bridge_bp.route("/api/iaae/overview")
@@ -2595,20 +2607,15 @@ def get_llm_status():
 
         # 2. Get loaded models (currently in VRAM/RAM)
         loaded_models = []
-        try:
-            resp = requests.get(f"http://{ollama_host}:{ollama_port}/api/ps", timeout=5)
-            if resp.ok:
-                for m in resp.json().get("models", []):
-                    loaded_models.append(
-                        {
-                            "name": m.get("name", "unknown"),
-                            "size": m.get("size", 0),
-                            "vram": m.get("size_vram", 0),
-                            "expires": m.get("expires_at", ""),
-                        }
-                    )
-        except Exception:
-            pass
+        for m in _get_cached_ollama_ps():
+            loaded_models.append(
+                {
+                    "name": m.get("name", "unknown"),
+                    "size": m.get("size", 0),
+                    "vram": m.get("size_vram", 0),
+                    "expires": m.get("expires_at", ""),
+                }
+            )
         loaded_names = {m["name"] for m in loaded_models}
 
         # 3. Get all available models (dict of name -> size_bytes)
@@ -6570,14 +6577,9 @@ def fleet_metrics():
             tasks = cur.fetchone()
             # GPU model (loaded Ollama model)
             gpu_model = None
-            try:
-                resp = requests.get("http://host.docker.internal:11434/api/ps", timeout=3)
-                if resp.ok:
-                    models = resp.json().get("models", [])
-                    if models:
-                        gpu_model = models[0].get("name", "unknown")
-            except Exception:
-                pass
+            ps_models = _get_cached_ollama_ps()
+            if ps_models:
+                gpu_model = ps_models[0].get("name", "unknown")
             # Top agent today (via orchestration_steps linkage)
             cur.execute(
                 """

@@ -1,12 +1,13 @@
 """Dev HQ Routes - Admin Only, Hub Only"""
 
 import os
+import re
 import json as json_module
 import urllib.request
 import urllib.error
 from flask import render_template, jsonify, request, abort
 from flask_login import login_required, current_user
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 from database import get_db_connection
 from . import dev_hq_bp
 
@@ -176,13 +177,15 @@ def api_create_project():
     with get_db_connection() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
+            slug = re.sub(r"[^a-z0-9]+", "-", data["name"].lower()).strip("-")
             cur.execute(
                 """INSERT INTO unified_projects
-                (name, description, project_type, status, priority,
-                 target_date, created_by_user)
-                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+                (name, slug, description, project_type, status, priority,
+                 target_date, created_by_user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING *""",
                 (
                     data["name"],
+                    slug,
                     data.get("description", ""),
                     data.get("project_type", "feature"),
                     data.get("status", "active"),
@@ -278,9 +281,7 @@ def api_list_tasks(project_id):
         try:
             cur.execute(
                 """SELECT * FROM unified_tasks WHERE project_id = %s
-                ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1
-                WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
-                created_at ASC""",
+                ORDER BY priority ASC, created_at ASC""",
                 (project_id,),
             )
             return jsonify({"success": True, "tasks": [dict(r) for r in cur.fetchall()]})
@@ -585,15 +586,17 @@ def api_create_decision():
             # Auto-increment decision_number per project
             if project_id:
                 cur.execute(
-                    "SELECT COALESCE(MAX(decision_number), 0) + 1" " FROM project_decisions WHERE project_id = %s",
+                    "SELECT COALESCE(MAX(decision_number), 0) + 1 AS next_num"
+                    " FROM project_decisions WHERE project_id = %s",
                     (int(project_id),),
                 )
-                decision_number = cur.fetchone()["coalesce"]
+                decision_number = cur.fetchone()["next_num"]
             else:
                 cur.execute(
-                    "SELECT COALESCE(MAX(decision_number), 0) + 1" " FROM project_decisions WHERE project_id IS NULL"
+                    "SELECT COALESCE(MAX(decision_number), 0) + 1 AS next_num"
+                    " FROM project_decisions WHERE project_id IS NULL"
                 )
-                decision_number = cur.fetchone()["coalesce"]
+                decision_number = cur.fetchone()["next_num"]
             cur.execute(
                 """INSERT INTO project_decisions
                 (project_id, decision_number, title, status, context,
@@ -1048,12 +1051,7 @@ def api_all_tasks():
             if search:
                 query += " AND (t.title ILIKE %s OR t.description ILIKE %s)"
                 params.extend(["%" + search + "%", "%" + search + "%"])
-            query += (
-                " ORDER BY CASE t.priority"
-                " WHEN 'critical' THEN 0 WHEN 'high' THEN 1"
-                " WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,"
-                " t.created_at DESC"
-            )
+            query += " ORDER BY t.priority ASC, t.created_at DESC"
 
             # Count total before pagination
             count_query = "SELECT COUNT(*) as count FROM unified_tasks t WHERE 1=1"
@@ -1338,13 +1336,15 @@ def api_promote_idea(idea_id):
             if idea["status"] == "promoted":
                 return jsonify({"success": False, "error": "Already promoted"}), 400
 
+            slug = re.sub(r"[^a-z0-9]+", "-", idea["title"].lower()).strip("-")
             cur.execute(
                 """INSERT INTO unified_projects
-                (name, description, project_type, priority, tags, status,
-                 created_by_user)
-                VALUES (%s, %s, %s, %s, %s, 'active', %s) RETURNING *""",
+                (name, slug, description, project_type, priority, tags, status,
+                 created_by_user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, 'active', %s) RETURNING *""",
                 (
                     idea["title"],
+                    slug,
                     idea["description"],
                     idea["category"],
                     idea["priority"],
@@ -1505,7 +1505,7 @@ def api_update_project_doc(project_id, doc_id):
                     data.get("content_format", old_doc["content_format"]),
                     new_version,
                     data.get("file_path", old_doc["file_path"]),
-                    data.get("metadata") if "metadata" in data else old_doc["metadata"],
+                    Json(data.get("metadata") if "metadata" in data else old_doc["metadata"]),
                     data.get("tags") if "tags" in data else old_doc["tags"],
                     current_user.id,
                 ),

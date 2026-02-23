@@ -478,20 +478,147 @@ def api_knowledge_detail(entry_id):
             cur.close()
 
 
+# ---------------------------------------------------------------------------
+# Decisions — Enhanced with filters + CRUD
+# ---------------------------------------------------------------------------
+
+
 @dev_hq_bp.route("/api/decisions")
 @login_required
 @admin_hub_only
 def api_decisions():
+    """List decisions with optional filters."""
+    project_id = request.args.get("project_id")
+    status = request.args.get("status")
+    search = request.args.get("search")
+    limit = min(int(request.args.get("limit", 50)), 200)
+    offset = int(request.args.get("offset", 0))
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            query = (
+                "SELECT d.*, p.name as project_name"
+                " FROM project_decisions d"
+                " LEFT JOIN unified_projects p ON d.project_id = p.id"
+                " WHERE 1=1"
+            )
+            count_query = "SELECT COUNT(*) as count" " FROM project_decisions d" " WHERE 1=1"
+            params = []
+            count_params = []
+            if project_id:
+                query += " AND d.project_id = %s"
+                count_query += " AND d.project_id = %s"
+                params.append(int(project_id))
+                count_params.append(int(project_id))
+            if status:
+                query += " AND d.status = %s"
+                count_query += " AND d.status = %s"
+                params.append(status)
+                count_params.append(status)
+            if search:
+                query += " AND (d.title ILIKE %s OR d.decision ILIKE %s)"
+                count_query += " AND (d.title ILIKE %s OR d.decision ILIKE %s)"
+                params.extend(["%" + search + "%", "%" + search + "%"])
+                count_params.extend(["%" + search + "%", "%" + search + "%"])
+            cur.execute(count_query, count_params)
+            total = cur.fetchone()["count"]
+            query += " ORDER BY d.created_at DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            cur.execute(query, params)
+            return jsonify(
+                {
+                    "success": True,
+                    "decisions": [dict(r) for r in cur.fetchall()],
+                    "total": total,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/decisions/<int:decision_id>")
+@login_required
+@admin_hub_only
+def api_decision_detail(decision_id):
+    """Get a single decision by ID."""
     with get_db_connection() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
             cur.execute(
-                """SELECT d.*, p.name as project_name FROM project_decisions d
+                """SELECT d.*, p.name as project_name
+                FROM project_decisions d
                 LEFT JOIN unified_projects p ON d.project_id = p.id
-                ORDER BY d.created_at DESC"""
+                WHERE d.id = %s""",
+                (decision_id,),
             )
-            return jsonify({"success": True, "decisions": [dict(r) for r in cur.fetchall()]})
+            decision = cur.fetchone()
+            if not decision:
+                return jsonify({"success": False, "error": "Not found"}), 404
+            return jsonify({"success": True, "decision": dict(decision)})
         except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/decisions", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_create_decision():
+    """Create a new decision."""
+    data = request.get_json() or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"success": False, "error": "title is required"}), 400
+    project_id = data.get("project_id")
+    context = data.get("context")
+    decision = data.get("decision")
+    alternatives = data.get("alternatives")
+    consequences = data.get("consequences")
+    status = data.get("status", "accepted")
+    tags = data.get("tags")
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            # Auto-increment decision_number per project
+            if project_id:
+                cur.execute(
+                    "SELECT COALESCE(MAX(decision_number), 0) + 1" " FROM project_decisions WHERE project_id = %s",
+                    (int(project_id),),
+                )
+                decision_number = cur.fetchone()["coalesce"]
+            else:
+                cur.execute(
+                    "SELECT COALESCE(MAX(decision_number), 0) + 1" " FROM project_decisions WHERE project_id IS NULL"
+                )
+                decision_number = cur.fetchone()["coalesce"]
+            cur.execute(
+                """INSERT INTO project_decisions
+                (project_id, decision_number, title, status, context,
+                 decision, alternatives, consequences, tags,
+                 decided_by_user_id, decided_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                RETURNING *""",
+                (
+                    int(project_id) if project_id else None,
+                    decision_number,
+                    title,
+                    status,
+                    context,
+                    decision,
+                    alternatives,
+                    consequences,
+                    tags,
+                    current_user.id,
+                ),
+            )
+            new_decision = dict(cur.fetchone())
+            conn.commit()
+            return jsonify({"success": True, "decision": new_decision}), 201
+        except Exception as e:
+            conn.rollback()
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
             cur.close()
@@ -1242,6 +1369,175 @@ def api_promote_idea(idea_id):
                     "idea_id": idea_id,
                 }
             )
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+# ---------------------------------------------------------------------------
+# Project Documents — versioned CRUD (uses existing project_documents table)
+# ---------------------------------------------------------------------------
+
+
+@dev_hq_bp.route("/api/projects/<int:project_id>/docs")
+@login_required
+@admin_hub_only
+def api_project_docs(project_id):
+    """List current-version documents for a project."""
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """SELECT id, project_id, doc_type, title,
+                       LEFT(content, 200) as snippet,
+                       content_format, version, file_path,
+                       metadata, tags, created_at, updated_at,
+                       updated_by_user_id
+                FROM project_documents
+                WHERE project_id = %s AND is_current = true
+                ORDER BY updated_at DESC""",
+                (project_id,),
+            )
+            docs = [dict(r) for r in cur.fetchall()]
+            return jsonify({"success": True, "docs": docs})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/projects/<int:project_id>/docs/<int:doc_id>")
+@login_required
+@admin_hub_only
+def api_project_doc_detail(project_id, doc_id):
+    """Get full document detail."""
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """SELECT * FROM project_documents
+                WHERE id = %s AND project_id = %s""",
+                (doc_id, project_id),
+            )
+            doc = cur.fetchone()
+            if not doc:
+                return jsonify({"success": False, "error": "Not found"}), 404
+            return jsonify({"success": True, "doc": dict(doc)})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/projects/<int:project_id>/docs", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_create_project_doc(project_id):
+    """Create a new project document."""
+    data = request.get_json() or {}
+    content = (data.get("content") or "").strip()
+    if not content:
+        return jsonify({"success": False, "error": "content is required"}), 400
+    doc_type = data.get("doc_type", "note")
+    title = data.get("title", "Untitled")
+    tags = data.get("tags")
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """INSERT INTO project_documents
+                (project_id, doc_type, title, content, content_format,
+                 version, is_current, tags, updated_by_user_id)
+                VALUES (%s, %s, %s, %s, 'markdown', 1, true, %s, %s)
+                RETURNING *""",
+                (project_id, doc_type, title, content, tags, current_user.id),
+            )
+            doc = dict(cur.fetchone())
+            conn.commit()
+            return jsonify({"success": True, "doc": doc}), 201
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/projects/<int:project_id>/docs/<int:doc_id>", methods=["PUT"])
+@login_required
+@admin_hub_only
+def api_update_project_doc(project_id, doc_id):
+    """Versioned update — marks old doc as not current, inserts new version."""
+    data = request.get_json() or {}
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """SELECT * FROM project_documents
+                WHERE id = %s AND project_id = %s""",
+                (doc_id, project_id),
+            )
+            old_doc = cur.fetchone()
+            if not old_doc:
+                return jsonify({"success": False, "error": "Not found"}), 404
+
+            # Mark old version as not current
+            cur.execute(
+                "UPDATE project_documents SET is_current = false WHERE id = %s",
+                (doc_id,),
+            )
+
+            # Insert new version
+            new_version = old_doc["version"] + 1
+            cur.execute(
+                """INSERT INTO project_documents
+                (project_id, doc_type, title, content, content_format,
+                 version, is_current, file_path, metadata, tags,
+                 updated_by_user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, true, %s, %s, %s, %s)
+                RETURNING *""",
+                (
+                    project_id,
+                    data.get("doc_type", old_doc["doc_type"]),
+                    data.get("title", old_doc["title"]),
+                    data.get("content", old_doc["content"]),
+                    data.get("content_format", old_doc["content_format"]),
+                    new_version,
+                    data.get("file_path", old_doc["file_path"]),
+                    data.get("metadata") if "metadata" in data else old_doc["metadata"],
+                    data.get("tags") if "tags" in data else old_doc["tags"],
+                    current_user.id,
+                ),
+            )
+            new_doc = dict(cur.fetchone())
+            conn.commit()
+            return jsonify({"success": True, "doc": new_doc})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/projects/<int:project_id>/docs/<int:doc_id>", methods=["DELETE"])
+@login_required
+@admin_hub_only
+def api_delete_project_doc(project_id, doc_id):
+    """Delete a project document."""
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """DELETE FROM project_documents
+                WHERE id = %s AND project_id = %s RETURNING id""",
+                (doc_id, project_id),
+            )
+            deleted = cur.fetchone()
+            if not deleted:
+                return jsonify({"success": False, "error": "Not found"}), 404
+            conn.commit()
+            return jsonify({"success": True, "deleted_id": deleted["id"]})
         except Exception as e:
             conn.rollback()
             return jsonify({"success": False, "error": str(e)}), 500

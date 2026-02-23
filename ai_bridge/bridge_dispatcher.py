@@ -688,6 +688,37 @@ class BridgeDispatcher:
                     job_id,
                 ),
             )
+            # Also update agent-level performance summary
+            if result.agent_id:
+                cur.execute(
+                    """
+                    UPDATE agents SET
+                        total_tasks_completed = total_tasks_completed + CASE WHEN %s THEN 1 ELSE 0 END,
+                        success_rate = (
+                            SELECT ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 2)
+                            FROM task_execution_log WHERE agent_id = %s
+                        ),
+                        performance_score = (
+                            SELECT ROUND(
+                                AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) * 60 +
+                                LEAST(COUNT(*)::numeric / 100, 1.0) * 25 +
+                                CASE WHEN AVG(duration_ms) < 30000 THEN 15
+                                     WHEN AVG(duration_ms) < 60000 THEN 10
+                                     ELSE 5 END,
+                                2
+                            )
+                            FROM task_execution_log WHERE agent_id = %s
+                        )
+                    WHERE id = %s
+                    """,
+                    (
+                        result.success,
+                        result.agent_id,
+                        result.agent_id,
+                        result.agent_id,
+                    ),
+                )
+
             conn.commit()
             cur.close()
             conn.close()

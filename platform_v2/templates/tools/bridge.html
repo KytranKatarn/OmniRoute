@@ -11125,12 +11125,13 @@ async function loadLeaderboard() {
             // Tasks completed
             var tasks = document.createElement('span');
             tasks.style.cssText = 'color:var(--archie-cyan);font-size:0.7rem;min-width:50px;text-align:right;';
-            tasks.textContent = (parseInt(entry.tasks_completed) || 0) + ' tasks';
+            tasks.textContent = (parseInt(entry.total_tasks_completed) || 0) + ' tasks';
             row.appendChild(tasks);
 
             // Success rate
             var rate = document.createElement('span');
-            var pct = parseFloat(entry.success_rate) || 0;
+            var sr = parseFloat(entry.success_rate) || 0;
+            var pct = sr <= 1 ? sr * 100 : sr;
             var rateColor = pct >= 90 ? '#00ff41' : pct >= 70 ? '#ffaa00' : '#ff4444';
             rate.style.cssText = 'min-width:45px;text-align:right;font-size:0.7rem;color:' + rateColor + ';';
             rate.textContent = pct.toFixed(0) + '%';
@@ -11139,7 +11140,7 @@ async function loadLeaderboard() {
             // Score
             var score = document.createElement('span');
             score.style.cssText = 'min-width:40px;text-align:right;font-size:0.7rem;color:var(--archie-gold);font-weight:600;';
-            score.textContent = parseFloat(entry.score || 0).toFixed(1);
+            score.textContent = parseFloat(entry.performance_score || entry.score || 0).toFixed(1);
             row.appendChild(score);
 
             list.appendChild(row);

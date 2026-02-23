@@ -1603,7 +1603,9 @@ def get_lounge_agents():
                     arc.reason as rest_reason,
                     arc.started_at as rest_started,
                     EXTRACT(EPOCH FROM (NOW() - arc.started_at)) / 3600 as hours_resting,
-                    CASE WHEN arc.rest_type = 'forced' THEN TRUE ELSE FALSE END as is_locked
+                    CASE WHEN arc.rest_type = 'forced' THEN TRUE ELSE FALSE END as is_locked,
+                    arc.stress_at_start,
+                    arc.energy_at_start
                 FROM agent_rest_cycles arc
                 JOIN agents a ON arc.agent_id = a.id
                 WHERE arc.ended_at IS NULL
@@ -1644,14 +1646,24 @@ def send_agent_to_lounge(agent_id):
                 (agent_id,),
             )
 
+            # Snapshot emotional state before rest
+            cur.execute(
+                "SELECT stress_level, energy_level FROM agent_emotional_state WHERE agent_id = %s",
+                (agent_id,),
+            )
+            emo = cur.fetchone()
+            stress_start = float(emo["stress_level"]) if emo else None
+            energy_start = float(emo["energy_level"]) if emo else None
+
             # Start rest cycle
             cur.execute(
                 """
-                INSERT INTO agent_rest_cycles (agent_id, rest_type, reason, started_at)
-                VALUES (%s, %s, %s, NOW())
+                INSERT INTO agent_rest_cycles
+                    (agent_id, rest_type, reason, started_at, stress_at_start, energy_at_start)
+                VALUES (%s, %s, %s, NOW(), %s, %s)
                 RETURNING id
             """,
-                (agent_id, rest_type, reason),
+                (agent_id, rest_type, reason, stress_start, energy_start),
             )
 
             rest_cycle_id = cur.fetchone()["id"]
@@ -1695,14 +1707,25 @@ def return_agent_from_lounge(agent_id):
                     403,
                 )
 
-            # End rest cycle
+            # Snapshot emotional state on return
+            cur.execute(
+                "SELECT stress_level, energy_level FROM agent_emotional_state WHERE agent_id = %s",
+                (agent_id,),
+            )
+            emo = cur.fetchone()
+            stress_end = float(emo["stress_level"]) if emo else None
+            energy_end = float(emo["energy_level"]) if emo else None
+
+            # End rest cycle with emotional deltas
             cur.execute(
                 """
                 UPDATE agent_rest_cycles
-                SET ended_at = NOW()
+                SET ended_at = NOW(),
+                    stress_at_end = %s,
+                    energy_at_end = %s
                 WHERE id = %s
             """,
-                (rest_cycle["id"],),
+                (stress_end, energy_end, rest_cycle["id"]),
             )
 
             return jsonify({"success": True, "message": "Agent returned from lounge"})
@@ -1943,6 +1966,157 @@ def get_training_recommendations():
 
     except Exception as e:
         logger.error(f"Error loading training recommendations: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# LOUNGE WELLNESS & HISTORY API
+# ============================================================================
+
+
+@bridge_bp.route("/api/lounge/wellness")
+@login_required
+def get_lounge_wellness():
+    """Crew wellness summary with burnout risk alerts"""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+
+            # All active agents with emotional state
+            cur.execute(
+                """
+                SELECT
+                    a.id as agent_id,
+                    a.name as agent_name,
+                    COALESCE(a.first_name || ' ' || a.last_name, a.name) as full_name,
+                    aes.stress_level,
+                    aes.energy_level,
+                    aes.current_mood
+                FROM agents a
+                LEFT JOIN agent_emotional_state aes ON a.id = aes.agent_id
+                WHERE a.status = 'active'
+            """
+            )
+            agents = cur.fetchall()
+
+            # Currently resting agent IDs
+            cur.execute("SELECT agent_id FROM agent_rest_cycles WHERE ended_at IS NULL")
+            resting_ids = {row["agent_id"] for row in cur.fetchall()}
+
+            # Task volume per agent in last 48 hours
+            cur.execute(
+                """
+                SELECT agent_id, COUNT(*) as task_count
+                FROM task_execution_log
+                WHERE created_at >= NOW() - INTERVAL '48 hours'
+                AND agent_id IS NOT NULL
+                GROUP BY agent_id
+            """
+            )
+            task_counts = {row["agent_id"]: row["task_count"] for row in cur.fetchall()}
+
+            healthy = 0
+            at_risk = 0
+            resting = 0
+            burnout_alerts = []
+
+            for agent in agents:
+                aid = agent["agent_id"]
+                stress = float(agent["stress_level"]) if agent["stress_level"] is not None else 0.0
+                energy = float(agent["energy_level"]) if agent["energy_level"] is not None else 1.0
+                mood = agent["current_mood"] or "unknown"
+                tasks_48h = task_counts.get(aid, 0)
+
+                if aid in resting_ids:
+                    resting += 1
+                    continue
+
+                # Burnout thresholds
+                reasons = []
+                if stress > 0.7:
+                    reasons.append(f"High stress ({stress:.2f})")
+                if energy < 0.3:
+                    reasons.append(f"Low energy ({energy:.2f})")
+                if tasks_48h >= 50:
+                    reasons.append(f"High workload ({tasks_48h} tasks/48h)")
+
+                if reasons:
+                    at_risk += 1
+                    burnout_alerts.append(
+                        {
+                            "agent_id": aid,
+                            "agent_name": agent["agent_name"],
+                            "full_name": agent["full_name"],
+                            "stress": stress,
+                            "energy": energy,
+                            "mood": mood,
+                            "tasks_48h": tasks_48h,
+                            "reasons": reasons,
+                        }
+                    )
+                else:
+                    healthy += 1
+
+            total = healthy + at_risk + resting
+
+            return jsonify(
+                {
+                    "success": True,
+                    "summary": {
+                        "healthy": healthy,
+                        "at_risk": at_risk,
+                        "resting": resting,
+                        "total": total,
+                    },
+                    "burnout_alerts": burnout_alerts,
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Error loading lounge wellness: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/lounge/history")
+@login_required
+def get_lounge_history():
+    """Past rest cycles with stress/energy deltas"""
+    try:
+        limit = request.args.get("limit", 20, type=int)
+        limit = min(limit, 100)
+
+        with get_db_cursor(commit=False) as (conn, cur):
+
+            cur.execute(
+                """
+                SELECT
+                    arc.id,
+                    arc.agent_id,
+                    a.name as agent_name,
+                    COALESCE(a.first_name || ' ' || a.last_name, a.name) as full_name,
+                    arc.rest_type,
+                    arc.reason,
+                    arc.initiated_by,
+                    arc.started_at,
+                    arc.ended_at,
+                    EXTRACT(EPOCH FROM (arc.ended_at - arc.started_at)) / 3600 as hours_rested,
+                    arc.stress_at_start,
+                    arc.energy_at_start,
+                    arc.stress_at_end,
+                    arc.energy_at_end
+                FROM agent_rest_cycles arc
+                JOIN agents a ON arc.agent_id = a.id
+                WHERE arc.ended_at IS NOT NULL
+                ORDER BY arc.ended_at DESC
+                LIMIT %s
+            """,
+                (limit,),
+            )
+            history = cur.fetchall()
+
+            return jsonify({"success": True, "history": history})
+
+    except Exception as e:
+        logger.error(f"Error loading lounge history: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

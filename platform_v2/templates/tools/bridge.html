@@ -5966,25 +5966,78 @@ body.light-mode .bridge-hud-value {
 
                 <!-- Training Sub-Panel -->
                 <div class="crew-subpanel" data-subpanel="training">
-                    <div class="briefing-card" style="--card-accent: #ffaa00; margin: 0 16px;">
+
+                    <!-- 1. Skill Gap Alerts -->
+                    <div class="briefing-card" style="--card-accent: #ff6b6b; margin: 0 16px 12px 16px;">
                         <div class="briefing-card-header">
-                            <i data-lucide="graduation-cap"></i>
-                            <span data-i18n="bridge.crew.training_rooms">Training Rooms</span>
+                            <i data-lucide="alert-triangle"></i>
+                            <span>Skill Gap Alerts</span>
+                            <span id="training-rec-count" style="background:rgba(255,107,107,0.2);color:#ff6b6b;padding:1px 7px;border-radius:8px;font-size:0.65rem;margin-left:auto;">0</span>
                         </div>
                         <div class="briefing-card-body">
-                            <!-- Send to training controls -->
-                            <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
-                                <select id="training-agent-select" style="flex:1;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
-                                    <option value="">Select agent...</option>
-                                </select>
-                                <button onclick="sendToTraining()" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Send to Training</button>
-                            </div>
-                            <!-- Agents currently in training -->
-                            <div id="training-agents-list">
-                                <span class="briefing-muted" style="font-size:0.75rem;">No agents in training</span>
+                            <div id="training-recommendations">
+                                <span class="briefing-muted" style="font-size:0.75rem;">Scanning for skill gaps...</span>
                             </div>
                         </div>
                     </div>
+
+                    <!-- 2. Training Rooms -->
+                    <div class="briefing-card" style="--card-accent: #ffaa00; margin: 0 16px 12px 16px;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="graduation-cap"></i>
+                            <span>Training Rooms</span>
+                            <span id="training-active-count" style="background:rgba(255,170,0,0.2);color:#ffaa00;padding:1px 7px;border-radius:8px;font-size:0.65rem;margin-left:auto;">0 active</span>
+                        </div>
+                        <div class="briefing-card-body">
+                            <!-- Assignment controls -->
+                            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+                                <select id="training-agent-select" style="flex:1;min-width:120px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
+                                    <option value="">Select agent...</option>
+                                </select>
+                                <select id="training-skill-select" style="flex:1;min-width:120px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;" disabled>
+                                    <option value="">Select skill...</option>
+                                </select>
+                                <select id="training-target-select" style="width:80px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
+                                    <option value="2">Level 2</option>
+                                    <option value="3">Level 3</option>
+                                    <option value="4">Level 4</option>
+                                    <option value="5">Level 5</option>
+                                </select>
+                                <button onclick="assignTraining()" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Assign Training</button>
+                            </div>
+                            <!-- Active training list -->
+                            <div id="training-active-list">
+                                <span class="briefing-muted" style="font-size:0.75rem;">No active training sessions</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Training History (collapsed) -->
+                    <div class="briefing-card" style="--card-accent: rgba(255,170,0,0.5); margin: 0 16px 12px 16px;">
+                        <div class="briefing-card-header" onclick="toggleTrainingHistory()" style="cursor:pointer;">
+                            <i data-lucide="history"></i>
+                            <span>Training History</span>
+                            <span id="training-history-toggle" style="margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.5);">Show &#9662;</span>
+                        </div>
+                        <div class="briefing-card-body" id="training-history-body" style="display:none;">
+                            <div id="training-history-list">
+                                <span class="briefing-muted" style="font-size:0.75rem;">Loading history...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Node Training Requests (placeholder) -->
+                    <div class="briefing-card" style="--card-accent: #00bfff; margin: 0 16px;">
+                        <div class="briefing-card-header">
+                            <i data-lucide="network"></i>
+                            <span>Node Training Requests</span>
+                            <span style="background:rgba(0,191,255,0.15);color:#00bfff;padding:1px 7px;border-radius:8px;font-size:0.6rem;margin-left:auto;">Coming Soon</span>
+                        </div>
+                        <div class="briefing-card-body">
+                            <span class="briefing-muted" style="font-size:0.75rem;">Cross-node training coordination will allow agents to request specialized training from peer ARCHIE nodes on the network.</span>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Lounge Sub-Panel -->
@@ -11070,6 +11123,7 @@ function switchCrewSubtab(name) {
     });
     if (name === 'contractors') loadContractors();
     if (name === 'leaderboard') loadLeaderboard();
+    if (name === 'training') loadTrainingTab();
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -11838,17 +11892,6 @@ function populateTrainingLoungeSelects(crew) {
     }
 }
 
-function sendToTraining() {
-    var sel = document.getElementById('training-agent-select');
-    if (!sel || !sel.value) return;
-    fetch('/tools/bridge/api/agents/' + parseInt(sel.value) + '/send-to-lounge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'training' })
-    }).then(function(r) { return r.json(); })
-    .then(function() { loadCrewManifest(); });
-}
-
 function sendToLounge() {
     var sel = document.getElementById('lounge-agent-select');
     if (!sel || !sel.value) return;
@@ -11871,6 +11914,287 @@ function returnFromLounge(agentId) {
         body: JSON.stringify({})
     }).then(function(r) { return r.json(); })
     .then(function() { loadCrewManifest(); });
+}
+
+// ============================================================================
+// TRAINING TAB — Skill Gaps, Assignments, Progress, History
+// ============================================================================
+
+var _trainingHoursPerLevel = {2: 1, 3: 2, 4: 4, 5: 8};
+var _trainingHistoryLoaded = false;
+
+function loadTrainingTab() {
+    loadTrainingRecommendations();
+    loadActiveTraining();
+    populateTrainingAgentSelect();
+}
+
+async function populateTrainingAgentSelect() {
+    var sel = document.getElementById('training-agent-select');
+    if (!sel) return;
+    try {
+        var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
+        var data = await resp.json();
+        if (!data.success) return;
+        sel.innerHTML = '<option value="">Select agent...</option>';
+        (data.crew || []).forEach(function(agent) {
+            var opt = document.createElement('option');
+            opt.value = agent.id;
+            opt.textContent = agent.full_name || agent.name;
+            sel.appendChild(opt);
+        });
+    } catch (e) {
+        console.error('populateTrainingAgentSelect error:', e);
+    }
+}
+
+// When agent is selected, populate skill dropdown with their current skills
+document.addEventListener('DOMContentLoaded', function() {
+    var agentSel = document.getElementById('training-agent-select');
+    if (agentSel) {
+        agentSel.addEventListener('change', async function() {
+            var skillSel = document.getElementById('training-skill-select');
+            if (!skillSel) return;
+            var agentId = agentSel.value;
+            if (!agentId) {
+                skillSel.innerHTML = '<option value="">Select skill...</option>';
+                skillSel.disabled = true;
+                return;
+            }
+            try {
+                var resp = await fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/profile');
+                var data = await resp.json();
+                skillSel.innerHTML = '<option value="">Select skill...</option>';
+                if (data.success && data.profile && data.profile.skills) {
+                    data.profile.skills.forEach(function(sk) {
+                        var opt = document.createElement('option');
+                        opt.value = sk.skill_name;
+                        opt.textContent = sk.skill_name + ' (Lv ' + (sk.proficiency_level || 1) + ')';
+                        opt.dataset.currentLevel = sk.proficiency_level || 1;
+                        skillSel.appendChild(opt);
+                    });
+                }
+                skillSel.disabled = false;
+            } catch (e) {
+                console.error('Load agent skills error:', e);
+                skillSel.innerHTML = '<option value="">Error loading skills</option>';
+            }
+        });
+    }
+});
+
+async function assignTraining() {
+    var agentSel = document.getElementById('training-agent-select');
+    var skillSel = document.getElementById('training-skill-select');
+    var targetSel = document.getElementById('training-target-select');
+    if (!agentSel || !agentSel.value) return;
+    if (!skillSel || !skillSel.value) return;
+    if (!targetSel || !targetSel.value) return;
+
+    try {
+        var resp = await fetch('/tools/bridge/api/training/assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                agent_id: parseInt(agentSel.value),
+                skill_name: skillSel.value,
+                target_proficiency: parseInt(targetSel.value)
+            })
+        });
+        var data = await resp.json();
+        if (data.success) {
+            agentSel.value = '';
+            skillSel.innerHTML = '<option value="">Select skill...</option>';
+            skillSel.disabled = true;
+            loadActiveTraining();
+            loadTrainingRecommendations();
+        } else {
+            console.error('assignTraining failed:', data.error);
+        }
+    } catch (e) {
+        console.error('assignTraining error:', e);
+    }
+}
+
+async function loadActiveTraining() {
+    var container = document.getElementById('training-active-list');
+    var countBadge = document.getElementById('training-active-count');
+    if (!container) return;
+
+    try {
+        var resp = await fetch('/tools/bridge/api/training/active');
+        var data = await resp.json();
+        var training = data.training || [];
+
+        if (countBadge) countBadge.textContent = training.length + ' active';
+
+        if (training.length === 0) {
+            container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No active training sessions</span>';
+            return;
+        }
+
+        var html = '';
+        training.forEach(function(t) {
+            var current = t.current_proficiency || 1;
+            var target = t.target_proficiency || 2;
+            var hoursNeeded = _trainingHoursPerLevel[target] || 2;
+            var hoursElapsed = t.hours_training || 0;
+            var pct = Math.min(100, Math.round((hoursElapsed / hoursNeeded) * 100));
+            var hoursLeft = Math.max(0, hoursNeeded - hoursElapsed);
+            var displayName = t.first_name && t.last_name ? t.first_name + ' ' + t.last_name : (t.agent_name || 'Unknown');
+
+            html += '<div style="padding:8px;margin-bottom:6px;background:rgba(255,170,0,0.05);border:1px solid rgba(255,170,0,0.15);border-radius:6px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+            html += '<span style="font-size:0.75rem;color:#ffaa00;font-weight:600;">' + displayName + '</span>';
+            html += '<button onclick="cancelTraining(' + parseInt(t.training_id) + ')" style="background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);color:#ff6b6b;padding:1px 6px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Cancel</button>';
+            html += '</div>';
+            html += '<div style="font-size:0.7rem;color:rgba(255,255,255,0.7);margin-bottom:4px;">';
+            html += '<span>' + (t.skill_name || 'Unknown skill') + '</span>';
+            html += ' &mdash; Level ' + current + ' &rarr; ' + target;
+            html += '</div>';
+            // Progress bar
+            html += '<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-bottom:3px;">';
+            html += '<div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,#ffaa00,#ffcc00);border-radius:3px;transition:width 0.3s;"></div>';
+            html += '</div>';
+            html += '<div style="display:flex;justify-content:space-between;font-size:0.65rem;color:rgba(255,255,255,0.5);">';
+            html += '<span>' + pct + '% complete</span>';
+            html += '<span>' + hoursLeft.toFixed(1) + 'h remaining</span>';
+            html += '</div>';
+            html += '</div>';
+        });
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('loadActiveTraining error:', e);
+        if (container) container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading training</span>';
+    }
+}
+
+async function cancelTraining(id) {
+    try {
+        var resp = await fetch('/tools/bridge/api/training/' + parseInt(id) + '/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        var data = await resp.json();
+        if (data.success) {
+            loadActiveTraining();
+        }
+    } catch (e) {
+        console.error('cancelTraining error:', e);
+    }
+}
+
+async function loadTrainingRecommendations() {
+    var container = document.getElementById('training-recommendations');
+    var countBadge = document.getElementById('training-rec-count');
+    if (!container) return;
+
+    try {
+        var resp = await fetch('/tools/bridge/api/training/recommendations');
+        var data = await resp.json();
+        var recs = data.recommendations || [];
+
+        if (countBadge) countBadge.textContent = recs.length;
+
+        if (recs.length === 0) {
+            container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No skill gaps detected &mdash; all agents performing well</span>';
+            return;
+        }
+
+        var html = '';
+        recs.forEach(function(r) {
+            var displayName = r.full_name || r.agent_name || 'Unknown';
+            var currentLvl = r.current_level || 1;
+            var targetLvl = Math.min(5, currentLvl + 1);
+
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">';
+            html += '<div style="flex:1;">';
+            html += '<div style="font-size:0.75rem;color:#ff6b6b;">' + displayName + '</div>';
+            html += '<div style="font-size:0.65rem;color:rgba(255,255,255,0.5);">' + (r.capability || 'Unknown') + ' &mdash; ' + (r.failure_count || 0) + ' failures, Lv ' + currentLvl + '</div>';
+            html += '</div>';
+            html += '<button onclick="quickAssignTraining(' + parseInt(r.agent_id) + ',\'' + (r.capability || '').replace(/'/g, "\\'") + '\',' + targetLvl + ')" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;white-space:nowrap;">Train &rarr; Lv ' + targetLvl + '</button>';
+            html += '</div>';
+        });
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('loadTrainingRecommendations error:', e);
+        if (container) container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading recommendations</span>';
+    }
+}
+
+async function quickAssignTraining(agentId, skill, target) {
+    try {
+        var resp = await fetch('/tools/bridge/api/training/assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                agent_id: parseInt(agentId),
+                skill_name: skill,
+                target_proficiency: parseInt(target)
+            })
+        });
+        var data = await resp.json();
+        if (data.success) {
+            loadActiveTraining();
+            loadTrainingRecommendations();
+        } else {
+            console.error('quickAssignTraining failed:', data.error);
+        }
+    } catch (e) {
+        console.error('quickAssignTraining error:', e);
+    }
+}
+
+function toggleTrainingHistory() {
+    var body = document.getElementById('training-history-body');
+    var toggle = document.getElementById('training-history-toggle');
+    if (!body) return;
+    var isHidden = body.style.display === 'none';
+    body.style.display = isHidden ? 'block' : 'none';
+    if (toggle) toggle.innerHTML = isHidden ? 'Hide &#9652;' : 'Show &#9662;';
+    if (isHidden && !_trainingHistoryLoaded) {
+        loadTrainingHistory();
+    }
+}
+
+async function loadTrainingHistory() {
+    var container = document.getElementById('training-history-list');
+    if (!container) return;
+
+    try {
+        var resp = await fetch('/tools/bridge/api/training/history');
+        var data = await resp.json();
+        var history = data.history || [];
+        _trainingHistoryLoaded = true;
+
+        if (history.length === 0) {
+            container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">No training history yet</span>';
+            return;
+        }
+
+        var html = '';
+        history.forEach(function(h) {
+            var displayName = h.full_name || h.agent_name || 'Unknown';
+            var statusColor = h.status === 'completed' ? '#00ff41' : (h.status === 'cancelled' ? '#ff6b6b' : 'rgba(255,255,255,0.5)');
+            var statusLabel = h.status === 'completed' ? 'Completed' : (h.status === 'cancelled' ? 'Cancelled' : (h.status || 'Unknown'));
+            var dateStr = h.completed_at ? new Date(h.completed_at).toLocaleDateString() : '--';
+
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">';
+            html += '<div>';
+            html += '<div style="font-size:0.7rem;">' + displayName + '</div>';
+            html += '<div style="font-size:0.65rem;color:rgba(255,255,255,0.5);">' + (h.skill_name || '?') + ' Lv ' + (h.current_proficiency || '?') + ' &rarr; ' + (h.target_proficiency || '?') + '</div>';
+            html += '</div>';
+            html += '<div style="text-align:right;">';
+            html += '<div style="font-size:0.65rem;color:' + statusColor + ';">' + statusLabel + '</div>';
+            html += '<div style="font-size:0.6rem;color:rgba(255,255,255,0.4);">' + dateStr + '</div>';
+            html += '</div>';
+            html += '</div>';
+        });
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('loadTrainingHistory error:', e);
+        if (container) container.innerHTML = '<span class="briefing-muted" style="font-size:0.75rem;">Error loading history</span>';
+    }
 }
 
 // ============================================================================

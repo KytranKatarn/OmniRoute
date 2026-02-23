@@ -12011,8 +12011,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 var resp = await fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/profile');
                 var data = await resp.json();
                 skillSel.innerHTML = '<option value="">Select skill...</option>';
-                if (data.success && data.profile && data.profile.skills) {
-                    data.profile.skills.forEach(function(sk) {
+                var skills = (data.profile && data.profile.skills) || data.skills || [];
+                if (data.success && skills.length > 0) {
+                    skills.forEach(function(sk) {
                         var opt = document.createElement('option');
                         opt.value = sk.skill_name;
                         opt.textContent = sk.skill_name + ' (Lv ' + (sk.proficiency_level || 1) + ')';
@@ -12352,16 +12353,17 @@ async function loadLoungeAgents() {
         var html = '';
         agents.forEach(function(a) {
             var hours = a.hours_resting ? parseFloat(a.hours_resting).toFixed(1) : '0.0';
-            var stressColor = (a.stress_at_start || 0) > 80 ? '#ef4444' : (a.stress_at_start || 0) > 60 ? '#f59e0b' : '#00ff41';
+            var stressPct = Math.round(parseFloat(a.stress_at_start || 0) * 100);
+            var stressColor = stressPct > 80 ? '#ef4444' : stressPct > 60 ? '#f59e0b' : '#00ff41';
             html += '<div style="padding:8px;margin-bottom:6px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:6px;">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-            html += '<span style="font-size:0.75rem;font-weight:600;color:#c4b5fd;">' + String.fromCodePoint(0x2615) + ' ' + (a.full_name || a.name) + '</span>';
+            html += '<span style="font-size:0.75rem;font-weight:600;color:#c4b5fd;">' + String.fromCodePoint(0x2615) + ' ' + (a.full_name || a.agent_name || a.name || 'Agent') + '</span>';
             html += '<button onclick="returnFromLounge(' + parseInt(a.agent_id) + ')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Return to Duty</button>';
             html += '</div>';
             html += '<div style="display:flex;gap:12px;font-size:0.65rem;color:rgba(255,255,255,0.5);">';
             html += '<span>' + String.fromCodePoint(0x23F1) + ' ' + hours + 'h</span>';
             if (a.rest_type) html += '<span style="text-transform:capitalize;">' + a.rest_type + '</span>';
-            if (a.stress_at_start != null) html += '<span>Stress@entry: <span style="color:' + stressColor + ';">' + a.stress_at_start + '%</span></span>';
+            if (a.stress_at_start != null) html += '<span>Stress@entry: <span style="color:' + stressColor + ';">' + stressPct + '%</span></span>';
             html += '</div>';
             if (a.rest_reason && a.rest_reason !== 'rest') {
                 html += '<div style="font-size:0.65rem;color:rgba(255,255,255,0.4);margin-top:3px;font-style:italic;">' + a.rest_reason + '</div>';
@@ -12409,15 +12411,17 @@ async function loadRestHistory() {
             var hours = h.hours_rested ? parseFloat(h.hours_rested).toFixed(1) : '?';
             var stressDelta = '';
             if (h.stress_at_start != null && h.stress_at_end != null) {
-                var diff = h.stress_at_end - h.stress_at_start;
-                var diffColor = diff <= 0 ? '#00ff41' : '#ef4444';
-                stressDelta = '<span style="color:' + diffColor + ';">' + h.stress_at_start + '% ' + String.fromCodePoint(0x2192) + ' ' + h.stress_at_end + '%</span>';
+                var sStart = Math.round(parseFloat(h.stress_at_start) * 100);
+                var sEnd = Math.round(parseFloat(h.stress_at_end) * 100);
+                var diffColor = (sEnd - sStart) <= 0 ? '#00ff41' : '#ef4444';
+                stressDelta = '<span style="color:' + diffColor + ';">' + sStart + '% ' + String.fromCodePoint(0x2192) + ' ' + sEnd + '%</span>';
             }
             var energyDelta = '';
             if (h.energy_at_start != null && h.energy_at_end != null) {
-                var eDiff = h.energy_at_end - h.energy_at_start;
-                var eDiffColor = eDiff >= 0 ? '#00ff41' : '#ef4444';
-                energyDelta = '<span style="color:' + eDiffColor + ';">' + h.energy_at_start + '% ' + String.fromCodePoint(0x2192) + ' ' + h.energy_at_end + '%</span>';
+                var eStart = Math.round(parseFloat(h.energy_at_start) * 100);
+                var eEnd = Math.round(parseFloat(h.energy_at_end) * 100);
+                var eDiffColor = (eEnd - eStart) >= 0 ? '#00ff41' : '#ef4444';
+                energyDelta = '<span style="color:' + eDiffColor + ';">' + eStart + '% ' + String.fromCodePoint(0x2192) + ' ' + eEnd + '%</span>';
             }
             var endDate = h.ended_at ? new Date(h.ended_at).toLocaleDateString() + ' ' + new Date(h.ended_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'ongoing';
             html += '<div style="padding:6px 8px;margin-bottom:4px;background:rgba(139,92,246,0.04);border:1px solid rgba(139,92,246,0.1);border-radius:5px;">';

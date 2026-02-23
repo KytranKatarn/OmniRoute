@@ -1728,6 +1728,12 @@ def return_agent_from_lounge(agent_id):
                 (stress_end, energy_end, rest_cycle["id"]),
             )
 
+            # Re-activate station assignment
+            cur.execute(
+                "UPDATE station_assignments SET is_active = TRUE WHERE agent_id = %s",
+                (agent_id,),
+            )
+
             return jsonify({"success": True, "message": "Agent returned from lounge"})
 
     except Exception as e:

@@ -2383,6 +2383,7 @@ class BridgeDispatcher:
                         "name": name,
                         "full_name": full_name,
                         "title": info.get("title", ""),
+                        "id": agent_id,
                         "agent_id": agent_id,
                         "station": info.get("station_code", "COMMAND"),
                         "model": model,

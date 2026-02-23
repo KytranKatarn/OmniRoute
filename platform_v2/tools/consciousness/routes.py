@@ -90,6 +90,146 @@ def index():
 
 
 # ============================================================================
+# DASHBOARD SUMMARY API
+# ============================================================================
+
+
+@consciousness_bp.route("/api/dashboard/summary")
+@login_required
+@admin_required
+def api_dashboard_summary():
+    """ARCHIE's self-portrait — aggregated stats for dashboard."""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    try:
+        # Knowledge stats
+        cur.execute(
+            """
+            SELECT
+                count(*) as total,
+                count(*) FILTER (WHERE embedding IS NOT NULL) as embedded,
+                count(DISTINCT category) as categories
+            FROM knowledge_base
+            WHERE knowledge_type != 'archie_v1'
+        """
+        )
+        knowledge = cur.fetchone()
+
+        # Agent fleet
+        cur.execute(
+            """
+            SELECT count(*) as total,
+                   count(*) FILTER (WHERE status = 'active') as active
+            FROM agent_profiles
+        """
+        )
+        agents = cur.fetchone()
+
+        # Agent wellness (avg mood/energy/stress)
+        # IMPORTANT: table is agent_emotional_state (SINGULAR)
+        cur.execute(
+            """
+            SELECT
+                avg(energy_level) as avg_energy,
+                avg(stress_level) as avg_stress,
+                avg(mood_intensity) as avg_mood
+            FROM agent_emotional_state
+        """
+        )
+        wellness = cur.fetchone()
+
+        # Projects (from Dev HQ)
+        cur.execute(
+            """
+            SELECT
+                count(*) FILTER (WHERE status = 'active') as active,
+                count(*) FILTER (WHERE status = 'completed') as completed
+            FROM unified_projects
+        """
+        )
+        projects = cur.fetchone()
+
+        # Tasks
+        cur.execute(
+            """
+            SELECT
+                count(*) FILTER (WHERE status = 'in_progress') as in_progress,
+                count(*) FILTER (WHERE status = 'completed') as done,
+                count(*) as total
+            FROM unified_tasks
+        """
+        )
+        tasks = cur.fetchone()
+
+        # Recent activity (blended feed — last 24h)
+        cur.execute(
+            """
+            (SELECT 'knowledge' as source, title as description,
+                    created_at, 'book-open' as icon
+             FROM knowledge_base
+             WHERE knowledge_type != 'archie_v1'
+             ORDER BY created_at DESC LIMIT 5)
+            UNION ALL
+            (SELECT 'bridge' as source, prompt_summary as description,
+                    created_at, 'radio' as icon
+             FROM bridge_interaction_log
+             ORDER BY created_at DESC LIMIT 5)
+            UNION ALL
+            (SELECT 'project' as source, title as description,
+                    created_at, 'folder-kanban' as icon
+             FROM unified_tasks
+             WHERE status = 'completed'
+             ORDER BY created_at DESC LIMIT 5)
+            ORDER BY created_at DESC LIMIT 15
+        """
+        )
+        activity = cur.fetchall()
+
+        # Integration health
+        cur.execute("SELECT count(*) as cnt FROM bridge_stations WHERE is_active = true")
+        stations = cur.fetchone()
+
+        embed_pct = 0
+        if knowledge["total"] > 0:
+            embed_pct = round(100.0 * knowledge["embedded"] / knowledge["total"], 1)
+
+        return jsonify(
+            {
+                "success": True,
+                "knowledge": {
+                    "total": knowledge["total"],
+                    "embedded": knowledge["embedded"],
+                    "embed_pct": embed_pct,
+                    "categories": knowledge["categories"],
+                },
+                "agents": {
+                    "total": agents["total"],
+                    "active": agents["active"],
+                    "avg_energy": float(wellness["avg_energy"] or 0),
+                    "avg_stress": float(wellness["avg_stress"] or 0),
+                    "avg_mood": float(wellness["avg_mood"] or 0),
+                },
+                "projects": {
+                    "active": projects["active"],
+                    "completed": projects["completed"],
+                    "tasks_in_progress": tasks["in_progress"],
+                    "tasks_done": tasks["done"],
+                    "tasks_total": tasks["total"],
+                },
+                "activity": [dict(r) for r in activity],
+                "stations_active": stations["cnt"],
+            }
+        )
+    except Exception as e:
+        logger.error("Dashboard summary error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# ============================================================================
 # MEMORY MANAGEMENT ROUTES
 # ============================================================================
 

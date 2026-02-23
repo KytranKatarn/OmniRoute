@@ -12,10 +12,15 @@ import sys
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-# Add parent directory to path for imports
+# Add paths for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, "/app")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
-from platform_v2.database import get_db
+try:
+    from database import get_db
+except ImportError:
+    from platform_v2.database import get_db
 
 
 class AgentPerformanceTracker:

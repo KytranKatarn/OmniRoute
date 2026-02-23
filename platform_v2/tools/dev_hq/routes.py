@@ -722,8 +722,8 @@ def api_mcp_status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
             cur.execute(
-                "SELECT name, category, description, enabled, created_at"
-                " FROM mcp_tool_definitions ORDER BY category, name"
+                "SELECT name, category, description, is_enabled as enabled,"
+                " created_at FROM mcp_tool_definitions ORDER BY category, name"
             )
             result["mcp_tools_db"] = [dict(r) for r in cur.fetchall()]
         except Exception:

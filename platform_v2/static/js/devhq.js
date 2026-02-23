@@ -1352,7 +1352,34 @@
         setHtml("integrationsGrid", '<div class="devhq-empty">Could not load health status</div>');
       }
 
-      // MCP Tool Registry (all content escaped via escHtml)
+      // MCP Servers (from .mcp.json config)
+      if (mcpData.success && mcpData.mcp_config && mcpData.mcp_config.mcpServers) {
+        var servers = mcpData.mcp_config.mcpServers;
+        var serverNames = Object.keys(servers);
+        var sHtml = '<div class="devhq-integrations-grid">';
+        serverNames.forEach(function (name) {
+          var srv = servers[name];
+          var cmd = escHtml(srv.command || "unknown");
+          var args = (srv.args || []).map(function (a) { return escHtml(String(a)); }).join(" ");
+          var envKeys = Object.keys(srv.env || {});
+          sHtml +=
+            '<div class="devhq-integration-card">' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+            '<i data-lucide="server" style="width:20px;height:20px;color:var(--archie-orange);"></i>' +
+            '<div><div style="font-size:0.8rem;font-weight:600;color:var(--archie-text-primary);">' + escHtml(name) + '</div>' +
+            '<div style="font-size:0.65rem;color:var(--archie-text-muted);">' + cmd + '</div></div></div>' +
+            '<div style="font-size:0.68rem;color:var(--archie-text-muted);">' +
+            (args ? '<div style="margin-bottom:4px;"><span style="color:var(--archie-orange);">args:</span> ' + args + '</div>' : '') +
+            (envKeys.length ? '<div><span style="color:var(--archie-orange);">env:</span> ' + envKeys.map(function (k) { return escHtml(k); }).join(", ") + '</div>' : '') +
+            '</div></div>';
+        });
+        sHtml += '</div>';
+        setHtml("mcpServersPanel", sHtml);
+      } else {
+        setHtml("mcpServersPanel", '<div class="devhq-empty">No MCP servers configured</div>');
+      }
+
+      // MCP Tool Registry (from DB)
       if (mcpData.success && mcpData.mcp_tools_db && mcpData.mcp_tools_db.length) {
         var toolsByCat = {};
         mcpData.mcp_tools_db.forEach(function (tool) {
@@ -1360,26 +1387,46 @@
           if (!toolsByCat[cat]) toolsByCat[cat] = [];
           toolsByCat[cat].push(tool);
         });
+        var totalTools = mcpData.mcp_tools_db.length;
+        var countEl = document.getElementById("mcpToolCount");
+        if (countEl) countEl.textContent = "(" + totalTools + " tools)";
         var mcpHtml = "";
         Object.keys(toolsByCat).sort().forEach(function (cat) {
           var tools = toolsByCat[cat];
           mcpHtml +=
             '<div style="margin-bottom:12px;">' +
             '<div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">' +
+            '<i data-lucide="chevron-down" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>' +
             escHtml(cat) + " (" + tools.length + ")</div><div>";
           tools.forEach(function (t) {
             mcpHtml +=
-              '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:0.72rem;">' +
-              '<span style="color:' + (t.enabled ? "var(--archie-green)" : "var(--archie-text-muted)") + ';">\u25CF</span>' +
-              '<span style="color:var(--archie-text-primary);">' + escHtml(t.name) + "</span>" +
-              '<span style="font-size:0.65rem;color:var(--archie-text-muted);margin-left:auto;">' + escHtml((t.description || "").substring(0, 60)) + "</span>" +
+              '<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:0.72rem;border-left:2px solid ' + (t.enabled ? 'var(--archie-green)' : 'var(--archie-text-muted)') + ';margin-bottom:2px;">' +
+              '<span style="color:var(--archie-text-primary);font-weight:500;">' + escHtml(t.name) + "</span>" +
+              '<span style="font-size:0.65rem;color:var(--archie-text-muted);margin-left:auto;max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml((t.description || "").substring(0, 80)) + "</span>" +
               "</div>";
           });
           mcpHtml += "</div></div>";
         });
+
+        // Add tool usage stats if available
+        if (mcpData.tool_usage && mcpData.tool_usage.length) {
+          mcpHtml += '<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--archie-border);">' +
+            '<div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Recent Usage</div>';
+          mcpData.tool_usage.slice(0, 10).forEach(function (u) {
+            mcpHtml +=
+              '<div style="display:flex;align-items:center;gap:8px;padding:3px 10px;font-size:0.68rem;">' +
+              '<span style="color:var(--archie-text-primary);">' + escHtml(u.tool_name) + '</span>' +
+              '<span style="margin-left:auto;color:var(--archie-orange);font-weight:600;">' + u.usage_count + 'x</span>' +
+              '</div>';
+          });
+          mcpHtml += '</div>';
+        }
+
         setHtml("mcpToolRegistry", mcpHtml);
       } else {
-        setHtml("mcpToolRegistry", '<div class="devhq-empty">No MCP tools registered</div>');
+        setHtml("mcpToolRegistry", '<div class="devhq-empty">No MCP tools registered in database</div>');
+        var countEl = document.getElementById("mcpToolCount");
+        if (countEl) countEl.textContent = "";
       }
 
       // Claude Config (all content escaped via escHtml)

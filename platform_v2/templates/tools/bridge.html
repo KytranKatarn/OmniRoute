@@ -900,42 +900,135 @@ body.light-mode .status-bar-divider {
 
 /* --- Mobile Responsive (< 768px) --- */
 @media (max-width: 768px) {
-    .bridge-spatial-stations {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-
-    .bridge-viewscreen-feed {
-        max-height: 120px;
-    }
-
-    .bridge-viewscreen-header {
-        font-size: 0.6rem;
-        letter-spacing: 2px;
-        padding: 8px 12px 4px;
-    }
-
-    .bridge-station-zone {
-        padding: 10px;
-    }
-
-    .bridge-zone-agents {
+    .bridge-spatial-layout {
         gap: 8px;
     }
 
+    .bridge-spatial-stations {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    /* Viewscreen — compact on mobile */
+    .bridge-viewscreen {
+        border-radius: 8px;
+    }
+
+    .bridge-viewscreen-feed {
+        max-height: 72px;
+        padding: 2px 8px;
+        overflow: hidden;
+    }
+
+    .bridge-viewscreen-header {
+        font-size: 0.5rem;
+        letter-spacing: 2px;
+        padding: 4px 10px 2px;
+    }
+
+    .bridge-viewscreen-event {
+        font-size: 0.55rem;
+        padding: 2px 0;
+    }
+
+    /* Hide model name on mobile — too cramped */
+    .viewscreen-model {
+        display: none;
+    }
+
+    /* Station zones — 2-column compact grid */
+    .bridge-spatial-stations {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Compact card style with colored left border */
+    .bridge-station-zone {
+        padding: 8px 10px;
+        border-radius: 8px;
+        border-left: 3px solid var(--station-color, #00ffff);
+    }
+
+    .bridge-station-zone::before {
+        /* Remove top gradient bar on mobile — using left border instead */
+        display: none;
+    }
+
+    /* Zone header — tighter */
+    .bridge-zone-header {
+        margin-bottom: 6px;
+        padding-bottom: 4px;
+        gap: 5px;
+    }
+
+    .bridge-zone-header i {
+        display: none;
+    }
+
+    .bridge-zone-name {
+        font-size: 0.58rem;
+        letter-spacing: 1px;
+        color: var(--station-color, #00ffff);
+    }
+
+    .bridge-zone-status {
+        width: 6px;
+        height: 6px;
+    }
+
+    .bridge-zone-badge {
+        font-size: 0.5rem;
+        padding: 1px 4px;
+    }
+
+    /* Agent nodes — compact row */
+    .bridge-zone-agents {
+        gap: 6px;
+        min-height: 32px;
+        padding: 2px 0;
+        justify-content: flex-start;
+    }
+
     .agent-node-avatar-wrap {
-        width: 34px;
-        height: 34px;
+        width: 28px;
+        height: 28px;
     }
 
     .agent-node-avatar,
     .agent-node-initials {
-        width: 30px;
-        height: 30px;
-        font-size: 0.55rem;
+        width: 24px;
+        height: 24px;
+        font-size: 0.48rem;
     }
 
     .agent-node-label {
+        display: none;
+    }
+
+    .agent-node-commander-star {
+        width: 11px;
+        height: 11px;
+        top: -2px;
+        right: -2px;
+    }
+
+    .agent-node-commander-star i {
+        width: 7px;
+        height: 7px;
+    }
+
+    /* Zone footer — single line */
+    .bridge-zone-footer {
+        margin-top: 4px;
+        padding-top: 4px;
+        font-size: 0.48rem;
+    }
+
+    .bridge-zone-footer .zone-footer-sep {
+        display: none;
+    }
+
+    /* Hide node count on mobile — just show module count */
+    .bridge-zone-footer span:last-child {
         display: none;
     }
 
@@ -945,8 +1038,9 @@ body.light-mode .status-bar-divider {
 
     .bridge-viewscreen-statusbar {
         flex-wrap: wrap;
-        gap: 8px;
-        font-size: 0.6rem;
+        gap: 6px;
+        font-size: 0.55rem;
+        padding: 4px 10px;
     }
 }
 
@@ -1047,6 +1141,859 @@ body.light-mode .bridge-zone-unstaffed {
 /* ========================================================================== */
 
 /* Old station card / agent chip / drop zone CSS removed — replaced by spatial bridge layout */
+
+/* ========================================================================== */
+/* ISOMETRIC BRIDGE — 3D starship bridge view for Stations tab                */
+/* ========================================================================== */
+
+.iso-bridge-room {
+    position: relative;
+    z-index: 5;
+    width: 96%;
+    max-width: 900px;
+    aspect-ratio: 1 / 1.05;
+    margin: 0 auto;
+    perspective: 1400px;
+}
+
+.iso-bridge-room-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform: rotateX(18deg);
+    transform-style: preserve-3d;
+    transform-origin: center 35%;
+}
+
+/* Hull shape — oval bridge outline */
+.iso-bridge-hull {
+    position: absolute;
+    inset: 0;
+    border-radius: 50% 50% 42% 42%;
+    background:
+        radial-gradient(ellipse at 50% 30%, rgba(15,22,35,0.98) 40%, rgba(8,12,20,0.99) 75%, rgba(4,6,10,1) 100%);
+    border: 2px solid rgba(0,255,255,0.12);
+    box-shadow:
+        0 0 40px rgba(0,255,255,0.06),
+        0 0 100px rgba(0,0,0,0.5),
+        inset 0 0 60px rgba(0,0,0,0.4),
+        inset 0 0 120px rgba(0,255,255,0.02);
+    overflow: hidden;
+    opacity: 0;
+    animation: iso-hull-appear 1.2s ease-out 0.2s forwards;
+}
+
+/* Hull inner ring — deck plating */
+.iso-bridge-hull::before {
+    content: '';
+    position: absolute;
+    inset: 12px;
+    border-radius: 50% 50% 42% 42%;
+    border: 1px solid rgba(0,255,255,0.06);
+}
+
+/* Concentric floor rings */
+.iso-bridge-hull::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 50% 48%, transparent 15%, rgba(0,255,255,0.02) 15.5%, transparent 16%,
+            transparent 30%, rgba(0,255,255,0.015) 30.5%, transparent 31%,
+            transparent 45%, rgba(0,255,255,0.012) 45.5%, transparent 46%,
+            transparent 60%, rgba(0,255,255,0.01) 60.5%, transparent 61%,
+            transparent 75%, rgba(0,255,255,0.008) 75.5%, transparent 76%);
+    pointer-events: none;
+}
+
+/* Floor radial lines */
+.iso-bridge-floor-lines {
+    position: absolute;
+    inset: 0;
+    border-radius: 50% 50% 42% 42%;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.iso-bridge-floor-lines::before {
+    content: '';
+    position: absolute;
+    top: 48%;
+    left: 50%;
+    width: 200%;
+    height: 200%;
+    transform: translate(-50%, -50%);
+    background:
+        conic-gradient(from 0deg at 50% 50%,
+            transparent 0deg, transparent 29deg, rgba(0,255,255,0.015) 29.5deg, transparent 30deg,
+            transparent 59deg, rgba(0,255,255,0.015) 59.5deg, transparent 60deg,
+            transparent 89deg, rgba(0,255,255,0.015) 89.5deg, transparent 90deg,
+            transparent 119deg, rgba(0,255,255,0.015) 119.5deg, transparent 120deg,
+            transparent 149deg, rgba(0,255,255,0.015) 149.5deg, transparent 150deg,
+            transparent 179deg, rgba(0,255,255,0.015) 179.5deg, transparent 180deg,
+            transparent 209deg, rgba(0,255,255,0.015) 209.5deg, transparent 210deg,
+            transparent 239deg, rgba(0,255,255,0.015) 239.5deg, transparent 240deg,
+            transparent 269deg, rgba(0,255,255,0.015) 269.5deg, transparent 270deg,
+            transparent 299deg, rgba(0,255,255,0.015) 299.5deg, transparent 300deg,
+            transparent 329deg, rgba(0,255,255,0.015) 329.5deg, transparent 330deg,
+            transparent 359deg, rgba(0,255,255,0.015) 359.5deg, transparent 360deg
+        );
+    pointer-events: none;
+}
+
+/* Center deck marker */
+.iso-bridge-center-marker {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,255,255,0.06);
+    pointer-events: none;
+    z-index: 6;
+}
+
+.iso-bridge-center-marker::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,255,255,0.04);
+}
+
+/* Viewscreen — front of bridge */
+.iso-viewscreen {
+    position: absolute;
+    top: 4%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 52%;
+    max-width: 380px;
+    background: rgba(2,4,8,0.95);
+    border: 2px solid rgba(0,255,255,0.3);
+    border-radius: 8px 8px 12px 12px;
+    padding: 10px 14px;
+    z-index: 15;
+    box-shadow:
+        0 0 30px rgba(0,255,255,0.12),
+        0 0 80px rgba(0,255,255,0.04),
+        0 8px 30px rgba(0,0,0,0.5),
+        inset 0 0 20px rgba(0,255,255,0.03);
+    overflow: hidden;
+    opacity: 0;
+    animation: iso-viewscreen-on 0.8s ease-out 0.6s forwards;
+}
+
+/* CRT scanlines */
+.iso-viewscreen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg, transparent, transparent 2px,
+        rgba(0,255,255,0.012) 2px, rgba(0,255,255,0.012) 4px
+    );
+    pointer-events: none;
+    animation: iso-scanlines 4s linear infinite;
+    z-index: 2;
+}
+
+@keyframes iso-scanlines {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(4px); }
+}
+
+/* Top glow bar */
+.iso-viewscreen::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--archie-cyan, #00ffff), transparent);
+    opacity: 0.4;
+}
+
+/* Reuse existing viewscreen innards — bridge-viewscreen-header/feed/statusbar */
+.iso-viewscreen .bridge-viewscreen-header {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 0.55rem;
+    letter-spacing: 0.35em;
+    color: var(--archie-cyan, #00ffff);
+    text-align: center;
+    margin-bottom: 6px;
+    opacity: 0.7;
+    position: relative;
+    z-index: 4;
+}
+
+.iso-viewscreen .bridge-viewscreen-feed {
+    max-height: 110px;
+    overflow-y: auto;
+    position: relative;
+    z-index: 4;
+}
+
+.iso-viewscreen .bridge-viewscreen-event {
+    font-size: 0.62rem;
+    line-height: 1.7;
+    color: rgba(0,255,255,0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    position: relative;
+    border-bottom: none;
+    padding: 0;
+    background: none;
+}
+
+.iso-viewscreen .bridge-viewscreen-event:hover {
+    background: none;
+}
+
+.iso-viewscreen .bridge-viewscreen-statusbar {
+    font-size: 0.5rem;
+    border-top: 1px solid rgba(0,255,255,0.08);
+    margin-top: 4px;
+    padding-top: 4px;
+    position: relative;
+    z-index: 4;
+}
+
+/* Stations layer */
+.iso-stations-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* Station zone — each of 6 zones */
+.iso-station-zone {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 10;
+    transition: transform 0.3s ease;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.iso-station-zone:hover {
+    transform: scale(1.06);
+    z-index: 20;
+}
+
+/* Console desk */
+.iso-console {
+    position: relative;
+    width: 110px;
+    height: 50px;
+    background: linear-gradient(180deg,
+        rgba(18,24,36,0.95) 0%,
+        rgba(12,16,26,0.98) 100%);
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+    box-shadow:
+        0 4px 16px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.iso-console::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.04);
+    pointer-events: none;
+}
+
+.iso-console-screen {
+    width: 100%;
+    height: 100%;
+    padding: 5px 7px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.iso-console-status {
+    font-size: 0.42rem;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    line-height: 1.3;
+}
+
+.iso-console-status.active { opacity: 0.9; }
+.iso-console-status.idle { opacity: 0.4; font-style: italic; }
+
+.iso-console-progress {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.iso-console-progress-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+    animation: iso-progress-pulse 2s ease-in-out infinite;
+}
+
+@keyframes iso-progress-pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+/* Console underglow */
+.iso-console-glow {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90px;
+    height: 8px;
+    border-radius: 50%;
+    filter: blur(6px);
+    opacity: 0.4;
+}
+
+/* Station label */
+.iso-station-name {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 600;
+    font-size: 0.55rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.iso-station-name .iso-module-count {
+    font-family: 'Courier New', monospace;
+    font-size: 0.5rem;
+    opacity: 0.4;
+    font-weight: 400;
+}
+
+/* Status dot */
+.iso-status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--archie-success, #32CD32);
+    display: inline-block;
+    animation: iso-pulse-dot 2s ease-in-out infinite;
+    box-shadow: 0 0 4px rgba(50,205,50,0.5);
+}
+
+@keyframes iso-pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Crew avatar row */
+.iso-crew-row {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    margin-bottom: 4px;
+}
+
+.iso-crew-member {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.iso-avatar-ring {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    padding: 2px;
+    position: relative;
+    animation: iso-halo-pulse 3s ease-in-out infinite;
+}
+
+@keyframes iso-halo-pulse {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 3px currentColor); }
+    50% { filter: brightness(1.2) drop-shadow(0 0 8px currentColor); }
+}
+
+.iso-avatar-ring::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    opacity: 0.5;
+    animation: iso-ring-rotate 6s linear infinite;
+}
+
+@keyframes iso-ring-rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.iso-avatar-ring::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1px dashed currentColor;
+    opacity: 0.15;
+    animation: iso-ring-rotate 10s linear infinite reverse;
+}
+
+.iso-avatar-img {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(10,14,20,0.9);
+    display: block;
+    position: relative;
+    z-index: 2;
+}
+
+.iso-crew-name {
+    font-size: 0.55rem;
+    font-family: 'Courier New', monospace;
+    opacity: 0.65;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    margin-top: 2px;
+}
+
+/* Commander badge */
+.iso-commander-badge {
+    position: absolute;
+    top: -4px;
+    right: -2px;
+    font-size: 0.8rem;
+    z-index: 20;
+    filter: drop-shadow(0 0 5px rgba(255,215,0,0.8));
+    animation: iso-badge-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes iso-badge-glow {
+    0% { filter: drop-shadow(0 0 3px rgba(255,215,0,0.4)); }
+    100% { filter: drop-shadow(0 0 8px rgba(255,215,0,1)); }
+}
+
+/* Dual avatar overlap */
+.iso-crew-row.dual { gap: 0; }
+.iso-crew-row.dual .iso-crew-member:nth-child(2) { margin-left: -12px; }
+.iso-crew-row.dual .iso-avatar-ring { width: 48px; height: 48px; }
+.iso-crew-row.dual .iso-avatar-img { width: 42px; height: 42px; }
+
+/* Floor glow */
+.iso-station-floor-glow {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 30px;
+    border-radius: 50%;
+    filter: blur(12px);
+    opacity: 0.2;
+    pointer-events: none;
+}
+
+/* Idle/active states */
+.iso-station-zone.is-idle .iso-console { opacity: 0.5; }
+.iso-station-zone.is-idle .iso-console-glow { opacity: 0.15; }
+.iso-station-zone.is-idle .iso-avatar-ring { animation-duration: 6s; }
+.iso-station-zone.is-idle .iso-status-dot {
+    background: rgba(255,255,255,0.2);
+    box-shadow: none;
+    animation: none;
+}
+
+.iso-station-zone.is-active .iso-console { opacity: 1; }
+.iso-station-zone.is-active .iso-console-glow { opacity: 0.6; }
+
+.iso-typing-cursor {
+    display: inline-block;
+    width: 3px;
+    height: 6px;
+    margin-left: 2px;
+    animation: iso-blink-cursor 1s step-end infinite;
+    vertical-align: middle;
+}
+
+@keyframes iso-blink-cursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* ── Station Positions — Horseshoe arrangement ── */
+
+.iso-zone-command {
+    top: 46%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.iso-zone-creative {
+    top: 22%;
+    left: 14%;
+    transform: translate(-50%, -50%) rotate(-8deg);
+}
+
+.iso-zone-engineering {
+    top: 22%;
+    right: 14%;
+    left: auto;
+    transform: translate(50%, -50%) rotate(8deg);
+}
+
+.iso-zone-operations {
+    top: 52%;
+    left: 6%;
+    transform: translate(-50%, -50%) rotate(-12deg);
+}
+
+.iso-zone-analytics {
+    top: 52%;
+    right: 6%;
+    left: auto;
+    transform: translate(50%, -50%) rotate(12deg);
+}
+
+.iso-zone-research {
+    top: 78%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* ── Station Colors ── */
+.iso-zone-command .iso-station-name { color: #FFD700; }
+.iso-zone-command .iso-console { box-shadow: 0 0 18px rgba(255,215,0,0.2), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(255,215,0,0.25); width: 130px; }
+.iso-zone-command .iso-console-glow { background: #FFD700; }
+.iso-zone-command .iso-avatar-ring { color: #FFD700; }
+.iso-zone-command .iso-typing-cursor { background: #FFD700; }
+.iso-zone-command .iso-station-floor-glow { background: #FFD700; opacity: 0.25; }
+
+.iso-zone-creative .iso-station-name { color: #FF69B4; }
+.iso-zone-creative .iso-console { box-shadow: 0 0 12px rgba(255,105,180,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(255,105,180,0.2); }
+.iso-zone-creative .iso-console-glow { background: #FF69B4; }
+.iso-zone-creative .iso-avatar-ring { color: #FF69B4; }
+.iso-zone-creative .iso-typing-cursor { background: #FF69B4; }
+.iso-zone-creative .iso-station-floor-glow { background: #FF69B4; }
+
+.iso-zone-engineering .iso-station-name { color: #32CD32; }
+.iso-zone-engineering .iso-console { box-shadow: 0 0 12px rgba(50,205,50,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(50,205,50,0.2); }
+.iso-zone-engineering .iso-console-glow { background: #32CD32; }
+.iso-zone-engineering .iso-avatar-ring { color: #32CD32; }
+.iso-zone-engineering .iso-typing-cursor { background: #32CD32; }
+.iso-zone-engineering .iso-station-floor-glow { background: #32CD32; }
+
+.iso-zone-operations .iso-station-name { color: #FF8C00; }
+.iso-zone-operations .iso-console { box-shadow: 0 0 12px rgba(255,140,0,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(255,140,0,0.2); }
+.iso-zone-operations .iso-console-glow { background: #FF8C00; }
+.iso-zone-operations .iso-avatar-ring { color: #FF8C00; }
+.iso-zone-operations .iso-typing-cursor { background: #FF8C00; }
+.iso-zone-operations .iso-station-floor-glow { background: #FF8C00; }
+
+.iso-zone-analytics .iso-station-name { color: #00CED1; }
+.iso-zone-analytics .iso-console { box-shadow: 0 0 12px rgba(0,206,209,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(0,206,209,0.2); }
+.iso-zone-analytics .iso-console-glow { background: #00CED1; }
+.iso-zone-analytics .iso-avatar-ring { color: #00CED1; }
+.iso-zone-analytics .iso-typing-cursor { background: #00CED1; }
+.iso-zone-analytics .iso-station-floor-glow { background: #00CED1; }
+
+.iso-zone-research .iso-station-name { color: #6495ED; }
+.iso-zone-research .iso-console { box-shadow: 0 0 12px rgba(100,149,237,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(100,149,237,0.2); }
+.iso-zone-research .iso-console-glow { background: #6495ED; }
+.iso-zone-research .iso-avatar-ring { color: #6495ED; }
+.iso-zone-research .iso-typing-cursor { background: #6495ED; }
+.iso-zone-research .iso-station-floor-glow { background: #6495ED; }
+
+/* ── Wall panels (ambient decorations) ── */
+.iso-wall-panel {
+    position: absolute;
+    width: 40px;
+    height: 18px;
+    background: rgba(10,14,22,0.9);
+    border: 1px solid rgba(0,255,255,0.06);
+    border-radius: 3px;
+    z-index: 3;
+}
+
+.iso-wall-panel::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    background: linear-gradient(90deg,
+        rgba(0,255,255,0.04),
+        rgba(0,255,255,0.01));
+    border-radius: 2px;
+}
+
+.iso-wall-panel:nth-child(1) { top: 12%; left: 36%; transform: rotate(-15deg); }
+.iso-wall-panel:nth-child(2) { top: 12%; right: 36%; left: auto; transform: rotate(15deg); }
+.iso-wall-panel:nth-child(3) { top: 36%; left: 4%; transform: rotate(-30deg); }
+.iso-wall-panel:nth-child(4) { top: 36%; right: 4%; left: auto; transform: rotate(30deg); }
+.iso-wall-panel:nth-child(5) { top: 65%; left: 4%; transform: rotate(-20deg); }
+.iso-wall-panel:nth-child(6) { top: 65%; right: 4%; left: auto; transform: rotate(20deg); }
+.iso-wall-panel:nth-child(7) { top: 85%; left: 28%; transform: rotate(-5deg); }
+.iso-wall-panel:nth-child(8) { top: 85%; right: 28%; left: auto; transform: rotate(5deg); }
+
+/* ── Entrance animations ── */
+@keyframes iso-hull-appear {
+    0% { opacity: 0; transform: scale(0.85); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes iso-viewscreen-on {
+    0% { opacity: 0; transform: translateX(-50%) scaleX(0.01) scaleY(0.01); }
+    40% { opacity: 0.6; transform: translateX(-50%) scaleX(1) scaleY(0.02); }
+    70% { opacity: 0.9; transform: translateX(-50%) scaleX(1) scaleY(1); }
+    100% { opacity: 1; transform: translateX(-50%) scaleX(1) scaleY(1); }
+}
+
+@keyframes iso-station-arrive {
+    0% { opacity: 0; filter: blur(4px); }
+    100% { opacity: 1; filter: blur(0); }
+}
+
+.iso-station-zone {
+    opacity: 0;
+    animation: iso-station-arrive 0.6s ease-out forwards;
+}
+
+.iso-zone-creative { animation-delay: 0.78s; }
+.iso-zone-engineering { animation-delay: 0.95s; }
+.iso-zone-command { animation-delay: 1.1s; }
+.iso-zone-operations { animation-delay: 1.25s; }
+.iso-zone-analytics { animation-delay: 1.4s; }
+.iso-zone-research { animation-delay: 1.55s; }
+
+/* Dispatch arc highlight on isometric zones */
+.iso-station-zone.dispatch-active {
+    filter: brightness(1.3);
+}
+
+/* SVG overlay for arcs sits on top of the isometric room */
+.iso-bridge-room .bridge-dispatch-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 25;
+    pointer-events: none;
+    overflow: visible;
+}
+
+/* ── Responsive 768px ── */
+@media (max-width: 768px) {
+    .iso-bridge-room { max-width: 600px; }
+    .iso-viewscreen { width: 58%; padding: 8px 10px; }
+    .iso-viewscreen .bridge-viewscreen-event { font-size: 0.52rem; }
+    .iso-viewscreen .viewscreen-detail { display: none; }
+    .iso-console { width: 95px; height: 46px; }
+    .iso-zone-command .iso-console { width: 112px; }
+    .iso-console-status { font-size: 0.36rem; }
+    .iso-avatar-ring { width: 48px; height: 48px; }
+    .iso-avatar-img { width: 42px; height: 42px; }
+    .iso-crew-row.dual .iso-avatar-ring { width: 42px; height: 42px; }
+    .iso-crew-row.dual .iso-avatar-img { width: 36px; height: 36px; }
+    .iso-crew-name { font-size: 0.48rem; }
+    .iso-station-name { font-size: 0.48rem; }
+    .iso-station-name .iso-module-count { display: none; }
+    .iso-wall-panel { display: none; }
+}
+
+/* ── Responsive 500px (Fold5) ── */
+@media (max-width: 500px) {
+    .iso-bridge-room {
+        max-width: 370px;
+        aspect-ratio: 1 / 1.25;
+    }
+
+    .iso-bridge-room-inner {
+        transform: rotateX(8deg);
+    }
+
+    .iso-viewscreen { width: 52%; padding: 5px 7px; top: 2%; }
+    .iso-viewscreen .bridge-viewscreen-header { font-size: 0.38rem; margin-bottom: 2px; }
+    .iso-viewscreen .bridge-viewscreen-event { font-size: 0.38rem; line-height: 1.4; }
+    .iso-viewscreen .viewscreen-detail { display: none; }
+    .iso-viewscreen .viewscreen-station { display: none; }
+
+    .iso-console { width: 70px; height: 32px; }
+    .iso-zone-command .iso-console { width: 82px; }
+    .iso-console-status { font-size: 0.26rem; }
+    .iso-console-glow { width: 50px; height: 4px; bottom: -3px; }
+
+    .iso-avatar-ring { width: 36px; height: 36px; }
+    .iso-avatar-img { width: 32px; height: 32px; }
+    .iso-crew-row.dual .iso-avatar-ring { width: 32px; height: 32px; }
+    .iso-crew-row.dual .iso-avatar-img { width: 28px; height: 28px; }
+    .iso-crew-row.dual .iso-crew-member:nth-child(2) { margin-left: -6px; }
+    .iso-crew-name { font-size: 0.38rem; }
+    .iso-station-name { font-size: 0.38rem; letter-spacing: 0.06em; }
+    .iso-station-name .iso-module-count { display: none; }
+
+    .iso-station-floor-glow { width: 60px; height: 16px; bottom: -10px; filter: blur(6px); }
+
+    .iso-zone-creative { top: 18%; left: 18%; }
+    .iso-zone-engineering { top: 18%; right: 18%; }
+    .iso-zone-operations { top: 46%; left: 10%; }
+    .iso-zone-analytics { top: 46%; right: 10%; }
+    .iso-zone-research { top: 74%; }
+    .iso-zone-command { top: 44%; }
+
+    .iso-wall-panel { display: none; }
+    .iso-bridge-center-marker { width: 30px; height: 30px; }
+    .iso-commander-badge { font-size: 0.6rem; }
+
+    /* Hide dispatch arcs on mobile */
+    .iso-bridge-room .bridge-dispatch-overlay { display: none; }
+}
+
+/* ── Warp-In Intro ── */
+
+.iso-warp-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background: #030508;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 1;
+}
+
+.iso-warp-overlay.played {
+    animation: iso-warp-dissolve 0.4s ease-out 1.8s forwards;
+}
+
+@keyframes iso-warp-dissolve {
+    0% { opacity: 1; }
+    100% { opacity: 0; visibility: hidden; }
+}
+
+/* Star streaks — radial lines from center */
+.iso-warp-streak {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 2px;
+    height: 0;
+    background: linear-gradient(to bottom, transparent, rgba(0,255,255,0.8), #fff);
+    transform-origin: top center;
+    opacity: 0;
+    border-radius: 1px;
+}
+
+.iso-warp-overlay.played .iso-warp-streak {
+    animation: iso-streak-fly 0.8s ease-in forwards;
+}
+
+.iso-warp-streak:nth-child(1)  { transform: rotate(0deg);   animation-delay: 0s; }
+.iso-warp-streak:nth-child(2)  { transform: rotate(36deg);  animation-delay: 0.03s; }
+.iso-warp-streak:nth-child(3)  { transform: rotate(72deg);  animation-delay: 0.06s; }
+.iso-warp-streak:nth-child(4)  { transform: rotate(108deg); animation-delay: 0.02s; }
+.iso-warp-streak:nth-child(5)  { transform: rotate(144deg); animation-delay: 0.07s; }
+.iso-warp-streak:nth-child(6)  { transform: rotate(180deg); animation-delay: 0.01s; }
+.iso-warp-streak:nth-child(7)  { transform: rotate(216deg); animation-delay: 0.05s; }
+.iso-warp-streak:nth-child(8)  { transform: rotate(252deg); animation-delay: 0.04s; }
+.iso-warp-streak:nth-child(9)  { transform: rotate(288deg); animation-delay: 0.08s; }
+.iso-warp-streak:nth-child(10) { transform: rotate(324deg); animation-delay: 0.02s; }
+
+@keyframes iso-streak-fly {
+    0%   { height: 0; opacity: 0; }
+    15%  { height: 30px; opacity: 0.6; }
+    60%  { height: 180px; opacity: 1; }
+    100% { height: 400px; opacity: 0; }
+}
+
+/* Flash burst */
+.iso-warp-flash {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(0,255,255,0.9), rgba(255,255,255,0.7) 30%, transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.iso-warp-overlay.played .iso-warp-flash {
+    animation: iso-flash-burst 0.5s ease-out 0.7s forwards;
+}
+
+@keyframes iso-flash-burst {
+    0%   { opacity: 0; transform: scale(0.3); }
+    30%  { opacity: 1; transform: scale(1.2); }
+    60%  { opacity: 0.6; transform: scale(1.5); }
+    100% { opacity: 0; transform: scale(2); }
+}
+
+/* "BRIDGE ONLINE" text — appears after flash */
+.iso-warp-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: 0.4em;
+    color: var(--archie-cyan, #00ffff);
+    text-shadow: 0 0 20px rgba(0,255,255,0.8), 0 0 60px rgba(0,255,255,0.3);
+    opacity: 0;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.iso-warp-overlay.played .iso-warp-text {
+    animation: iso-warp-text-show 0.8s ease-out 1.0s forwards;
+}
+
+@keyframes iso-warp-text-show {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(1.8); filter: blur(8px); }
+    40%  { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
+    70%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+}
+
+/* When warp-intro is active, delay hull/viewscreen/station entrance animations */
+.iso-bridge-room.warp-active .iso-bridge-hull {
+    animation-delay: 1.2s !important;
+}
+.iso-bridge-room.warp-active .iso-viewscreen {
+    animation-delay: 1.4s !important;
+}
+.iso-bridge-room.warp-active .iso-zone-creative    { animation-delay: 1.5s !important; }
+.iso-bridge-room.warp-active .iso-zone-engineering  { animation-delay: 1.6s !important; }
+.iso-bridge-room.warp-active .iso-zone-command      { animation-delay: 1.7s !important; }
+.iso-bridge-room.warp-active .iso-zone-operations   { animation-delay: 1.8s !important; }
+.iso-bridge-room.warp-active .iso-zone-analytics    { animation-delay: 1.9s !important; }
+.iso-bridge-room.warp-active .iso-zone-research     { animation-delay: 2.0s !important; }
+
+/* Hide intro on mobile — too small to see */
+@media (max-width: 500px) {
+    .iso-warp-overlay { display: none; }
+}
+
+/* ========================================================================== */
+/* END ISOMETRIC BRIDGE                                                       */
+/* ========================================================================== */
 
 /* ============================================================================
    DISPATCH ACTIVITY SECTION (Project #91 — Phase 6)
@@ -4420,41 +5367,74 @@ body.light-mode .bridge-hud-value {
                 </div>
             </div>
 
-            <!-- Stations Tab Panel — Spatial Bridge Layout -->
+            <!-- Stations Tab Panel — Isometric Bridge Layout -->
             <div class="bridge-tab-panel" data-panel="stations">
-                <div class="bridge-spatial-layout" id="bridgeSpatialLayout">
-                    <!-- Viewscreen -->
-                    <div class="bridge-viewscreen" id="bridgeViewscreen">
-                        <div class="bridge-viewscreen-header">
-                            <span data-i18n="bridge.viewscreen.title">Main Viewscreen</span>
-                        </div>
-                        <div class="bridge-viewscreen-feed" id="viewscreenFeed">
-                            <div class="bridge-viewscreen-empty" data-i18n="bridge.viewscreen.loading">Awaiting dispatch data...</div>
-                        </div>
-                        <div class="bridge-viewscreen-statusbar" id="viewscreenStatusbar">
-                            <span class="viewscreen-stat">
-                                <span class="viewscreen-stat-dot"></span>
-                                <span id="viewscreenThroughput">-- req/hr</span>
-                            </span>
-                            <span class="viewscreen-stat">
-                                <span id="viewscreenSuccess">--% success</span>
-                            </span>
-                            <span class="viewscreen-stat">
-                                <span id="viewscreenAgentCount">-- agents</span>
-                            </span>
-                        </div>
+                <div class="iso-bridge-room" id="bridgeSpatialLayout">
+                    <!-- Warp-In Intro Overlay -->
+                    <div class="iso-warp-overlay" id="isoWarpOverlay">
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-streak"></div>
+                        <div class="iso-warp-flash"></div>
+                        <div class="iso-warp-text">BRIDGE ONLINE</div>
                     </div>
+                    <div class="iso-bridge-room-inner">
 
-                    <!-- Station Zones Grid -->
-                    <div class="bridge-spatial-stations" id="bridgeSpatialStations">
-                        <!-- Station zones rendered by JavaScript -->
-                    </div>
+                        <!-- Hull shell -->
+                        <div class="iso-bridge-hull">
+                            <div class="iso-bridge-floor-lines"></div>
+                            <div class="iso-wall-panel"></div>
+                            <div class="iso-wall-panel"></div>
+                            <div class="iso-wall-panel"></div>
+                            <div class="iso-wall-panel"></div>
+                            <div class="iso-wall-panel"></div>
+                            <div class="iso-wall-panel"></div>
+                            <div class="iso-wall-panel"></div>
+                            <div class="iso-wall-panel"></div>
+                        </div>
 
-                    <!-- SVG Dispatch Arc Overlay -->
-                    <svg class="bridge-dispatch-overlay" id="dispatchArcOverlay">
-                        <!-- Arcs drawn dynamically by JS -->
-                    </svg>
-                </div>
+                        <!-- Center deck marker -->
+                        <div class="iso-bridge-center-marker"></div>
+
+                        <!-- Viewscreen (front of bridge) -->
+                        <div class="iso-viewscreen" id="bridgeViewscreen">
+                            <div class="bridge-viewscreen-header">
+                                <span data-i18n="bridge.viewscreen.title">Main Viewscreen</span>
+                            </div>
+                            <div class="bridge-viewscreen-feed" id="viewscreenFeed">
+                                <div class="bridge-viewscreen-empty" data-i18n="bridge.viewscreen.loading">Awaiting dispatch data...</div>
+                            </div>
+                            <div class="bridge-viewscreen-statusbar" id="viewscreenStatusbar">
+                                <span class="viewscreen-stat">
+                                    <span class="viewscreen-stat-dot"></span>
+                                    <span id="viewscreenThroughput">-- req/hr</span>
+                                </span>
+                                <span class="viewscreen-stat">
+                                    <span id="viewscreenSuccess">--% success</span>
+                                </span>
+                                <span class="viewscreen-stat">
+                                    <span id="viewscreenAgentCount">-- agents</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Station Zones (rendered by JS) -->
+                        <div class="iso-stations-layer" id="bridgeSpatialStations">
+                        </div>
+
+                        <!-- SVG Dispatch Arc Overlay -->
+                        <svg class="bridge-dispatch-overlay" id="dispatchArcOverlay">
+                        </svg>
+
+                    </div><!-- /iso-bridge-room-inner -->
+                </div><!-- /iso-bridge-room -->
             </div><!-- /stations panel -->
 
             <!-- Dispatch Tab Panel -->
@@ -4820,6 +5800,21 @@ body.light-mode .bridge-hud-value {
         <div class="assignment-modal-footer">
             <button class="btn-cancel" onclick="closeStationDetailModal()">Close</button>
             <button class="btn-submit" onclick="openAssignModalForStation()">+ Add Node</button>
+        </div>
+    </div>
+</div>
+
+<!-- Isometric Zone Info Modal -->
+<div class="assignment-modal-overlay" id="iso-zone-info-modal">
+    <div class="assignment-modal" style="width: 560px; max-height: 80vh;">
+        <div class="assignment-modal-header">
+            <h3 id="iso-zone-info-title">Station Info</h3>
+            <button class="assignment-modal-close" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')">&times;</button>
+        </div>
+        <div class="assignment-modal-body" id="iso-zone-info-body" style="overflow-y: auto; max-height: 55vh;">
+        </div>
+        <div class="assignment-modal-footer">
+            <button class="btn-cancel" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')">Close</button>
         </div>
     </div>
 </div>
@@ -5620,7 +6615,11 @@ function switchBridgeTab(tabName) {
     history.replaceState(null, '', '#' + tabName);
     // Trigger data load for the tab if needed
     if (tabName === 'overview') loadOverviewData();
-    if (tabName === 'stations') loadStations();
+    if (tabName === 'stations') {
+        loadStations();
+        // Trigger warp-in intro + entrance animations
+        triggerWarpIntro();
+    }
     if (tabName === 'dispatch') loadDispatchActivity();
     if (tabName === 'crew') loadCrewManifest();
     if (tabName === 'network') { loadNodes(); loadModelAvailability(); }
@@ -5829,6 +6828,24 @@ const STATION_COLORS = {
     'SUPPORT': '#EC4899'
 };
 
+// ── Isometric zone grouping (10 stations → 6 zones) ──
+const ISOMETRIC_ZONE_MAP = {
+    'COMMAND':     { stations: ['COMMAND'],                                color: '#FFD700', label: 'Command',     abbr: 'CMD' },
+    'CREATIVE':    { stations: ['CREATIVE'],                               color: '#FF69B4', label: 'Creative',    abbr: 'CRE' },
+    'ENGINEERING': { stations: ['ENGINEERING', 'SECURITY'],                color: '#32CD32', label: 'Engineering', abbr: 'ENG' },
+    'OPERATIONS':  { stations: ['OPERATIONS', 'HR'],                       color: '#FF8C00', label: 'Operations',  abbr: 'OPS' },
+    'ANALYTICS':   { stations: ['ANALYTICS', 'CONSCIOUSNESS', 'RND'],      color: '#00CED1', label: 'Analytics',   abbr: 'ANA' },
+    'RESEARCH':    { stations: ['RESEARCH', 'MEDICAL', 'AWAY_TEAM'],       color: '#6495ED', label: 'Research',    abbr: 'RES' }
+};
+
+// Reverse lookup: station code → zone name
+const STATION_TO_ISO_ZONE = {};
+for (const [zoneName, zoneInfo] of Object.entries(ISOMETRIC_ZONE_MAP)) {
+    for (const sc of zoneInfo.stations) {
+        STATION_TO_ISO_ZONE[sc] = zoneName;
+    }
+}
+
 // Global state
 let allStations = [];
 let stationNodeCoverage = {}; // Maps station_id to node data
@@ -5972,141 +6989,338 @@ async function loadStations() {
     }
 }
 
-// Station layout order — defines spatial position in bridge grid
-// Row 1 (back): CONSCIOUSNESS, RND, SECURITY, CREATIVE
-// Row 2 (middle): ENGINEERING, COMMAND, OPERATIONS, HR
-// Row 3 (front): MEDICAL, AWAY_TEAM, QA
-const STATION_LAYOUT_ORDER = [
-    'CONSCIOUSNESS', 'RND', 'SECURITY', 'CREATIVE',
-    'ENGINEERING', 'COMMAND', 'OPERATIONS', 'HR',
-    'MEDICAL', 'AWAY_TEAM', 'QA'
-];
+// ── Isometric bridge render functions ──
 
 function renderStations(stations) {
     const container = document.getElementById('bridgeSpatialStations');
     if (!container) return;
-    container.innerHTML = '';
+    container.textContent = '';
 
-    // Sort stations by spatial layout order; unknown stations go to the end
-    const sorted = [...stations].sort((a, b) => {
-        const ai = STATION_LAYOUT_ORDER.indexOf(a.code);
-        const bi = STATION_LAYOUT_ORDER.indexOf(b.code);
-        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    });
+    // Group stations by isometric zone
+    const zoneData = {};
+    for (const [zoneName, zoneInfo] of Object.entries(ISOMETRIC_ZONE_MAP)) {
+        zoneData[zoneName] = {
+            agents: [],
+            modules: [],
+            totalNodes: 0,
+            primaryStation: null
+        };
+    }
 
-    // Create zones and append
-    sorted.forEach(station => {
-        const zone = createStationZone(station);
-        container.appendChild(zone);
-    });
+    for (const station of stations) {
+        const zoneName = STATION_TO_ISO_ZONE[station.code];
+        if (!zoneName || !zoneData[zoneName]) continue;
+        const zd = zoneData[zoneName];
+        if (!zd.primaryStation) zd.primaryStation = station;
+        zd.modules = zd.modules.concat(station.modules || []);
+        zd.agents = zd.agents.concat(station.assigned_agents || []);
+        const cov = stationNodeCoverage[station.code] || {};
+        zd.totalNodes += (cov.total_nodes || 0);
+    }
 
-    // Reinitialize Lucide icons
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+    // Create an isometric zone element for each of the 6 zones
+    for (const [zoneName, zoneInfo] of Object.entries(ISOMETRIC_ZONE_MAP)) {
+        const zd = zoneData[zoneName];
+        const zoneEl = createIsometricZone(zoneName, zoneInfo, zd);
+        container.appendChild(zoneEl);
     }
 }
 
-function createStationZone(station) {
-    const zone = document.createElement('div');
-    zone.className = 'bridge-station-zone';
-    zone.dataset.stationId = station.id;
-    zone.dataset.stationCode = station.code;
-    zone.style.setProperty('--station-color', STATION_COLORS[station.code] || '#00FFFF');
+function createIsometricZone(zoneName, zoneInfo, zd) {
+    const el = document.createElement('div');
+    const zoneKey = zoneName.toLowerCase();
+    el.className = 'iso-station-zone iso-zone-' + zoneKey;
+    el.dataset.stationCode = zoneName;
+    if (zd.primaryStation) el.dataset.stationId = zd.primaryStation.id;
 
-    const modules = station.modules || [];
-    const agents = station.assigned_agents || [];
-    const stationIcon = station.icon || 'box';
-    const stationStatus = station.status || 'online';
+    const hasAgents = zd.agents.length > 0;
+    el.classList.add(hasAgents ? 'is-active' : 'is-idle');
 
-    // Get node coverage for this station
-    const coverage = stationNodeCoverage[station.code] || {};
-    const totalNodes = coverage.total_nodes || 0;
+    const moduleCount = zd.modules.length;
+    const utilPct = Math.min(100, Math.round(moduleCount * 10));
 
-    // Build agent nodes HTML
-    let agentNodesHtml = '';
-    if (agents.length > 0) {
-        agentNodesHtml = agents.map(agent => renderAgentNode(agent, station.code)).join('');
-    } else {
-        agentNodesHtml = '<div class="bridge-zone-unstaffed">'
-            + '<i data-lucide="alert-triangle"></i>'
-            + '<span>' + _t('bridge.station.unstaffed', 'Unstaffed') + '</span>'
-            + '</div>';
-    }
+    // Build DOM elements instead of innerHTML for security
+    // -- Station name row --
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'iso-station-name';
+    const dot = document.createElement('span');
+    dot.className = 'iso-status-dot';
+    nameDiv.appendChild(dot);
+    nameDiv.appendChild(document.createTextNode(' ' + zoneInfo.label + ' '));
+    const modSpan = document.createElement('span');
+    modSpan.className = 'iso-module-count';
+    modSpan.textContent = moduleCount + ' mod';
+    nameDiv.appendChild(modSpan);
+    el.appendChild(nameDiv);
 
-    zone.innerHTML = '<div class="bridge-zone-header">'
-        + '<i data-lucide="' + escapeHtml(stationIcon) + '"></i>'
-        + '<span class="bridge-zone-name">' + escapeHtml(station.name) + '</span>'
-        + '<span class="bridge-zone-status ' + escapeHtml(stationStatus) + '"></span>'
-        + '<span class="bridge-zone-badge">' + modules.length + ' ' + _t('bridge.station.modules', 'mod') + '</span>'
-        + '</div>'
-        + '<div class="bridge-zone-agents">'
-        + agentNodesHtml
-        + '</div>'
-        + '<div class="bridge-zone-footer">'
-        + '<span>' + modules.length + ' ' + _t('bridge.station.modules', 'modules') + '</span>'
-        + '<span>&middot;</span>'
-        + '<span>' + totalNodes + ' ' + _t('bridge.station.nodes', 'nodes') + '</span>'
-        + '</div>';
+    // -- Crew avatars --
+    const isDual = zd.agents.length > 1;
+    const crewRow = document.createElement('div');
+    crewRow.className = 'iso-crew-row' + (isDual ? ' dual' : '');
 
-    // Click to open station detail (reuse existing)
-    zone.addEventListener('click', function(e) {
-        // Don't trigger if clicking an agent node (let agent click handle it)
-        if (e.target.closest('.bridge-agent-node')) return;
-        if (typeof showStationDetail === 'function') {
-            showStationDetail(station.id, station.name);
+    if (hasAgents) {
+        const displayed = zd.agents.slice(0, 2);
+        let commanderAssigned = false;
+        for (const agent of displayed) {
+            const firstName = agent.first_name || '';
+            const lastName = agent.last_name || '';
+            const fullName = (firstName + ' ' + lastName).trim() || agent.name || 'Unknown';
+            const displayName = firstName || fullName.split(' ')[0];
+            const isPrimary = agent.assignment_type === 'primary';
+            // Only the first primary agent at COMMAND gets the commander badge
+            const isCommander = zoneName === 'COMMAND' && isPrimary && !commanderAssigned;
+            if (isCommander) commanderAssigned = true;
+
+            const avatarSlug = displayName.toLowerCase();
+            const dicebearFallback = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + encodeURIComponent(displayName) + '&backgroundColor=transparent';
+
+            const member = document.createElement('div');
+            member.className = 'iso-crew-member';
+
+            const ring = document.createElement('div');
+            ring.className = 'iso-avatar-ring';
+
+            const img = document.createElement('img');
+            img.className = 'iso-avatar-img';
+            img.src = '/static/avatars/' + avatarSlug + '.svg';
+            img.alt = displayName;
+            img.loading = 'lazy';
+            img.onerror = function() { this.src = dicebearFallback; };
+            ring.appendChild(img);
+
+            if (isCommander) {
+                const badge = document.createElement('span');
+                badge.className = 'iso-commander-badge';
+                badge.title = 'Commander';
+                badge.textContent = '\u2605';
+                ring.appendChild(badge);
+            }
+
+            member.appendChild(ring);
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'iso-crew-name';
+            nameSpan.textContent = displayName;
+            if (isCommander) {
+                nameSpan.style.color = '#FFD700';
+                nameSpan.style.opacity = '1';
+            }
+            member.appendChild(nameSpan);
+            crewRow.appendChild(member);
         }
+    } else {
+        const member = document.createElement('div');
+        member.className = 'iso-crew-member';
+        const ring = document.createElement('div');
+        ring.className = 'iso-avatar-ring';
+        ring.style.opacity = '0.3';
+        const placeholder = document.createElement('div');
+        placeholder.className = 'iso-avatar-img';
+        placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:0.5rem;opacity:0.4;';
+        placeholder.textContent = '--';
+        ring.appendChild(placeholder);
+        member.appendChild(ring);
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'iso-crew-name';
+        nameSpan.style.opacity = '0.3';
+        nameSpan.textContent = 'Unstaffed';
+        member.appendChild(nameSpan);
+        crewRow.appendChild(member);
+    }
+    el.appendChild(crewRow);
+
+    // -- Console --
+    const console = document.createElement('div');
+    console.className = 'iso-console';
+    const screen = document.createElement('div');
+    screen.className = 'iso-console-screen';
+
+    const statusDiv = document.createElement('div');
+    statusDiv.className = 'iso-console-status ' + (hasAgents ? 'active' : 'idle');
+    const iconSpan = document.createElement('span');
+    iconSpan.innerHTML = hasAgents ? '&#9654;' : '&#9724;';
+    statusDiv.appendChild(iconSpan);
+    statusDiv.appendChild(document.createTextNode(' ' + (hasAgents ? moduleCount + ' modules active' : 'Standing by')));
+    if (hasAgents) {
+        const cursor = document.createElement('span');
+        cursor.className = 'iso-typing-cursor';
+        statusDiv.appendChild(cursor);
+    }
+    screen.appendChild(statusDiv);
+
+    const progressTrack = document.createElement('div');
+    progressTrack.className = 'iso-console-progress';
+    const progressBar = document.createElement('div');
+    progressBar.className = 'iso-console-progress-bar';
+    progressBar.style.width = utilPct + '%';
+    progressBar.style.background = zoneInfo.color;
+    progressTrack.appendChild(progressBar);
+    screen.appendChild(progressTrack);
+
+    console.appendChild(screen);
+
+    const glow = document.createElement('div');
+    glow.className = 'iso-console-glow';
+    console.appendChild(glow);
+    el.appendChild(console);
+
+    // -- Floor glow --
+    const floorGlow = document.createElement('div');
+    floorGlow.className = 'iso-station-floor-glow';
+    el.appendChild(floorGlow);
+
+    // Click handler → open zone info modal
+    el.addEventListener('click', function() {
+        showZoneInfo(zoneName, zoneInfo, zd);
     });
 
-    return zone;
+    return el;
 }
 
-function renderAgentNode(agent, stationCode) {
-    const firstName = agent.first_name || '';
-    const lastName = agent.last_name || '';
-    const fullName = (firstName + ' ' + lastName).trim() || agent.name || 'Unknown';
-    const position = agent.title || agent.name || 'Staff';
-    const isPrimary = agent.assignment_type === 'primary';
-    const isCommander = stationCode === 'COMMAND' && isPrimary;
+function showZoneInfo(zoneName, zoneInfo, zd) {
+    const modal = document.getElementById('iso-zone-info-modal');
+    const title = document.getElementById('iso-zone-info-title');
+    const body = document.getElementById('iso-zone-info-body');
+    if (!modal || !title || !body) return;
 
-    // Determine halo class
-    var haloClass = 'idle';
-    if (isCommander) {
-        haloClass = 'commander';
-    } else if (isPrimary) {
-        haloClass = 'active';
+    title.textContent = zoneInfo.label + ' Station';
+    title.style.color = zoneInfo.color;
+    body.textContent = '';
+
+    // -- Status summary --
+    const statusDiv = document.createElement('div');
+    statusDiv.style.cssText = 'display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;';
+
+    const statItems = [
+        { label: 'Modules', value: zd.modules.length, color: zoneInfo.color },
+        { label: 'Crew', value: zd.agents.length, color: zoneInfo.color },
+        { label: 'Nodes', value: zd.totalNodes, color: zoneInfo.color }
+    ];
+    for (const si of statItems) {
+        const pill = document.createElement('div');
+        pill.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 14px;text-align:center;flex:1;min-width:80px;';
+        const val = document.createElement('div');
+        val.style.cssText = 'font-size:1.3rem;font-weight:700;font-family:Orbitron,sans-serif;color:' + si.color + ';';
+        val.textContent = si.value;
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'font-size:0.65rem;opacity:0.5;margin-top:2px;letter-spacing:0.1em;text-transform:uppercase;';
+        lbl.textContent = si.label;
+        pill.appendChild(val);
+        pill.appendChild(lbl);
+        statusDiv.appendChild(pill);
+    }
+    body.appendChild(statusDiv);
+
+    // -- Crew section --
+    if (zd.agents.length > 0) {
+        const crewHeader = document.createElement('div');
+        crewHeader.style.cssText = 'font-size:0.7rem;font-weight:600;opacity:0.5;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;';
+        crewHeader.textContent = 'CREW';
+        body.appendChild(crewHeader);
+
+        const crewList = document.createElement('div');
+        crewList.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:16px;';
+
+        for (const agent of zd.agents) {
+            const firstName = agent.first_name || '';
+            const lastName = agent.last_name || '';
+            const fullName = (firstName + ' ' + lastName).trim() || agent.name || 'Unknown';
+            const displayName = firstName || fullName.split(' ')[0];
+            const role = agent.title || agent.name || 'Staff';
+            const isPrimary = agent.assignment_type === 'primary';
+            const avatarSlug = displayName.toLowerCase();
+            const fallback = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + encodeURIComponent(displayName) + '&backgroundColor=transparent';
+
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:8px;border-left:3px solid ' + zoneInfo.color + ';';
+
+            const img = document.createElement('img');
+            img.src = '/static/avatars/' + avatarSlug + '.svg';
+            img.alt = displayName;
+            img.style.cssText = 'width:36px;height:36px;border-radius:50%;background:rgba(10,14,20,0.9);flex-shrink:0;';
+            img.onerror = function() { this.src = fallback; };
+            row.appendChild(img);
+
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1;min-width:0;';
+
+            const nameEl = document.createElement('div');
+            nameEl.style.cssText = 'font-weight:600;font-size:0.85rem;';
+            nameEl.textContent = fullName;
+            info.appendChild(nameEl);
+
+            const roleEl = document.createElement('div');
+            roleEl.style.cssText = 'font-size:0.7rem;opacity:0.5;';
+            roleEl.textContent = role;
+            info.appendChild(roleEl);
+
+            row.appendChild(info);
+
+            if (isPrimary) {
+                const badge = document.createElement('span');
+                badge.style.cssText = 'font-size:0.6rem;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,0.06);color:' + zoneInfo.color + ';white-space:nowrap;';
+                badge.textContent = 'Primary';
+                row.appendChild(badge);
+            }
+
+            crewList.appendChild(row);
+        }
+        body.appendChild(crewList);
     }
 
-    // Initials with station-color tinted background
-    const initials = getInitials(fullName);
-    const stationColor = STATION_COLORS[stationCode] || '#00FFFF';
+    // -- Modules section --
+    if (zd.modules.length > 0) {
+        const modHeader = document.createElement('div');
+        modHeader.style.cssText = 'font-size:0.7rem;font-weight:600;opacity:0.5;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:8px;';
+        modHeader.textContent = 'MODULES';
+        body.appendChild(modHeader);
 
-    // Commander star badge
-    const commanderStar = isCommander
-        ? '<div class="agent-node-commander-star"><i data-lucide="star"></i></div>'
-        : '';
+        const modGrid = document.createElement('div');
+        modGrid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
 
-    // Assignment type label
-    const typeLabel = isPrimary
-        ? _t('bridge.agent.primary', 'Primary')
-        : _t('bridge.agent.backup', 'Backup');
+        for (const mod of zd.modules) {
+            const chip = document.createElement('span');
+            chip.style.cssText = 'font-size:0.7rem;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);white-space:nowrap;';
+            chip.textContent = mod;
+            modGrid.appendChild(chip);
+        }
+        body.appendChild(modGrid);
+    }
 
-    const displayName = firstName || fullName.split(' ')[0];
+    modal.classList.add('active');
+}
 
-    return '<div class="bridge-agent-node" data-agent-id="' + agent.id + '">'
-        + '<div class="agent-node-avatar-wrap">'
-        + '<div class="agent-node-initials" style="background: color-mix(in srgb, ' + stationColor + ' 20%, rgba(0,0,0,0.6));">'
-        + escapeHtml(initials)
-        + '</div>'
-        + '<div class="agent-node-halo ' + haloClass + '"></div>'
-        + commanderStar
-        + '</div>'
-        + '<div class="agent-node-label">' + escapeHtml(displayName) + '</div>'
-        + '<div class="agent-node-tooltip">'
-        + '<div class="agent-node-tooltip-name">' + escapeHtml(fullName) + '</div>'
-        + '<div class="agent-node-tooltip-role">' + escapeHtml(position) + '</div>'
-        + '<div class="agent-node-tooltip-type">' + escapeHtml(typeLabel) + '</div>'
-        + '</div>'
-        + '</div>';
+// ── Warp-In Intro ──
+function triggerWarpIntro() {
+    const overlay = document.getElementById('isoWarpOverlay');
+    const room = document.getElementById('bridgeSpatialLayout');
+    if (!overlay || !room) return;
+
+    // Add warp-active to delay hull/viewscreen/station animations
+    room.classList.add('warp-active');
+
+    // Reset overlay: remove played class, make visible, force reflow
+    overlay.classList.remove('played');
+    overlay.style.opacity = '1';
+    overlay.style.visibility = 'visible';
+    overlay.offsetHeight; // force reflow
+
+    // Reset hull/viewscreen/station animations so they replay after warp
+    const hull = document.querySelector('.iso-bridge-hull');
+    const vs = document.querySelector('.iso-viewscreen');
+    if (hull) { hull.style.animation = 'none'; hull.offsetHeight; hull.style.animation = ''; }
+    if (vs) { vs.style.animation = 'none'; vs.offsetHeight; vs.style.animation = ''; }
+    document.querySelectorAll('.iso-station-zone').forEach(function(z) {
+        z.style.animation = 'none'; z.offsetHeight; z.style.animation = '';
+    });
+
+    // Start the warp sequence
+    overlay.classList.add('played');
+
+    // Remove warp-active after all animations complete (~2.5s)
+    setTimeout(function() {
+        room.classList.remove('warp-active');
+    }, 2500);
 }
 
 function getInitials(name) {
@@ -6169,8 +7383,12 @@ function renderViewscreen(events, trafficData) {
     } else {
         let html = '';
         for (const evt of events) {
-            const stationCode = getStationForModule(evt.module_source);
-            const stationColor = STATION_COLORS[stationCode] || '#00FFFF';
+            const rawStationCode = getStationForModule(evt.module_source);
+            // Map to isometric zone for arc targeting and display
+            const zoneName = STATION_TO_ISO_ZONE[rawStationCode] || rawStationCode;
+            const zoneInfo = ISOMETRIC_ZONE_MAP[zoneName];
+            const zoneColor = zoneInfo ? zoneInfo.color : (STATION_COLORS[rawStationCode] || '#00FFFF');
+            const zoneAbbr = zoneInfo ? zoneInfo.abbr : rawStationCode;
 
             // Parse time from created_at (ISO string)
             let timeStr = '--:--:--';
@@ -6189,11 +7407,11 @@ function renderViewscreen(events, trafficData) {
                 statusHtml = '<span class="viewscreen-status fail">&cross;</span>';
             }
 
-            html += '<div class="bridge-viewscreen-event" data-station-code="' + escapeHtml(stationCode) + '">'
+            html += '<div class="bridge-viewscreen-event" data-station-code="' + escapeHtml(zoneName) + '">'
                 + '<span class="viewscreen-time">' + escapeHtml(timeStr) + '</span>'
                 + '<span class="viewscreen-agent">' + escapeHtml(evt.agent_name || 'Unknown') + '</span>'
                 + '<span class="viewscreen-arrow">&rarr;</span>'
-                + '<span class="viewscreen-station" style="color:' + stationColor + '">' + escapeHtml(stationCode) + '</span>'
+                + '<span class="viewscreen-station" style="color:' + zoneColor + '">' + escapeHtml(zoneAbbr) + '</span>'
                 + '<span class="viewscreen-detail">' + escapeHtml(evt.model_used || '') + '</span>'
                 + statusHtml
                 + '</div>';
@@ -6252,9 +7470,12 @@ function createDispatchArc(stationCode) {
     // Skip on mobile — arcs hidden by CSS anyway
     if (window.innerWidth < 768) return;
 
+    // Map raw station code to isometric zone
+    const zoneName = STATION_TO_ISO_ZONE[stationCode] || stationCode;
+
     const overlay = document.getElementById('dispatchArcOverlay');
     const viewscreen = document.getElementById('bridgeViewscreen');
-    const stationZone = document.querySelector('.bridge-station-zone[data-station-code="' + stationCode + '"]');
+    const stationZone = document.querySelector('.iso-station-zone[data-station-code="' + zoneName + '"]');
     const container = document.getElementById('bridgeSpatialLayout');
 
     if (!overlay || !viewscreen || !stationZone || !container) return;
@@ -6280,7 +7501,8 @@ function createDispatchArc(stationCode) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', d);
     path.setAttribute('class', 'bridge-dispatch-arc');
-    path.setAttribute('stroke', STATION_COLORS[stationCode] || '#00FFFF');
+    const arcColor = (ISOMETRIC_ZONE_MAP[zoneName] && ISOMETRIC_ZONE_MAP[zoneName].color) || STATION_COLORS[stationCode] || '#00FFFF';
+    path.setAttribute('stroke', arcColor);
 
     // Estimate path length for dash animation
     const pathLen = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2) * 1.3;

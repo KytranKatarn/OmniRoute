@@ -1684,7 +1684,7 @@ def api_mcp_usage():
             try:
                 cur.execute(
                     """SELECT tool_name, total_calls, successful_calls,
-                    avg_response_ms, last_called
+                    avg_time_ms as avg_response_ms, last_called
                     FROM v_mcp_tool_usage_summary
                     ORDER BY total_calls DESC"""
                 )

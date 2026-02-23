@@ -8086,7 +8086,102 @@ async function loadConsoleDispatch(stationCodes) {
     } catch(sseErr) {
         _consoleDispatchTimer = setInterval(fetchAndRender, 15000);
     }
+
+    // Load skill gaps section
+    loadSkillGaps(panel);
 }
+
+async function loadSkillGaps(parentPanel) {
+    try {
+        var resp = await fetch('/tools/bridge/api/dispatch/agent-gaps');
+        var data = await resp.json();
+        var gaps = (data.gaps || []).filter(function(g) { return g.status === 'pending'; });
+
+        // Remove existing gaps section if any
+        var existing = document.getElementById('console-skill-gaps');
+        if (existing) existing.remove();
+
+        if (gaps.length === 0) return;
+
+        var section = document.createElement('div');
+        section.id = 'console-skill-gaps';
+        section.style.marginTop = '16px';
+
+        var header = document.createElement('div');
+        header.className = 'lcars-section-label';
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'center';
+
+        var headerText = document.createElement('span');
+        headerText.textContent = 'SKILL GAPS';
+        header.appendChild(headerText);
+
+        var badge = document.createElement('span');
+        badge.className = 'badge badge-warning';
+        badge.style.cssText = 'font-size:0.75em;padding:2px 8px;border-radius:10px;background:#f59e0b;color:#000;';
+        badge.textContent = gaps.length;
+        header.appendChild(badge);
+
+        section.appendChild(header);
+
+        for (var i = 0; i < gaps.length; i++) {
+            var g = gaps[i];
+            var row = document.createElement('div');
+            row.className = 'lcars-dispatch-row';
+            row.style.cssText = 'flex-direction:column;align-items:flex-start;gap:4px;padding:8px;';
+
+            var info = document.createElement('div');
+            info.style.fontWeight = 'bold';
+            info.textContent = (g.capability || 'unknown') + ' @ ' + (g.station || '?') + ' \u2192 ' + (g.suggested_name || '');
+            row.appendChild(info);
+
+            if (g.reason) {
+                var reason = document.createElement('div');
+                reason.style.cssText = 'font-size:0.85em;opacity:0.7;';
+                reason.textContent = g.reason;
+                row.appendChild(reason);
+            }
+
+            var btn = document.createElement('button');
+            btn.className = 'btn btn-sm btn-outline-success';
+            btn.style.cssText = 'margin-top:4px;font-size:0.8em;padding:2px 10px;';
+            btn.textContent = 'Approve & Create';
+            btn.dataset.gapId = g.id;
+            btn.addEventListener('click', function() {
+                var gapBtn = this;
+                var gapId = parseInt(gapBtn.dataset.gapId);
+                gapBtn.disabled = true;
+                gapBtn.textContent = 'Creating...';
+                fetch('/tools/bridge/api/agents/create-from-gap', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({approval_id: gapId})
+                }).then(function(r) { return r.json(); }).then(function(d) {
+                    if (d.success) {
+                        gapBtn.textContent = 'Created';
+                        gapBtn.className = 'btn btn-sm btn-success';
+                        setTimeout(function() { loadSkillGaps(parentPanel); }, 2000);
+                    } else {
+                        gapBtn.textContent = d.error || 'Failed';
+                        gapBtn.disabled = false;
+                    }
+                }).catch(function() {
+                    gapBtn.textContent = 'Error';
+                    gapBtn.disabled = false;
+                });
+            });
+            row.appendChild(btn);
+
+            section.appendChild(row);
+        }
+
+        parentPanel.appendChild(section);
+    } catch (e) {
+        console.debug('Skill gaps load error:', e);
+    }
+}
+
 async function loadConsoleNodes(zd, stationColor) {
     var panel = document.getElementById('lcarsNodesPanel');
     if (!panel) return;

@@ -1463,8 +1463,144 @@
       }
 
       refreshIcons();
+
+      // Load supplementary data
+      loadHealthHistory();
+      loadMcpUsage();
     });
   }
+
+  function loadHealthHistory() {
+    api("/api/integrations/health/history").then(function (data) {
+      var history = data.history || {};
+      var container = document.getElementById("healthSparklines");
+      if (!container || Object.keys(history).length === 0) return;
+
+      var html = "";
+      document.getElementById("healthHistoryRow").style.display = "block";
+
+      Object.keys(history).sort().forEach(function (svc) {
+        var checks = history[svc];
+        var recent = checks.slice(-24);
+        var dots = recent.map(function (c) {
+          var color = c.status === "online" ? "var(--archie-green, #22c55e)"
+                    : c.status === "warning" ? "var(--archie-orange, #ffa500)"
+                    : "var(--archie-red, #ef4444)";
+          var ts = c.checked_at ? new Date(c.checked_at).toLocaleTimeString() : "";
+          var title = escHtml(c.status + " - " + (c.detail || "") + " (" + ts + ")");
+          return '<span title="' + title + '" style="display:inline-block;width:6px;height:14px;background:' + color + ';border-radius:1px;margin:0 1px;"></span>';
+        }).join("");
+
+        html +=
+          '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--archie-bg-secondary);border-radius:6px;">' +
+          '<span style="font-size:0.68rem;color:var(--archie-text-muted);min-width:70px;">' + escHtml(svc) + '</span>' +
+          '<div style="display:flex;align-items:center;">' + dots + '</div>' +
+          '</div>';
+      });
+
+      setHtml(container, html);
+      refreshIcons();
+    }).catch(function () {});
+  }
+
+  function loadMcpUsage() {
+    api("/api/integrations/mcp/usage").then(function (data) {
+      var panel = document.getElementById("mcpUsagePanel");
+      if (!panel) return;
+
+      var stats = data.tool_stats || [];
+      var errors = data.errors || [];
+
+      if (stats.length === 0 && errors.length === 0) {
+        setHtml(panel, '<div class="devhq-empty">No usage data yet</div>');
+        return;
+      }
+
+      var html = "";
+
+      if (stats.length > 0) {
+        html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+        var maxCalls = stats[0].total_calls || 1;
+        stats.slice(0, 10).forEach(function (tool) {
+          var pct = Math.round((tool.total_calls / maxCalls) * 100);
+          var errorRate = tool.total_calls > 0
+            ? Math.round(((tool.total_calls - tool.successful_calls) / tool.total_calls) * 100)
+            : 0;
+          var barColor = errorRate > 20 ? "var(--archie-red, #ef4444)" : errorRate > 5 ? "var(--archie-orange)" : "var(--archie-green, #22c55e)";
+
+          html +=
+            '<div style="display:flex;align-items:center;gap:8px;font-size:0.72rem;">' +
+            '<span style="min-width:130px;color:var(--archie-text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escHtml(tool.tool_name) + '">' + escHtml(tool.tool_name) + '</span>' +
+            '<div style="flex:1;height:8px;background:var(--archie-bg-primary);border-radius:4px;overflow:hidden;">' +
+            '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';border-radius:4px;"></div></div>' +
+            '<span style="min-width:35px;text-align:right;color:var(--archie-text-primary);font-weight:600;">' + tool.total_calls + '</span>' +
+            '<span style="min-width:45px;text-align:right;color:var(--archie-text-muted);font-size:0.65rem;">' + (tool.avg_response_ms || 0) + 'ms</span>' +
+            (errorRate > 0 ? '<span style="min-width:30px;color:var(--archie-red, #ef4444);font-size:0.65rem;">' + errorRate + '%</span>' : '') +
+            '</div>';
+        });
+        html += '</div>';
+      }
+
+      if (errors.length > 0) {
+        html +=
+          '<div style="margin-top:12px;padding:8px;background:rgba(239,68,68,0.05);border-radius:6px;border:1px solid rgba(239,68,68,0.1);">' +
+          '<div style="font-size:0.72rem;font-weight:600;color:var(--archie-red, #ef4444);margin-bottom:4px;">Recent Errors</div>';
+        errors.slice(0, 5).forEach(function (err) {
+          html +=
+            '<div style="font-size:0.68rem;color:var(--archie-text-muted);padding:2px 0;">' +
+            escHtml(err.tool_name) + ': ' + escHtml(err.error_message || err.error_code || "unknown") +
+            ' (' + err.count + 'x)</div>';
+        });
+        html += '</div>';
+      }
+
+      setHtml(panel, html);
+    }).catch(function () {
+      var panel = document.getElementById("mcpUsagePanel");
+      if (panel) setHtml(panel, '<div class="devhq-empty">Could not load usage data</div>');
+    });
+  }
+
+  window.runQuickAction = function (action) {
+    var resultDiv = document.getElementById("quickActionResult");
+    if (resultDiv) {
+      resultDiv.style.display = "block";
+      setHtml(resultDiv, '<span style="color:var(--archie-orange);">Running...</span>');
+    }
+
+    var path;
+    if (action === "health-check") {
+      path = "/api/integrations/health/check";
+    } else if (action === "sync-mcp-tools") {
+      path = "/api/system/actions/sync-mcp-tools";
+    } else {
+      path = "/api/system/actions/" + action;
+    }
+
+    api(path, { method: "POST" })
+      .then(function (data) {
+        if (resultDiv) {
+          if (data.success !== false) {
+            setHtml(resultDiv, '<span style="color:var(--archie-green, #22c55e);">&#10003; ' + escHtml(data.message || "Done") + '</span>');
+            if (action === "health-check") {
+              setTimeout(function () { loadIntegrations(); }, 1000);
+            }
+          } else {
+            setHtml(resultDiv, '<span style="color:var(--archie-red, #ef4444);">Error: ' + escHtml(data.error || "Unknown") + '</span>');
+          }
+        }
+      })
+      .catch(function (e) {
+        if (resultDiv) {
+          setHtml(resultDiv, '<span style="color:var(--archie-red, #ef4444);">Failed: ' + escHtml(e.message || "Network error") + '</span>');
+        }
+      });
+
+    // Auto-hide after 6s
+    setTimeout(function () {
+      if (resultDiv) resultDiv.style.display = "none";
+    }, 6000);
+  };
 
   function loadSchema() {
     api("/api/schema")

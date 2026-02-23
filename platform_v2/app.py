@@ -2047,6 +2047,34 @@ _update_service_status()
 
 
 # ============================================================================
+# MCP TOOL SYNC + HEALTH PROBE - Startup tasks for Dev HQ System tab
+# ============================================================================
+def _startup_mcp_sync_and_health():
+    """Sync MCP tool registry and run initial health check on startup."""
+    import threading
+
+    def _do_sync():
+        try:
+            with app.app_context():
+                from tools.dev_hq.routes import sync_mcp_tool_registry, _run_and_store_health_check
+
+                synced = sync_mcp_tool_registry()
+                if synced:
+                    logger.info(f"MCP tool registry: synced {synced} entries")
+
+                results = _run_and_store_health_check()
+                logger.info(f"Initial health check stored: {len(results)} services")
+        except Exception as e:
+            logger.warning(f"MCP sync/health startup failed: {e}")
+
+    t = threading.Thread(target=_do_sync, daemon=True, name="mcp-sync")
+    t.start()
+
+
+_startup_mcp_sync_and_health()
+
+
+# ============================================================================
 # SANDBOX MODE CONTEXT PROCESSOR
 # ============================================================================
 
@@ -3243,6 +3271,24 @@ def init_consciousness_scheduler(flask_app):
             replace_existing=True,
         )
 
+        # Health probe: store service health every 15 minutes for sparkline display
+        def scheduled_health_probe():
+            with flask_app.app_context():
+                try:
+                    from tools.dev_hq.routes import _run_and_store_health_check
+
+                    _run_and_store_health_check()
+                except Exception as e:
+                    logger.warning(f"Health probe failed: {e}")
+
+        scheduler.add_job(
+            scheduled_health_probe,
+            trigger=IntervalTrigger(minutes=15),
+            id="health_probe",
+            name="Service Health Probe (Dev HQ Sparklines)",
+            replace_existing=True,
+        )
+
         # Crew wellness tick: training progression + rest recovery
         def scheduled_crew_wellness():
             crew_wellness_tick(flask_app)
@@ -3257,7 +3303,7 @@ def init_consciousness_scheduler(flask_app):
 
         scheduler.start()
         flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
-        logger.info("Consciousness scheduler started with 7 scheduled tasks")
+        logger.info("Consciousness scheduler started with 8 scheduled tasks")
 
         return scheduler
 

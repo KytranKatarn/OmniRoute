@@ -665,6 +665,26 @@
 }
 .devhq-integration-card:hover { border-color: rgba(255,170,0,0.3); }
 
+/* --- Quick Action Buttons --- */
+.devhq-quick-action-btn {
+    background: var(--archie-bg-tertiary, var(--archie-bg-secondary));
+    border: 1px solid var(--archie-border-default);
+    color: var(--archie-text-primary);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: border-color 0.2s, background 0.2s;
+    font-family: inherit;
+}
+.devhq-quick-action-btn:hover {
+    border-color: var(--archie-orange);
+    background: rgba(255,170,0,0.08);
+}
+
 /* --- Pre-formatted --- */
 .devhq-pre {
     background: var(--archie-bg-primary);
@@ -1225,6 +1245,12 @@ body.light-mode .devhq-md-content h3 { color: #d4820a; }
                 <div class="devhq-integrations-grid" id="integrationsGrid">
                     <div class="devhq-loading">Loading integrations</div>
                 </div>
+                <div id="healthHistoryRow" style="display:none; margin-top:12px;">
+                    <div style="font-size:0.72rem; color:var(--archie-text-muted); margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                        <i data-lucide="activity" style="width:14px;height:14px;"></i> 24h Health Timeline
+                    </div>
+                    <div id="healthSparklines" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+                </div>
                 <div class="devhq-card" style="margin-top:16px;">
                     <div class="devhq-card-header">MCP Servers</div>
                     <div class="devhq-card-body" id="mcpServersPanel">
@@ -1238,10 +1264,37 @@ body.light-mode .devhq-md-content h3 { color: #d4820a; }
                     </div>
                 </div>
                 <div class="devhq-card" style="margin-top:16px;">
+                    <div class="devhq-card-header">MCP Tool Usage <span id="mcpUsagePeriod" style="font-size:0.65rem;color:var(--archie-text-muted);font-weight:400;">(7 days)</span></div>
+                    <div class="devhq-card-body" id="mcpUsagePanel">
+                        <div class="devhq-loading">Loading usage data</div>
+                    </div>
+                </div>
+                <div class="devhq-card" style="margin-top:16px;">
                     <div class="devhq-card-header">Claude Configuration</div>
                     <div class="devhq-card-body" id="claudeConfigPanel">
                         <div class="devhq-loading">Loading Claude config</div>
                     </div>
+                </div>
+                <div class="devhq-card" style="margin-top:16px;">
+                    <div class="devhq-card-header"><i data-lucide="zap" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i>Quick Actions</div>
+                    <div class="devhq-card-body" style="display:flex; flex-wrap:wrap; gap:8px;" id="quickActionsGrid">
+                        <button class="devhq-quick-action-btn" onclick="runQuickAction('clear-cache')">
+                            <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Clear Bridge Cache
+                        </button>
+                        <button class="devhq-quick-action-btn" onclick="runQuickAction('warmup')">
+                            <i data-lucide="flame" style="width:14px;height:14px;"></i> Restart Warmup
+                        </button>
+                        <button class="devhq-quick-action-btn" onclick="runQuickAction('reindex-embeddings')">
+                            <i data-lucide="database" style="width:14px;height:14px;"></i> Reindex Embeddings
+                        </button>
+                        <button class="devhq-quick-action-btn" onclick="runQuickAction('sync-mcp-tools')">
+                            <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Sync MCP Tools
+                        </button>
+                        <button class="devhq-quick-action-btn" onclick="runQuickAction('health-check')">
+                            <i data-lucide="heart-pulse" style="width:14px;height:14px;"></i> Run Health Check
+                        </button>
+                    </div>
+                    <div id="quickActionResult" style="display:none; padding:8px 16px; font-size:0.75rem; border-top:1px solid var(--archie-border-default);"></div>
                 </div>
             </div>
         </div>

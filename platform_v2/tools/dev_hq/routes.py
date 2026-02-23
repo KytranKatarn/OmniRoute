@@ -722,8 +722,8 @@ def api_mcp_status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
             cur.execute(
-                "SELECT name, category, description, is_enabled as enabled,"
-                " created_at FROM mcp_tool_definitions ORDER BY category, name"
+                "SELECT id, name, category, description, is_enabled as enabled,"
+                " tags, created_at FROM mcp_tool_definitions ORDER BY category, name"
             )
             result["mcp_tools_db"] = [dict(r) for r in cur.fetchall()]
         except Exception:
@@ -731,7 +731,7 @@ def api_mcp_status():
         try:
             cur.execute(
                 """SELECT tool_name, COUNT(*) as usage_count,
-                MAX(executed_at) as last_used
+                MAX(created_at) as last_used
                 FROM mcp_tool_usage
                 GROUP BY tool_name ORDER BY usage_count DESC"""
             )
@@ -1554,3 +1554,331 @@ def api_delete_project_doc(project_id, doc_id):
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
             cur.close()
+
+
+# ---------------------------------------------------------------------------
+# System Tab: MCP Usage Analytics, Health History, Quick Actions
+# ---------------------------------------------------------------------------
+
+
+def _run_and_store_health_check():
+    """Run health checks on all services and store results in history table."""
+    import time as _time
+
+    checks = []
+    ollama_host = os.getenv("OLLAMA_HOST", "host.docker.internal:11434")
+    if not ollama_host.startswith("http"):
+        ollama_host = "http://" + ollama_host
+
+    # Ollama
+    try:
+        start = _time.time()
+        req = urllib.request.Request(f"{ollama_host}/api/tags", method="GET")
+        req.add_header("User-Agent", "archie-devhq/1.0")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json_module.loads(resp.read())
+            model_count = len(data.get("models", []))
+        elapsed = int((_time.time() - start) * 1000)
+        checks.append(("ollama", "online", f"{model_count} models", elapsed))
+    except Exception:
+        checks.append(("ollama", "offline", "unreachable", None))
+
+    # PostgreSQL
+    try:
+        start = _time.time()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+        elapsed = int((_time.time() - start) * 1000)
+        checks.append(("postgresql", "online", "connected", elapsed))
+    except Exception:
+        checks.append(("postgresql", "offline", "unreachable", None))
+
+    # MCP servers
+    mcp_path = os.path.join(os.getenv("ARCHIE_BRAIN_PATH", "/mnt/archie_brain"), ".mcp.json")
+    try:
+        with open(mcp_path, "r") as f:
+            mcp = json_module.load(f)
+        count = len(mcp.get("mcpServers", {}))
+        checks.append(("mcp", "online" if count > 0 else "warning", f"{count} servers", None))
+    except Exception:
+        checks.append(("mcp", "offline", "config missing", None))
+
+    # GitHub token
+    gh = os.getenv("GITHUB_TOKEN")
+    checks.append(("github", "online" if gh else "warning", "token set" if gh else "no token", None))
+
+    # Telegram
+    tg = os.getenv("TELEGRAM_BOT_TOKEN")
+    checks.append(("telegram", "online" if tg else "warning", "token set" if tg else "no token", None))
+
+    # Home Assistant
+    ha = os.getenv("HA_API_KEY")
+    checks.append(("home_assistant", "online" if ha else "warning", "key set" if ha else "no key", None))
+
+    # Store results
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                for svc, status, detail, resp_ms in checks:
+                    cur.execute(
+                        """INSERT INTO service_health_history
+                        (service_name, status, detail, response_time_ms)
+                        VALUES (%s, %s, %s, %s)""",
+                        (svc, status, detail, resp_ms),
+                    )
+                cur.execute("DELETE FROM service_health_history WHERE checked_at < NOW() - INTERVAL '7 days'")
+                conn.commit()
+    except Exception:
+        pass
+
+    return [{"service": s, "status": st, "detail": d, "response_time_ms": ms} for s, st, d, ms in checks]
+
+
+def sync_mcp_tool_registry():
+    """Sync .mcp.json server info to mcp_tool_definitions table."""
+    mcp_path = os.path.join(os.getenv("ARCHIE_BRAIN_PATH", "/mnt/archie_brain"), ".mcp.json")
+    try:
+        with open(mcp_path, "r") as f:
+            mcp_config = json_module.load(f)
+    except Exception:
+        return 0
+
+    servers = mcp_config.get("mcpServers", {})
+    synced = 0
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                for server_name in servers:
+                    cur.execute(
+                        """INSERT INTO mcp_tool_definitions
+                        (name, category, display_name, description, is_enabled)
+                        VALUES (%s, %s, %s, %s, TRUE)
+                        ON CONFLICT (name) DO UPDATE SET
+                            display_name = EXCLUDED.display_name,
+                            updated_at = NOW()""",
+                        (
+                            f"_server_{server_name}",
+                            "admin",
+                            f"MCP Server: {server_name}",
+                            f"Auto-registered from .mcp.json",
+                        ),
+                    )
+                    synced += 1
+                conn.commit()
+    except Exception:
+        pass
+
+    return synced
+
+
+@dev_hq_bp.route("/api/integrations/mcp/usage")
+@login_required
+@admin_hub_only
+def api_mcp_usage():
+    """MCP tool usage analytics."""
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur.execute(
+                    """SELECT tool_name, total_calls, successful_calls,
+                    avg_response_ms, last_called
+                    FROM v_mcp_tool_usage_summary
+                    ORDER BY total_calls DESC"""
+                )
+                tool_stats = [dict(r) for r in cur.fetchall()]
+            except Exception:
+                tool_stats = []
+
+            try:
+                cur.execute(
+                    """SELECT DATE(created_at) as day,
+                    COUNT(*) as calls,
+                    SUM(CASE WHEN success THEN 1 ELSE 0 END) as successes,
+                    SUM(CASE WHEN NOT success THEN 1 ELSE 0 END) as failures
+                    FROM mcp_tool_usage
+                    WHERE created_at > NOW() - INTERVAL '7 days'
+                    GROUP BY DATE(created_at) ORDER BY day"""
+                )
+                daily_volume = [dict(r) for r in cur.fetchall()]
+            except Exception:
+                daily_volume = []
+
+            try:
+                cur.execute(
+                    """SELECT tool_name, error_code, error_message, COUNT(*) as count
+                    FROM mcp_tool_usage
+                    WHERE success = FALSE AND created_at > NOW() - INTERVAL '7 days'
+                    GROUP BY tool_name, error_code, error_message
+                    ORDER BY count DESC LIMIT 20"""
+                )
+                errors = [dict(r) for r in cur.fetchall()]
+            except Exception:
+                errors = []
+
+            cur.close()
+        return jsonify({"tool_stats": tool_stats, "daily_volume": daily_volume, "errors": errors})
+    except Exception as e:
+        return jsonify({"tool_stats": [], "daily_volume": [], "errors": [], "error": str(e)})
+
+
+@dev_hq_bp.route("/api/integrations/health/history")
+@login_required
+@admin_hub_only
+def api_health_history():
+    """Last 24h of health checks for sparkline display."""
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """SELECT service_name, status, detail, response_time_ms, checked_at
+                FROM service_health_history
+                WHERE checked_at > NOW() - INTERVAL '24 hours'
+                ORDER BY service_name, checked_at"""
+            )
+            rows = cur.fetchall()
+            cur.close()
+
+        history = {}
+        for row in rows:
+            svc = row["service_name"]
+            if svc not in history:
+                history[svc] = []
+            history[svc].append(
+                {
+                    "status": row["status"],
+                    "detail": row["detail"],
+                    "response_time_ms": row["response_time_ms"],
+                    "checked_at": row["checked_at"].isoformat() if row["checked_at"] else None,
+                }
+            )
+
+        return jsonify({"history": history})
+    except Exception as e:
+        return jsonify({"history": {}, "error": str(e)})
+
+
+@dev_hq_bp.route("/api/integrations/health/check", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_run_health_check():
+    """Run health check now and store results."""
+    results = _run_and_store_health_check()
+    return jsonify({"success": True, "results": results, "message": "Health check complete"})
+
+
+@dev_hq_bp.route("/api/system/actions/clear-cache", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_clear_bridge_cache():
+    """Clear old bridge conversations."""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """DELETE FROM bridge_interaction_log
+                    WHERE created_at < NOW() - INTERVAL '1 day'
+                    RETURNING id"""
+                )
+                deleted = cur.rowcount
+                conn.commit()
+        return jsonify({"success": True, "message": f"Cleared {deleted} old bridge log entries"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@dev_hq_bp.route("/api/system/actions/warmup", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_restart_warmup():
+    """Trigger Ollama model warmup."""
+    ollama_host = os.getenv("OLLAMA_HOST", "host.docker.internal:11434")
+    if not ollama_host.startswith("http"):
+        ollama_host = "http://" + ollama_host
+    models = ["dolphin3-8k:latest", "arctic-embed-cpu:latest", "qwen25-classify:latest"]
+    results = []
+    for model in models:
+        try:
+            payload = json_module.dumps({"model": model, "prompt": "warmup", "stream": False}).encode()
+            req = urllib.request.Request(
+                f"{ollama_host}/api/generate",
+                data=payload,
+                headers={"Content-Type": "application/json", "User-Agent": "archie-devhq/1.0"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                results.append({"model": model, "status": "ok" if resp.status == 200 else "error"})
+        except Exception as e:
+            results.append({"model": model, "status": "error", "error": str(e)})
+    return jsonify(
+        {
+            "success": True,
+            "results": results,
+            "message": f"Warmed up {len([r for r in results if r['status'] == 'ok'])}/{len(models)} models",
+        }
+    )
+
+
+@dev_hq_bp.route("/api/system/actions/reindex-embeddings", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_reindex_embeddings():
+    """Report missing embeddings count."""
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT COUNT(*) FROM knowledge_base
+                    WHERE embedding IS NULL AND knowledge_type != 'archie_v1'"""
+                )
+                missing = cur.fetchone()[0]
+        return jsonify(
+            {
+                "success": True,
+                "missing_embeddings": missing,
+                "message": f"{missing} entries need embeddings",
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@dev_hq_bp.route("/api/system/actions/sync-mcp-tools", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_sync_mcp_tools():
+    """Manually trigger MCP tool registry sync."""
+    count = sync_mcp_tool_registry()
+    return jsonify({"success": True, "synced": count, "message": f"Synced {count} entries"})
+
+
+@dev_hq_bp.route("/api/integrations/mcp/tools/<int:tool_id>/hints", methods=["PUT"])
+@login_required
+@admin_hub_only
+def api_update_tool_hints(tool_id):
+    """Update routing hints metadata for a tool definition."""
+    data = request.get_json() or {}
+    hints = data.get("routing_hints", {})
+
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """UPDATE mcp_tool_definitions
+                SET tags = COALESCE(tags, '{}')::jsonb || %s::jsonb,
+                    updated_at = NOW()
+                WHERE id = %s
+                RETURNING id, name, tags""",
+                (Json({"routing_hints": hints}), tool_id),
+            )
+            updated = cur.fetchone()
+            conn.commit()
+            cur.close()
+
+        if not updated:
+            return jsonify({"error": "Tool not found"}), 404
+        return jsonify({"success": True, "tool": dict(updated)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})

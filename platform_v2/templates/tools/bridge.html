@@ -527,55 +527,6 @@ body.light-mode .status-bar-divider {
     box-shadow: 0 0 6px var(--archie-success, #10b981);
 }
 
-/* --- Station Zones Grid --- */
-.bridge-spatial-stations {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-}
-
-/* --- Station Zone (glass panel) --- */
-.bridge-station-zone {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 12px;
-    position: relative;
-    overflow: hidden;
-    transition: box-shadow 0.4s ease, border-color 0.4s ease;
-    cursor: pointer;
-}
-
-/* Top gradient accent bar */
-.bridge-station-zone::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg,
-        transparent,
-        var(--station-color, #00ffff),
-        transparent
-    );
-    opacity: 0.6;
-}
-
-.bridge-station-zone:hover {
-    border-color: color-mix(in srgb, var(--station-color, #00ffff) 30%, transparent);
-    box-shadow: 0 0 20px color-mix(in srgb, var(--station-color, #00ffff) 12%, transparent);
-}
-
-/* Dispatch active glow (enhanced when receiving dispatch arc) */
-.bridge-station-zone.dispatch-active {
-    border-color: color-mix(in srgb, var(--station-color, #00ffff) 50%, transparent);
-    box-shadow:
-        0 0 25px color-mix(in srgb, var(--station-color, #00ffff) 20%, transparent),
-        0 0 50px color-mix(in srgb, var(--station-color, #00ffff) 10%, transparent);
-}
-
 /* --- Zone Header --- */
 .bridge-zone-header {
     display: flex;
@@ -904,11 +855,6 @@ body.light-mode .status-bar-divider {
         gap: 8px;
     }
 
-    .bridge-spatial-stations {
-        grid-template-columns: 1fr;
-        gap: 6px;
-    }
-
     /* Viewscreen — compact on mobile */
     .bridge-viewscreen {
         border-radius: 8px;
@@ -933,23 +879,6 @@ body.light-mode .status-bar-divider {
 
     /* Hide model name on mobile — too cramped */
     .viewscreen-model {
-        display: none;
-    }
-
-    /* Station zones — 2-column compact grid */
-    .bridge-spatial-stations {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    /* Compact card style with colored left border */
-    .bridge-station-zone {
-        padding: 8px 10px;
-        border-radius: 8px;
-        border-left: 3px solid var(--station-color, #00ffff);
-    }
-
-    .bridge-station-zone::before {
-        /* Remove top gradient bar on mobile — using left border instead */
         display: none;
     }
 
@@ -1084,17 +1013,6 @@ body.light-mode .bridge-viewscreen-event:hover {
 body.light-mode .bridge-viewscreen-statusbar {
     background: rgba(0, 0, 0, 0.03);
     border-top-color: rgba(0, 150, 180, 0.1);
-}
-
-[data-theme="light"] .bridge-station-zone,
-body.light-mode .bridge-station-zone {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .bridge-station-zone:hover,
-body.light-mode .bridge-station-zone:hover {
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .bridge-zone-header,
@@ -6945,45 +6863,23 @@ function updateClock() {
 
 async function loadStations() {
     try {
-        // Fetch stations and coverage in parallel
-        const [stationsResp, coverageResp] = await Promise.all([
-            fetch('/tools/bridge/api/stations'),
-            fetch('/tools/bridge/api/stations/coverage')
-        ]);
+        const resp = await fetch('/tools/bridge/api/stations');
+        const data = await resp.json();
+        if (!data.success) return;
 
-        const stationsData = await stationsResp.json();
-        const coverageData = await coverageResp.json();
+        allStations = data.stations;
 
-        if (stationsData.success) {
-            allStations = stationsData.stations;
-
-            // Build coverage map by station code
-            if (coverageData.success && coverageData.coverage) {
-                stationNodeCoverage = {};
-                for (const cov of coverageData.coverage) {
-                    stationNodeCoverage[cov.station_code] = cov;
-                }
-
-                // Fetch node details for each station with nodes
-                for (const cov of coverageData.coverage) {
-                    if (cov.total_nodes > 0) {
-                        try {
-                            const nodesResp = await fetch(`/tools/bridge/api/stations/${cov.station_id}/nodes`);
-                            const nodesData = await nodesResp.json();
-                            if (nodesData.success) {
-                                stationNodeCoverage[cov.station_code].nodes = nodesData.nodes;
-                            }
-                        } catch (e) {
-                            console.error('Error loading nodes for station:', cov.station_code, e);
-                        }
-                    }
-                }
+        // Build coverage map from inline data (no separate API call needed)
+        stationNodeCoverage = {};
+        for (const s of data.stations) {
+            if (s.node_coverage) {
+                stationNodeCoverage[s.code] = s.node_coverage;
             }
-
-            renderStations(stationsData.stations);
-            updateStationStats(stationsData.stations);
-            loadViewscreenData();
         }
+
+        renderStations(data.stations);
+        updateStationStats(data.stations);
+        loadViewscreenData();
     } catch (error) {
         console.error('Error loading stations:', error);
     }

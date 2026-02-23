@@ -29,6 +29,30 @@ logger = logging.getLogger(__name__)
 
 bridge_bp = Blueprint("bridge", __name__, url_prefix="/tools/bridge")
 
+# Ollama tags cache (avoid hitting Ollama on every stats poll)
+_ollama_tags_cache = {"models": [], "count": 0, "time": 0}
+_OLLAMA_CACHE_TTL = 30  # seconds — matches stats poll interval
+
+
+def _get_cached_ollama_tags():
+    """Get Ollama model list with 30s cache"""
+    now = time.time()
+    if _ollama_tags_cache["time"] and (now - _ollama_tags_cache["time"]) < _OLLAMA_CACHE_TTL:
+        return _ollama_tags_cache["models"], _ollama_tags_cache["count"]
+    try:
+        host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+        resp = requests.get(f"{host}/api/tags", timeout=3)
+        if resp.status_code == 200:
+            models = resp.json().get("models", [])
+            _ollama_tags_cache["models"] = models
+            _ollama_tags_cache["count"] = len(models)
+            _ollama_tags_cache["time"] = now
+            return models, len(models)
+    except Exception:
+        pass
+    return _ollama_tags_cache["models"], _ollama_tags_cache["count"]
+
+
 # --- SSE Activity Event Queue ---
 _activity_queue = deque(maxlen=200)
 
@@ -269,18 +293,9 @@ def get_bridge_stats():
                 "relationship_strength": 0.90,
             }
 
-            # Get real LLM model counts from Ollama
-            llm_online = 0
-            llm_total = 0
-            try:
-                ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-                resp = requests.get(f"{ollama_host}/api/tags", timeout=3)
-                if resp.status_code == 200:
-                    models = resp.json().get("models", [])
-                    llm_total = len(models)
-                    llm_online = llm_total  # All loaded models are online
-            except Exception:
-                pass
+            # Get real LLM model counts from Ollama (cached)
+            _, llm_total = _get_cached_ollama_tags()
+            llm_online = llm_total
 
             # System load from active requests ratio (capped 0-100)
             active_requests = token_stats["total_requests"] if token_stats else 0
@@ -364,12 +379,18 @@ def get_stations():
             )
             db_stations = cur.fetchall()
 
+            # Inline node coverage (avoids separate /api/stations/coverage call)
+            cur.execute("SELECT * FROM v_station_node_coverage")
+            coverage_rows = cur.fetchall()
+            coverage_map = {c["station_code"]: c for c in coverage_rows}
+
             stations_data = []
             for station in db_stations:
                 agents = station["assigned_agents"] or []
                 primary_count = sum(1 for a in agents if a.get("assignment_type") == "primary")
                 backup_count = sum(1 for a in agents if a.get("assignment_type") == "backup")
 
+                cov = coverage_map.get(station["station_code"], {})
                 stations_data.append(
                     {
                         "id": station["id"],
@@ -388,6 +409,11 @@ def get_stations():
                         "backup_count": backup_count,
                         "total_agents": len(agents),
                         "status": "active",
+                        "node_coverage": {
+                            "total_nodes": cov.get("total_nodes", 0),
+                            "primary_nodes": cov.get("primary_nodes", 0),
+                            "backup_nodes": cov.get("backup_nodes", 0),
+                        },
                     }
                 )
 
@@ -396,6 +422,11 @@ def get_stations():
                     "success": True,
                     "stations": stations_data,
                     "total_stations": len(stations_data),
+                    "coverage_summary": {
+                        "total_stations": len(coverage_rows),
+                        "stations_with_nodes": len([c for c in coverage_rows if c["total_nodes"] > 0]),
+                        "total_assignments": sum(c["total_nodes"] for c in coverage_rows),
+                    },
                 }
             )
 
@@ -4497,6 +4528,55 @@ def get_station_nodes(station_id):
 
     except Exception as e:
         logger.error(f"Error getting station nodes: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/stations/batch-nodes", methods=["POST"])
+@login_required
+def get_batch_station_nodes():
+    """Get nodes for multiple stations in one query"""
+    data = request.get_json() or {}
+    station_ids = data.get("station_ids", [])
+    if not station_ids:
+        return jsonify({"success": True, "stations": {}})
+
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT
+                    nsa.station_id,
+                    rn.node_id, rn.node_name, rn.status, rn.hostname,
+                    rn.cpu_cores, rn.ram_gb, rn.gpu_model,
+                    rn.ollama_available, rn.docker_available,
+                    rn.current_load, rn.max_concurrent,
+                    nsa.role, nsa.priority, nsa.shift_preference,
+                    nsa.is_active AS assignment_active, nsa.assigned_at
+                FROM node_station_assignments nsa
+                JOIN remote_nodes rn ON nsa.node_id = rn.id
+                WHERE nsa.station_id = ANY(%s)
+                ORDER BY nsa.station_id,
+                    CASE nsa.role
+                        WHEN 'primary' THEN 1 WHEN 'backup' THEN 2
+                        WHEN 'relief' THEN 3 ELSE 4
+                    END, nsa.priority ASC
+            """,
+                (station_ids,),
+            )
+
+            nodes = cur.fetchall()
+
+            # Group by station_id
+            by_station = {}
+            for n in nodes:
+                sid = str(n["station_id"])
+                if sid not in by_station:
+                    by_station[sid] = []
+                by_station[sid].append(n)
+
+            return jsonify({"success": True, "stations": by_station})
+    except Exception as e:
+        logger.error(f"Error batch fetching nodes: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

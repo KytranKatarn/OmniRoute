@@ -7541,6 +7541,70 @@ def activity_history():
         return jsonify([])
 
 
+@bridge_bp.route("/api/stations/<station_code>/dispatch")
+@login_required
+def get_station_dispatch(station_code):
+    """Get recent dispatch activity for a specific station's agents"""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Get agent IDs assigned to this station
+            cur.execute(
+                """
+                SELECT sa.agent_id
+                FROM station_assignments sa
+                JOIN bridge_stations bs ON bs.id = sa.station_id
+                WHERE bs.station_code = %s AND sa.is_active = TRUE
+            """,
+                (station_code,),
+            )
+            agent_ids = [r["agent_id"] for r in cur.fetchall()]
+
+            if not agent_ids:
+                return jsonify([])
+
+            cur.execute(
+                """
+                (
+                    SELECT tel.id, 'task' AS source,
+                           COALESCE(NULLIF(a.first_name, ''), a.name, tel.agent_name) AS agent_name,
+                           tel.module_source, tel.task_type, tel.capability,
+                           tel.model_used, tel.success, tel.created_at,
+                           tel.duration_ms
+                    FROM task_execution_log tel
+                    LEFT JOIN agents a ON a.id = tel.agent_id
+                    WHERE tel.agent_id = ANY(%s)
+                    ORDER BY tel.created_at DESC
+                    LIMIT 20
+                )
+                UNION ALL
+                (
+                    SELECT b.id, 'bridge' AS source,
+                           COALESCE(NULLIF(a.first_name, ''), a.name, 'ARCHIE') AS agent_name,
+                           b.module_name AS module_source,
+                           b.intent_type AS task_type,
+                           'reflection' AS capability,
+                           b.model_used, b.success, b.created_at,
+                           b.execution_time_ms AS duration_ms
+                    FROM bridge_interaction_log b
+                    LEFT JOIN agents a ON a.id = b.agent_id
+                    WHERE b.agent_id = ANY(%s)
+                    ORDER BY b.created_at DESC
+                    LIMIT 20
+                )
+                ORDER BY created_at DESC
+                LIMIT 20
+            """,
+                (agent_ids, agent_ids),
+            )
+            events = cur.fetchall()
+            for ev in events:
+                ev["created_at"] = ev["created_at"].isoformat() + "Z" if ev["created_at"] else None
+            return jsonify(events)
+    except Exception as e:
+        logger.error("station_dispatch error: %s", e)
+        return jsonify([])
+
+
 @bridge_bp.route("/api/agents/<int:agent_id>/executions")
 @login_required
 def agent_executions(agent_id):

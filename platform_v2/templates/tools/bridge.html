@@ -7953,11 +7953,212 @@ function renderCrewTab(agents, stationColor) {
 
 async function loadConsoleDispatch(stationCodes) {
     var panel = document.getElementById('lcarsDispatchPanel');
-    if (panel) { panel.textContent = ''; var el = document.createElement('div'); el.className = 'lcars-empty'; el.textContent = 'Loading dispatch data...'; panel.appendChild(el); }
+    if (!panel) return;
+    panel.textContent = '';
+    var loadingEl = document.createElement('div');
+    loadingEl.className = 'lcars-empty';
+    loadingEl.textContent = 'Loading dispatch activity...';
+    panel.appendChild(loadingEl);
+
+    // Stop any existing timer
+    if (_consoleDispatchTimer) clearInterval(_consoleDispatchTimer);
+
+    async function fetchAndRender() {
+        try {
+            // Fetch for each station code and merge
+            var allEvents = [];
+            for (var i = 0; i < stationCodes.length; i++) {
+                var resp = await fetch('/tools/bridge/api/stations/' + encodeURIComponent(stationCodes[i]) + '/dispatch');
+                var events = await resp.json();
+                if (Array.isArray(events)) allEvents = allEvents.concat(events);
+            }
+
+            // Sort by time descending, limit to 20
+            allEvents.sort(function(a, b) {
+                return (b.created_at || '').localeCompare(a.created_at || '');
+            });
+            allEvents = allEvents.slice(0, 20);
+
+            panel.textContent = '';
+
+            if (allEvents.length === 0) {
+                var emptyEl = document.createElement('div');
+                emptyEl.className = 'lcars-empty';
+                emptyEl.textContent = 'No recent dispatch activity';
+                panel.appendChild(emptyEl);
+                return;
+            }
+
+            var label = document.createElement('div');
+            label.className = 'lcars-section-label';
+            label.textContent = 'RECENT DISPATCHES';
+            panel.appendChild(label);
+
+            for (var j = 0; j < allEvents.length; j++) {
+                var ev = allEvents[j];
+                var row = document.createElement('div');
+                row.className = 'lcars-dispatch-row';
+
+                var timeEl = document.createElement('div');
+                timeEl.className = 'lcars-dispatch-time';
+                timeEl.textContent = ev.created_at ? new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                row.appendChild(timeEl);
+
+                var statusEl = document.createElement('div');
+                statusEl.className = 'lcars-dispatch-status';
+                statusEl.textContent = ev.success ? '\u2713' : '\u2717';
+                statusEl.style.color = ev.success ? '#10b981' : '#ef4444';
+                row.appendChild(statusEl);
+
+                var modelEl = document.createElement('div');
+                modelEl.className = 'lcars-dispatch-model';
+                modelEl.textContent = (ev.model_used || 'unknown') + ' \u2014 ' + (ev.task_type || ev.capability || '');
+                row.appendChild(modelEl);
+
+                var latencyEl = document.createElement('div');
+                latencyEl.className = 'lcars-dispatch-latency';
+                latencyEl.textContent = ev.duration_ms ? ev.duration_ms + 'ms' : '';
+                row.appendChild(latencyEl);
+
+                panel.appendChild(row);
+            }
+        } catch (e) {
+            console.error('Console dispatch error:', e);
+            panel.textContent = '';
+            var errEl = document.createElement('div');
+            errEl.className = 'lcars-empty';
+            errEl.textContent = 'Error loading dispatch data';
+            panel.appendChild(errEl);
+        }
+    }
+
+    await fetchAndRender();
+    // Auto-refresh every 15s
+    _consoleDispatchTimer = setInterval(fetchAndRender, 15000);
 }
 async function loadConsoleNodes(zd, stationColor) {
     var panel = document.getElementById('lcarsNodesPanel');
-    if (panel) { panel.textContent = ''; var el = document.createElement('div'); el.className = 'lcars-empty'; el.textContent = 'Loading node data...'; panel.appendChild(el); }
+    if (!panel) return;
+    panel.textContent = '';
+
+    // Find station IDs for this zone
+    var stationIds = [];
+    if (_consoleCurrentZone) {
+        for (var i = 0; i < _consoleCurrentZone.zoneInfo.stations.length; i++) {
+            var code = _consoleCurrentZone.zoneInfo.stations[i];
+            var station = allStations.find(function(s) { return s.code === code; });
+            if (station) stationIds.push(station.id);
+        }
+    }
+
+    if (stationIds.length === 0 || zd.totalNodes === 0) {
+        var emptyEl = document.createElement('div');
+        emptyEl.className = 'lcars-empty';
+        emptyEl.textContent = 'No compute nodes assigned';
+        panel.appendChild(emptyEl);
+        return;
+    }
+
+    // Check cache
+    var cacheKey = stationIds.join(',');
+    if (_consoleNodeCache[cacheKey]) {
+        renderNodeCards(panel, _consoleNodeCache[cacheKey], stationColor);
+        return;
+    }
+
+    var loadingEl = document.createElement('div');
+    loadingEl.className = 'lcars-empty';
+    loadingEl.textContent = 'Loading node data...';
+    panel.appendChild(loadingEl);
+
+    try {
+        var resp = await fetch('/tools/bridge/api/stations/batch-nodes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ station_ids: stationIds })
+        });
+        var data = await resp.json();
+        if (data.success) {
+            var allNodes = [];
+            for (var sid in data.stations) {
+                for (var j = 0; j < data.stations[sid].length; j++) {
+                    allNodes.push(data.stations[sid][j]);
+                }
+            }
+            _consoleNodeCache[cacheKey] = allNodes;
+            panel.textContent = '';
+            var label = document.createElement('div');
+            label.className = 'lcars-section-label';
+            label.textContent = 'COMPUTE NODES (' + allNodes.length + ')';
+            panel.appendChild(label);
+            renderNodeCards(panel, allNodes, stationColor);
+        }
+    } catch (e) {
+        console.error('Console nodes error:', e);
+    }
+}
+
+function renderNodeCards(container, nodes, stationColor) {
+    var roleOrder = ['primary', 'backup', 'relief', 'worker'];
+    var grouped = {};
+    for (var i = 0; i < nodes.length; i++) {
+        var role = nodes[i].role || 'worker';
+        if (!grouped[role]) grouped[role] = [];
+        grouped[role].push(nodes[i]);
+    }
+
+    for (var r = 0; r < roleOrder.length; r++) {
+        var roleName = roleOrder[r];
+        if (!grouped[roleName] || grouped[roleName].length === 0) continue;
+
+        var roleLabel = document.createElement('div');
+        roleLabel.className = 'lcars-section-label';
+        roleLabel.textContent = roleName.toUpperCase();
+        container.appendChild(roleLabel);
+
+        for (var j = 0; j < grouped[roleName].length; j++) {
+            var node = grouped[roleName][j];
+            var card = document.createElement('div');
+            card.className = 'lcars-node-card';
+
+            var header = document.createElement('div');
+            header.className = 'lcars-node-header';
+
+            var dot = document.createElement('span');
+            dot.className = 'iso-status-dot';
+            dot.style.background = node.status === 'online' ? '#10b981' : node.status === 'offline' ? '#ef4444' : '#f59e0b';
+            header.appendChild(dot);
+
+            var hostname = document.createElement('span');
+            hostname.className = 'lcars-node-hostname';
+            hostname.textContent = node.node_name || node.hostname || 'Node';
+            header.appendChild(hostname);
+
+            card.appendChild(header);
+
+            var specs = document.createElement('div');
+            specs.className = 'lcars-node-specs';
+            var specItems = [];
+            if (node.cpu_cores) specItems.push(node.cpu_cores + ' CPU');
+            if (node.ram_gb) specItems.push(node.ram_gb + 'GB RAM');
+            if (node.gpu_model) specItems.push(node.gpu_model);
+            specs.textContent = specItems.join(' \u2022 ');
+            card.appendChild(specs);
+
+            if (typeof node.current_load === 'number') {
+                var loadBar = document.createElement('div');
+                loadBar.className = 'lcars-node-load';
+                var bar = document.createElement('div');
+                bar.className = 'lcars-node-load-bar';
+                bar.style.width = Math.min(node.current_load, 100) + '%';
+                bar.style.background = stationColor;
+                loadBar.appendChild(bar);
+                card.appendChild(loadBar);
+            }
+
+            container.appendChild(card);
+        }
+    }
 }
 async function loadConsoleMetrics(stationCodes) {
     var panel = document.getElementById('lcarsMetricsPanel');

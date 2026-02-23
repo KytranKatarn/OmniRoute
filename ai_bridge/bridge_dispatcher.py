@@ -76,6 +76,12 @@ CAPABILITY_STATION_MAP = {
     "voice": "CREATIVE",
     "ux_writing": "CREATIVE",
     "social_media": "CREATIVE",
+    "image_generation": "CREATIVE",
+    "video_generation": "CREATIVE",
+    "audio_generation": "CREATIVE",
+    "audio_tts": "CREATIVE",
+    "audio_music": "CREATIVE",
+    "media_editing": "CREATIVE",
 
     # Research station capabilities
     "knowledge_analysis": "RESEARCH",
@@ -189,6 +195,10 @@ class BridgeDispatcher:
         self._db_getter = None
         # Failure tracking for escalation
         self._failure_tracker = {}  # (agent_id, capability) -> count
+        # Welfare cache — shorter TTL for near-real-time welfare awareness
+        self._welfare_cache = {}   # agent_id → {stress, energy, mood, resting, budget}
+        self._welfare_cache_time = 0
+        self._welfare_cache_ttl = 30  # Refresh every 30 seconds
 
     def _get_db(self):
         """Get database connection."""
@@ -249,11 +259,134 @@ class BridgeDispatcher:
                     "first_name": agent.get("first_name") or "",
                     "last_name": agent.get("last_name") or "",
                     "title": agent.get("title") or "",
+                    "skills": {},  # populated below
                 }
+
+            # Load skills for all cached agents
+            try:
+                agent_ids = [info["id"] for info in self._agent_cache.values()]
+                if agent_ids:
+                    conn2 = self._get_db()
+                    cur2 = conn2.cursor(cursor_factory=RealDictCursor)
+                    cur2.execute("""
+                        SELECT agent_id, skill_name, skill_category,
+                               proficiency_level
+                        FROM agent_skills
+                        WHERE agent_id = ANY(%s)
+                        ORDER BY agent_id, proficiency_level DESC
+                    """, (agent_ids,))
+                    skills_rows = cur2.fetchall()
+                    cur2.close()
+                    conn2.close()
+
+                    # Build id → skills map
+                    skills_by_agent = {}  # agent_id → {skill_name: {category, level}}
+                    for row in skills_rows:
+                        aid = row["agent_id"]
+                        if aid not in skills_by_agent:
+                            skills_by_agent[aid] = {}
+                        skills_by_agent[aid][row["skill_name"]] = {
+                            "category": row["skill_category"] or "general",
+                            "level": row["proficiency_level"] or 1,
+                        }
+
+                    # Attach to cached entries
+                    for name, info in self._agent_cache.items():
+                        info["skills"] = skills_by_agent.get(info["id"], {})
+            except Exception as skills_err:
+                logger.warning(f"[BridgeDispatcher] Skills cache load failed: {skills_err}")
+
             self._cache_time = now
             logger.info(f"[BridgeDispatcher] Cached {len(self._agent_cache)} agents")
         except Exception as e:
             logger.error(f"[BridgeDispatcher] Cache refresh failed: {e}")
+
+    def _refresh_welfare_cache(self):
+        """Load agent welfare state (emotional, rest cycles, budgets) with 30s TTL.
+
+        Populates self._welfare_cache keyed by agent_id with:
+        - stress, energy, mood (from agent_emotional_state)
+        - resting: bool (from agent_rest_cycles where ended_at IS NULL)
+        - rest_type: str or None (type of active rest cycle)
+        - budget: dict with task/token usage and limits (from agent_budgets)
+        """
+        now = time.time()
+        if self._welfare_cache and (now - self._welfare_cache_time) < self._welfare_cache_ttl:
+            return
+
+        try:
+            from psycopg2.extras import RealDictCursor
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # --- Emotional state ---
+            cur.execute("""
+                SELECT DISTINCT ON (agent_id)
+                       agent_id, stress_level, energy_level, current_mood
+                FROM agent_emotional_state
+                ORDER BY agent_id, timestamp DESC
+            """)
+            emotional_map = {}
+            for r in cur.fetchall():
+                emotional_map[r["agent_id"]] = {
+                    "stress": float(r["stress_level"] or 0),
+                    "energy": float(r["energy_level"] or 0.8),
+                    "mood": r["current_mood"] or "neutral",
+                }
+
+            # --- Active rest cycles (ended_at IS NULL) ---
+            cur.execute("""
+                SELECT agent_id, rest_type
+                FROM agent_rest_cycles
+                WHERE ended_at IS NULL
+            """)
+            resting_map = {}  # agent_id → rest_type
+            for r in cur.fetchall():
+                resting_map[r["agent_id"]] = r["rest_type"]
+
+            # --- Budget data ---
+            cur.execute("""
+                SELECT agent_id, current_task_count, task_queue_limit,
+                       tokens_used_today, token_limit_per_day
+                FROM agent_budgets
+            """)
+            budget_map = {}
+            for r in cur.fetchall():
+                budget_map[r["agent_id"]] = {
+                    "current_task_count": r["current_task_count"] or 0,
+                    "task_queue_limit": r["task_queue_limit"] or 10,
+                    "tokens_used_today": r["tokens_used_today"] or 0,
+                    "token_limit_per_day": r["token_limit_per_day"] or 100000,
+                }
+
+            cur.close()
+            conn.close()
+
+            # Merge into unified welfare cache
+            # Collect all agent IDs from any of the three sources
+            all_ids = set(emotional_map.keys()) | set(resting_map.keys()) | set(budget_map.keys())
+            welfare = {}
+            for aid in all_ids:
+                emo = emotional_map.get(aid, {"stress": 0.0, "energy": 0.8, "mood": "neutral"})
+                welfare[aid] = {
+                    "stress": emo["stress"],
+                    "energy": emo["energy"],
+                    "mood": emo["mood"],
+                    "resting": aid in resting_map,
+                    "rest_type": resting_map.get(aid),
+                    "budget": budget_map.get(aid, {
+                        "current_task_count": 0,
+                        "task_queue_limit": 10,
+                        "tokens_used_today": 0,
+                        "token_limit_per_day": 100000,
+                    }),
+                }
+
+            self._welfare_cache = welfare
+            self._welfare_cache_time = now
+            logger.debug(f"[BridgeDispatcher] Welfare cache refreshed: {len(welfare)} agents")
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] Welfare cache refresh failed: {e}")
 
     def _select_agent(self, capability: str, station_code: str) -> Optional[Dict]:
         """Select the best agent for a capability within a station."""

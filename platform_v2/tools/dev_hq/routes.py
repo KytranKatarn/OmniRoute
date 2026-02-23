@@ -2,6 +2,8 @@
 
 import os
 import json as json_module
+import urllib.request
+import urllib.error
 from flask import render_template, jsonify, request, abort
 from flask_login import login_required, current_user
 from psycopg2.extras import RealDictCursor
@@ -97,6 +99,21 @@ def api_overview():
             )
             active_projects = [dict(row) for row in cur.fetchall()]
 
+            # Knowledge stats
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE embedding IS NOT NULL) as embedded
+                FROM knowledge_base
+                WHERE knowledge_type != 'archie_v1'
+            """
+            )
+            kb_row = cur.fetchone()
+            knowledge_count = kb_row["total"] if kb_row else 0
+            embedded_count = kb_row["embedded"] if kb_row else 0
+            embedding_coverage = round((embedded_count / knowledge_count) * 100, 1) if knowledge_count > 0 else 0
+
             return jsonify(
                 {
                     "success": True,
@@ -104,6 +121,8 @@ def api_overview():
                     "task_stats": task_stats,
                     "activity": activity,
                     "active_projects": active_projects,
+                    "knowledge_count": knowledge_count,
+                    "embedding_coverage": embedding_coverage,
                 }
             )
         except Exception as e:
@@ -392,9 +411,13 @@ def api_knowledge():
         try:
             where_clauses = []
             params = []
+            knowledge_type = request.args.get("knowledge_type", "")
             if search:
                 where_clauses.append("(content ILIKE %s OR file_name ILIKE %s OR tags::text ILIKE %s)")
                 params.extend(["%" + search + "%"] * 3)
+            if knowledge_type:
+                where_clauses.append("knowledge_type = %s")
+                params.append(knowledge_type)
             if category:
                 where_clauses.append("primary_category = %s")
                 params.append(category)
@@ -858,3 +881,168 @@ def api_docs_delete(doc_id):
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
             cur.close()
+
+
+# ---------------------------------------------------------------------------
+# Cross-Project Tasks + Integrations Health
+# ---------------------------------------------------------------------------
+
+
+@dev_hq_bp.route("/api/tasks")
+@login_required
+@admin_hub_only
+def api_all_tasks():
+    """Cross-project task listing with filters."""
+    status = request.args.get("status")
+    priority = request.args.get("priority")
+    project_id = request.args.get("project_id")
+    search = request.args.get("search")
+    limit = min(int(request.args.get("limit", 50)), 200)
+    offset = int(request.args.get("offset", 0))
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            query = (
+                "SELECT t.*, p.name as project_name"
+                " FROM unified_tasks t"
+                " LEFT JOIN unified_projects p ON t.project_id = p.id"
+                " WHERE 1=1"
+            )
+            params = []
+            if status:
+                query += " AND t.status = %s"
+                params.append(status)
+            if priority:
+                query += " AND t.priority = %s"
+                params.append(priority)
+            if project_id:
+                query += " AND t.project_id = %s"
+                params.append(int(project_id))
+            if search:
+                query += " AND (t.title ILIKE %s OR t.description ILIKE %s)"
+                params.extend(["%" + search + "%", "%" + search + "%"])
+            query += (
+                " ORDER BY CASE t.priority"
+                " WHEN 'critical' THEN 0 WHEN 'high' THEN 1"
+                " WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,"
+                " t.created_at DESC"
+            )
+
+            # Count total before pagination
+            count_query = "SELECT COUNT(*) as count FROM unified_tasks t WHERE 1=1"
+            count_params = []
+            if status:
+                count_query += " AND t.status = %s"
+                count_params.append(status)
+            if priority:
+                count_query += " AND t.priority = %s"
+                count_params.append(priority)
+            if project_id:
+                count_query += " AND t.project_id = %s"
+                count_params.append(int(project_id))
+            if search:
+                count_query += " AND (t.title ILIKE %s OR t.description ILIKE %s)"
+                count_params.extend(["%" + search + "%", "%" + search + "%"])
+            cur.execute(count_query, count_params)
+            total = cur.fetchone()["count"]
+
+            query += " LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            cur.execute(query, params)
+            tasks = [dict(r) for r in cur.fetchall()]
+
+            # Get project list for filter dropdown
+            cur.execute("SELECT id, name FROM unified_projects" " WHERE status = 'active' ORDER BY name")
+            projects = [dict(r) for r in cur.fetchall()]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "tasks": tasks,
+                    "total": total,
+                    "projects": projects,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/integrations/health")
+@login_required
+@admin_hub_only
+def api_integrations_health():
+    """Consolidated health check for all integrations."""
+    services = {}
+
+    # MCP: parse .mcp.json
+    mcp_path = os.path.join(os.getenv("ARCHIE_BRAIN_PATH", "/mnt/archie_brain"), ".mcp.json")
+    try:
+        with open(mcp_path, "r") as f:
+            mcp_config = json_module.load(f)
+        server_count = len(mcp_config.get("mcpServers", {}))
+        services["mcp"] = {
+            "name": "MCP Servers",
+            "status": "online" if server_count > 0 else "warning",
+            "detail": f"{server_count} servers configured",
+            "icon": "cpu",
+        }
+    except Exception as e:
+        services["mcp"] = {
+            "name": "MCP Servers",
+            "status": "offline",
+            "detail": str(e),
+            "icon": "cpu",
+        }
+
+    # Ollama: HTTP ping
+    ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+    try:
+        req = urllib.request.Request(f"{ollama_host}/api/tags", method="GET")
+        req.add_header("User-Agent", "archie-devhq/1.0")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json_module.loads(resp.read())
+            model_count = len(data.get("models", []))
+        services["ollama"] = {
+            "name": "Ollama",
+            "status": "online",
+            "detail": f"{model_count} models loaded",
+            "icon": "brain",
+        }
+    except Exception:
+        services["ollama"] = {
+            "name": "Ollama",
+            "status": "offline",
+            "detail": "Connection failed",
+            "icon": "brain",
+        }
+
+    # GitHub: env var check
+    gh_token = os.getenv("GITHUB_TOKEN", "")
+    services["github"] = {
+        "name": "GitHub",
+        "status": "online" if gh_token else "warning",
+        "detail": "Token configured" if gh_token else "No token set",
+        "icon": "github",
+    }
+
+    # Telegram: env var check
+    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    services["telegram"] = {
+        "name": "Telegram",
+        "status": "online" if tg_token else "warning",
+        "detail": "Bot configured" if tg_token else "No token set",
+        "icon": "send",
+    }
+
+    # Home Assistant: env var check
+    ha_key = os.getenv("HA_API_KEY", "")
+    services["homeassistant"] = {
+        "name": "Home Assistant",
+        "status": "online" if ha_key else "warning",
+        "detail": "API key configured" if ha_key else "No API key set",
+        "icon": "home",
+    }
+
+    return jsonify({"success": True, "services": services})

@@ -6933,6 +6933,106 @@ def get_agent_work_history(agent_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================================================
+# SKILL GAP / AGENT CREATION ENDPOINTS
+# ============================================================================
+
+
+@bridge_bp.route("/api/dispatch/agent-gaps")
+@login_required
+def get_agent_gaps():
+    """List recent agent creation requests (skill gaps)."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, action_data, status, reason, created_at,
+                       approved_at, rejected_reason
+                FROM autonomy_approval_queue
+                WHERE action_type = 'create_agent'
+                ORDER BY created_at DESC
+                LIMIT 20
+            """
+            )
+            gaps = [dict(r) for r in cur.fetchall()]
+            for g in gaps:
+                ad = g.get("action_data") or {}
+                if isinstance(ad, str):
+                    try:
+                        ad = json.loads(ad)
+                    except Exception:
+                        ad = {}
+                g["capability"] = ad.get("capability", "unknown")
+                g["station"] = ad.get("station_code", "unknown")
+                g["suggested_name"] = ad.get("suggested_name", "")
+                if g.get("created_at") and hasattr(g["created_at"], "isoformat"):
+                    g["created_at"] = g["created_at"].isoformat()
+                if g.get("approved_at") and hasattr(g["approved_at"], "isoformat"):
+                    g["approved_at"] = g["approved_at"].isoformat()
+                # Remove raw action_data from response
+                g.pop("action_data", None)
+            return jsonify({"gaps": gaps})
+    except Exception as e:
+        logger.error(f"Error getting agent gaps: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@bridge_bp.route("/api/agents/create-from-gap", methods=["POST"])
+@login_required
+def create_agent_from_gap():
+    """Manually approve and create an agent from a skill gap request."""
+    if not current_user.is_admin:
+        return jsonify({"error": "Admin only"}), 403
+    data = request.get_json() or {}
+    approval_id = data.get("approval_id")
+    if not approval_id:
+        return jsonify({"error": "approval_id required"}), 400
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, action_data, status FROM autonomy_approval_queue
+                WHERE id = %s AND action_type = 'create_agent'
+            """,
+                (approval_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Request not found"}), 404
+            row = dict(row)
+            if row["status"] != "pending":
+                return jsonify({"error": f"Request already {row['status']}"}), 400
+
+            # Execute creation via dispatcher
+            try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                dispatcher = get_dispatcher()
+                ad = row["action_data"]
+                if isinstance(ad, str):
+                    ad = json.loads(ad)
+                agent_id = dispatcher._create_agent_from_approval(ad)
+            except Exception as disp_err:
+                logger.error(f"Dispatcher creation failed: {disp_err}")
+                return jsonify({"error": f"Creation failed: {disp_err}"}), 500
+
+            if agent_id:
+                cur.execute(
+                    """
+                    UPDATE autonomy_approval_queue
+                    SET status = 'approved', approved_by = %s, approved_at = NOW()
+                    WHERE id = %s
+                """,
+                    (current_user.id, approval_id),
+                )
+                return jsonify({"success": True, "agent_id": agent_id})
+            else:
+                return jsonify({"error": "Agent creation returned None"}), 500
+    except Exception as e:
+        logger.error(f"Error creating agent from gap: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @bridge_bp.route("/api/dispatch/multi-agent-sessions")
 @login_required
 def multi_agent_sessions():

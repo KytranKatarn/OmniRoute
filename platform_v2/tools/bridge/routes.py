@@ -1713,6 +1713,240 @@ def return_agent_from_lounge(agent_id):
 
 
 # ============================================================================
+# TRAINING API - Crew Training Management
+# ============================================================================
+
+
+@bridge_bp.route("/api/training/active")
+@login_required
+def get_active_training():
+    """Get all agents currently in training via the training room view"""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+
+            cur.execute("SELECT * FROM v_training_room_agents")
+            training = cur.fetchall()
+
+            return jsonify({"success": True, "training": training})
+
+    except Exception as e:
+        logger.error(f"Error loading active training: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/assign", methods=["POST"])
+@login_required
+def assign_training():
+    """Assign a training programme to an agent"""
+    try:
+        data = request.get_json() or {}
+        agent_id = data.get("agent_id")
+        skill_name = data.get("skill_name")
+        target_proficiency = data.get("target_proficiency")
+
+        if not all([agent_id, skill_name, target_proficiency]):
+            return (
+                jsonify({"success": False, "error": "agent_id, skill_name, and target_proficiency are required"}),
+                400,
+            )
+
+        target_proficiency = int(target_proficiency)
+        if target_proficiency < 2 or target_proficiency > 5:
+            return (
+                jsonify({"success": False, "error": "target_proficiency must be between 2 and 5"}),
+                400,
+            )
+
+        with get_db_cursor() as (conn, cur):
+
+            # Validate agent exists and is active
+            cur.execute(
+                "SELECT id, name FROM agents WHERE id = %s AND status = 'active'",
+                (agent_id,),
+            )
+            agent = cur.fetchone()
+            if not agent:
+                return jsonify({"success": False, "error": "Agent not found or inactive"}), 404
+
+            # Check for duplicate active training on the same skill
+            cur.execute(
+                """
+                SELECT id FROM training_assignments
+                WHERE agent_id = %s AND skill_name = %s
+                AND status IN ('pending', 'in_progress')
+            """,
+                (agent_id, skill_name),
+            )
+            if cur.fetchone():
+                return (
+                    jsonify({"success": False, "error": "Agent already has active training for this skill"}),
+                    409,
+                )
+
+            # Get current proficiency (default 1 if not found)
+            cur.execute(
+                """
+                SELECT proficiency_level, skill_category
+                FROM agent_skills
+                WHERE agent_id = %s AND skill_name = %s
+            """,
+                (agent_id, skill_name),
+            )
+            skill_row = cur.fetchone()
+            current_proficiency = skill_row["proficiency_level"] if skill_row else 1
+            skill_category = skill_row["skill_category"] if skill_row else None
+
+            if target_proficiency <= current_proficiency:
+                return (
+                    jsonify({"success": False, "error": "Target proficiency must exceed current level"}),
+                    400,
+                )
+
+            # Create training assignment
+            cur.execute(
+                """
+                INSERT INTO training_assignments
+                    (agent_id, skill_name, skill_category, target_proficiency,
+                     current_proficiency, status, started_at, created_by)
+                VALUES (%s, %s, %s, %s, %s, 'in_progress', NOW(), %s)
+                RETURNING id
+            """,
+                (agent_id, skill_name, skill_category, target_proficiency, current_proficiency, current_user.id),
+            )
+            training_id = cur.fetchone()["id"]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "training_id": training_id,
+                    "message": f"Training assigned: {agent['name']} → {skill_name} (level {current_proficiency}→{target_proficiency})",
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Error assigning training: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/<int:training_id>/cancel", methods=["POST"])
+@login_required
+def cancel_training(training_id):
+    """Cancel an active or pending training assignment"""
+    try:
+        with get_db_cursor() as (conn, cur):
+
+            cur.execute(
+                """
+                UPDATE training_assignments
+                SET status = 'cancelled', completed_at = NOW()
+                WHERE id = %s AND status IN ('pending', 'in_progress')
+                RETURNING id
+            """,
+                (training_id,),
+            )
+            cancelled = cur.fetchone()
+
+            if not cancelled:
+                return (
+                    jsonify({"success": False, "error": "Training not found or already completed/cancelled"}),
+                    404,
+                )
+
+            return jsonify({"success": True, "message": "Training cancelled"})
+
+    except Exception as e:
+        logger.error(f"Error cancelling training: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/history")
+@login_required
+def get_training_history():
+    """Get completed and cancelled training history"""
+    try:
+        limit = request.args.get("limit", 20, type=int)
+        limit = min(limit, 100)
+
+        with get_db_cursor(commit=False) as (conn, cur):
+
+            cur.execute(
+                """
+                SELECT
+                    ta.id,
+                    ta.agent_id,
+                    a.name as agent_name,
+                    a.avatar_url,
+                    ta.skill_name,
+                    ta.skill_category,
+                    ta.current_proficiency,
+                    ta.target_proficiency,
+                    ta.status,
+                    ta.started_at,
+                    ta.completed_at,
+                    ta.notes
+                FROM training_assignments ta
+                JOIN agents a ON ta.agent_id = a.id
+                WHERE ta.status IN ('completed', 'cancelled')
+                ORDER BY ta.completed_at DESC
+                LIMIT %s
+            """,
+                (limit,),
+            )
+            history = cur.fetchall()
+
+            return jsonify({"success": True, "history": history})
+
+    except Exception as e:
+        logger.error(f"Error loading training history: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/recommendations")
+@login_required
+def get_training_recommendations():
+    """Recommend training based on recent task failures"""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+
+            cur.execute(
+                """
+                SELECT
+                    tel.agent_id,
+                    a.name as agent_name,
+                    a.avatar_url,
+                    tel.capability as skill_name,
+                    COUNT(*) as failure_count,
+                    COALESCE(ask.proficiency_level, 0) as current_proficiency,
+                    ask.skill_category
+                FROM task_execution_log tel
+                JOIN agents a ON tel.agent_id = a.id
+                LEFT JOIN agent_skills ask
+                    ON tel.agent_id = ask.agent_id AND tel.capability = ask.skill_name
+                WHERE tel.success = FALSE
+                AND tel.created_at >= NOW() - INTERVAL '7 days'
+                AND a.status = 'active'
+                AND NOT EXISTS (
+                    SELECT 1 FROM training_assignments ta
+                    WHERE ta.agent_id = tel.agent_id
+                    AND ta.skill_name = tel.capability
+                    AND ta.status IN ('pending', 'in_progress')
+                )
+                GROUP BY tel.agent_id, a.name, a.avatar_url, tel.capability,
+                         ask.proficiency_level, ask.skill_category
+                HAVING COUNT(*) >= 3 AND COALESCE(ask.proficiency_level, 0) < 4
+                ORDER BY COUNT(*) DESC
+            """
+            )
+            recommendations = cur.fetchall()
+
+            return jsonify({"success": True, "recommendations": recommendations})
+
+    except Exception as e:
+        logger.error(f"Error loading training recommendations: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # IAAE COMPLIANCE CHECK API - Phase 39
 # ============================================================================
 

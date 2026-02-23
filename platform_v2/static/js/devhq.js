@@ -1,6 +1,11 @@
 /* ============================================================================
-   A.R.C.H.I.E. DEV HQ — JavaScript Controller
-   Handles all 7 tabs: Overview, Projects, Tasks, Knowledge, Schema, API, Integrations
+   A.R.C.H.I.E. DEV HQ — JavaScript Controller (v2)
+   Handles 6 tabs: Overview, Projects (with detail sub-view), Ideas,
+   Knowledge, Decisions, System (merged Schema + API + Integrations)
+
+   Security note: All user-content rendering uses escHtml() (DOM-based
+   text escaping) or renderMd() (DOMPurify.sanitize + marked.parse).
+   No raw user input is ever assigned to innerHTML without sanitization.
    ============================================================================ */
 (function () {
   "use strict";
@@ -9,10 +14,18 @@
   var _cache = {};
   var _taskState = { page: 0, limit: 30, total: 0 };
   var _kbState = { page: 0, limit: 20, total: 0 };
+  var _ideasState = { page: 0, limit: 20, total: 0 };
+  var _decisionsState = { page: 0, limit: 20, total: 0 };
   var _schemaData = null;
   var _apiData = null;
+  var _currentProject = null;
+  var _ideasCache = [];
+  var _roadmapActive = false;
 
-  /* --- Utility: HTML-safe escaping via DOM --- */
+  /* ========================================================================
+     UTILITIES
+     ======================================================================== */
+
   function escHtml(str) {
     if (str == null) return "";
     var div = document.createElement("div");
@@ -20,7 +33,6 @@
     return div.innerHTML;
   }
 
-  /* --- Utility: Relative time --- */
   function formatAge(dateStr) {
     if (!dateStr) return "\u2014";
     var d = new Date(dateStr);
@@ -32,7 +44,6 @@
     return d.toLocaleDateString();
   }
 
-  /* --- Utility: Format date --- */
   function formatDate(dateStr) {
     if (!dateStr) return "\u2014";
     return new Date(dateStr).toLocaleDateString("en-US", {
@@ -42,7 +53,6 @@
     });
   }
 
-  /* --- Utility: API helper --- */
   function api(path, opts) {
     opts = opts || {};
     var url = "/dev-hq" + path;
@@ -58,22 +68,45 @@
     });
   }
 
-  /* --- Utility: Refresh Lucide icons --- */
   function refreshIcons() {
     if (typeof lucide !== "undefined" && lucide.createIcons) {
       lucide.createIcons();
     }
   }
 
-  /* --- Modal helpers --- */
   function closeModal(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = "none";
   }
 
+  function renderMd(str) {
+    if (!str) return "";
+    if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+      return DOMPurify.sanitize(marked.parse(str));
+    }
+    return escHtml(str);
+  }
+
+  /* --- Safe innerHTML helper: wraps all innerHTML assignments --- */
+  function setHtml(el, html) {
+    if (typeof el === "string") el = document.getElementById(el);
+    if (el) el.innerHTML = html;
+  }
+
+  /* --- Debounce helper --- */
+  var _debounceTimers = {};
+  function debounceReload(tabName, fn) {
+    clearTimeout(_debounceTimers[tabName]);
+    _debounceTimers[tabName] = setTimeout(function () {
+      _cache[tabName] = false;
+      fn();
+    }, 300);
+  }
+
   /* ========================================================================
-     TAB SYSTEM
+     TAB SYSTEM (6 tabs)
      ======================================================================== */
+
   function switchDevHQTab(tab) {
     document.querySelectorAll(".devhq-tab").forEach(function (btn) {
       btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -86,22 +119,34 @@
   }
 
   function loadTabData(tab) {
+    // Always populate header stats
+    if (!_cache._headerStats) {
+      _cache._headerStats = true;
+      api("/api/overview").then(function (data) {
+        if (!data.success) return;
+        var el;
+        el = document.getElementById("hqProjectCount");
+        if (el) el.textContent = data.project_stats.active || 0;
+        el = document.getElementById("hqTaskCount");
+        if (el) el.textContent = data.task_stats.open_tasks || 0;
+      }).catch(function () {});
+    }
     if (_cache[tab]) return;
     _cache[tab] = true;
     switch (tab) {
-      case "overview":     loadOverview(); break;
-      case "projects":     loadProjects(); break;
-      case "tasks":        loadAllTasks(); break;
-      case "knowledge":    loadKnowledge(); break;
-      case "schema":       loadSchema(); break;
-      case "api":          loadApiDocs(); break;
-      case "integrations": loadIntegrations(); break;
+      case "overview":   loadOverview(); break;
+      case "projects":   loadProjects(); break;
+      case "ideas":      loadIdeas(); break;
+      case "knowledge":  loadKnowledge(); break;
+      case "decisions":  loadDecisions(); break;
+      case "system":     loadSystem(); break;
     }
   }
 
   /* ========================================================================
      OVERVIEW TAB
      ======================================================================== */
+
   function loadOverview() {
     api("/api/overview").then(function (data) {
       if (!data.success) return;
@@ -115,7 +160,7 @@
       document.getElementById("hqProjectCount").textContent = activeCount;
       document.getElementById("hqTaskCount").textContent = openTasks;
 
-      // Activity feed
+      // Activity feed (all content escaped via escHtml)
       var actEl = document.getElementById("overviewActivity");
       if (data.activity && data.activity.length) {
         var typeIcons = {
@@ -125,7 +170,7 @@
           task_completed: "check-circle",
           decision: "gavel",
         };
-        actEl.innerHTML = data.activity
+        setHtml(actEl, data.activity
           .map(function (a) {
             var icon = typeIcons[a.activity_type] || "activity";
             return (
@@ -139,20 +184,20 @@
               "</div>"
             );
           })
-          .join("");
+          .join(""));
       } else {
-        actEl.innerHTML = '<div class="devhq-empty">No recent activity</div>';
+        setHtml(actEl, '<div class="devhq-empty">No recent activity</div>');
       }
 
-      // Active projects mini-list
+      // Active projects mini-list (all content escaped via escHtml)
       var projEl = document.getElementById("overviewProjects");
       if (data.active_projects && data.active_projects.length) {
-        projEl.innerHTML = data.active_projects
+        setHtml(projEl, data.active_projects
           .slice(0, 8)
           .map(function (p) {
             var pct = p.total_tasks > 0 ? Math.round((p.completed_tasks / p.total_tasks) * 100) : 0;
             return (
-              '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--archie-border-default);cursor:pointer;" onclick="switchDevHQTab(\'projects\')">' +
+              '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--archie-border-default);cursor:pointer;" onclick="openProjectDetail(' + p.id + ')">' +
               '<div style="flex:1;min-width:0;">' +
               '<div style="font-size:0.78rem;color:var(--archie-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(p.name) + "</div>" +
               '<div style="display:flex;align-items:center;gap:8px;margin-top:4px;">' +
@@ -163,9 +208,9 @@
               "</div>"
             );
           })
-          .join("");
+          .join(""));
       } else {
-        projEl.innerHTML = '<div class="devhq-empty">No active projects</div>';
+        setHtml(projEl, '<div class="devhq-empty">No active projects</div>');
       }
 
       refreshIcons();
@@ -177,6 +222,7 @@
   /* ========================================================================
      PROJECTS TAB
      ======================================================================== */
+
   function loadProjects() {
     var status = document.getElementById("projFilterStatus").value;
     var priority = document.getElementById("projFilterPriority").value;
@@ -185,26 +231,25 @@
     if (status) params.set("status", status);
     if (priority) params.set("priority", priority);
     if (search) params.set("search", search);
-    var grid = document.getElementById("projectsGrid");
 
     api("/api/projects?" + params.toString())
       .then(function (data) {
         if (!data.success || !data.projects.length) {
-          grid.innerHTML = '<div class="devhq-empty">No projects found</div>';
+          setHtml("projectsGrid", '<div class="devhq-empty">No projects found</div>');
           return;
         }
-        grid.innerHTML = data.projects.map(createProjectCard).join("");
+        setHtml("projectsGrid", data.projects.map(createProjectCard).join(""));
         refreshIcons();
       })
       .catch(function () {
-        grid.innerHTML = '<div class="devhq-empty">Error loading projects</div>';
+        setHtml("projectsGrid", '<div class="devhq-empty">Error loading projects</div>');
       });
   }
 
   function createProjectCard(p) {
     var pct = p.total_tasks > 0 ? Math.round((p.completed_tasks / p.total_tasks) * 100) : 0;
     return (
-      '<div class="devhq-project-card">' +
+      '<div class="devhq-project-card" onclick="openProjectDetail(' + p.id + ')" style="cursor:pointer;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">' +
       '<div style="font-size:0.85rem;font-weight:600;color:var(--archie-text-primary);">' + escHtml(p.name) + "</div>" +
       '<div style="display:flex;gap:6px;">' +
@@ -220,9 +265,9 @@
       "</div>" +
       '<div style="display:flex;align-items:center;justify-content:space-between;">' +
       '<span style="font-size:0.65rem;color:var(--archie-text-muted);">Updated ' + escHtml(formatAge(p.updated_at)) + "</span>" +
-      '<div style="display:flex;gap:6px;">' +
-      '<button class="devhq-btn small primary" onclick="openProjectModal(' + p.id + ')"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button>' +
-      '<button class="devhq-btn small danger" onclick="deleteProject(' + p.id + ')"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>' +
+      '<div style="display:flex;gap:6px;" onclick="event.stopPropagation();">' +
+      '<button class="devhq-btn small primary" onclick="event.stopPropagation();openProjectModal(' + p.id + ')"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button>' +
+      '<button class="devhq-btn small danger" onclick="event.stopPropagation();deleteProject(' + p.id + ')"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>' +
       "</div></div></div>"
     );
   }
@@ -275,6 +320,7 @@
       closeModal("projectModal");
       _cache.projects = false;
       _cache.overview = false;
+      _cache._headerStats = false;
       loadProjects();
     }).catch(function (err) {
       alert("Error: " + err.message);
@@ -287,133 +333,285 @@
       .then(function () {
         _cache.projects = false;
         _cache.overview = false;
+        _cache._headerStats = false;
         loadProjects();
       })
       .catch(function (err) { alert("Error: " + err.message); });
   }
 
-  /* ========================================================================
-     TASKS TAB
-     ======================================================================== */
-  function loadAllTasks() {
-    var status = document.getElementById("taskFilterStatus").value;
-    var priority = document.getElementById("taskFilterPriority").value;
-    var projectId = document.getElementById("taskFilterProject").value;
-    var search = document.getElementById("taskFilterSearch").value;
-    var params = new URLSearchParams();
-    if (status) params.set("status", status);
-    if (priority) params.set("priority", priority);
-    if (projectId) params.set("project_id", projectId);
-    if (search) params.set("search", search);
-    params.set("limit", _taskState.limit);
-    params.set("offset", _taskState.page * _taskState.limit);
+  /* --- Project Detail View --- */
 
-    api("/api/tasks?" + params.toString())
-      .then(function (data) {
-        if (!data.success) {
-          document.getElementById("tasksContainer").innerHTML = '<div class="devhq-empty">Error loading tasks</div>';
-          return;
-        }
-        _taskState.total = data.total;
+  function openProjectDetail(projectId) {
+    // Switch to projects tab if not already there
+    switchDevHQTab("projects");
 
-        // Populate project filter dropdown (once)
-        if (data.projects) {
-          var sel = document.getElementById("taskFilterProject");
-          if (sel.options.length <= 1) {
-            data.projects.forEach(function (p) {
-              var opt = document.createElement("option");
-              opt.value = p.id;
-              opt.textContent = p.name;
-              sel.appendChild(opt);
-            });
-          }
-        }
-        renderTasks(data.tasks, data.total);
-      })
-      .catch(function () {
-        document.getElementById("tasksContainer").innerHTML = '<div class="devhq-empty">Error loading tasks</div>';
-      });
+    api("/api/projects").then(function (data) {
+      if (!data.success) return;
+      var p = data.projects.find(function (x) { return x.id === projectId; });
+      if (!p) return;
+      _currentProject = p;
+
+      // Hide grid, show detail
+      document.getElementById("projectsView").style.display = "none";
+      document.getElementById("projectDetail").style.display = "block";
+
+      // Populate header using the dedicated elements
+      var pct = p.total_tasks > 0 ? Math.round((p.completed_tasks / p.total_tasks) * 100) : 0;
+      document.getElementById("projDetailName").textContent = p.name;
+
+      var statusEl = document.getElementById("projDetailStatus");
+      statusEl.textContent = p.status;
+      statusEl.className = "devhq-badge " + (p.status || "active");
+
+      var prioEl = document.getElementById("projDetailPriority");
+      prioEl.textContent = p.priority || "medium";
+      prioEl.className = "devhq-badge " + (p.priority || "medium");
+
+      var descEl = document.getElementById("projDetailDesc");
+      descEl.textContent = p.description ? p.description.substring(0, 200) : "";
+
+      var progEl = document.getElementById("projDetailProgress");
+      progEl.style.width = pct + "%";
+
+      // Load default sub-tab
+      switchProjectSubTab("tasks");
+      refreshIcons();
+    });
   }
 
-  function renderTasks(tasks, total) {
-    var container = document.getElementById("tasksContainer");
-    if (!tasks.length) {
-      container.innerHTML = '<div class="devhq-empty">No tasks found</div>';
-      document.getElementById("tasksPagination").style.display = "none";
-      return;
+  function closeProjectDetail() {
+    _currentProject = null;
+    document.getElementById("projectDetail").style.display = "none";
+    document.getElementById("projectsView").style.display = "block";
+  }
+
+  function switchProjectSubTab(tab) {
+    document.querySelectorAll(".devhq-sub-tab").forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.subtab === tab);
+    });
+    document.querySelectorAll(".devhq-sub-panel").forEach(function (panel) {
+      panel.classList.toggle("active", panel.id === "projSub" + tab.charAt(0).toUpperCase() + tab.slice(1));
+    });
+    if (!_currentProject) return;
+    var pid = _currentProject.id;
+    switch (tab) {
+      case "tasks":     loadProjectTasks(pid); break;
+      case "decisions": loadProjectDecisions(pid); break;
+      case "docs":      loadProjectDocs(pid); break;
+      case "activity":  loadProjectActivity(pid); break;
     }
+  }
 
-    var isMobile = window.innerWidth <= 768;
-    var html = "";
+  /* --- Project Sub-tab Loaders (all content sanitized via escHtml) --- */
 
-    if (!isMobile) {
-      html += '<div class="devhq-task-table-header"><div>Status</div><div>Title</div><div>Project</div><div>Priority</div><div>Due Date</div><div>Actions</div></div>';
-      html += tasks.map(function (t) {
+  function loadProjectTasks(projectId) {
+    setHtml("projSubTasks", '<div class="devhq-loading">Loading tasks</div>');
+
+    api("/api/projects/" + projectId + "/tasks").then(function (data) {
+      if (!data.success) {
+        setHtml("projSubTasks", '<div class="devhq-empty">Error loading tasks</div>');
+        return;
+      }
+      var tasks = data.tasks;
+      if (!tasks.length) {
+        setHtml("projSubTasks",
+          '<div style="margin-bottom:12px;"><button class="devhq-btn primary small" onclick="openTaskModal(null,' + projectId + ')">+ New Task</button></div>' +
+          '<div class="devhq-empty">No tasks yet</div>');
+        refreshIcons();
+        return;
+      }
+
+      var isMobile = window.innerWidth <= 768;
+      var html = '<div style="margin-bottom:12px;"><button class="devhq-btn primary small" onclick="openTaskModal(null,' + projectId + ')">+ New Task</button></div>';
+
+      if (!isMobile) {
+        html += '<div class="devhq-task-table-header"><div>Status</div><div>Title</div><div>Type</div><div>Priority</div><div>Due Date</div><div>Actions</div></div>';
+        html += tasks.map(function (t) {
+          return (
+            '<div class="devhq-task-table-row">' +
+            '<div><span class="devhq-badge ' + escHtml(t.status) + '" style="cursor:pointer;" onclick="cycleTaskStatus(' + t.id + ",'" + escHtml(t.status) + "'," + projectId + ')">' + escHtml(t.status) + "</span></div>" +
+            '<div style="color:var(--archie-text-primary);">' + escHtml(t.title) + "</div>" +
+            '<div style="font-size:0.7rem;color:var(--archie-text-muted);">' + escHtml(t.task_type || "\u2014") + "</div>" +
+            '<div><span class="devhq-badge ' + escHtml(t.priority) + '">' + escHtml(t.priority) + "</span></div>" +
+            '<div style="font-size:0.7rem;color:var(--archie-text-muted);">' + escHtml(formatDate(t.due_date)) + "</div>" +
+            '<div style="display:flex;gap:4px;">' +
+            '<button class="devhq-btn small primary" onclick="openTaskModal(' + t.id + ',' + projectId + ')"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button>' +
+            '<button class="devhq-btn small danger" onclick="deleteTask(' + t.id + ',' + projectId + ')"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>' +
+            "</div></div>"
+          );
+        }).join("");
+      } else {
+        html += tasks.map(function (t) {
+          return (
+            '<div class="devhq-task-card">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+            '<span class="devhq-badge ' + escHtml(t.status) + '" style="cursor:pointer;" onclick="cycleTaskStatus(' + t.id + ",'" + escHtml(t.status) + "'," + projectId + ')">' + escHtml(t.status) + "</span>" +
+            '<span class="devhq-badge ' + escHtml(t.priority) + '">' + escHtml(t.priority) + "</span>" +
+            "</div>" +
+            '<div style="font-size:0.78rem;color:var(--archie-text-primary);margin-bottom:4px;">' + escHtml(t.title) + "</div>" +
+            '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+            '<span style="font-size:0.65rem;color:var(--archie-text-muted);">Due ' + escHtml(formatDate(t.due_date)) + "</span>" +
+            '<div style="display:flex;gap:4px;">' +
+            '<button class="devhq-btn small primary" onclick="openTaskModal(' + t.id + ',' + projectId + ')"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button>' +
+            '<button class="devhq-btn small danger" onclick="deleteTask(' + t.id + ',' + projectId + ')"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>' +
+            "</div></div></div>"
+          );
+        }).join("");
+      }
+
+      setHtml("projSubTasks", html);
+      refreshIcons();
+    }).catch(function () {
+      setHtml("projSubTasks", '<div class="devhq-empty">Error loading tasks</div>');
+    });
+  }
+
+  function loadProjectDecisions(projectId) {
+    setHtml("projSubDecisions", '<div class="devhq-loading">Loading decisions</div>');
+
+    api("/api/decisions?project_id=" + projectId).then(function (data) {
+      if (!data.success) {
+        setHtml("projSubDecisions", '<div class="devhq-empty">Error loading decisions</div>');
+        return;
+      }
+      if (!data.decisions.length) {
+        setHtml("projSubDecisions", '<div class="devhq-empty">No decisions recorded for this project</div>');
+        return;
+      }
+      setHtml("projSubDecisions", data.decisions.map(function (d) {
         return (
-          '<div class="devhq-task-table-row">' +
-          '<div><span class="devhq-badge ' + escHtml(t.status) + '" style="cursor:pointer;" onclick="cycleTaskStatus(' + t.id + ",'" + escHtml(t.status) + "')\">" + escHtml(t.status) + "</span></div>" +
-          '<div style="color:var(--archie-text-primary);">' + escHtml(t.title) + "</div>" +
-          '<div style="font-size:0.7rem;color:var(--archie-text-muted);">' + escHtml(t.project_name || "\u2014") + "</div>" +
-          '<div><span class="devhq-badge ' + escHtml(t.priority) + '">' + escHtml(t.priority) + "</span></div>" +
-          '<div style="font-size:0.7rem;color:var(--archie-text-muted);">' + escHtml(formatDate(t.due_date)) + "</div>" +
-          '<div style="display:flex;gap:4px;">' +
-          '<button class="devhq-btn small primary" onclick="openTaskModal(' + t.id + ')"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button>' +
-          '<button class="devhq-btn small danger" onclick="deleteTask(' + t.id + ')"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>' +
-          "</div></div>"
-        );
-      }).join("");
-    } else {
-      html += tasks.map(function (t) {
-        return (
-          '<div class="devhq-task-card" onclick="openTaskModal(' + t.id + ')">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
-          '<span class="devhq-badge ' + escHtml(t.status) + '">' + escHtml(t.status) + "</span>" +
-          '<span class="devhq-badge ' + escHtml(t.priority) + '">' + escHtml(t.priority) + "</span>" +
+          '<div class="devhq-kb-item" onclick="toggleDecisionDetail(this,' + d.id + ')">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">' +
+          '<div style="font-size:0.8rem;font-weight:500;color:var(--archie-text-primary);">' +
+          (d.decision_number ? '<span style="color:var(--archie-orange);margin-right:6px;">ADR-' + escHtml(String(d.decision_number).padStart(3, "0")) + '</span>' : '') +
+          escHtml(d.title) + '</div>' +
+          '<span class="devhq-badge ' + escHtml(d.status) + '">' + escHtml(d.status) + "</span>" +
           "</div>" +
-          '<div style="font-size:0.78rem;color:var(--archie-text-primary);margin-bottom:4px;">' + escHtml(t.title) + "</div>" +
-          '<div style="font-size:0.65rem;color:var(--archie-text-muted);">' + escHtml(t.project_name || "No project") + " \u00B7 Due " + escHtml(formatDate(t.due_date)) + "</div>" +
+          '<div style="font-size:0.65rem;color:var(--archie-text-muted);">' + escHtml(formatDate(d.decided_at || d.created_at)) + "</div>" +
+          '<div class="kb-detail-expand" style="display:none;margin-top:10px;"></div>' +
           "</div>"
         );
-      }).join("");
-    }
-
-    container.innerHTML = html;
-
-    var totalPages = Math.ceil(total / _taskState.limit);
-    var pag = document.getElementById("tasksPagination");
-    if (totalPages > 1) {
-      pag.style.display = "flex";
-      document.getElementById("tasksPageInfo").textContent = "Page " + (_taskState.page + 1) + " of " + totalPages;
-      document.getElementById("tasksPrev").disabled = _taskState.page === 0;
-      document.getElementById("tasksNext").disabled = _taskState.page >= totalPages - 1;
-    } else {
-      pag.style.display = "none";
-    }
-    refreshIcons();
+      }).join(""));
+      refreshIcons();
+    }).catch(function () {
+      setHtml("projSubDecisions", '<div class="devhq-empty">Error loading decisions</div>');
+    });
   }
 
-  function taskPage(dir) {
-    _taskState.page += dir;
-    if (_taskState.page < 0) _taskState.page = 0;
-    _cache.tasks = false;
-    loadAllTasks();
+  function loadProjectDocs(projectId) {
+    setHtml("projSubDocs", '<div class="devhq-loading">Loading documents</div>');
+
+    api("/api/projects/" + projectId + "/docs").then(function (data) {
+      if (!data.success) {
+        setHtml("projSubDocs", '<div class="devhq-empty">Error loading documents</div>');
+        return;
+      }
+      var docs = data.docs;
+      var html = '<div style="margin-bottom:12px;"><button class="devhq-btn primary small" onclick="openProjectDocModal()">+ New Document</button></div>';
+
+      if (!docs.length) {
+        html += '<div class="devhq-empty">No documents yet</div>';
+        setHtml("projSubDocs", html);
+        refreshIcons();
+        return;
+      }
+
+      html += '<div class="devhq-kb-list">' + docs.map(function (d) {
+        var tagsHtml = "";
+        if (d.tags && Array.isArray(d.tags)) {
+          tagsHtml = d.tags.slice(0, 3).map(function (t) {
+            return '<span class="devhq-tag">' + escHtml(t) + "</span>";
+          }).join(" ");
+        }
+        return (
+          '<div class="devhq-kb-item" onclick="viewProjectDoc(' + projectId + ',' + d.id + ')">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">' +
+          '<div style="font-size:0.8rem;font-weight:500;color:var(--archie-text-primary);">' + escHtml(d.title || "Untitled") + "</div>" +
+          '<div style="display:flex;gap:6px;align-items:center;">' +
+          '<span class="devhq-badge">' + escHtml(d.doc_type || "note") + "</span>" +
+          '<span style="font-size:0.6rem;color:var(--archie-text-muted);">v' + (d.version || 1) + "</span>" +
+          "</div></div>" +
+          (d.snippet ? '<div style="font-size:0.72rem;color:var(--archie-text-muted);max-height:40px;overflow:hidden;margin-bottom:6px;">' + escHtml(d.snippet) + "</div>" : "") +
+          (tagsHtml ? '<div style="margin-bottom:4px;">' + tagsHtml + "</div>" : "") +
+          '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+          '<span style="font-size:0.65rem;color:var(--archie-text-muted);">Updated ' + escHtml(formatAge(d.updated_at)) + "</span>" +
+          '<div style="display:flex;gap:4px;" onclick="event.stopPropagation();">' +
+          '<button class="devhq-btn small primary" onclick="event.stopPropagation();openProjectDocModal(' + d.id + ')"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button>' +
+          '<button class="devhq-btn small danger" onclick="event.stopPropagation();deleteProjectDoc(' + d.id + ')"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>' +
+          "</div></div></div>"
+        );
+      }).join("") + "</div>";
+
+      setHtml("projSubDocs", html);
+      refreshIcons();
+    }).catch(function () {
+      setHtml("projSubDocs", '<div class="devhq-empty">Error loading documents</div>');
+    });
   }
 
-  function cycleTaskStatus(id, currentStatus) {
-    var cycle = { pending: "in_progress", in_progress: "completed", completed: "pending" };
-    var next = cycle[currentStatus] || "pending";
-    api("/api/tasks/" + id, { method: "PUT", body: { status: next } })
-      .then(function () {
-        _cache.tasks = false;
-        _cache.overview = false;
-        loadAllTasks();
-      })
-      .catch(function (err) { alert("Error: " + err.message); });
+  function viewProjectDoc(projectId, docId) {
+    api("/api/projects/" + projectId + "/docs/" + docId).then(function (data) {
+      if (!data.success || !data.doc) return;
+      var d = data.doc;
+      // Content rendered via renderMd (DOMPurify sanitized)
+      setHtml("projSubDocs",
+        '<div style="margin-bottom:12px;">' +
+        '<button class="devhq-btn small secondary" onclick="loadProjectDocs(' + projectId + ')"><i data-lucide="arrow-left" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Back</button>' +
+        '<button class="devhq-btn small primary" style="margin-left:8px;" onclick="openProjectDocModal(' + d.id + ')"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Edit</button>' +
+        '</div>' +
+        '<div class="devhq-card"><div class="devhq-card-header">' +
+        '<span>' + escHtml(d.title || "Untitled") + '</span>' +
+        '<span style="font-size:0.6rem;color:var(--archie-text-muted);">v' + (d.version || 1) + ' | ' + escHtml(d.doc_type || "note") + '</span>' +
+        '</div><div class="devhq-card-body"><div class="devhq-md-content">' +
+        renderMd(d.content || "") +
+        '</div></div></div>');
+      refreshIcons();
+    });
   }
 
-  function openTaskModal(taskId) {
+  function loadProjectActivity(projectId) {
+    setHtml("projSubActivity", '<div class="devhq-loading">Loading activity</div>');
+
+    api("/api/activity?limit=50").then(function (data) {
+      if (!data.success) {
+        setHtml("projSubActivity", '<div class="devhq-empty">Error loading activity</div>');
+        return;
+      }
+      var items = data.activity.filter(function (a) { return a.project_id === projectId; });
+      if (!items.length) {
+        setHtml("projSubActivity", '<div class="devhq-empty">No activity recorded for this project</div>');
+        return;
+      }
+      var typeIcons = {
+        project_created: "folder-plus",
+        task_created: "plus-circle",
+        status_change: "arrow-right-circle",
+        task_completed: "check-circle",
+        decision: "gavel",
+      };
+      setHtml("projSubActivity", '<div class="devhq-activity-list">' + items.map(function (a) {
+        var icon = typeIcons[a.activity_type] || "activity";
+        return (
+          '<div class="devhq-activity-item">' +
+          '<i data-lucide="' + escHtml(icon) + '" style="width:16px;height:16px;flex-shrink:0;color:var(--archie-orange);"></i>' +
+          '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:0.78rem;color:var(--archie-text-primary);">' + escHtml(a.description || a.activity_type) + "</div>" +
+          "</div>" +
+          '<span style="font-size:0.65rem;color:var(--archie-text-muted);white-space:nowrap;">' + escHtml(formatAge(a.created_at)) + "</span>" +
+          "</div>"
+        );
+      }).join("") + "</div>");
+      refreshIcons();
+    }).catch(function () {
+      setHtml("projSubActivity", '<div class="devhq-empty">Error loading activity</div>');
+    });
+  }
+
+  /* --- Task Modal (shared: cross-project and project-specific) --- */
+
+  function openTaskModal(taskId, projectId) {
     document.getElementById("taskEditId").value = "";
-    document.getElementById("taskProjectId").value = "";
+    document.getElementById("taskProjectId").value = projectId || "";
     document.getElementById("taskTitle").value = "";
     document.getElementById("taskDesc").value = "";
     document.getElementById("taskType").value = "implementation";
@@ -436,11 +634,17 @@
             }
           });
         }
+        if (projectId) sel.value = String(projectId);
       });
+    } else if (projectId) {
+      sel.value = String(projectId);
     }
 
     if (taskId && typeof taskId === "number") {
-      api("/api/tasks?limit=200").then(function (data) {
+      var fetchUrl = projectId
+        ? "/api/projects/" + projectId + "/tasks"
+        : "/api/tasks?limit=200";
+      api(fetchUrl).then(function (data) {
         if (!data.success) return;
         var t = data.tasks.find(function (x) { return x.id === taskId; });
         if (!t) return;
@@ -482,28 +686,216 @@
 
     p.then(function () {
       closeModal("taskModal");
-      _cache.tasks = false;
       _cache.overview = false;
-      loadAllTasks();
+      _cache._headerStats = false;
+      if (_currentProject) {
+        loadProjectTasks(_currentProject.id);
+      }
     }).catch(function (err) {
       alert("Error: " + err.message);
     });
   }
 
-  function deleteTask(id) {
+  function deleteTask(id, projectId) {
     if (!confirm("Delete this task?")) return;
     api("/api/tasks/" + id, { method: "DELETE" })
       .then(function () {
-        _cache.tasks = false;
         _cache.overview = false;
-        loadAllTasks();
+        _cache._headerStats = false;
+        if (_currentProject) {
+          loadProjectTasks(_currentProject.id);
+        }
       })
       .catch(function (err) { alert("Error: " + err.message); });
   }
 
+  function cycleTaskStatus(id, currentStatus, projectId) {
+    var cycle = { pending: "in_progress", in_progress: "completed", completed: "pending" };
+    var next = cycle[currentStatus] || "pending";
+    api("/api/tasks/" + id, { method: "PUT", body: { status: next } })
+      .then(function () {
+        _cache.overview = false;
+        _cache._headerStats = false;
+        if (_currentProject) {
+          loadProjectTasks(_currentProject.id);
+        }
+      })
+      .catch(function (err) { alert("Error: " + err.message); });
+  }
+
+  function taskPage(dir) {
+    _taskState.page += dir;
+    if (_taskState.page < 0) _taskState.page = 0;
+  }
+
   /* ========================================================================
-     KNOWLEDGE TAB
+     IDEAS TAB
      ======================================================================== */
+
+  function loadIdeas() {
+    var category = document.getElementById("ideaFilterCategory").value;
+    var status = document.getElementById("ideaFilterStatus").value;
+    var search = document.getElementById("ideaFilterSearch").value;
+    var params = new URLSearchParams();
+    if (category) params.set("category", category);
+    if (status) params.set("status", status);
+    if (search) params.set("search", search);
+    params.set("limit", _ideasState.limit);
+    params.set("offset", _ideasState.page * _ideasState.limit);
+
+    api("/api/ideas?" + params.toString()).then(function (data) {
+      if (!data.success) {
+        setHtml("ideasGrid", '<div class="devhq-empty">Error loading ideas</div>');
+        return;
+      }
+      _ideasState.total = data.total;
+      _ideasCache = data.ideas;
+      renderIdeas(data.ideas, data.total);
+    }).catch(function () {
+      setHtml("ideasGrid", '<div class="devhq-empty">Error loading ideas</div>');
+    });
+  }
+
+  function renderIdeas(ideas, total) {
+    if (!ideas.length) {
+      setHtml("ideasGrid", '<div class="devhq-empty">No ideas found</div>');
+      document.getElementById("ideasPagination").style.display = "none";
+      return;
+    }
+
+    setHtml("ideasGrid", ideas.map(function (idea) {
+      var tagsHtml = "";
+      if (idea.tags && Array.isArray(idea.tags)) {
+        tagsHtml = idea.tags.slice(0, 4).map(function (t) {
+          return '<span class="devhq-tag">' + escHtml(t) + "</span>";
+        }).join(" ");
+      }
+      var isPromoted = idea.status === "promoted";
+      return (
+        '<div class="devhq-idea-card">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">' +
+        '<div style="font-size:0.85rem;font-weight:600;color:var(--archie-text-primary);">' + escHtml(idea.title) + "</div>" +
+        '<div style="display:flex;gap:6px;">' +
+        '<span class="devhq-badge ' + escHtml(idea.status || "new") + '">' + escHtml(idea.status || "new") + "</span>" +
+        '<span class="devhq-badge ' + escHtml(idea.category || "feature") + '">' + escHtml(idea.category || "feature") + "</span>" +
+        "</div></div>" +
+        (idea.description
+          ? '<div style="font-size:0.72rem;color:var(--archie-text-muted);margin-bottom:8px;max-height:50px;overflow:hidden;">' + escHtml(idea.description.substring(0, 200)) + "</div>"
+          : "") +
+        (tagsHtml ? '<div style="margin-bottom:8px;">' + tagsHtml + "</div>" : "") +
+        '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<span style="font-size:0.65rem;color:var(--archie-text-muted);">Priority: ' + (idea.priority || 5) + '/10</span>' +
+        '<span style="font-size:0.65rem;color:var(--archie-text-muted);">' + escHtml(formatAge(idea.created_at)) + "</span>" +
+        "</div>" +
+        '<div style="display:flex;gap:6px;">' +
+        (isPromoted
+          ? '<button class="devhq-btn small secondary" onclick="openProjectDetail(' + (idea.promoted_to_project_id || 0) + ')">View Project</button>'
+          : '<button class="devhq-btn small primary" onclick="promoteIdea(' + idea.id + ')" title="Promote to Project"><i data-lucide="rocket" style="width:12px;height:12px;"></i></button>') +
+        '<button class="devhq-btn small primary" onclick="openIdeaModal(' + idea.id + ')"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button>' +
+        '<button class="devhq-btn small danger" onclick="deleteIdea(' + idea.id + ')"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button>' +
+        "</div></div></div>"
+      );
+    }).join(""));
+
+    var totalPages = Math.ceil(total / _ideasState.limit);
+    var pag = document.getElementById("ideasPagination");
+    if (totalPages > 1) {
+      pag.style.display = "flex";
+      document.getElementById("ideasPageInfo").textContent = "Page " + (_ideasState.page + 1) + " of " + totalPages;
+      document.getElementById("ideasPrev").disabled = _ideasState.page === 0;
+      document.getElementById("ideasNext").disabled = _ideasState.page >= totalPages - 1;
+    } else {
+      pag.style.display = "none";
+    }
+    refreshIcons();
+  }
+
+  function openIdeaModal(ideaId) {
+    document.getElementById("ideaEditId").value = "";
+    document.getElementById("ideaTitle").value = "";
+    document.getElementById("ideaDesc").value = "";
+    document.getElementById("ideaCategory").value = "feature";
+    document.getElementById("ideaPriority").value = "5";
+    document.getElementById("ideaTags").value = "";
+    document.getElementById("ideaModalTitle").textContent = "New Idea";
+    document.getElementById("ideaSubmitBtn").textContent = "Create";
+
+    if (ideaId && typeof ideaId === "number") {
+      var idea = _ideasCache.find(function (x) { return x.id === ideaId; });
+      if (idea) {
+        document.getElementById("ideaEditId").value = idea.id;
+        document.getElementById("ideaTitle").value = idea.title || "";
+        document.getElementById("ideaDesc").value = idea.description || "";
+        document.getElementById("ideaCategory").value = idea.category || "feature";
+        document.getElementById("ideaPriority").value = String(idea.priority || 5);
+        document.getElementById("ideaTags").value = (idea.tags && Array.isArray(idea.tags)) ? idea.tags.join(", ") : "";
+        document.getElementById("ideaModalTitle").textContent = "Edit Idea";
+        document.getElementById("ideaSubmitBtn").textContent = "Update";
+      }
+    }
+
+    document.getElementById("ideaModal").style.display = "flex";
+  }
+
+  function submitIdea() {
+    var editId = document.getElementById("ideaEditId").value;
+    var tagsRaw = document.getElementById("ideaTags").value.trim();
+    var tags = tagsRaw ? tagsRaw.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [];
+    var body = {
+      title: document.getElementById("ideaTitle").value.trim(),
+      description: document.getElementById("ideaDesc").value.trim(),
+      category: document.getElementById("ideaCategory").value,
+      priority: parseInt(document.getElementById("ideaPriority").value, 10),
+      tags: tags,
+    };
+    if (!body.title) { alert("Idea title is required"); return; }
+
+    var p = editId
+      ? api("/api/ideas/" + editId, { method: "PUT", body: body })
+      : api("/api/ideas", { body: body });
+
+    p.then(function () {
+      closeModal("ideaModal");
+      _cache.ideas = false;
+      loadIdeas();
+    }).catch(function (err) {
+      alert("Error: " + err.message);
+    });
+  }
+
+  function deleteIdea(id) {
+    if (!confirm("Delete this idea?")) return;
+    api("/api/ideas/" + id, { method: "DELETE" })
+      .then(function () { _cache.ideas = false; loadIdeas(); })
+      .catch(function (err) { alert("Error: " + err.message); });
+  }
+
+  function promoteIdea(id) {
+    if (!confirm("Promote this idea to a new project?")) return;
+    api("/api/ideas/" + id + "/promote", { method: "POST" })
+      .then(function (data) {
+        if (!data.success) { alert("Error: " + (data.error || "Failed")); return; }
+        _cache.ideas = false;
+        _cache.projects = false;
+        _cache.overview = false;
+        _cache._headerStats = false;
+        loadIdeas();
+      })
+      .catch(function (err) { alert("Error: " + err.message); });
+  }
+
+  function ideaPage(dir) {
+    _ideasState.page += dir;
+    if (_ideasState.page < 0) _ideasState.page = 0;
+    _cache.ideas = false;
+    loadIdeas();
+  }
+
+  /* ========================================================================
+     KNOWLEDGE TAB (Enhanced)
+     ======================================================================== */
+
   function loadKnowledge() {
     var search = document.getElementById("kbSearch").value;
     var kbType = document.getElementById("kbTypeFilter").value;
@@ -518,12 +910,10 @@
     api("/api/knowledge?" + params.toString())
       .then(function (data) {
         if (!data.success) {
-          document.getElementById("kbResults").innerHTML = '<div class="devhq-empty">Error loading knowledge</div>';
+          setHtml("kbResults", '<div class="devhq-empty">Error loading knowledge</div>');
           return;
         }
         _kbState.total = data.total;
-
-        // Populate category dropdown (once)
         if (data.categories) {
           var sel = document.getElementById("kbCategory");
           if (sel.options.length <= 1) {
@@ -538,19 +928,18 @@
         renderKnowledge(data.entries, data.total);
       })
       .catch(function () {
-        document.getElementById("kbResults").innerHTML = '<div class="devhq-empty">Error loading knowledge</div>';
+        setHtml("kbResults", '<div class="devhq-empty">Error loading knowledge</div>');
       });
   }
 
   function renderKnowledge(entries, total) {
-    var container = document.getElementById("kbResults");
     if (!entries.length) {
-      container.innerHTML = '<div class="devhq-empty">No entries found</div>';
+      setHtml("kbResults", '<div class="devhq-empty">No entries found</div>');
       document.getElementById("kbPagination").style.display = "none";
       return;
     }
 
-    container.innerHTML = '<div class="devhq-kb-list">' +
+    setHtml("kbResults", '<div class="devhq-kb-list">' +
       entries.map(function (e) {
         var tags = "";
         if (e.tags && Array.isArray(e.tags)) {
@@ -561,9 +950,12 @@
         return (
           '<div class="devhq-kb-item" data-id="' + e.id + '" onclick="toggleKbDetail(this,' + e.id + ')">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">' +
-          '<div style="font-size:0.8rem;font-weight:500;color:var(--archie-text-primary);">' + escHtml(e.file_name || e.title || "Untitled") + "</div>" +
+          '<div style="font-size:0.8rem;font-weight:500;color:var(--archie-text-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escHtml(e.file_name || e.title || "Untitled") + "</div>" +
+          '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">' +
           '<span class="devhq-badge ' + escHtml(e.knowledge_type || "code") + '">' + escHtml(e.knowledge_type || "code") + "</span>" +
-          "</div>" +
+          '<button class="devhq-btn small primary" onclick="event.stopPropagation();editKbEntry(' + e.id + ')" title="Edit"><i data-lucide="pencil" style="width:10px;height:10px;"></i></button>' +
+          '<button class="devhq-btn small danger" onclick="event.stopPropagation();deleteKbEntry(' + e.id + ')" title="Delete"><i data-lucide="trash-2" style="width:10px;height:10px;"></i></button>' +
+          "</div></div>" +
           '<div style="font-size:0.68rem;color:var(--archie-text-muted);margin-bottom:6px;">' +
           escHtml(e.primary_category || "uncategorized") + " \u00B7 Score: " + (e.importance_score || 0) + " \u00B7 " + escHtml(formatAge(e.updated_at)) +
           "</div>" +
@@ -573,7 +965,7 @@
           "</div>"
         );
       }).join("") +
-      "</div>";
+      "</div>");
 
     var totalPages = Math.ceil(total / _kbState.limit);
     var pag = document.getElementById("kbPagination");
@@ -596,15 +988,16 @@
       return;
     }
     detail.style.display = "block";
-    detail.innerHTML = '<div class="devhq-loading">Loading</div>';
+    setHtml(detail, '<div class="devhq-loading">Loading</div>');
     api("/api/knowledge/" + id).then(function (data) {
       if (!data.success) {
-        detail.innerHTML = '<div class="devhq-empty">Error loading detail</div>';
+        setHtml(detail, '<div class="devhq-empty">Error loading detail</div>');
         return;
       }
-      detail.innerHTML = '<div class="devhq-pre">' + escHtml(data.entry.content || "No content") + "</div>";
+      // Content rendered via renderMd (DOMPurify sanitized)
+      setHtml(detail, '<div class="devhq-md-content">' + renderMd(data.entry.content || "No content") + "</div>");
     }).catch(function () {
-      detail.innerHTML = '<div class="devhq-empty">Error loading detail</div>';
+      setHtml(detail, '<div class="devhq-empty">Error loading detail</div>');
     });
   }
 
@@ -615,14 +1008,43 @@
     loadKnowledge();
   }
 
-  function openKbModal() {
+  function openKbModal(entryId) {
     document.getElementById("kbEditId").value = "";
     document.getElementById("kbTitle").value = "";
     document.getElementById("kbCategoryInput").value = "";
     document.getElementById("kbContent").value = "";
+    setHtml("kbPreview", '<div style="color:var(--archie-text-muted);font-size:0.72rem;">Preview will appear here...</div>');
     document.getElementById("kbModalTitle").textContent = "New Document";
     document.getElementById("kbSubmitBtn").textContent = "Create";
+
+    if (entryId && typeof entryId === "number") {
+      api("/api/knowledge/" + entryId).then(function (data) {
+        if (!data.success || !data.entry) return;
+        var e = data.entry;
+        document.getElementById("kbEditId").value = e.id;
+        document.getElementById("kbTitle").value = e.file_name || e.title || "";
+        document.getElementById("kbCategoryInput").value = e.primary_category || "";
+        document.getElementById("kbContent").value = e.content || "";
+        setHtml("kbPreview", renderMd(e.content || ""));
+        document.getElementById("kbModalTitle").textContent = "Edit Document";
+        document.getElementById("kbSubmitBtn").textContent = "Update";
+      });
+    }
+
     document.getElementById("kbModal").style.display = "flex";
+  }
+
+  function editKbEntry(id) { openKbModal(id); }
+
+  function deleteKbEntry(id) {
+    if (!confirm("Delete this knowledge entry?")) return;
+    api("/api/docs/" + id, { method: "DELETE" })
+      .then(function (data) {
+        if (!data.success) { alert("Error: " + (data.error || "Failed")); return; }
+        _cache.knowledge = false;
+        loadKnowledge();
+      })
+      .catch(function (err) { alert("Error: " + err.message); });
   }
 
   function submitKb() {
@@ -657,31 +1079,359 @@
     });
   }
 
+  function toggleKbRoadmap() {
+    var btn = document.getElementById("kbRoadmapBtn");
+    var typeFilter = document.getElementById("kbTypeFilter");
+    var searchEl = document.getElementById("kbSearch");
+
+    _roadmapActive = !_roadmapActive;
+    if (_roadmapActive) {
+      btn.classList.add("active");
+      typeFilter.value = "vault_note";
+      searchEl.value = "roadmap";
+    } else {
+      btn.classList.remove("active");
+      typeFilter.value = "";
+      searchEl.value = "";
+    }
+    _kbState.page = 0;
+    _cache.knowledge = false;
+    loadKnowledge();
+  }
+
+  function updateKbPreview() {
+    var content = document.getElementById("kbContent").value;
+    setHtml("kbPreview", renderMd(content));
+  }
+
   /* ========================================================================
-     SCHEMA TAB
+     DECISIONS TAB
      ======================================================================== */
+
+  function loadDecisions() {
+    var projectId = document.getElementById("decFilterProject").value;
+    var status = document.getElementById("decFilterStatus").value;
+    var search = document.getElementById("decFilterSearch").value;
+    var params = new URLSearchParams();
+    if (projectId) params.set("project_id", projectId);
+    if (status) params.set("status", status);
+    if (search) params.set("search", search);
+    params.set("limit", _decisionsState.limit);
+    params.set("offset", _decisionsState.page * _decisionsState.limit);
+
+    api("/api/decisions?" + params.toString()).then(function (data) {
+      if (!data.success) {
+        setHtml("decisionsContainer", '<div class="devhq-empty">Error loading decisions</div>');
+        return;
+      }
+      _decisionsState.total = data.total;
+      renderDecisions(data.decisions, data.total);
+      populateDecisionProjectFilter();
+    }).catch(function () {
+      setHtml("decisionsContainer", '<div class="devhq-empty">Error loading decisions</div>');
+    });
+  }
+
+  function populateDecisionProjectFilter() {
+    var sel = document.getElementById("decFilterProject");
+    if (sel.options.length > 1) return;
+    api("/api/projects?status=active").then(function (data) {
+      if (!data.success || !data.projects) return;
+      data.projects.forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        sel.appendChild(opt);
+      });
+    }).catch(function () {});
+  }
+
+  function renderDecisions(decisions, total) {
+    if (!decisions.length) {
+      setHtml("decisionsContainer", '<div class="devhq-empty">No decisions found</div>');
+      document.getElementById("decisionsPagination").style.display = "none";
+      return;
+    }
+
+    setHtml("decisionsContainer", '<div class="devhq-kb-list">' + decisions.map(function (d) {
+      return (
+        '<div class="devhq-kb-item" onclick="toggleDecisionDetail(this,' + d.id + ')">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">' +
+        '<div style="font-size:0.8rem;font-weight:500;color:var(--archie-text-primary);flex:1;min-width:0;">' +
+        (d.decision_number ? '<span style="color:var(--archie-orange);margin-right:6px;font-family:Orbitron,sans-serif;font-size:0.7rem;">ADR-' + escHtml(String(d.decision_number).padStart(3, "0")) + '</span>' : '') +
+        escHtml(d.title) + '</div>' +
+        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">' +
+        (d.project_name ? '<span style="font-size:0.65rem;color:var(--archie-text-muted);">' + escHtml(d.project_name) + "</span>" : "") +
+        '<span class="devhq-badge ' + escHtml(d.status) + '">' + escHtml(d.status) + "</span>" +
+        "</div></div>" +
+        '<div style="font-size:0.65rem;color:var(--archie-text-muted);">' + escHtml(formatDate(d.decided_at || d.created_at)) + "</div>" +
+        '<div class="kb-detail-expand" style="display:none;margin-top:10px;"></div>' +
+        "</div>"
+      );
+    }).join("") + "</div>");
+
+    var totalPages = Math.ceil(total / _decisionsState.limit);
+    var pag = document.getElementById("decisionsPagination");
+    if (totalPages > 1) {
+      pag.style.display = "flex";
+      document.getElementById("decisionsPageInfo").textContent = "Page " + (_decisionsState.page + 1) + " of " + totalPages;
+      document.getElementById("decisionsPrev").disabled = _decisionsState.page === 0;
+      document.getElementById("decisionsNext").disabled = _decisionsState.page >= totalPages - 1;
+    } else {
+      pag.style.display = "none";
+    }
+    refreshIcons();
+  }
+
+  function toggleDecisionDetail(el, id) {
+    var detail = el.querySelector(".kb-detail-expand");
+    if (!detail) return;
+    if (detail.style.display !== "none") {
+      detail.style.display = "none";
+      return;
+    }
+    detail.style.display = "block";
+    if (detail.dataset.loaded === "true") return;
+    setHtml(detail, '<div class="devhq-loading">Loading</div>');
+
+    api("/api/decisions/" + id).then(function (data) {
+      if (!data.success || !data.decision) {
+        setHtml(detail, '<div class="devhq-empty">Error loading detail</div>');
+        return;
+      }
+      var d = data.decision;
+      // All markdown content rendered via renderMd (DOMPurify sanitized)
+      var html = '<div class="devhq-md-content">';
+      if (d.context) {
+        html += '<div style="margin-bottom:12px;"><strong style="color:var(--archie-orange);font-size:0.72rem;text-transform:uppercase;">Context</strong>' +
+          '<div style="margin-top:4px;">' + renderMd(d.context) + '</div></div>';
+      }
+      if (d.decision) {
+        html += '<div style="margin-bottom:12px;"><strong style="color:var(--archie-orange);font-size:0.72rem;text-transform:uppercase;">Decision</strong>' +
+          '<div style="margin-top:4px;">' + renderMd(d.decision) + '</div></div>';
+      }
+      if (d.alternatives) {
+        html += '<div style="margin-bottom:12px;"><strong style="color:var(--archie-orange);font-size:0.72rem;text-transform:uppercase;">Alternatives Considered</strong>' +
+          '<div style="margin-top:4px;">' + renderMd(d.alternatives) + '</div></div>';
+      }
+      if (d.consequences) {
+        html += '<div style="margin-bottom:12px;"><strong style="color:var(--archie-orange);font-size:0.72rem;text-transform:uppercase;">Consequences</strong>' +
+          '<div style="margin-top:4px;">' + renderMd(d.consequences) + '</div></div>';
+      }
+      if (d.tags) {
+        html += '<div style="font-size:0.65rem;color:var(--archie-text-muted);margin-top:8px;">Tags: ' + escHtml(d.tags) + '</div>';
+      }
+      html += '</div>';
+      setHtml(detail, html);
+      detail.dataset.loaded = "true";
+    }).catch(function () {
+      setHtml(detail, '<div class="devhq-empty">Error loading detail</div>');
+    });
+  }
+
+  function openDecisionModal() {
+    document.getElementById("decisionEditId").value = "";
+    document.getElementById("decisionTitle").value = "";
+    document.getElementById("decisionContext").value = "";
+    document.getElementById("decisionText").value = "";
+    document.getElementById("decisionAlternatives").value = "";
+    document.getElementById("decisionConsequences").value = "";
+    document.getElementById("decisionStatus").value = "proposed";
+    document.getElementById("decisionTags").value = "";
+    document.getElementById("decisionModalTitle").textContent = "New Decision";
+    document.getElementById("decisionSubmitBtn").textContent = "Create";
+
+    var sel = document.getElementById("decisionProject");
+    if (sel.options.length <= 1) {
+      api("/api/projects?status=active").then(function (data) {
+        if (!data.success || !data.projects) return;
+        data.projects.forEach(function (p) {
+          if (!Array.from(sel.options).some(function (o) { return o.value === String(p.id); })) {
+            var opt = document.createElement("option");
+            opt.value = p.id;
+            opt.textContent = p.name;
+            sel.appendChild(opt);
+          }
+        });
+      });
+    }
+
+    document.getElementById("decisionModal").style.display = "flex";
+  }
+
+  function submitDecision() {
+    var body = {
+      title: document.getElementById("decisionTitle").value.trim(),
+      project_id: document.getElementById("decisionProject").value || null,
+      context: document.getElementById("decisionContext").value.trim(),
+      decision: document.getElementById("decisionText").value.trim(),
+      alternatives: document.getElementById("decisionAlternatives").value.trim(),
+      consequences: document.getElementById("decisionConsequences").value.trim(),
+      status: document.getElementById("decisionStatus").value,
+      tags: document.getElementById("decisionTags").value.trim(),
+    };
+    if (!body.title) { alert("Decision title is required"); return; }
+
+    api("/api/decisions", { body: body })
+      .then(function (data) {
+        if (!data.success) { alert("Error: " + (data.error || "Failed")); return; }
+        closeModal("decisionModal");
+        _cache.decisions = false;
+        loadDecisions();
+      })
+      .catch(function (err) { alert("Error: " + err.message); });
+  }
+
+  function decisionPage(dir) {
+    _decisionsState.page += dir;
+    if (_decisionsState.page < 0) _decisionsState.page = 0;
+    _cache.decisions = false;
+    loadDecisions();
+  }
+
+  /* ========================================================================
+     SYSTEM TAB (merged: Integrations + Schema + API Docs)
+     ======================================================================== */
+
+  function loadSystem() {
+    loadIntegrations();
+    loadSchema();
+    loadApiDocs();
+  }
+
+  function toggleSystemSection(bodyId) {
+    var body = document.getElementById(bodyId);
+    if (!body) return;
+    var isHidden = body.style.display === "none";
+    body.style.display = isHidden ? "block" : "none";
+    var chevronId = bodyId.replace("Body", "Chevron");
+    var chevron = document.getElementById(chevronId);
+    if (chevron) {
+      chevron.style.transform = isHidden ? "" : "rotate(-90deg)";
+    }
+  }
+
+  function loadIntegrations() {
+    Promise.all([
+      api("/api/integrations/health").catch(function () { return { success: false }; }),
+      api("/api/integrations/mcp").catch(function () { return { success: false }; }),
+      api("/api/integrations/claude").catch(function () { return { success: false }; }),
+    ]).then(function (results) {
+      var healthData = results[0];
+      var mcpData = results[1];
+      var claudeData = results[2];
+
+      // Health cards (all content escaped via escHtml)
+      if (healthData.success && healthData.services) {
+        setHtml("integrationsGrid", Object.keys(healthData.services).map(function (key) {
+          var s = healthData.services[key];
+          var dotClass = s.status === "online" ? "online" : s.status === "warning" ? "warning" : "error";
+          return (
+            '<div class="devhq-integration-card">' +
+            '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">' +
+            '<i data-lucide="' + escHtml(s.icon || "box") + '" style="width:24px;height:24px;color:var(--archie-orange);"></i>' +
+            "<div>" +
+            '<div style="font-size:0.8rem;font-weight:600;color:var(--archie-text-primary);">' + escHtml(s.name) + "</div>" +
+            '<div style="display:flex;align-items:center;gap:6px;margin-top:2px;">' +
+            '<span class="status-dot ' + dotClass + '" style="width:8px;height:8px;border-radius:50%;display:inline-block;"></span>' +
+            '<span style="font-size:0.68rem;color:var(--archie-text-muted);text-transform:uppercase;">' + escHtml(s.status) + "</span>" +
+            "</div></div></div>" +
+            '<div style="font-size:0.72rem;color:var(--archie-text-muted);">' + escHtml(s.detail) + "</div>" +
+            "</div>"
+          );
+        }).join(""));
+      } else {
+        setHtml("integrationsGrid", '<div class="devhq-empty">Could not load health status</div>');
+      }
+
+      // MCP Tool Registry (all content escaped via escHtml)
+      if (mcpData.success && mcpData.mcp_tools_db && mcpData.mcp_tools_db.length) {
+        var toolsByCat = {};
+        mcpData.mcp_tools_db.forEach(function (tool) {
+          var cat = tool.category || "uncategorized";
+          if (!toolsByCat[cat]) toolsByCat[cat] = [];
+          toolsByCat[cat].push(tool);
+        });
+        var mcpHtml = "";
+        Object.keys(toolsByCat).sort().forEach(function (cat) {
+          var tools = toolsByCat[cat];
+          mcpHtml +=
+            '<div style="margin-bottom:12px;">' +
+            '<div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">' +
+            escHtml(cat) + " (" + tools.length + ")</div><div>";
+          tools.forEach(function (t) {
+            mcpHtml +=
+              '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:0.72rem;">' +
+              '<span style="color:' + (t.enabled ? "var(--archie-green)" : "var(--archie-text-muted)") + ';">\u25CF</span>' +
+              '<span style="color:var(--archie-text-primary);">' + escHtml(t.name) + "</span>" +
+              '<span style="font-size:0.65rem;color:var(--archie-text-muted);margin-left:auto;">' + escHtml((t.description || "").substring(0, 60)) + "</span>" +
+              "</div>";
+          });
+          mcpHtml += "</div></div>";
+        });
+        setHtml("mcpToolRegistry", mcpHtml);
+      } else {
+        setHtml("mcpToolRegistry", '<div class="devhq-empty">No MCP tools registered</div>');
+      }
+
+      // Claude Config (all content escaped via escHtml)
+      var claudeEl = document.getElementById("claudeConfigPanel");
+      if (claudeData.success) {
+        var cHtml = "";
+        if (claudeData.claude_md_root) {
+          cHtml +=
+            '<div style="margin-bottom:16px;">' +
+            '<div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);margin-bottom:6px;">CLAUDE.md (Root)</div>' +
+            '<div class="devhq-pre">' + escHtml(claudeData.claude_md_root.substring(0, 800)) +
+            (claudeData.claude_md_root.length > 800 ? "\n..." : "") + "</div></div>";
+        }
+        if (claudeData.custom_commands && claudeData.custom_commands.length) {
+          cHtml += '<div style="margin-bottom:16px;"><div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);margin-bottom:6px;">Custom Commands</div>';
+          claudeData.custom_commands.forEach(function (cmd) {
+            cHtml +=
+              '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.72rem;">' +
+              '<span style="color:var(--archie-cyan);">/' + escHtml(cmd.name) + "</span>" +
+              '<span style="color:var(--archie-text-muted);">' + escHtml(cmd.description) + "</span></div>";
+          });
+          cHtml += "</div>";
+        }
+        if (claudeData.hooks && claudeData.hooks.length) {
+          cHtml += '<div><div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);margin-bottom:6px;">Hooks</div>';
+          claudeData.hooks.forEach(function (h) {
+            cHtml += '<div style="padding:2px 0;font-size:0.72rem;color:var(--archie-text-muted);">' + escHtml(h) + "</div>";
+          });
+          cHtml += "</div>";
+        }
+        setHtml(claudeEl, cHtml || '<div class="devhq-empty">No Claude config found</div>');
+      } else {
+        setHtml(claudeEl, '<div class="devhq-empty">Could not load Claude config</div>');
+      }
+
+      refreshIcons();
+    });
+  }
+
   function loadSchema() {
     api("/api/schema")
       .then(function (data) {
         if (!data.tables) {
-          document.getElementById("schemaTableList").innerHTML = '<div class="devhq-empty">No schema data available</div>';
+          setHtml("schemaTableList", '<div class="devhq-empty">No schema data available</div>');
           return;
         }
         _schemaData = data.tables;
         renderSchemaList(_schemaData);
       })
       .catch(function () {
-        document.getElementById("schemaTableList").innerHTML = '<div class="devhq-empty">Error loading schema</div>';
+        setHtml("schemaTableList", '<div class="devhq-empty">Error loading schema</div>');
       });
   }
 
   function renderSchemaList(tables) {
-    var list = document.getElementById("schemaTableList");
     if (!tables || !tables.length) {
-      list.innerHTML = '<div class="devhq-empty">No tables</div>';
+      setHtml("schemaTableList", '<div class="devhq-empty">No tables</div>');
       return;
     }
-    list.innerHTML = tables.map(function (t) {
+    setHtml("schemaTableList", tables.map(function (t) {
       var name = typeof t === "string" ? t : (t.table_name || t.name);
       var count = t.row_count != null ? t.row_count : "";
       return (
@@ -690,7 +1440,7 @@
         (count !== "" ? '<span style="font-size:0.65rem;color:var(--archie-text-muted);">' + count + " rows</span>" : "") +
         "</div>"
       );
-    }).join("");
+    }).join(""));
   }
 
   function showTableColumns(tableName) {
@@ -700,9 +1450,8 @@
     });
 
     var table = _schemaData ? _schemaData.find(function (t) { return (t.table_name || t.name) === tableName; }) : null;
-    var detail = document.getElementById("schemaDetail");
     if (!table || !table.columns) {
-      detail.innerHTML = '<div class="devhq-empty">No column info available</div>';
+      setHtml("schemaDetail", '<div class="devhq-empty">No column info available</div>');
       return;
     }
 
@@ -739,29 +1488,25 @@
       html += "</div>";
     }
 
-    detail.innerHTML = html;
+    setHtml("schemaDetail", html);
   }
 
-  /* ========================================================================
-     API DOCS TAB
-     ======================================================================== */
   function loadApiDocs() {
     api("/api/docs")
       .then(function (data) {
         if (!data.endpoints && !data.blueprints) {
-          document.getElementById("apiDocsContainer").innerHTML = '<div class="devhq-empty">No API documentation available</div>';
+          setHtml("apiDocsContainer", '<div class="devhq-empty">No API documentation available</div>');
           return;
         }
         _apiData = data;
         renderApiDocs(data);
       })
       .catch(function () {
-        document.getElementById("apiDocsContainer").innerHTML = '<div class="devhq-empty">Error loading API docs</div>';
+        setHtml("apiDocsContainer", '<div class="devhq-empty">Error loading API docs</div>');
       });
   }
 
   function renderApiDocs(data) {
-    var container = document.getElementById("apiDocsContainer");
     var groups = {};
     var endpoints = data.endpoints || [];
     endpoints.forEach(function (ep) {
@@ -805,118 +1550,93 @@
       html += "</div></div>";
     });
 
-    container.innerHTML = html || '<div class="devhq-empty">No endpoints match your search</div>';
+    setHtml("apiDocsContainer", html || '<div class="devhq-empty">No endpoints match your search</div>');
     refreshIcons();
   }
 
   /* ========================================================================
-     INTEGRATIONS TAB
+     PROJECT DOC MODAL
      ======================================================================== */
-  function loadIntegrations() {
-    Promise.all([
-      api("/api/integrations/health").catch(function () { return { success: false }; }),
-      api("/api/integrations/mcp").catch(function () { return { success: false }; }),
-      api("/api/integrations/claude").catch(function () { return { success: false }; }),
-    ]).then(function (results) {
-      var healthData = results[0];
-      var mcpData = results[1];
-      var claudeData = results[2];
 
-      // Health cards
-      var grid = document.getElementById("integrationsGrid");
-      if (healthData.success && healthData.services) {
-        grid.innerHTML = Object.keys(healthData.services).map(function (key) {
-          var s = healthData.services[key];
-          var dotClass = s.status === "online" ? "online" : s.status === "warning" ? "warning" : "error";
-          return (
-            '<div class="devhq-integration-card">' +
-            '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">' +
-            '<i data-lucide="' + escHtml(s.icon || "box") + '" style="width:24px;height:24px;color:var(--archie-orange);"></i>' +
-            "<div>" +
-            '<div style="font-size:0.8rem;font-weight:600;color:var(--archie-text-primary);">' + escHtml(s.name) + "</div>" +
-            '<div style="display:flex;align-items:center;gap:6px;margin-top:2px;">' +
-            '<span class="status-dot ' + dotClass + '" style="width:8px;height:8px;border-radius:50%;display:inline-block;"></span>' +
-            '<span style="font-size:0.68rem;color:var(--archie-text-muted);text-transform:uppercase;">' + escHtml(s.status) + "</span>" +
-            "</div></div></div>" +
-            '<div style="font-size:0.72rem;color:var(--archie-text-muted);">' + escHtml(s.detail) + "</div>" +
-            "</div>"
-          );
-        }).join("");
-      } else {
-        grid.innerHTML = '<div class="devhq-empty">Could not load health status</div>';
-      }
+  var _editingProjectDocId = null;
 
-      // MCP Tool Registry
-      var mcpEl = document.getElementById("mcpToolRegistry");
-      if (mcpData.success && mcpData.mcp_tools_db && mcpData.mcp_tools_db.length) {
-        var toolsByCat = {};
-        mcpData.mcp_tools_db.forEach(function (tool) {
-          var cat = tool.category || "uncategorized";
-          if (!toolsByCat[cat]) toolsByCat[cat] = [];
-          toolsByCat[cat].push(tool);
-        });
-        var mcpHtml = "";
-        Object.keys(toolsByCat).sort().forEach(function (cat) {
-          var tools = toolsByCat[cat];
-          mcpHtml +=
-            '<div style="margin-bottom:12px;">' +
-            '<div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">' +
-            escHtml(cat) + " (" + tools.length + ")</div><div>";
-          tools.forEach(function (t) {
-            mcpHtml +=
-              '<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:0.72rem;">' +
-              '<span style="color:' + (t.enabled ? "var(--archie-green)" : "var(--archie-text-muted)") + ';">\u25CF</span>' +
-              '<span style="color:var(--archie-text-primary);">' + escHtml(t.name) + "</span>" +
-              '<span style="font-size:0.65rem;color:var(--archie-text-muted);margin-left:auto;">' + escHtml((t.description || "").substring(0, 60)) + "</span>" +
-              "</div>";
-          });
-          mcpHtml += "</div></div>";
-        });
-        mcpEl.innerHTML = mcpHtml;
-      } else {
-        mcpEl.innerHTML = '<div class="devhq-empty">No MCP tools registered</div>';
-      }
+  function openProjectDocModal(docId) {
+    _editingProjectDocId = docId || null;
+    document.getElementById("projectDocTitle").value = "";
+    document.getElementById("projectDocType").value = "design";
+    document.getElementById("projectDocContent").value = "";
+    document.getElementById("projectDocTags").value = "";
+    setHtml("projectDocPreview", '<div style="color:var(--archie-text-muted);font-size:0.72rem;">Preview will appear here...</div>');
+    document.getElementById("projectDocModalTitle").textContent = "New Document";
+    document.getElementById("projectDocSubmitBtn").textContent = "Create";
 
-      // Claude Config
-      var claudeEl = document.getElementById("claudeConfigPanel");
-      if (claudeData.success) {
-        var cHtml = "";
-        if (claudeData.claude_md_root) {
-          cHtml +=
-            '<div style="margin-bottom:16px;">' +
-            '<div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);margin-bottom:6px;">CLAUDE.md (Root)</div>' +
-            '<div class="devhq-pre">' + escHtml(claudeData.claude_md_root.substring(0, 800)) +
-            (claudeData.claude_md_root.length > 800 ? "\n..." : "") + "</div></div>";
-        }
-        if (claudeData.custom_commands && claudeData.custom_commands.length) {
-          cHtml += '<div style="margin-bottom:16px;"><div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);margin-bottom:6px;">Custom Commands</div>';
-          claudeData.custom_commands.forEach(function (cmd) {
-            cHtml +=
-              '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.72rem;">' +
-              '<span style="color:var(--archie-cyan);">/' + escHtml(cmd.name) + "</span>" +
-              '<span style="color:var(--archie-text-muted);">' + escHtml(cmd.description) + "</span></div>";
-          });
-          cHtml += "</div>";
-        }
-        if (claudeData.hooks && claudeData.hooks.length) {
-          cHtml += '<div><div style="font-size:0.72rem;font-weight:600;color:var(--archie-orange);margin-bottom:6px;">Hooks</div>';
-          claudeData.hooks.forEach(function (h) {
-            cHtml += '<div style="padding:2px 0;font-size:0.72rem;color:var(--archie-text-muted);">' + escHtml(h) + "</div>";
-          });
-          cHtml += "</div>";
-        }
-        claudeEl.innerHTML = cHtml || '<div class="devhq-empty">No Claude config found</div>';
-      } else {
-        claudeEl.innerHTML = '<div class="devhq-empty">Could not load Claude config</div>';
-      }
+    if (docId && _currentProject) {
+      api("/api/projects/" + _currentProject.id + "/docs/" + docId).then(function (data) {
+        if (!data.success || !data.doc) return;
+        var d = data.doc;
+        document.getElementById("projectDocTitle").value = d.title || "";
+        document.getElementById("projectDocType").value = d.doc_type || "design";
+        document.getElementById("projectDocContent").value = d.content || "";
+        document.getElementById("projectDocTags").value = (d.tags && Array.isArray(d.tags)) ? d.tags.join(", ") : "";
+        setHtml("projectDocPreview", renderMd(d.content || ""));
+        document.getElementById("projectDocModalTitle").textContent = "Edit Document";
+        document.getElementById("projectDocSubmitBtn").textContent = "Update";
+      });
+    }
 
-      refreshIcons();
+    document.getElementById("projectDocModal").style.display = "flex";
+  }
+
+  function submitProjectDoc() {
+    if (!_currentProject) { alert("No project selected"); return; }
+    var tagsRaw = document.getElementById("projectDocTags").value.trim();
+    var tags = tagsRaw ? tagsRaw.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : null;
+    var body = {
+      title: document.getElementById("projectDocTitle").value.trim(),
+      doc_type: document.getElementById("projectDocType").value,
+      content: document.getElementById("projectDocContent").value.trim(),
+      tags: tags,
+    };
+    if (!body.content) { alert("Content is required"); return; }
+    if (!body.title) body.title = "Untitled";
+
+    var p;
+    if (_editingProjectDocId) {
+      p = api("/api/projects/" + _currentProject.id + "/docs/" + _editingProjectDocId, { method: "PUT", body: body });
+    } else {
+      p = api("/api/projects/" + _currentProject.id + "/docs", { body: body });
+    }
+
+    p.then(function (data) {
+      if (!data.success) { alert("Error: " + (data.error || "Failed")); return; }
+      closeModal("projectDocModal");
+      _editingProjectDocId = null;
+      loadProjectDocs(_currentProject.id);
+    }).catch(function (err) {
+      alert("Error: " + err.message);
     });
+  }
+
+  function deleteProjectDoc(docId) {
+    if (!confirm("Delete this document?")) return;
+    if (!_currentProject) return;
+    api("/api/projects/" + _currentProject.id + "/docs/" + docId, { method: "DELETE" })
+      .then(function (data) {
+        if (!data.success) { alert("Error: " + (data.error || "Failed")); return; }
+        loadProjectDocs(_currentProject.id);
+      })
+      .catch(function (err) { alert("Error: " + err.message); });
+  }
+
+  function updateProjectDocPreview() {
+    var content = document.getElementById("projectDocContent").value;
+    setHtml("projectDocPreview", renderMd(content));
   }
 
   /* ========================================================================
      CLOCK
      ======================================================================== */
+
   function updateClock() {
     var now = new Date();
     var el = document.getElementById("hqClock");
@@ -929,58 +1649,64 @@
   }
 
   /* ========================================================================
-     EXPOSE GLOBALS (onclick handlers referenced in HTML)
+     EXPOSE GLOBALS (onclick/oninput handlers referenced in HTML)
      ======================================================================== */
   window.switchDevHQTab = switchDevHQTab;
   window.openProjectModal = openProjectModal;
   window.submitProject = submitProject;
   window.deleteProject = deleteProject;
   window.closeModal = closeModal;
+  window.openProjectDetail = openProjectDetail;
+  window.closeProjectDetail = closeProjectDetail;
+  window.switchProjectSubTab = switchProjectSubTab;
   window.openTaskModal = openTaskModal;
   window.submitTask = submitTask;
   window.deleteTask = deleteTask;
   window.cycleTaskStatus = cycleTaskStatus;
   window.taskPage = taskPage;
+  window.openIdeaModal = openIdeaModal;
+  window.submitIdea = submitIdea;
+  window.deleteIdea = deleteIdea;
+  window.promoteIdea = promoteIdea;
+  window.ideaPage = ideaPage;
   window.openKbModal = openKbModal;
   window.submitKb = submitKb;
   window.kbPage = kbPage;
-  window.showTableColumns = showTableColumns;
+  window.editKbEntry = editKbEntry;
+  window.deleteKbEntry = deleteKbEntry;
   window.toggleKbDetail = toggleKbDetail;
+  window.toggleKbRoadmap = toggleKbRoadmap;
+  window.updateKbPreview = updateKbPreview;
+  window.openDecisionModal = openDecisionModal;
+  window.submitDecision = submitDecision;
+  window.toggleDecisionDetail = toggleDecisionDetail;
+  window.decisionPage = decisionPage;
+  window.showTableColumns = showTableColumns;
+  window.toggleSystemSection = toggleSystemSection;
+  window.openProjectDocModal = openProjectDocModal;
+  window.submitProjectDoc = submitProjectDoc;
+  window.deleteProjectDoc = deleteProjectDoc;
+  window.updateProjectDocPreview = updateProjectDocPreview;
+  window.viewProjectDoc = viewProjectDoc;
+  window.loadProjectDocs = loadProjectDocs;
+  window.loadProjectTasks = loadProjectTasks;
 
   /* ========================================================================
      INIT
      ======================================================================== */
+
   document.addEventListener("DOMContentLoaded", function () {
     refreshIcons();
     updateClock();
     setInterval(updateClock, 1000);
 
-    // Always populate header stats regardless of which tab is shown
-    api("/api/overview").then(function (data) {
-      if (!data.success) return;
-      var activeCount = data.project_stats.active || 0;
-      var openTasks = data.task_stats.open_tasks || 0;
-      document.getElementById("hqProjectCount").textContent = activeCount;
-      document.getElementById("hqTaskCount").textContent = openTasks;
-    }).catch(function () {});
-
     // Hash deep-linking
     var hash = window.location.hash.replace("#", "");
-    var validTabs = ["overview", "projects", "tasks", "knowledge", "schema", "api", "integrations"];
+    var validTabs = ["overview", "projects", "ideas", "knowledge", "decisions", "system"];
     if (hash && validTabs.indexOf(hash) !== -1) {
       switchDevHQTab(hash);
     } else {
-      loadTabData("overview");
-    }
-
-    // Filter event listeners
-    var debounceTimer;
-    function debounceReload(tabName, fn) {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function () {
-        _cache[tabName] = false;
-        fn();
-      }, 300);
+      switchDevHQTab("overview");
     }
 
     // Projects filters
@@ -988,16 +1714,20 @@
     document.getElementById("projFilterPriority").addEventListener("change", function () { _cache.projects = false; loadProjects(); });
     document.getElementById("projFilterSearch").addEventListener("input", function () { debounceReload("projects", loadProjects); });
 
-    // Tasks filters
-    document.getElementById("taskFilterStatus").addEventListener("change", function () { _taskState.page = 0; _cache.tasks = false; loadAllTasks(); });
-    document.getElementById("taskFilterPriority").addEventListener("change", function () { _taskState.page = 0; _cache.tasks = false; loadAllTasks(); });
-    document.getElementById("taskFilterProject").addEventListener("change", function () { _taskState.page = 0; _cache.tasks = false; loadAllTasks(); });
-    document.getElementById("taskFilterSearch").addEventListener("input", function () { _taskState.page = 0; debounceReload("tasks", loadAllTasks); });
+    // Ideas filters
+    document.getElementById("ideaFilterCategory").addEventListener("change", function () { _ideasState.page = 0; _cache.ideas = false; loadIdeas(); });
+    document.getElementById("ideaFilterStatus").addEventListener("change", function () { _ideasState.page = 0; _cache.ideas = false; loadIdeas(); });
+    document.getElementById("ideaFilterSearch").addEventListener("input", function () { _ideasState.page = 0; debounceReload("ideas", loadIdeas); });
 
     // Knowledge filters
     document.getElementById("kbSearch").addEventListener("input", function () { _kbState.page = 0; debounceReload("knowledge", loadKnowledge); });
     document.getElementById("kbTypeFilter").addEventListener("change", function () { _kbState.page = 0; _cache.knowledge = false; loadKnowledge(); });
     document.getElementById("kbCategory").addEventListener("change", function () { _kbState.page = 0; _cache.knowledge = false; loadKnowledge(); });
+
+    // Decisions filters
+    document.getElementById("decFilterProject").addEventListener("change", function () { _decisionsState.page = 0; _cache.decisions = false; loadDecisions(); });
+    document.getElementById("decFilterStatus").addEventListener("change", function () { _decisionsState.page = 0; _cache.decisions = false; loadDecisions(); });
+    document.getElementById("decFilterSearch").addEventListener("input", function () { _decisionsState.page = 0; debounceReload("decisions", loadDecisions); });
 
     // Schema search
     document.getElementById("schemaSearch").addEventListener("input", function () {

@@ -1202,6 +1202,331 @@ class BridgeDispatcher:
             logger.warning(f"[BridgeDispatcher] Failed to log escalation: {e}")
 
     # ========================================================================
+    # DYNAMIC AGENT CREATION
+    # ========================================================================
+
+    # Suggested model defaults by station (use local free models)
+    _STATION_DEFAULT_MODEL = {
+        "COMMAND": "dolphin3-8k:latest",
+        "ANALYTICS": "qwen25-classify:latest",
+        "ENGINEERING": "qwen3-coder-cpu:latest",
+        "OPERATIONS": "dolphin3-8k:latest",
+        "CREATIVE": "dolphin3-8k:latest",
+        "RESEARCH": "qwen3-coder-cpu:latest",
+    }
+
+    def _check_creation_duplicates(
+        self, capability: str, station_code: str
+    ) -> Optional[str]:
+        """Check for duplicate pending creation requests or recent creations.
+
+        Returns a reason string if a duplicate is found, None if safe to create.
+        """
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Check autonomy_approval_queue for pending create_agent requests
+            # with matching capability + station in action_data
+            cur.execute(
+                """
+                SELECT id, reason, created_at
+                FROM autonomy_approval_queue
+                WHERE action_type = 'create_agent'
+                  AND status = 'pending'
+                  AND action_data->>'capability' = %s
+                  AND action_data->>'station_code' = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (capability, station_code),
+            )
+            pending = cur.fetchone()
+            if pending:
+                cur.close()
+                conn.close()
+                return (
+                    f"Pending creation request #{pending['id']} already exists "
+                    f"for capability='{capability}' station='{station_code}' "
+                    f"(created {pending['created_at']})"
+                )
+
+            # Check agent_creation_events for recent (24h) creations
+            # with same capability + station
+            cur.execute(
+                """
+                SELECT id, child_agent_id, created_at
+                FROM agent_creation_events
+                WHERE station_requested = %s
+                  AND capabilities_requested ? %s
+                  AND created_at > NOW() - INTERVAL '24 hours'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (station_code, capability),
+            )
+            recent = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            if recent:
+                return (
+                    f"Agent (id={recent['child_agent_id']}) was already created "
+                    f"for capability='{capability}' station='{station_code}' "
+                    f"within the last 24h (event #{recent['id']}, "
+                    f"created {recent['created_at']})"
+                )
+
+            return None  # Safe to create
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] _check_creation_duplicates failed: {e}")
+            return None  # Fail open — allow creation attempt
+
+    def _request_agent_creation(
+        self, capability: str, station_code: str, reason: str
+    ) -> bool:
+        """Request dynamic agent creation via Telegram approval.
+
+        Checks for duplicates first, then submits a tier-2 approval request.
+
+        Returns True if request was submitted, False if blocked by dedup.
+        """
+        # Dedup check
+        dup_reason = self._check_creation_duplicates(capability, station_code)
+        if dup_reason:
+            logger.info(
+                f"[BridgeDispatcher] Agent creation blocked (duplicate): {dup_reason}"
+            )
+            return False
+
+        # Build suggested agent profile
+        suggested_model = self._STATION_DEFAULT_MODEL.get(
+            station_code, "dolphin3-8k:latest"
+        )
+        suggested_name = (
+            f"Auto-{station_code.capitalize()}-{capability.replace('_', '-').title()}"
+        )
+
+        action_data = {
+            "capability": capability,
+            "station_code": station_code,
+            "suggested_name": suggested_name,
+            "suggested_model": suggested_model,
+            "suggested_skills": [capability],
+            "reason": reason,
+        }
+
+        try:
+            from agent_loop import request_approval
+
+            approval_id = request_approval(
+                action_type="create_agent",
+                action_data=action_data,
+                reason=(
+                    f"Skill gap: no available agent for capability='{capability}' "
+                    f"at station='{station_code}'. {reason}. "
+                    f"Suggested: {suggested_name} ({suggested_model})"
+                ),
+                requested_by="bridge_dispatcher",
+                tier=2,
+            )
+            if approval_id:
+                logger.info(
+                    f"[BridgeDispatcher] Agent creation request #{approval_id} "
+                    f"submitted for capability='{capability}' "
+                    f"station='{station_code}'"
+                )
+                return True
+            else:
+                logger.warning(
+                    "[BridgeDispatcher] request_approval returned None for "
+                    f"create_agent capability='{capability}'"
+                )
+                return False
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] _request_agent_creation failed: {e}")
+            return False
+
+    def _create_agent_from_approval(self, approval_data: Dict) -> Optional[int]:
+        """Create a new agent from an approved creation request.
+
+        Inserts into: agents, agent_skills, agent_budgets,
+        agent_emotional_state, station_assignments, agent_creation_events,
+        governance_audit_log.
+
+        Args:
+            approval_data: The action_data dict from the approval queue entry.
+
+        Returns:
+            New agent_id on success, None on failure.
+        """
+        capability = approval_data.get("capability", "general")
+        station_code = approval_data.get("station_code", "COMMAND")
+        suggested_name = approval_data.get("suggested_name", f"Auto-{capability}")
+        suggested_model = approval_data.get(
+            "suggested_model",
+            self._STATION_DEFAULT_MODEL.get(station_code, "dolphin3-8k:latest"),
+        )
+        suggested_skills = approval_data.get("suggested_skills", [capability])
+        reason = approval_data.get("reason", "Dynamic creation via dispatcher")
+
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+
+            # 1. INSERT into agents
+            cur.execute(
+                """
+                INSERT INTO agents (
+                    name, model, status, department, title,
+                    worker_type, cost_tier, agent_generation,
+                    parent_agent_id, created_by_agent_id,
+                    system_prompt, temperature, max_tokens
+                ) VALUES (
+                    %s, %s, 'active', %s, %s,
+                    'internal', 'free', 1,
+                    2, 2,
+                    %s, 0.5, 4096
+                )
+                RETURNING id
+                """,
+                (
+                    suggested_name,
+                    suggested_model,
+                    station_code,
+                    f"Auto-created {capability} specialist",
+                    f"You are {suggested_name}, a specialist in {capability} "
+                    f"at the {station_code} station.",
+                ),
+            )
+            new_agent_id = cur.fetchone()[0]
+
+            # 2. INSERT into agent_skills
+            for skill in suggested_skills:
+                cur.execute(
+                    """
+                    INSERT INTO agent_skills (
+                        agent_id, skill_name, skill_category,
+                        proficiency_level
+                    ) VALUES (%s, %s, %s, 3)
+                    ON CONFLICT (agent_id, skill_name) DO NOTHING
+                    """,
+                    (new_agent_id, skill, station_code.lower()),
+                )
+
+            # 3. INSERT into agent_budgets
+            cur.execute(
+                """
+                INSERT INTO agent_budgets (
+                    agent_id, token_limit_per_day, task_queue_limit,
+                    can_create_sub_agents, max_sub_agents
+                ) VALUES (%s, 100000, 10, FALSE, 0)
+                ON CONFLICT (agent_id) DO NOTHING
+                """,
+                (new_agent_id,),
+            )
+
+            # 4. INSERT into agent_emotional_state
+            cur.execute(
+                """
+                INSERT INTO agent_emotional_state (
+                    agent_id, current_mood, energy_level, stress_level,
+                    trigger_event
+                ) VALUES (%s, 'neutral', 0.8, 0.1, 'initial_creation')
+                """,
+                (new_agent_id,),
+            )
+
+            # 5. INSERT into station_assignments
+            cur.execute(
+                """
+                INSERT INTO station_assignments (
+                    station_id, agent_id, assignment_type, priority, is_active
+                ) VALUES (
+                    (SELECT id FROM bridge_stations
+                     WHERE station_code = %s LIMIT 1),
+                    %s, 'primary', 50, TRUE
+                )
+                """,
+                (station_code, new_agent_id),
+            )
+
+            # 6. INSERT into agent_creation_events
+            cur.execute(
+                """
+                INSERT INTO agent_creation_events (
+                    parent_agent_id, child_agent_id,
+                    creation_reason, creation_source,
+                    capabilities_requested, station_requested,
+                    is_approved, approved_at
+                ) VALUES (
+                    2, %s,
+                    %s, 'dispatcher',
+                    %s, %s,
+                    TRUE, NOW()
+                )
+                """,
+                (
+                    new_agent_id,
+                    reason,
+                    json.dumps(suggested_skills),
+                    station_code,
+                ),
+            )
+
+            # 7. INSERT into governance_audit_log
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log (
+                    event_type, event_category, agent_id, action,
+                    new_value, reason, outcome
+                ) VALUES (
+                    'agent_created', 'autonomy', %s, 'create',
+                    %s, %s, 'success'
+                )
+                """,
+                (
+                    new_agent_id,
+                    json.dumps(
+                        {
+                            "name": suggested_name,
+                            "model": suggested_model,
+                            "station": station_code,
+                            "capability": capability,
+                            "skills": suggested_skills,
+                        }
+                    ),
+                    reason,
+                ),
+            )
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            # Invalidate cache so the new agent gets picked up
+            self._cache_time = 0
+
+            logger.info(
+                f"[BridgeDispatcher] Created agent #{new_agent_id} "
+                f"'{suggested_name}' for capability='{capability}' "
+                f"station='{station_code}'"
+            )
+            return new_agent_id
+
+        except Exception as e:
+            logger.error(f"[BridgeDispatcher] _create_agent_from_approval failed: {e}")
+            try:
+                conn.rollback()
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
+            return None
+
+    # ========================================================================
     # PUBLIC API
     # ========================================================================
 
@@ -1246,6 +1571,24 @@ class BridgeDispatcher:
         agent = self._select_agent(capability, station_code)
 
         if not agent:
+            # Fire async agent creation request (Telegram approval)
+            # before falling back — creation is async so we still need
+            # to serve this request via ARCHIE immediately.
+            try:
+                self._request_agent_creation(
+                    capability=capability,
+                    station_code=station_code,
+                    reason=(
+                        f"No available agent for capability='{capability}' "
+                        f"at station='{station_code}' "
+                        f"(module={module_id})"
+                    ),
+                )
+            except Exception as creation_err:
+                logger.debug(
+                    f"[BridgeDispatcher] Creation request skipped: {creation_err}"
+                )
+
             # Fallback: use ARCHIE/COMMAND with dolphin3-8k
             logger.warning(
                 f"[BridgeDispatcher] No agent for capability='{capability}' "

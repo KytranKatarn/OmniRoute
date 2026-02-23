@@ -1046,3 +1046,204 @@ def api_integrations_health():
     }
 
     return jsonify({"success": True, "services": services})
+
+
+# ---------------------------------------------------------------------------
+# Ideas Board
+# ---------------------------------------------------------------------------
+
+
+@dev_hq_bp.route("/api/ideas")
+@login_required
+@admin_hub_only
+def api_list_ideas():
+    """List ideas with filters."""
+    status = request.args.get("status")
+    category = request.args.get("category")
+    search = request.args.get("search")
+    limit = min(int(request.args.get("limit", 50)), 200)
+    offset = int(request.args.get("offset", 0))
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            query = "SELECT * FROM project_ideas WHERE 1=1"
+            count_query = "SELECT COUNT(*) as count FROM project_ideas WHERE 1=1"
+            params = []
+            count_params = []
+            if status:
+                query += " AND status = %s"
+                count_query += " AND status = %s"
+                params.append(status)
+                count_params.append(status)
+            if category:
+                query += " AND category = %s"
+                count_query += " AND category = %s"
+                params.append(category)
+                count_params.append(category)
+            if search:
+                query += " AND (title ILIKE %s OR description ILIKE %s)"
+                count_query += " AND (title ILIKE %s OR description ILIKE %s)"
+                params.extend(["%" + search + "%", "%" + search + "%"])
+                count_params.extend(["%" + search + "%", "%" + search + "%"])
+            cur.execute(count_query, count_params)
+            total = cur.fetchone()["count"]
+            query += " ORDER BY priority DESC, created_at DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            cur.execute(query, params)
+            return jsonify(
+                {
+                    "success": True,
+                    "ideas": [dict(r) for r in cur.fetchall()],
+                    "total": total,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/ideas", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_create_idea():
+    """Create a new idea."""
+    data = request.get_json()
+    if not data or not data.get("title"):
+        return jsonify({"success": False, "error": "Title required"}), 400
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """INSERT INTO project_ideas
+                (title, description, category, priority, tags, created_by_user_id)
+                VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
+                (
+                    data["title"],
+                    data.get("description", ""),
+                    data.get("category", "feature"),
+                    data.get("priority", 5),
+                    data.get("tags", []),
+                    current_user.id,
+                ),
+            )
+            idea = dict(cur.fetchone())
+            conn.commit()
+            return jsonify({"success": True, "idea": idea}), 201
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/ideas/<int:idea_id>", methods=["PUT"])
+@login_required
+@admin_hub_only
+def api_update_idea(idea_id):
+    """Update an existing idea."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data"}), 400
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            fields, params = [], []
+            for key in ["title", "description", "category", "priority", "status", "tags"]:
+                if key in data:
+                    fields.append(f"{key} = %s")
+                    params.append(data[key])
+            if not fields:
+                return jsonify({"success": False, "error": "No fields"}), 400
+            fields.append("updated_at = NOW()")
+            params.append(idea_id)
+            cur.execute(
+                f"UPDATE project_ideas SET {', '.join(fields)} WHERE id = %s RETURNING *",
+                params,
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": "Not found"}), 404
+            conn.commit()
+            return jsonify({"success": True, "idea": dict(row)})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/ideas/<int:idea_id>", methods=["DELETE"])
+@login_required
+@admin_hub_only
+def api_delete_idea(idea_id):
+    """Delete an idea."""
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "DELETE FROM project_ideas WHERE id = %s RETURNING id",
+                (idea_id,),
+            )
+            if not cur.fetchone():
+                return jsonify({"success": False, "error": "Not found"}), 404
+            conn.commit()
+            return jsonify({"success": True})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
+@dev_hq_bp.route("/api/ideas/<int:idea_id>/promote", methods=["POST"])
+@login_required
+@admin_hub_only
+def api_promote_idea(idea_id):
+    """Promote an idea to a project."""
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("SELECT * FROM project_ideas WHERE id = %s", (idea_id,))
+            idea = cur.fetchone()
+            if not idea:
+                return jsonify({"success": False, "error": "Not found"}), 404
+            if idea["status"] == "promoted":
+                return jsonify({"success": False, "error": "Already promoted"}), 400
+
+            cur.execute(
+                """INSERT INTO unified_projects
+                (name, description, project_type, priority, tags, status,
+                 created_by_user)
+                VALUES (%s, %s, %s, %s, %s, 'active', %s) RETURNING *""",
+                (
+                    idea["title"],
+                    idea["description"],
+                    idea["category"],
+                    idea["priority"],
+                    idea["tags"],
+                    current_user.id,
+                ),
+            )
+            project = dict(cur.fetchone())
+
+            cur.execute(
+                """UPDATE project_ideas
+                SET status = 'promoted', promoted_to_project_id = %s,
+                    updated_at = NOW()
+                WHERE id = %s""",
+                (project["id"], idea_id),
+            )
+            conn.commit()
+            return jsonify(
+                {
+                    "success": True,
+                    "project": project,
+                    "idea_id": idea_id,
+                }
+            )
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()

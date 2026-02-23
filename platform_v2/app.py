@@ -2890,6 +2890,187 @@ def handle_exception(e):
 
 
 # ============================================================================
+# CREW WELLNESS TICK (Training Progression + Rest Recovery)
+# ============================================================================
+
+
+def crew_wellness_tick(flask_app):
+    """Process training progression and rest recovery every 5 minutes."""
+    with flask_app.app_context():
+        try:
+            from database import get_db_cursor
+            import datetime
+
+            # Hours needed to advance TO each level (from the level below)
+            HOURS_PER_LEVEL = {2: 1, 3: 2, 4: 4, 5: 8}
+
+            with get_db_cursor() as (conn, cur):
+                # ==============================================================
+                # TRAINING PROGRESSION
+                # ==============================================================
+                cur.execute(
+                    """
+                    SELECT id, agent_id, skill_name, skill_category,
+                           current_proficiency, target_proficiency, updated_at
+                    FROM training_assignments
+                    WHERE status = 'in_progress'
+                      AND current_proficiency < target_proficiency
+                    """
+                )
+                active_trainings = cur.fetchall()
+
+                for training in active_trainings:
+                    now = datetime.datetime.utcnow()
+                    updated_at = training["updated_at"]
+                    hours_since_update = (now - updated_at).total_seconds() / 3600.0
+                    current_level = training["current_proficiency"]
+                    target_level = training["target_proficiency"]
+                    next_level = current_level + 1
+
+                    if next_level > 5 or next_level not in HOURS_PER_LEVEL:
+                        continue
+
+                    hours_needed = HOURS_PER_LEVEL[next_level]
+
+                    if hours_since_update >= hours_needed:
+                        new_level = next_level
+                        agent_id = training["agent_id"]
+                        skill_name = training["skill_name"]
+                        skill_category = training["skill_category"]
+                        training_id = training["id"]
+
+                        # Update training assignment proficiency and reset timer
+                        if new_level >= target_level:
+                            # Training complete
+                            cur.execute(
+                                """
+                                UPDATE training_assignments
+                                SET current_proficiency = %s,
+                                    status = 'completed',
+                                    completed_at = NOW(),
+                                    updated_at = NOW()
+                                WHERE id = %s
+                                """,
+                                (new_level, training_id),
+                            )
+                        else:
+                            # Level up, continue training
+                            cur.execute(
+                                """
+                                UPDATE training_assignments
+                                SET current_proficiency = %s,
+                                    updated_at = NOW()
+                                WHERE id = %s
+                                """,
+                                (new_level, training_id),
+                            )
+
+                        # UPSERT agent_skills
+                        cur.execute(
+                            """
+                            INSERT INTO agent_skills (agent_id, skill_name, skill_category, proficiency_level, updated_at)
+                            VALUES (%s, %s, %s, %s, NOW())
+                            ON CONFLICT (agent_id, skill_name)
+                            DO UPDATE SET proficiency_level = EXCLUDED.proficiency_level,
+                                          skill_category = EXCLUDED.skill_category,
+                                          updated_at = NOW()
+                            """,
+                            (agent_id, skill_name, skill_category, new_level),
+                        )
+
+                        # Record learning
+                        confidence_before = round((current_level - 1) / 4.0, 2)
+                        confidence_after = round((new_level - 1) / 4.0, 2)
+                        cur.execute(
+                            """
+                            INSERT INTO agent_learning_records
+                                (agent_id, learning_type, subject, lesson_learned,
+                                 confidence_before, confidence_after, source_type)
+                            VALUES (%s, 'training', %s, %s, %s, %s, 'training_room')
+                            """,
+                            (
+                                agent_id,
+                                skill_name,
+                                f"Advanced from level {current_level} to {new_level} in {skill_name}",
+                                confidence_before,
+                                confidence_after,
+                            ),
+                        )
+
+                        logger.info(
+                            f"[CrewWellness] Agent {agent_id} leveled up {skill_name}: "
+                            f"{current_level} -> {new_level}"
+                            f"{' (COMPLETE)' if new_level >= target_level else ''}"
+                        )
+
+                # ==============================================================
+                # REST RECOVERY
+                # ==============================================================
+                cur.execute(
+                    """
+                    SELECT rc.id, rc.agent_id, rc.started_at,
+                           rc.stress_at_start, rc.energy_at_start
+                    FROM agent_rest_cycles rc
+                    WHERE rc.ended_at IS NULL
+                      AND rc.stress_at_start IS NOT NULL
+                      AND rc.energy_at_start IS NOT NULL
+                    """
+                )
+                active_rests = cur.fetchall()
+
+                for rest in active_rests:
+                    now = datetime.datetime.utcnow()
+                    hours_resting = (now - rest["started_at"]).total_seconds() / 3600.0
+
+                    stress_at_start = float(rest["stress_at_start"])
+                    energy_at_start = float(rest["energy_at_start"])
+
+                    # Stress drops 10% per hour, energy recovers 15% per hour
+                    # Clamp to DB constraints: stress 0..0.9, energy 0.1..1.0
+                    new_stress = max(0.0, stress_at_start - hours_resting * 0.10)
+                    new_stress = min(new_stress, 0.9)
+                    new_energy = min(1.0, energy_at_start + hours_resting * 0.15)
+                    new_energy = max(new_energy, 0.1)
+
+                    agent_id = rest["agent_id"]
+
+                    # Update the latest emotional state for this agent
+                    cur.execute(
+                        """
+                        UPDATE agent_emotional_state
+                        SET stress_level = %s,
+                            energy_level = %s,
+                            trigger_event = 'rest_recovery_tick',
+                            timestamp = NOW()
+                        WHERE id = (
+                            SELECT id FROM agent_emotional_state
+                            WHERE agent_id = %s
+                            ORDER BY timestamp DESC
+                            LIMIT 1
+                        )
+                        """,
+                        (
+                            round(new_stress, 2),
+                            round(new_energy, 2),
+                            agent_id,
+                        ),
+                    )
+
+                if active_trainings or active_rests:
+                    logger.info(
+                        f"[CrewWellness] Tick processed: "
+                        f"{len(active_trainings)} training(s), "
+                        f"{len(active_rests)} rest cycle(s)"
+                    )
+
+        except Exception as e:
+            logger.error(f"[CrewWellness] Tick failed: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+
+# ============================================================================
 # CONSCIOUSNESS SCHEDULER
 # ============================================================================
 
@@ -3062,9 +3243,21 @@ def init_consciousness_scheduler(flask_app):
             replace_existing=True,
         )
 
+        # Crew wellness tick: training progression + rest recovery
+        def scheduled_crew_wellness():
+            crew_wellness_tick(flask_app)
+
+        scheduler.add_job(
+            scheduled_crew_wellness,
+            trigger=IntervalTrigger(minutes=5),
+            id="crew_wellness_tick",
+            name="Crew Wellness Tick (Training + Rest Recovery)",
+            replace_existing=True,
+        )
+
         scheduler.start()
         flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
-        logger.info("Consciousness scheduler started with 6 scheduled tasks")
+        logger.info("Consciousness scheduler started with 7 scheduled tasks")
 
         return scheduler
 

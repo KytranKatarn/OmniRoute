@@ -2087,6 +2087,10 @@ class BridgeDispatcher:
     ) -> Optional[int]:
         """Create a new bridge job for tracking multi-step operations.
 
+        Prevents duplicate jobs: if a running job with the same job_type
+        and module_source already exists, returns None so callers know
+        the job was rejected.
+
         Args:
             job_type: Job category (e.g. 'batch_translate', 'reindex').
             module_source: Module requesting the job.
@@ -2097,9 +2101,32 @@ class BridgeDispatcher:
             metadata: Additional job metadata (language, batch_size, etc.).
 
         Returns:
-            job_id on success, None on failure.
+            job_id on success, None on failure or duplicate.
         """
         try:
+            conn = self._get_db()
+            cur = conn.cursor()
+
+            # ── Duplicate guard: block if same type+module already running ──
+            cur.execute(
+                """
+                SELECT id FROM bridge_jobs
+                WHERE job_type = %s AND module_source = %s AND status = 'running'
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (job_type, module_source),
+            )
+            existing = cur.fetchone()
+            if existing:
+                eid = existing[0] if isinstance(existing, (list, tuple)) else existing["id"]
+                cur.close()
+                conn.close()
+                logger.info(
+                    f"[BridgeDispatcher] Duplicate job blocked: {job_type}/{module_source} "
+                    f"already running as job #{eid}"
+                )
+                return None
+
             # Resolve agent name from capability→station→agent mapping
             cap_key = capability or job_type.split("_")[0]
             station_code = CAPABILITY_STATION_MAP.get(cap_key, "COMMAND")
@@ -2111,8 +2138,6 @@ class BridgeDispatcher:
                         agent_name = name
                         break
 
-            conn = self._get_db()
-            cur = conn.cursor()
             cur.execute(
                 """
                 INSERT INTO bridge_jobs (job_type, module_source, description,

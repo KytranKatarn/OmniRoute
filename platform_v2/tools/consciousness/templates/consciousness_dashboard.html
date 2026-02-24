@@ -825,6 +825,8 @@
                 <div class="cs-stat-label">Processed</div>
               </div>
             </div>
+            <!-- Station Agent Status (populated from Bridge Command) -->
+            <div id="stationStatusProc"></div>
             <!-- Processing Controls -->
             <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
               <div style="display:flex; gap:8px; align-items:center;">
@@ -1041,6 +1043,9 @@
               <div class="cs-stat-label">Searchable</div>
             </div>
           </div>
+          <!-- Station Agent Status (populated from Bridge Command) -->
+          <div id="stationStatus"></div>
+
           <div class="cs-subtabs">
             <button class="cs-subtab active" onclick="switchGithubSubtab('repos')">Repos</button>
             <button class="cs-subtab" onclick="switchGithubSubtab('search')">Search</button>
@@ -1049,7 +1054,7 @@
             <!-- Workflow hint -->
             <div style="margin-bottom:12px; padding:10px 14px; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15); border-radius:8px; font-size:0.78rem; color:rgba(255,255,255,0.45);">
               <strong style="color:#8b5cf6;">Workflow:</strong>
-              Add a repo <span style="opacity:0.5;">&rarr;</span> Files get indexed <span style="opacity:0.5;">&rarr;</span> Click <em>Embed Files</em> to make them searchable <span style="opacity:0.5;">&rarr;</span> All jobs tracked in Bridge Command
+              Add a repo <span style="opacity:0.5;">&rarr;</span> Files get indexed <span style="opacity:0.5;">&rarr;</span> Click <em>Embed Files</em> to make them searchable <span style="opacity:0.5;">&rarr;</span> All jobs tracked in <a href="/tools/bridge" style="color:#8b5cf6;">Bridge Command</a>
             </div>
             <!-- Actions row -->
             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">

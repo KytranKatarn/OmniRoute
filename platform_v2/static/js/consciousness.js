@@ -60,7 +60,11 @@ function api(path, opts) {
     if (ct.indexOf("application/json") === -1) {
       return Promise.reject(new Error("Session expired — please refresh the page"));
     }
-    return resp.json();
+    return resp.json().then(function(data) {
+      /* Attach HTTP status so callers can detect 409 duplicate */
+      data._status = resp.status;
+      return data;
+    });
   });
 }
 
@@ -488,7 +492,7 @@ function _pollJobStatus(jobId, el, onComplete) {
   }, 3000);
 }
 
-/* ── Active Job Status ─────────────────────────────── */
+/* ── Active Job Status + Station Agent Display ─────── */
 
 var _activeJobPolls = {};
 
@@ -506,9 +510,21 @@ function checkActiveJobs() {
       return j.module_source === "consciousness";
     });
 
+    /* Build station status from ALL running jobs */
+    _renderStationStatus(data.jobs || [], myJobs);
+
     if (!myJobs.length) {
       _enableProcessingBtns();
       _enableGitHubBtns();
+      /* Clear any stale job displays */
+      var procEl = document.getElementById("procResult");
+      if (procEl && procEl.innerHTML.indexOf("cs-pipeline-step") > -1 && procEl.innerHTML.indexOf("\u25B6") > -1) {
+        setHtml("procResult", "");
+      }
+      var ghEl = document.getElementById("ghActionResult");
+      if (ghEl && ghEl.innerHTML.indexOf("cs-pipeline-step") > -1 && ghEl.innerHTML.indexOf("\u25B6") > -1) {
+        setHtml("ghActionResult", "");
+      }
       return;
     }
 
@@ -527,6 +543,7 @@ function checkActiveJobs() {
         _enableProcessingBtns();
         loadProcessingStatus();
         loadEmbeddingStatus();
+        checkActiveJobs(); /* refresh station status */
       });
     }
 
@@ -543,6 +560,7 @@ function checkActiveJobs() {
         _enableGitHubBtns();
         loadGitHub();
         loadGitHubEmbedStats();
+        checkActiveJobs(); /* refresh station status */
       });
     }
   }).catch(function() {
@@ -550,6 +568,61 @@ function checkActiveJobs() {
     _enableProcessingBtns();
     _enableGitHubBtns();
   });
+}
+
+function _renderStationStatus(allJobs, myJobs) {
+  /* Show station agent status on both tabs — who is busy, who is available */
+  var targets = [document.getElementById("stationStatus"), document.getElementById("stationStatusProc")];
+  if (!targets[0] && !targets[1]) return;
+
+  /* Collect unique busy agents from ALL running jobs */
+  var busyAgents = {};
+  allJobs.forEach(function(j) {
+    if (j.agent_name && j.status === "running") {
+      busyAgents[j.agent_name] = {
+        module: j.module_source || "unknown",
+        desc: j.description || "",
+        pct: j.progress_pct || 0
+      };
+    }
+  });
+
+  /* My module's active jobs */
+  var myCount = myJobs.length;
+
+  var html = '<div style="padding:10px 14px; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15); border-radius:8px; margin-bottom:12px;">';
+  html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">';
+  html += '<strong style="color:#8b5cf6; font-size:0.85rem;">Bridge Station</strong>';
+  if (myCount > 0) {
+    html += '<span class="cs-badge blue" style="font-size:0.7rem;">' + myCount + ' active job' + (myCount > 1 ? 's' : '') + '</span>';
+  } else {
+    html += '<span style="color:rgba(255,255,255,0.4); font-size:0.75rem;">No active jobs</span>';
+  }
+  html += '</div>';
+
+  var agentNames = Object.keys(busyAgents);
+  if (agentNames.length > 0) {
+    agentNames.forEach(function(name) {
+      var info = busyAgents[name];
+      var isMine = info.module === "consciousness";
+      var dot = isMine ? "#f59e0b" : "rgba(255,255,255,0.3)";
+      html += '<div style="display:flex; align-items:center; gap:8px; padding:3px 0; font-size:0.8rem;">';
+      html += '<span style="width:6px; height:6px; border-radius:50%; background:' + dot + '; flex-shrink:0;"></span>';
+      html += '<span style="color:rgba(255,255,255,0.8);">' + escHtml(name) + '</span>';
+      html += '<span style="color:rgba(255,255,255,0.4); font-size:0.72rem; flex:1; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">';
+      if (isMine) {
+        html += escHtml(info.desc) + ' (' + info.pct + '%)';
+      } else {
+        html += 'busy \u2014 ' + escHtml(info.module);
+      }
+      html += '</span></div>';
+    });
+  } else {
+    html += '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4); padding:2px 0;">All agents idle</div>';
+  }
+
+  html += '</div>';
+  targets.forEach(function(t) { if (t) setHtml(t, html); });
 }
 
 function _renderBridgeJob(job, el) {
@@ -614,11 +687,10 @@ function _enableGitHubBtns() {
 window.startAnalysis = function() {
   var btn = document.getElementById("btnStartAnalysis");
   var btn2 = document.getElementById("btnGenerateEmbed");
-  if (btn) btn.disabled = true;
-  if (btn2) btn2.disabled = true;
+  _disableProcessingBtns();
   var cat = document.getElementById("procCategory");
   var batch = document.getElementById("procBatchSize");
-  setHtml("procResult", '<div class="cs-loading">Creating Bridge job\u2026</div>');
+  setHtml("procResult", '<div class="cs-loading">Assigning agent for analysis\u2026</div>');
 
   api("/api/processing/start", {
     method: "POST",
@@ -627,11 +699,16 @@ window.startAnalysis = function() {
       batch_size: batch ? parseInt(batch.value) : 10
     }
   }).then(function(data) {
+    if (data.duplicate || data._status === 409) {
+      setHtml("procResult", '<div class="cs-pipeline-step" style="color:#f59e0b;"><span class="cs-pipeline-icon">\u25B6</span><span>' + escHtml(data.error || "Job already running") + '</span></div>');
+      checkActiveJobs();
+      return;
+    }
     if (data.success && data.job_id) {
       /* Job created — poll for progress */
+      setHtml("procResult", '<div class="cs-pipeline-step"><span class="cs-pipeline-icon" style="color:#8b5cf6;">\u25B6</span><span>Job #' + data.job_id + ' started \u2014 ' + (data.total || 0) + ' items queued</span></div>');
       _pollJobStatus(data.job_id, "procResult", function() {
-        if (btn) btn.disabled = false;
-        if (btn2) btn2.disabled = false;
+        _enableProcessingBtns();
         loadProcessingStatus();
       });
     } else if (data.success) {
@@ -642,57 +719,53 @@ window.startAnalysis = function() {
         '</div>';
       setHtml("procResult", html);
       if (btn) btn.disabled = false;
-      if (btn2) btn2.disabled = false;
+      _enableProcessingBtns();
       loadProcessingStatus();
     } else {
       setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Processing failed") + '</span></div>');
-      if (btn) btn.disabled = false;
-      if (btn2) btn2.disabled = false;
+      _enableProcessingBtns();
     }
   }).catch(function(err) {
     setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>Error: ' + escHtml(err.message || "Request failed") + '</span></div>');
-    if (btn) btn.disabled = false;
-    if (btn2) btn2.disabled = false;
+    _enableProcessingBtns();
   });
 };
 
 window.generateEmbeddings = function() {
-  var btn = document.getElementById("btnGenerateEmbed");
-  var btn2 = document.getElementById("btnStartAnalysis");
-  if (btn) btn.disabled = true;
-  if (btn2) btn2.disabled = true;
+  _disableProcessingBtns();
   var batch = document.getElementById("procBatchSize");
-  setHtml("procResult", '<div class="cs-loading">Creating Bridge job\u2026</div>');
+  setHtml("procResult", '<div class="cs-loading">Assigning agent for embeddings\u2026</div>');
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
     body: { batch_size: batch ? parseInt(batch.value) : 50 }
   }).then(function(data) {
+    if (data.duplicate || data._status === 409) {
+      setHtml("procResult", '<div class="cs-pipeline-step" style="color:#f59e0b;"><span class="cs-pipeline-icon">\u25B6</span><span>' + escHtml(data.error || "Embedding job already running") + '</span></div>');
+      checkActiveJobs();
+      return;
+    }
     if (data.success && data.job_id) {
-      /* Job created — poll for progress */
+      setHtml("procResult", '<div class="cs-pipeline-step"><span class="cs-pipeline-icon" style="color:#8b5cf6;">\u25B6</span><span>Job #' + data.job_id + ' started \u2014 ' + (data.total || 0) + ' entries queued</span></div>');
       _pollJobStatus(data.job_id, "procResult", function() {
-        if (btn) btn.disabled = false;
-        if (btn2) btn2.disabled = false;
+        _enableProcessingBtns();
         loadEmbeddingStatus();
       });
     } else if (data.success) {
       var html = '<div class="cs-pipeline-step green">' +
         '<span class="cs-pipeline-icon">\u2713</span>' +
-        '<span>' + escHtml(data.message || "Generated " + (data.processed || 0) + " / " + (data.total || 0) + " embeddings") + '</span>' +
+        '<span>' + escHtml(data.message || "All entries already embedded") + '</span>' +
         '</div>';
       setHtml("procResult", html);
-      if (btn) btn.disabled = false;
-      if (btn2) btn2.disabled = false;
+      _enableProcessingBtns();
       loadEmbeddingStatus();
     } else {
       setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Embedding generation failed") + '</span></div>');
-      if (btn) btn.disabled = false;
-      if (btn2) btn2.disabled = false;
+      _enableProcessingBtns();
     }
   }).catch(function(err) {
     setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>Error: ' + escHtml(err.message || "Request failed") + '</span></div>');
-    if (btn) btn.disabled = false;
-    if (btn2) btn2.disabled = false;
+    _enableProcessingBtns();
   });
 };
 
@@ -1295,22 +1368,31 @@ window.reindexRepo = function(repoId) {
 
 window.reindexAllRepos = function() {
   var btn = document.getElementById("btnReindexAll");
-  if (btn) btn.disabled = true;
-  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Creating Bridge job to re-index all repos\u2026</span>');
+  _disableGitHubBtns();
+  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Assigning agent to re-index all repos\u2026</span>');
   api("/github/reindex-all", { method: "POST" }).then(function(data) {
-    if (data.success) {
-      var msg = '\u2713 Re-indexed ' + (data.total_indexed || 0) + ' files across ' + (data.repos_processed || data.total_repos || 0) + ' repos';
-      if (data.job_id) msg += ' <span class="cs-badge blue" style="font-size:0.7rem;">Job #' + data.job_id + '</span>';
-      setHtml("ghActionResult", '<span style="color:#4ade80;">' + msg + '</span>');
-      _cache.github = false;
-      loadGitHub();
+    if (data.duplicate || data._status === 409) {
+      setHtml("ghActionResult", '<span style="color:#f59e0b;">\u25B6 ' + escHtml(data.error || "Reindex job already running") + '</span>');
+      checkActiveJobs();
+      return;
+    }
+    if (data.success && data.job_id) {
+      setHtml("ghActionResult", '<span style="color:#4ade80;">\u25B6 Job #' + data.job_id + ' started \u2014 ' + (data.total_repos || 0) + ' repos queued</span>');
+      _pollJobStatus(data.job_id, "ghActionResult", function() {
+        _enableGitHubBtns();
+        _cache.github = false;
+        loadGitHub();
+      });
+    } else if (data.success) {
+      setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 No repos to re-index</span>');
+      _enableGitHubBtns();
     } else {
       setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
+      _enableGitHubBtns();
     }
-    if (btn) btn.disabled = false;
   }).catch(function(err) {
     setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
-    if (btn) btn.disabled = false;
+    _enableGitHubBtns();
   });
 };
 
@@ -1319,27 +1401,35 @@ window.reindexAllRepos = function() {
 window.embedGitHubFiles = function() {
   var btn = document.getElementById("btnEmbedGH");
   if (btn) btn.disabled = true;
-  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Creating Bridge job to embed files\u2026</span>');
+  _disableGitHubBtns();
+  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Assigning agent to embed files\u2026</span>');
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
     body: { batch_size: 100 }
   }).then(function(data) {
+    if (data.duplicate || data._status === 409) {
+      /* Job already running — show status and start polling from Bridge */
+      setHtml("ghActionResult", '<span style="color:#f59e0b;">\u25B6 ' + escHtml(data.error || "Job already running") + '</span>');
+      checkActiveJobs();
+      return;
+    }
     if (data.success && data.job_id) {
+      setHtml("ghActionResult", '<span style="color:#4ade80;">\u25B6 Job #' + data.job_id + ' started \u2014 ' + (data.total || 0) + ' entries queued</span>');
       _pollJobStatus(data.job_id, "ghActionResult", function() {
-        if (btn) btn.disabled = false;
+        _enableGitHubBtns();
         loadGitHubEmbedStats();
       });
     } else if (data.success) {
       setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 ' + escHtml(data.message || "All files already embedded") + '</span>');
-      if (btn) btn.disabled = false;
+      _enableGitHubBtns();
     } else {
       setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
-      if (btn) btn.disabled = false;
+      _enableGitHubBtns();
     }
   }).catch(function(err) {
     setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
-    if (btn) btn.disabled = false;
+    _enableGitHubBtns();
   });
 }
 

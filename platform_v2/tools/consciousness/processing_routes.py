@@ -16,6 +16,7 @@ import os
 import uuid
 import json
 import logging
+import threading
 from datetime import datetime
 from flask import Blueprint, jsonify, request
 
@@ -319,21 +320,108 @@ def estimate_batch():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+def _run_analysis_job(items_data, category, batch_id, job_id):
+    """Background worker for knowledge analysis.
+
+    Runs in a separate thread so the HTTP request returns immediately.
+    """
+    from ai_bridge.cost_controller import get_cost_controller
+    from ai_bridge.knowledge_analyzer import get_knowledge_analyzer
+    from ai_bridge.embedding_service import generate_embedding
+    from ai_bridge.knowledge_cards import save_knowledge_card
+    from ai_bridge.relationship_mapper import get_relationship_mapper
+    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    dispatcher = get_dispatcher()
+    analyzer = get_knowledge_analyzer()
+    mapper = get_relationship_mapper()
+    controller = get_cost_controller()
+
+    processed = 0
+    errors = 0
+    cards_created = 0
+    total_input_tokens = 0
+    total_output_tokens = 0
+
+    try:
+        for item_id, title, content, metadata in items_data:
+            try:
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+                metadata = metadata or {}
+                metadata["source_id"] = item_id
+
+                if category == "conversations":
+                    result = analyzer.analyze_conversation(content, metadata)
+                else:
+                    result = analyzer.analyze_code_file(content, title or "unknown", metadata.get("language"))
+
+                if not result.success:
+                    errors += 1
+                    if job_id:
+                        dispatcher.update_job_progress(job_id, processed, errors)
+                    continue
+
+                total_input_tokens += result.input_tokens
+                total_output_tokens += result.output_tokens
+
+                title_to_id = {}
+                for card in result.cards:
+                    card.source_ref = str(item_id)
+                    embedding = generate_embedding(f"{card.title}. {card.summary}")
+                    card_id = save_knowledge_card(card, embedding, batch_id)
+                    if card_id:
+                        cards_created += 1
+                        title_to_id[card.title] = card_id
+
+                for card_id in title_to_id.values():
+                    mapper.create_relationships_batch(result.relationships, card_id, title_to_id)
+
+                _update_source_analysis(item_id, result, batch_id)
+                processed += 1
+
+                if job_id:
+                    dispatcher.update_job_progress(job_id, processed, errors, {"cards_created": cards_created})
+
+            except Exception as e:
+                logger.error(f"Processing item {item_id} failed: {e}")
+                errors += 1
+                if job_id:
+                    dispatcher.update_job_progress(job_id, processed, errors)
+
+        if total_input_tokens > 0:
+            controller.record_usage(total_input_tokens, total_output_tokens)
+
+        _log_batch_processing(
+            batch_id,
+            category,
+            {
+                "batch_id": batch_id,
+                "processed": processed,
+                "cards_created": cards_created,
+                "errors": [{"count": errors}],
+                "log": [],
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Analysis background job failed: {e}")
+    finally:
+        if job_id:
+            dispatcher.complete_job(job_id)
+        logger.info(f"[Analysis] Job #{job_id} finished: {processed} ok, {errors} failed, {cards_created} cards")
+
+
 @processing_bp.route("/start", methods=["POST"])
 def start_processing():
     """Start batch processing via Bridge job system.
 
-    Creates a bridge_job, assigns an agent, processes items with progress
-    tracking, then completes the job.  The response includes the job_id
-    so the frontend can poll ``/api/processing/job-status/<id>`` for
-    live updates.
+    Creates a bridge_job and returns the job_id immediately.
+    Work runs in a background thread with progress tracked in Bridge Command.
     """
     try:
         from ai_bridge.cost_controller import get_cost_controller
         from ai_bridge.knowledge_analyzer import get_knowledge_analyzer
-        from ai_bridge.embedding_service import generate_embedding
-        from ai_bridge.knowledge_cards import save_knowledge_card
-        from ai_bridge.relationship_mapper import get_relationship_mapper
         from ai_bridge.bridge_dispatcher import get_dispatcher
 
         data = request.get_json() or {}
@@ -404,7 +492,7 @@ def start_processing():
         if not items:
             return jsonify({"success": True, "message": "No items to process", "processed": 0})
 
-        # ── Create Bridge Job ───────────────────────────────
+        # ── Create Bridge Job (blocks duplicates) ───────────
         dispatcher = get_dispatcher()
         job_id = dispatcher.create_job(
             job_type="batch_analysis",
@@ -415,110 +503,35 @@ def start_processing():
             metadata={"category": category, "batch_id": batch_id, "batch_size": batch_size},
         )
 
-        # Process items
-        mapper = get_relationship_mapper()
-        results = {
-            "batch_id": batch_id,
-            "job_id": job_id,
-            "processed": 0,
-            "cards_created": 0,
-            "relationships_created": 0,
-            "errors": [],
-            "log": [],
-        }
+        if not job_id:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "An analysis job is already running — check Bridge Command for progress",
+                        "duplicate": True,
+                    }
+                ),
+                409,
+            )
 
-        total_input_tokens = 0
-        total_output_tokens = 0
+        # ── Launch background thread ────────────────────────
+        thread = threading.Thread(
+            target=_run_analysis_job,
+            args=(list(items), category, batch_id, job_id),
+            daemon=True,
+        )
+        thread.start()
 
-        for item_id, title, content, metadata in items:
-            try:
-                # Parse metadata
-                if isinstance(metadata, str):
-                    metadata = json.loads(metadata)
-                metadata = metadata or {}
-
-                # Add source reference
-                metadata["source_id"] = item_id
-                metadata["source_type"] = source_type
-
-                # Analyze with Claude
-                if category == "conversations":
-                    result = analyzer.analyze_conversation(content, metadata)
-                else:
-                    result = analyzer.analyze_code_file(content, title or "unknown", metadata.get("language"))
-
-                if not result.success:
-                    results["errors"].append({"id": item_id, "error": result.error})
-                    results["log"].append(f"[{item_id}] Error: {result.error}")
-                    # Update bridge job progress (count failures)
-                    if job_id:
-                        dispatcher.update_job_progress(
-                            job_id,
-                            results["processed"],
-                            len(results["errors"]),
-                        )
-                    continue
-
-                total_input_tokens += result.input_tokens
-                total_output_tokens += result.output_tokens
-
-                # Save knowledge cards
-                title_to_id = {}
-                for card in result.cards:
-                    card.source_ref = str(item_id)
-                    embedding = generate_embedding(f"{card.title}. {card.summary}")
-                    card_id = save_knowledge_card(card, embedding, batch_id)
-                    if card_id:
-                        results["cards_created"] += 1
-                        title_to_id[card.title] = card_id
-
-                # Create relationships
-                for card_id in title_to_id.values():
-                    rel_stats = mapper.create_relationships_batch(result.relationships, card_id, title_to_id)
-                    results["relationships_created"] += rel_stats["created"]
-
-                # Update source entry with analysis
-                _update_source_analysis(item_id, result, batch_id)
-
-                results["processed"] += 1
-                results["log"].append(
-                    f"[{item_id}] {len(result.cards)} cards, " f"{len(result.relationships)} relationships"
-                )
-
-                # Update bridge job progress
-                if job_id:
-                    dispatcher.update_job_progress(
-                        job_id,
-                        results["processed"],
-                        len(results["errors"]),
-                        {"cards_created": results["cards_created"]},
-                    )
-
-            except Exception as e:
-                logger.error(f"Processing item {item_id} failed: {e}")
-                results["errors"].append({"id": item_id, "error": str(e)})
-                results["log"].append(f"[{item_id}] Exception: {str(e)}")
-
-        # Record usage
-        if total_input_tokens > 0:
-            controller.record_usage(total_input_tokens, total_output_tokens)
-
-        results["total_tokens"] = total_input_tokens + total_output_tokens
-        results["success"] = True
-
-        # Log to processing log table
-        _log_batch_processing(batch_id, category, results)
-
-        # Auto-generate embeddings for processed items that don't have them
-        if results["processed"] > 0:
-            embed_results = _auto_embed_processed_items([item[0] for item in items[: results["processed"]]])
-            results["embeddings_generated"] = embed_results.get("processed", 0)
-
-        # ── Complete Bridge Job ─────────────────────────────
-        if job_id:
-            dispatcher.complete_job(job_id)
-
-        return jsonify(results)
+        return jsonify(
+            {
+                "success": True,
+                "job_id": job_id,
+                "batch_id": batch_id,
+                "total": len(items),
+                "message": f"Analysis job #{job_id} started — {len(items)} {category} entries queued",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Processing failed: {e}")
@@ -648,15 +661,70 @@ def _auto_embed_processed_items(item_ids: list) -> dict:
     return results
 
 
+def _run_embedding_job(item_ids_and_data, job_id):
+    """Background worker for embedding generation.
+
+    Runs in a separate thread so the HTTP request can return immediately.
+    Updates progress via Bridge dispatcher.
+    """
+    from ai_bridge.embedding_service import generate_embedding
+    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    dispatcher = get_dispatcher()
+    processed = 0
+    failed = 0
+
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        for item_id, title, content in item_ids_and_data:
+            try:
+                text = f"{title or ''}. {content[:2000]}"
+                embedding = generate_embedding(text)
+
+                if embedding:
+                    cur.execute(
+                        """
+                        UPDATE knowledge_base
+                        SET embedding = %s, has_embedding = true, embedding_generated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (embedding, item_id),
+                    )
+                    processed += 1
+                else:
+                    failed += 1
+
+                if job_id:
+                    dispatcher.update_job_progress(job_id, processed, failed)
+
+            except Exception as e:
+                logger.error(f"Embedding for {item_id} failed: {e}")
+                failed += 1
+                if job_id:
+                    dispatcher.update_job_progress(job_id, processed, failed)
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    except Exception as e:
+        logger.error(f"Embedding background job failed: {e}")
+    finally:
+        if job_id:
+            dispatcher.complete_job(job_id)
+        logger.info(f"[Embedding] Job #{job_id} finished: {processed} ok, {failed} failed")
+
+
 @processing_bp.route("/generate-embeddings", methods=["POST"])
 def generate_embeddings():
     """Generate embeddings for entries that don't have them.
 
-    Creates a bridge_job so the work is tracked in Bridge Command
-    with an assigned agent and live progress.
+    Creates a bridge_job and returns the job_id immediately.
+    Work runs in a background thread with progress tracked in Bridge Command.
     """
     try:
-        from ai_bridge.embedding_service import generate_embedding
         from ai_bridge.bridge_dispatcher import get_dispatcher
 
         data = request.get_json() or {}
@@ -679,11 +747,13 @@ def generate_embeddings():
             (batch_size,),
         )
         items = cur.fetchall()
+        cur.close()
+        conn.close()
 
         if not items:
             return jsonify({"success": True, "message": "All entries already embedded", "processed": 0, "total": 0})
 
-        # ── Create Bridge Job ───────────────────────────────
+        # ── Create Bridge Job (blocks duplicates) ───────────
         dispatcher = get_dispatcher()
         job_id = dispatcher.create_job(
             job_type="batch_embedding",
@@ -694,50 +764,35 @@ def generate_embeddings():
             metadata={"batch_size": batch_size, "requested_at": datetime.now().isoformat()},
         )
 
-        results = {"processed": 0, "failed": 0, "total": len(items), "job_id": job_id}
+        if not job_id:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "An embedding job is already running — check Bridge Command for progress",
+                        "duplicate": True,
+                    }
+                ),
+                409,
+            )
 
-        for item_id, title, content in items:
-            try:
-                # Generate embedding from title + content summary
-                text = f"{title or ''}. {content[:2000]}"
-                embedding = generate_embedding(text)
+        # ── Launch background thread ────────────────────────
+        thread = threading.Thread(
+            target=_run_embedding_job,
+            args=(list(items), job_id),
+            daemon=True,
+        )
+        thread.start()
 
-                if embedding:
-                    cur.execute(
-                        """
-                        UPDATE knowledge_base
-                        SET embedding = %s, has_embedding = true, embedding_generated_at = NOW()
-                        WHERE id = %s
-                        """,
-                        (embedding, item_id),
-                    )
-                    results["processed"] += 1
-                else:
-                    results["failed"] += 1
-
-                # Update bridge job progress
-                if job_id:
-                    dispatcher.update_job_progress(
-                        job_id,
-                        results["processed"],
-                        results["failed"],
-                    )
-
-            except Exception as e:
-                logger.error(f"Embedding for {item_id} failed: {e}")
-                results["failed"] += 1
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        results["success"] = True
-
-        # ── Complete Bridge Job ─────────────────────────────
-        if job_id:
-            dispatcher.complete_job(job_id)
-
-        return jsonify(results)
+        # Return immediately so frontend can poll Bridge
+        return jsonify(
+            {
+                "success": True,
+                "job_id": job_id,
+                "total": len(items),
+                "message": f"Embedding job #{job_id} started — {len(items)} entries queued",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")

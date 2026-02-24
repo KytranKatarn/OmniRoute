@@ -15,6 +15,7 @@ import base64
 import json
 import logging
 import os
+import threading
 import traceback
 
 import psycopg2
@@ -830,8 +831,8 @@ def register_github_routes(bp, admin_required):
     def github_reindex_all():
         """Re-index all tracked repositories using the Tree API.
 
-        Creates a bridge_job with one step per repo so progress is tracked
-        in Bridge Command.
+        Creates a bridge_job and returns the job_id immediately.
+        Work runs in a background thread with progress tracked in Bridge Command.
         """
         try:
             from ai_bridge.bridge_dispatcher import get_dispatcher
@@ -846,7 +847,7 @@ def register_github_routes(bp, admin_required):
             if not repos:
                 return jsonify({"success": True, "total_indexed": 0, "total_repos": 0, "results": []})
 
-            # ── Create Bridge Job ───────────────────────
+            # ── Create Bridge Job (blocks duplicates) ───
             dispatcher = get_dispatcher()
             job_id = dispatcher.create_job(
                 job_type="github_reindex_all",
@@ -857,69 +858,59 @@ def register_github_routes(bp, admin_required):
                 metadata={"repo_count": len(repos)},
             )
 
-            results = []
-            total_indexed = 0
-            total_errors = []
-            completed_repos = 0
-
-            for repo_row in repos:
-                repo_name = repo_row["repo_name"]
-                repo_type = repo_row["repo_type"]
-                repo_max = repo_row.get("max_files")
-                try:
-                    parts = repo_name.split("/")
-                    owner = parts[0]
-                    repo = parts[1]
-                    indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
-                        owner, repo, repo_type, max_files=repo_max
-                    )
-                    total_indexed += indexed
-                    total_errors.extend(errs)
-                    completed_repos += 1
-                    results.append(
+            if not job_id:
+                return (
+                    jsonify(
                         {
-                            "repo": repo_name,
-                            "repo_type": repo_type,
-                            "indexed": indexed,
-                            "skipped": skipped,
-                            "total_found": total_found,
-                            "capped_at": used_cap if was_capped else None,
-                            "errors": len(errs),
+                            "success": False,
+                            "error": "A reindex-all job is already running — check Bridge Command for progress",
+                            "duplicate": True,
                         }
-                    )
-                except Exception as e:
-                    results.append(
-                        {
-                            "repo": repo_name,
-                            "repo_type": repo_type,
-                            "indexed": 0,
-                            "error": str(e),
-                        }
-                    )
-                    total_errors.append(f"{repo_name}: {str(e)}")
+                    ),
+                    409,
+                )
 
-                # Update bridge job progress per repo
-                if job_id:
-                    dispatcher.update_job_progress(
-                        job_id,
-                        completed_repos,
-                        len([r for r in results if "error" in r]),
-                        {"total_indexed": total_indexed, "last_repo": repo_name},
-                    )
+            def _bg_reindex(repos_list, jid):
+                from ai_bridge.bridge_dispatcher import get_dispatcher as _gd
 
-            # ── Complete Bridge Job ─────────────────────
-            if job_id:
-                dispatcher.complete_job(job_id)
+                d = _gd()
+                total_indexed = 0
+                completed_repos = 0
+                error_count = 0
+                for repo_row in repos_list:
+                    repo_name = repo_row["repo_name"]
+                    repo_type = repo_row["repo_type"]
+                    repo_max = repo_row.get("max_files")
+                    try:
+                        parts = repo_name.split("/")
+                        indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
+                            parts[0], parts[1], repo_type, max_files=repo_max
+                        )
+                        total_indexed += indexed
+                        if errs:
+                            error_count += 1
+                        completed_repos += 1
+                    except Exception as e:
+                        logger.error(f"Reindex {repo_name} failed: {e}")
+                        error_count += 1
+                        completed_repos += 1
+                    d.update_job_progress(
+                        jid, completed_repos, error_count, {"total_indexed": total_indexed, "last_repo": repo_name}
+                    )
+                d.complete_job(jid)
+                logger.info(
+                    f"[GitHub] Reindex-all job #{jid} done: {total_indexed} files across {len(repos_list)} repos"
+                )
+
+            thread = threading.Thread(target=_bg_reindex, args=(list(repos), job_id), daemon=True)
+            thread.start()
 
             return jsonify(
                 {
                     "success": True,
-                    "total_indexed": total_indexed,
-                    "repos_processed": len(repos),
-                    "total_repos": len(repos),
-                    "results": results,
-                    "errors": total_errors if total_errors else None,
                     "job_id": job_id,
+                    "total_repos": len(repos),
+                    "message": f"Reindex job #{job_id} started — {len(repos)} repositories queued",
                 }
             )
 

@@ -457,7 +457,7 @@ class TelegramGateway:
             await query.edit_message_text(f"Rejected #{approval_id}")
 
     async def _escalation_callback(self, update, context):
-        """Handle escalation approval/denial/defer buttons."""
+        """Handle escalation buttons (advisory ack, cloud/paid escalate, approval approve/deny/defer)."""
         query = update.callback_query
         await query.answer()
 
@@ -467,7 +467,33 @@ class TelegramGateway:
             await query.edit_message_text("Unauthorized.")
             return
 
-        data = query.data  # e.g. "esc_approve_47" or "esc_deny_47" or "esc_defer_47"
+        data = query.data  # e.g. "esc_ack", "esc_cloud", "esc_paid", "esc_approve_47"
+
+        # --- Simple advisory buttons (no ID) ---
+        if data == "esc_ack":
+            original = query.message.text or ""
+            await query.edit_message_text(
+                f"{original}\n\n\u2705 Acknowledged"
+            )
+            return
+
+        if data == "esc_cloud":
+            original = query.message.text or ""
+            await query.edit_message_text(
+                f"{original}\n\n\u2601\ufe0f Cloud escalation noted. "
+                f"Will use cloud contractor for next similar request."
+            )
+            return
+
+        if data == "esc_paid":
+            original = query.message.text or ""
+            await query.edit_message_text(
+                f"{original}\n\n\U0001f4b3 Paid escalation noted. "
+                f"Will request paid contractor approval for next similar request."
+            )
+            return
+
+        # --- Approval buttons (with ID) ---
         parts = data.split("_", 2)
         if len(parts) < 3:
             await query.edit_message_text("Invalid escalation action")
@@ -496,7 +522,7 @@ class TelegramGateway:
                 if row:
                     action_data = row["action_data"] if isinstance(row["action_data"], dict) else json.loads(row["action_data"])
                     await query.edit_message_text(
-                        f"Approved escalation #{approval_id}\n"
+                        f"\u2705 Approved escalation #{approval_id}\n"
                         f"Model: {action_data.get('escalated_model', '?')}\n"
                         f"Will execute on next dispatch cycle."
                     )
@@ -511,7 +537,7 @@ class TelegramGateway:
                     WHERE id = %s AND status = 'pending'
                 """, (user_info["user_id"], approval_id))
                 conn.commit()
-                await query.edit_message_text(f"Denied escalation #{approval_id}")
+                await query.edit_message_text(f"\u274c Denied escalation #{approval_id}")
 
             elif action == "defer":
                 cur.execute("""
@@ -520,7 +546,7 @@ class TelegramGateway:
                     WHERE id = %s AND status = 'pending'
                 """, (approval_id,))
                 conn.commit()
-                await query.edit_message_text(f"Deferred escalation #{approval_id} for 1 hour")
+                await query.edit_message_text(f"\u23f3 Deferred escalation #{approval_id} for 1 hour")
 
             cur.close()
             conn.close()
@@ -557,7 +583,10 @@ class TelegramGateway:
             try:
                 conn = get_db()
                 cur = conn.cursor()
-                cur.execute("SELECT telegram_user_id FROM telegram_linked_accounts WHERE is_active = TRUE")
+                cur.execute(
+                    "SELECT telegram_id FROM telegram_users "
+                    "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+                )
                 rows = cur.fetchall()
                 cur.close()
                 conn.close()
@@ -575,38 +604,38 @@ class TelegramGateway:
         asyncio.run_coroutine_threadsafe(_send(), self._loop)
 
     def send_dispatch_advisory(self, title: str, message: str):
-        """Send FYI advisory to all linked Telegram users (no approval buttons)."""
-        if not self._running or not self._loop:
+        """Send FYI advisory to all linked Telegram users (no approval buttons).
+
+        Uses raw requests.post to Telegram Bot API (no python-telegram-bot dependency).
+        """
+        if not self.bot_token:
             return
+
+        import requests as _req
 
         text = f"\U0001f500 *{title}*\n\n{message}\n\n_Advisory \u2014 no action required_"
 
-        async def _send():
-            try:
-                conn = get_db()
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT telegram_user_id FROM telegram_linked_accounts WHERE is_active = TRUE"
-                )
-                rows = cur.fetchall()
-                cur.close()
-                conn.close()
-                for row in rows:
-                    try:
-                        await self._application.bot.send_message(
-                            chat_id=row[0],
-                            text=text,
-                            parse_mode="Markdown",
-                        )
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.debug(f"[TelegramGateway] Advisory send failed: {e}")
-
         try:
-            asyncio.run_coroutine_threadsafe(_send(), self._loop)
-        except Exception:
-            pass
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT telegram_id FROM telegram_users "
+                "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            for row in rows:
+                try:
+                    _req.post(
+                        f"https://api.telegram.org/bot{self.bot_token}/sendMessage",
+                        json={"chat_id": row[0], "text": text, "parse_mode": "Markdown"},
+                        timeout=15,
+                    )
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"[TelegramGateway] Advisory send failed: {e}")
 
     # ------------------------------------------------------------------
     # Email Interaction via Telegram

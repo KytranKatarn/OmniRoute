@@ -57,6 +57,80 @@ def log_governance_event(event_type, action, outcome, details=None, event_catego
         logger.error(f"Failed to log governance event: {e}")
 
 
+def _send_approval_telegram(
+    approval_id: int, action_type: str, action_data: dict, reason: str
+):
+    """Push Telegram notification with Approve/Deny/Defer buttons for tier-2 items."""
+    try:
+        import requests as _req
+
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if not bot_token:
+            return
+
+        # Build context-aware message
+        lines = [f"\u26a0\ufe0f *Approval Request #{approval_id}*\n"]
+        if action_type == "cloud_throughput_escalation":
+            agent = action_data.get("original_agent", "?")
+            model = action_data.get("escalated_model", "?")
+            provider = action_data.get("escalated_provider", "?")
+            cap = action_data.get("capability", "?")
+            module = action_data.get("module_id", "?")
+            lines.append(f"Type: Cloud Escalation")
+            lines.append(f"Agent: {agent} (busy)")
+            lines.append(f"Escalate to: {model} ({provider})")
+            lines.append(f"Capability: {cap}")
+            lines.append(f"Module: {module}")
+        elif action_type == "create_agent":
+            cap = action_data.get("capability", "?")
+            station = action_data.get("station_code", "?")
+            lines.append(f"Type: Create New Agent")
+            lines.append(f"Capability: {cap}")
+            lines.append(f"Station: {station}")
+        else:
+            lines.append(f"Type: {action_type}")
+
+        if reason:
+            lines.append(f"\nReason: {reason}")
+
+        text = "\n".join(lines)
+
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": "Approve", "callback_data": f"esc_approve_{approval_id}"},
+                    {"text": "Deny", "callback_data": f"esc_deny_{approval_id}"},
+                    {"text": "Defer 1hr", "callback_data": f"esc_defer_{approval_id}"},
+                ]
+            ]
+        }
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT telegram_id FROM telegram_users "
+            "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        for row in rows:
+            _req.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={
+                    "chat_id": row[0],
+                    "text": text,
+                    "parse_mode": "Markdown",
+                    "reply_markup": keyboard,
+                },
+                timeout=15,
+            )
+        logger.info(f"Telegram approval notification sent for #{approval_id}")
+    except Exception as e:
+        logger.warning(f"Telegram approval notification failed: {e}")
+
+
 def request_approval(
     action_type: str,
     action_data: dict,
@@ -118,6 +192,8 @@ def request_approval(
             logger.info(f"Tier-1 auto-approved: {action_type} (#{approval_id})")
         else:
             logger.info(f"Tier-2 awaiting approval: {action_type} (#{approval_id})")
+            # Push Telegram notification with Approve/Deny/Defer buttons
+            _send_approval_telegram(approval_id, action_type, action_data, reason)
 
         return approval_id
     except Exception as e:
@@ -266,8 +342,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._reap_stale_jobs),
+            trigger=IntervalTrigger(minutes=2),
+            id="agent_stale_job_reaper",
+            name="Agent Loop: Stale Job Reaper",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 14 jobs")
+        logger.info("Agent loop started with 15 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -286,6 +370,7 @@ class AgentLoop:
             "agent_anomaly_detection",
             "agent_reports",
             "agent_ethics_monitoring",
+            "agent_stale_job_reaper",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -1490,6 +1575,17 @@ class AgentLoop:
                            f"{result.issues_found} issues, {result.alerts_created} alerts")
         except Exception as e:
             logger.error(f"Ethics monitoring failed: {e}")
+
+    def _reap_stale_jobs(self):
+        """Reap orphaned bridge jobs that stopped updating (every 2 min)."""
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+            dispatcher = get_dispatcher()
+            reaped = dispatcher.reap_stale_jobs(max_age_minutes=5)
+            if reaped:
+                logger.info(f"Stale job reaper: cleaned {reaped} orphaned jobs")
+        except Exception as e:
+            logger.debug(f"Stale job reaper failed: {e}")
 
     def _track_agent_hr(self):
         """

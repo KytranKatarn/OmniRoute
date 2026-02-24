@@ -242,6 +242,7 @@ class BridgeDispatcher:
                        a.system_prompt, a.capabilities, a.temperature,
                        a.max_tokens, a.status,
                        a.first_name, a.last_name, a.title,
+                       a.display_name,
                        bs.station_code, bs.default_llm
                 FROM agents a
                 JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
@@ -267,6 +268,7 @@ class BridgeDispatcher:
                     "station_llm": agent["default_llm"],
                     "first_name": agent.get("first_name") or "",
                     "last_name": agent.get("last_name") or "",
+                    "display_name": agent.get("display_name") or "",
                     "title": agent.get("title") or "",
                     "skills": {},  # populated below
                 }
@@ -486,10 +488,15 @@ class BridgeDispatcher:
         welfare_score = (1.0 - stress) * energy
 
         # ------------------------------------------------------------------
-        # Availability score — idle agents preferred
+        # Hard block: agent already has a running bridge_job
         # ------------------------------------------------------------------
         is_busy = agent_name in getattr(self, "_busy_agents", set())
-        availability_score = 0.2 if is_busy else 1.0
+        if is_busy:
+            return (
+                0.0,
+                f"{agent_name} already has a running job (finish first)",
+            )
+        availability_score = 1.0
 
         # ------------------------------------------------------------------
         # Budget score — agents with more headroom preferred
@@ -825,6 +832,24 @@ class BridgeDispatcher:
         except Exception:
             return 3
 
+    def _agent_display(self, agent_name: str) -> str:
+        """Get human-friendly display string for an agent.
+
+        Returns 'FirstName LastName, Title' or display_name or code name.
+        """
+        info = self._agent_cache.get(agent_name, {})
+        display = info.get("display_name", "")
+        if display:
+            title = info.get("title", "")
+            return f"{display}, {title}" if title else display
+        first = info.get("first_name", "")
+        last = info.get("last_name", "")
+        name = f"{first} {last}".strip()
+        if name:
+            title = info.get("title", "")
+            return f"{name}, {title}" if title else name
+        return agent_name
+
     def _get_routing_mode(self) -> str:
         """Read routing_mode from platform_settings. Returns 'full' on error."""
         try:
@@ -1078,10 +1103,12 @@ class BridgeDispatcher:
 
             next_tier = self._get_next_tier(self.FREE_CLOUD_MODELS[-1], capability)
             if next_tier and next_tier["is_paid"]:
+                display = self._agent_display(agent_name)
+
                 request_approval(
                     action_type="cloud_throughput_escalation",
                     action_data={
-                        "original_agent": agent_name,
+                        "original_agent": display,
                         "busy_job": busy_job,
                         "escalated_model": next_tier["model"],
                         "escalated_provider": next_tier["provider"],
@@ -1090,7 +1117,7 @@ class BridgeDispatcher:
                         "prompt_preview": prompt[:200],
                     },
                     reason=(
-                        f"{agent_name} busy ({busy_job['description']}, "
+                        f"{display} busy ({busy_job['description']}, "
                         f"{busy_job['progress_pct']}%). Free cloud failed. "
                         f"Escalate to {next_tier['model']}?"
                     ),
@@ -1716,6 +1743,21 @@ class BridgeDispatcher:
         """
         start = time.time()
 
+        # Force-refresh busy agents list (bypass 30s welfare cache TTL)
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            bconn = self._get_db()
+            bcur = bconn.cursor(cursor_factory=RealDictCursor)
+            bcur.execute(
+                "SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'"
+            )
+            self._busy_agents = {r["agent_name"] for r in bcur.fetchall()}
+            bcur.close()
+            bconn.close()
+        except Exception as busy_err:
+            logger.debug(f"[BridgeDispatcher] Busy agents refresh failed: {busy_err}")
+
         # 1. Map capability → station (home-first strategy)
         capability_station = CAPABILITY_STATION_MAP.get(capability, "COMMAND")
         home_station = self._resolve_module_station(module_id)
@@ -1739,13 +1781,74 @@ class BridgeDispatcher:
 
         station_code = dispatch_station
 
-        # 2. Fallback if no agent found — notify + try cloud before ARCHIE
+        # 2. Fallback if no agent found — try cross-station, then cloud
         station_exhausted = False
         if not agent:
             station_exhausted = True
             blocked_station = home_station or capability_station
 
-            # Telegram advisory: station at capacity
+            # 2a. Try agents from OTHER worker stations (cross-station dispatch)
+            #     Skip COMMAND — ARCHIE is the commander, not a worker.
+            #     Only pick agents that actually have the requested skill.
+            all_stations = set(
+                info.get("station_code")
+                for info in self._agent_cache.values()
+                if info.get("station_code")
+            )
+            tried_stations = {blocked_station, "COMMAND"}
+            if home_station and capability_station and home_station != capability_station:
+                tried_stations.add(capability_station)
+
+            for other_station in sorted(all_stations - tried_stations):
+                # Check each agent at this station for the actual skill
+                for agent_name_candidate, info in self._agent_cache.items():
+                    if info.get("station_code") != other_station:
+                        continue
+                    # Must have the skill explicitly (not the generous 0.3 default)
+                    if capability not in (info.get("skills") or {}):
+                        continue
+                    # Score the agent normally (checks busy, welfare, budget)
+                    score, block_reason = self._score_agent(
+                        agent_name_candidate, info, capability, other_station
+                    )
+                    if score <= 0:
+                        continue
+
+                    # Found a skilled, available agent at another station
+                    display = self._agent_display(agent_name_candidate)
+
+                    logger.info(
+                        f"[BridgeDispatcher] Cross-station fallback: "
+                        f"{blocked_station} exhausted → {other_station} "
+                        f"({display}) for '{capability}'"
+                    )
+
+                    self._telegram_dispatch_advisory(
+                        advisory_type="cross_station",
+                        module_id=module_id,
+                        home_station=blocked_station,
+                        dispatch_station=other_station,
+                        capability=capability,
+                        agent_name=display,
+                        reason=(
+                            f"All agents at {blocked_station} are busy. "
+                            f"Asking {display} at {other_station} to help."
+                        ),
+                    )
+
+                    agent = info
+                    station_code = other_station
+                    dispatch_station = other_station
+                    is_cross_station = True
+                    station_exhausted = False
+                    break
+                if agent:
+                    break
+
+        if not agent and station_exhausted:
+            blocked_station = home_station or capability_station
+
+            # 2b. No agent at any station — Telegram advisory before cloud
             self._telegram_dispatch_advisory(
                 advisory_type="cross_station",
                 module_id=module_id,
@@ -1753,12 +1856,12 @@ class BridgeDispatcher:
                 dispatch_station="CLOUD",
                 capability=capability,
                 reason=(
-                    f"All agents at {blocked_station} are at capacity "
-                    f"for '{capability}'. Attempting cloud contractor."
+                    f"All agents across all stations are at capacity "
+                    f"for '{capability}'. Attempting free cloud contractor."
                 ),
             )
 
-            # Try cloud escalation before falling back to ARCHIE
+            # 2c. Try free cloud contractors
             routing_mode = self._get_routing_mode()
             if routing_mode != "local_only":
                 for cloud_model in self.FREE_CLOUD_MODELS:
@@ -1808,7 +1911,64 @@ class BridgeDispatcher:
                         self._log_execution(result, module_id, user_id, job_id=job_id)
                         return result
 
-            # Cloud failed or local_only — last resort: ARCHIE
+            # 2d. Free cloud failed — request paid cloud via Telegram approval
+            if routing_mode not in ("local_only", "local_cloud"):
+                try:
+                    from agent_loop import request_approval
+
+                    next_tier = self._get_next_tier(
+                        self.FREE_CLOUD_MODELS[-1], capability
+                    )
+                    if next_tier and next_tier.get("is_paid"):
+                        logger.info(
+                            f"[BridgeDispatcher] Free cloud failed. "
+                            f"Requesting paid cloud: {next_tier['model']}"
+                        )
+                        # Build agent display names for the notification
+                        busy_names = [
+                            self._agent_display(aname)
+                            for aname, ainfo in self._agent_cache.items()
+                            if ainfo.get("station_code") == blocked_station
+                        ]
+                        busy_str = ", ".join(busy_names) or blocked_station
+
+                        request_approval(
+                            action_type="cloud_throughput_escalation",
+                            action_data={
+                                "original_agent": busy_str,
+                                "busy_job": {
+                                    "id": 0,
+                                    "description": f"All agents at {blocked_station} busy",
+                                    "progress_pct": 0,
+                                },
+                                "escalated_model": next_tier["model"],
+                                "escalated_provider": next_tier["provider"],
+                                "capability": capability,
+                                "module_id": module_id,
+                                "prompt_preview": prompt[:200],
+                            },
+                            reason=(
+                                f"All agents at {blocked_station} busy, "
+                                f"free cloud failed. "
+                                f"Escalate to {next_tier['model']}?"
+                            ),
+                            requested_by="bridge_dispatcher",
+                            tier=2,
+                        )
+                        self._telegram_dispatch_advisory(
+                            advisory_type="paid_cloud",
+                            module_id=module_id,
+                            capability=capability,
+                            home_station=blocked_station,
+                            cloud_model=next_tier["model"],
+                            cloud_provider=next_tier.get("provider", "external"),
+                        )
+                except Exception as esc_err:
+                    logger.warning(
+                        f"[BridgeDispatcher] Paid cloud request failed: {esc_err}"
+                    )
+
+            # Last resort: ARCHIE fallback
             try:
                 self._request_agent_creation(
                     capability=capability,
@@ -2273,10 +2433,10 @@ class BridgeDispatcher:
         job_id: Optional[int] = None,
         reason: Optional[str] = None,
     ):
-        """Send direct Telegram advisory for off-station/cloud dispatches.
+        """Send Telegram advisory with context-appropriate buttons.
 
-        - cross_station + free_cloud: FYI advisory (no approval needed)
-        - paid_cloud: Dashboard notification only (approval via existing flow)
+        All escalation types get interactive buttons so the user can
+        acknowledge, override, or escalate further.
         """
         try:
             if advisory_type == "cross_station":
@@ -2287,25 +2447,48 @@ class BridgeDispatcher:
                     f"{module_id} [{home_station}] needs '{capability}' "
                     f"\u2192 routed to {dispatch_station}{agent_str}{job_str}"
                 )
-                notif_type = "cross_station"
+                if reason:
+                    message += f"\n{reason}"
+                notif_type = "info"
+                emoji = "\U0001f500"
+                # Buttons: OK (acknowledge) + Escalate to Cloud
+                buttons = [
+                    {"text": "\u2705 OK", "callback_data": "esc_ack"},
+                    {
+                        "text": "\u2601\ufe0f Escalate to Cloud",
+                        "callback_data": "esc_cloud",
+                    },
+                ]
 
             elif advisory_type == "free_cloud":
-                title = "Free Cloud Escalation"
+                title = "Free Cloud Contractor"
                 message = (
                     f"{module_id} '{capability}' \u2192 {cloud_model} "
                     f"({cloud_provider or 'cloud'})"
                 )
                 if reason:
-                    message += f" \u2014 {reason}"
-                notif_type = "cloud_escalation"
+                    message += f"\n{reason}"
+                notif_type = "info"
+                emoji = "\u2601\ufe0f"
+                # Buttons: OK + Escalate to Paid
+                buttons = [
+                    {"text": "\u2705 OK", "callback_data": "esc_ack"},
+                    {
+                        "text": "\U0001f4b3 Escalate to Paid",
+                        "callback_data": "esc_paid",
+                    },
+                ]
 
             elif advisory_type == "paid_cloud":
-                title = "Paid Cloud Approval Requested"
+                title = "Paid Cloud Requested"
                 message = (
                     f"{module_id} '{capability}' requesting {cloud_model} "
-                    f"({cloud_provider}) \u2014 awaiting Telegram approval"
+                    f"({cloud_provider})\nAwaiting your approval"
                 )
-                notif_type = "cloud_escalation"
+                notif_type = "warning"
+                emoji = "\u26a0\ufe0f"
+                # Buttons handled by request_approval → _send_approval_telegram
+                buttons = None
 
             else:
                 return
@@ -2321,24 +2504,47 @@ class BridgeDispatcher:
                     notif_type,
                     title,
                     message,
-                    "normal" if advisory_type == "paid_cloud" else "low",
+                    "normal",
                 ),
             )
             conn.commit()
             cur.close()
             conn.close()
 
-            # 2. Direct Telegram for cross_station + free_cloud (FYI, no approval)
-            if advisory_type in ("cross_station", "free_cloud"):
+            # 2. Send Telegram with buttons for cross_station + free_cloud
+            if advisory_type in ("cross_station", "free_cloud") and buttons:
                 try:
-                    import flask
+                    import os
+                    import requests as _req
 
-                    app = flask.current_app._get_current_object()
-                    gateway = getattr(app, "_telegram_gateway", None)
-                    if gateway:
-                        gateway.send_dispatch_advisory(
-                            title=title, message=message
+                    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+                    if bot_token:
+                        tg_text = f"{emoji} *{title}*\n\n{message}"
+
+                        payload = {
+                            "text": tg_text,
+                            "parse_mode": "Markdown",
+                            "reply_markup": {
+                                "inline_keyboard": [buttons]
+                            },
+                        }
+
+                        tconn = self._get_db()
+                        tcur = tconn.cursor()
+                        tcur.execute(
+                            "SELECT telegram_id FROM telegram_users "
+                            "WHERE is_authorized = TRUE AND telegram_id IS NOT NULL"
                         )
+                        trows = tcur.fetchall()
+                        tcur.close()
+                        tconn.close()
+                        for trow in trows:
+                            payload["chat_id"] = trow[0]
+                            _req.post(
+                                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                                json=payload,
+                                timeout=15,
+                            )
                 except Exception as tg_err:
                     logger.debug(
                         f"[BridgeDispatcher] Telegram advisory skipped: {tg_err}"
@@ -2409,6 +2615,22 @@ class BridgeDispatcher:
                     outcome="blocked",
                 )
                 return None
+
+            # Force-refresh busy agents list (bypass 30s welfare cache TTL)
+            # so we never assign a job to an agent mid-task
+            try:
+                from psycopg2.extras import RealDictCursor
+
+                bconn = self._get_db()
+                bcur = bconn.cursor(cursor_factory=RealDictCursor)
+                bcur.execute(
+                    "SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'"
+                )
+                self._busy_agents = {r["agent_name"] for r in bcur.fetchall()}
+                bcur.close()
+                bconn.close()
+            except Exception as busy_err:
+                logger.debug(f"[BridgeDispatcher] Busy agents refresh failed: {busy_err}")
 
             # Resolve agent name from capability→station→agent mapping (home-first)
             cap_key = capability or job_type.split("_")[0]

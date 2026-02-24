@@ -5575,6 +5575,7 @@ def get_bridge_jobs():
                                bj.agent_name
                            ) as agent_display_name,
                            bj.agent_name as agent_callsign,
+                           bj.station_code,
                            bj.metadata,
                            bj.created_at, bj.updated_at, bj.completed_at
                     FROM bridge_jobs bj
@@ -5597,6 +5598,7 @@ def get_bridge_jobs():
                                bj.agent_name
                            ) as agent_display_name,
                            bj.agent_name as agent_callsign,
+                           bj.station_code,
                            bj.metadata,
                            bj.created_at, bj.updated_at, bj.completed_at
                     FROM bridge_jobs bj
@@ -5641,6 +5643,7 @@ def get_bridge_jobs():
                         "status": j["status"],
                         "agent_name": j.get("agent_display_name") or j.get("agent_callsign") or "Unknown",
                         "agent_callsign": j.get("agent_callsign") or "",
+                        "station_code": j.get("station_code") or "",
                         "metadata": j["metadata"] or {},
                         "progress_pct": progress_pct,
                         "eta_seconds": eta_seconds,
@@ -5669,7 +5672,7 @@ def get_bridge_job_detail(job_id):
                 """
                 SELECT bj.id, bj.job_type, bj.module_source, bj.description,
                        bj.total_steps, bj.completed_steps, bj.failed_steps,
-                       bj.status,
+                       bj.status, bj.station_code,
                        COALESCE(
                            NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
                            a.name,
@@ -5725,6 +5728,7 @@ def get_bridge_job_detail(job_id):
                         "failed_steps": job["failed_steps"] or 0,
                         "status": job["status"],
                         "agent_name": job.get("agent_display_name") or "Unknown",
+                        "station_code": job.get("station_code") or "",
                         "metadata": job["metadata"] or {},
                         "progress_pct": progress_pct,
                         "created_at": job["created_at"].isoformat() if job["created_at"] else None,
@@ -7632,6 +7636,76 @@ def fleet_metrics():
                 "top_agent": None,
             }
         )
+
+
+# ============================================================================
+# CROSS-STATION DISPATCH ANALYTICS
+# ============================================================================
+
+
+@bridge_bp.route("/api/dispatch/cross-station-analytics")
+@login_required
+def cross_station_analytics():
+    """Cross-station dispatch analytics for ARCHIE/Vigil evaluation."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY cross_station_dispatch_summary")
+            cur.execute("SELECT * FROM cross_station_dispatch_summary ORDER BY dispatch_count DESC")
+            cross_dispatches = cur.fetchall()
+            cur.execute("SELECT * FROM station_borrowing_summary")
+            borrowing = cur.fetchall()
+        return jsonify(success=True, cross_dispatches=cross_dispatches, borrowing=borrowing)
+    except Exception as e:
+        logger.error(f"cross_station_analytics error: {e}")
+        return jsonify(success=False, error=str(e)), 500
+
+
+@bridge_bp.route("/api/dispatch/reassignment-recommendations")
+@login_required
+def reassignment_recommendations():
+    """Suggest agent reassignments based on cross-station dispatch patterns."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT home_station, dispatch_station, capability, module_source,
+                       dispatch_count, success_rate
+                FROM cross_station_dispatch_summary
+                WHERE dispatch_count >= 5
+                ORDER BY dispatch_count DESC LIMIT 20
+            """
+            )
+            frequent = cur.fetchall()
+
+            recommendations = []
+            for row in frequent:
+                cur.execute(
+                    """
+                    SELECT a.id, a.name, a.display_name, ask.skill_name,
+                           ask.proficiency_level, sa.assignment_type
+                    FROM agents a
+                    JOIN agent_skills ask ON ask.agent_id = a.id
+                    LEFT JOIN station_assignments sa
+                        ON sa.agent_id = a.id AND sa.is_active = true
+                    LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                    WHERE ask.skill_name ILIKE %s
+                      AND (bs.station_code IS NULL OR bs.station_code != %s)
+                    ORDER BY ask.proficiency_level DESC LIMIT 3
+                """,
+                    (f"%{row['capability']}%", row["home_station"]),
+                )
+                candidates = cur.fetchall()
+                if candidates:
+                    recommendations.append(
+                        {
+                            "pattern": dict(row),
+                            "candidates": [dict(c) for c in candidates],
+                        }
+                    )
+        return jsonify(success=True, recommendations=recommendations)
+    except Exception as e:
+        logger.error(f"reassignment_recommendations error: {e}")
+        return jsonify(success=False, error=str(e)), 500
 
 
 # ============================================================================

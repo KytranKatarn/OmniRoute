@@ -469,6 +469,7 @@ function _pollJobStatus(jobId, el, onComplete) {
       _renderBridgeJob({
         description: j.description,
         agent_name: j.agent_display_name || j.agent_name || "Agent",
+        station_code: j.station_code || "",
         completed_steps: j.completed_steps || 0,
         total_steps: j.total_steps || 0,
         failed_steps: j.failed_steps || 0,
@@ -528,41 +529,45 @@ function checkActiveJobs() {
       return;
     }
 
-    var firstJob = myJobs[0];
-
-    /* Render on Processing tab */
+    /* Render ALL running jobs on Processing tab */
     var procEl = document.getElementById("procResult");
     if (procEl) {
-      _renderBridgeJob(firstJob, "procResult");
+      _renderBridgeJobs(myJobs, "procResult", "proc");
       _disableProcessingBtns();
     }
-    if (!_activeJobPolls["proc"]) {
-      _activeJobPolls["proc"] = true;
-      _pollJobStatus(firstJob.id, "procResult", function() {
-        _activeJobPolls["proc"] = false;
-        _enableProcessingBtns();
-        loadProcessingStatus();
-        loadEmbeddingStatus();
-        checkActiveJobs(); /* refresh station status */
-      });
-    }
+    myJobs.forEach(function(job) {
+      var pollKey = "proc_" + job.id;
+      if (!_activeJobPolls[pollKey]) {
+        _activeJobPolls[pollKey] = true;
+        _pollJobStatus(job.id, "bjob-proc-" + job.id, function() {
+          _activeJobPolls[pollKey] = false;
+          _enableProcessingBtns();
+          loadProcessingStatus();
+          loadEmbeddingStatus();
+          checkActiveJobs();
+        });
+      }
+    });
 
-    /* Render on GitHub tab */
+    /* Render ALL running jobs on GitHub tab */
     var ghEl = document.getElementById("ghActionResult");
     if (ghEl) {
-      _renderBridgeJob(firstJob, "ghActionResult");
-      _disableGitHubBtns();
+      _renderBridgeJobs(myJobs, "ghActionResult", "gh");
+      _disableGitHubBtnsByJobType(myJobs);
     }
-    if (!_activeJobPolls["gh"]) {
-      _activeJobPolls["gh"] = true;
-      _pollJobStatus(firstJob.id, "ghActionResult", function() {
-        _activeJobPolls["gh"] = false;
-        _enableGitHubBtns();
-        loadGitHub();
-        loadGitHubEmbedStats();
-        checkActiveJobs(); /* refresh station status */
-      });
-    }
+    myJobs.forEach(function(job) {
+      var pollKey = "gh_" + job.id;
+      if (!_activeJobPolls[pollKey]) {
+        _activeJobPolls[pollKey] = true;
+        _pollJobStatus(job.id, "bjob-gh-" + job.id, function() {
+          _activeJobPolls[pollKey] = false;
+          /* Re-check which buttons should be enabled (other jobs may still run) */
+          loadGitHub();
+          loadGitHubEmbedStats();
+          checkActiveJobs();
+        });
+      }
+    });
   }).catch(function() {
     /* Bridge unavailable — don't block */
     _enableProcessingBtns();
@@ -571,80 +576,80 @@ function checkActiveJobs() {
 }
 
 function _renderStationStatus(allJobs, myJobs) {
-  /* Show station agent status on both tabs — who is busy, who is available */
-  var targets = [document.getElementById("stationStatus"), document.getElementById("stationStatusProc")];
-  if (!targets[0] && !targets[1]) return;
-
-  /* Collect unique busy agents from ALL running jobs */
-  var busyAgents = {};
-  allJobs.forEach(function(j) {
-    if (j.agent_name && j.status === "running") {
-      busyAgents[j.agent_name] = {
-        module: j.module_source || "unknown",
-        desc: j.description || "",
-        pct: j.progress_pct || 0
-      };
-    }
-  });
-
-  /* My module's active jobs */
-  var myCount = myJobs.length;
-
-  var html = '<div style="padding:10px 14px; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15); border-radius:8px; margin-bottom:12px;">';
-  html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">';
-  html += '<strong style="color:#8b5cf6; font-size:0.85rem;">Bridge Station</strong>';
-  if (myCount > 0) {
-    html += '<span class="cs-badge blue" style="font-size:0.7rem;">' + myCount + ' active job' + (myCount > 1 ? 's' : '') + '</span>';
-  } else {
-    html += '<span style="color:rgba(255,255,255,0.4); font-size:0.75rem;">No active jobs</span>';
-  }
-  html += '</div>';
-
-  var agentNames = Object.keys(busyAgents);
-  if (agentNames.length > 0) {
-    agentNames.forEach(function(name) {
-      var info = busyAgents[name];
-      var isMine = info.module === "consciousness";
-      var dot = isMine ? "#f59e0b" : "rgba(255,255,255,0.3)";
-      html += '<div style="display:flex; align-items:center; gap:8px; padding:3px 0; font-size:0.8rem;">';
-      html += '<span style="width:6px; height:6px; border-radius:50%; background:' + dot + '; flex-shrink:0;"></span>';
-      html += '<span style="color:rgba(255,255,255,0.8);">' + escHtml(name) + '</span>';
-      html += '<span style="color:rgba(255,255,255,0.4); font-size:0.72rem; flex:1; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">';
-      if (isMine) {
-        html += escHtml(info.desc) + ' (' + info.pct + '%)';
-      } else {
-        html += 'busy \u2014 ' + escHtml(info.module);
+  /* Knowledge tab — stationStatusProc: keep existing box rendering */
+  var procTarget = document.getElementById("stationStatusProc");
+  if (procTarget) {
+    var busyAgents = {};
+    allJobs.forEach(function(j) {
+      if (j.agent_name && j.status === "running") {
+        busyAgents[j.agent_name] = {
+          module: j.module_source || "unknown",
+          desc: j.description || "",
+          pct: j.progress_pct || 0
+        };
       }
-      html += '</span></div>';
     });
-  } else {
-    html += '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4); padding:2px 0;">All agents idle</div>';
+    var myCount = myJobs.length;
+    var html = '<div style="padding:10px 14px; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15); border-radius:8px; margin-bottom:12px;">';
+    html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">';
+    html += '<strong style="color:#8b5cf6; font-size:0.85rem;">Bridge Station</strong>';
+    if (myCount > 0) {
+      html += '<span class="cs-badge blue" style="font-size:0.7rem;">' + myCount + ' active job' + (myCount > 1 ? 's' : '') + '</span>';
+    } else {
+      html += '<span style="color:rgba(255,255,255,0.4); font-size:0.75rem;">No active jobs</span>';
+    }
+    html += '</div>';
+    var agentNames = Object.keys(busyAgents);
+    if (agentNames.length > 0) {
+      agentNames.forEach(function(name) {
+        var info = busyAgents[name];
+        var isMine = info.module === "consciousness";
+        var dot = isMine ? "#f59e0b" : "rgba(255,255,255,0.3)";
+        html += '<div style="display:flex; align-items:center; gap:8px; padding:3px 0; font-size:0.8rem;">';
+        html += '<span style="width:6px; height:6px; border-radius:50%; background:' + dot + '; flex-shrink:0;"></span>';
+        html += '<span style="color:rgba(255,255,255,0.8);">' + escHtml(name) + '</span>';
+        html += '<span style="color:rgba(255,255,255,0.4); font-size:0.72rem; flex:1; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">';
+        if (isMine) {
+          html += escHtml(info.desc) + ' (' + info.pct + '%)';
+        } else {
+          html += 'busy \u2014 ' + escHtml(info.module);
+        }
+        html += '</span></div>';
+      });
+    } else {
+      html += '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4); padding:2px 0;">All agents idle</div>';
+    }
+    html += '</div>';
+    setHtml(procTarget, html);
   }
 
-  html += '</div>';
-  targets.forEach(function(t) { if (t) setHtml(t, html); });
+  /* GitHub tab — update LCARS ops terminal sections */
+  renderGitHubOps(null, myJobs.length ? myJobs : null);
 }
 
-function _renderBridgeJob(job, el) {
-  /* Render a Bridge job object (from /api/bridge/jobs) with agent, progress, ETA */
+function _buildJobHtml(job) {
+  /* Build HTML for a single Bridge job — progress bar with agent + station context */
   var pct = job.progress_pct || 0;
   var barColor = "#8b5cf6";
-  var agent = job.agent_name || "Unassigned";
+  var agent = job.agent_name || "Queued";
+  if (job.station_code) agent += " \u2022 " + job.station_code;
   var eta = "";
   if (job.eta_seconds && job.eta_seconds > 0) {
     var m = Math.floor(job.eta_seconds / 60);
     var s = job.eta_seconds % 60;
     eta = m > 0 ? " \u2022 ~" + m + "m " + s + "s remaining" : " \u2022 ~" + s + "s remaining";
   }
+  var statusColor = job.status === "failed" ? "#f87171" : job.status === "completed" ? "#22c55e" : barColor;
+  var statusIcon = job.status === "failed" ? "\u2717" : job.status === "completed" ? "\u2713" : "\u25B6";
 
-  var html = '<div class="cs-pipeline-step" style="flex-direction:column;align-items:stretch;gap:8px">' +
+  return '<div class="cs-pipeline-step" style="flex-direction:column;align-items:stretch;gap:8px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      '<span><span class="cs-pipeline-icon" style="color:' + barColor + '">\u25B6</span> ' +
+      '<span><span class="cs-pipeline-icon" style="color:' + statusColor + '">' + statusIcon + '</span> ' +
         escHtml(job.description) + '</span>' +
       '<span class="cs-badge blue">' + escHtml(agent) + '</span>' +
     '</div>' +
     '<div style="background:rgba(255,255,255,0.08);border-radius:6px;height:8px;overflow:hidden">' +
-      '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width 0.5s ease"></div>' +
+      '<div style="width:' + pct + '%;height:100%;background:' + statusColor + ';transition:width 0.5s ease"></div>' +
     '</div>' +
     '<div style="display:flex;justify-content:space-between;font-size:0.82rem;opacity:0.7">' +
       '<span>' + (job.completed_steps || 0) + ' / ' + (job.total_steps || 0) + ' steps' +
@@ -653,6 +658,20 @@ function _renderBridgeJob(job, el) {
       '<span>' + pct + '%</span>' +
     '</div>' +
   '</div>';
+}
+
+function _renderBridgeJob(job, el) {
+  /* Render a single Bridge job into an element (backward compat) */
+  setHtml(el, _buildJobHtml(job));
+}
+
+function _renderBridgeJobs(jobs, el, prefix) {
+  /* Render multiple Bridge jobs stacked in a container */
+  var pfx = prefix || el;
+  var html = '';
+  jobs.forEach(function(j) {
+    html += '<div id="bjob-' + pfx + '-' + j.id + '">' + _buildJobHtml(j) + '</div>';
+  });
   setHtml(el, html);
 }
 
@@ -682,6 +701,21 @@ function _enableGitHubBtns() {
   var b = document.getElementById("btnEmbedGH");
   if (a) a.disabled = false;
   if (b) b.disabled = false;
+}
+
+function _disableGitHubBtnsByJobType(jobs) {
+  /* Only disable buttons whose job type is currently running */
+  var hasReindex = false;
+  var hasEmbed = false;
+  jobs.forEach(function(j) {
+    var jt = j.job_type || "";
+    if (jt.indexOf("reindex") !== -1 || jt.indexOf("github_index") !== -1) hasReindex = true;
+    if (jt.indexOf("embed") !== -1) hasEmbed = true;
+  });
+  var a = document.getElementById("btnReindexAll");
+  var b = document.getElementById("btnEmbedGH");
+  if (a) a.disabled = hasReindex;
+  if (b) b.disabled = hasEmbed;
 }
 
 window.startAnalysis = function() {
@@ -1249,15 +1283,15 @@ window.switchGithubSubtab = function(sub) {
 };
 
 function loadGitHub() {
+  // Render ops terminal commands (always available, even before data loads)
+  renderGitHubOps();
+
   api("/api/github/repos").then(function(data) {
     if (!data.success) return;
     var repos = data.repos || [];
 
-    // Update stats
-    var totalFiles = 0;
-    repos.forEach(function(r) { totalFiles += r.indexed_files || 0; });
+    // Update repo count stat
     setHtml("ghRepoCount", repos.length);
-    setHtml("ghFileCount", totalFiles);
 
     if (!repos.length) {
       setHtml("ghRepoGrid", '<div class="cs-empty">No repositories indexed</div>');
@@ -1285,7 +1319,7 @@ function loadGitHub() {
     html += '</div>';
     setHtml("ghRepoGrid", html);
 
-    // Fetch embedding stats
+    // Fetch GitHub-specific embedding stats
     loadGitHubEmbedStats();
   }).catch(function(err) {
     console.error("loadGitHub error:", err);
@@ -1294,16 +1328,175 @@ function loadGitHub() {
 }
 
 function loadGitHubEmbedStats() {
-  api("/api/processing/embedding-coverage").then(function(data) {
-    if (data.success && data.totals) {
-      var total = data.totals.total || 0;
-      var embedded = data.totals.embedded || 0;
-      var pct = total > 0 ? Math.round((embedded / total) * 100) : 0;
-      setHtml("ghEmbedPct", pct + "%");
-      setHtml("ghSearchable", embedded.toLocaleString());
+  api("/github/stats").then(function(data) {
+    if (data.success) {
+      setHtml("ghEmbedPct", (data.embed_pct || 0) + "%");
+      setHtml("ghSearchable", (data.embedded_files || 0).toLocaleString());
+      // Also update file count from actual KB data
+      setHtml("ghFileCount", (data.total_files || 0).toLocaleString());
     }
   }).catch(function() {});
 }
+
+/* ── GitHub LCARS Operations Terminal ─────────────── */
+
+function renderGitHubOps(agentData, jobData) {
+  /* Render agents section */
+  var agentsEl = document.getElementById("ghOpsAgents");
+  if (agentsEl) {
+    if (agentData && agentData.length) {
+      var html = '<div class="cs-ops-section-label">ASSIGNED AGENTS</div>';
+      agentData.forEach(function(a) {
+        html += '<div class="cs-ops-agent-row">' +
+          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
+          '<span class="cs-ops-agent-role">' + escHtml(a.role || "agent") + '</span>' +
+          '</div>';
+      });
+      setHtml(agentsEl, html);
+    } else {
+      /* Fetch from Bridge stations — show agents from station that owns this module */
+      fetch("/tools/bridge/api/stations").then(function(resp) {
+        var ct = resp.headers.get("content-type") || "";
+        if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
+        return resp.json();
+      }).then(function(data) {
+        if (!data.success) return;
+        var agents = [];
+        var homeStation = null;
+        var stations = data.stations || [];
+        /* Find the station that owns the consciousness module */
+        stations.forEach(function(s) {
+          var mods = s.modules || [];
+          if (mods.indexOf("consciousness") !== -1) {
+            homeStation = s;
+            var stAgents = s.assigned_agents || [];
+            stAgents.forEach(function(a) {
+              agents.push({
+                name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
+                title: a.title || a.assignment_type || "agent"
+              });
+            });
+          }
+        });
+        var stationLabel = homeStation ? homeStation.code : "UNASSIGNED";
+        if (agents.length) {
+          var html = '<div class="cs-ops-section-label">' + escHtml(stationLabel) + ' STATION CREW</div>';
+          agents.forEach(function(a) {
+            html += '<div class="cs-ops-agent-row">' +
+              '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
+              '<span class="cs-ops-agent-role">' + escHtml(a.title) + '</span>' +
+              '</div>';
+          });
+          setHtml(agentsEl, html);
+        } else {
+          setHtml(agentsEl, '<div style="font-size:0.75rem; color:rgba(255,255,255,0.35); padding:4px 0;">No agents assigned to this module\'s station</div>');
+        }
+      }).catch(function() {
+        setHtml(agentsEl, "");
+      });
+    }
+  }
+
+  /* Render jobs section */
+  var jobsEl = document.getElementById("ghOpsJobs");
+  if (jobsEl) {
+    if (jobData && jobData.length) {
+      var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
+      jobData.forEach(function(j) {
+        var pct = j.progress_pct || 0;
+        var agentLabel = j.agent_name || "Queued";
+        var stationLabel = j.station_code || "";
+        if (stationLabel) agentLabel += " \u2022 " + stationLabel;
+        html += '<div class="cs-ops-job-row">' +
+          '<div class="cs-ops-job-info">' +
+            '<div class="cs-ops-job-desc">' + escHtml(j.description) + '</div>' +
+            '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
+          '</div>' +
+          '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
+          '<div class="cs-ops-job-pct">' + pct + '%</div>' +
+          '</div>';
+      });
+      setHtml(jobsEl, html);
+    } else {
+      setHtml(jobsEl, "");
+    }
+  }
+
+  /* Render command buttons (always) */
+  var cmdsEl = document.getElementById("ghOpsCommands");
+  if (cmdsEl && !cmdsEl.hasChildNodes()) {
+    var commands = [
+      { label: "+ ADD REPO", cls: "purple", fn: "showAddRepoModal()" },
+      { label: "REINDEX ALL", cls: "amber", fn: "reindexAllRepos()", id: "btnReindexAll" },
+      { label: "EMBED FILES", cls: "green", fn: "embedGitHubFiles()", id: "btnEmbedGH" },
+      { label: "VERIFY", cls: "cyan", fn: "verifyGitHubData()" }
+    ];
+    commands.forEach(function(c) {
+      var btn = document.createElement("button");
+      btn.className = "cs-ops-cmd " + c.cls;
+      btn.textContent = c.label;
+      btn.setAttribute("onclick", c.fn);
+      if (c.id) btn.id = c.id;
+      cmdsEl.appendChild(btn);
+    });
+  }
+}
+
+/* ── Verify/Audit GitHub Data ────────────────────── */
+
+window.verifyGitHubData = function() {
+  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Verifying GitHub data integrity\u2026</span>');
+  api("/github/stats").then(function(data) {
+    if (!data.success) {
+      setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Verification failed") + '</span>');
+      return;
+    }
+
+    var repos = data.repos || [];
+    var mismatches = data.mismatches || [];
+    var needEmbed = 0;
+
+    var html = '<div style="margin-top:4px;">';
+    html += '<div style="font-size:0.75rem; font-weight:600; color:#00ffff; margin-bottom:8px; letter-spacing:0.05em;">VERIFICATION REPORT</div>';
+
+    if (repos.length) {
+      html += '<div style="display:grid; gap:4px;">';
+      repos.forEach(function(r) {
+        var expected = r.expected || 0;
+        var actual = r.actual || 0;
+        var embedded = r.embedded || 0;
+        var match = expected === actual;
+        var color = match ? "#22c55e" : "#f59e0b";
+        var icon = match ? "\u2713" : "\u26A0";
+        var unembedded = actual - embedded;
+        if (unembedded > 0) needEmbed += unembedded;
+
+        html += '<div style="display:flex; align-items:center; gap:8px; padding:4px 8px; font-size:0.78rem; border-radius:4px; background:rgba(255,255,255,0.02);">';
+        html += '<span style="color:' + color + '; flex-shrink:0;">' + icon + '</span>';
+        html += '<span style="color:rgba(255,255,255,0.8); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escHtml(r.repo_name) + '</span>';
+        html += '<span style="color:rgba(255,255,255,0.5);">DB: ' + expected + '</span>';
+        html += '<span style="color:rgba(255,255,255,0.5);">KB: ' + actual + '</span>';
+        html += '<span style="color:' + (embedded === actual ? '#22c55e' : 'rgba(255,255,255,0.4)') + ';">' + embedded + ' emb</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div style="margin-top:8px; font-size:0.75rem; color:rgba(255,255,255,0.5);">';
+    html += repos.length + ' repos verified';
+    if (mismatches.length) {
+      html += ' \u2022 <span style="color:#f59e0b;">' + mismatches.length + ' mismatch' + (mismatches.length > 1 ? 'es' : '') + '</span>';
+    }
+    if (needEmbed > 0) {
+      html += ' \u2022 <span style="color:#8b5cf6;">' + needEmbed + ' files need embedding</span>';
+    }
+    html += '</div></div>';
+
+    setHtml("ghActionResult", html);
+  }).catch(function(err) {
+    setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Verification error") + '</span>');
+  });
+};
 
 /* ── GitHub Repo Management ──────────────────────── */
 
@@ -1332,17 +1525,25 @@ window.addRepo = function() {
   if (maxFiles) body.max_files = parseInt(maxFiles);
 
   api("/github/index-selective", { method: "POST", body: body }).then(function(data) {
-    if (data.success) {
-      var msg = 'Indexed ' + (data.indexed_count || data.indexed || 0) + ' files from ' + escHtml(data.repo || url);
-      if (data.job_id) msg += ' (Job #' + data.job_id + ')';
-      setHtml("addRepoResult", '<div class="cs-pipeline-step green"><span class="cs-pipeline-icon">\u2713</span><span>' + msg + '</span></div>');
+    if (data.duplicate || data._status === 409) {
+      setHtml("addRepoResult", '<span style="color:#f59e0b;">\u25B6 ' + escHtml(data.error || "Index job already running") + '</span>');
+      if (btn) btn.disabled = false;
+      checkActiveJobs();
+      return;
+    }
+    if (data.success && data.job_id) {
+      setHtml("addRepoResult", '<div class="cs-pipeline-step green"><span class="cs-pipeline-icon">\u25B6</span><span>Job #' + data.job_id + ' started \u2014 indexing ' + escHtml(data.repo || url) + '</span></div>');
+      if (btn) btn.disabled = false;
+      setTimeout(function() { closeAddRepoModal(); checkActiveJobs(); }, 1500);
+    } else if (data.success) {
+      setHtml("addRepoResult", '<div class="cs-pipeline-step green"><span class="cs-pipeline-icon">\u2713</span><span>' + escHtml(data.message || "Done") + '</span></div>');
+      if (btn) btn.disabled = false;
       _cache.github = false;
       loadGitHub();
-      setTimeout(closeAddRepoModal, 2500);
     } else {
       setHtml("addRepoResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Failed to index") + '</span></div>');
+      if (btn) btn.disabled = false;
     }
-    if (btn) btn.disabled = false;
   }).catch(function(err) {
     setHtml("addRepoResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(err.message || "Request failed") + '</span></div>');
     if (btn) btn.disabled = false;
@@ -1358,6 +1559,7 @@ window.reindexRepo = function(repoId) {
       setHtml("ghActionResult", '<span style="color:#4ade80;">' + msg + '</span>');
       _cache.github = false;
       loadGitHub();
+      setTimeout(checkActiveJobs, 1000);
     } else {
       setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
     }
@@ -1378,11 +1580,7 @@ window.reindexAllRepos = function() {
     }
     if (data.success && data.job_id) {
       setHtml("ghActionResult", '<span style="color:#4ade80;">\u25B6 Job #' + data.job_id + ' started \u2014 ' + (data.total_repos || 0) + ' repos queued</span>');
-      _pollJobStatus(data.job_id, "ghActionResult", function() {
-        _enableGitHubBtns();
-        _cache.github = false;
-        loadGitHub();
-      });
+      setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
       setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 No repos to re-index</span>');
       _enableGitHubBtns();
@@ -1409,17 +1607,13 @@ window.embedGitHubFiles = function() {
     body: { batch_size: 100 }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      /* Job already running — show status and start polling from Bridge */
       setHtml("ghActionResult", '<span style="color:#f59e0b;">\u25B6 ' + escHtml(data.error || "Job already running") + '</span>');
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
       setHtml("ghActionResult", '<span style="color:#4ade80;">\u25B6 Job #' + data.job_id + ' started \u2014 ' + (data.total || 0) + ' entries queued</span>');
-      _pollJobStatus(data.job_id, "ghActionResult", function() {
-        _enableGitHubBtns();
-        loadGitHubEmbedStats();
-      });
+      setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
       setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 ' + escHtml(data.message || "All files already embedded") + '</span>');
       _enableGitHubBtns();

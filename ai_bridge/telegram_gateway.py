@@ -574,6 +574,40 @@ class TelegramGateway:
 
         asyncio.run_coroutine_threadsafe(_send(), self._loop)
 
+    def send_dispatch_advisory(self, title: str, message: str):
+        """Send FYI advisory to all linked Telegram users (no approval buttons)."""
+        if not self._running or not self._loop:
+            return
+
+        text = f"\U0001f500 *{title}*\n\n{message}\n\n_Advisory \u2014 no action required_"
+
+        async def _send():
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT telegram_user_id FROM telegram_linked_accounts WHERE is_active = TRUE"
+                )
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+                for row in rows:
+                    try:
+                        await self._application.bot.send_message(
+                            chat_id=row[0],
+                            text=text,
+                            parse_mode="Markdown",
+                        )
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.debug(f"[TelegramGateway] Advisory send failed: {e}")
+
+        try:
+            asyncio.run_coroutine_threadsafe(_send(), self._loop)
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------
     # Email Interaction via Telegram
     # ------------------------------------------------------------------

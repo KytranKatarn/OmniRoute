@@ -202,6 +202,9 @@ class BridgeDispatcher:
         self._welfare_cache_time = 0
         self._welfare_cache_ttl = 30  # Refresh every 30 seconds
         self._busy_agents = set()  # agent names with running bridge_jobs
+        # Module → station cache (bridge_stations.modules lookup)
+        self._module_station_cache = {}
+        self._module_station_ts = 0
 
     def _get_db(self):
         """Get database connection."""
@@ -508,6 +511,29 @@ class BridgeDispatcher:
         )
 
         return (round(composite, 4), None)
+
+    def _resolve_module_station(self, module_id: str) -> Optional[str]:
+        """Look up the home station for a module from bridge_stations.modules."""
+        now = time.time()
+        if now - self._module_station_ts > 300:
+            try:
+                conn = self._get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT station_code, modules FROM bridge_stations WHERE is_active = true"
+                )
+                cache = {}
+                for row in cur.fetchall():
+                    code = row[0]
+                    for m in (row[1] or []):
+                        cache[m.lower().strip()] = code
+                cur.close()
+                conn.close()
+                self._module_station_cache = cache
+                self._module_station_ts = now
+            except Exception as e:
+                logger.debug(f"[BridgeDispatcher] Module station cache failed: {e}")
+        return self._module_station_cache.get(module_id.lower().strip())
 
     def _select_agent(self, capability: str, station_code: str) -> Optional[Dict]:
         """Select the best agent for a capability within a station.
@@ -1009,13 +1035,14 @@ class BridgeDispatcher:
                     success=True,
                 )
                 # Telegram FYI: notify that free cloud was used
-                self._notify_throughput_escalation(
-                    agent_name=agent_name,
-                    cloud_model=cloud_model,
-                    capability=capability,
+                self._telegram_dispatch_advisory(
+                    advisory_type="free_cloud",
                     module_id=module_id,
-                    busy_job=busy_job,
-                    duration_ms=duration_ms,
+                    capability=capability,
+                    home_station=self._resolve_module_station(module_id),
+                    cloud_model=cloud_model,
+                    cloud_provider="ollama_cloud",
+                    reason=f"{agent_name} busy with job #{busy_job.get('id', '?')}",
                 )
 
                 result = DispatchResult(
@@ -1081,6 +1108,15 @@ class BridgeDispatcher:
                     failure_count=0,
                     approval_method="telegram",
                     success=None,
+                )
+                # Dashboard notification for paid cloud approval
+                self._telegram_dispatch_advisory(
+                    advisory_type="paid_cloud",
+                    module_id=module_id,
+                    capability=capability,
+                    home_station=self._resolve_module_station(module_id),
+                    cloud_model=next_tier["model"],
+                    cloud_provider=next_tier.get("provider", "external"),
                 )
         except Exception as esc_err:
             logger.warning(
@@ -1680,23 +1716,106 @@ class BridgeDispatcher:
         """
         start = time.time()
 
-        # 1. Map capability → station
-        station_code = CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+        # 1. Map capability → station (home-first strategy)
+        capability_station = CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+        home_station = self._resolve_module_station(module_id)
 
-        # 2. Select agent for this station + capability
-        agent = self._select_agent(capability, station_code)
+        agent = None
+        dispatch_station = capability_station
+        is_cross_station = False
 
+        if home_station:
+            agent = self._select_agent(capability, home_station)
+            if agent:
+                dispatch_station = home_station
+            else:
+                # Home station can't handle — fall to capability station
+                agent = self._select_agent(capability, capability_station)
+                dispatch_station = capability_station
+                is_cross_station = home_station != capability_station
+        else:
+            agent = self._select_agent(capability, capability_station)
+            dispatch_station = capability_station
+
+        station_code = dispatch_station
+
+        # 2. Fallback if no agent found — notify + try cloud before ARCHIE
+        station_exhausted = False
         if not agent:
-            # Fire async agent creation request (Telegram approval)
-            # before falling back — creation is async so we still need
-            # to serve this request via ARCHIE immediately.
+            station_exhausted = True
+            blocked_station = home_station or capability_station
+
+            # Telegram advisory: station at capacity
+            self._telegram_dispatch_advisory(
+                advisory_type="cross_station",
+                module_id=module_id,
+                home_station=blocked_station,
+                dispatch_station="CLOUD",
+                capability=capability,
+                reason=(
+                    f"All agents at {blocked_station} are at capacity "
+                    f"for '{capability}'. Attempting cloud contractor."
+                ),
+            )
+
+            # Try cloud escalation before falling back to ARCHIE
+            routing_mode = self._get_routing_mode()
+            if routing_mode != "local_only":
+                for cloud_model in self.FREE_CLOUD_MODELS:
+                    logger.info(
+                        f"[BridgeDispatcher] Station {blocked_station} exhausted "
+                        f"for '{capability}'. Trying cloud: {cloud_model}"
+                    )
+                    llm_result = self._execute_llm(
+                        model=cloud_model,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        json_mode=json_mode,
+                        timeout=timeout,
+                    )
+                    if llm_result.get("success"):
+                        duration_ms = int((time.time() - start) * 1000)
+                        self._telegram_dispatch_advisory(
+                            advisory_type="free_cloud",
+                            module_id=module_id,
+                            capability=capability,
+                            home_station=blocked_station,
+                            cloud_model=cloud_model,
+                            cloud_provider="ollama_cloud",
+                            reason=f"Station {blocked_station} at capacity",
+                        )
+                        result = DispatchResult(
+                            success=True,
+                            response=llm_result.get("response", ""),
+                            agent_name=f"CLOUD→{cloud_model}",
+                            agent_id=None,
+                            model_used=cloud_model,
+                            station_code=blocked_station,
+                            capability=capability,
+                            duration_ms=duration_ms,
+                            prompt_tokens=llm_result.get("prompt_tokens", 0),
+                            completion_tokens=llm_result.get("completion_tokens", 0),
+                            provider="ollama_cloud",
+                            metadata={
+                                "escalation": "station_exhausted_cloud",
+                                "blocked_station": blocked_station,
+                                "home_station": home_station,
+                                "dispatch_station": "CLOUD",
+                                "is_cross_station": True,
+                                "capability_station": capability_station,
+                            },
+                        )
+                        self._log_execution(result, module_id, user_id, job_id=job_id)
+                        return result
+
+            # Cloud failed or local_only — last resort: ARCHIE
             try:
                 self._request_agent_creation(
                     capability=capability,
-                    station_code=station_code,
+                    station_code=blocked_station,
                     reason=(
                         f"No available agent for capability='{capability}' "
-                        f"at station='{station_code}' "
+                        f"at station='{blocked_station}' "
                         f"(module={module_id})"
                     ),
                 )
@@ -1705,10 +1824,9 @@ class BridgeDispatcher:
                     f"[BridgeDispatcher] Creation request skipped: {creation_err}"
                 )
 
-            # Fallback: use ARCHIE/COMMAND with dolphin3-8k
             logger.warning(
                 f"[BridgeDispatcher] No agent for capability='{capability}' "
-                f"station='{station_code}', falling back to COMMAND"
+                f"station='{blocked_station}', cloud unavailable, falling back to COMMAND"
             )
             agent = self._agent_cache.get(
                 "ARCHIE",
@@ -1721,6 +1839,7 @@ class BridgeDispatcher:
                 },
             )
             station_code = "COMMAND"
+            dispatch_station = "COMMAND"
 
         # 3. Determine model and system prompt
         model = agent.get("model", "dolphin3-8k:latest")
@@ -1741,6 +1860,17 @@ class BridgeDispatcher:
             f"agent='{agent_name}' model='{model}' station='{station_code}' "
             f"module='{module_id}'"
         )
+
+        # 3a. Cross-station Telegram advisory
+        if is_cross_station and home_station:
+            self._telegram_dispatch_advisory(
+                advisory_type="cross_station",
+                module_id=module_id,
+                home_station=home_station,
+                dispatch_station=dispatch_station,
+                capability=capability,
+                agent_name=agent_name,
+            )
 
         # 3b. Inject learnings if available
         try:
@@ -1914,6 +2044,15 @@ class BridgeDispatcher:
                         approval_method="telegram",
                         success=None,
                     )
+                    # Dashboard notification for paid cloud approval
+                    self._telegram_dispatch_advisory(
+                        advisory_type="paid_cloud",
+                        module_id=module_id,
+                        capability=capability,
+                        home_station=home_station,
+                        cloud_model=next_tier["model"],
+                        cloud_provider=next_tier.get("provider", "external"),
+                    )
         else:
             self._reset_failure(agent.get("id", 0), capability)
 
@@ -1935,7 +2074,14 @@ class BridgeDispatcher:
             ),
             provider=llm_result.get("provider", "ollama"),
             error=llm_result.get("error"),
-            metadata={"module_id": module_id, "priority": priority},
+            metadata={
+                "module_id": module_id,
+                "priority": priority,
+                "home_station": home_station,
+                "dispatch_station": dispatch_station,
+                "is_cross_station": is_cross_station,
+                "capability_station": capability_station,
+            },
         )
 
         # 6. Log for HR tracking
@@ -2114,6 +2260,95 @@ class BridgeDispatcher:
         except Exception as e:
             logger.debug(f"[BridgeDispatcher] Governance log skipped: {e}")
 
+    def _telegram_dispatch_advisory(
+        self,
+        advisory_type: str,  # "cross_station", "free_cloud", "paid_cloud"
+        module_id: str,
+        capability: str,
+        home_station: Optional[str] = None,
+        dispatch_station: Optional[str] = None,
+        agent_name: Optional[str] = None,
+        cloud_model: Optional[str] = None,
+        cloud_provider: Optional[str] = None,
+        job_id: Optional[int] = None,
+        reason: Optional[str] = None,
+    ):
+        """Send direct Telegram advisory for off-station/cloud dispatches.
+
+        - cross_station + free_cloud: FYI advisory (no approval needed)
+        - paid_cloud: Dashboard notification only (approval via existing flow)
+        """
+        try:
+            if advisory_type == "cross_station":
+                agent_str = f" \u2192 {agent_name}" if agent_name else ""
+                job_str = f" (job #{job_id})" if job_id else ""
+                title = "Cross-Station Dispatch"
+                message = (
+                    f"{module_id} [{home_station}] needs '{capability}' "
+                    f"\u2192 routed to {dispatch_station}{agent_str}{job_str}"
+                )
+                notif_type = "cross_station"
+
+            elif advisory_type == "free_cloud":
+                title = "Free Cloud Escalation"
+                message = (
+                    f"{module_id} '{capability}' \u2192 {cloud_model} "
+                    f"({cloud_provider or 'cloud'})"
+                )
+                if reason:
+                    message += f" \u2014 {reason}"
+                notif_type = "cloud_escalation"
+
+            elif advisory_type == "paid_cloud":
+                title = "Paid Cloud Approval Requested"
+                message = (
+                    f"{module_id} '{capability}' requesting {cloud_model} "
+                    f"({cloud_provider}) \u2014 awaiting Telegram approval"
+                )
+                notif_type = "cloud_escalation"
+
+            else:
+                return
+
+            # 1. Insert system_notification for dashboard
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO system_notifications
+                   (type, title, message, source, priority)
+                   VALUES (%s, %s, %s, 'bridge_dispatcher', %s)""",
+                (
+                    notif_type,
+                    title,
+                    message,
+                    "normal" if advisory_type == "paid_cloud" else "low",
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            # 2. Direct Telegram for cross_station + free_cloud (FYI, no approval)
+            if advisory_type in ("cross_station", "free_cloud"):
+                try:
+                    import flask
+
+                    app = flask.current_app._get_current_object()
+                    gateway = getattr(app, "_telegram_gateway", None)
+                    if gateway:
+                        gateway.send_dispatch_advisory(
+                            title=title, message=message
+                        )
+                except Exception as tg_err:
+                    logger.debug(
+                        f"[BridgeDispatcher] Telegram advisory skipped: {tg_err}"
+                    )
+
+            logger.info(f"[BridgeDispatcher] {title}: {message}")
+
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Dispatch advisory failed: {e}")
+
     # ========================================================================
     # JOB MANAGEMENT
     # ========================================================================
@@ -2175,10 +2410,28 @@ class BridgeDispatcher:
                 )
                 return None
 
-            # Resolve agent name from capability→station→agent mapping
+            # Resolve agent name from capability→station→agent mapping (home-first)
             cap_key = capability or job_type.split("_")[0]
-            station_code = CAPABILITY_STATION_MAP.get(cap_key, "COMMAND")
-            agent = self._select_agent(cap_key, station_code)
+            capability_station = CAPABILITY_STATION_MAP.get(cap_key, "COMMAND")
+            home_station = self._resolve_module_station(module_source)
+
+            agent = None
+            dispatch_station = capability_station
+            is_cross_station = False
+
+            if home_station:
+                agent = self._select_agent(cap_key, home_station)
+                if agent:
+                    dispatch_station = home_station
+                else:
+                    agent = self._select_agent(cap_key, capability_station)
+                    dispatch_station = capability_station
+                    is_cross_station = home_station != capability_station
+            else:
+                agent = self._select_agent(cap_key, capability_station)
+                dispatch_station = capability_station
+
+            station_code = dispatch_station
             agent_name = None
             if agent:
                 for name, info in self._agent_cache.items():
@@ -2186,11 +2439,46 @@ class BridgeDispatcher:
                         agent_name = name
                         break
 
+            if not agent_name:
+                # No agent available at station — notify bridge via Telegram
+                blocked_station = home_station or capability_station
+                self._telegram_dispatch_advisory(
+                    advisory_type="cross_station",
+                    module_id=module_source,
+                    home_station=blocked_station,
+                    dispatch_station="OVERLOADED",
+                    capability=cap_key,
+                    reason=(
+                        f"All agents at {blocked_station} are at capacity "
+                        f"for '{cap_key}'. Job will run but station needs relief."
+                    ),
+                )
+                # For LLM-based capabilities, try free cloud contractors
+                llm_caps = {"code_analysis", "translate", "summarize", "classify", "chat"}
+                if cap_key in llm_caps:
+                    for cloud_model in self.FREE_CLOUD_MODELS:
+                        self._telegram_dispatch_advisory(
+                            advisory_type="free_cloud",
+                            module_id=module_source,
+                            capability=cap_key,
+                            home_station=blocked_station,
+                            cloud_model=cloud_model,
+                            cloud_provider="ollama_cloud",
+                            reason=f"Station {blocked_station} at capacity — cloud contractor available",
+                        )
+                        break  # Just advise about first available
+
+            # Enrich metadata with dispatch info
+            enriched_meta = dict(metadata or {})
+            enriched_meta["home_station"] = home_station
+            enriched_meta["dispatch_station"] = dispatch_station
+            enriched_meta["is_cross_station"] = is_cross_station
+
             cur.execute(
                 """
                 INSERT INTO bridge_jobs (job_type, module_source, description,
-                    total_steps, status, agent_name, metadata)
-                VALUES (%s, %s, %s, %s, 'running', %s, %s)
+                    total_steps, status, agent_name, station_code, metadata)
+                VALUES (%s, %s, %s, %s, 'running', %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -2199,7 +2487,8 @@ class BridgeDispatcher:
                     description,
                     total_steps,
                     agent_name,
-                    json.dumps(metadata or {}),
+                    station_code,
+                    json.dumps(enriched_meta),
                 ),
             )
             job_id = cur.fetchone()[0]
@@ -2208,8 +2497,20 @@ class BridgeDispatcher:
             conn.close()
             logger.info(
                 f"[BridgeDispatcher] Created job #{job_id}: {description} "
-                f"({total_steps} steps, agent={agent_name})"
+                f"({total_steps} steps, agent={agent_name}, station={station_code})"
             )
+
+            # ── Cross-station Telegram advisory ──
+            if is_cross_station and home_station:
+                self._telegram_dispatch_advisory(
+                    advisory_type="cross_station",
+                    module_id=module_source,
+                    home_station=home_station,
+                    dispatch_station=dispatch_station,
+                    capability=cap_key,
+                    agent_name=agent_name,
+                    job_id=job_id,
+                )
 
             # ── IAAE governance: log job creation for Vigil overwatch ──
             self._log_governance(
@@ -2387,6 +2688,59 @@ class BridgeDispatcher:
         except Exception as e:
             logger.error(f"[BridgeDispatcher] complete_job failed: {e}")
             return False
+
+    # ========================================================================
+    # STALE JOB REAPER
+    # ========================================================================
+
+    def reap_stale_jobs(self, max_age_minutes: int = 5) -> int:
+        """Mark orphaned running jobs as failed.
+
+        Background threads die on platform restart, leaving jobs stuck
+        in 'running' state forever. This reaper finds jobs that haven't
+        been updated in max_age_minutes and marks them failed.
+
+        Called on startup and can be called periodically.
+
+        Returns:
+            Number of jobs reaped.
+        """
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                UPDATE bridge_jobs
+                SET status = 'failed',
+                    completed_at = NOW(),
+                    updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"reap_reason": "stale — no progress update"}'::jsonb
+                WHERE status = 'running'
+                  AND updated_at < NOW() - INTERVAL '%s minutes'
+                RETURNING id, job_type, description, completed_steps, total_steps
+                """,
+                (max_age_minutes,),
+            )
+            reaped = cur.fetchall()
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            if reaped:
+                for r in reaped:
+                    jid = r[0] if isinstance(r, (list, tuple)) else r["id"]
+                    desc = r[2] if isinstance(r, (list, tuple)) else r["description"]
+                    logger.warning(
+                        f"[BridgeDispatcher] Reaped stale job #{jid}: {desc}"
+                    )
+                logger.info(
+                    f"[BridgeDispatcher] Stale job reaper: {len(reaped)} orphaned jobs cleaned up"
+                )
+            return len(reaped)
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Stale job reaper failed: {e}")
+            return 0
 
     # ========================================================================
     # CREW MANIFEST
@@ -2591,6 +2945,13 @@ def get_dispatcher() -> BridgeDispatcher:
     global _dispatcher
     if _dispatcher is None:
         _dispatcher = BridgeDispatcher()
+        # Reap orphaned jobs from previous runs on first init
+        try:
+            reaped = _dispatcher.reap_stale_jobs(max_age_minutes=5)
+            if reaped:
+                logger.info(f"[BridgeDispatcher] Startup reaper cleaned {reaped} stale jobs")
+        except Exception:
+            pass
     return _dispatcher
 
 

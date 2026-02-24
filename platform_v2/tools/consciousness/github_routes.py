@@ -668,35 +668,53 @@ def register_github_routes(bp, admin_required):
                     metadata={"repo": f"{owner}/{repo}", "priority": priority, "max_files": effective_max},
                 )
 
-                indexed_count, errors, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
-                    owner, repo, repo_type, importance, max_files=effective_max
-                )
-
-                # ── Complete Bridge Job ─────────────────────
-                if job_id:
-                    dispatcher.update_job_progress(
-                        job_id,
-                        1,
-                        0,
-                        {
-                            "indexed": indexed_count,
-                            "skipped": skipped,
-                            "total_found": total_found,
-                        },
+                if not job_id:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "An index job for this repo is already running — check Bridge Command for progress",
+                                "duplicate": True,
+                            }
+                        ),
+                        409,
                     )
-                    dispatcher.complete_job(job_id)
+
+                def _bg_index(o, r, rt, imp, mx, jid):
+                    from ai_bridge.bridge_dispatcher import get_dispatcher as _gd
+
+                    d = _gd()
+                    try:
+                        indexed_count, errors, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
+                            o, r, rt, imp, max_files=mx
+                        )
+                        d.update_job_progress(
+                            jid,
+                            1,
+                            0,
+                            {"indexed": indexed_count, "skipped": skipped, "total_found": total_found},
+                        )
+                        d.complete_job(jid)
+                        logger.info(f"[GitHub] Index job #{jid} done: {indexed_count} files from {o}/{r}")
+                    except Exception as e:
+                        logger.error(f"[GitHub] Index job #{jid} failed: {e}")
+                        d.update_job_progress(jid, 0, 1, {"error": str(e)})
+                        d.complete_job(jid)
+
+                thread = threading.Thread(
+                    target=_bg_index,
+                    args=(owner, repo, repo_type, importance, effective_max, job_id),
+                    daemon=True,
+                )
+                thread.start()
 
                 return jsonify(
                     {
                         "success": True,
-                        "indexed_count": indexed_count,
                         "repo": f"{owner}/{repo}",
                         "priority": priority,
-                        "skipped": skipped,
-                        "total_found": total_found,
-                        "capped_at": used_cap if was_capped else None,
-                        "errors": errors if errors else None,
                         "job_id": job_id,
+                        "message": f"Index job #{job_id} started — {owner}/{repo} queued",
                     }
                 )
             except Exception as e:
@@ -877,30 +895,46 @@ def register_github_routes(bp, admin_required):
                 total_indexed = 0
                 completed_repos = 0
                 error_count = 0
-                for repo_row in repos_list:
-                    repo_name = repo_row["repo_name"]
-                    repo_type = repo_row["repo_type"]
-                    repo_max = repo_row.get("max_files")
-                    try:
-                        parts = repo_name.split("/")
-                        indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
-                            parts[0], parts[1], repo_type, max_files=repo_max
-                        )
-                        total_indexed += indexed
-                        if errs:
+                try:
+                    for repo_row in repos_list:
+                        repo_name = repo_row["repo_name"]
+                        repo_type = repo_row["repo_type"]
+                        repo_max = repo_row.get("max_files")
+                        try:
+                            parts = repo_name.split("/")
+                            indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
+                                parts[0], parts[1], repo_type, max_files=repo_max
+                            )
+                            total_indexed += indexed
+                            if errs:
+                                error_count += 1
+                            completed_repos += 1
+                        except Exception as e:
+                            logger.error(f"[GitHub] Reindex {repo_name} failed: {e}")
+                            traceback.print_exc()
                             error_count += 1
-                        completed_repos += 1
-                    except Exception as e:
-                        logger.error(f"Reindex {repo_name} failed: {e}")
-                        error_count += 1
-                        completed_repos += 1
-                    d.update_job_progress(
-                        jid, completed_repos, error_count, {"total_indexed": total_indexed, "last_repo": repo_name}
+                            completed_repos += 1
+                        try:
+                            d.update_job_progress(
+                                jid,
+                                completed_repos,
+                                error_count,
+                                {"total_indexed": total_indexed, "last_repo": repo_name},
+                            )
+                        except Exception as ue:
+                            logger.error(f"[GitHub] Job #{jid} progress update failed: {ue}")
+                    d.complete_job(jid)
+                    logger.info(
+                        f"[GitHub] Reindex-all job #{jid} done: {total_indexed} files across {len(repos_list)} repos"
                     )
-                d.complete_job(jid)
-                logger.info(
-                    f"[GitHub] Reindex-all job #{jid} done: {total_indexed} files across {len(repos_list)} repos"
-                )
+                except Exception as fatal:
+                    logger.error(f"[GitHub] Reindex-all job #{jid} thread crashed: {fatal}")
+                    traceback.print_exc()
+                    try:
+                        d.update_job_progress(jid, completed_repos, error_count + 1, {"crash": str(fatal)})
+                        d.complete_job(jid)
+                    except Exception:
+                        pass
 
             thread = threading.Thread(target=_bg_reindex, args=(list(repos), job_id), daemon=True)
             thread.start()
@@ -960,34 +994,52 @@ def register_github_routes(bp, admin_required):
                 metadata={"repo": repo_name, "repo_id": repo_id},
             )
 
-            indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
-                owner, repo, repo_type, max_files=repo_max
-            )
-
-            # ── Complete Bridge Job ─────────────────────
-            if job_id:
-                dispatcher.update_job_progress(
-                    job_id,
-                    1,
-                    0,
-                    {
-                        "indexed": indexed,
-                        "skipped": skipped,
-                        "total_found": total_found,
-                    },
+            if not job_id:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"A reindex job for {repo_name} is already running",
+                            "duplicate": True,
+                        }
+                    ),
+                    409,
                 )
-                dispatcher.complete_job(job_id)
+
+            def _bg_reindex_single(o, r, rt, mx, jid):
+                from ai_bridge.bridge_dispatcher import get_dispatcher as _gd
+
+                d = _gd()
+                try:
+                    indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
+                        o, r, rt, max_files=mx
+                    )
+                    d.update_job_progress(
+                        jid,
+                        1,
+                        0,
+                        {"indexed": indexed, "skipped": skipped, "total_found": total_found},
+                    )
+                    d.complete_job(jid)
+                    logger.info(f"[GitHub] Reindex job #{jid} done: {indexed} files from {o}/{r}")
+                except Exception as e:
+                    logger.error(f"[GitHub] Reindex job #{jid} failed: {e}")
+                    d.update_job_progress(jid, 0, 1, {"error": str(e)})
+                    d.complete_job(jid)
+
+            thread = threading.Thread(
+                target=_bg_reindex_single,
+                args=(owner, repo, repo_type, repo_max, job_id),
+                daemon=True,
+            )
+            thread.start()
 
             return jsonify(
                 {
                     "success": True,
                     "repo": repo_name,
-                    "indexed": indexed,
-                    "skipped": skipped,
-                    "total_found": total_found,
-                    "capped_at": used_cap if was_capped else None,
-                    "errors": errs if errs else None,
                     "job_id": job_id,
+                    "message": f"Reindex job #{job_id} started — {repo_name} queued",
                 }
             )
 
@@ -1498,6 +1550,66 @@ def register_github_routes(bp, admin_required):
 
     # ==================================================================
     # REPOS SUMMARY API (NEW)
+    # ==================================================================
+
+    # ==================================================================
+    # GITHUB-SPECIFIC STATS
+    # ==================================================================
+
+    @bp.route("/github/stats")
+    @login_required
+    def github_stats():
+        """GitHub-specific file counts and embedding coverage."""
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) as total_files,
+                    SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END) as embedded_files
+                FROM knowledge_base
+                WHERE knowledge_type = 'github_file'
+                """
+            )
+            row = cur.fetchone()
+            total = row["total_files"] or 0
+            embedded = row["embedded_files"] or 0
+            pct = round((embedded / total) * 100) if total > 0 else 0
+
+            # Per-repo breakdown for verification
+            cur.execute(
+                """
+                SELECT r.id, r.repo_name, r.indexed_files as expected,
+                       COUNT(kb.id) as actual,
+                       SUM(CASE WHEN kb.embedding IS NOT NULL THEN 1 ELSE 0 END) as embedded
+                FROM github_repositories r
+                LEFT JOIN knowledge_base kb ON kb.knowledge_type = 'github_file'
+                    AND kb.memory_metadata->>'repo' = r.repo_name
+                GROUP BY r.id, r.repo_name, r.indexed_files
+                ORDER BY r.repo_name
+                """
+            )
+            repos = [dict(r) for r in cur.fetchall()]
+            mismatches = [r for r in repos if (r["expected"] or 0) != (r["actual"] or 0)]
+
+            cur.close()
+            conn.close()
+
+            return jsonify(
+                success=True,
+                total_files=total,
+                embedded_files=embedded,
+                embed_pct=pct,
+                repos=repos,
+                mismatches=mismatches,
+            )
+        except Exception as e:
+            logger.error(f"GitHub stats error: {e}")
+            return jsonify(success=False, error=str(e)), 500
+
+    # ==================================================================
+    # REPOS SUMMARY API
     # ==================================================================
 
     @bp.route("/api/github/repos")

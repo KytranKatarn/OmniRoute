@@ -5640,6 +5640,7 @@ def get_bridge_jobs():
                         "failed_steps": j["failed_steps"] or 0,
                         "status": j["status"],
                         "agent_name": j.get("agent_display_name") or j.get("agent_callsign") or "Unknown",
+                        "agent_callsign": j.get("agent_callsign") or "",
                         "metadata": j["metadata"] or {},
                         "progress_pct": progress_pct,
                         "eta_seconds": eta_seconds,

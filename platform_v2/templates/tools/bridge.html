@@ -2047,6 +2047,47 @@ body.light-mode .bridge-zone-unstaffed {
 .iso-station-zone.is-active .iso-console { opacity: 1; }
 .iso-station-zone.is-active .iso-console-glow { opacity: 0.6; }
 
+/* Active job indicator — station has a running bridge job */
+.iso-station-zone.has-active-job .iso-console {
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow:
+        0 4px 16px rgba(0,0,0,0.5),
+        0 0 12px rgba(16, 185, 129, 0.25),
+        inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.iso-station-zone.has-active-job .iso-console-glow {
+    opacity: 0.9;
+    animation: iso-job-glow-pulse 1.5s ease-in-out infinite;
+}
+.iso-station-zone.has-active-job .iso-status-dot {
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981, 0 0 12px rgba(16,185,129,0.4);
+    animation: iso-dot-pulse 1s ease-in-out infinite;
+}
+.iso-station-zone.has-active-job .iso-console-progress-bar {
+    animation: iso-progress-pulse 1s ease-in-out infinite, iso-job-shimmer 2s linear infinite;
+    background-image: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+    background-size: 200% 100%;
+}
+.iso-job-status-line {
+    font-size: 0.38rem;
+    color: #10b981;
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    line-height: 1.2;
+}
+@keyframes iso-job-glow-pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+@keyframes iso-job-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
 .iso-typing-cursor {
     display: inline-block;
     width: 3px;
@@ -7501,7 +7542,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Refresh intervals
     setInterval(loadOverviewData, 60000);
-    setInterval(loadStations, 60000);
+    setInterval(loadStations, 30000);
     setInterval(loadIAAEStatus, 30000);
     setInterval(loadStaffingStatus, 60000);
     setInterval(loadViewscreenData, 30000);
@@ -7528,8 +7569,11 @@ function updateClock() {
 
 async function loadStations() {
     try {
-        const resp = await fetch('/tools/bridge/api/stations');
-        const data = await resp.json();
+        const [stationResp, jobsResp] = await Promise.all([
+            fetch('/tools/bridge/api/stations'),
+            fetch('/tools/bridge/api/bridge/jobs?status=running')
+        ]);
+        const data = await stationResp.json();
         if (!data.success) return;
 
         allStations = data.stations;
@@ -7542,7 +7586,14 @@ async function loadStations() {
             }
         }
 
-        renderStations(data.stations);
+        // Parse running jobs
+        let runningJobs = [];
+        try {
+            const jobsData = await jobsResp.json();
+            if (jobsData.success) runningJobs = jobsData.jobs || [];
+        } catch (e) { /* ignore job fetch failures */ }
+
+        renderStations(data.stations, runningJobs);
         updateStationStats(data.stations);
         loadViewscreenData();
     } catch (error) {
@@ -7552,10 +7603,21 @@ async function loadStations() {
 
 // ── Isometric bridge render functions ──
 
-function renderStations(stations) {
+function renderStations(stations, runningJobs) {
     const container = document.getElementById('bridgeSpatialStations');
     if (!container) return;
     container.textContent = '';
+    runningJobs = runningJobs || [];
+
+    // Build lookup: agent code name → list of running jobs
+    const agentJobMap = {};
+    for (const job of runningJobs) {
+        const callsign = job.agent_callsign;
+        if (callsign) {
+            if (!agentJobMap[callsign]) agentJobMap[callsign] = [];
+            agentJobMap[callsign].push(job);
+        }
+    }
 
     // Group stations by isometric zone
     const zoneData = {};
@@ -7564,7 +7626,8 @@ function renderStations(stations) {
             agents: [],
             modules: [],
             totalNodes: 0,
-            primaryStation: null
+            primaryStation: null,
+            activeJobs: []
         };
     }
 
@@ -7577,6 +7640,14 @@ function renderStations(stations) {
         zd.agents = zd.agents.concat(station.assigned_agents || []);
         const cov = stationNodeCoverage[station.code] || {};
         zd.totalNodes += (cov.total_nodes || 0);
+    }
+
+    // Match running jobs to zones via agent callsign
+    for (const [zoneName, zd] of Object.entries(zoneData)) {
+        for (const agent of zd.agents) {
+            const jobs = agentJobMap[agent.name];
+            if (jobs) zd.activeJobs = zd.activeJobs.concat(jobs);
+        }
     }
 
     // Create an isometric zone element for each of the 6 zones
@@ -7595,7 +7666,9 @@ function createIsometricZone(zoneName, zoneInfo, zd) {
     if (zd.primaryStation) el.dataset.stationId = zd.primaryStation.id;
 
     const hasAgents = zd.agents.length > 0;
+    const hasActiveJobs = zd.activeJobs && zd.activeJobs.length > 0;
     el.classList.add(hasAgents ? 'is-active' : 'is-idle');
+    if (hasActiveJobs) el.classList.add('has-active-job');
 
     const moduleCount = zd.modules.length;
     const utilPct = Math.min(100, Math.round(moduleCount * 10));
@@ -7699,24 +7772,40 @@ function createIsometricZone(zoneName, zoneInfo, zd) {
     const statusDiv = document.createElement('div');
     statusDiv.className = 'iso-console-status ' + (hasAgents ? 'active' : 'idle');
     const iconSpan = document.createElement('span');
-    iconSpan.innerHTML = hasAgents ? '&#9654;' : '&#9724;';
+    iconSpan.textContent = hasActiveJobs ? '\u2699' : (hasAgents ? '\u25B6' : '\u25FC');
     statusDiv.appendChild(iconSpan);
     statusDiv.appendChild(document.createTextNode(' ' + (hasAgents ? moduleCount + ' modules active' : 'Standing by')));
-    if (hasAgents) {
+    if (hasAgents && !hasActiveJobs) {
         const cursor = document.createElement('span');
         cursor.className = 'iso-typing-cursor';
         statusDiv.appendChild(cursor);
     }
     screen.appendChild(statusDiv);
 
-    const progressTrack = document.createElement('div');
-    progressTrack.className = 'iso-console-progress';
-    const progressBar = document.createElement('div');
-    progressBar.className = 'iso-console-progress-bar';
-    progressBar.style.width = utilPct + '%';
-    progressBar.style.background = zoneInfo.color;
-    progressTrack.appendChild(progressBar);
-    screen.appendChild(progressTrack);
+    // Show active job info + progress bars (one per running job)
+    if (hasActiveJobs) {
+        for (var ji = 0; ji < zd.activeJobs.length; ji++) {
+            const job = zd.activeJobs[ji];
+            const jobLine = document.createElement('div');
+            jobLine.className = 'iso-job-status-line';
+            var jobText = (job.description || job.job_type || 'Working');
+            if (job.total_steps > 0) {
+                jobText += ' ' + job.completed_steps + '/' + job.total_steps;
+            }
+            jobLine.textContent = jobText;
+            screen.appendChild(jobLine);
+
+            const progressTrack = document.createElement('div');
+            progressTrack.className = 'iso-console-progress';
+            const progressBar = document.createElement('div');
+            progressBar.className = 'iso-console-progress-bar';
+            const jobPct = job.total_steps > 0 ? Math.round((job.completed_steps / job.total_steps) * 100) : 0;
+            progressBar.style.width = jobPct + '%';
+            progressBar.style.background = '#10b981';
+            progressTrack.appendChild(progressBar);
+            screen.appendChild(progressTrack);
+        }
+    }
 
     console.appendChild(screen);
 
@@ -8027,6 +8116,58 @@ function renderCrewTab(agents, stationColor) {
     var panel = document.getElementById('lcarsCrewPanel');
     if (!panel) return;
     panel.textContent = '';
+
+    // Show active job banner if zone has running jobs
+    var zoneCtx = _consoleCurrentZone;
+    var activeJobs = (zoneCtx && zoneCtx.zd && zoneCtx.zd.activeJobs) || [];
+    if (activeJobs.length > 0) {
+        var jobBanner = document.createElement('div');
+        jobBanner.style.cssText = 'background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;';
+
+        var bannerHeader = document.createElement('div');
+        bannerHeader.style.cssText = 'font-size:0.65rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#10b981;margin-bottom:6px;';
+        bannerHeader.textContent = '\u2699 ACTIVE JOBS (' + activeJobs.length + ')';
+        jobBanner.appendChild(bannerHeader);
+
+        for (var ji = 0; ji < activeJobs.length; ji++) {
+            var ajob = activeJobs[ji];
+            var jobRow = document.createElement('div');
+            jobRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;' + (ji > 0 ? 'border-top:1px solid rgba(255,255,255,0.05);' : '');
+
+            var jobInfo = document.createElement('div');
+            jobInfo.style.cssText = 'flex:1;min-width:0;';
+
+            var jobDesc = document.createElement('div');
+            jobDesc.style.cssText = 'font-size:0.8rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+            jobDesc.textContent = ajob.description || ajob.job_type || 'Working...';
+            jobInfo.appendChild(jobDesc);
+
+            var jobAgent = document.createElement('div');
+            jobAgent.style.cssText = 'font-size:0.7rem;opacity:0.5;';
+            jobAgent.textContent = ajob.agent_name || '';
+            jobInfo.appendChild(jobAgent);
+
+            jobRow.appendChild(jobInfo);
+
+            var jobProg = document.createElement('div');
+            jobProg.style.cssText = 'text-align:right;flex-shrink:0;';
+            var jobPct = ajob.total_steps > 0 ? Math.round((ajob.completed_steps / ajob.total_steps) * 100) : 0;
+
+            var pctEl = document.createElement('div');
+            pctEl.style.cssText = 'font-size:0.85rem;font-weight:700;font-family:Orbitron,sans-serif;color:#10b981;';
+            pctEl.textContent = jobPct + '%';
+            jobProg.appendChild(pctEl);
+
+            var stepsEl = document.createElement('div');
+            stepsEl.style.cssText = 'font-size:0.6rem;opacity:0.5;';
+            stepsEl.textContent = ajob.completed_steps + '/' + ajob.total_steps;
+            jobProg.appendChild(stepsEl);
+
+            jobRow.appendChild(jobProg);
+            jobBanner.appendChild(jobRow);
+        }
+        panel.appendChild(jobBanner);
+    }
 
     if (!agents || agents.length === 0) {
         var emptyEl = document.createElement('div');

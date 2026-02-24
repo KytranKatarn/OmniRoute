@@ -445,42 +445,35 @@ function loadEmbeddingStatus() {
 
 /* ── Bridge Job Progress Poller ─────────────────────── */
 
-function _renderJobProgress(data, el) {
-  var job = data.job;
-  var pct = job.total_steps > 0 ? Math.round((job.completed_steps / job.total_steps) * 100) : 0;
-  var barColor = job.status === "completed" ? "#22c55e" : job.status === "failed" ? "#ef4444" : "#8b5cf6";
-  var statusIcon = job.status === "completed" ? "\u2713" : job.status === "failed" ? "\u2717" : "\u25B6";
-  var agentLabel = job.agent_display || job.agent_name || "Unassigned";
-
-  var html = '<div class="cs-pipeline-step" style="flex-direction:column;align-items:stretch;gap:8px">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      '<span><span class="cs-pipeline-icon" style="color:' + barColor + '">' + statusIcon + '</span> ' +
-        escHtml(job.description) + '</span>' +
-      '<span class="cs-badge blue">' + escHtml(agentLabel) + '</span>' +
-    '</div>' +
-    '<div style="background:rgba(255,255,255,0.08);border-radius:6px;height:8px;overflow:hidden">' +
-      '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width 0.5s ease"></div>' +
-    '</div>' +
-    '<div style="display:flex;justify-content:space-between;font-size:0.82rem;opacity:0.7">' +
-      '<span>' + job.completed_steps + ' / ' + job.total_steps + ' steps' +
-        (job.failed_steps > 0 ? ' (' + job.failed_steps + ' failed)' : '') + '</span>' +
-      '<span>' + pct + '%</span>' +
-    '</div>' +
-  '</div>';
-  setHtml(el, html);
-}
+/* _renderJobProgress removed — replaced by _renderBridgeJob (uses Bridge as source of truth) */
 
 function _pollJobStatus(jobId, el, onComplete) {
+  /* Poll Bridge Command for job progress — single source of truth */
   var retries = 0;
   var maxRetries = 3;
   var poll = setInterval(function() {
-    api("/api/processing/job-status/" + jobId).then(function(data) {
-      retries = 0; // reset on success
+    fetch("/tools/bridge/api/bridge/jobs/" + jobId).then(function(resp) {
+      var ct = resp.headers.get("content-type") || "";
+      if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
+      return resp.json();
+    }).then(function(data) {
+      retries = 0;
       if (!data.success) { clearInterval(poll); return; }
-      _renderJobProgress(data, el);
-      if (data.job.status === "completed" || data.job.status === "failed" || data.job.status === "cancelled") {
+      var j = data.job;
+      /* Render using Bridge format */
+      var pct = j.total_steps > 0 ? Math.round(((j.completed_steps || 0) / j.total_steps) * 100) : 0;
+      _renderBridgeJob({
+        description: j.description,
+        agent_name: j.agent_display_name || j.agent_name || "Agent",
+        completed_steps: j.completed_steps || 0,
+        total_steps: j.total_steps || 0,
+        failed_steps: j.failed_steps || 0,
+        progress_pct: pct,
+        status: j.status
+      }, el);
+      if (j.status === "completed" || j.status === "failed" || j.status === "cancelled") {
         clearInterval(poll);
-        if (onComplete) onComplete(data.job);
+        if (onComplete) onComplete(j);
       }
     }).catch(function() {
       retries++;
@@ -488,7 +481,7 @@ function _pollJobStatus(jobId, el, onComplete) {
         clearInterval(poll);
         setHtml(el, '<div class="cs-pipeline-step" style="color:rgba(255,255,255,0.5);">' +
           '<span class="cs-pipeline-icon" style="color:#8b5cf6;">\u25B6</span> ' +
-          'Job #' + jobId + ' running \u2014 check Bridge Command for live progress</div>');
+          'Job #' + jobId + ' running \u2014 check <a href="/tools/bridge" style="color:#8b5cf6;">Bridge Command</a> for live progress</div>');
         if (onComplete) onComplete(null);
       }
     });
@@ -499,26 +492,32 @@ function _pollJobStatus(jobId, el, onComplete) {
 
 var _activeJobPolls = {};
 
-function _renderActiveJob(job, el) {
-  _renderJobProgress({ job: job }, el);
-}
-
 function checkActiveJobs() {
-  api("/api/processing/active-jobs").then(function(data) {
-    if (!data.success || !data.jobs || !data.jobs.length) {
+  /* Pull from Bridge Command — single source of truth for agent/station work */
+  fetch("/tools/bridge/api/bridge/jobs?status=running").then(function(resp) {
+    var ct = resp.headers.get("content-type") || "";
+    if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
+    return resp.json();
+  }).then(function(data) {
+    if (!data.success) { _enableProcessingBtns(); _enableGitHubBtns(); return; }
+
+    /* Filter to consciousness module jobs */
+    var myJobs = (data.jobs || []).filter(function(j) {
+      return j.module_source === "consciousness";
+    });
+
+    if (!myJobs.length) {
       _enableProcessingBtns();
       _enableGitHubBtns();
       return;
     }
 
-    // Any running job blocks both tabs — embeddings and indexing share resources
-    var allJobs = data.jobs;
-    var firstJob = allJobs[0];
+    var firstJob = myJobs[0];
 
-    // Processing tab: show the active job
+    /* Render on Processing tab */
     var procEl = document.getElementById("procResult");
     if (procEl) {
-      _renderActiveJob(firstJob, "procResult");
+      _renderBridgeJob(firstJob, "procResult");
       _disableProcessingBtns();
     }
     if (!_activeJobPolls["proc"]) {
@@ -531,10 +530,10 @@ function checkActiveJobs() {
       });
     }
 
-    // GitHub tab: show the same active job
+    /* Render on GitHub tab */
     var ghEl = document.getElementById("ghActionResult");
     if (ghEl) {
-      _renderActiveJob(firstJob, "ghActionResult");
+      _renderBridgeJob(firstJob, "ghActionResult");
       _disableGitHubBtns();
     }
     if (!_activeJobPolls["gh"]) {
@@ -546,7 +545,42 @@ function checkActiveJobs() {
         loadGitHubEmbedStats();
       });
     }
-  }).catch(function() {});
+  }).catch(function() {
+    /* Bridge unavailable — don't block */
+    _enableProcessingBtns();
+    _enableGitHubBtns();
+  });
+}
+
+function _renderBridgeJob(job, el) {
+  /* Render a Bridge job object (from /api/bridge/jobs) with agent, progress, ETA */
+  var pct = job.progress_pct || 0;
+  var barColor = "#8b5cf6";
+  var agent = job.agent_name || "Unassigned";
+  var eta = "";
+  if (job.eta_seconds && job.eta_seconds > 0) {
+    var m = Math.floor(job.eta_seconds / 60);
+    var s = job.eta_seconds % 60;
+    eta = m > 0 ? " \u2022 ~" + m + "m " + s + "s remaining" : " \u2022 ~" + s + "s remaining";
+  }
+
+  var html = '<div class="cs-pipeline-step" style="flex-direction:column;align-items:stretch;gap:8px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<span><span class="cs-pipeline-icon" style="color:' + barColor + '">\u25B6</span> ' +
+        escHtml(job.description) + '</span>' +
+      '<span class="cs-badge blue">' + escHtml(agent) + '</span>' +
+    '</div>' +
+    '<div style="background:rgba(255,255,255,0.08);border-radius:6px;height:8px;overflow:hidden">' +
+      '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width 0.5s ease"></div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:0.82rem;opacity:0.7">' +
+      '<span>' + (job.completed_steps || 0) + ' / ' + (job.total_steps || 0) + ' steps' +
+        (job.failed_steps > 0 ? ' (' + job.failed_steps + ' failed)' : '') +
+        eta + '</span>' +
+      '<span>' + pct + '%</span>' +
+    '</div>' +
+  '</div>';
+  setHtml(el, html);
 }
 
 function _disableProcessingBtns() {

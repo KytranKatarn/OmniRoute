@@ -102,8 +102,9 @@
     position: relative;
 }
 
-/* Hide header + status bar on Stations tab — saves ~200px vertical */
-.bridge-container.stations-active .bridge-header { display: none; }
+/* Hide header on all tabs — status bar + ops strip carry the same info */
+.bridge-header { display: none !important; }
+/* Hide status bar on Stations tab — ops strip has inline status there */
 .bridge-container.stations-active .bridge-status-bar { display: none; }
 
 .bridge-header::after {
@@ -483,6 +484,17 @@ body.light-mode .status-bar-divider {
     font-weight: 600;
     white-space: nowrap;
     flex-shrink: 0;
+}
+
+.viewscreen-task {
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 0.6rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.7;
 }
 
 .viewscreen-detail {
@@ -2264,7 +2276,7 @@ body.light-mode .bridge-zone-unstaffed {
 /* ── Station Positions — Horseshoe arrangement ── */
 
 .iso-zone-command {
-    top: 50%;
+    top: 58%;
     left: 50%;
     transform: translate(-50%, -50%);
 }
@@ -2296,7 +2308,7 @@ body.light-mode .bridge-zone-unstaffed {
 }
 
 .iso-zone-research {
-    top: 72%;
+    top: 10%;
     left: 50%;
     transform: translate(-50%, -50%);
 }
@@ -2423,7 +2435,7 @@ body.light-mode .bridge-zone-unstaffed {
 /* ── Responsive 768px ── */
 @media (max-width: 768px) {
     .iso-bridge-room { max-width: 600px; /* inherits aspect-ratio 1/0.62 → 372px */ }
-    .iso-viewscreen { width: 58%; padding: 8px 10px; }
+    .iso-viewscreen { width: 58%; padding: 8px 10px; top: 20%; }
     .iso-viewscreen .bridge-viewscreen-event { font-size: 0.52rem; }
     .iso-viewscreen .viewscreen-detail { display: none; }
     .iso-console { width: 95px; height: 46px; }
@@ -2437,6 +2449,14 @@ body.light-mode .bridge-zone-unstaffed {
     .iso-station-name { font-size: 0.48rem; }
     .iso-station-name .iso-module-count { display: none; }
     .iso-wall-panel { display: none; }
+
+    /* Zone positions — research top, command bottom */
+    .iso-zone-research { top: 6%; }
+    .iso-zone-command { top: 80%; }
+    .iso-zone-creative { top: 24%; }
+    .iso-zone-engineering { top: 24%; }
+    .iso-zone-operations { top: 52%; }
+    .iso-zone-analytics { top: 52%; }
 }
 
 /* ── Responsive 500px (Fold5) ── */
@@ -2450,10 +2470,11 @@ body.light-mode .bridge-zone-unstaffed {
         transform: rotateX(10deg);
     }
 
-    .iso-viewscreen { width: 52%; padding: 5px 7px; top: 2%; }
+    .iso-viewscreen { width: 52%; padding: 5px 7px; top: 18%; }
     .iso-viewscreen .bridge-viewscreen-header { font-size: 0.38rem; margin-bottom: 2px; }
     .iso-viewscreen .bridge-viewscreen-event { font-size: 0.38rem; line-height: 1.4; }
     .iso-viewscreen .viewscreen-detail { display: none; }
+    .iso-viewscreen .viewscreen-task { display: none; }
     .iso-viewscreen .viewscreen-station { display: none; }
 
     .iso-console { width: 70px; height: 32px; }
@@ -2472,12 +2493,12 @@ body.light-mode .bridge-zone-unstaffed {
 
     .iso-station-floor-glow { width: 60px; height: 16px; bottom: -10px; filter: blur(6px); }
 
-    .iso-zone-creative { top: 22%; left: 18%; }
-    .iso-zone-engineering { top: 22%; right: 18%; }
-    .iso-zone-operations { top: 48%; left: 10%; }
-    .iso-zone-analytics { top: 48%; right: 10%; }
-    .iso-zone-research { top: 72%; }
-    .iso-zone-command { top: 48%; }
+    .iso-zone-creative { top: 20%; left: 18%; }
+    .iso-zone-engineering { top: 20%; right: 18%; }
+    .iso-zone-operations { top: 46%; left: 10%; }
+    .iso-zone-analytics { top: 46%; right: 10%; }
+    .iso-zone-research { top: 5%; }
+    .iso-zone-command { top: 76%; }
 
     .iso-wall-panel { display: none; }
     .iso-bridge-center-marker { width: 30px; height: 30px; }
@@ -9837,12 +9858,17 @@ function renderViewscreen(events, trafficData) {
                 statusHtml = '<span class="viewscreen-status fail">&cross;</span>';
             }
 
+            // Build short task description from task_type/capability
+            var taskDesc = evt.task_type || evt.capability || '';
+            // Clean up common prefixes and make readable
+            taskDesc = taskDesc.replace(/_/g, ' ');
+
             html += '<div class="bridge-viewscreen-event" data-station-code="' + escapeHtml(zoneName) + '">'
                 + '<span class="viewscreen-time">' + escapeHtml(timeStr) + '</span>'
                 + '<span class="viewscreen-agent">' + escapeHtml(evt.agent_name || 'Unknown') + '</span>'
                 + '<span class="viewscreen-arrow">&rarr;</span>'
                 + '<span class="viewscreen-station" style="color:' + zoneColor + '">' + escapeHtml(zoneAbbr) + '</span>'
-                + '<span class="viewscreen-detail">' + escapeHtml(evt.model_used || '') + '</span>'
+                + '<span class="viewscreen-task">' + escapeHtml(taskDesc) + '</span>'
                 + statusHtml
                 + '</div>';
         }

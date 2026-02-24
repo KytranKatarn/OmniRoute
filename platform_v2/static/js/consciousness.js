@@ -511,46 +511,40 @@ function checkActiveJobs() {
       return;
     }
 
-    var procJobs = data.jobs.filter(function(j) {
-      return j.job_type === "batch_analysis" || j.job_type === "batch_embedding";
-    });
-    var ghJobs = data.jobs.filter(function(j) {
-      return j.job_type.indexOf("github") === 0;
-    });
+    // Any running job blocks both tabs — embeddings and indexing share resources
+    var allJobs = data.jobs;
+    var firstJob = allJobs[0];
 
-    // Processing tab: show active job + disable buttons
-    if (procJobs.length > 0) {
-      var j = procJobs[0];
-      _renderActiveJob(j, "procResult");
+    // Processing tab: show the active job
+    var procEl = document.getElementById("procResult");
+    if (procEl) {
+      _renderActiveJob(firstJob, "procResult");
       _disableProcessingBtns();
-      if (!_activeJobPolls["proc"]) {
-        _activeJobPolls["proc"] = true;
-        _pollJobStatus(j.id, "procResult", function() {
-          _activeJobPolls["proc"] = false;
-          _enableProcessingBtns();
-          loadProcessingStatus();
-          loadEmbeddingStatus();
-        });
-      }
-    } else {
-      _enableProcessingBtns();
+    }
+    if (!_activeJobPolls["proc"]) {
+      _activeJobPolls["proc"] = true;
+      _pollJobStatus(firstJob.id, "procResult", function() {
+        _activeJobPolls["proc"] = false;
+        _enableProcessingBtns();
+        loadProcessingStatus();
+        loadEmbeddingStatus();
+      });
     }
 
-    // GitHub tab: show active job + disable buttons
-    if (ghJobs.length > 0) {
-      var g = ghJobs[0];
-      _renderActiveJob(g, "ghActionResult");
+    // GitHub tab: show the same active job
+    var ghEl = document.getElementById("ghActionResult");
+    if (ghEl) {
+      _renderActiveJob(firstJob, "ghActionResult");
       _disableGitHubBtns();
-      if (!_activeJobPolls["gh"]) {
-        _activeJobPolls["gh"] = true;
-        _pollJobStatus(g.id, "ghActionResult", function() {
-          _activeJobPolls["gh"] = false;
-          _enableGitHubBtns();
-          loadGitHub();
-        });
-      }
-    } else {
-      _enableGitHubBtns();
+    }
+    if (!_activeJobPolls["gh"]) {
+      _activeJobPolls["gh"] = true;
+      _pollJobStatus(firstJob.id, "ghActionResult", function() {
+        _activeJobPolls["gh"] = false;
+        _enableGitHubBtns();
+        loadGitHub();
+        loadGitHubEmbedStats();
+      });
     }
   }).catch(function() {});
 }

@@ -1260,14 +1260,16 @@ class BridgeDispatcher:
                 WHERE agent_id = %s AND token_reset_at < NOW()
             """, (tokens_used, agent_id))
             if cur.rowcount == 0:
-                # No reset needed — normal increment
+                # No reset needed — normal increment (or INSERT if row missing)
                 cur.execute("""
-                    UPDATE agent_budgets
-                    SET current_task_count = current_task_count + 1,
-                        tokens_used_today = tokens_used_today + %s,
+                    INSERT INTO agent_budgets (agent_id, current_task_count, tokens_used_today,
+                        task_queue_limit, token_limit_per_day, token_reset_at, updated_at)
+                    VALUES (%s, 1, %s, 10, 100000, NOW() + INTERVAL '1 day', NOW())
+                    ON CONFLICT (agent_id) DO UPDATE SET
+                        current_task_count = agent_budgets.current_task_count + 1,
+                        tokens_used_today = agent_budgets.tokens_used_today + %s,
                         updated_at = NOW()
-                    WHERE agent_id = %s
-                """, (tokens_used, agent_id))
+                """, (agent_id, tokens_used, tokens_used))
             conn.commit()
             cur.close()
             conn.close()
@@ -2073,6 +2075,46 @@ class BridgeDispatcher:
         self._log_execution(result, module_id, user_id)
 
     # ========================================================================
+    # IAAE GOVERNANCE INTEGRATION
+    # ========================================================================
+
+    def _log_governance(
+        self,
+        event_type: str,
+        action: str,
+        agent_name: Optional[str] = None,
+        reason: Optional[str] = None,
+        outcome: str = "success",
+    ):
+        """Log to governance_audit_log for Vigil overwatch.
+
+        Makes batch job lifecycle visible to the IAAE transparency system.
+        Uses direct DB insert (not iaae_routes) because this may be called
+        from background threads without a Flask request context.
+        Failures are silently logged — governance logging should never block work.
+        """
+        try:
+            agent_id = None
+            if agent_name and agent_name in self._agent_cache:
+                agent_id = self._agent_cache[agent_name].get("id")
+
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                (event_type, event_category, agent_id, action, reason, outcome)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (event_type, "bridge_dispatch", agent_id, action, reason, outcome),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Governance log skipped: {e}")
+
+    # ========================================================================
     # JOB MANAGEMENT
     # ========================================================================
 
@@ -2125,6 +2167,12 @@ class BridgeDispatcher:
                     f"[BridgeDispatcher] Duplicate job blocked: {job_type}/{module_source} "
                     f"already running as job #{eid}"
                 )
+                self._log_governance(
+                    "batch_job",
+                    "duplicate_blocked",
+                    reason=f"Duplicate {job_type}/{module_source} blocked — job #{eid} already running",
+                    outcome="blocked",
+                )
                 return None
 
             # Resolve agent name from capability→station→agent mapping
@@ -2162,6 +2210,22 @@ class BridgeDispatcher:
                 f"[BridgeDispatcher] Created job #{job_id}: {description} "
                 f"({total_steps} steps, agent={agent_name})"
             )
+
+            # ── IAAE governance: log job creation for Vigil overwatch ──
+            self._log_governance(
+                "batch_job",
+                "create_job",
+                agent_name=agent_name,
+                reason=f"Job #{job_id}: {description} ({total_steps} steps, module={module_source})",
+                outcome="created",
+            )
+
+            # ── HR tracking: register workload on agent's budget ──
+            # This makes _score_agent() see the load and eventually
+            # block the agent / trigger escalation when limit is reached.
+            if agent:
+                self._increment_agent_budget(agent.get("id"), tokens_used=0)
+
             return job_id
         except Exception as e:
             logger.error(f"[BridgeDispatcher] create_job failed: {e}")
@@ -2263,13 +2327,62 @@ class BridgeDispatcher:
                 UPDATE bridge_jobs
                 SET status = %s, completed_at = NOW(), updated_at = NOW()
                 WHERE id = %s
+                RETURNING agent_name, module_source, description,
+                          completed_steps, failed_steps, total_steps,
+                          job_type,
+                          (EXTRACT(EPOCH FROM (NOW() - created_at)) * 1000)::int
                 """,
                 (status, job_id),
             )
+            row = cur.fetchone()
             conn.commit()
             cur.close()
             conn.close()
             logger.info(f"[BridgeDispatcher] Job #{job_id} → {status}")
+
+            # ── IAAE governance: log job completion for Vigil overwatch ──
+            if row:
+                a_name = row[0]
+                m_src = row[1]
+                desc = row[2]
+                c_steps = row[3] or 0
+                f_steps = row[4] or 0
+                t_steps = row[5] or 0
+                j_type = row[6] or ""
+                dur_ms = row[7] or 0
+                self._log_governance(
+                    "batch_job",
+                    "complete_job",
+                    agent_name=a_name,
+                    reason=(
+                        f"Job #{job_id} {status}: {desc} "
+                        f"({c_steps}/{t_steps} done, {f_steps} failed, module={m_src})"
+                    ),
+                    outcome=status,
+                )
+
+                # ── HR tracking: log to task_execution_log + update welfare ──
+                # This feeds the roster (recent tasks), agent performance stats,
+                # and welfare (mood/stress/energy) so batch jobs are fully visible.
+                if status in ("completed", "failed"):
+                    agent_id = None
+                    if a_name and a_name in self._agent_cache:
+                        agent_id = self._agent_cache[a_name].get("id")
+                    cap_key = j_type.split("_")[0] if j_type else "batch"
+                    station_code = CAPABILITY_STATION_MAP.get(cap_key, "COMMAND")
+                    batch_result = DispatchResult(
+                        success=(status == "completed"),
+                        response=f"Batch job #{job_id}: {desc}",
+                        agent_name=a_name or "unassigned",
+                        agent_id=agent_id,
+                        model_used="batch",
+                        station_code=station_code,
+                        capability=j_type or "batch",
+                        duration_ms=dur_ms,
+                        error=f"{f_steps}/{t_steps} steps failed" if f_steps else None,
+                    )
+                    self._log_execution(batch_result, m_src or "unknown", job_id=job_id)
+
             return True
         except Exception as e:
             logger.error(f"[BridgeDispatcher] complete_job failed: {e}")

@@ -56,6 +56,10 @@ function api(path, opts) {
     fetchOpts.body = JSON.stringify(opts.body);
   }
   return fetch(url, fetchOpts).then(function (resp) {
+    var ct = resp.headers.get("content-type") || "";
+    if (ct.indexOf("application/json") === -1) {
+      return Promise.reject(new Error("Session expired — please refresh the page"));
+    }
     return resp.json();
   });
 }
@@ -463,16 +467,28 @@ function _renderJobProgress(data, el) {
 }
 
 function _pollJobStatus(jobId, el, onComplete) {
+  var retries = 0;
+  var maxRetries = 3;
   var poll = setInterval(function() {
     api("/api/processing/job-status/" + jobId).then(function(data) {
+      retries = 0; // reset on success
       if (!data.success) { clearInterval(poll); return; }
       _renderJobProgress(data, el);
       if (data.job.status === "completed" || data.job.status === "failed" || data.job.status === "cancelled") {
         clearInterval(poll);
         if (onComplete) onComplete(data.job);
       }
-    }).catch(function() { clearInterval(poll); });
-  }, 2000);
+    }).catch(function() {
+      retries++;
+      if (retries >= maxRetries) {
+        clearInterval(poll);
+        setHtml(el, '<div class="cs-pipeline-step" style="color:rgba(255,255,255,0.5);">' +
+          '<span class="cs-pipeline-icon" style="color:#8b5cf6;">\u25B6</span> ' +
+          'Job #' + jobId + ' running \u2014 check Bridge Command for live progress</div>');
+        if (onComplete) onComplete(null);
+      }
+    });
+  }, 3000);
 }
 
 window.startAnalysis = function() {

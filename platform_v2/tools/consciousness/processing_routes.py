@@ -861,6 +861,64 @@ def get_job_status(job_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@processing_bp.route("/active-jobs", methods=["GET"])
+def get_active_jobs():
+    """Return any currently running bridge jobs from the consciousness module.
+
+    The frontend uses this to:
+    - Show live status of in-progress work (agent name, progress bar)
+    - Disable action buttons so users can't double-trigger jobs
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT bj.id, bj.job_type, bj.description,
+                   bj.total_steps, bj.completed_steps, bj.failed_steps,
+                   bj.status, bj.agent_name, bj.metadata,
+                   bj.created_at, bj.updated_at,
+                   COALESCE(
+                       NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                       a.name,
+                       bj.agent_name
+                   ) as agent_display
+            FROM bridge_jobs bj
+            LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+            WHERE bj.module_source = 'consciousness'
+              AND bj.status IN ('pending', 'running')
+            ORDER BY bj.created_at DESC
+            """,
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        jobs = []
+        for row in rows:
+            jobs.append(
+                {
+                    "id": row[0],
+                    "job_type": row[1],
+                    "description": row[2],
+                    "total_steps": row[3],
+                    "completed_steps": row[4] or 0,
+                    "failed_steps": row[5] or 0,
+                    "status": row[6],
+                    "agent_name": row[7],
+                    "metadata": row[8] if isinstance(row[8], dict) else json.loads(row[8] or "{}"),
+                    "created_at": row[9].isoformat() if row[9] else None,
+                    "updated_at": row[10].isoformat() if row[10] else None,
+                    "agent_display": row[11],
+                }
+            )
+
+        return jsonify({"success": True, "jobs": jobs})
+    except Exception as e:
+        logger.error(f"Active jobs lookup failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @processing_bp.route("/history", methods=["GET"])
 def get_processing_history():
     """Get recent processing history"""

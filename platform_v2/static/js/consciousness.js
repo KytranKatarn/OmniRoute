@@ -75,6 +75,10 @@ window.switchConsciousnessTab = function (tab) {
   });
   history.replaceState(null, "", "#" + tab);
   loadTabData(tab);
+  // Check for active bridge jobs on tabs that have action buttons
+  if (tab === "knowledge" || tab === "github") {
+    checkActiveJobs();
+  }
 };
 
 function loadTabData(tab) {
@@ -489,6 +493,94 @@ function _pollJobStatus(jobId, el, onComplete) {
       }
     });
   }, 3000);
+}
+
+/* ── Active Job Status ─────────────────────────────── */
+
+var _activeJobPolls = {};
+
+function _renderActiveJob(job, el) {
+  _renderJobProgress({ job: job }, el);
+}
+
+function checkActiveJobs() {
+  api("/api/processing/active-jobs").then(function(data) {
+    if (!data.success || !data.jobs || !data.jobs.length) {
+      _enableProcessingBtns();
+      _enableGitHubBtns();
+      return;
+    }
+
+    var procJobs = data.jobs.filter(function(j) {
+      return j.job_type === "batch_analysis" || j.job_type === "batch_embedding";
+    });
+    var ghJobs = data.jobs.filter(function(j) {
+      return j.job_type.indexOf("github") === 0;
+    });
+
+    // Processing tab: show active job + disable buttons
+    if (procJobs.length > 0) {
+      var j = procJobs[0];
+      _renderActiveJob(j, "procResult");
+      _disableProcessingBtns();
+      if (!_activeJobPolls["proc"]) {
+        _activeJobPolls["proc"] = true;
+        _pollJobStatus(j.id, "procResult", function() {
+          _activeJobPolls["proc"] = false;
+          _enableProcessingBtns();
+          loadProcessingStatus();
+          loadEmbeddingStatus();
+        });
+      }
+    } else {
+      _enableProcessingBtns();
+    }
+
+    // GitHub tab: show active job + disable buttons
+    if (ghJobs.length > 0) {
+      var g = ghJobs[0];
+      _renderActiveJob(g, "ghActionResult");
+      _disableGitHubBtns();
+      if (!_activeJobPolls["gh"]) {
+        _activeJobPolls["gh"] = true;
+        _pollJobStatus(g.id, "ghActionResult", function() {
+          _activeJobPolls["gh"] = false;
+          _enableGitHubBtns();
+          loadGitHub();
+        });
+      }
+    } else {
+      _enableGitHubBtns();
+    }
+  }).catch(function() {});
+}
+
+function _disableProcessingBtns() {
+  var a = document.getElementById("btnStartAnalysis");
+  var b = document.getElementById("btnGenerateEmbed");
+  if (a) a.disabled = true;
+  if (b) b.disabled = true;
+}
+
+function _enableProcessingBtns() {
+  var a = document.getElementById("btnStartAnalysis");
+  var b = document.getElementById("btnGenerateEmbed");
+  if (a) a.disabled = false;
+  if (b) b.disabled = false;
+}
+
+function _disableGitHubBtns() {
+  var a = document.getElementById("btnReindexAll");
+  var b = document.getElementById("btnEmbedGH");
+  if (a) a.disabled = true;
+  if (b) b.disabled = true;
+}
+
+function _enableGitHubBtns() {
+  var a = document.getElementById("btnReindexAll");
+  var b = document.getElementById("btnEmbedGH");
+  if (a) a.disabled = false;
+  if (b) b.disabled = false;
 }
 
 window.startAnalysis = function() {

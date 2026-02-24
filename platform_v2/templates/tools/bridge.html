@@ -6582,6 +6582,7 @@ body.light-mode .bridge-hud-value {
             <button class="btn-danger" onclick="deleteAgentFromProfile()" style="margin-right:auto;font-size:0.7rem;">Delete</button>
             <button class="btn-cancel" onclick="toggleAgentFromProfile()" style="font-size:0.7rem;">Toggle Status</button>
             <button class="btn-submit" onclick="editAgentFromProfile()" style="font-size:0.7rem;">Edit</button>
+            <button class="btn-submit" onclick="viewPersonnelFile()" style="font-size:0.7rem;background:var(--archie-purple,#8b5cf6);" data-i18n="bridge.agent.view_personnel_file">Personnel File</button>
             <button class="btn-cancel" onclick="closeAgentProfile()">Close</button>
         </div>
     </div>
@@ -11751,6 +11752,11 @@ function closeAgentProfile() {
 
 // Store current profile agent ID for edit/delete/toggle
 var _profileAgentId = null;
+
+function viewPersonnelFile() {
+    if (!_profileAgentId) return;
+    window.location.href = '/tools/consciousness#team';
+}
 
 function editAgentFromProfile() {
     if (!_profileAgentId) return;

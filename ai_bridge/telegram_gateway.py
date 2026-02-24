@@ -436,9 +436,11 @@ class TelegramGateway:
         )
 
     async def _callback_handler(self, update, context):
-        """Handle inline keyboard callbacks (approve/reject)."""
+        """Handle inline keyboard callbacks (approve/reject) — fallback for non-esc_ patterns."""
         query = update.callback_query
         await query.answer()
+
+        logger.info(f"[TelegramGateway] Generic callback: data={query.data}")
 
         tg_user = query.from_user
         user_info = self._get_authorized_user(tg_user.id)
@@ -462,8 +464,11 @@ class TelegramGateway:
         await query.answer()
 
         tg_user = query.from_user
+        logger.info(f"[TelegramGateway] Escalation callback: data={query.data} from user={tg_user.id}")
+
         user_info = self._get_authorized_user(tg_user.id)
         if not user_info:
+            logger.warning(f"[TelegramGateway] Unauthorized callback from {tg_user.id}")
             await query.edit_message_text("Unauthorized.")
             return
 

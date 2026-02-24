@@ -1085,10 +1085,13 @@ function loadGitHub() {
 }
 
 function loadGitHubEmbedStats() {
-  api("/processing/embedding-coverage").then(function(data) {
-    if (data.coverage_pct !== undefined) {
-      setHtml("ghEmbedPct", data.coverage_pct + "%");
-      setHtml("ghSearchable", (data.embedded || 0).toLocaleString());
+  api("/api/processing/embedding-coverage").then(function(data) {
+    if (data.success && data.totals) {
+      var total = data.totals.total || 0;
+      var embedded = data.totals.embedded || 0;
+      var pct = total > 0 ? Math.round((embedded / total) * 100) : 0;
+      setHtml("ghEmbedPct", pct + "%");
+      setHtml("ghSearchable", embedded.toLocaleString());
     }
   }).catch(function() {});
 }

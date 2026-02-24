@@ -156,6 +156,156 @@ function loadDashboard() {
   }).catch(function (err) {
     console.error("loadDashboard error:", err);
   });
+
+  // Load Brain Map
+  loadBrainMap();
+
+  // Load Emotional Timeline
+  loadEmotionalTimeline();
+}
+
+/* ── Brain Map ────────────────────────────────────── */
+
+var _brainMapColors = [
+  "rgba(139,92,246,0.6)", "rgba(59,130,246,0.6)", "rgba(34,197,94,0.6)",
+  "rgba(245,158,11,0.6)", "rgba(236,72,153,0.6)", "rgba(6,182,212,0.6)",
+  "rgba(168,85,247,0.6)", "rgba(249,115,22,0.6)", "rgba(20,184,166,0.6)",
+  "rgba(99,102,241,0.6)", "rgba(244,63,94,0.6)", "rgba(132,204,22,0.6)"
+];
+
+function loadBrainMap() {
+  api("/brain-map/data").then(function(data) {
+    if (!data.regions || !data.regions.length) {
+      setHtml("brainMapContainer", '<div class="cs-empty">No brain map data</div>');
+      return;
+    }
+
+    var total = 0;
+    data.regions.forEach(function(r) { total += r.count || 0; });
+
+    var html = '<div class="cs-brain-treemap">';
+    data.regions.forEach(function(r, i) {
+      var pct = total > 0 ? Math.max(((r.count || 0) / total) * 100, 8) : 10;
+      var color = _brainMapColors[i % _brainMapColors.length];
+      var growthStr = r.growth_7d ? "+" + r.growth_7d + " (7d)" : "";
+      html += '<div class="cs-brain-region" style="flex:' + Math.max(pct / 10, 1).toFixed(1) + '; background:' + color + ';" title="' + escHtml(r.label || r.type) + ': ' + (r.count || 0) + ' entries">' +
+        '<div class="cs-brain-region-label">' + escHtml(r.label || r.type) + '</div>' +
+        '<div class="cs-brain-region-count">' + (r.count || 0) + '</div>' +
+        (growthStr ? '<div class="cs-brain-region-growth">' + growthStr + '</div>' : '') +
+        '</div>';
+    });
+    html += '</div>';
+
+    // Connections
+    if (data.connections && data.connections.length) {
+      html += '<div class="cs-brain-connections">';
+      data.connections.slice(0, 8).forEach(function(c) {
+        html += '<span class="cs-brain-conn">' + escHtml(c.source) + ' \u2194 ' + escHtml(c.target) +
+          ' (' + (c.strength ? c.strength.toFixed(2) : '?') + ')</span>';
+      });
+      html += '</div>';
+    }
+
+    // Summary stats
+    if (data.stats) {
+      html += '<div style="margin-top:10px; font-size:0.72rem; color:rgba(255,255,255,0.4);">' +
+        'Total: ' + (data.stats.total || 0) + ' | Embedded: ' + (data.stats.embedded || 0) +
+        ' | Types: ' + (data.stats.types || 0) +
+        (data.stats.growth_7d ? ' | Growth: +' + data.stats.growth_7d + ' (7d)' : '') +
+        '</div>';
+    }
+
+    setHtml("brainMapContainer", html);
+  }).catch(function(err) {
+    console.error("loadBrainMap error:", err);
+    setHtml("brainMapContainer", '<div class="cs-empty">Brain map unavailable</div>');
+  });
+}
+
+/* ── Emotional Timeline ──────────────────────────── */
+
+var _emotionalChart = null;
+
+function loadEmotionalTimeline() {
+  api("/emotions/timeline?days=30").then(function(data) {
+    if (!data.timeline || !data.timeline.length) {
+      var canvas = document.getElementById("emotionalChart");
+      if (canvas) canvas.parentElement.innerHTML = '<div class="cs-empty" style="padding-top:80px;">No emotional data available</div>';
+      return;
+    }
+
+    var labels = [];
+    var moodScores = [];
+    var energyScores = [];
+    var stressScores = [];
+
+    data.timeline.forEach(function(entry) {
+      labels.push(entry.date || "");
+      moodScores.push(parseFloat(entry.avg_mood_score || 0).toFixed(2));
+      energyScores.push(parseFloat(entry.avg_energy || 0).toFixed(2));
+      stressScores.push(parseFloat(entry.avg_stress || 0).toFixed(2));
+    });
+
+    var ctx = document.getElementById("emotionalChart");
+    if (!ctx) return;
+
+    if (_emotionalChart) _emotionalChart.destroy();
+    _emotionalChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Mood",
+            data: moodScores,
+            borderColor: "#8b5cf6",
+            backgroundColor: "rgba(139,92,246,0.1)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2
+          },
+          {
+            label: "Energy",
+            data: energyScores,
+            borderColor: "#22c55e",
+            backgroundColor: "rgba(34,197,94,0.05)",
+            fill: false,
+            tension: 0.3,
+            pointRadius: 2
+          },
+          {
+            label: "Stress",
+            data: stressScores,
+            borderColor: "#ef4444",
+            backgroundColor: "rgba(239,68,68,0.05)",
+            fill: false,
+            tension: 0.3,
+            pointRadius: 2
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: "rgba(255,255,255,0.6)", font: { size: 11 } } }
+        },
+        scales: {
+          x: {
+            ticks: { color: "rgba(255,255,255,0.3)", font: { size: 10 }, maxTicksLimit: 8 },
+            grid: { color: "rgba(255,255,255,0.04)" }
+          },
+          y: {
+            min: 0, max: 1,
+            ticks: { color: "rgba(255,255,255,0.3)", font: { size: 10 } },
+            grid: { color: "rgba(255,255,255,0.04)" }
+          }
+        }
+      }
+    });
+  }).catch(function(err) {
+    console.error("loadEmotionalTimeline error:", err);
+  });
 }
 
 /* ── Agent Modal ───────────────────────────────────── */
@@ -283,6 +433,69 @@ function loadEmbeddingStatus() {
   });
 }
 
+/* ── Processing Controls ──────────────────────────── */
+
+window.startAnalysis = function() {
+  var btn = document.getElementById("btnStartAnalysis");
+  if (btn) btn.disabled = true;
+  var cat = document.getElementById("procCategory");
+  var batch = document.getElementById("procBatchSize");
+  setHtml("procResult", '<div class="cs-loading">Starting analysis...</div>');
+
+  api("/api/processing/start", {
+    method: "POST",
+    body: {
+      category: cat ? cat.value : "conversations",
+      batch_size: batch ? parseInt(batch.value) : 10
+    }
+  }).then(function(data) {
+    if (data.success) {
+      var html = '<div class="cs-pipeline-step green">' +
+        '<span class="cs-pipeline-icon">\u2713</span>' +
+        '<span>Processed ' + (data.processed || 0) + ' items</span>' +
+        (data.knowledge_cards ? '<span class="cs-badge green">' + data.knowledge_cards + ' cards</span>' : '') +
+        (data.embeddings ? '<span class="cs-badge blue">' + data.embeddings + ' embedded</span>' : '') +
+        '</div>';
+      setHtml("procResult", html);
+    } else {
+      setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Processing failed") + '</span></div>');
+    }
+    if (btn) btn.disabled = false;
+    loadProcessingStatus();
+  }).catch(function(err) {
+    setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>Error: ' + escHtml(err.message || "Request failed") + '</span></div>');
+    if (btn) btn.disabled = false;
+  });
+};
+
+window.generateEmbeddings = function() {
+  var btn = document.getElementById("btnGenerateEmbed");
+  if (btn) btn.disabled = true;
+  var batch = document.getElementById("procBatchSize");
+  setHtml("procResult", '<div class="cs-loading">Generating embeddings...</div>');
+
+  api("/api/processing/generate-embeddings", {
+    method: "POST",
+    body: { batch_size: batch ? parseInt(batch.value) : 50 }
+  }).then(function(data) {
+    if (data.success) {
+      var html = '<div class="cs-pipeline-step green">' +
+        '<span class="cs-pipeline-icon">\u2713</span>' +
+        '<span>Generated ' + (data.processed || 0) + ' / ' + (data.total || 0) + ' embeddings</span>' +
+        (data.failed ? '<span class="cs-badge amber">' + data.failed + ' failed</span>' : '') +
+        '</div>';
+      setHtml("procResult", html);
+    } else {
+      setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Embedding generation failed") + '</span></div>');
+    }
+    if (btn) btn.disabled = false;
+    loadEmbeddingStatus();
+  }).catch(function(err) {
+    setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>Error: ' + escHtml(err.message || "Request failed") + '</span></div>');
+    if (btn) btn.disabled = false;
+  });
+};
+
 /* ── Team Tab ──────────────────────────────────────── */
 
 function loadTeam() {
@@ -401,6 +614,160 @@ window.showAgentProfile = function(agentId) {
     console.error("showAgentProfile error:", err);
   });
 };
+
+/* ── Team Sub-tabs ────────────────────────────────── */
+
+window.switchTeamSubtab = function(sub) {
+  document.querySelectorAll("#panel-team .cs-subtab").forEach(function(b) {
+    b.classList.toggle("active", b.textContent.toLowerCase().replace(/ /g, "") === sub ||
+      (sub === "roster" && b.textContent === "Roster") ||
+      (sub === "voice" && b.textContent === "Voice Profiles") ||
+      (sub === "emotions" && b.textContent === "Emotional State"));
+  });
+  document.querySelectorAll("#panel-team .cs-subpanel").forEach(function(p) {
+    p.classList.toggle("active", p.id === "team-" + sub);
+  });
+  if (sub === "voice") loadVoiceProfiles();
+  if (sub === "emotions") loadEmotionalDetail();
+};
+
+function loadVoiceProfiles() {
+  api("/api/voice/profiles").then(function(data) {
+    if (!data.success || !data.profiles || !data.profiles.length) {
+      setHtml("voiceProfileGrid", '<div class="cs-empty">No voice profiles configured</div>');
+      return;
+    }
+    var html = '<div class="cs-voice-grid">';
+    data.profiles.forEach(function(p) {
+      html += '<div class="cs-voice-card">' +
+        '<div class="cs-voice-header">' +
+          '<div class="cs-agent-avatar" style="width:36px;height:36px;font-size:0.85rem;">' + escHtml((p.agent_first_name || p.agent_name || "?")[0]) + '</div>' +
+          '<div>' +
+            '<div class="cs-agent-name" style="font-size:0.85rem;">' + escHtml(p.agent_name || p.agent_first_name || "Agent #" + p.agent_id) + '</div>' +
+            '<div class="cs-voice-engine">' + escHtml(p.engine || "xtts_v2") + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="cs-voice-detail">Language: ' + escHtml(p.language || "en") + '</div>' +
+        '<div class="cs-voice-detail">Profile: ' + escHtml(p.profile_name || "Default") + '</div>' +
+        '<div class="cs-voice-detail">Speaker: ' + escHtml(p.speaker_id || "\u2014") + '</div>' +
+        '<div style="display:flex; gap:8px; margin-top:8px;">' +
+          '<span class="cs-badge blue">' + (p.cached_words || 0) + ' cached</span>' +
+          '<span class="cs-badge purple">' + (p.locked_words || 0) + ' locked</span>' +
+        '</div>' +
+        (p.speed ? '<div class="cs-voice-detail" style="margin-top:6px;">Speed: ' + p.speed + 'x | Pitch: ' + (p.pitch_shift || 0) + '</div>' : '') +
+        '</div>';
+    });
+    html += '</div>';
+    setHtml("voiceProfileGrid", html);
+  }).catch(function(err) {
+    console.error("loadVoiceProfiles error:", err);
+    setHtml("voiceProfileGrid", '<div class="cs-empty">Error loading voice profiles</div>');
+  });
+}
+
+var _emotionalDetailChart = null;
+
+function loadEmotionalDetail() {
+  api("/emotions/timeline?days=30").then(function(data) {
+    // Update current mood badge
+    if (data.current_state) {
+      var badge = document.getElementById("currentMoodBadge");
+      if (badge) {
+        badge.textContent = data.current_state.mood || "unknown";
+        badge.className = "cs-badge purple";
+      }
+    }
+
+    if (!data.timeline || !data.timeline.length) {
+      var canvas = document.getElementById("emotionalDetailChart");
+      if (canvas) canvas.parentElement.innerHTML = '<div class="cs-empty" style="padding-top:100px;">No emotional data available</div>';
+      return;
+    }
+
+    var labels = [];
+    var moodScores = [];
+    var energyScores = [];
+    var stressScores = [];
+    var moodLabels = [];
+
+    data.timeline.forEach(function(entry) {
+      labels.push(entry.date || "");
+      moodScores.push(parseFloat(entry.avg_mood_score || 0).toFixed(2));
+      energyScores.push(parseFloat(entry.avg_energy || 0).toFixed(2));
+      stressScores.push(parseFloat(entry.avg_stress || 0).toFixed(2));
+      moodLabels.push(entry.dominant_mood || "");
+    });
+
+    var ctx = document.getElementById("emotionalDetailChart");
+    if (!ctx) return;
+
+    if (_emotionalDetailChart) _emotionalDetailChart.destroy();
+    _emotionalDetailChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Mood Score",
+            data: moodScores,
+            borderColor: "#8b5cf6",
+            backgroundColor: "rgba(139,92,246,0.15)",
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 6
+          },
+          {
+            label: "Energy",
+            data: energyScores,
+            borderColor: "#22c55e",
+            backgroundColor: "rgba(34,197,94,0.05)",
+            fill: false,
+            tension: 0.4,
+            pointRadius: 2
+          },
+          {
+            label: "Stress",
+            data: stressScores,
+            borderColor: "#ef4444",
+            backgroundColor: "rgba(239,68,68,0.05)",
+            fill: false,
+            tension: 0.4,
+            pointRadius: 2
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: "rgba(255,255,255,0.6)", font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              afterLabel: function(ctx) {
+                return ctx.datasetIndex === 0 ? "Mood: " + (moodLabels[ctx.dataIndex] || "") : "";
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: "rgba(255,255,255,0.3)", font: { size: 10 }, maxTicksLimit: 10 },
+            grid: { color: "rgba(255,255,255,0.04)" }
+          },
+          y: {
+            min: 0, max: 1,
+            ticks: { color: "rgba(255,255,255,0.3)", font: { size: 10 } },
+            grid: { color: "rgba(255,255,255,0.04)" }
+          }
+        }
+      }
+    });
+  }).catch(function(err) {
+    console.error("loadEmotionalDetail error:", err);
+  });
+}
+
 /* ── Insights Tab ──────────────────────────────────── */
 
 window.switchInsightsSubtab = function(sub) {

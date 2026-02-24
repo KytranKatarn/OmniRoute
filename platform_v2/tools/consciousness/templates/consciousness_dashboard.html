@@ -70,6 +70,7 @@
 }
 .cs-body {
     padding: 0 16px 24px;
+    overflow-x: hidden;
 }
 
 /* --- LCARS Framed Header (purple accent) --- */
@@ -270,6 +271,8 @@
     border-radius: 12px;
     padding: 20px;
     transition: border-color 0.2s;
+    min-width: 0;
+    overflow: hidden;
 }
 .cs-card:hover {
     border-color: rgba(139, 92, 246, 0.15);
@@ -293,6 +296,8 @@
     gap: 10px;
     padding: 8px 0;
     border-bottom: 1px solid rgba(255,255,255,0.04);
+    min-width: 0;
+    overflow: hidden;
 }
 .cs-activity-item:last-child { border-bottom: none; }
 .cs-activity-item i { width: 16px; height: 16px; color: rgba(255,255,255,0.4); flex-shrink: 0; }
@@ -543,6 +548,48 @@
 .cs-pipeline-ms { font-size: 0.72rem; color: rgba(255,255,255,0.4); }
 .cs-error { font-size: 0.72rem; color: #f87171; }
 
+/* --- Brain Map Treemap --- */
+.cs-brain-treemap { display: flex; flex-wrap: wrap; gap: 4px; min-height: 120px; }
+.cs-brain-region {
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 50px;
+    position: relative;
+    overflow: hidden;
+}
+.cs-brain-region:hover { transform: scale(1.02); filter: brightness(1.2); }
+.cs-brain-region-label { font-size: 0.72rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+.cs-brain-region-count { font-family: 'Orbitron', sans-serif; font-size: 0.9rem; font-weight: 700; color: #fff; }
+.cs-brain-region-growth { font-size: 0.65rem; color: rgba(255,255,255,0.7); }
+.cs-brain-connections { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.cs-brain-conn {
+    font-size: 0.68rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.5);
+}
+
+/* --- Voice Profile Cards --- */
+.cs-voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.cs-voice-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 16px;
+    transition: border-color 0.2s;
+}
+.cs-voice-card:hover { border-color: rgba(139,92,246,0.3); }
+.cs-voice-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.cs-voice-engine { font-size: 0.72rem; color: #8b5cf6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.cs-voice-detail { font-size: 0.78rem; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
     .cs-stats { grid-template-columns: 1fr 1fr; }
@@ -552,6 +599,7 @@
     .cs-tab { padding: 8px 12px; }
     .cs-tab span { font-size: 0.75rem; }
     .cs-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .cs-voice-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
@@ -709,6 +757,28 @@
                 </div>
             </div>
 
+            <!-- Brain Map + Emotional State Row -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
+                <div class="cs-card">
+                    <div class="cs-card-header">
+                        <i data-lucide="brain" style="width:16px;height:16px;display:inline;vertical-align:middle;margin-right:6px;"></i>
+                        Knowledge Brain Map
+                    </div>
+                    <div class="cs-card-body" id="brainMapContainer">
+                        <div class="cs-loading">Loading brain map...</div>
+                    </div>
+                </div>
+                <div class="cs-card">
+                    <div class="cs-card-header">
+                        <i data-lucide="heart-pulse" style="width:16px;height:16px;display:inline;vertical-align:middle;margin-right:6px;"></i>
+                        Emotional Timeline
+                    </div>
+                    <div class="cs-card-body" style="position:relative; height:220px;">
+                        <canvas id="emotionalChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- ════════════════════════════════════════════════════════ -->
@@ -755,6 +825,30 @@
                 <div class="cs-stat-label">Processed</div>
               </div>
             </div>
+            <!-- Processing Controls -->
+            <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <select id="procCategory" style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
+                  <option value="conversations">Conversations</option>
+                  <option value="github">GitHub Files</option>
+                  <option value="claude_hooks">Claude Hooks</option>
+                </select>
+                <select id="procBatchSize" style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
+                  <option value="10">10 items</option>
+                  <option value="25">25 items</option>
+                  <option value="50">50 items</option>
+                </select>
+              </div>
+              <button id="btnStartAnalysis" onclick="startAnalysis()"
+                      style="padding:8px 16px; background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.4); border-radius:6px; color:#8b5cf6; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
+                <i data-lucide="play" style="width:14px;height:14px;"></i> Start Analysis
+              </button>
+              <button id="btnGenerateEmbed" onclick="generateEmbeddings()"
+                      style="padding:8px 16px; background:rgba(34,197,94,0.2); border:1px solid rgba(34,197,94,0.4); border-radius:6px; color:#22c55e; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
+                <i data-lucide="database" style="width:14px;height:14px;"></i> Generate Embeddings
+              </button>
+            </div>
+            <div id="procResult" style="margin-bottom:16px;"></div>
             <div id="procStatus"><div class="cs-loading">Loading processing status...</div></div>
           </div>
 
@@ -780,8 +874,28 @@
         </div>
 
         <div class="cs-panel" id="panel-team">
-          <div class="cs-agent-grid" id="agentRoster">
-            <div class="cs-loading">Loading agents...</div>
+          <div class="cs-subtabs">
+            <button class="cs-subtab active" onclick="switchTeamSubtab('roster')">Roster</button>
+            <button class="cs-subtab" onclick="switchTeamSubtab('voice')">Voice Profiles</button>
+            <button class="cs-subtab" onclick="switchTeamSubtab('emotions')">Emotional State</button>
+          </div>
+          <div class="cs-subpanel active" id="team-roster">
+            <div class="cs-agent-grid" id="agentRoster">
+              <div class="cs-loading">Loading agents...</div>
+            </div>
+          </div>
+          <div class="cs-subpanel" id="team-voice">
+            <div id="voiceProfileGrid"><div class="cs-loading">Loading voice profiles...</div></div>
+          </div>
+          <div class="cs-subpanel" id="team-emotions">
+            <div style="display:flex; gap:12px; margin-bottom:16px; align-items:center;">
+              <span style="font-size:0.82rem; color:rgba(255,255,255,0.5);">Current Mood:</span>
+              <span id="currentMoodBadge" class="cs-badge purple">--</span>
+              <span style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-left:auto;">Last 30 days</span>
+            </div>
+            <div style="position:relative; height:280px;">
+              <canvas id="emotionalDetailChart"></canvas>
+            </div>
           </div>
         </div>
 

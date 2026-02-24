@@ -2557,6 +2557,12 @@ body.light-mode .bridge-zone-unstaffed {
 
 .dispatch-job-card.status-failed {
     border-left-color: var(--archie-danger);
+    opacity: 0.7;
+}
+
+.dispatch-job-card.status-cancelled {
+    border-left-color: var(--archie-text-muted);
+    opacity: 0.5;
 }
 
 .dispatch-job-info {
@@ -11063,13 +11069,13 @@ function renderActiveJobs(jobs) {
     const countEl = document.getElementById('dispatch-jobs-count');
     if (!section || !container) return;
 
-    // Filter: show running/pending jobs + recently completed (last 5 min)
+    // Filter: show running/pending jobs + recently finished (last 2 min)
     const now = Date.now();
     const visible = jobs.filter(function(j) {
         if (j.status === 'running' || j.status === 'pending') return true;
         if (j.completed_at) {
             var age = now - new Date(j.completed_at).getTime();
-            return age < 300000; // 5 minutes
+            return age < 120000; // 2 minutes
         }
         return false;
     });
@@ -11109,7 +11115,11 @@ function renderActiveJobs(jobs) {
         // Step counter
         var steps = document.createElement('div');
         steps.className = 'dispatch-job-steps';
-        steps.textContent = job.completed_steps + '/' + job.total_steps;
+        var stepText = job.completed_steps + '/' + job.total_steps;
+        if (job.failed_steps > 0 && job.status !== 'running') {
+            stepText += ' (' + job.failed_steps + ' failed)';
+        }
+        steps.textContent = stepText;
 
         // Progress bar
         var progress = document.createElement('div');
@@ -11137,6 +11147,12 @@ function renderActiveJobs(jobs) {
             eta.textContent = formatEta(job.eta_seconds);
         } else if (job.status === 'completed') {
             eta.textContent = 'done';
+        } else if (job.status === 'failed') {
+            eta.textContent = 'FAILED';
+            eta.style.color = 'var(--archie-danger)';
+        } else if (job.status === 'cancelled') {
+            eta.textContent = 'cancelled';
+            eta.style.color = 'var(--archie-text-muted)';
         } else {
             eta.textContent = '--';
         }

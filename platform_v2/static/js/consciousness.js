@@ -435,12 +435,54 @@ function loadEmbeddingStatus() {
 
 /* ── Processing Controls ──────────────────────────── */
 
+/* ── Bridge Job Progress Poller ─────────────────────── */
+
+function _renderJobProgress(data, el) {
+  var job = data.job;
+  var pct = job.total_steps > 0 ? Math.round((job.completed_steps / job.total_steps) * 100) : 0;
+  var barColor = job.status === "completed" ? "#22c55e" : job.status === "failed" ? "#ef4444" : "#8b5cf6";
+  var statusIcon = job.status === "completed" ? "\u2713" : job.status === "failed" ? "\u2717" : "\u25B6";
+  var agentLabel = job.agent_display || job.agent_name || "Unassigned";
+
+  var html = '<div class="cs-pipeline-step" style="flex-direction:column;align-items:stretch;gap:8px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<span><span class="cs-pipeline-icon" style="color:' + barColor + '">' + statusIcon + '</span> ' +
+        escHtml(job.description) + '</span>' +
+      '<span class="cs-badge blue">' + escHtml(agentLabel) + '</span>' +
+    '</div>' +
+    '<div style="background:rgba(255,255,255,0.08);border-radius:6px;height:8px;overflow:hidden">' +
+      '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width 0.5s ease"></div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:0.82rem;opacity:0.7">' +
+      '<span>' + job.completed_steps + ' / ' + job.total_steps + ' steps' +
+        (job.failed_steps > 0 ? ' (' + job.failed_steps + ' failed)' : '') + '</span>' +
+      '<span>' + pct + '%</span>' +
+    '</div>' +
+  '</div>';
+  setHtml(el, html);
+}
+
+function _pollJobStatus(jobId, el, onComplete) {
+  var poll = setInterval(function() {
+    api("/api/processing/job-status/" + jobId).then(function(data) {
+      if (!data.success) { clearInterval(poll); return; }
+      _renderJobProgress(data, el);
+      if (data.job.status === "completed" || data.job.status === "failed" || data.job.status === "cancelled") {
+        clearInterval(poll);
+        if (onComplete) onComplete(data.job);
+      }
+    }).catch(function() { clearInterval(poll); });
+  }, 2000);
+}
+
 window.startAnalysis = function() {
   var btn = document.getElementById("btnStartAnalysis");
+  var btn2 = document.getElementById("btnGenerateEmbed");
   if (btn) btn.disabled = true;
+  if (btn2) btn2.disabled = true;
   var cat = document.getElementById("procCategory");
   var batch = document.getElementById("procBatchSize");
-  setHtml("procResult", '<div class="cs-loading">Starting analysis...</div>');
+  setHtml("procResult", '<div class="cs-loading">Creating Bridge job\u2026</div>');
 
   api("/api/processing/start", {
     method: "POST",
@@ -449,50 +491,72 @@ window.startAnalysis = function() {
       batch_size: batch ? parseInt(batch.value) : 10
     }
   }).then(function(data) {
-    if (data.success) {
+    if (data.success && data.job_id) {
+      /* Job created — poll for progress */
+      _pollJobStatus(data.job_id, "procResult", function() {
+        if (btn) btn.disabled = false;
+        if (btn2) btn2.disabled = false;
+        loadProcessingStatus();
+      });
+    } else if (data.success) {
+      /* Completed synchronously (e.g. no items to process) */
       var html = '<div class="cs-pipeline-step green">' +
         '<span class="cs-pipeline-icon">\u2713</span>' +
-        '<span>Processed ' + (data.processed || 0) + ' items</span>' +
-        (data.knowledge_cards ? '<span class="cs-badge green">' + data.knowledge_cards + ' cards</span>' : '') +
-        (data.embeddings ? '<span class="cs-badge blue">' + data.embeddings + ' embedded</span>' : '') +
+        '<span>' + escHtml(data.message || "Processed " + (data.processed || 0) + " items") + '</span>' +
         '</div>';
       setHtml("procResult", html);
+      if (btn) btn.disabled = false;
+      if (btn2) btn2.disabled = false;
+      loadProcessingStatus();
     } else {
       setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Processing failed") + '</span></div>');
+      if (btn) btn.disabled = false;
+      if (btn2) btn2.disabled = false;
     }
-    if (btn) btn.disabled = false;
-    loadProcessingStatus();
   }).catch(function(err) {
     setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>Error: ' + escHtml(err.message || "Request failed") + '</span></div>');
     if (btn) btn.disabled = false;
+    if (btn2) btn2.disabled = false;
   });
 };
 
 window.generateEmbeddings = function() {
   var btn = document.getElementById("btnGenerateEmbed");
+  var btn2 = document.getElementById("btnStartAnalysis");
   if (btn) btn.disabled = true;
+  if (btn2) btn2.disabled = true;
   var batch = document.getElementById("procBatchSize");
-  setHtml("procResult", '<div class="cs-loading">Generating embeddings...</div>');
+  setHtml("procResult", '<div class="cs-loading">Creating Bridge job\u2026</div>');
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
     body: { batch_size: batch ? parseInt(batch.value) : 50 }
   }).then(function(data) {
-    if (data.success) {
+    if (data.success && data.job_id) {
+      /* Job created — poll for progress */
+      _pollJobStatus(data.job_id, "procResult", function() {
+        if (btn) btn.disabled = false;
+        if (btn2) btn2.disabled = false;
+        loadEmbeddingStatus();
+      });
+    } else if (data.success) {
       var html = '<div class="cs-pipeline-step green">' +
         '<span class="cs-pipeline-icon">\u2713</span>' +
-        '<span>Generated ' + (data.processed || 0) + ' / ' + (data.total || 0) + ' embeddings</span>' +
-        (data.failed ? '<span class="cs-badge amber">' + data.failed + ' failed</span>' : '') +
+        '<span>' + escHtml(data.message || "Generated " + (data.processed || 0) + " / " + (data.total || 0) + " embeddings") + '</span>' +
         '</div>';
       setHtml("procResult", html);
+      if (btn) btn.disabled = false;
+      if (btn2) btn2.disabled = false;
+      loadEmbeddingStatus();
     } else {
       setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Embedding generation failed") + '</span></div>');
+      if (btn) btn.disabled = false;
+      if (btn2) btn2.disabled = false;
     }
-    if (btn) btn.disabled = false;
-    loadEmbeddingStatus();
   }).catch(function(err) {
     setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>Error: ' + escHtml(err.message || "Request failed") + '</span></div>');
     if (btn) btn.disabled = false;
+    if (btn2) btn2.disabled = false;
   });
 };
 
@@ -979,6 +1043,13 @@ function loadGitHub() {
   api("/api/github/repos").then(function(data) {
     if (!data.success) return;
     var repos = data.repos || [];
+
+    // Update stats
+    var totalFiles = 0;
+    repos.forEach(function(r) { totalFiles += r.indexed_files || 0; });
+    setHtml("ghRepoCount", repos.length);
+    setHtml("ghFileCount", totalFiles);
+
     if (!repos.length) {
       setHtml("ghRepoGrid", '<div class="cs-empty">No repositories indexed</div>');
       return;
@@ -988,20 +1059,113 @@ function loadGitHub() {
       var statusColor = r.indexed ? "green" : "amber";
       html += '<div class="cs-card" style="padding:16px;">' +
         '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
-          '<div style="font-weight:600; color:#fff; font-size:0.9rem;">' + escHtml(r.repo_name) + '</div>' +
+          '<div style="font-weight:600; color:#fff; font-size:0.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px;" title="' + escHtml(r.repo_name) + '">' + escHtml(r.repo_name) + '</div>' +
           '<span class="cs-badge ' + statusColor + '">' + (r.indexed ? 'Indexed' : 'Pending') + '</span>' +
         '</div>' +
-        '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4);">' +
+        '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4); margin-bottom:8px;">' +
           '<div>' + (r.indexed_files || 0) + ' files indexed</div>' +
           '<div>Type: ' + escHtml(r.repo_type || "\u2014") + '</div>' +
           (r.indexed_at ? '<div>Last indexed: ' + formatAge(r.indexed_at) + '</div>' : '') +
-        '</div></div>';
+        '</div>' +
+        '<div style="display:flex; gap:6px;">' +
+          '<button onclick="reindexRepo(' + r.id + ')" style="padding:4px 10px; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); border-radius:4px; color:#8b5cf6; cursor:pointer; font-size:0.72rem;">Re-index</button>' +
+          '<a href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank" style="padding:4px 10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:rgba(255,255,255,0.5); text-decoration:none; font-size:0.72rem;">GitHub \u2197</a>' +
+        '</div>' +
+        '</div>';
     });
     html += '</div>';
     setHtml("ghRepoGrid", html);
+
+    // Fetch embedding stats
+    loadGitHubEmbedStats();
   }).catch(function(err) {
     console.error("loadGitHub error:", err);
     setHtml("ghRepoGrid", '<div class="cs-empty">Error loading repos</div>');
+  });
+}
+
+function loadGitHubEmbedStats() {
+  api("/processing/embedding-coverage").then(function(data) {
+    if (data.coverage_pct !== undefined) {
+      setHtml("ghEmbedPct", data.coverage_pct + "%");
+      setHtml("ghSearchable", (data.embedded || 0).toLocaleString());
+    }
+  }).catch(function() {});
+}
+
+/* ── GitHub Repo Management ──────────────────────── */
+
+window.showAddRepoModal = function() {
+  var overlay = document.getElementById("addRepoOverlay");
+  if (overlay) overlay.classList.add("open");
+};
+
+window.closeAddRepoModal = function() {
+  var overlay = document.getElementById("addRepoOverlay");
+  if (overlay) overlay.classList.remove("open");
+};
+
+window.addRepo = function() {
+  var url = document.getElementById("addRepoUrl").value.trim();
+  var type = document.getElementById("addRepoType").value.trim();
+  var maxFiles = document.getElementById("addRepoMax").value;
+
+  if (!url) return;
+
+  var btn = document.querySelector("#addRepoOverlay .btn-submit");
+  if (btn) btn.disabled = true;
+  setHtml("addRepoResult", '<div class="cs-loading">Indexing repository... This may take a minute.</div>');
+
+  var body = { repo_url: url, priority: "high" };
+  if (maxFiles) body.max_files = parseInt(maxFiles);
+
+  api("/github/index-selective", { method: "POST", body: body }).then(function(data) {
+    if (data.success) {
+      setHtml("addRepoResult", '<div class="cs-pipeline-step green"><span class="cs-pipeline-icon">\u2713</span><span>Indexed ' + (data.indexed || data.count || 0) + ' files from ' + escHtml(data.repo || url) + '</span></div>');
+      _cache.github = false;
+      loadGitHub();
+      setTimeout(closeAddRepoModal, 2000);
+    } else {
+      setHtml("addRepoResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Failed to index") + '</span></div>');
+    }
+    if (btn) btn.disabled = false;
+  }).catch(function(err) {
+    setHtml("addRepoResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(err.message || "Request failed") + '</span></div>');
+    if (btn) btn.disabled = false;
+  });
+};
+
+window.reindexRepo = function(repoId) {
+  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Re-indexing repo #' + repoId + '...</span>');
+  api("/github/reindex/" + repoId, { method: "POST" }).then(function(data) {
+    if (data.success) {
+      setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 Re-indexed ' + (data.indexed || 0) + ' files</span>');
+      _cache.github = false;
+      loadGitHub();
+    } else {
+      setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
+    }
+  }).catch(function(err) {
+    setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
+  });
+};
+
+window.reindexAllRepos = function() {
+  var btn = document.getElementById("btnReindexAll");
+  if (btn) btn.disabled = true;
+  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Re-indexing all repositories... This may take several minutes.</span>');
+  api("/github/reindex-all", { method: "POST" }).then(function(data) {
+    if (data.success) {
+      setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 Re-indexed ' + (data.total_indexed || 0) + ' files across ' + (data.repos_processed || 0) + ' repos</span>');
+      _cache.github = false;
+      loadGitHub();
+    } else {
+      setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
+    }
+    if (btn) btn.disabled = false;
+  }).catch(function(err) {
+    setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
+    if (btn) btn.disabled = false;
   });
 }
 
@@ -1105,11 +1269,17 @@ window.testPipeline = function() {
 document.addEventListener("DOMContentLoaded", function () {
   refreshIcons();
 
-  // Close modal on overlay click
+  // Close modals on overlay click
   var overlay = document.getElementById("agentModalOverlay");
   if (overlay) {
     overlay.addEventListener("click", function (e) {
       if (e.target === overlay) closeAgentModal();
+    });
+  }
+  var repoOverlay = document.getElementById("addRepoOverlay");
+  if (repoOverlay) {
+    repoOverlay.addEventListener("click", function (e) {
+      if (e.target === repoOverlay) closeAddRepoModal();
     });
   }
 

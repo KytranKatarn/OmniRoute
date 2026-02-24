@@ -1018,11 +1018,46 @@
         <!-- GitHub Panel                                              -->
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-github">
+          <!-- Stats -->
+          <div class="cs-stats" style="margin-bottom:16px;">
+            <div class="cs-stat purple">
+              <div class="cs-stat-icon"><i data-lucide="git-branch"></i></div>
+              <div class="cs-stat-value" id="ghRepoCount">--</div>
+              <div class="cs-stat-label">Repositories</div>
+            </div>
+            <div class="cs-stat blue">
+              <div class="cs-stat-icon"><i data-lucide="file-code"></i></div>
+              <div class="cs-stat-value" id="ghFileCount">--</div>
+              <div class="cs-stat-label">Files Indexed</div>
+            </div>
+            <div class="cs-stat green">
+              <div class="cs-stat-icon"><i data-lucide="database"></i></div>
+              <div class="cs-stat-value" id="ghEmbedPct">--</div>
+              <div class="cs-stat-label">Embedded</div>
+            </div>
+            <div class="cs-stat amber">
+              <div class="cs-stat-icon"><i data-lucide="search"></i></div>
+              <div class="cs-stat-value" id="ghSearchable">--</div>
+              <div class="cs-stat-label">Searchable</div>
+            </div>
+          </div>
           <div class="cs-subtabs">
             <button class="cs-subtab active" onclick="switchGithubSubtab('repos')">Repos</button>
             <button class="cs-subtab" onclick="switchGithubSubtab('search')">Search</button>
           </div>
           <div class="cs-subpanel active" id="gh-repos">
+            <!-- Add Repo + Re-index All controls -->
+            <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+              <button onclick="showAddRepoModal()"
+                      style="padding:8px 16px; background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.4); border-radius:6px; color:#8b5cf6; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
+                <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Repository
+              </button>
+              <button id="btnReindexAll" onclick="reindexAllRepos()"
+                      style="padding:8px 16px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); border-radius:6px; color:#f59e0b; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
+                <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Re-index All
+              </button>
+              <div id="ghActionResult" style="flex:1; font-size:0.82rem;"></div>
+            </div>
             <div id="ghRepoGrid"><div class="cs-loading">Loading repositories...</div></div>
           </div>
           <div class="cs-subpanel" id="gh-search">
@@ -1095,6 +1130,50 @@
                 <button class="cs-modal-close" onclick="closeAgentModal()">&times;</button>
             </div>
             <div class="cs-modal-body" id="agentModalBody"></div>
+        </div>
+    </div>
+
+    <!-- Add Repository Modal -->
+    <div class="cs-modal-overlay" id="addRepoOverlay">
+        <div class="cs-modal" style="max-width:500px;">
+            <div class="cs-modal-header">
+                <span>Add GitHub Repository</span>
+                <button class="cs-modal-close" onclick="closeAddRepoModal()">&times;</button>
+            </div>
+            <div class="cs-modal-body">
+                <p style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-bottom:16px;">
+                    Enter a GitHub repository URL to index its code and documentation into ARCHIE's knowledge base.
+                </p>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;">Repository URL</label>
+                    <input type="text" id="addRepoUrl" placeholder="https://github.com/owner/repo"
+                           style="width:100%; padding:10px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.9rem; box-sizing:border-box;">
+                </div>
+                <div style="display:flex; gap:12px; margin-bottom:16px;">
+                    <div style="flex:1;">
+                        <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;">Type (optional)</label>
+                        <select id="addRepoType" style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.85rem;">
+                            <option value="">Auto-detect</option>
+                            <option value="ai-agents">AI Agents</option>
+                            <option value="claude-skills">Claude Skills</option>
+                            <option value="ai-tools">AI Tools</option>
+                            <option value="python">Python</option>
+                            <option value="skills-library">Skills Library</option>
+                            <option value="reference">Reference</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;">Max Files</label>
+                        <input type="number" id="addRepoMax" placeholder="2000" value="2000"
+                               style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.85rem; box-sizing:border-box;">
+                    </div>
+                </div>
+                <button class="btn-submit" onclick="addRepo()"
+                        style="width:100%; padding:10px; background:rgba(139,92,246,0.3); border:1px solid #8b5cf6; border-radius:6px; color:#8b5cf6; cursor:pointer; font-size:0.9rem; font-weight:600;">
+                    Index Repository
+                </button>
+                <div id="addRepoResult" style="margin-top:12px;"></div>
+            </div>
         </div>
     </div>
 

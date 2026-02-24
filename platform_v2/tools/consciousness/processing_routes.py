@@ -321,13 +321,20 @@ def estimate_batch():
 
 @processing_bp.route("/start", methods=["POST"])
 def start_processing():
-    """Start batch processing"""
+    """Start batch processing via Bridge job system.
+
+    Creates a bridge_job, assigns an agent, processes items with progress
+    tracking, then completes the job.  The response includes the job_id
+    so the frontend can poll ``/api/processing/job-status/<id>`` for
+    live updates.
+    """
     try:
         from ai_bridge.cost_controller import get_cost_controller
         from ai_bridge.knowledge_analyzer import get_knowledge_analyzer
         from ai_bridge.embedding_service import generate_embedding
         from ai_bridge.knowledge_cards import save_knowledge_card
         from ai_bridge.relationship_mapper import get_relationship_mapper
+        from ai_bridge.bridge_dispatcher import get_dispatcher
 
         data = request.get_json() or {}
         category = data.get("category", "conversations")
@@ -397,10 +404,22 @@ def start_processing():
         if not items:
             return jsonify({"success": True, "message": "No items to process", "processed": 0})
 
+        # ── Create Bridge Job ───────────────────────────────
+        dispatcher = get_dispatcher()
+        job_id = dispatcher.create_job(
+            job_type="batch_analysis",
+            module_source="consciousness",
+            description=f"Analyze {len(items)} {category} entries (batch {batch_size})",
+            total_steps=len(items),
+            capability="code_analysis",
+            metadata={"category": category, "batch_id": batch_id, "batch_size": batch_size},
+        )
+
         # Process items
         mapper = get_relationship_mapper()
         results = {
             "batch_id": batch_id,
+            "job_id": job_id,
             "processed": 0,
             "cards_created": 0,
             "relationships_created": 0,
@@ -431,6 +450,13 @@ def start_processing():
                 if not result.success:
                     results["errors"].append({"id": item_id, "error": result.error})
                     results["log"].append(f"[{item_id}] Error: {result.error}")
+                    # Update bridge job progress (count failures)
+                    if job_id:
+                        dispatcher.update_job_progress(
+                            job_id,
+                            results["processed"],
+                            len(results["errors"]),
+                        )
                     continue
 
                 total_input_tokens += result.input_tokens
@@ -459,6 +485,15 @@ def start_processing():
                     f"[{item_id}] {len(result.cards)} cards, " f"{len(result.relationships)} relationships"
                 )
 
+                # Update bridge job progress
+                if job_id:
+                    dispatcher.update_job_progress(
+                        job_id,
+                        results["processed"],
+                        len(results["errors"]),
+                        {"cards_created": results["cards_created"]},
+                    )
+
             except Exception as e:
                 logger.error(f"Processing item {item_id} failed: {e}")
                 results["errors"].append({"id": item_id, "error": str(e)})
@@ -478,6 +513,10 @@ def start_processing():
         if results["processed"] > 0:
             embed_results = _auto_embed_processed_items([item[0] for item in items[: results["processed"]]])
             results["embeddings_generated"] = embed_results.get("processed", 0)
+
+        # ── Complete Bridge Job ─────────────────────────────
+        if job_id:
+            dispatcher.complete_job(job_id)
 
         return jsonify(results)
 
@@ -611,9 +650,14 @@ def _auto_embed_processed_items(item_ids: list) -> dict:
 
 @processing_bp.route("/generate-embeddings", methods=["POST"])
 def generate_embeddings():
-    """Generate embeddings for entries that don't have them"""
+    """Generate embeddings for entries that don't have them.
+
+    Creates a bridge_job so the work is tracked in Bridge Command
+    with an assigned agent and live progress.
+    """
     try:
         from ai_bridge.embedding_service import generate_embedding
+        from ai_bridge.bridge_dispatcher import get_dispatcher
 
         data = request.get_json() or {}
         batch_size = min(int(data.get("batch_size", 50)), 200)
@@ -636,7 +680,21 @@ def generate_embeddings():
         )
         items = cur.fetchall()
 
-        results = {"processed": 0, "failed": 0, "total": len(items)}
+        if not items:
+            return jsonify({"success": True, "message": "All entries already embedded", "processed": 0, "total": 0})
+
+        # ── Create Bridge Job ───────────────────────────────
+        dispatcher = get_dispatcher()
+        job_id = dispatcher.create_job(
+            job_type="batch_embedding",
+            module_source="consciousness",
+            description=f"Generate embeddings for {len(items)} knowledge entries",
+            total_steps=len(items),
+            capability="embedding",
+            metadata={"batch_size": batch_size, "requested_at": datetime.now().isoformat()},
+        )
+
+        results = {"processed": 0, "failed": 0, "total": len(items), "job_id": job_id}
 
         for item_id, title, content in items:
             try:
@@ -657,6 +715,14 @@ def generate_embeddings():
                 else:
                     results["failed"] += 1
 
+                # Update bridge job progress
+                if job_id:
+                    dispatcher.update_job_progress(
+                        job_id,
+                        results["processed"],
+                        results["failed"],
+                    )
+
             except Exception as e:
                 logger.error(f"Embedding for {item_id} failed: {e}")
                 results["failed"] += 1
@@ -666,6 +732,11 @@ def generate_embeddings():
         conn.close()
 
         results["success"] = True
+
+        # ── Complete Bridge Job ─────────────────────────────
+        if job_id:
+            dispatcher.complete_job(job_id)
+
         return jsonify(results)
 
     except Exception as e:
@@ -728,6 +799,65 @@ def get_embedding_coverage():
         )
     except Exception as e:
         logger.error(f"Embedding coverage failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@processing_bp.route("/job-status/<int:job_id>", methods=["GET"])
+def get_job_status(job_id):
+    """Get live status of a bridge job by ID.
+
+    Returns the job's agent, progress counters, status, and metadata
+    so the frontend can render a progress bar.
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT bj.id, bj.job_type, bj.description,
+                   bj.total_steps, bj.completed_steps, bj.failed_steps,
+                   bj.status, bj.agent_name, bj.metadata,
+                   bj.created_at, bj.updated_at, bj.completed_at,
+                   COALESCE(
+                       NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                       a.name,
+                       bj.agent_name
+                   ) as agent_display
+            FROM bridge_jobs bj
+            LEFT JOIN agents a ON a.name = bj.agent_name AND a.status = 'active'
+            WHERE bj.id = %s
+            """,
+            (job_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not row:
+            return jsonify({"success": False, "error": "Job not found"}), 404
+
+        return jsonify(
+            {
+                "success": True,
+                "job": {
+                    "id": row[0],
+                    "job_type": row[1],
+                    "description": row[2],
+                    "total_steps": row[3],
+                    "completed_steps": row[4] or 0,
+                    "failed_steps": row[5] or 0,
+                    "status": row[6],
+                    "agent_name": row[7],
+                    "metadata": row[8] if isinstance(row[8], dict) else json.loads(row[8] or "{}"),
+                    "created_at": row[9].isoformat() if row[9] else None,
+                    "updated_at": row[10].isoformat() if row[10] else None,
+                    "completed_at": row[11].isoformat() if row[11] else None,
+                    "agent_display": row[12],
+                },
+            }
+        )
+    except Exception as e:
+        logger.error(f"Job status lookup failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

@@ -102,6 +102,10 @@
     position: relative;
 }
 
+/* Hide header + status bar on Stations tab — saves ~200px vertical */
+.bridge-container.stations-active .bridge-header { display: none; }
+.bridge-container.stations-active .bridge-status-bar { display: none; }
+
 .bridge-header::after {
     content: '';
     position: absolute;
@@ -525,6 +529,161 @@ body.light-mode .status-bar-divider {
     border-radius: 50%;
     background: var(--archie-success, #10b981);
     box-shadow: 0 0 6px var(--archie-success, #10b981);
+}
+
+/* --- Active Operations Strip --- */
+.bridge-ops-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    margin: 0 auto;
+    max-width: 800px;
+}
+.bridge-ops-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.4;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.bridge-ops-zones {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    justify-content: center;
+}
+.bridge-ops-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 70px;
+}
+.bridge-ops-zone:hover {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.1);
+}
+.bridge-ops-zone.has-job {
+    background: rgba(16,185,129,0.06);
+    border-color: rgba(16,185,129,0.25);
+}
+.bridge-ops-zone-name {
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.5;
+}
+.bridge-ops-zone.has-job .bridge-ops-zone-name {
+    color: #10b981;
+    opacity: 0.9;
+}
+.bridge-ops-zone-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    transition: all 0.3s ease;
+}
+.bridge-ops-zone.has-job .bridge-ops-zone-dot {
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981, 0 0 12px rgba(16,185,129,0.3);
+    animation: iso-dot-pulse 1s ease-in-out infinite;
+}
+.bridge-ops-zone-progress {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+    display: none;
+}
+.bridge-ops-zone.has-job .bridge-ops-zone-progress {
+    display: block;
+}
+.bridge-ops-zone-bar {
+    height: 100%;
+    background: #10b981;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+}
+.bridge-ops-zone-job {
+    font-size: 0.48rem;
+    color: #10b981;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: none;
+}
+.bridge-ops-zone.has-job .bridge-ops-zone-job {
+    display: block;
+}
+/* Inline status section within ops strip */
+.bridge-ops-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    padding-right: 10px;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    margin-right: 2px;
+}
+.bridge-ops-status-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.bridge-ops-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #00ff41;
+    box-shadow: 0 0 4px rgba(0,255,65,0.5);
+}
+.bridge-ops-status-value {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.6rem;
+    color: var(--archie-cyan, #00ffff);
+    font-weight: 600;
+}
+.bridge-ops-status-icon {
+    width: 11px;
+    height: 11px;
+    color: var(--archie-text-tertiary, #8b949e);
+}
+[data-theme="light"] .bridge-ops-status,
+body.light-mode .bridge-ops-status {
+    border-right-color: rgba(0,0,0,0.08);
+}
+[data-theme="light"] .bridge-ops-status-value,
+body.light-mode .bridge-ops-status-value {
+    color: #0969da;
+}
+
+@media (max-width: 768px) {
+    .bridge-ops-strip { padding: 8px 10px; gap: 6px; }
+    .bridge-ops-zone { min-width: 50px; padding: 4px 6px; }
+    .bridge-ops-zone-name { font-size: 0.5rem; }
+    .bridge-ops-label { display: none; }
+    .bridge-ops-status { gap: 6px; padding-right: 6px; }
+    .bridge-ops-status-value { font-size: 0.55rem; }
+}
+@media (max-width: 480px) {
+    .bridge-ops-zones { flex-wrap: wrap; }
+    .bridge-ops-zone { min-width: 45px; }
+    .bridge-ops-status { display: none; }
 }
 
 /* --- Zone Header --- */
@@ -1569,10 +1728,10 @@ body.light-mode .bridge-zone-unstaffed {
     position: relative;
     z-index: 5;
     width: 96%;
-    max-width: 900px;
-    aspect-ratio: 1 / 1.05;
+    max-width: 860px;
+    aspect-ratio: 1 / 0.62;
     margin: 0 auto;
-    perspective: 1400px;
+    perspective: 1200px;
 }
 
 .iso-bridge-room-inner {
@@ -2105,39 +2264,39 @@ body.light-mode .bridge-zone-unstaffed {
 /* ── Station Positions — Horseshoe arrangement ── */
 
 .iso-zone-command {
-    top: 46%;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
 }
 
 .iso-zone-creative {
-    top: 22%;
-    left: 14%;
-    transform: translate(-50%, -50%) rotate(-8deg);
+    top: 26%;
+    left: 16%;
+    transform: translate(-50%, -50%) rotate(-6deg);
 }
 
 .iso-zone-engineering {
-    top: 22%;
-    right: 14%;
+    top: 26%;
+    right: 16%;
     left: auto;
-    transform: translate(50%, -50%) rotate(8deg);
+    transform: translate(50%, -50%) rotate(6deg);
 }
 
 .iso-zone-operations {
-    top: 52%;
-    left: 6%;
-    transform: translate(-50%, -50%) rotate(-12deg);
+    top: 50%;
+    left: 8%;
+    transform: translate(-50%, -50%) rotate(-10deg);
 }
 
 .iso-zone-analytics {
-    top: 52%;
-    right: 6%;
+    top: 50%;
+    right: 8%;
     left: auto;
-    transform: translate(50%, -50%) rotate(12deg);
+    transform: translate(50%, -50%) rotate(10deg);
 }
 
 .iso-zone-research {
-    top: 78%;
+    top: 72%;
     left: 50%;
     transform: translate(-50%, -50%);
 }
@@ -2263,7 +2422,7 @@ body.light-mode .bridge-zone-unstaffed {
 
 /* ── Responsive 768px ── */
 @media (max-width: 768px) {
-    .iso-bridge-room { max-width: 600px; }
+    .iso-bridge-room { max-width: 600px; /* inherits aspect-ratio 1/0.62 → 372px */ }
     .iso-viewscreen { width: 58%; padding: 8px 10px; }
     .iso-viewscreen .bridge-viewscreen-event { font-size: 0.52rem; }
     .iso-viewscreen .viewscreen-detail { display: none; }
@@ -2284,11 +2443,11 @@ body.light-mode .bridge-zone-unstaffed {
 @media (max-width: 500px) {
     .iso-bridge-room {
         max-width: 370px;
-        aspect-ratio: 1 / 1.25;
+        aspect-ratio: 1 / 0.78;
     }
 
     .iso-bridge-room-inner {
-        transform: rotateX(8deg);
+        transform: rotateX(10deg);
     }
 
     .iso-viewscreen { width: 52%; padding: 5px 7px; top: 2%; }
@@ -2313,12 +2472,12 @@ body.light-mode .bridge-zone-unstaffed {
 
     .iso-station-floor-glow { width: 60px; height: 16px; bottom: -10px; filter: blur(6px); }
 
-    .iso-zone-creative { top: 18%; left: 18%; }
-    .iso-zone-engineering { top: 18%; right: 18%; }
-    .iso-zone-operations { top: 46%; left: 10%; }
-    .iso-zone-analytics { top: 46%; right: 10%; }
-    .iso-zone-research { top: 74%; }
-    .iso-zone-command { top: 44%; }
+    .iso-zone-creative { top: 22%; left: 18%; }
+    .iso-zone-engineering { top: 22%; right: 18%; }
+    .iso-zone-operations { top: 48%; left: 10%; }
+    .iso-zone-analytics { top: 48%; right: 10%; }
+    .iso-zone-research { top: 72%; }
+    .iso-zone-command { top: 48%; }
 
     .iso-wall-panel { display: none; }
     .iso-bridge-center-marker { width: 30px; height: 30px; }
@@ -4643,9 +4802,9 @@ body.light-mode .bridge-zone-unstaffed {
 .bridge-tabs {
     display: flex;
     gap: 4px;
-    padding: 0 16px 12px;
+    padding: 0 16px 8px;
     border-bottom: 1px solid rgba(0, 255, 255, 0.1);
-    margin-bottom: 16px;
+    margin-bottom: 8px;
     overflow-x: auto;
     scrollbar-width: none;
 }
@@ -5901,6 +6060,10 @@ body.light-mode .bridge-hud-value {
 
                     </div><!-- /iso-bridge-room-inner -->
                 </div><!-- /iso-bridge-room -->
+
+                <!-- Active Operations Strip — compact zone status -->
+                <div class="bridge-ops-strip" id="bridgeOpsStrip"></div>
+
             </div><!-- /stations panel -->
 
             <!-- Dispatch Tab Panel -->
@@ -6424,6 +6587,7 @@ body.light-mode .bridge-hud-value {
             <button class="lcars-tab-pill" data-console-tab="nodes">NODES</button>
             <button class="lcars-tab-pill" data-console-tab="metrics">STATS</button>
             <button class="lcars-tab-pill" data-console-tab="memory">MEM</button>
+            <button class="lcars-tab-pill" data-console-tab="routing" id="lcarsRoutingTab" style="display:none;">CTRL</button>
         </div>
         <div class="lcars-tab-content" id="lcarsTabContent">
             <div class="lcars-tab-panel active" data-console-panel="crew" id="lcarsCrewPanel"></div>
@@ -6431,6 +6595,7 @@ body.light-mode .bridge-hud-value {
             <div class="lcars-tab-panel" data-console-panel="nodes" id="lcarsNodesPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="metrics" id="lcarsMetricsPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="memory" id="lcarsMemoryPanel"></div>
+            <div class="lcars-tab-panel" data-console-panel="routing" id="lcarsRoutingPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="module-preview" id="lcarsModulePreviewPanel"></div>
         </div>
     </div>
@@ -7233,6 +7398,8 @@ function switchBridgeTab(tabName) {
     document.querySelectorAll('.bridge-tab-panel').forEach(function(panel) {
         panel.classList.toggle('active', panel.dataset.panel === tabName);
     });
+    // Toggle stations-active on container (hides header on stations tab)
+    document.querySelector('.bridge-container').classList.toggle('stations-active', tabName === 'stations');
     // Update URL hash
     history.replaceState(null, '', '#' + tabName);
     // Trigger data load for the tab if needed
@@ -7478,20 +7645,25 @@ let stationNodeCoverage = {}; // Maps station_id to node data
 // STATUS BAR
 // ============================================================================
 
+// Helper to update both status bar + ops strip elements by ID pair
+function _setStatusText(primaryId, opsId, text) {
+    var el = document.getElementById(primaryId);
+    if (el) el.textContent = text;
+    var opsEl = document.getElementById(opsId);
+    if (opsEl) opsEl.textContent = text;
+}
+
 function updateStatusBar() {
     // Routing mode - read from existing header controls state
     var activeBtn = document.querySelector('.routing-btn.active');
     if (activeBtn) {
-        var el = document.getElementById('statusRoutingMode');
-        if (el) el.textContent = activeBtn.textContent.trim();
+        _setStatusText('statusRoutingMode', 'opsRoutingMode', activeBtn.textContent.trim());
     }
 
     // Clock
-    var clock = document.getElementById('statusBarClock');
-    if (clock) {
-        var now = new Date();
-        clock.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    }
+    var now = new Date();
+    var timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    _setStatusText('statusBarClock', 'opsBarClock', timeStr);
 }
 
 function loadStatusBarStats() {
@@ -7510,8 +7682,7 @@ function loadStatusBarStats() {
             if (data.success !== false) {
                 var agents = Array.isArray(data) ? data : (data.agents || []);
                 var active = agents.filter(function(a) { return a.status === 'active'; });
-                var el = document.getElementById('statusAgentCount');
-                if (el) el.textContent = active.length;
+                _setStatusText('statusAgentCount', 'opsAgentCount', active.length);
             }
         }).catch(function() {});
 }
@@ -7594,6 +7765,7 @@ async function loadStations() {
         } catch (e) { /* ignore job fetch failures */ }
 
         renderStations(data.stations, runningJobs);
+        renderOpsStrip(data.stations, runningJobs);
         updateStationStats(data.stations);
         loadViewscreenData();
     } catch (error) {
@@ -7656,6 +7828,154 @@ function renderStations(stations, runningJobs) {
         const zoneEl = createIsometricZone(zoneName, zoneInfo, zd);
         container.appendChild(zoneEl);
     }
+}
+
+function renderOpsStrip(stations, runningJobs) {
+    const strip = document.getElementById('bridgeOpsStrip');
+    if (!strip) return;
+    runningJobs = runningJobs || [];
+
+    // Build agent callsign → jobs lookup
+    const agentJobMap = {};
+    for (const job of runningJobs) {
+        if (job.agent_callsign) {
+            if (!agentJobMap[job.agent_callsign]) agentJobMap[job.agent_callsign] = [];
+            agentJobMap[job.agent_callsign].push(job);
+        }
+    }
+
+    // Build zone data with jobs (same logic as renderStations)
+    const zoneJobs = {};
+    const zoneAgents = {};
+    for (const zoneName of Object.keys(ISOMETRIC_ZONE_MAP)) {
+        zoneJobs[zoneName] = [];
+        zoneAgents[zoneName] = [];
+    }
+    for (const station of stations) {
+        const zoneName = STATION_TO_ISO_ZONE[station.code];
+        if (!zoneName) continue;
+        zoneAgents[zoneName] = (zoneAgents[zoneName] || []).concat(station.assigned_agents || []);
+    }
+    for (const [zoneName, agents] of Object.entries(zoneAgents)) {
+        for (const agent of agents) {
+            const jobs = agentJobMap[agent.name];
+            if (jobs) zoneJobs[zoneName] = zoneJobs[zoneName].concat(jobs);
+        }
+    }
+
+    // Build status section only once — persist across rebuilds to avoid flicker
+    if (!document.getElementById('opsRoutingMode')) {
+        strip.textContent = '';
+
+        var statusSec = document.createElement('div');
+        statusSec.className = 'bridge-ops-status';
+
+        // Online dot + text (ops- prefix to avoid duplicate IDs with status bar HTML)
+        var s1 = document.createElement('div'); s1.className = 'bridge-ops-status-item';
+        var statusDot = document.createElement('span'); statusDot.className = 'bridge-ops-status-dot'; statusDot.id = 'opsBridgeStatusDot';
+        var dtx = document.createElement('span'); dtx.className = 'bridge-ops-status-value'; dtx.id = 'opsBridgeStatusText'; dtx.textContent = 'Online';
+        s1.appendChild(statusDot); s1.appendChild(dtx); statusSec.appendChild(s1);
+
+        // Route mode
+        var s2 = document.createElement('div'); s2.className = 'bridge-ops-status-item';
+        var ri = document.createElement('i'); ri.setAttribute('data-lucide', 'route'); ri.className = 'bridge-ops-status-icon';
+        var rv = document.createElement('span'); rv.className = 'bridge-ops-status-value'; rv.id = 'opsRoutingMode'; rv.textContent = '--';
+        s2.appendChild(ri); s2.appendChild(rv); statusSec.appendChild(s2);
+
+        // Agent count
+        var s3 = document.createElement('div'); s3.className = 'bridge-ops-status-item';
+        var ai = document.createElement('i'); ai.setAttribute('data-lucide', 'users'); ai.className = 'bridge-ops-status-icon';
+        var av = document.createElement('span'); av.className = 'bridge-ops-status-value'; av.id = 'opsAgentCount'; av.textContent = '--';
+        s3.appendChild(ai); s3.appendChild(av); statusSec.appendChild(s3);
+
+        // Clock
+        var s4 = document.createElement('div'); s4.className = 'bridge-ops-status-item';
+        var ci = document.createElement('i'); ci.setAttribute('data-lucide', 'clock'); ci.className = 'bridge-ops-status-icon';
+        var cv = document.createElement('span'); cv.className = 'bridge-ops-status-value'; cv.id = 'opsBarClock'; cv.textContent = '--:--';
+        s4.appendChild(ci); s4.appendChild(cv); statusSec.appendChild(s4);
+
+        strip.appendChild(statusSec);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Label
+        var label = document.createElement('div');
+        label.className = 'bridge-ops-label';
+        label.textContent = 'STATIONS';
+        strip.appendChild(label);
+    }
+
+    // Remove old zones row and rebuild (status section + label persist)
+    var oldZones = strip.querySelector('.bridge-ops-zones');
+    if (oldZones) oldZones.remove();
+
+    // Zone squares container
+    var zonesRow = document.createElement('div');
+    zonesRow.className = 'bridge-ops-zones';
+
+    for (const [zoneName, zoneInfo] of Object.entries(ISOMETRIC_ZONE_MAP)) {
+        var jobs = zoneJobs[zoneName] || [];
+        var hasJob = jobs.length > 0;
+
+        var zoneEl = document.createElement('div');
+        zoneEl.className = 'bridge-ops-zone' + (hasJob ? ' has-job' : '');
+
+        // Zone status dot
+        var zoneDot = document.createElement('div');
+        zoneDot.className = 'bridge-ops-zone-dot';
+        if (!hasJob) {
+            var hex = zoneInfo.color;
+            var r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+            zoneDot.style.background = 'rgba(' + r + ',' + g + ',' + b + ',0.2)';
+        }
+        zoneEl.appendChild(zoneDot);
+
+        // Zone name
+        var nameEl = document.createElement('div');
+        nameEl.className = 'bridge-ops-zone-name';
+        nameEl.textContent = zoneInfo.abbr;
+        if (!hasJob) nameEl.style.color = zoneInfo.color;
+        zoneEl.appendChild(nameEl);
+
+        // Progress bar (only visible when has-job)
+        if (hasJob) {
+            var job = jobs[0];
+            var pct = job.total_steps > 0 ? Math.round((job.completed_steps / job.total_steps) * 100) : 0;
+
+            var progTrack = document.createElement('div');
+            progTrack.className = 'bridge-ops-zone-progress';
+            var progBar = document.createElement('div');
+            progBar.className = 'bridge-ops-zone-bar';
+            progBar.style.width = pct + '%';
+            progTrack.appendChild(progBar);
+            zoneEl.appendChild(progTrack);
+
+            // Job summary text
+            var jobText = document.createElement('div');
+            jobText.className = 'bridge-ops-zone-job';
+            jobText.textContent = pct + '% ' + (job.completed_steps + '/' + job.total_steps);
+            zoneEl.appendChild(jobText);
+        }
+
+        // Click → open LCARS console for this zone
+        (function(zn, zi) {
+            zoneEl.addEventListener('click', function() {
+                // Build zd from current allStations
+                var zd = { agents: [], modules: [], totalNodes: 0, primaryStation: null, activeJobs: zoneJobs[zn] || [] };
+                for (var s of allStations) {
+                    if (STATION_TO_ISO_ZONE[s.code] === zn) {
+                        if (!zd.primaryStation) zd.primaryStation = s;
+                        zd.modules = zd.modules.concat(s.modules || []);
+                        zd.agents = zd.agents.concat(s.assigned_agents || []);
+                    }
+                }
+                openStationConsole(zn, zi, zd);
+            });
+        })(zoneName, zoneInfo);
+
+        zonesRow.appendChild(zoneEl);
+    }
+
+    strip.appendChild(zonesRow);
 }
 
 function createIsometricZone(zoneName, zoneInfo, zd) {
@@ -7954,6 +8274,10 @@ function openStationConsole(zoneName, zoneInfo, zd) {
 
     _consoleCurrentZone = { zoneName, zoneInfo, zd };
 
+    // Show CTRL tab only for COMMAND zone
+    var ctrlTab = document.getElementById('lcarsRoutingTab');
+    if (ctrlTab) ctrlTab.style.display = (zoneName === 'COMMAND') ? '' : 'none';
+
     // Set station color
     panel.style.setProperty('--station-color', zoneInfo.color);
 
@@ -8028,6 +8352,119 @@ function switchConsoleTab(tabName) {
     if (tabName === 'nodes') loadConsoleNodes(zd, zoneInfo.color);
     if (tabName === 'metrics') loadConsoleMetrics(zoneInfo.stations);
     if (tabName === 'memory') loadConsoleMemory();
+    if (tabName === 'routing') renderRoutingTab();
+}
+
+function renderRoutingTab() {
+    var panel = document.getElementById('lcarsRoutingPanel');
+    if (!panel) return;
+    panel.textContent = '';
+
+    // Routing Mode section
+    var section = document.createElement('div');
+    section.style.cssText = 'padding:12px;';
+
+    var label = document.createElement('div');
+    label.style.cssText = 'font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;opacity:0.5;margin-bottom:8px;';
+    label.textContent = 'Routing Mode';
+    section.appendChild(label);
+
+    var btnGroup = document.createElement('div');
+    btnGroup.style.cssText = 'display:flex;gap:0;';
+
+    var modes = [
+        { mode: 'local_only', text: 'Local Only' },
+        { mode: 'local_cloud', text: 'Local + Cloud' },
+        { mode: 'full', text: 'Full' }
+    ];
+
+    modes.forEach(function(m) {
+        var btn = document.createElement('button');
+        btn.className = 'routing-btn';
+        btn.dataset.mode = m.mode;
+        btn.textContent = m.text;
+        btn.addEventListener('click', async function() {
+            try {
+                var res = await fetch('/tools/bridge/api/routing-mode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({routing_mode: m.mode}),
+                });
+                var data = await res.json();
+                if (data.success) {
+                    // Update all routing-btn elements (header + console)
+                    document.querySelectorAll('.routing-btn').forEach(function(b) {
+                        b.classList.toggle('active', b.dataset.mode === m.mode);
+                    });
+                    var st = document.getElementById('routingModeStatus');
+                    if (st) st.textContent = 'Mode: ' + m.mode;
+                }
+            } catch (e) { console.error('Failed to set routing mode:', e); }
+        });
+        btnGroup.appendChild(btn);
+    });
+    section.appendChild(btnGroup);
+
+    // Escalation section
+    var escLabel = document.createElement('div');
+    escLabel.style.cssText = 'font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;opacity:0.5;margin:16px 0 8px;';
+    escLabel.textContent = 'Escalation';
+    section.appendChild(escLabel);
+
+    var escGroup = document.createElement('div');
+    escGroup.style.cssText = 'display:flex;gap:0;';
+
+    var escModes = [
+        { mode: 'auto', text: 'Auto' },
+        { mode: 'ask_first', text: 'Ask First' }
+    ];
+
+    escModes.forEach(function(m) {
+        var btn = document.createElement('button');
+        btn.className = 'escalation-btn';
+        btn.dataset.mode = m.mode;
+        btn.textContent = m.text;
+        btn.addEventListener('click', async function() {
+            try {
+                var res = await fetch('/tools/bridge/api/escalation-mode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({escalation_mode: m.mode}),
+                });
+                var data = await res.json();
+                if (data.success) {
+                    document.querySelectorAll('.escalation-btn').forEach(function(b) {
+                        b.classList.toggle('active', b.dataset.mode === m.mode);
+                    });
+                }
+            } catch (e) { console.error('Failed to set escalation mode:', e); }
+        });
+        escGroup.appendChild(btn);
+    });
+    section.appendChild(escGroup);
+
+    panel.appendChild(section);
+
+    // Sync active state from header buttons
+    document.querySelectorAll('.bridge-header-controls .routing-btn.active').forEach(function(b) {
+        var match = panel.querySelector('.routing-btn[data-mode="' + b.dataset.mode + '"]');
+        if (match) match.classList.add('active');
+    });
+    document.querySelectorAll('.bridge-header-controls .escalation-btn.active').forEach(function(b) {
+        var match = panel.querySelector('.escalation-btn[data-mode="' + b.dataset.mode + '"]');
+        if (match) match.classList.add('active');
+    });
+
+    // Also fetch current routing mode from API
+    fetch('/tools/bridge/api/routing-mode')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                panel.querySelectorAll('.routing-btn').forEach(function(b) {
+                    b.classList.toggle('active', b.dataset.mode === data.routing_mode);
+                });
+            }
+        }).catch(function() {});
 }
 
 // Wire up tab pill clicks

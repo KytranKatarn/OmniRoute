@@ -1114,17 +1114,19 @@ window.addRepo = function() {
 
   var btn = document.querySelector("#addRepoOverlay .btn-submit");
   if (btn) btn.disabled = true;
-  setHtml("addRepoResult", '<div class="cs-loading">Indexing repository... This may take a minute.</div>');
+  setHtml("addRepoResult", '<div class="cs-loading">Creating Bridge job\u2026 An agent will index this repo.</div>');
 
   var body = { repo_url: url, priority: "high" };
   if (maxFiles) body.max_files = parseInt(maxFiles);
 
   api("/github/index-selective", { method: "POST", body: body }).then(function(data) {
     if (data.success) {
-      setHtml("addRepoResult", '<div class="cs-pipeline-step green"><span class="cs-pipeline-icon">\u2713</span><span>Indexed ' + (data.indexed || data.count || 0) + ' files from ' + escHtml(data.repo || url) + '</span></div>');
+      var msg = 'Indexed ' + (data.indexed_count || data.indexed || 0) + ' files from ' + escHtml(data.repo || url);
+      if (data.job_id) msg += ' (Job #' + data.job_id + ')';
+      setHtml("addRepoResult", '<div class="cs-pipeline-step green"><span class="cs-pipeline-icon">\u2713</span><span>' + msg + '</span></div>');
       _cache.github = false;
       loadGitHub();
-      setTimeout(closeAddRepoModal, 2000);
+      setTimeout(closeAddRepoModal, 2500);
     } else {
       setHtml("addRepoResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Failed to index") + '</span></div>');
     }
@@ -1136,10 +1138,12 @@ window.addRepo = function() {
 };
 
 window.reindexRepo = function(repoId) {
-  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Re-indexing repo #' + repoId + '...</span>');
+  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Assigning agent to re-index repo\u2026</span>');
   api("/github/reindex/" + repoId, { method: "POST" }).then(function(data) {
     if (data.success) {
-      setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 Re-indexed ' + (data.indexed || 0) + ' files</span>');
+      var msg = '\u2713 Re-indexed ' + (data.indexed || 0) + ' files from ' + escHtml(data.repo || '#' + repoId);
+      if (data.job_id) msg += ' <span class="cs-badge blue" style="font-size:0.7rem;">Job #' + data.job_id + '</span>';
+      setHtml("ghActionResult", '<span style="color:#4ade80;">' + msg + '</span>');
       _cache.github = false;
       loadGitHub();
     } else {
@@ -1153,16 +1157,47 @@ window.reindexRepo = function(repoId) {
 window.reindexAllRepos = function() {
   var btn = document.getElementById("btnReindexAll");
   if (btn) btn.disabled = true;
-  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Re-indexing all repositories... This may take several minutes.</span>');
+  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Creating Bridge job to re-index all repos\u2026</span>');
   api("/github/reindex-all", { method: "POST" }).then(function(data) {
     if (data.success) {
-      setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 Re-indexed ' + (data.total_indexed || 0) + ' files across ' + (data.repos_processed || 0) + ' repos</span>');
+      var msg = '\u2713 Re-indexed ' + (data.total_indexed || 0) + ' files across ' + (data.repos_processed || data.total_repos || 0) + ' repos';
+      if (data.job_id) msg += ' <span class="cs-badge blue" style="font-size:0.7rem;">Job #' + data.job_id + '</span>';
+      setHtml("ghActionResult", '<span style="color:#4ade80;">' + msg + '</span>');
       _cache.github = false;
       loadGitHub();
     } else {
       setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
     }
     if (btn) btn.disabled = false;
+  }).catch(function(err) {
+    setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
+    if (btn) btn.disabled = false;
+  });
+};
+
+/* ── Embed GitHub files (Bridge job) ─────────────── */
+
+window.embedGitHubFiles = function() {
+  var btn = document.getElementById("btnEmbedGH");
+  if (btn) btn.disabled = true;
+  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Creating Bridge job to embed files\u2026</span>');
+
+  api("/api/processing/generate-embeddings", {
+    method: "POST",
+    body: { batch_size: 100 }
+  }).then(function(data) {
+    if (data.success && data.job_id) {
+      _pollJobStatus(data.job_id, "ghActionResult", function() {
+        if (btn) btn.disabled = false;
+        loadGitHubEmbedStats();
+      });
+    } else if (data.success) {
+      setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 ' + escHtml(data.message || "All files already embedded") + '</span>');
+      if (btn) btn.disabled = false;
+    } else {
+      setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
+      if (btn) btn.disabled = false;
+    }
   }).catch(function(err) {
     setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
     if (btn) btn.disabled = false;

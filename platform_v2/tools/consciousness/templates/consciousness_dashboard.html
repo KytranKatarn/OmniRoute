@@ -1046,7 +1046,12 @@
             <button class="cs-subtab" onclick="switchGithubSubtab('search')">Search</button>
           </div>
           <div class="cs-subpanel active" id="gh-repos">
-            <!-- Add Repo + Re-index All controls -->
+            <!-- Workflow hint -->
+            <div style="margin-bottom:12px; padding:10px 14px; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15); border-radius:8px; font-size:0.78rem; color:rgba(255,255,255,0.45);">
+              <strong style="color:#8b5cf6;">Workflow:</strong>
+              Add a repo <span style="opacity:0.5;">&rarr;</span> Files get indexed <span style="opacity:0.5;">&rarr;</span> Click <em>Embed Files</em> to make them searchable <span style="opacity:0.5;">&rarr;</span> All jobs tracked in Bridge Command
+            </div>
+            <!-- Actions row -->
             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
               <button onclick="showAddRepoModal()"
                       style="padding:8px 16px; background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.4); border-radius:6px; color:#8b5cf6; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
@@ -1055,6 +1060,10 @@
               <button id="btnReindexAll" onclick="reindexAllRepos()"
                       style="padding:8px 16px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); border-radius:6px; color:#f59e0b; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
                 <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Re-index All
+              </button>
+              <button id="btnEmbedGH" onclick="embedGitHubFiles()"
+                      style="padding:8px 16px; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); border-radius:6px; color:#22c55e; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
+                <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Embed Files
               </button>
               <div id="ghActionResult" style="flex:1; font-size:0.82rem;"></div>
             </div>

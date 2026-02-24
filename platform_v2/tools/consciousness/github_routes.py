@@ -629,6 +629,8 @@ def register_github_routes(bp, admin_required):
         # If no paths specified, use the recursive tree API for full repo index
         if not paths:
             try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
                 # Look up repo_type and max_files from github_repositories
                 conn = _get_db()
                 cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -654,9 +656,35 @@ def register_github_routes(bp, admin_required):
                 cur.close()
                 conn.close()
 
+                # ── Create Bridge Job ───────────────────────
+                dispatcher = get_dispatcher()
+                job_id = dispatcher.create_job(
+                    job_type="github_index",
+                    module_source="consciousness",
+                    description=f"Index repo {owner}/{repo} (max {effective_max or 'unlimited'} files)",
+                    total_steps=1,
+                    capability="code_analysis",
+                    metadata={"repo": f"{owner}/{repo}", "priority": priority, "max_files": effective_max},
+                )
+
                 indexed_count, errors, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
                     owner, repo, repo_type, importance, max_files=effective_max
                 )
+
+                # ── Complete Bridge Job ─────────────────────
+                if job_id:
+                    dispatcher.update_job_progress(
+                        job_id,
+                        1,
+                        0,
+                        {
+                            "indexed": indexed_count,
+                            "skipped": skipped,
+                            "total_found": total_found,
+                        },
+                    )
+                    dispatcher.complete_job(job_id)
+
                 return jsonify(
                     {
                         "success": True,
@@ -667,6 +695,7 @@ def register_github_routes(bp, admin_required):
                         "total_found": total_found,
                         "capped_at": used_cap if was_capped else None,
                         "errors": errors if errors else None,
+                        "job_id": job_id,
                     }
                 )
             except Exception as e:
@@ -799,8 +828,14 @@ def register_github_routes(bp, admin_required):
     @login_required
     @admin_required
     def github_reindex_all():
-        """Re-index all tracked repositories using the Tree API."""
+        """Re-index all tracked repositories using the Tree API.
+
+        Creates a bridge_job with one step per repo so progress is tracked
+        in Bridge Command.
+        """
         try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories ORDER BY id")
@@ -808,9 +843,24 @@ def register_github_routes(bp, admin_required):
             cur.close()
             conn.close()
 
+            if not repos:
+                return jsonify({"success": True, "total_indexed": 0, "total_repos": 0, "results": []})
+
+            # ── Create Bridge Job ───────────────────────
+            dispatcher = get_dispatcher()
+            job_id = dispatcher.create_job(
+                job_type="github_reindex_all",
+                module_source="consciousness",
+                description=f"Re-index all {len(repos)} GitHub repositories",
+                total_steps=len(repos),
+                capability="code_analysis",
+                metadata={"repo_count": len(repos)},
+            )
+
             results = []
             total_indexed = 0
             total_errors = []
+            completed_repos = 0
 
             for repo_row in repos:
                 repo_name = repo_row["repo_name"]
@@ -825,6 +875,7 @@ def register_github_routes(bp, admin_required):
                     )
                     total_indexed += indexed
                     total_errors.extend(errs)
+                    completed_repos += 1
                     results.append(
                         {
                             "repo": repo_name,
@@ -847,13 +898,28 @@ def register_github_routes(bp, admin_required):
                     )
                     total_errors.append(f"{repo_name}: {str(e)}")
 
+                # Update bridge job progress per repo
+                if job_id:
+                    dispatcher.update_job_progress(
+                        job_id,
+                        completed_repos,
+                        len([r for r in results if "error" in r]),
+                        {"total_indexed": total_indexed, "last_repo": repo_name},
+                    )
+
+            # ── Complete Bridge Job ─────────────────────
+            if job_id:
+                dispatcher.complete_job(job_id)
+
             return jsonify(
                 {
                     "success": True,
                     "total_indexed": total_indexed,
+                    "repos_processed": len(repos),
                     "total_repos": len(repos),
                     "results": results,
                     "errors": total_errors if total_errors else None,
+                    "job_id": job_id,
                 }
             )
 
@@ -865,8 +931,13 @@ def register_github_routes(bp, admin_required):
     @login_required
     @admin_required
     def github_reindex_single(repo_id):
-        """Re-index a single tracked repository using the Tree API."""
+        """Re-index a single tracked repository using the Tree API.
+
+        Creates a bridge_job so the work is visible in Bridge Command.
+        """
         try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
@@ -887,9 +958,35 @@ def register_github_routes(bp, admin_required):
             owner = parts[0]
             repo = parts[1]
 
+            # ── Create Bridge Job ───────────────────────
+            dispatcher = get_dispatcher()
+            job_id = dispatcher.create_job(
+                job_type="github_reindex",
+                module_source="consciousness",
+                description=f"Re-index {repo_name}",
+                total_steps=1,
+                capability="code_analysis",
+                metadata={"repo": repo_name, "repo_id": repo_id},
+            )
+
             indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
                 owner, repo, repo_type, max_files=repo_max
             )
+
+            # ── Complete Bridge Job ─────────────────────
+            if job_id:
+                dispatcher.update_job_progress(
+                    job_id,
+                    1,
+                    0,
+                    {
+                        "indexed": indexed,
+                        "skipped": skipped,
+                        "total_found": total_found,
+                    },
+                )
+                dispatcher.complete_job(job_id)
+
             return jsonify(
                 {
                     "success": True,
@@ -899,6 +996,7 @@ def register_github_routes(bp, admin_required):
                     "total_found": total_found,
                     "capped_at": used_cap if was_capped else None,
                     "errors": errs if errs else None,
+                    "job_id": job_id,
                 }
             )
 

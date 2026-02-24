@@ -632,7 +632,7 @@ def _auto_embed_processed_items(item_ids: list) -> dict:
                     continue
 
                 title, content = row
-                text = f"{title or ''}. {content[:2000]}"
+                text = f"{title or ''}. {content[:800]}"
                 embedding = generate_embedding(text)
 
                 if embedding:
@@ -680,7 +680,7 @@ def _run_embedding_job(item_ids_and_data, job_id):
 
         for item_id, title, content in item_ids_and_data:
             try:
-                text = f"{title or ''}. {content[:2000]}"
+                text = f"{title or ''}. {content[:800]}"
                 embedding = generate_embedding(text)
 
                 if embedding:

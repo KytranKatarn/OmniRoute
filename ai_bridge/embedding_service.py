@@ -103,8 +103,9 @@ class EmbeddingService:
             logger.warning("Empty text provided for embedding")
             return None
 
-        # Truncate very long text (model has context limits)
-        max_chars = 8192
+        # Truncate to fit model context window (arctic-embed-cpu: 512 tokens ≈ 1500 chars)
+        # Use 1000 chars to leave room for dense text and CJK characters
+        max_chars = 1000
         if len(text) > max_chars:
             text = text[:max_chars]
             logger.debug(f"Truncated text to {max_chars} chars for embedding")

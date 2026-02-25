@@ -1790,30 +1790,44 @@ function _renderOpsAgents(elId, homeStationCode, jobData) {
   }).then(function(data) {
     if (!data.success) return;
     var crew = [];
+    var maxPrimary = 2;
+    var maxAux = 1;
     var stations = data.stations || [];
     stations.forEach(function(s) {
       if (s.code !== homeStationCode) return;
+      maxPrimary = s.max_primary || 2;
+      maxAux = s.max_auxiliary || 1;
       (s.assigned_agents || []).forEach(function(a) {
         crew.push({
           name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
-          title: a.title || a.assignment_type || "agent"
+          title: a.title || a.assignment_type || "agent",
+          agentName: a.name || ""
         });
       });
     });
-    /* Cross-station agents only if they have an active job here */
+
+    /* Separate cross-station assists and contractors from active jobs */
     var assists = [];
+    var contractors = [];
     if (jobData && jobData.length) {
       jobData.forEach(function(j) {
         var meta = j.metadata || {};
-        if (meta.is_cross_station && meta.agent_station && meta.agent_station !== homeStationCode) {
-          var name = j.agent_name || "Cross-station agent";
-          var already = assists.some(function(a) { return a.name === name; });
+        if (meta.is_cloud) {
+          var cname = j.agent_name || "Cloud";
+          var already = contractors.some(function(c) { return c.name === cname; });
           if (!already) {
-            assists.push({ name: name, station: meta.agent_station, cap: meta.capability || "assist" });
+            contractors.push({ name: cname, cap: meta.capability || j.job_type || "task" });
+          }
+        } else if (meta.is_cross_station && meta.agent_station && meta.agent_station !== homeStationCode) {
+          var aname = j.agent_name || "Cross-station agent";
+          var already2 = assists.some(function(a) { return a.name === aname; });
+          if (!already2) {
+            assists.push({ name: aname, station: meta.agent_station, cap: meta.capability || "assist" });
           }
         }
       });
     }
+
     /* Build lookup of busy agents from active jobs */
     var busyMap = {};
     if (jobData && jobData.length) {
@@ -1823,33 +1837,53 @@ function _renderOpsAgents(elId, homeStationCode, jobData) {
         }
       });
     }
+
     var html = '';
+
+    /* ── STATION CREW section ── */
+    html += '<div class="cs-ops-section-label">STATION CREW (' + crew.length + '/' + maxPrimary + ')</div>';
     if (crew.length) {
-      html += '<div class="cs-ops-section-label">STATION CREW</div>';
       crew.forEach(function(a) {
-        var busy = busyMap[a.name];
+        var busy = busyMap[a.agentName] || busyMap[a.name];
         html += '<div class="cs-ops-agent-row">' +
           '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-          (busy ? '<span class="cs-ops-agent-busy">WORKING</span>' : '') +
+          (busy ? '<span class="cs-ops-agent-badge working">WORKING</span>' : '') +
           '<span class="cs-ops-agent-role">' + escHtml(a.title) + '</span>' +
           '</div>';
       });
+    } else {
+      html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.3); padding:3px 8px; font-style:italic;">No primary crew assigned</div>';
     }
+
+    /* ── AUXILIARY section ── */
+    html += '<div class="cs-ops-section-label" style="margin-top:8px;">AUXILIARY (' + assists.length + '/' + maxAux + ')</div>';
     if (assists.length) {
-      html += '<div class="cs-ops-section-label" style="margin-top:8px;">CROSS-STATION ASSIST</div>';
       assists.forEach(function(a) {
-        html += '<div class="cs-ops-agent-row">' +
+        html += '<div class="cs-ops-agent-row" style="border-left-color:#facc15;">' +
           '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-          '<span class="cs-ops-agent-busy">WORKING</span>' +
-          '<span class="cs-ops-agent-role" style="color:#facc15;">' + escHtml(a.station) + ' \u2022 ' + escHtml(a.cap) + '</span>' +
+          '<span class="cs-ops-agent-badge working">HELPING</span>' +
+          '<span class="cs-ops-agent-role" style="color:#facc15; background:rgba(250,204,21,0.15);">' +
+            escHtml(a.station) + ' \u2022 ' + escHtml(a.cap) + '</span>' +
+          '</div>';
+      });
+    } else {
+      html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.3); padding:3px 8px; font-style:italic;">Slot available</div>';
+    }
+
+    /* ── CONTRACTOR section (only if active) ── */
+    if (contractors.length) {
+      html += '<div class="cs-ops-section-label" style="margin-top:8px; color:#a78bfa;">CONTRACTOR (' + contractors.length + ')</div>';
+      contractors.forEach(function(c) {
+        html += '<div class="cs-ops-agent-row" style="border-left-color:#a78bfa;">' +
+          '<span class="cs-ops-agent-name" style="color:#a78bfa;">' + escHtml(c.name) + '</span>' +
+          '<span class="cs-ops-agent-badge working" style="background:rgba(167,139,250,0.15); color:#a78bfa;">HIRED</span>' +
+          '<span class="cs-ops-agent-role" style="color:#a78bfa; background:rgba(167,139,250,0.15);">' +
+            escHtml(c.cap) + '</span>' +
           '</div>';
       });
     }
-    if (html) {
-      setHtml(agentsEl, html);
-    } else {
-      setHtml(agentsEl, '<div style="font-size:0.75rem; color:rgba(255,255,255,0.35); padding:4px 0;">No agents assigned</div>');
-    }
+
+    setHtml(agentsEl, html);
   }).catch(function() {
     setHtml(agentsEl, "");
   });

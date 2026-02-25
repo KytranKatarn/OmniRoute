@@ -6137,6 +6137,120 @@ def translation_scan_and_seed():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/api/translations/audit-templates", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_audit_templates():
+    """Audit all module templates for hardcoded English text missing data-i18n.
+
+    Scans HTML files for visible text nodes that aren't wrapped with i18n
+    attributes.  Returns per-file counts and sample strings so admins know
+    where to add tags.
+    """
+    import html.parser
+
+    class _TextExtractor(html.parser.HTMLParser):
+        """Lightweight HTML parser that collects bare text outside tags."""
+
+        SKIP_TAGS = {
+            "script",
+            "style",
+            "code",
+            "pre",
+            "svg",
+            "path",
+            "option",
+        }
+
+        def __init__(self):
+            super().__init__()
+            self._skip_depth = 0
+            self._in_i18n = False
+            self.hardcoded = []  # (line, text)
+            self._line = 0
+
+        def handle_starttag(self, tag, attrs):
+            attr_dict = dict(attrs)
+            if tag in self.SKIP_TAGS:
+                self._skip_depth += 1
+            # Check for data-i18n (any variant)
+            self._in_i18n = any(k.startswith("data-i18n") for k, _ in attrs)
+
+        def handle_endtag(self, tag):
+            if tag in self.SKIP_TAGS and self._skip_depth > 0:
+                self._skip_depth -= 1
+            self._in_i18n = False
+
+        def handle_data(self, data):
+            if self._skip_depth > 0 or self._in_i18n:
+                return
+            text = data.strip()
+            # Only flag strings that look like real English words (3+ chars,
+            # not just punctuation, numbers, template vars, or icons)
+            if (
+                len(text) >= 3
+                and not text.startswith("{")
+                and not text.startswith("{{")
+                and not text.startswith("--")
+                and re.search(r"[a-zA-Z]{2,}", text)
+            ):
+                self.hardcoded.append((self.getpos()[0], text[:120]))
+
+    try:
+        platform_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        tools_root = os.path.join(platform_root, "tools")
+        templates_root = os.path.join(platform_root, "templates")
+
+        results = []
+
+        # Scan shared templates + module templates
+        scan_dirs = [("shared", templates_root)]
+        if os.path.isdir(tools_root):
+            for tool_name in sorted(os.listdir(tools_root)):
+                tpl_dir = os.path.join(tools_root, tool_name, "templates")
+                if os.path.isdir(tpl_dir):
+                    scan_dirs.append((tool_name, tpl_dir))
+
+        for module_name, tpl_dir in scan_dirs:
+            for root, _dirs, files in os.walk(tpl_dir):
+                for fname in files:
+                    if not fname.endswith(".html"):
+                        continue
+                    fpath = os.path.join(root, fname)
+                    try:
+                        with open(fpath, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        parser = _TextExtractor()
+                        parser.feed(content)
+                        if parser.hardcoded:
+                            results.append(
+                                {
+                                    "module": module_name,
+                                    "file": fname,
+                                    "count": len(parser.hardcoded),
+                                    "samples": [{"line": ln, "text": txt} for ln, txt in parser.hardcoded[:15]],
+                                }
+                            )
+                    except Exception:
+                        pass
+
+        # Sort by count descending
+        results.sort(key=lambda r: r["count"], reverse=True)
+        total_hardcoded = sum(r["count"] for r in results)
+
+        return jsonify(
+            {
+                "success": True,
+                "total_hardcoded": total_hardcoded,
+                "files": len(results),
+                "results": results,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Template audit error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/api/translations/module-coverage")
 @login_required
 @require_permission(Permission.ADMIN_ACCESS)

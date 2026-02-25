@@ -1076,20 +1076,33 @@
 
             <!-- Scan & Generate Actions -->
             <div class="cs-card" style="margin-bottom:20px;">
-              <div class="cs-card-header" style="display:flex; align-items:center; justify-content:space-between;">
+              <div class="cs-card-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
                 <span>Scan &amp; Generate</span>
-                <div style="display:flex; gap:8px;">
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button class="cs-btn" onclick="langAuditTemplates()" id="langAuditBtn"
+                          style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(251,146,60,0.15); color:#fb923c; border:1px solid rgba(251,146,60,0.3); cursor:pointer;">
+                    <i data-lucide="search" style="width:14px; height:14px; vertical-align:-2px;"></i> Audit Templates
+                  </button>
                   <button class="cs-btn" onclick="langScanKeys()" id="langScanBtn"
                           style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); cursor:pointer;">
                     <i data-lucide="scan" style="width:14px; height:14px; vertical-align:-2px;"></i> Scan for New Keys
                   </button>
-                  <button class="cs-btn" onclick="langGenerateAll()" id="langGenAllBtn"
+                  <button class="cs-btn" onclick="langFullPass()" id="langFullPassBtn"
                           style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid rgba(34,197,94,0.3); cursor:pointer;">
-                    <i data-lucide="zap" style="width:14px; height:14px; vertical-align:-2px;"></i> Generate All Missing
+                    <i data-lucide="zap" style="width:14px; height:14px; vertical-align:-2px;"></i> Full i18n Pass
                   </button>
                 </div>
               </div>
               <div class="cs-card-body" id="langScanStatus" style="display:none; padding:8px 0; font-size:0.82rem; color:rgba(255,255,255,0.6);"></div>
+            </div>
+
+            <!-- Template Audit Results (hidden until audit runs) -->
+            <div class="cs-card" id="langAuditCard" style="margin-bottom:20px; display:none;">
+              <div class="cs-card-header" style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Template Audit</span>
+                <span id="langAuditSummary" style="font-size:0.78rem; color:rgba(255,255,255,0.5);"></span>
+              </div>
+              <div class="cs-card-body" id="langAuditResults"></div>
             </div>
 
             <!-- Active Translation Job -->

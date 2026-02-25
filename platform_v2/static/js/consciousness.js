@@ -1330,6 +1330,117 @@ function _showLangJob(msg) {
   if (detail) setHtml("langJobDetail", escHtml(msg));
 }
 
+/* ----------  Template Audit  ---------- */
+window.langAuditTemplates = function() {
+  var btn = document.getElementById("langAuditBtn");
+  if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
+  _showLangJob("Auditing templates for hardcoded text...");
+
+  api("/api/translations/audit-templates", "POST").then(function(data) {
+    var card = document.getElementById("langAuditCard");
+    var summary = document.getElementById("langAuditSummary");
+    var body = document.getElementById("langAuditResults");
+    if (card) card.style.display = "block";
+    if (summary) setHtml("langAuditSummary", escHtml(data.total_hardcoded + " hardcoded strings in " + data.files + " files"));
+
+    if (!data.results || !data.results.length) {
+      if (body) setHtml("langAuditResults", '<div class="cs-empty" style="color:#4ade80;">All templates are i18n-ready!</div>');
+    } else {
+      var html = '<div style="max-height:400px; overflow-y:auto;">';
+      data.results.forEach(function(r) {
+        html += '<div style="margin-bottom:12px; padding:10px; background:rgba(251,146,60,0.06); border:1px solid rgba(251,146,60,0.15); border-radius:6px;">';
+        html += '<div style="display:flex; justify-content:space-between; margin-bottom:6px;">';
+        html += '<span style="color:#fb923c; font-weight:600;">' + escHtml(r.module) + '/' + escHtml(r.file) + '</span>';
+        html += '<span style="color:rgba(255,255,255,0.5); font-size:0.78rem;">' + r.count + ' strings</span>';
+        html += '</div>';
+        html += '<div style="font-size:0.78rem; color:rgba(255,255,255,0.5);">';
+        (r.samples || []).slice(0, 5).forEach(function(s) {
+          html += '<div style="margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">L' + s.line + ': ' + escHtml(s.text) + '</div>';
+        });
+        if (r.count > 5) html += '<div style="color:rgba(255,255,255,0.3);">...and ' + (r.count - 5) + ' more</div>';
+        html += '</div></div>';
+      });
+      html += '</div>';
+      if (body) setHtml("langAuditResults", html);
+    }
+    _showLangJob("Audit complete — " + data.total_hardcoded + " hardcoded strings found");
+    if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+  }).catch(function(err) {
+    _showLangJob("Audit failed: " + err);
+    if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+  });
+};
+
+/* ----------  Full i18n Pass  ---------- */
+window.langFullPass = function() {
+  var btn = document.getElementById("langFullPassBtn");
+  if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
+
+  // Step 1: Audit templates
+  _showLangJob("Full i18n Pass — Step 1/3: Auditing templates...");
+  api("/api/translations/audit-templates", "POST").then(function(auditData) {
+    // Show audit results
+    var card = document.getElementById("langAuditCard");
+    var summary = document.getElementById("langAuditSummary");
+    if (card) card.style.display = "block";
+    if (summary) setHtml("langAuditSummary", escHtml(auditData.total_hardcoded + " hardcoded strings in " + auditData.files + " files"));
+    var body = document.getElementById("langAuditResults");
+    if (body && auditData.results && auditData.results.length) {
+      var html = '<div style="max-height:300px; overflow-y:auto;">';
+      auditData.results.forEach(function(r) {
+        html += '<div style="margin-bottom:8px; padding:8px; background:rgba(251,146,60,0.06); border:1px solid rgba(251,146,60,0.15); border-radius:6px;">';
+        html += '<span style="color:#fb923c; font-weight:600;">' + escHtml(r.module) + '/' + escHtml(r.file) + '</span>';
+        html += ' <span style="color:rgba(255,255,255,0.4); font-size:0.78rem;">(' + r.count + ')</span></div>';
+      });
+      html += '</div>';
+      setHtml("langAuditResults", html);
+    } else if (body) {
+      setHtml("langAuditResults", '<div class="cs-empty" style="color:#4ade80;">All templates are i18n-ready!</div>');
+    }
+
+    // Step 2: Scan and seed new keys
+    _showLangJob("Full i18n Pass — Step 2/3: Scanning for new keys...");
+    return api("/api/translations/scan-and-seed", "POST");
+  }).then(function(scanData) {
+    var stats = scanData.stats || scanData;
+    _showLangJob("Full i18n Pass — Step 2/3 done: " + (stats.new_keys || 0) + " new keys seeded. Starting translations...");
+
+    // Step 3: Generate all 7 languages sequentially
+    var langs = ["fr", "es", "pt", "de", "zh", "ar", "he"];
+    var completed = 0;
+
+    function genNext() {
+      if (!langs.length) {
+        _showLangJob("Full i18n Pass complete! " + completed + " language batches generated.");
+        if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+        _cache.languages = false;
+        setTimeout(function() { loadLanguages(); }, 1000);
+        return;
+      }
+      var code = langs.shift();
+      completed++;
+      _showLangJob("Full i18n Pass — Step 3/3: Generating " + code.toUpperCase() + " (" + completed + "/7)...");
+
+      var cardBtn = document.getElementById("langGenBtn-" + code);
+      if (cardBtn) { cardBtn.disabled = true; cardBtn.textContent = "..."; }
+
+      api("/api/translations/generate", "POST", { language: code }).then(function(data) {
+        var s = data.stats || {};
+        if (cardBtn) { cardBtn.textContent = (s.inserted || 0) + " done"; cardBtn.style.color = "#4ade80"; }
+        genNext();
+      }).catch(function() {
+        if (cardBtn) { cardBtn.textContent = "Failed"; cardBtn.style.color = "#f87171"; }
+        genNext();
+      });
+    }
+
+    genNext();
+  }).catch(function(err) {
+    _showLangJob("Full i18n Pass failed: " + err);
+    if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+  });
+};
+
 function loadLangBrowser() {
   var search = document.getElementById("langSearch");
   var lang = document.getElementById("langFilterLang");

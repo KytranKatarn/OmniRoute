@@ -123,7 +123,7 @@ def register_team_routes(bp, admin_required):
 
             cur.execute(
                 """
-                SELECT * FROM users WHERE id = %s AND is_agent = TRUE
+                SELECT * FROM agent_profiles WHERE id = %s
             """,
                 (agent_id,),
             )
@@ -133,10 +133,12 @@ def register_team_routes(bp, admin_required):
             if not agent:
                 return jsonify({"error": "Agent not found"}), 404
 
-            # Get recent tasks
+            # Get recent task executions
             cur.execute(
                 """
-                SELECT * FROM agent_tasks
+                SELECT id, task_type, task_description, model_used,
+                       tokens_used, duration_ms, success, created_at
+                FROM task_execution_log
                 WHERE agent_id = %s
                 ORDER BY created_at DESC
                 LIMIT 10
@@ -145,7 +147,7 @@ def register_team_routes(bp, admin_required):
             )
 
             recent_tasks = cur.fetchall()
-            return jsonify({"agent": agent, "recent_tasks": recent_tasks})
+            return jsonify({"agent": dict(agent), "recent_tasks": [dict(t) for t in recent_tasks]})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         finally:
@@ -204,22 +206,22 @@ def register_team_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT
-                    u.id,
-                    u.username,
-                    u.full_name,
-                    COUNT(at.id) as total_tasks,
-                    COUNT(at.id) FILTER (WHERE at.status = 'completed') as completed_tasks,
-                    ROUND(AVG(CASE WHEN at.status = 'completed' THEN 1.0 ELSE 0.0 END)::numeric, 2) as success_rate
-                FROM users u
-                LEFT JOIN agent_tasks at ON u.id = at.agent_id
-                WHERE u.is_agent = TRUE
-                GROUP BY u.id
+                    ap.id,
+                    ap.first_name || ' ' || ap.last_name as full_name,
+                    ap.title,
+                    COUNT(tel.id) as total_tasks,
+                    COUNT(tel.id) FILTER (WHERE tel.success = true) as completed_tasks,
+                    ROUND(AVG(CASE WHEN tel.success THEN 1.0 ELSE 0.0 END)::numeric, 2) as success_rate
+                FROM agent_profiles ap
+                LEFT JOIN task_execution_log tel ON ap.id = tel.agent_id
+                WHERE ap.status = 'active'
+                GROUP BY ap.id, ap.first_name, ap.last_name, ap.title
                 ORDER BY success_rate DESC, completed_tasks DESC
                 LIMIT 20
             """
             )
 
-            leaderboard = cur.fetchall()
+            leaderboard = [dict(r) for r in cur.fetchall()]
             return jsonify({"leaderboard": leaderboard})
         except Exception as e:
             return jsonify({"error": str(e)}), 500

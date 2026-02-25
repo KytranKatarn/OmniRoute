@@ -661,11 +661,6 @@ def _auto_embed_processed_items(item_ids: list) -> dict:
             except Exception as e:
                 logger.error(f"Auto-embed for {item_id} failed: {e}")
                 results["failed"] += 1
-            finally:
-
-                cur.close()
-
-                conn.close()
 
         conn.commit()
         logger.info(f"Auto-embedded {results['processed']}/{len(item_ids)} items")
@@ -723,11 +718,6 @@ def _run_embedding_job(item_ids_and_data, job_id):
                 failed += 1
                 if job_id:
                     dispatcher.update_job_progress(job_id, processed, failed)
-            finally:
-
-                cur.close()
-
-                conn.close()
 
         conn.commit()
     except Exception as e:

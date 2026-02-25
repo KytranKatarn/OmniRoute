@@ -45,7 +45,7 @@ def register_knowledge_routes(bp, admin_required):
         """Search across knowledge_base"""
         print("🔍 [BACKEND] search_knowledge called")
 
-        data = request.json
+        data = request.get_json() or {}
         query = data.get("query", "")
         category = data.get("category")
         knowledge_type = data.get("knowledge_type")
@@ -93,7 +93,7 @@ def register_knowledge_routes(bp, admin_required):
     @admin_required
     def ingest_text():
         """Manually add text knowledge to consciousness"""
-        data = request.json
+        data = request.get_json() or {}
         content = data.get("content")
         category = data.get("category", "manual")
         tags = data.get("tags", [])
@@ -137,7 +137,7 @@ def register_knowledge_routes(bp, admin_required):
     @admin_required
     def create_knowledge():
         """Create a new knowledge entry with full details (title, content, category, etc.)"""
-        data = request.json
+        data = request.get_json() or {}
 
         title = data.get("title")
         content = data.get("content")
@@ -321,7 +321,7 @@ def register_knowledge_routes(bp, admin_required):
     @admin_required
     def ingest_directory():
         """Ingest documents from a directory into knowledge base"""
-        data = request.json
+        data = request.get_json() or {}
         directory_path = data.get("path", "/mnt/archie_brain/docs")
         category = data.get("category", "documentation")
 
@@ -398,7 +398,7 @@ def register_knowledge_routes(bp, admin_required):
         """Browse files in docs directory and show ingestion status"""
         import psycopg2.extras
 
-        data = request.json
+        data = request.get_json() or {}
         directory_path = data.get("path", "/mnt/archie_brain/docs")
 
         try:
@@ -493,17 +493,18 @@ def register_knowledge_routes(bp, admin_required):
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            try:
+                cur.close()
+                conn.close()
+            except NameError:
+                pass
 
     @bp.route("/view-file", methods=["POST"])
     @login_required
     @admin_required
     def view_file():
         """View contents of a specific file"""
-        data = request.json
+        data = request.get_json() or {}
         file_path = data.get("path")
 
         if not file_path:

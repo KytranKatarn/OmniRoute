@@ -818,11 +818,6 @@ def register_github_routes(bp, admin_required):
 
                         except Exception as file_err:
                             errors.append(f"Error processing {item.get('name')}: {str(file_err)}")
-                        finally:
-
-                            cur.close()
-
-                            conn.close()
 
                     elif item.get("type") == "dir":
                         # Recurse into directories
@@ -1389,13 +1384,11 @@ def register_github_routes(bp, admin_required):
                             }
                         )
                     except Exception as e:
-                        cur.execute("ROLLBACK TO SAVEPOINT dep_scan")
+                        try:
+                            cur.execute("ROLLBACK TO SAVEPOINT dep_scan")
+                        except Exception:
+                            conn.rollback()
                         logger.warning(f"Failed to scan {owner_repo}/{dep_file}: {e}")
-                    finally:
-
-                        cur.close()
-
-                        conn.close()
 
             # Scan local platform requirements.txt if requested
             if include_platform:
@@ -1427,13 +1420,11 @@ def register_github_routes(bp, admin_required):
                         }
                     )
                 except Exception as e:
-                    cur.execute("ROLLBACK TO SAVEPOINT local_scan")
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT local_scan")
+                    except Exception:
+                        conn.rollback()
                     logger.warning(f"Failed to scan local requirements.txt: {e}")
-                finally:
-
-                    cur.close()
-
-                    conn.close()
 
             conn.commit()
             return jsonify({"success": True, **results_summary})

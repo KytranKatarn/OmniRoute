@@ -53,7 +53,6 @@ services:
       DB_USER: archie
       DB_PASSWORD: ${DB_PASSWORD}
       OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
-      OLLAMA_SECONDARY: ${OLLAMA_SECONDARY}
       CODE_SERVER_URL: ${CODE_SERVER_URL}
       OLLAMA_HOST: ${OLLAMA_PRIMARY}
       HOST_IP: "192.168.1.200"  # Host machine IP for System Operations module

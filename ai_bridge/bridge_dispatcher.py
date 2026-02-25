@@ -2115,6 +2115,18 @@ class BridgeDispatcher:
                             cloud_provider="ollama_cloud",
                             reason=f"Station {blocked_station} at capacity",
                         )
+                        # ── Capacity event: cloud contractor (ADR-055) ──
+                        self._log_capacity_event(
+                            station_code=blocked_station,
+                            event_type="cloud_contractor",
+                            agent_name=f"CLOUD→{cloud_model}",
+                            capability=capability,
+                            reason=f"Cloud contractor {cloud_model} for {capability}",
+                            metadata={
+                                "cloud_model": cloud_model,
+                                "module_id": module_id,
+                            },
+                        )
                         result = DispatchResult(
                             success=True,
                             response=llm_result.get("response", ""),
@@ -2335,6 +2347,37 @@ class BridgeDispatcher:
             if escalated:
                 return escalated
             # Otherwise fall through to dispatch to original agent anyway
+
+        # ── Capacity event logging (ADR-055) ──
+        occupancy = self._get_station_slot_occupancy(station_code)
+        if is_cross_station:
+            slot_number = (
+                occupancy["primary"] + occupancy["auxiliary"] + 1
+            )
+            max_cap = (
+                occupancy["max_primary"] + occupancy["max_auxiliary"]
+            )
+            cap_event_type = (
+                "auxiliary_filled"
+                if slot_number <= max_cap
+                else "overflow_dispatch"
+            )
+        else:
+            slot_number = occupancy["primary"] + 1
+            cap_event_type = "primary_dispatch"
+        self._log_capacity_event(
+            station_code=station_code,
+            event_type=cap_event_type,
+            agent_id=agent.get("id") if agent else None,
+            agent_name=agent_name,
+            capability=capability,
+            slot_number=slot_number,
+            reason=f"{'cross-station' if is_cross_station else 'primary'} dispatch for {capability}",
+            metadata={
+                "module_id": module_id,
+                "is_cross_station": is_cross_station,
+            },
+        )
 
         # 4. Execute the LLM call
         llm_result = self._execute_llm(

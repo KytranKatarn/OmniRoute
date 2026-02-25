@@ -514,8 +514,7 @@ function renderKnowledgeOps(agentData, jobData) {
   var cmdsEl = document.getElementById("kbOpsCommands");
   if (cmdsEl && !cmdsEl.hasChildNodes()) {
     var commands = [
-      { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" },
-      { label: "EMBED", cls: "green", fn: "generateEmbeddings()", id: "btnGenerateEmbed" }
+      { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" }
     ];
     commands.forEach(function(c) {
       var btn = document.createElement("button");

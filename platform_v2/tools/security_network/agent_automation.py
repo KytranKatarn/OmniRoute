@@ -54,13 +54,17 @@ class AgentAutomationService:
             """
             )
             result = cur.fetchone()
-            cur.close()
-            conn.close()
             if result:
                 self._config = json.loads(result["setting_value"])
                 return self._config
         except Exception:
             pass
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
         self._config = DEFAULT_CONFIG.copy()
         return self._config
 
@@ -77,12 +81,16 @@ class AgentAutomationService:
                 (json.dumps(config),),
             )
             conn.commit()
-            cur.close()
-            conn.close()
             self._config = config
             return True
         except Exception:
             return False
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def set_mode(self, mode: str) -> bool:
         config = self.get_config()
@@ -126,11 +134,15 @@ class AgentAutomationService:
             )
             action_id = cur.fetchone()[0]
             conn.commit()
-            cur.close()
-            conn.close()
             return action_id
         except Exception:
             return None
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def approve_suggestion(self, suggestion_id: int) -> bool:
         try:
@@ -146,11 +158,15 @@ class AgentAutomationService:
             )
             affected = cur.rowcount
             conn.commit()
-            cur.close()
-            conn.close()
             return affected > 0
         except Exception:
             return False
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def dismiss_suggestion(self, suggestion_id: int) -> bool:
         try:
@@ -166,11 +182,15 @@ class AgentAutomationService:
             )
             affected = cur.rowcount
             conn.commit()
-            cur.close()
-            conn.close()
             return affected > 0
         except Exception:
             return False
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def get_pending_suggestions(self, category: str = None, limit: int = 50) -> List[Dict]:
         try:
@@ -195,11 +215,15 @@ class AgentAutomationService:
                     (limit,),
                 )
             results = cur.fetchall()
-            cur.close()
-            conn.close()
             return [dict(r) for r in results]
         except Exception:
             return []
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def get_action_history(self, limit: int = 100) -> List[Dict]:
         try:
@@ -213,11 +237,15 @@ class AgentAutomationService:
                 (limit,),
             )
             results = cur.fetchall()
-            cur.close()
-            conn.close()
             return [dict(r) for r in results]
         except Exception:
             return []
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def log_auto_action(
         self, category: str, title: str, description: str, reasoning: str, data: dict = None, success: bool = True
@@ -236,8 +264,12 @@ class AgentAutomationService:
             )
             action_id = cur.fetchone()[0]
             conn.commit()
-            cur.close()
-            conn.close()
             return action_id
         except Exception:
             return None
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass

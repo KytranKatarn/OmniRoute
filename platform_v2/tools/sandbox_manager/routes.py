@@ -801,9 +801,6 @@ def get_test_results():
             r["tests_failed"] = 1 if r["overall_status"] == "failed" else 0
             r["module_id"] = f"Proposal #{r['proposal_id']}" if r["proposal_id"] else "-"
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "results": [dict(r) for r in results]})
 
     except Exception as e:
@@ -811,6 +808,9 @@ def get_test_results():
         conn.close()
         logger.error(f"Error loading test results: {e}")
         return jsonify({"success": True, "results": [], "note": "No test results available"})
+    finally:
+        cur.close()
+        conn.close()
 
 
 @sandbox_manager_bp.route("/api/deployments", methods=["GET"])
@@ -850,15 +850,15 @@ def get_deployments():
         )
         deployments = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "deployments": [dict(d) for d in deployments]})
 
     except Exception:
         cur.close()
         conn.close()
         return jsonify({"success": True, "deployments": [], "note": "No deployments available"})
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ============================================================================
@@ -993,14 +993,17 @@ def get_test_suites():
         )
         suites = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "suites": [dict(s) for s in suites]})
 
     except Exception as e:
         logger.error(f"Get suites error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @sandbox_manager_bp.route("/api/suites", methods=["POST"])
@@ -1041,14 +1044,18 @@ def create_test_suite():
 
         suite = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "suite": dict(suite)})
 
     except Exception as e:
         logger.error(f"Create suite error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @sandbox_manager_bp.route("/api/suites/<int:suite_id>", methods=["PUT"])
@@ -1097,8 +1104,6 @@ def update_test_suite(suite_id):
 
         suite = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if suite:
             return jsonify({"success": True, "suite": dict(suite)})
@@ -1107,6 +1112,12 @@ def update_test_suite(suite_id):
     except Exception as e:
         logger.error(f"Update suite error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @sandbox_manager_bp.route("/api/suites/<int:suite_id>", methods=["DELETE"])
@@ -1122,8 +1133,6 @@ def delete_test_suite(suite_id):
         deleted = cur.rowcount > 0
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         if deleted:
             return jsonify({"success": True, "message": "Suite deleted"})
@@ -1132,6 +1141,12 @@ def delete_test_suite(suite_id):
     except Exception as e:
         logger.error(f"Delete suite error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============== Test Execution ==============
@@ -1267,13 +1282,16 @@ def _run_suite_tests(run_id: str, suite_id: int, timeout: int):
         # Save to database
         _save_test_run(run_id, run)
 
-        cur.close()
-        conn.close()
-
     except Exception as e:
         run["status"] = "failed"
         run["error"] = str(e)
         logger.error(f"Suite test error: {e}")
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def _run_file_tests(run_id: str, file_path: str, timeout: int):
@@ -1379,13 +1397,16 @@ def _run_regression_tests(run_id: str, timeout: int):
 
         _save_test_run(run_id, run)
 
-        cur.close()
-        conn.close()
-
     except Exception as e:
         run["status"] = "failed"
         run["error"] = str(e)
         logger.error(f"Regression test error: {e}")
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def _run_all_tests(run_id: str, timeout: int):
@@ -1437,13 +1458,16 @@ def _run_all_tests(run_id: str, timeout: int):
 
         _save_test_run(run_id, run)
 
-        cur.close()
-        conn.close()
-
     except Exception as e:
         run["status"] = "failed"
         run["error"] = str(e)
         logger.error(f"All tests error: {e}")
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def _execute_test_command(command: str, timeout: int) -> Dict:
@@ -1533,11 +1557,15 @@ def _save_test_run(run_id: str, run: Dict):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
     except Exception as e:
         logger.warning(f"Failed to save test run: {e}")
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============== Test History ==============
@@ -1572,14 +1600,17 @@ def get_test_history():
         cur.execute("SELECT COUNT(*) FROM test_runs")
         total = cur.fetchone()["count"]
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "runs": [dict(r) for r in runs], "total": total})
 
     except Exception as e:
         logger.error(f"Get history error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @sandbox_manager_bp.route("/api/history/<run_id>")
@@ -1606,9 +1637,6 @@ def get_run_details(run_id):
 
         run = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         if run:
             return jsonify({"success": True, "run": dict(run)})
         return jsonify({"success": False, "error": "Run not found"}), 404
@@ -1616,6 +1644,12 @@ def get_run_details(run_id):
     except Exception as e:
         logger.error(f"Get run details error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @sandbox_manager_bp.route("/api/trends")
@@ -1641,7 +1675,7 @@ def get_test_trends():
                 AVG((summary->>'passed')::int) as avg_passed,
                 AVG((summary->>'failed')::int) as avg_failed
             FROM test_runs
-            WHERE started_at >= NOW() - INTERVAL '%s days'
+            WHERE started_at >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY DATE(started_at)
             ORDER BY date
         """,
@@ -1650,14 +1684,17 @@ def get_test_trends():
 
         trends = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "trends": [dict(t) for t in trends]})
 
     except Exception as e:
         logger.error(f"Get trends error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============== Performance Benchmarks ==============
@@ -1761,8 +1798,6 @@ def _benchmark_database(iterations: int) -> Dict:
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM knowledge_base")
             cur.fetchone()
-            cur.close()
-            conn.close()
             duration = (time.time() - start) * 1000
             timings.append({"iteration": i + 1, "duration_ms": round(duration, 2), "status": "ok"})
         except Exception as e:
@@ -1775,6 +1810,12 @@ def _benchmark_database(iterations: int) -> Dict:
                 }
             )
 
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
     valid_timings = [t["duration_ms"] for t in timings if t.get("status") != "error"]
 
     return {

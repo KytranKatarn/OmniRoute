@@ -135,9 +135,6 @@ def index():
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "invoicing.html",
             stats=stats,
@@ -165,6 +162,12 @@ def index():
             settings=None,
             error=str(e),
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -219,9 +222,6 @@ def get_invoices():
         )
         invoices = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -234,6 +234,12 @@ def get_invoices():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/invoices", methods=["POST"])
@@ -320,8 +326,6 @@ def create_invoice():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -335,6 +339,12 @@ def create_invoice():
     except Exception as e:
         current_app.logger.error(f"[Invoicing] Error creating invoice: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/invoices/<int:invoice_id>", methods=["GET"])
@@ -406,9 +416,6 @@ def get_invoice(invoice_id):
         cur.execute("SELECT * FROM invoice_settings LIMIT 1")
         settings = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -422,6 +429,12 @@ def get_invoice(invoice_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/invoices/<int:invoice_id>", methods=["PUT"])
@@ -515,8 +528,6 @@ def update_invoice(invoice_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {"success": True, "invoice": dict(invoice), "message": "Invoice updated"},
@@ -524,6 +535,12 @@ def update_invoice(invoice_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/invoices/<int:invoice_id>", methods=["DELETE"])
@@ -550,12 +567,16 @@ def delete_invoice(invoice_id):
 
         cur.execute("DELETE FROM invoices WHERE id = %s", (invoice_id,))
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": f"Invoice {invoice['invoice_number']} deleted"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -593,12 +614,16 @@ def add_item(invoice_id):
         item = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "item": dict(item)}, default=json_serial)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/invoices/<int:invoice_id>/items/<int:item_id>", methods=["DELETE"])
@@ -614,12 +639,16 @@ def delete_item(invoice_id, item_id):
             (item_id, invoice_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Item deleted"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -683,8 +712,6 @@ def send_invoice(invoice_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         # TODO: Actually send email via Email Manager
         # For now, just mark as sent
@@ -692,6 +719,12 @@ def send_invoice(invoice_id):
         return jsonify({"success": True, "message": f"Invoice sent to {invoice['customer_email']}"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/invoices/<int:invoice_id>/mark-paid", methods=["POST"])
@@ -781,8 +814,6 @@ def mark_paid(invoice_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -793,6 +824,12 @@ def mark_paid(invoice_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/invoices/<int:invoice_id>/void", methods=["POST"])
@@ -832,8 +869,6 @@ def void_invoice(invoice_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -843,6 +878,12 @@ def void_invoice(invoice_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/invoices/<int:invoice_id>/duplicate", methods=["POST"])
@@ -900,8 +941,6 @@ def duplicate_invoice(invoice_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -913,6 +952,12 @@ def duplicate_invoice(invoice_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -931,12 +976,15 @@ def get_settings():
         cur.execute("SELECT * FROM invoice_settings LIMIT 1")
         settings = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "settings": dict(settings) if settings else None})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/settings", methods=["PUT"])
@@ -987,12 +1035,16 @@ def update_settings():
         settings = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "settings": dict(settings)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1020,15 +1072,18 @@ def get_recurring():
         )
         recurring = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {"success": True, "recurring": [dict(r) for r in recurring]},
             default=json_serial,
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/recurring", methods=["POST"])
@@ -1063,8 +1118,6 @@ def create_recurring():
         recurring = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1076,6 +1129,12 @@ def create_recurring():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1142,8 +1201,6 @@ def create_from_order():
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1154,6 +1211,12 @@ def create_from_order():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @invoicing_bp.route("/api/from-subscription", methods=["POST"])
@@ -1224,8 +1287,6 @@ def create_from_subscription():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1237,6 +1298,12 @@ def create_from_subscription():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1283,9 +1350,6 @@ def get_stats():
         )
         monthly_revenue = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1296,6 +1360,12 @@ def get_stats():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1315,9 +1385,6 @@ def status():
 
         cur.execute("SELECT COUNT(*) FROM invoices WHERE status = 'overdue'")
         overdue_count = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1341,3 +1408,9 @@ def status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

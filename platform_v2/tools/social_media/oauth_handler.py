@@ -621,7 +621,7 @@ def get_expiring_tokens(days: int = 7) -> list:
             FROM social_oauth_tokens t
             JOIN social_accounts a ON t.account_id = a.id
             WHERE t.expires_at IS NOT NULL
-            AND t.expires_at < NOW() + INTERVAL '%s days'
+            AND t.expires_at < NOW() + (%s * INTERVAL '1 day')
             AND t.expires_at > NOW()
             ORDER BY t.expires_at
         """,

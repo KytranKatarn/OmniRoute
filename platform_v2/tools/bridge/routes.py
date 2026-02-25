@@ -4435,13 +4435,11 @@ def get_node_health_history(node_id):
                     COUNT(*) FILTER (WHERE status = 'online') as online_count
                 FROM node_heartbeats
                 WHERE node_id = %s
-                  AND created_at > NOW() - INTERVAL '{} hours'
+                  AND created_at > NOW() - (%s * INTERVAL '1 hour')
                 GROUP BY DATE_TRUNC('hour', created_at)
                 ORDER BY hour
-            """.format(
-                    int(hours)
-                ),
-                (node["id"],),
+            """,
+                (node["id"], int(hours)),
             )
 
             history = cur.fetchall()

@@ -129,7 +129,7 @@ def analyze_failed_logins(hours: int = 24) -> Dict[str, Any]:
                 array_agg(DISTINCT details->>'username') as usernames
             FROM audit_log
             WHERE action = 'login_failed'
-              AND created_at > NOW() - INTERVAL '%s hours'
+              AND created_at > NOW() - (%s * INTERVAL '1 hour')
               AND details->>'ip' IS NOT NULL
             GROUP BY details->>'ip'
             ORDER BY attempt_count DESC

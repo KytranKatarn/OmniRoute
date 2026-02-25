@@ -715,8 +715,6 @@ def batch_scan_files():
             )
             scan_id = cur.fetchone()["id"]
             conn.commit()
-            cur.close()
-            conn.close()
 
             return {
                 "file_path": file_path,
@@ -730,6 +728,12 @@ def batch_scan_files():
 
         except Exception as e:
             return {"file_path": file_path, "error": str(e), "success": False}
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_file = {executor.submit(scan_single_file, fp): fp for fp in file_paths}
@@ -1215,8 +1219,6 @@ def get_review_agents_from_team_management(specialty: str = None, limit: int = 4
         )
 
         agents = cur.fetchall()
-        cur.close()
-        conn.close()
 
         review_agents = {}
         for agent in agents:
@@ -1249,6 +1251,12 @@ def get_review_agents_from_team_management(specialty: str = None, limit: int = 4
     except Exception as e:
         logger.error(f"Error getting review agents from Team Management: {e}")
         return {}
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def get_available_nodes_for_review():
@@ -1290,14 +1298,18 @@ def get_available_nodes_for_review():
         )
 
         nodes = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return nodes
 
     except Exception as e:
         logger.error(f"Error getting available nodes: {e}")
         return []
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @code_sentinel_bp.route("/api/multi-agent/nodes")

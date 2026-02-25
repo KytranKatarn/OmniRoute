@@ -125,9 +125,6 @@ def index():
         )
         source_breakdown = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "crm.html",
             stats=stats,
@@ -154,6 +151,12 @@ def index():
             source_breakdown=[],
             error=str(e),
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -229,9 +232,6 @@ def get_customers():
         )
         customers = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -245,6 +245,12 @@ def get_customers():
     except Exception as e:
         current_app.logger.error(f"[CRM] Error getting customers: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/customers", methods=["POST"])
@@ -319,8 +325,6 @@ def create_customer():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -332,6 +336,12 @@ def create_customer():
     except Exception as e:
         current_app.logger.error(f"[CRM] Error creating customer: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/customers/<int:customer_id>", methods=["GET"])
@@ -377,9 +387,6 @@ def get_customer(customer_id):
         )
         segments = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -391,6 +398,12 @@ def get_customer(customer_id):
     except Exception as e:
         current_app.logger.error(f"[CRM] Error getting customer: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/customers/<int:customer_id>", methods=["PUT"])
@@ -456,8 +469,6 @@ def update_customer(customer_id):
         customer = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -469,6 +480,12 @@ def update_customer(customer_id):
     except Exception as e:
         current_app.logger.error(f"[CRM] Error updating customer: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/customers/<int:customer_id>", methods=["DELETE"])
@@ -496,13 +513,17 @@ def delete_customer(customer_id):
             return jsonify({"success": False, "error": "Customer not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": f"Customer {customer['email']} deleted"})
     except Exception as e:
         current_app.logger.error(f"[CRM] Error deleting customer: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -530,12 +551,15 @@ def get_interactions(customer_id):
         )
         interactions = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "interactions": [dict(i) for i in interactions]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/customers/<int:customer_id>/interactions", methods=["POST"])
@@ -581,8 +605,6 @@ def add_interaction(customer_id):
         interaction = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -594,6 +616,12 @@ def add_interaction(customer_id):
     except Exception as e:
         current_app.logger.error(f"[CRM] Error adding interaction: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -619,12 +647,15 @@ def get_segments():
         )
         segments = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "segments": [dict(s) for s in segments]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/segments", methods=["POST"])
@@ -658,13 +689,17 @@ def create_segment():
         segment = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "segment": dict(segment), "message": "Segment created"})
     except Exception as e:
         current_app.logger.error(f"[CRM] Error creating segment: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/segments/<int:segment_id>", methods=["PUT"])
@@ -704,12 +739,16 @@ def update_segment(segment_id):
             return jsonify({"success": False, "error": "Segment not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "segment": dict(segment)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/segments/<int:segment_id>", methods=["DELETE"])
@@ -729,12 +768,16 @@ def delete_segment(segment_id):
             return jsonify({"success": False, "error": "Segment not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": f"Segment '{segment['name']}' deleted"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/segments/<int:segment_id>/customers", methods=["GET"])
@@ -802,9 +845,6 @@ def get_segment_customers(segment_id):
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -816,6 +856,12 @@ def get_segment_customers(segment_id):
     except Exception as e:
         current_app.logger.error(f"[CRM] Error getting segment customers: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/segments/<int:segment_id>/add-customer", methods=["POST"])
@@ -852,12 +898,16 @@ def add_customer_to_segment(segment_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Customer added to segment"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -949,8 +999,6 @@ def import_customers():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -964,6 +1012,12 @@ def import_customers():
     except Exception as e:
         current_app.logger.error(f"[CRM] Import error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/export", methods=["GET"])
@@ -995,9 +1049,6 @@ def export_customers():
             """
             )
         customers = cur.fetchall()
-
-        cur.close()
-        conn.close()
 
         # Build CSV
         output = io.StringIO()
@@ -1032,6 +1083,12 @@ def export_customers():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1113,9 +1170,6 @@ def get_stats():
         )
         interaction_stats = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1129,6 +1183,12 @@ def get_stats():
     except Exception as e:
         current_app.logger.error(f"[CRM] Error getting stats: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1164,12 +1224,15 @@ def search_customers():
         )
         results = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "results": [dict(r) for r in results]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/quick-create", methods=["POST"])
@@ -1225,13 +1288,17 @@ def quick_create_customer():
         customer_id = cur.fetchone()["id"]
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "customer_id": customer_id, "existing": False})
     except Exception as e:
         current_app.logger.error(f"[CRM] Quick create error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1296,13 +1363,17 @@ def create_from_order():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "customer_id": customer_id})
     except Exception as e:
         current_app.logger.error(f"[CRM] Create from order error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/from-call", methods=["POST"])
@@ -1384,13 +1455,17 @@ def create_from_call():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "customer_id": customer_id})
     except Exception as e:
         current_app.logger.error(f"[CRM] Create from call error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/update-subscription", methods=["POST"])
@@ -1446,13 +1521,17 @@ def update_subscription():
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "updated": result is not None})
     except Exception as e:
         current_app.logger.error(f"[CRM] Update subscription error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1468,8 +1547,6 @@ def status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT COUNT(*) FROM crm_customers")
         count = cur.fetchone()["count"]
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1492,6 +1569,12 @@ def status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1524,12 +1607,16 @@ def safe_query(query, params=None, default=None):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(query, params or ())
         result = cur.fetchone() if default is not None else cur.fetchall()
-        cur.close()
-        conn.close()
         return result or default
     except Exception as e:
         current_app.logger.error(f"Query error: {e}")
         return default
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1721,9 +1808,6 @@ def analytics_dashboard():
         )
         goals = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "tools/analytics.html",
             metrics=metrics,
@@ -1746,6 +1830,12 @@ def analytics_dashboard():
             goals=[],
             error=str(e),
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1778,7 +1868,7 @@ def get_analytics_metrics():
         cur.execute(
             """
             SELECT COALESCE(SUM(total), 0) as value
-            FROM invoices WHERE paid_at >= NOW() - INTERVAL '%s days'
+            FROM invoices WHERE paid_at >= NOW() - (%s * INTERVAL '1 day')
         """,
             (days,),
         )
@@ -1788,8 +1878,8 @@ def get_analytics_metrics():
         cur.execute(
             """
             SELECT COALESCE(SUM(total), 0) as value
-            FROM invoices WHERE paid_at >= NOW() - INTERVAL '%s days'
-              AND paid_at < NOW() - INTERVAL '%s days'
+            FROM invoices WHERE paid_at >= NOW() - (%s * INTERVAL '1 day')
+              AND paid_at < NOW() - (%s * INTERVAL '1 day')
         """,
             (days * 2, days),
         )
@@ -1803,7 +1893,7 @@ def get_analytics_metrics():
         cur.execute(
             """
             SELECT COUNT(*) as value FROM crm_customers
-            WHERE created_at >= NOW() - INTERVAL '%s days'
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
         """,
             (days,),
         )
@@ -1835,16 +1925,13 @@ def get_analytics_metrics():
             SELECT
                 COUNT(*) FILTER (WHERE sent_at IS NOT NULL) as sent,
                 COUNT(*) FILTER (WHERE opened_at IS NOT NULL) as opened
-            FROM email_logs WHERE created_at >= NOW() - INTERVAL '%s days'
+            FROM email_logs WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
         """,
             (days,),
         )
         email_data = cur.fetchone()
         metrics["emails_sent"] = email_data["sent"]
         metrics["email_open_rate"] = round((email_data["opened"] / max(email_data["sent"], 1)) * 100, 1)
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1856,6 +1943,12 @@ def get_analytics_metrics():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/metrics/<metric_name>")
@@ -1879,9 +1972,6 @@ def get_analytics_metric(metric_name):
 
         result = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1892,6 +1982,12 @@ def get_analytics_metric(metric_name):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1920,7 +2016,7 @@ def get_revenue_chart():
                     SUM(total) as revenue,
                     COUNT(*) as count
                 FROM invoices
-                WHERE paid_at >= NOW() - INTERVAL '%s days'
+                WHERE paid_at >= NOW() - (%s * INTERVAL '1 day')
                 GROUP BY paid_at::DATE
                 ORDER BY date
             """,
@@ -1934,7 +2030,7 @@ def get_revenue_chart():
                     SUM(total) as revenue,
                     COUNT(*) as count
                 FROM invoices
-                WHERE paid_at >= NOW() - INTERVAL '%s days'
+                WHERE paid_at >= NOW() - (%s * INTERVAL '1 day')
                 GROUP BY DATE_TRUNC('week', paid_at)
                 ORDER BY date
             """,
@@ -1948,7 +2044,7 @@ def get_revenue_chart():
                     SUM(total) as revenue,
                     COUNT(*) as count
                 FROM invoices
-                WHERE paid_at >= NOW() - INTERVAL '%s days'
+                WHERE paid_at >= NOW() - (%s * INTERVAL '1 day')
                 GROUP BY DATE_TRUNC('month', paid_at)
                 ORDER BY date
             """,
@@ -1956,9 +2052,6 @@ def get_revenue_chart():
             )
 
         data = cur.fetchall()
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1969,6 +2062,12 @@ def get_revenue_chart():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/charts/customers")
@@ -1990,7 +2089,7 @@ def get_customers_chart():
                 COUNT(*) as new_customers,
                 SUM(COUNT(*)) OVER (ORDER BY created_at::DATE) as cumulative
             FROM crm_customers
-            WHERE created_at >= NOW() - INTERVAL '%s days'
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY created_at::DATE
             ORDER BY date
         """,
@@ -1998,9 +2097,6 @@ def get_customers_chart():
         )
 
         data = cur.fetchall()
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2011,6 +2107,12 @@ def get_customers_chart():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/charts/subscriptions")
@@ -2043,9 +2145,6 @@ def get_subscriptions_chart():
         )
         by_status = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2056,6 +2155,12 @@ def get_subscriptions_chart():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2082,9 +2187,6 @@ def get_analytics_dashboards():
 
         dashboards = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2094,6 +2196,12 @@ def get_analytics_dashboards():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/dashboards", methods=["POST"])
@@ -2124,9 +2232,6 @@ def create_analytics_dashboard():
         dashboard = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2136,6 +2241,12 @@ def create_analytics_dashboard():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2165,9 +2276,6 @@ def get_analytics_goals():
         cur.execute(query, params)
         goals = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2177,6 +2285,12 @@ def get_analytics_goals():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/goals", methods=["POST"])
@@ -2210,9 +2324,6 @@ def create_analytics_goal():
         goal = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2222,6 +2333,12 @@ def create_analytics_goal():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/goals/<int:goal_id>", methods=["PUT"])
@@ -2264,9 +2381,6 @@ def update_analytics_goal(goal_id):
         goal = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         if not goal:
             return jsonify({"success": False, "error": "Goal not found"}), 404
 
@@ -2279,6 +2393,12 @@ def update_analytics_goal(goal_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/goals/<int:goal_id>", methods=["DELETE"])
@@ -2292,13 +2412,16 @@ def delete_analytics_goal(goal_id):
         cur.execute("DELETE FROM analytics_goals WHERE id = %s", (goal_id,))
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Goal deleted"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2325,9 +2448,6 @@ def get_analytics_reports():
 
         reports = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2337,6 +2457,12 @@ def get_analytics_reports():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/reports/generate", methods=["POST"])
@@ -2401,9 +2527,6 @@ def generate_analytics_report():
 
         rows = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2419,6 +2542,12 @@ def generate_analytics_report():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2441,9 +2570,6 @@ def generate_analytics_snapshot():
         snapshot_id = cur.fetchone()[0]
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2454,6 +2580,12 @@ def generate_analytics_snapshot():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @crm_bp.route("/api/analytics/snapshots")
@@ -2471,16 +2603,13 @@ def get_analytics_snapshots():
             """
             SELECT * FROM analytics_snapshots
             WHERE snapshot_type = %s
-              AND snapshot_date >= NOW() - INTERVAL '%s days'
+              AND snapshot_date >= NOW() - (%s * INTERVAL '1 day')
             ORDER BY snapshot_date DESC
         """,
             (snapshot_type, days),
         )
 
         snapshots = cur.fetchall()
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2491,6 +2620,12 @@ def get_analytics_snapshots():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2510,9 +2645,6 @@ def analytics_status():
 
         cur.execute("SELECT COUNT(*) FROM analytics_dashboards")
         dashboard_count = cur.fetchone()[0]
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2536,3 +2668,9 @@ def analytics_status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

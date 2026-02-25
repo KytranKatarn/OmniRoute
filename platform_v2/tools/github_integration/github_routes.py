@@ -54,7 +54,7 @@ def require_auth(f):
 def test_github_connection():
     """Test GitHub API connection with provided token"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         token = data.get("token")
 
         if not token:
@@ -93,7 +93,7 @@ def test_github_connection():
 def save_github_settings():
     """Save GitHub configuration settings"""
     try:
-        data = request.json
+        data = request.get_json() or {}
 
         # Store settings in database
         conn = get_db_connection()
@@ -122,12 +122,17 @@ def save_github_settings():
 
         conn.commit()
         cursor.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "GitHub settings saved successfully"})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @github_bp.route("/get-settings", methods=["GET"])
@@ -160,7 +165,7 @@ def get_github_settings():
 def clone_repository():
     """Clone a GitHub repository to local storage"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         repo = data.get("repo")  # Format: username/repository
         repo_type = data.get("type")  # 'website', 'ai-agents', 'prompts', 'n8n'
 
@@ -238,6 +243,12 @@ def clone_repository():
         return jsonify({"error": "Clone operation timed out"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @github_bp.route("/pull-repo", methods=["POST"])
@@ -245,7 +256,7 @@ def clone_repository():
 def pull_repository():
     """Pull latest changes from GitHub repository"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         repo_type = data.get("type")
         local_path = data.get("local_path")
 
@@ -290,6 +301,12 @@ def pull_repository():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @github_bp.route("/push-repo", methods=["POST"])
@@ -297,7 +314,7 @@ def pull_repository():
 def push_repository():
     """Push local changes to GitHub repository"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         local_path = data.get("local_path")
         commit_message = data.get("commit_message", "Update from A.R.C.H.I.E. Platform")
 
@@ -369,6 +386,12 @@ def push_repository():
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @github_bp.route("/sync-repo", methods=["POST"])
@@ -376,7 +399,7 @@ def push_repository():
 def sync_repository():
     """Sync repository (pull then push)"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         local_path = data.get("local_path")
 
         # First pull
@@ -402,7 +425,7 @@ def sync_repository():
 def index_repository_content():
     """Index repository content into A.R.C.H.I.E.'s knowledge database"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         repo_type = data.get("type")
         local_path = data.get("local_path")
 
@@ -474,7 +497,6 @@ def index_repository_content():
 
         conn.commit()
         cursor.close()
-        conn.close()
 
         return jsonify(
             {
@@ -487,6 +509,12 @@ def index_repository_content():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -629,12 +657,17 @@ def get_repository_status():
         stats = cursor.fetchone()
 
         cursor.close()
-        conn.close()
 
         return jsonify({"repositories": repos, "stats": stats})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -652,7 +685,6 @@ def get_setting(key, default=None):
         row = cursor.fetchone()
 
         cursor.close()
-        conn.close()
 
         if row:
             return json.loads(row[0])
@@ -660,3 +692,9 @@ def get_setting(key, default=None):
 
     except:
         return default
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

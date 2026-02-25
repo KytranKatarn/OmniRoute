@@ -165,9 +165,6 @@ def index():
         except Exception:
             email_unread_count = 0
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "email_manager.html",
             stats=stats,
@@ -196,6 +193,12 @@ def index():
             smtp_status=None,
             error=str(e),
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -232,12 +235,15 @@ def get_templates():
             )
         templates = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "templates": [dict(t) for t in templates]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/templates", methods=["POST"])
@@ -276,8 +282,6 @@ def create_template():
         template = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -289,6 +293,12 @@ def create_template():
     except Exception as e:
         current_app.logger.error(f"[EmailManager] Error creating template: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/templates/<int:template_id>", methods=["GET"])
@@ -307,12 +317,15 @@ def get_template(template_id):
             conn.close()
             return jsonify({"success": False, "error": "Template not found"}), 404
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "template": dict(template)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/templates/<int:template_id>", methods=["PUT"])
@@ -358,12 +371,16 @@ def update_template(template_id):
             return jsonify({"success": False, "error": "Template not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "template": dict(template)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/templates/<int:template_id>", methods=["DELETE"])
@@ -391,12 +408,16 @@ def delete_template(template_id):
             return jsonify({"success": False, "error": "Template not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": f"Template '{template['name']}' deleted"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -424,12 +445,15 @@ def get_settings():
         )
         settings = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "settings": [dict(s) for s in settings]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/settings", methods=["POST"])
@@ -476,8 +500,6 @@ def create_settings():
         settings = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -489,6 +511,12 @@ def create_settings():
     except Exception as e:
         current_app.logger.error(f"[EmailManager] Error creating settings: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/settings/<int:settings_id>", methods=["PUT"])
@@ -555,12 +583,16 @@ def update_settings(settings_id):
             return jsonify({"success": False, "error": "Settings not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "settings": dict(settings)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/settings/<int:settings_id>/test", methods=["POST"])
@@ -621,9 +653,6 @@ def test_settings(settings_id):
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": test_result == "success",
@@ -633,6 +662,12 @@ def test_settings(settings_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -776,6 +811,12 @@ def send_email():
     except Exception as e:
         current_app.logger.error(f"[EmailManager] Send error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/send-bulk", methods=["POST"])
@@ -832,8 +873,6 @@ def send_bulk():
             queued += 1
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -844,6 +883,12 @@ def send_bulk():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -891,9 +936,6 @@ def get_logs():
         )
         logs = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -905,6 +947,12 @@ def get_logs():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -931,12 +979,15 @@ def get_campaigns():
         )
         campaigns = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "campaigns": [dict(c) for c in campaigns]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/campaigns", methods=["POST"])
@@ -973,12 +1024,16 @@ def create_campaign():
         campaign = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "campaign": dict(campaign), "message": "Campaign created"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/campaigns/<int:campaign_id>/send", methods=["POST"])
@@ -1061,8 +1116,6 @@ def send_campaign(campaign_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1074,6 +1127,12 @@ def send_campaign(campaign_id):
     except Exception as e:
         current_app.logger.error(f"[EmailManager] Campaign send error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1133,9 +1192,6 @@ def get_stats():
         )
         template_usage = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Calculate rates
         total = stats["total_sent"] or 1
         stats["delivery_rate"] = round((stats["delivered"] / total) * 100, 1)
@@ -1152,6 +1208,12 @@ def get_stats():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1176,12 +1238,16 @@ def track_open(log_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
     except Exception:
         pass
 
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
     # Return 1x1 transparent GIF
     gif = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
     return gif, 200, {"Content-Type": "image/gif"}
@@ -1206,13 +1272,17 @@ def track_click(log_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return "", 302, {"Location": url}
 
     except Exception:
         return "", 302, {"Location": "/"}
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1235,9 +1305,6 @@ def status():
 
         cur.execute("SELECT test_result FROM email_settings WHERE is_default = true AND is_active = true")
         smtp_status = cur.fetchone()
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1263,3 +1330,9 @@ def status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

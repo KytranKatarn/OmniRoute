@@ -92,8 +92,6 @@ def auto_sync_if_stale() -> Dict[str, Any]:
         """
         )
         row = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if row and row["updated_at"]:
             age = (datetime.now() - row["updated_at"]).total_seconds()
@@ -111,6 +109,12 @@ def auto_sync_if_stale() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Auto-sync check failed: {e}")
         return {"synced": False, "error": str(e)}
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ======================
@@ -462,11 +466,15 @@ def get_system_health() -> Dict[str, Any]:
             ),
         }
 
-        cur.close()
-        conn.close()
     except Exception as e:
         health["database"] = {"connected": False, "error": str(e)}
 
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
     # Service checks
     services = [
         {"name": "Platform", "endpoint": "http://localhost:3000/api/health"},
@@ -688,9 +696,6 @@ def get_backup_status() -> Dict[str, Any]:
             if db.get("deployed_at"):
                 db["deployed_at"] = db["deployed_at"].isoformat()
 
-        cur.close()
-        conn.close()
-
         # Get backup type distribution
         type_counts = {}
         for b in backups:
@@ -715,6 +720,12 @@ def get_backup_status() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error getting backup status: {e}")
         return {"success": False, "error": str(e)}
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ====================

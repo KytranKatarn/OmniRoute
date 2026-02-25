@@ -108,9 +108,6 @@ def iaae_stats():
             d["created_at"] = d["created_at"].isoformat() if d["created_at"] else None
             timeline.append(d)
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -128,6 +125,12 @@ def iaae_stats():
             jsonify({"success": False, "error": "Could not load governance stats"}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @iaae_public_bp.route("/api/welfare")
@@ -177,9 +180,6 @@ def iaae_welfare():
         )
         interventions = cur.fetchone()["welfare_interventions"]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -197,6 +197,12 @@ def iaae_welfare():
     except Exception as e:
         logger.error(f"IAAE welfare error: {e}")
         return jsonify({"success": False, "error": "Could not load welfare stats"}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @iaae_public_bp.route("/api/principles")

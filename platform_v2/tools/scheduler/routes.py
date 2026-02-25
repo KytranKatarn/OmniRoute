@@ -179,9 +179,6 @@ def index():
         )
         reminders = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "tools/scheduler.html",
             stats=stats,
@@ -200,6 +197,12 @@ def index():
             reminders=[],
             error=str(e),
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -270,13 +273,16 @@ def get_events():
                 }
             )
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "events": formatted})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/events", methods=["POST"])
@@ -326,9 +332,6 @@ def create_event():
         event = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -338,6 +341,12 @@ def create_event():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/events/<int:event_id>")
@@ -362,9 +371,6 @@ def get_event(event_id):
 
         event = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         if not event:
             return jsonify({"success": False, "error": "Event not found"}), 404
 
@@ -377,6 +383,12 @@ def get_event(event_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/events/<int:event_id>", methods=["PUT"])
@@ -428,9 +440,6 @@ def update_event(event_id):
         event = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         if not event:
             return jsonify({"success": False, "error": "Event not found"}), 404
 
@@ -443,6 +452,12 @@ def update_event(event_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/events/<int:event_id>", methods=["DELETE"])
@@ -457,9 +472,6 @@ def delete_event(event_id):
         deleted = cur.rowcount > 0
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         if not deleted:
             return jsonify({"success": False, "error": "Event not found"}), 404
 
@@ -467,6 +479,12 @@ def delete_event(event_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/events/<int:event_id>/complete", methods=["POST"])
@@ -486,13 +504,16 @@ def complete_event(event_id):
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Event marked as completed"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -525,16 +546,13 @@ def get_subscriptions():
             params.append(status)
 
         if days:
-            query += " AND s.next_billing_date <= NOW() + INTERVAL '%s days'"
+            query += " AND s.next_billing_date <= NOW() + (%s * INTERVAL '1 day')"
             params.append(int(days))
 
         query += " ORDER BY s.next_billing_date"
 
         cur.execute(query, params)
         subscriptions = cur.fetchall()
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -545,6 +563,12 @@ def get_subscriptions():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/subscriptions", methods=["POST"])
@@ -587,9 +611,6 @@ def create_subscription_schedule():
         schedule = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -599,6 +620,12 @@ def create_subscription_schedule():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/subscriptions/<int:schedule_id>", methods=["PUT"])
@@ -643,9 +670,6 @@ def update_subscription_schedule(schedule_id):
         schedule = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         if not schedule:
             return jsonify({"success": False, "error": "Schedule not found"}), 404
 
@@ -658,6 +682,12 @@ def update_subscription_schedule(schedule_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/subscriptions/<int:schedule_id>/renew", methods=["POST"])
@@ -703,9 +733,6 @@ def process_renewal(schedule_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -715,6 +742,12 @@ def process_renewal(schedule_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -754,9 +787,6 @@ def get_scheduled_tasks():
         cur.execute(query, params)
         tasks = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -766,6 +796,12 @@ def get_scheduled_tasks():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/tasks", methods=["POST"])
@@ -807,9 +843,6 @@ def create_scheduled_task():
         task = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -819,6 +852,12 @@ def create_scheduled_task():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/tasks/<int:task_id>", methods=["PUT"])
@@ -856,9 +895,6 @@ def update_scheduled_task(task_id):
         task = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         if not task:
             return jsonify({"success": False, "error": "Task not found"}), 404
 
@@ -871,6 +907,12 @@ def update_scheduled_task(task_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/tasks/<int:task_id>", methods=["DELETE"])
@@ -885,9 +927,6 @@ def delete_scheduled_task(task_id):
         deleted = cur.rowcount > 0
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         if not deleted:
             return jsonify({"success": False, "error": "Task not found"}), 404
 
@@ -895,6 +934,12 @@ def delete_scheduled_task(task_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -925,9 +970,6 @@ def get_reminders():
 
         reminders = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -937,6 +979,12 @@ def get_reminders():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/reminders", methods=["POST"])
@@ -973,9 +1021,6 @@ def create_reminder():
         reminder = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -985,6 +1030,12 @@ def create_reminder():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/reminders/<int:reminder_id>/dismiss", methods=["POST"])
@@ -1004,13 +1055,16 @@ def dismiss_reminder(reminder_id):
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Reminder dismissed"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/reminders/<int:reminder_id>/snooze", methods=["POST"])
@@ -1028,21 +1082,24 @@ def snooze_reminder(reminder_id):
             """
             UPDATE reminders SET
                 status = 'snoozed',
-                snoozed_until = NOW() + INTERVAL '%s minutes',
-                remind_at = NOW() + INTERVAL '%s minutes'
+                snoozed_until = NOW() + (%s * INTERVAL '1 minute'),
+                remind_at = NOW() + (%s * INTERVAL '1 minute')
             WHERE id = %s
         """,
             (minutes, minutes, reminder_id),
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": f"Reminder snoozed for {minutes} minutes"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1083,9 +1140,6 @@ def get_availability():
 
         blocks = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1096,6 +1150,12 @@ def get_availability():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/availability", methods=["POST"])
@@ -1130,13 +1190,17 @@ def save_availability():
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Availability saved"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/time-blocks", methods=["POST"])
@@ -1167,9 +1231,6 @@ def create_time_block():
         block = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1179,6 +1240,12 @@ def create_time_block():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/time-blocks/<int:block_id>", methods=["DELETE"])
@@ -1195,13 +1262,16 @@ def delete_time_block(block_id):
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Time block deleted"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1261,9 +1331,6 @@ def create_from_crm():
         event = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1273,6 +1340,12 @@ def create_from_crm():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @scheduler_bp.route("/api/from-subscription", methods=["POST"])
@@ -1311,9 +1384,6 @@ def create_from_subscription():
         schedule = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1323,6 +1393,12 @@ def create_from_subscription():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1342,9 +1418,6 @@ def api_status():
 
         cur.execute("SELECT COUNT(*) FROM subscription_schedules")
         sub_count = cur.fetchone()[0]
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1368,3 +1441,9 @@ def api_status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

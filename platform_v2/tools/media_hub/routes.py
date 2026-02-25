@@ -138,7 +138,6 @@ def get_service_config(service_type: str) -> dict:
         )
         row = cursor.fetchone()
         cursor.close()
-        conn.close()
 
         if row:
             return {
@@ -157,6 +156,12 @@ def get_service_config(service_type: str) -> dict:
     except Exception as e:
         logger.error(f"Error getting service config: {e}")
 
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
     return None
 
 
@@ -176,7 +181,6 @@ def get_all_services() -> list:
         )
         rows = cursor.fetchall()
         cursor.close()
-        conn.close()
 
         services = []
         for row in rows:
@@ -201,6 +205,12 @@ def get_all_services() -> list:
     except Exception as e:
         logger.error(f"Error getting services: {e}")
         return []
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def get_primary_media_server():
@@ -1373,7 +1383,6 @@ def api_add_service():
 
         conn.commit()
         cursor.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1386,6 +1395,12 @@ def api_add_service():
         logger.error(f"Error saving service: {e}")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @media_hub_bp.route("/api/settings/discover", methods=["POST"])
@@ -1427,7 +1442,6 @@ def api_discover_services():
 
         conn.commit()
         cursor.close()
-        conn.close()
 
         # Build response without exposing actual keys
         results = {}
@@ -1451,6 +1465,12 @@ def api_discover_services():
         logger.error(f"Error discovering services: {e}")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @media_hub_bp.route("/api/settings/test/<int:service_id>", methods=["POST"])
@@ -1468,7 +1488,6 @@ def api_test_service(service_id):
         )
         row = cursor.fetchone()
         cursor.close()
-        conn.close()
 
         if not row:
             return jsonify({"success": False, "error": "Service not found"}), 404
@@ -1502,7 +1521,6 @@ def api_test_service(service_id):
         )
         conn.commit()
         cursor.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1514,6 +1532,12 @@ def api_test_service(service_id):
     except Exception as e:
         logger.error(f"Error testing service: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @media_hub_bp.route("/api/settings/services/<int:service_id>", methods=["DELETE"])
@@ -1529,7 +1553,6 @@ def api_delete_service(service_id):
         deleted = cursor.fetchone()
         conn.commit()
         cursor.close()
-        conn.close()
 
         if deleted:
             return jsonify({"success": True, "message": f"{deleted[0]} deleted"})
@@ -1538,6 +1561,12 @@ def api_delete_service(service_id):
     except Exception as e:
         logger.error(f"Error deleting service: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @media_hub_bp.route("/api/settings/set-primary/<int:service_id>", methods=["POST"])
@@ -1576,12 +1605,17 @@ def api_set_primary_server(service_id):
 
         conn.commit()
         cursor.close()
-        conn.close()
 
         return jsonify({"success": True, "message": f"{service_type} set as primary media server"})
     except Exception as e:
         logger.error(f"Error setting primary: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================

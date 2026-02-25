@@ -134,9 +134,6 @@ def index():
         )
         order_stats = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "store_builder.html",
             stores=stores,
@@ -153,6 +150,12 @@ def index():
             order_stats={"total": 0, "pending": 0, "revenue": 0},
             error=str(e),
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -189,12 +192,15 @@ def get_stores():
 
         stores = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "stores": [dict(s) for s in stores]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/stores", methods=["POST"])
@@ -255,9 +261,6 @@ def create_store():
         except:
             pass
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -267,6 +270,12 @@ def create_store():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/stores/<int:store_id>", methods=["GET"])
@@ -321,9 +330,6 @@ def get_store(store_id):
         )
         orders = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -335,6 +341,12 @@ def get_store(store_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/stores/<int:store_id>", methods=["PUT"])
@@ -398,12 +410,15 @@ def update_store(store_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Store updated", "store": dict(updated)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/stores/<int:store_id>", methods=["DELETE"])
@@ -439,12 +454,15 @@ def delete_store(store_id):
         except:
             pass
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": f'Store "{store["name"]}" deleted'})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -480,12 +498,15 @@ def get_products(store_id):
 
         products = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "products": [dict(p) for p in products]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/stores/<int:store_id>/products", methods=["POST"])
@@ -544,12 +565,15 @@ def create_product(store_id):
         product = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Product created", "product": dict(product)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/products/<int:product_id>", methods=["PUT"])
@@ -622,12 +646,15 @@ def update_product(product_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Product updated", "product": dict(updated)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/products/<int:product_id>", methods=["DELETE"])
@@ -648,12 +675,15 @@ def delete_product(product_id):
         cur.execute("DELETE FROM store_products WHERE id = %s", (product_id,))
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": f'Product "{product["name"]}" deleted'})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -699,12 +729,15 @@ def get_orders(store_id):
 
         orders = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "orders": [dict(o) for o in orders]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/orders/<int:order_id>", methods=["GET"])
@@ -734,12 +767,15 @@ def get_order(order_id):
         )
         items = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "order": dict(order), "items": [dict(i) for i in items]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/orders/<int:order_id>/status", methods=["PUT"])
@@ -793,12 +829,15 @@ def update_order_status(order_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Order status updated", "order": dict(updated)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -825,12 +864,15 @@ def get_integrations():
 
         integrations = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "integrations": [dict(i) for i in integrations]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/integrations/<service>", methods=["POST"])
@@ -870,9 +912,6 @@ def connect_integration(service):
         integration = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -882,6 +921,12 @@ def connect_integration(service):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -917,12 +962,15 @@ def get_categories(store_id):
 
         categories = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "categories": [dict(c) for c in categories]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/stores/<int:store_id>/categories", methods=["POST"])
@@ -968,12 +1016,15 @@ def create_category(store_id):
         category = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Category created", "category": dict(category)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1053,12 +1104,16 @@ def analytics_user_growth():
         """
         )
         data = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "data": [dict(row) for row in data]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/analytics/revenue", methods=["GET"])
@@ -1083,12 +1138,16 @@ def analytics_revenue():
         """
         )
         data = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "data": [dict(row) for row in data]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1104,8 +1163,6 @@ def health_check():
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM user_stores")
         count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
 
         return jsonify({"healthy": True, "module": "store_builder", "total_stores": count})
     except Exception as e:
@@ -1113,6 +1170,12 @@ def health_check():
             jsonify({"healthy": False, "module": "store_builder", "error": str(e)}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1267,9 +1330,6 @@ def get_storefront_config(store_id):
         )
         categories = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Default theme settings
         default_theme = {
             "primary_color": "#6366f1",
@@ -1316,6 +1376,12 @@ def get_storefront_config(store_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/stores/<int:store_id>/website-link", methods=["POST"])
@@ -1381,8 +1447,6 @@ def link_store_to_website(store_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1395,6 +1459,12 @@ def link_store_to_website(store_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/stores/<int:store_id>/public-products", methods=["GET"])
@@ -1462,9 +1532,6 @@ def get_public_products(store_id):
         )
         total = cur.fetchone()["count"]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1477,6 +1544,12 @@ def get_public_products(store_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @store_builder_bp.route("/api/status")
@@ -1499,9 +1572,6 @@ def api_status():
         """
         )
         today_orders = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1526,3 +1596,9 @@ def api_status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

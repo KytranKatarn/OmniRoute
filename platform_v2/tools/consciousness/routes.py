@@ -919,7 +919,7 @@ def delete_memory(memory_id):
 @admin_required
 def update_memory(memory_id):
     """Update a memory"""
-    data = request.json
+    data = request.get_json() or {}
 
     conn = get_db()
     cur = conn.cursor()
@@ -3211,7 +3211,7 @@ def approve_proposal(proposal_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        note = request.json.get("note", "Approved by admin") if request.json else "Approved by admin"
+        note = (request.get_json() or {}).get("note", "Approved by admin")
 
         # Update proposal status (using actual table columns)
         cur.execute(
@@ -3259,7 +3259,7 @@ def reject_proposal(proposal_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        reason = request.json.get("reason", "Rejected by admin") if request.json else "Rejected by admin"
+        reason = (request.get_json() or {}).get("reason", "Rejected by admin")
 
         # Update proposal status (using actual table columns - no rejection_reason column)
         cur.execute(

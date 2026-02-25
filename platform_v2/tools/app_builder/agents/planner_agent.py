@@ -958,10 +958,15 @@ Format as JSON:
             )
 
             conn.commit()
-            cur.close()
 
         except Exception as e:
             print(f"[PlannerAgent] Failed to save plan: {e}")
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
 
 # ============================================================================

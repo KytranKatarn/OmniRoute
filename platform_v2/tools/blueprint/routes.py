@@ -107,11 +107,15 @@ def get_overview():
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM knowledge_base WHERE source_type = 'docs_migration'")
         docs_count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
     except Exception:
         pass
 
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
     return jsonify(
         {
             "name": "A.R.C.H.I.E.",
@@ -332,9 +336,6 @@ def get_docs():
         )
         category_facets = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Serialize
         for doc in docs:
             for key in ("created_at", "updated_at", "last_accessed"):
@@ -356,6 +357,12 @@ def get_docs():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @blueprint_bp.route("/api/docs/<int:doc_id>")
@@ -380,8 +387,6 @@ def get_doc_content_by_id(doc_id):
         )
         doc = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not doc:
             return jsonify({"error": "Document not found"}), 404
@@ -402,6 +407,12 @@ def get_doc_content_by_id(doc_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @blueprint_bp.route("/api/docs/file/<filename>")
@@ -427,8 +438,6 @@ def get_doc_by_filename(filename):
         )
         doc = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not doc:
             return jsonify({"error": "Document not found"}), 404
@@ -450,6 +459,12 @@ def get_doc_by_filename(filename):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @blueprint_bp.route("/api/roadmap")
@@ -2435,9 +2450,6 @@ def get_git_activity():
         cur.execute("SELECT COUNT(*) as total FROM git_commits")
         git_commits_count = cur.fetchone()["total"]
 
-        cur.close()
-        conn.close()
-
         # Check if git poller is running
         poller_status = "unknown"
         try:
@@ -2493,6 +2505,12 @@ def get_git_activity():
             jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @blueprint_bp.route("/api/git-tracking/initialize", methods=["POST"])

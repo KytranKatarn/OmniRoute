@@ -89,11 +89,15 @@ def index():
         result = cur.fetchone()
         active_sessions = result["count"] if result else 0
 
-        cur.close()
-        conn.close()
     except Exception as e:
         print(f"Error getting security stats: {e}")
 
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
     return render_template(
         "tools/security_network.html",
         failed_logins_24h=failed_logins_24h,
@@ -133,9 +137,6 @@ def api_stats():
         )
         recent_failures = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -146,6 +147,12 @@ def api_stats():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @security_network_bp.route("/api/auto-block", methods=["POST"])
@@ -183,12 +190,15 @@ def audit_log():
         cur.execute(query, params)
         entries = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "entries": [dict(e) for e in entries]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -692,6 +702,12 @@ def run_nmap_scan():
         return jsonify(result)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @security_network_bp.route("/api/scanner/nikto", methods=["POST"])
@@ -2150,14 +2166,18 @@ def api_recon_delete_scan(scan_id):
         cur.execute("DELETE FROM security_recon_scans WHERE id = %s", (scan_id,))
         affected = cur.rowcount
         conn.commit()
-        cur.close()
-        conn.close()
 
         if affected == 0:
             return jsonify({"success": False, "error": "Scan not found"}), 404
         return jsonify({"success": True, "message": f"Scan {scan_id} deleted"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================

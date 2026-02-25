@@ -78,9 +78,6 @@ def health_check():
         )
         perf = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         # Check AI service availability
         try:
             ai = ArchieAI()
@@ -122,6 +119,12 @@ def health_check():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_api_bp.route("/search", methods=["POST"])
@@ -210,9 +213,6 @@ def knowledge_search():
 
         conversation_results = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Combine and format results
         all_results = []
 
@@ -265,6 +265,12 @@ def knowledge_search():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_api_bp.route("/chat", methods=["POST"])
@@ -444,8 +450,6 @@ def learning_feedback():
                     )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return (
             jsonify(
@@ -464,6 +468,12 @@ def learning_feedback():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_api_bp.route("/learn/batch", methods=["POST"])
@@ -540,9 +550,6 @@ def batch_learning():
         # Create a batch learning job record
         job_id = str(datetime.now().timestamp()).replace(".", "")
 
-        cur.close()
-        conn.close()
-
         return (
             jsonify(
                 {
@@ -561,6 +568,12 @@ def batch_learning():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_api_bp.route("/learn/status/<job_id>", methods=["GET"])

@@ -57,9 +57,6 @@ def telegram_status():
         cur.execute("SELECT COUNT(*) as c FROM telegram_messages WHERE created_at > NOW() - INTERVAL '24 hours'")
         messages_24h = cur.fetchone()["c"]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -71,6 +68,12 @@ def telegram_status():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -117,11 +120,15 @@ def get_telegram_users():
             """
         )
         users = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "users": users})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/telegram/users/<int:tu_id>/authorize", methods=["POST"])
@@ -129,7 +136,7 @@ def get_telegram_users():
 def authorize_telegram_user(tu_id):
     """Authorize/deauthorize a Telegram user."""
     try:
-        authorize = request.json.get("authorize", True) if request.json else True
+        authorize = (request.get_json() or {}).get("authorize", True) if request.json else True
         conn = get_db()
         cur = conn.cursor()
         cur.execute(
@@ -137,11 +144,15 @@ def authorize_telegram_user(tu_id):
             (authorize, tu_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -165,11 +176,15 @@ def get_notification_rules():
             """
         )
         rules = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "rules": rules})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/telegram/rules", methods=["POST"])
@@ -177,7 +192,7 @@ def get_notification_rules():
 def create_notification_rule():
     """Create a notification forwarding rule."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
@@ -199,11 +214,15 @@ def create_notification_rule():
         )
         rule_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "id": rule_id})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/telegram/rules/<int:rule_id>", methods=["DELETE"])
@@ -215,8 +234,12 @@ def delete_notification_rule(rule_id):
         cur = conn.cursor()
         cur.execute("DELETE FROM telegram_notification_rules WHERE id = %s", (rule_id,))
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

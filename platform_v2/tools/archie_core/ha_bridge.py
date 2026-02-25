@@ -231,9 +231,6 @@ def register_ha_routes(bp):
                 except Exception as emo_err:
                     logger.error(f"HA emotional update failed: {emo_err}")
 
-            cur.close()
-            conn.close()
-
             return jsonify({"output": response_text})
 
         except Exception as e:
@@ -241,6 +238,12 @@ def register_ha_routes(bp):
 
             traceback.print_exc()
             return jsonify({"error": str(e)}), 500
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     @bp.route("/ha/tts", methods=["POST"])
     @_require_ha_key

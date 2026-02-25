@@ -107,12 +107,16 @@ def audit_log(
         )
         audit_id = cur.fetchone()[0]
         conn.commit()
-        cur.close()
-        conn.close()
         return audit_id
     except Exception as e:
         print(f"Audit log error: {e}")
         return None
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def record_metric(metric_type: str, value: float, details: dict = None):
@@ -136,10 +140,14 @@ def record_metric(metric_type: str, value: float, details: dict = None):
             cur.execute("SELECT cleanup_old_system_metrics()")
             conn.commit()
 
-        cur.close()
-        conn.close()
     except Exception as e:
         print(f"Metric recording error: {e}")
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def require_reauth():
@@ -899,6 +907,12 @@ def api_network():
         return jsonify({"success": True, "data": data})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/network/port-map")
@@ -915,8 +929,6 @@ def api_network_port_map():
             "SELECT id, name, compose_directory, color, is_system, web_ui_ports FROM docker_stacks ORDER BY name"
         )
         stacks_rows = cur.fetchall()
-        cur.close()
-        conn.close()
 
         # Get host listening ports
         host_data, _ = load_host_monitor_data()
@@ -1000,6 +1012,12 @@ def api_network_port_map():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/network/bandwidth")
@@ -1219,14 +1237,18 @@ def api_update_web_ui_ports(stack_name):
             (Json(web_ui_ports), stack_name),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         audit_log("update_web_ui_ports", stack_name, {"web_ui_ports": web_ui_ports})
 
         return jsonify({"success": True, "web_ui_ports": web_ui_ports})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/history")
@@ -1272,8 +1294,6 @@ def api_history():
             )
 
         data = cur.fetchall()
-        cur.close()
-        conn.close()
 
         # Send ISO timestamps — frontend formats in user's local timezone
         labels = [row["recorded_at"].strftime("%Y-%m-%dT%H:%M:%SZ") for row in data]
@@ -1297,6 +1317,12 @@ def api_history():
         print(f"History API error: {e}")
         print(traceback.format_exc())
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/history/multi")
@@ -1364,9 +1390,6 @@ def api_history_multi():
                     "values": [round(float(row["value"]), 1) for row in data],
                 }
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1383,6 +1406,12 @@ def api_history_multi():
         print(f"Multi-history API error: {e}")
         print(traceback.format_exc())
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1857,8 +1886,6 @@ def api_list_stacks():
         """
         )
         stacks = cur.fetchall()
-        cur.close()
-        conn.close()
 
         results = []
         for stack in stacks:
@@ -1937,6 +1964,12 @@ def api_list_stacks():
         return jsonify({"success": True, "data": results})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/stacks", methods=["POST"])
@@ -2028,8 +2061,6 @@ def api_create_stack():
         )
         stack = dict(cur.fetchone())
         conn.commit()
-        cur.close()
-        conn.close()
         conn = None
         cur = None
 
@@ -2091,6 +2122,12 @@ def api_create_stack():
             error_message=str(e),
         )
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/stacks/<stack_name>")
@@ -2113,8 +2150,6 @@ def api_get_stack(stack_name):
             (stack_name,),
         )
         stack = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not stack:
             return jsonify({"success": False, "error": "Stack not found"}), 404
@@ -2173,6 +2208,12 @@ def api_get_stack(stack_name):
         return jsonify({"success": True, "data": stack_data})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/stacks/<stack_name>", methods=["DELETE"])
@@ -2250,8 +2291,6 @@ def api_delete_stack(stack_name):
         # Delete from database
         cur.execute("DELETE FROM docker_stacks WHERE name = %s", (stack_name,))
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Optionally remove files
         files_removed = False
@@ -2282,6 +2321,12 @@ def api_delete_stack(stack_name):
     except Exception as e:
         audit_log("stack_delete", stack_name, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2337,8 +2382,6 @@ def api_stack_action(stack_name):
             (stack_name,),
         )
         stack = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not stack:
             return jsonify({"success": False, "error": "Stack not found"}), 404
@@ -2416,6 +2459,12 @@ def api_stack_action(stack_name):
             error_message=str(e),
         )
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/stacks/<stack_name>/compose")
@@ -2438,8 +2487,6 @@ def api_get_stack_compose(stack_name):
             (stack_name,),
         )
         stack = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not stack:
             return jsonify({"success": False, "error": "Stack not found"}), 404
@@ -2513,6 +2560,12 @@ def api_get_stack_compose(stack_name):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/stacks/<stack_name>/compose", methods=["PUT"])
@@ -2534,8 +2587,6 @@ def api_save_stack_compose(stack_name):
             (stack_name,),
         )
         stack = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not stack:
             return jsonify({"success": False, "error": "Stack not found"}), 404
@@ -2590,6 +2641,12 @@ def api_save_stack_compose(stack_name):
     except Exception as e:
         audit_log("stack_compose_edit", stack_name, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/stacks/<stack_name>/env")
@@ -2609,8 +2666,6 @@ def api_get_stack_env(stack_name):
             (stack_name,),
         )
         stack = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not stack:
             return jsonify({"success": False, "error": "Stack not found"}), 404
@@ -2660,6 +2715,12 @@ def api_get_stack_env(stack_name):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/stacks/<stack_name>/env", methods=["PUT"])
@@ -2679,8 +2740,6 @@ def api_save_stack_env(stack_name):
             (stack_name,),
         )
         stack = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not stack:
             return jsonify({"success": False, "error": "Stack not found"}), 404
@@ -2748,6 +2807,12 @@ def api_save_stack_env(stack_name):
     except Exception as e:
         audit_log("stack_env_edit", stack_name, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/stacks/<stack_name>/logs")
@@ -2770,8 +2835,6 @@ def api_stack_logs(stack_name):
             (stack_name,),
         )
         stack = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not stack:
             return jsonify({"success": False, "error": "Stack not found"}), 404
@@ -2806,6 +2869,12 @@ def api_stack_logs(stack_name):
         return Response(logs, mimetype="text/plain")
     except Exception as e:
         return Response(f"Error fetching logs: {str(e)}", status=500, mimetype="text/plain")
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/disk/<path:device>/mount", methods=["POST"])
@@ -3340,6 +3409,12 @@ def api_storage_drives():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/storage/mounts")
@@ -3359,8 +3434,6 @@ def api_storage_mounts():
         """
         )
         mounts = cur.fetchall()
-        cur.close()
-        conn.close()
 
         for m in mounts:
             if m.get("created_at"):
@@ -3373,6 +3446,12 @@ def api_storage_mounts():
         return jsonify({"success": True, "data": mounts})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/storage/mounts", methods=["POST"])
@@ -3414,8 +3493,6 @@ def api_register_storage_mount():
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         audit_log(
             "storage_mount_register",
@@ -3429,6 +3506,12 @@ def api_register_storage_mount():
         return jsonify({"success": True, "data": dict(result)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/storage/browse")
@@ -3509,8 +3592,6 @@ def api_storage_docker_mounts():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT name, display_name, compose_directory, color FROM docker_stacks")
         stacks = cur.fetchall()
-        cur.close()
-        conn.close()
 
         # Map of host_path -> [stack info]
         path_to_stacks = {}
@@ -3599,6 +3680,12 @@ def api_storage_docker_mounts():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/storage/preflight", methods=["POST"])
@@ -3793,8 +3880,6 @@ def api_auth_verify():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT password_hash FROM users WHERE id = %s", (current_user.id,))
         user = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not user:
             audit_log(
@@ -3837,6 +3922,12 @@ def api_auth_verify():
     except Exception as e:
         audit_log("reauth_attempt", "verify", success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -3876,8 +3967,6 @@ def api_audit_log():
         )
 
         data = cur.fetchall()
-        cur.close()
-        conn.close()
 
         # Convert datetime objects
         for row in data:
@@ -3887,6 +3976,12 @@ def api_audit_log():
         return jsonify({"success": True, "data": data})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -3969,9 +4064,6 @@ def get_health_alerts():
         )
         counts = {row["severity"]: row["count"] for row in cur.fetchall()}
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -3986,6 +4078,12 @@ def get_health_alerts():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/health/alerts/<int:alert_id>/acknowledge", methods=["POST"])
@@ -4011,8 +4109,6 @@ def acknowledge_health_alert(alert_id):
 
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if result:
             return jsonify({"success": True, "message": "Alert acknowledged"})
@@ -4028,6 +4124,12 @@ def acknowledge_health_alert(alert_id):
             )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/health/alerts/<int:alert_id>/resolve", methods=["POST"])
@@ -4052,8 +4154,6 @@ def resolve_health_alert(alert_id):
 
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if result:
             return jsonify({"success": True, "message": "Alert resolved"})
@@ -4064,6 +4164,12 @@ def resolve_health_alert(alert_id):
             )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/health/config")
@@ -4085,12 +4191,15 @@ def get_health_config():
         )
         configs = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "configs": [dict(c) for c in configs]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/health/config", methods=["POST"])
@@ -4138,12 +4247,16 @@ def update_health_config():
 
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "id": result[0]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/health/webhooks")
@@ -4165,12 +4278,15 @@ def get_health_webhooks():
         )
         webhooks = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "webhooks": [dict(w) for w in webhooks]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/health/webhooks", methods=["POST"])
@@ -4205,12 +4321,16 @@ def create_health_webhook():
 
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "id": result[0]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/health/webhooks/<int:webhook_id>", methods=["DELETE"])
@@ -4228,8 +4348,6 @@ def delete_health_webhook(webhook_id):
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if result:
             return jsonify({"success": True, "message": "Webhook deleted"})
@@ -4237,6 +4355,12 @@ def delete_health_webhook(webhook_id):
             return jsonify({"success": False, "error": "Webhook not found"}), 404
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @system_operations_bp.route("/api/health/webhooks/<int:webhook_id>/test", methods=["POST"])
@@ -4293,12 +4417,15 @@ def test_health_webhook(webhook_id):
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": success, "status_code": status_code, "error": error_msg})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -4958,8 +5085,6 @@ def api_stacks_status():
                 """
             )
         stacks = cur.fetchall()
-        cur.close()
-        conn.close()
 
         results = []
         for stack in stacks:
@@ -5025,6 +5150,12 @@ def api_stacks_status():
         return jsonify({"success": True, "stacks": results})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================

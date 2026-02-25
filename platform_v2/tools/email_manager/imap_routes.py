@@ -61,12 +61,16 @@ def get_imap_settings():
             """
         )
         settings = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "settings": settings})
     except Exception as e:
         logger.error(f"Failed to get IMAP settings: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/imap/settings", methods=["POST"])
@@ -74,7 +78,7 @@ def get_imap_settings():
 def create_imap_setting():
     """Create a new IMAP setting."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         if not data:
             return jsonify({"success": False, "error": "Request body required"}), 400
 
@@ -119,12 +123,16 @@ def create_imap_setting():
         )
         setting_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "id": setting_id})
     except Exception as e:
         logger.error(f"Failed to create IMAP setting: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/imap/settings/<int:setting_id>", methods=["PUT"])
@@ -132,7 +140,7 @@ def create_imap_setting():
 def update_imap_setting(setting_id):
     """Update an IMAP setting."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -181,8 +189,6 @@ def update_imap_setting(setting_id):
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not result:
             return jsonify({"success": False, "error": "Setting not found"}), 404
@@ -190,6 +196,12 @@ def update_imap_setting(setting_id):
     except Exception as e:
         logger.error(f"Failed to update IMAP setting: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/imap/settings/<int:setting_id>", methods=["DELETE"])
@@ -225,8 +237,6 @@ def delete_imap_setting(setting_id):
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not result:
             return jsonify({"success": False, "error": "Setting not found"}), 404
@@ -234,6 +244,12 @@ def delete_imap_setting(setting_id):
     except Exception as e:
         logger.error(f"Failed to delete IMAP setting: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/imap/settings/<int:setting_id>/test", methods=["POST"])
@@ -245,8 +261,6 @@ def test_imap_setting(setting_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM email_imap_settings WHERE id = %s", (setting_id,))
         setting = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not setting:
             return jsonify({"success": False, "error": "Setting not found"}), 404
@@ -275,6 +289,12 @@ def test_imap_setting(setting_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": f"Connection failed: {str(e)}"}), 400
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/imap/settings/<int:setting_id>/test-smtp", methods=["POST"])
@@ -346,8 +366,6 @@ def test_smtp_setting(setting_id):
             (test_result, test_message, setting_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -359,6 +377,12 @@ def test_smtp_setting(setting_id):
     except Exception as e:
         logger.error(f"SMTP test failed for setting {setting_id}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/smtp-accounts", methods=["GET"])
@@ -377,12 +401,16 @@ def get_smtp_accounts():
             """
         )
         accounts = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "accounts": accounts})
     except Exception as e:
         logger.error(f"Failed to get SMTP accounts: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -507,9 +535,6 @@ def get_inbox():
         )
         accounts = [dict(r) for r in cur.fetchall()]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -526,6 +551,12 @@ def get_inbox():
     except Exception as e:
         logger.error(f"Failed to get inbox: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/inbox/stats", methods=["GET"])
@@ -555,12 +586,16 @@ def get_inbox_stats():
             acct_params,
         )
         stats = dict(cur.fetchone())
-        cur.close()
-        conn.close()
         return jsonify({"success": True, **stats})
     except Exception as e:
         logger.error(f"Failed to get inbox stats: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/inbox/batch-analyze", methods=["POST"])
@@ -581,8 +616,6 @@ def batch_analyze():
         """
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
 
         if not rows:
             return jsonify({"success": True, "analyzed": 0, "remaining": 0})
@@ -609,6 +642,12 @@ def batch_analyze():
     except Exception as e:
         logger.error(f"Batch analysis failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/inbox/bulk", methods=["POST"])
@@ -678,13 +717,17 @@ def bulk_action():
 
         affected = cur.rowcount
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "affected": affected})
     except Exception as e:
         logger.error(f"Bulk action failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/inbox/<int:email_id>", methods=["GET"])
@@ -720,15 +763,18 @@ def get_email_detail(email_id):
         )
         drafts = [dict(r) for r in cur.fetchall()]
 
-        cur.close()
-        conn.close()
-
         result = dict(email_row)
         result["drafts"] = drafts
         return jsonify({"success": True, "email": result})
     except Exception as e:
         logger.error(f"Failed to get email detail: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/inbox/<int:email_id>/thread", methods=["GET"])
@@ -783,11 +829,15 @@ def toggle_star(email_id):
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "is_starred": result["is_starred"] if result else False})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/inbox/<int:email_id>/read", methods=["POST"])
@@ -823,11 +873,15 @@ def archive_email(email_id):
         cur = conn.cursor()
         cur.execute("UPDATE email_inbox SET is_archived = TRUE WHERE id = %s", (email_id,))
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/inbox/<int:email_id>/delete", methods=["DELETE"])
@@ -878,7 +932,7 @@ def generate_draft(email_id):
         from email_intelligence import EmailIntelligence
 
         ei = EmailIntelligence()
-        instructions = request.json.get("instructions", "") if request.json else ""
+        instructions = (request.get_json() or {}).get("instructions", "") if request.json else ""
         draft_id = ei.generate_draft_reply(email_id, instructions)
         if draft_id:
             conn = get_db()
@@ -901,6 +955,12 @@ def generate_draft(email_id):
     except Exception as e:
         logger.error(f"Draft generation failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/inbox/<int:email_id>/file-to-kb", methods=["POST"])
@@ -962,11 +1022,15 @@ def get_drafts():
             (status_filter,),
         )
         drafts = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "drafts": drafts})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/drafts/<int:draft_id>", methods=["PUT"])
@@ -974,7 +1038,7 @@ def get_drafts():
 def update_draft(draft_id):
     """Update a draft (edit body, subject)."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -996,11 +1060,15 @@ def update_draft(draft_id):
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @email_manager_bp.route("/api/drafts/<int:draft_id>/send", methods=["POST"])
@@ -1053,7 +1121,7 @@ def send_draft(draft_id):
 
         direct = False
         if request.is_json:
-            direct = request.json.get("direct", False)
+            direct = (request.get_json() or {}).get("direct", False)
 
         if direct:
             # Direct send via SMTP

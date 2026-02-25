@@ -243,9 +243,6 @@ def index():
         )
         engagement_stats = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         stats = {
             "active_accounts": account_stats["active_accounts"] or 0,
             "total_accounts": account_stats["total_accounts"] or 0,
@@ -281,6 +278,12 @@ def index():
             platforms=PLATFORMS,
             error=str(e),
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -306,8 +309,6 @@ def get_accounts():
         )
 
         accounts = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -318,6 +319,12 @@ def get_accounts():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/accounts/<int:account_id>")
@@ -337,8 +344,6 @@ def get_account(account_id):
         )
 
         account = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not account:
             return jsonify({"success": False, "error": "Account not found"}), 404
@@ -352,6 +357,12 @@ def get_account(account_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/accounts", methods=["POST"])
@@ -384,8 +395,6 @@ def create_account():
 
         account = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -396,6 +405,12 @@ def create_account():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/accounts/<int:account_id>", methods=["PUT"])
@@ -432,8 +447,6 @@ def update_account(account_id):
 
         account = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not account:
             return jsonify({"success": False, "error": "Account not found"}), 404
@@ -447,6 +460,12 @@ def update_account(account_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/accounts/<int:account_id>", methods=["DELETE"])
@@ -467,8 +486,6 @@ def delete_account(account_id):
 
         deleted = cur.rowcount > 0
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not deleted:
             return jsonify({"success": False, "error": "Account not found"}), 404
@@ -477,6 +494,12 @@ def delete_account(account_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/accounts/<int:account_id>/toggle", methods=["POST"])
@@ -500,8 +523,6 @@ def toggle_account(account_id):
 
         account = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not account:
             return jsonify({"success": False, "error": "Account not found"}), 404
@@ -510,6 +531,12 @@ def toggle_account(account_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -534,9 +561,6 @@ def get_oauth_status():
         cur.execute("SELECT platform, enabled FROM social_platform_config")
         configs = {row["platform"]: row["enabled"] for row in cur.fetchall()}
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -556,6 +580,12 @@ def get_oauth_status():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/oauth/instagram/authorize")
@@ -687,9 +717,6 @@ def instagram_callback():
             scopes=oauth.SCOPES,
         )
 
-        cur.close()
-        conn.close()
-
         duration_ms = int((time.time() - start_time) * 1000)
         log_oauth_job("authorize", "success", account_id=account_id, duration_ms=duration_ms)
 
@@ -708,6 +735,12 @@ def instagram_callback():
     except Exception as e:
         log_oauth_job("authorize", "failed", error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/oauth/tiktok/authorize")
@@ -828,9 +861,6 @@ def tiktok_callback():
             scopes=oauth.SCOPES,
         )
 
-        cur.close()
-        conn.close()
-
         duration_ms = int((time.time() - start_time) * 1000)
         log_oauth_job("authorize", "success", account_id=account_id, duration_ms=duration_ms)
 
@@ -848,6 +878,12 @@ def tiktok_callback():
     except Exception as e:
         log_oauth_job("authorize", "failed", error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/oauth/refresh/<int:account_id>", methods=["POST"])
@@ -947,8 +983,6 @@ def revoke_oauth_token(account_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         log_oauth_job("revoke", "success", account_id=account_id)
 
@@ -957,6 +991,12 @@ def revoke_oauth_token(account_id):
     except Exception as e:
         log_oauth_job("revoke", "failed", account_id=account_id, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/oauth/tokens/expiring")
@@ -1023,8 +1063,6 @@ def get_posts():
 
         cur.execute(query, params)
         posts = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1035,6 +1073,12 @@ def get_posts():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/posts/<int:post_id>")
@@ -1071,15 +1115,18 @@ def get_post(post_id):
         )
         results = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         post["results"] = results
 
         return jsonify({"success": True, "post": json.loads(json.dumps(post, default=json_serial))})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/posts", methods=["POST"])
@@ -1146,13 +1193,16 @@ def create_post():
 
             conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "post": json.loads(json.dumps(post, default=json_serial))})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/posts/<int:post_id>", methods=["PUT"])
@@ -1203,8 +1253,6 @@ def update_post(post_id):
 
         post = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not post:
             return jsonify({"success": False, "error": "Post not found"}), 404
@@ -1213,6 +1261,12 @@ def update_post(post_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/posts/<int:post_id>", methods=["DELETE"])
@@ -1233,8 +1287,6 @@ def delete_post(post_id):
 
         deleted = cur.rowcount > 0
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not deleted:
             return jsonify({"success": False, "error": "Post not found"}), 404
@@ -1243,6 +1295,12 @@ def delete_post(post_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/posts/<int:post_id>/publish", methods=["POST"])
@@ -1326,8 +1384,6 @@ def publish_post(post_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Trigger immediate processing
         result = trigger_immediate_post(post_id)
@@ -1343,6 +1399,12 @@ def publish_post(post_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/posts/<int:post_id>/schedule", methods=["POST"])
@@ -1427,8 +1489,6 @@ def schedule_post(post_id):
                 queue_ids.append(result["id"])
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1441,6 +1501,12 @@ def schedule_post(post_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/posts/<int:post_id>/status")
@@ -1478,9 +1544,6 @@ def get_post_publish_status(post_id):
         )
         queue_items = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1491,6 +1554,12 @@ def get_post_publish_status(post_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1521,13 +1590,16 @@ def get_queue_status():
         )
         stats = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "stats": dict(stats) if stats else {}})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/queue/failed")
@@ -1552,13 +1624,16 @@ def get_failed_jobs():
         )
         jobs = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "jobs": json.loads(json.dumps(jobs, default=json_serial))})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/queue/<int:queue_id>/retry", methods=["POST"])
@@ -1598,13 +1673,17 @@ def retry_queue_job(queue_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Job requeued for retry"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/queue/<int:queue_id>/cancel", methods=["DELETE"])
@@ -1629,8 +1708,6 @@ def cancel_queue_job(queue_id):
 
         deleted = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not deleted:
             return (
@@ -1642,6 +1719,12 @@ def cancel_queue_job(queue_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1673,8 +1756,6 @@ def get_templates():
 
         cur.execute(query, params)
         templates = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1685,6 +1766,12 @@ def get_templates():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/templates", methods=["POST"])
@@ -1719,8 +1806,6 @@ def create_template():
 
         template = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1731,6 +1816,12 @@ def create_template():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/templates/<int:template_id>/use", methods=["POST"])
@@ -1796,13 +1887,17 @@ def use_template(template_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "post": json.loads(json.dumps(post, default=json_serial))})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1865,9 +1960,6 @@ def get_calendar_events():
         )
         events = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Combine and format
         all_events = []
         for post in posts:
@@ -1905,6 +1997,12 @@ def get_calendar_events():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1935,8 +2033,6 @@ def get_campaigns():
         )
 
         campaigns = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1947,6 +2043,12 @@ def get_campaigns():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/campaigns", methods=["POST"])
@@ -1982,8 +2084,6 @@ def create_campaign():
 
         campaign = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1994,6 +2094,12 @@ def create_campaign():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2102,9 +2208,6 @@ def get_analytics():
         )
         top_posts = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2119,6 +2222,12 @@ def get_analytics():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/analytics/overview")
@@ -2257,8 +2366,6 @@ def get_media():
 
         cur.execute(query, params)
         media = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2269,6 +2376,12 @@ def get_media():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @social_media_bp.route("/api/media", methods=["POST"])
@@ -2306,8 +2419,6 @@ def upload_media():
 
         media = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2318,6 +2429,12 @@ def upload_media():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2567,8 +2684,6 @@ def get_queue():
         )
 
         queue = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2579,6 +2694,12 @@ def get_queue():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2599,9 +2720,6 @@ def api_status():
 
         cur.execute("SELECT COUNT(*) as count FROM social_posts WHERE status = 'scheduled'")
         scheduled = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2626,3 +2744,9 @@ def api_status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

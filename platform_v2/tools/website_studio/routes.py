@@ -177,9 +177,6 @@ def index():
         )
         deployment_stats = {row["deployment_type"]: row["count"] for row in cur.fetchall()}
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "website_studio.html",
             projects=projects,
@@ -198,6 +195,12 @@ def index():
             error=str(e),
             ai_available=AI_AVAILABLE,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -234,12 +237,15 @@ def get_projects():
 
         projects = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "projects": [dict(p) for p in projects]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/projects", methods=["POST"])
@@ -287,9 +293,6 @@ def create_project():
         except Exception as e:
             pass  # Non-critical operation
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -299,6 +302,12 @@ def create_project():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>", methods=["GET"])
@@ -343,9 +352,6 @@ def get_project(project_id):
         )
         deployments = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -356,6 +362,12 @@ def get_project(project_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>", methods=["PUT"])
@@ -411,12 +423,15 @@ def update_project(project_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Project updated", "project": dict(updated)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>", methods=["DELETE"])
@@ -456,12 +471,15 @@ def delete_project(project_id):
         except Exception as e:
             pass  # Non-critical operation
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": f'Project "{project["name"]}" deleted'})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -896,14 +914,17 @@ def get_chat_history():
         else:
             history = []
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "history": history[-limit:] if history else []})
 
     except Exception as e:
         current_app.logger.error(f"[WebsiteStudio] Chat history error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/chat/history", methods=["POST"])
@@ -956,9 +977,6 @@ def save_chat_message():
         result = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         if not result:
             return jsonify({"success": False, "error": "Project not found"}), 404
 
@@ -967,6 +985,12 @@ def save_chat_message():
     except Exception as e:
         current_app.logger.error(f"[WebsiteStudio] Save chat error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1113,9 +1137,6 @@ def deploy_project(project_id):
             except Exception as e:
                 deploy_result = {"success": False, "error": str(e)}
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1126,6 +1147,12 @@ def deploy_project(project_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/deploy-to-github-pages", methods=["POST"])
@@ -1255,8 +1282,6 @@ def deploy_to_github_pages():
 
         deployment = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1283,6 +1308,12 @@ def deploy_to_github_pages():
     except Exception as e:
         current_app.logger.error(f"[WebsiteStudio] Deploy error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>/deployments", methods=["GET"])
@@ -1312,12 +1343,15 @@ def get_deployments(project_id):
 
         deployments = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "deployments": [dict(d) for d in deployments]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1344,12 +1378,15 @@ def get_integrations():
 
         integrations = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "integrations": [dict(i) for i in integrations]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/integrations/<service>", methods=["POST"])
@@ -1390,9 +1427,6 @@ def connect_integration(service):
         integration = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1402,6 +1436,12 @@ def connect_integration(service):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/integrations/<service>", methods=["DELETE"])
@@ -1422,12 +1462,16 @@ def disconnect_integration(service):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": f"{service.title()} disconnected"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1461,12 +1505,15 @@ def get_pages(project_id):
 
         pages = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "pages": [dict(p) for p in pages]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>/pages", methods=["POST"])
@@ -1507,12 +1554,15 @@ def create_page(project_id):
         page = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Page created", "page": dict(page)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/pages/<int:page_id>", methods=["PUT"])
@@ -1569,12 +1619,15 @@ def update_page(page_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Page updated", "page": dict(updated)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/pages/<int:page_id>", methods=["DELETE"])
@@ -1595,12 +1648,15 @@ def delete_page(page_id):
         cur.execute("DELETE FROM website_builder_pages WHERE id = %s", (page_id,))
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": f'Page "{page["name"]}" deleted'})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2158,13 +2214,16 @@ def get_directory():
 
         members = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "members": [dict(m) for m in members]})
     except Exception as e:
         current_app.logger.error(f"[WebsiteStudio] Directory error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/directory", methods=["POST"])
@@ -2216,12 +2275,15 @@ def add_directory_entry():
         entry = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Entry added", "entry": dict(entry)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/directory/<int:entry_id>", methods=["DELETE"])
@@ -2250,12 +2312,15 @@ def delete_directory_entry(entry_id):
         cur.execute("DELETE FROM user_directory_entries WHERE id = %s", (entry_id,))
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "message": "Entry deleted"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -4737,7 +4802,7 @@ def get_template_detail(category, template_id):
 @login_required
 def apply_template_to_project(project_id):
     """Apply a mockup template to a project (WD-5)"""
-    data = request.json
+    data = request.get_json() or {}
     category = data.get("category")
     template_id = data.get("template_id")
     variables = data.get("variables", {})
@@ -4817,8 +4882,6 @@ def apply_template_to_project(project_id):
             created_pages.append(filename)
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -4831,6 +4894,12 @@ def apply_template_to_project(project_id):
     except Exception as e:
         logger.error(f"Error applying template: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/templates/ecommerce", methods=["GET"])
@@ -4989,8 +5058,6 @@ def apply_store_template(project_id):
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -5003,6 +5070,12 @@ def apply_store_template(project_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @website_studio_bp.route("/api/status")
@@ -5017,9 +5090,6 @@ def api_status():
 
         cur.execute("SELECT COUNT(*) as count FROM website_builder_pages")
         published_pages = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -5047,6 +5117,12 @@ def api_status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -5062,8 +5138,6 @@ def health_check():
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM website_builder_projects")
         count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -5080,3 +5154,9 @@ def health_check():
             jsonify({"healthy": False, "module": "website_studio", "error": str(e)}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

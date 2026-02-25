@@ -196,9 +196,6 @@ def index():
         )
         integrations = {row["service"]: row for row in cur.fetchall()}
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "call_center.html",
             phone_numbers=phone_numbers,
@@ -219,6 +216,12 @@ def index():
             integrations={},
             error=str(e),
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -258,12 +261,15 @@ def get_numbers():
 
         numbers = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "numbers": [dict(n) for n in numbers]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/numbers", methods=["POST"])
@@ -323,9 +329,6 @@ def provision_number():
         except:
             pass
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -335,6 +338,12 @@ def provision_number():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/numbers/<int:number_id>", methods=["PUT"])
@@ -394,9 +403,6 @@ def update_number(number_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -406,6 +412,12 @@ def update_number(number_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/numbers/<int:number_id>", methods=["DELETE"])
@@ -437,9 +449,6 @@ def release_number(number_id):
         )
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -448,6 +457,12 @@ def release_number(number_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -493,12 +508,15 @@ def get_calls():
         cur.execute(query, params)
         calls = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "calls": [dict(c) for c in calls]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/calls/<call_id>", methods=["GET"])
@@ -550,9 +568,6 @@ def get_call(call_id):
         )
         escalations = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -563,6 +578,12 @@ def get_call(call_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/calls/stats", methods=["GET"])
@@ -589,7 +610,7 @@ def get_call_stats():
                     COUNT(*) FILTER (WHERE direction = 'inbound') as inbound,
                     COUNT(*) FILTER (WHERE direction = 'outbound') as outbound
                 FROM conversations
-                WHERE start_time > NOW() - INTERVAL '%s days'
+                WHERE start_time > NOW() - (%s * INTERVAL '1 day')
             """,
                 (days,),
             )
@@ -607,19 +628,22 @@ def get_call_stats():
                     COUNT(*) FILTER (WHERE direction = 'inbound') as inbound,
                     COUNT(*) FILTER (WHERE direction = 'outbound') as outbound
                 FROM conversations
-                WHERE user_id = %s AND start_time > NOW() - INTERVAL '%s days'
+                WHERE user_id = %s AND start_time > NOW() - (%s * INTERVAL '1 day')
             """,
                 (current_user.id, days),
             )
 
         stats = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "stats": dict(stats) if stats else {}})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -689,12 +713,15 @@ def get_escalations():
 
         escalations = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "escalations": [dict(e) for e in escalations]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/escalations/<escalation_id>", methods=["PUT"])
@@ -736,9 +763,6 @@ def resolve_escalation(escalation_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -748,6 +772,12 @@ def resolve_escalation(escalation_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -774,12 +804,15 @@ def get_integrations():
 
         integrations = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "integrations": [dict(i) for i in integrations]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/integrations/<service>", methods=["POST"])
@@ -841,9 +874,6 @@ def connect_integration(service):
         integration = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -853,6 +883,12 @@ def connect_integration(service):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -880,12 +916,15 @@ def get_ai_agents():
 
         agents = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "agents": [dict(a) for a in agents]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/agents/<int:number_id>", methods=["PUT"])
@@ -924,9 +963,6 @@ def update_ai_agent(number_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -936,6 +972,12 @@ def update_ai_agent(number_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -974,8 +1016,6 @@ def get_providers():
             )
 
         providers = cur.fetchall()
-        cur.close()
-        conn.close()
 
         providers_list = []
         for p in providers:
@@ -997,6 +1037,12 @@ def get_providers():
     except Exception as e:
         current_app.logger.error(f"[CallCenter] Error getting providers: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1049,8 +1095,6 @@ def get_conversations():
 
         cur.execute(query, params)
         conversations = cur.fetchall()
-        cur.close()
-        conn.close()
 
         convs_list = []
         for conv in conversations:
@@ -1083,6 +1127,12 @@ def get_conversations():
     except Exception as e:
         current_app.logger.error(f"[CallCenter] Error getting conversations: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/conversations/<conversation_id>", methods=["GET"])
@@ -1137,9 +1187,6 @@ def get_conversation_detail(conversation_id):
 
         turns = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Format conversation
         conv_data = dict(conversation)
         if conv_data.get("start_time"):
@@ -1166,6 +1213,12 @@ def get_conversation_detail(conversation_id):
     except Exception as e:
         current_app.logger.error(f"[CallCenter] Error getting conversation detail: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1181,8 +1234,6 @@ def health_check():
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM conversations")
         count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
 
         return jsonify({"healthy": True, "module": "call_center", "total_calls": count})
     except Exception as e:
@@ -1190,6 +1241,12 @@ def health_check():
             jsonify({"healthy": False, "module": "call_center", "error": str(e)}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1228,9 +1285,6 @@ def get_telus_setup():
 
         numbers = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1242,6 +1296,12 @@ def get_telus_setup():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/telus/setup", methods=["POST"])
@@ -1344,8 +1404,6 @@ def update_telus_setup():
             result = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1357,6 +1415,12 @@ def update_telus_setup():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/crm/lookup", methods=["POST"])
@@ -1447,13 +1511,16 @@ def crm_customer_lookup():
                 }
             )
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "found": False, "message": "Customer not found in CRM"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @call_center_bp.route("/api/status")
@@ -1486,9 +1553,6 @@ def api_status():
         )
         today_calls = cur.fetchone()["count"]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "module": "call_center",
@@ -1513,3 +1577,9 @@ def api_status():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

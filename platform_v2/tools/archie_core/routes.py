@@ -91,9 +91,6 @@ def index():
         cur.execute("SELECT * FROM archie_core_identity LIMIT 1")
         archie_identity = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return render_template(
             "tools/archie_chat.html",
             stats=stats,
@@ -107,6 +104,12 @@ def index():
         traceback.print_exc()
         flash(f"Error loading chat: {str(e)}", "error")
         return redirect(url_for("dashboard"))
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/send", methods=["POST"])
@@ -114,8 +117,8 @@ def index():
 def send_message():
     """Send message to A.R.C.H.I.E."""
     try:
-        message = request.json.get("message")
-        conversation_id = request.json.get("conversation_id") or str(uuid.uuid4())
+        message = (request.get_json() or {}).get("message")
+        conversation_id = (request.get_json() or {}).get("conversation_id") or str(uuid.uuid4())
 
         if not message:
             return jsonify({"success": False, "error": "No message provided"}), 400
@@ -221,7 +224,7 @@ def send_message():
         response_text = response_data["response"]
 
         # FIXED: Use metadata JSONB field instead of non-existent columns
-        chat_mode = request.json.get("chat_mode", "solo")
+        chat_mode = (request.get_json() or {}).get("chat_mode", "solo")
         cur.execute(
             """
             INSERT INTO ai_conversations
@@ -261,8 +264,6 @@ def send_message():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Analyze emotional content and update state (non-blocking)
         if EMOTIONAL_INTELLIGENCE_AVAILABLE:
@@ -287,6 +288,12 @@ def send_message():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/orchestrate", methods=["POST"])
@@ -302,7 +309,7 @@ def orchestrate():
     Falls back to /send behavior if orchestration engine is unavailable.
     """
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         message = data.get("message")
         conversation_id = data.get("conversation_id") or str(uuid.uuid4())
         voice_mode = data.get("voice_mode", False)
@@ -493,6 +500,12 @@ def orchestrate():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def _update_emotional_state(user_message, ai_response, user_id):
@@ -628,7 +641,7 @@ def api_command():
         }
     """
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         message = data.get("message", "").strip()
         conversation_id = data.get("conversation_id") or str(uuid.uuid4())
 
@@ -688,6 +701,12 @@ def api_command():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/suggestions", methods=["GET"])
@@ -785,9 +804,6 @@ def api_status():
         )
         workflows = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -811,6 +827,12 @@ def api_status():
 
     except Exception as e:
         return jsonify({"success": False, "status": {"online": True, "error": str(e)}})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================
@@ -827,7 +849,7 @@ def start_discussion():
 
         engine = TeamDiscussionEngine()
 
-        data = request.json
+        data = request.get_json() or {}
         topic = data.get("topic", "Ad-hoc discussion")
         stations = data.get("stations", [])
 
@@ -893,9 +915,6 @@ def get_discussion(discussion_id):
         )
         messages = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -907,6 +926,12 @@ def get_discussion(discussion_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/discussion/<int:discussion_id>/contribute", methods=["POST"])
@@ -918,7 +943,7 @@ def add_contribution(discussion_id):
 
         engine = TeamDiscussionEngine()
 
-        data = request.json
+        data = request.get_json() or {}
         agent_id = data.get("agent_id")
         message = data.get("message")
         message_type = data.get("type", "analysis")
@@ -1001,13 +1026,16 @@ def get_recent_discussions():
         )
         discussions = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "discussions": [dict(d) for d in discussions]})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================
@@ -1045,7 +1073,7 @@ def synthesize_voice():
     try:
         from ai_bridge.voice_synthesis import get_voice_synthesizer
 
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         text = data.get("text", "").strip()
         emotion = data.get("emotion")  # Optional, will auto-detect if not provided
         method = data.get("method", "word_cache")  # word_cache or full
@@ -1093,7 +1121,7 @@ def synthesize_voice_chunked():
     try:
         from ai_bridge.voice_synthesis import get_voice_synthesizer
 
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         text = data.get("text", "").strip()
         emotion = data.get("emotion")
 
@@ -1178,7 +1206,7 @@ def voice_config():
             return jsonify({"success": True, "config": dict(config)})
 
         else:  # POST - Update config
-            data = request.json or {}
+            data = request.get_json() or {} or {}
             cur.execute(
                 """
                 INSERT INTO voice_config
@@ -1211,6 +1239,12 @@ def voice_config():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/voice/status", methods=["GET"])
@@ -1264,9 +1298,6 @@ def voice_status():
         )
         today_stats = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1288,6 +1319,12 @@ def voice_status():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/voice/cache/cleanup", methods=["POST"])
@@ -1313,7 +1350,7 @@ def voice_cache_cleanup():
     try:
         from ai_bridge.voice_synthesis import get_voice_synthesizer
 
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         max_age = int(data.get("max_age_days", 30))
         min_hits = int(data.get("min_hits", 1))
 
@@ -1365,11 +1402,15 @@ def voice_recent():
                     "created_at": r[6].isoformat() if r[6] else None,
                 }
             )
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "recent": recent})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/voice/profiles/<int:profile_id>/invalidate-cache", methods=["POST"])
@@ -1433,9 +1474,6 @@ def invalidate_voice_cache(profile_id):
                 pregen_job_id = row[0]
             conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1446,6 +1484,12 @@ def invalidate_voice_cache(profile_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/chat/react", methods=["POST"])
@@ -1453,7 +1497,7 @@ def invalidate_voice_cache(profile_id):
 def chat_react():
     """Toggle a reaction on a chat message"""
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         message_id = data.get("message_id")
         reaction = data.get("reaction")
 
@@ -1490,8 +1534,6 @@ def chat_react():
             action = "added"
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "action": action, "reaction": reaction})
 
@@ -1500,6 +1542,12 @@ def chat_react():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ─── Analytics API Endpoints ─────────────────────────────────────────
@@ -1571,9 +1619,6 @@ def analytics_conversation_metrics():
         )
         threads = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1613,6 +1658,12 @@ def analytics_conversation_metrics():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/analytics/model-usage", methods=["GET"])
@@ -1704,9 +1755,6 @@ def analytics_model_usage():
             for row in cur.fetchall()
         ]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1736,6 +1784,12 @@ def analytics_model_usage():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/analytics/cost", methods=["GET"])
@@ -1833,9 +1887,6 @@ def analytics_cost():
             for row in cur.fetchall()
         ]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1865,6 +1916,12 @@ def analytics_cost():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/analytics/voice", methods=["GET"])
@@ -1963,9 +2020,6 @@ def analytics_voice():
         )
         cache_info = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2014,6 +2068,12 @@ def analytics_voice():
             ),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ── Phase 7: Memory Endpoints ─────────────────────────────────────────
@@ -2039,8 +2099,6 @@ def memory_list():
             (current_user.id,),
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
 
         memories = []
         for r in rows:
@@ -2067,6 +2125,12 @@ def memory_list():
             except Exception:
                 pass
         return jsonify({"success": True, "memories": []})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/memory/store", methods=["POST"])
@@ -2096,8 +2160,6 @@ def memory_store():
         )
         new_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "id": new_id})
 
     except Exception as e:
@@ -2108,6 +2170,12 @@ def memory_store():
             except Exception:
                 pass
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/memory/<int:memory_id>/delete", methods=["POST"])
@@ -2128,8 +2196,6 @@ def memory_delete(memory_id):
         )
         affected = cur.rowcount
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "deleted": affected > 0})
 
     except Exception as e:
@@ -2140,6 +2206,12 @@ def memory_delete(memory_id):
             except Exception:
                 pass
         return jsonify({"success": False, "deleted": False}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/memory/preferences", methods=["GET"])
@@ -2162,8 +2234,6 @@ def memory_preferences():
             (current_user.id,),
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
 
         prefs = []
         for r in rows:
@@ -2190,6 +2260,12 @@ def memory_preferences():
             except Exception:
                 pass
         return jsonify({"success": True, "preferences": []})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ── Phase 7: Notification Endpoints ──────────────────────────────────
@@ -2219,14 +2295,18 @@ def notifications_unread():
         """
         )
         recent = cur.fetchall()
-        cur.close()
-        conn.close()
         for r in recent:
             r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else None
         return jsonify({"count": count, "notifications": recent})
     except Exception as e:
         logger.error("notifications_unread error: %s", e)
         return jsonify({"count": 0, "notifications": []})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
@@ -2244,12 +2324,16 @@ def notification_mark_read(notification_id):
             (notification_id,),
         )
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"ok": True})
     except Exception as e:
         logger.error("notification_mark_read error: %s", e)
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/briefings/generate-now", methods=["POST"])
@@ -2276,8 +2360,6 @@ def briefing_config():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM briefings ORDER BY id")
         briefings = cur.fetchall()
-        cur.close()
-        conn.close()
         for b in briefings:
             for key in b:
                 if hasattr(b[key], "isoformat"):
@@ -2286,6 +2368,12 @@ def briefing_config():
     except Exception as e:
         logger.error("briefing_config error: %s", e)
         return jsonify({"briefings": []})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================
@@ -2319,8 +2407,6 @@ def conversation_export(conversation_id):
         )
         thread = cur.fetchone()
         title = thread["title"] if thread else f"Conversation {conversation_id}"
-        cur.close()
-        conn.close()
 
         if not messages:
             return jsonify({"error": "No messages found"}), 404
@@ -2357,6 +2443,12 @@ def conversation_export(conversation_id):
     except Exception as e:
         logger.error("conversation_export error: %s", e)
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/conversations/<conversation_id>/save-to-kb", methods=["POST"])
@@ -2400,12 +2492,16 @@ def save_conversation_to_kb(conversation_id):
         )
         kb_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"kb_id": kb_id, "title": title})
     except Exception as e:
         logger.error("save_to_kb error: %s", e)
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/conversations/<conversation_id>/summarize", methods=["POST"])
@@ -2424,8 +2520,6 @@ def conversation_summarize(conversation_id):
             (conversation_id, current_user.id),
         )
         messages = cur.fetchall()
-        cur.close()
-        conn.close()
         if not messages:
             return jsonify({"error": "No messages found"}), 404
         text = ""
@@ -2452,6 +2546,12 @@ def conversation_summarize(conversation_id):
     except Exception as e:
         logger.error("conversation_summarize error: %s", e)
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/analytics/export")
@@ -2474,8 +2574,6 @@ def analytics_export():
             (current_user.id, range_days),
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
         lines = ["date,messages,avg_response_ms"]
         for r in rows:
             lines.append(f"{r['date']},{r['messages']},{round(r['avg_response_ms'] or 0)}")
@@ -2488,6 +2586,12 @@ def analytics_export():
     except Exception as e:
         logger.error("analytics_export error: %s", e)
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================
@@ -2521,8 +2625,6 @@ def get_settings():
             (current_user.id,),
         )
         row = cur.fetchone()
-        cur.close()
-        conn.close()
         stored = row["settings"] if row else {}
         merged = dict(SETTINGS_DEFAULTS)
         merged.update(stored)
@@ -2530,6 +2632,12 @@ def get_settings():
     except Exception as e:
         logger.error("get_settings error: %s", e)
         return jsonify({"settings": dict(SETTINGS_DEFAULTS)})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @archie_chat_bp.route("/api/settings", methods=["POST"])
@@ -2557,12 +2665,16 @@ def update_settings():
             (current_user.id, json.dumps(valid), json.dumps(valid)),
         )
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"ok": True, "updated": list(valid.keys())})
     except Exception as e:
         logger.error("update_settings error: %s", e)
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================
@@ -2637,9 +2749,13 @@ def conversation_search():
                     "model": r["model"],
                 }
             )
-        cur.close()
-        conn.close()
         return jsonify({"results": results, "total": len(results)})
     except Exception as e:
         logger.error("conversation_search error: %s", e)
         return jsonify({"results": [], "total": 0, "error": str(e)})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

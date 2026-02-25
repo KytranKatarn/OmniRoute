@@ -499,10 +499,15 @@ Format as JSON array:
                         )
 
             conn.commit()
-            cur.close()
 
         except Exception as e:
             print(f"[ClarificationAgent] Failed to save to database: {e}")
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
 
 # ============================================================================

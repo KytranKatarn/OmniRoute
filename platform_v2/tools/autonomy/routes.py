@@ -108,9 +108,6 @@ def get_loop_status():
         )
         recent_logs = [dict(r) for r in cur.fetchall()]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -123,6 +120,12 @@ def get_loop_status():
     except Exception as e:
         logger.error(f"Failed to get loop status: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/loop/toggle", methods=["POST"])
@@ -138,7 +141,7 @@ def toggle_loop():
                 500,
             )
 
-        action = request.json.get("action", "toggle")
+        action = (request.get_json() or {}).get("action", "toggle")
 
         if action == "start" or (action == "toggle" and not agent_loop.is_running):
             agent_loop.start()
@@ -205,13 +208,16 @@ def get_approvals():
         )
         counts = {r["status"]: r["count"] for r in cur.fetchall()}
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "items": items, "counts": counts})
     except Exception as e:
         logger.error(f"Failed to get approvals: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/approvals/<int:approval_id>/approve", methods=["POST"])
@@ -234,8 +240,6 @@ def approve_action(approval_id):
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not result:
             return (
@@ -247,6 +251,12 @@ def approve_action(approval_id):
     except Exception as e:
         logger.error(f"Failed to approve action: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/approvals/<int:approval_id>/reject", methods=["POST"])
@@ -255,7 +265,7 @@ def approve_action(approval_id):
 def reject_action(approval_id):
     """Reject a pending action."""
     try:
-        reason = request.json.get("reason", "")
+        reason = (request.get_json() or {}).get("reason", "")
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -270,8 +280,6 @@ def reject_action(approval_id):
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not result:
             return (
@@ -283,6 +291,12 @@ def reject_action(approval_id):
     except Exception as e:
         logger.error(f"Failed to reject action: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -300,12 +314,16 @@ def get_config():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM autonomy_config ORDER BY config_key")
         configs = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "configs": configs})
     except Exception as e:
         logger.error(f"Failed to get config: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/config/<config_key>", methods=["PUT"])
@@ -314,7 +332,7 @@ def get_config():
 def update_config(config_key):
     """Update a configuration value."""
     try:
-        value = request.json.get("value")
+        value = (request.get_json() or {}).get("value")
         if value is None:
             return jsonify({"success": False, "error": "Missing value"}), 400
 
@@ -331,8 +349,6 @@ def update_config(config_key):
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not result:
             return jsonify({"success": False, "error": "Config key not found"}), 404
@@ -341,6 +357,12 @@ def update_config(config_key):
     except Exception as e:
         logger.error(f"Failed to update config: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -381,10 +403,13 @@ def get_history():
             )
         logs = [dict(r) for r in cur.fetchall()]
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "logs": logs, "count": len(logs)})
     except Exception as e:
         logger.error(f"Failed to get history: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

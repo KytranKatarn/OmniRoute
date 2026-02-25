@@ -1,429 +1,637 @@
-"""
-Media Studio Routes
-Create images, videos & shorts with AI
-Phase 5: Module Consolidation - CREATION Category
-Phase 51: Local-First Image Generation (Fooocus) + Vision Analysis
+"""Media Studio Module — Image, Video, and Audio generation via AI Bridge.
 
-Integrated with archie_bridge for:
-- LOCAL image generation (Fooocus - FREE)
-- DALL-E 3 fallback (paid)
-- Vision/image analysis (minicpm-v, llava - FREE)
-- Usage tracking and cost logging
-- Learning from generation patterns
+Routes through the bridge for provider capability discovery, CREATIVE station
+assignment, and smart router escalation (free -> paid with Telegram approval).
 """
 
-from flask import render_template, jsonify, request
+import json
+import logging
+from flask import request, jsonify, render_template
 from flask_login import login_required, current_user
 from . import media_studio_bp
-import sys
-import os
 
-# Add ai_bridge to path
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-try:
-    from archie_bridge import (
-        generate_image as bridge_generate_image,
-        generate_image_local as bridge_generate_image_local,
-        generate_image_smart as bridge_generate_image_smart,
-        analyze_image as bridge_analyze_image,
-        enhance_image_prompt as bridge_enhance_prompt,
-        check_fooocus_health,
-    )
+logger = logging.getLogger(__name__)
 
-    BRIDGE_AVAILABLE = True
-except ImportError as e:
-    BRIDGE_AVAILABLE = False
-    print(f"Warning: archie_bridge not fully available: {e}")
 
-    # Fallback stubs
-    def check_fooocus_health():
-        return False
+def get_db():
+    """Get raw database connection (caller must close/release)."""
+    from database import get_db as _get_db
+
+    return _get_db()
+
+
+# --- Page Route -----------------------------------------------------------
 
 
 @media_studio_bp.route("/")
-def index():
-    """Media Studio main page"""
+@login_required
+def media_studio_page():
+    """Render the Media Studio module page."""
     return render_template("tools/media_studio.html")
 
 
-@media_studio_bp.route("/api/status")
-def status():
-    """API endpoint for module health check"""
-    fooocus_status = check_fooocus_health() if BRIDGE_AVAILABLE else False
-
-    return jsonify(
-        {
-            "module": "media_studio",
-            "status": "active",
-            "healthy": True,
-            "message": "Media Studio is operational",
-            "capabilities": {
-                "local_image_generation": fooocus_status,
-                "cloud_image_generation": True,
-                "vision_analysis": True,
-            },
-        }
-    )
+# --- Capabilities ---------------------------------------------------------
 
 
-@media_studio_bp.route("/api/media", methods=["GET"])
-def get_media():
-    """Get all media items (placeholder - will connect to database)"""
-    return jsonify({"success": True, "media": [], "message": "Media storage coming soon"})
+@media_studio_bp.route("/api/capabilities", methods=["GET"])
+@login_required
+def get_capabilities():
+    """Return available media generation capabilities from configured providers."""
+    try:
+        from ai_bridge.external_providers import get_providers_with_capability
+
+        media_caps = {}
+        for cap in ["image_gen", "video_gen", "audio_tts", "audio_music", "vision"]:
+            providers = get_providers_with_capability(cap)
+            if providers:
+                media_caps[cap] = [
+                    {
+                        "provider_key": p["provider_key"],
+                        "display_name": p["display_name"],
+                        "is_free_tier": p["is_free_tier"],
+                    }
+                    for p in providers
+                ]
+
+        return jsonify(
+            {
+                "capabilities": media_caps,
+                "supported_types": [k for k in media_caps if media_caps[k]],
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to load capabilities: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
-@media_studio_bp.route("/api/media", methods=["POST"])
-def upload_media():
-    """Upload media file (placeholder)"""
-    return jsonify({"success": True, "message": "File upload coming soon"})
+# --- Generation -----------------------------------------------------------
 
 
 @media_studio_bp.route("/api/generate", methods=["POST"])
 @login_required
-def generate_image():
+def generate_media_endpoint():
+    """Submit a media generation request.
+
+    Body: {type: "image"|"video"|"audio_tts"|"audio_music", prompt: str, params: {}}
     """
-    Generate image using AI - LOCAL FIRST routing.
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
 
-    Supports three modes:
-    - 'auto': Smart routing (local first, DALL-E fallback)
-    - 'fooocus': Force local Fooocus generation
-    - 'dall-e-3': Force DALL-E 3 (paid)
+        req_type = data.get("type", "image")
+        prompt = data.get("prompt", "").strip()
+        params = data.get("params", {})
 
-    Request body:
-        prompt: Text description of image
-        model: 'auto' (default), 'fooocus', or 'dall-e-3'
-        style: 'realistic', 'anime', 'artistic', 'cinematic', 'digital-art'
-        size: '1024x1024', '1024x1792', '1792x1024'
-        quality: 'standard' (default) or 'hd'
-        enhance_prompt: boolean - use AI to enhance prompt (default: false)
-        prefer_local: boolean - prefer free local generation (default: true)
-        agent_id: Optional agent ID for attribution
-        task_type: Optional task categorization (default: 'image_generation')
-    """
-    data = request.get_json() or {}
-    prompt = data.get("prompt", "")
-    model = data.get("model", "auto")
-    style = data.get("style", "realistic")
-    size = data.get("size", "1024x1024")
-    quality = data.get("quality", "standard")
-    enhance = data.get("enhance_prompt", False)
-    prefer_local = data.get("prefer_local", True)
-    agent_id = data.get("agent_id")
-    task_type = data.get("task_type", "image_generation")
+        if not prompt:
+            return jsonify({"error": "Prompt is required"}), 400
 
-    if not prompt:
-        return jsonify({"success": False, "error": "Prompt is required"}), 400
+        if req_type not in ("image", "video", "audio_tts", "audio_music"):
+            return jsonify({"error": f"Unsupported type: {req_type}"}), 400
 
-    if not BRIDGE_AVAILABLE:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "Image generation service not available. archie_bridge not loaded.",
-                }
-            ),
-            503,
+        # Map request type to capability name
+        cap_map = {
+            "image": "image_gen",
+            "video": "video_gen",
+            "audio_tts": "audio_tts",
+            "audio_music": "audio_music",
+        }
+        capability = cap_map[req_type]
+
+        # Find provider
+        from ai_bridge.external_providers import (
+            get_providers_with_capability,
+            generate_media as bridge_generate,
         )
 
-    # Optionally enhance the prompt using AI
-    original_prompt = prompt
-    if enhance:
-        try:
-            prompt = bridge_enhance_prompt(prompt, style)
-        except Exception as e:
-            print(f"Warning: Prompt enhancement failed: {e}")
-            # Continue with original prompt
+        providers = get_providers_with_capability(capability)
+        if not providers:
+            return jsonify({"error": f"No providers available for {req_type} generation"}), 503
 
-    # Route based on model selection
-    if model == "auto":
-        # Smart routing: local first, DALL-E fallback
-        result = bridge_generate_image_smart(
-            prompt=prompt,
-            style=style,
-            size=size,
-            quality=quality,
-            prefer_local=prefer_local,
-            requesting_agent=agent_id,
-            task_type=task_type,
-        )
-    elif model == "fooocus":
-        # Force local Fooocus
-        result = bridge_generate_image_local(
-            prompt=prompt,
-            style=style,
-            size=size,
-            requesting_agent=agent_id,
-            task_type=task_type,
-        )
-    else:
-        # DALL-E or other paid models
-        # Map style to DALL-E style parameter
-        dalle_style = "vivid" if style in ["anime", "artistic", "digital-art"] else "natural"
-        result = bridge_generate_image(
-            prompt=prompt,
-            model=model,
-            size=size,
-            quality=quality,
-            style=dalle_style,
-            requesting_agent=agent_id,
-            task_type=task_type,
-        )
+        # Pick first available (sorted by tier_position -- free first)
+        provider = providers[0]
+        provider_key = provider["provider_key"]
+        is_free = provider["is_free_tier"]
 
-    if result.get("success"):
-        response = {
-            "success": True,
-            "image_url": result.get("image_url"),
-            "model": result.get("model"),
-            "provider": result.get("provider"),
-            "cost": result.get("cost", 0.0),
-            "duration_ms": result.get("duration_ms"),
-            "metadata": result.get("metadata", {}),
+        user_id = current_user.id
+
+        # Insert queue entry
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO media_generation_queue
+                (request_type, prompt, params, status, provider_key, requested_by)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """,
+            (req_type, prompt, json.dumps(params), "generating", provider_key, user_id),
+        )
+        queue_id = cur.fetchone()[0]
+        conn.commit()
+
+        # For paid providers, check approval
+        if not is_free:
+            cur.execute("SELECT value FROM system_config WHERE key = 'media_auto_approve_under_usd'")
+            row = cur.fetchone()
+            auto_threshold = float(row[0]) if row else 0.0
+            estimated_cost = 0.04  # Default DALL-E estimate
+
+            if estimated_cost > auto_threshold:
+                cur.execute(
+                    """
+                    UPDATE media_generation_queue SET status = 'awaiting_approval'
+                    WHERE id = %s
+                """,
+                    (queue_id,),
+                )
+                conn.commit()
+
+                # Request Telegram approval
+                try:
+                    from ai_bridge.agent_loop import request_approval
+
+                    request_approval(
+                        action_type="media_generation",
+                        action_data={
+                            "queue_id": queue_id,
+                            "type": req_type,
+                            "prompt": prompt[:200],
+                            "provider": provider_key,
+                            "estimated_cost": estimated_cost,
+                        },
+                        reason=f"Media generation ({req_type}) via {provider_key} — est. ${estimated_cost:.4f}",
+                        requested_by=f"user:{user_id}",
+                        priority=5,
+                        tier=2,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to request approval: {e}")
+
+                cur.close()
+                conn.close()
+                return jsonify(
+                    {
+                        "queue_id": queue_id,
+                        "status": "awaiting_approval",
+                        "message": f"Paid provider ({provider_key}) requires admin approval via Telegram",
+                    }
+                )
+
+        # Synchronous generation for fast providers
+        media_request = {
+            "type": req_type,
+            "prompt": prompt,
+            "params": params,
         }
 
-        # Include routing info if available
-        if "routing" in result:
-            response["routing"] = result["routing"]
+        # Special case: local TTS
+        actual_provider = provider_key
+        if req_type == "audio_tts":
+            actual_provider = "local_tts"
 
-        # Include prompt info if enhanced
-        if enhance:
-            response["original_prompt"] = original_prompt
-            response["enhanced_prompt"] = prompt
+        result = bridge_generate(actual_provider, media_request)
 
-        # Include revised prompt from DALL-E if available
-        if result.get("revised_prompt"):
-            response["revised_prompt"] = result["revised_prompt"]
+        if not result.get("success"):
+            cur.execute(
+                """
+                UPDATE media_generation_queue
+                SET status = 'failed', error_message = %s, completed_at = NOW()
+                WHERE id = %s
+            """,
+                (result.get("error", "Unknown error"), queue_id),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+            return (
+                jsonify(
+                    {
+                        "queue_id": queue_id,
+                        "status": "failed",
+                        "error": result.get("error"),
+                    }
+                ),
+                500,
+            )
 
-        return jsonify(response)
-    else:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": result.get("error", "Image generation failed"),
-                    "model": result.get("model"),
-                    "provider": result.get("provider"),
-                }
+        # Save asset
+        meta = result.get("metadata", {})
+        cur.execute(
+            """
+            INSERT INTO media_assets
+                (asset_type, prompt, file_path, file_size_bytes, mime_type,
+                 provider_key, model_used, cost_usd, generation_params, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """,
+            (
+                req_type,
+                prompt,
+                result["file_path"],
+                meta.get("file_size_bytes", 0),
+                meta.get("mime_type", ""),
+                meta.get("provider", provider_key),
+                meta.get("model", ""),
+                meta.get("cost_usd", 0),
+                json.dumps(params),
+                user_id,
             ),
-            500,
         )
+        asset_id = cur.fetchone()[0]
 
-
-@media_studio_bp.route("/api/analyze", methods=["POST"])
-@login_required
-def analyze_image():
-    """
-    Analyze image using local vision model (FREE).
-
-    Request body:
-        image_url: URL to fetch image from
-        image_base64: Base64 encoded image data
-        prompt: Analysis instruction (default: "Describe this image in detail")
-        model: Vision model ('minicpm-v:8b', 'llava:7b')
-    """
-    data = request.get_json() or {}
-    image_url = data.get("image_url")
-    image_base64 = data.get("image_base64")
-    prompt = data.get("prompt", "Describe this image in detail")
-    model = data.get("model")  # None = use default from env
-
-    if not image_url and not image_base64:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "Image required. Provide image_url or image_base64",
-                }
-            ),
-            400,
+        # Update queue
+        cur.execute(
+            """
+            UPDATE media_generation_queue
+            SET status = 'completed', result_asset_id = %s, model_used = %s, completed_at = NOW()
+            WHERE id = %s
+        """,
+            (asset_id, meta.get("model", ""), queue_id),
         )
+        conn.commit()
 
-    if not BRIDGE_AVAILABLE:
-        return (
-            jsonify({"success": False, "error": "Vision analysis service not available."}),
-            503,
-        )
-
-    result = bridge_analyze_image(image_url=image_url, image_base64=image_base64, prompt=prompt, model=model)
-
-    if result.get("success"):
         return jsonify(
             {
-                "success": True,
-                "analysis": result.get("response"),
-                "model": result.get("model"),
-                "provider": result.get("provider"),
-                "cost": result.get("cost", 0.0),
-                "duration_ms": result.get("duration_ms"),
+                "queue_id": queue_id,
+                "status": "completed",
+                "asset_id": asset_id,
+                "file_path": result["file_path"],
+                "metadata": meta,
             }
         )
-    else:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": result.get("error", "Vision analysis failed"),
-                    "model": result.get("model"),
-                }
-            ),
-            500,
-        )
+
+    except Exception as e:
+        logger.error(f"Media generation error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
-@media_studio_bp.route("/api/enhance-prompt", methods=["POST"])
+# --- Queue ----------------------------------------------------------------
+
+
+@media_studio_bp.route("/api/queue", methods=["GET"])
 @login_required
-def enhance_prompt():
-    """
-    Enhance a basic prompt for better image generation (FREE).
-
-    Request body:
-        prompt: Basic description
-        style: Target style ('realistic', 'anime', 'artistic', 'cinematic', 'digital-art')
-    """
-    data = request.get_json() or {}
-    prompt = data.get("prompt", "")
-    style = data.get("style", "realistic")
-
-    if not prompt:
-        return jsonify({"success": False, "error": "Prompt is required"}), 400
-
-    if not BRIDGE_AVAILABLE:
-        return (
-            jsonify({"success": False, "error": "Prompt enhancement service not available."}),
-            503,
+def list_queue():
+    """List media generation queue for current user."""
+    try:
+        user_id = current_user.id
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT q.id, q.request_type, q.prompt, q.status, q.provider_key,
+                   q.model_used, q.error_message, q.created_at, q.completed_at,
+                   q.result_asset_id,
+                   a.file_path AS result_file_path
+            FROM media_generation_queue q
+            LEFT JOIN media_assets a ON q.result_asset_id = a.id
+            WHERE q.requested_by = %s
+            ORDER BY q.created_at DESC
+            LIMIT 50
+        """,
+            (user_id,),
         )
 
-    enhanced = bridge_enhance_prompt(prompt, style)
+        columns = [desc[0] for desc in cur.description]
+        rows = [dict(zip(columns, row)) for row in cur.fetchall()]
 
-    return jsonify(
-        {
-            "success": True,
-            "original_prompt": prompt,
-            "enhanced_prompt": enhanced,
-            "style": style,
-        }
-    )
+        for row in rows:
+            for key in ("created_at", "completed_at"):
+                if row.get(key):
+                    row[key] = row[key].isoformat()
 
-
-@media_studio_bp.route("/api/shorts", methods=["POST"])
-def create_short():
-    """Create a short video (placeholder)"""
-    data = request.get_json() or {}
-    script = data.get("script", "")
-    platform = data.get("platform", "tiktok")
-    duration = data.get("duration", 60)
-    style = data.get("style", "talking-head")
-
-    if not script:
-        return jsonify({"success": False, "error": "Script is required"}), 400
-
-    # TODO: Implement shorts creation
-    return jsonify(
-        {
-            "success": True,
-            "message": "Shorts creator coming soon",
-            "request": {
-                "script": script,
-                "platform": platform,
-                "duration": duration,
-                "style": style,
-            },
-        }
-    )
+        return jsonify({"queue": rows})
+    except Exception as e:
+        logger.error(f"Queue list error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
-@media_studio_bp.route("/api/models", methods=["GET"])
-def get_available_models():
-    """Get available AI models for image generation and vision analysis"""
+@media_studio_bp.route("/api/queue/<int:queue_id>", methods=["GET"])
+@login_required
+def get_queue_item(queue_id):
+    """Get single queue item status (for polling)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT q.id, q.request_type, q.prompt, q.status, q.provider_key,
+                   q.model_used, q.error_message, q.created_at, q.started_at,
+                   q.completed_at, q.result_asset_id,
+                   a.file_path AS result_file_path
+            FROM media_generation_queue q
+            LEFT JOIN media_assets a ON q.result_asset_id = a.id
+            WHERE q.id = %s AND q.requested_by = %s
+        """,
+            (queue_id, current_user.id),
+        )
 
-    # Check Fooocus availability
-    fooocus_available = check_fooocus_health() if BRIDGE_AVAILABLE else False
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Not found"}), 404
 
-    image_models = [
-        {
-            "id": "auto",
-            "name": "Smart (Local First)",
-            "provider": "Auto",
-            "available": True,
-            "cost": "FREE first, paid fallback",
-            "description": "Tries local Fooocus first, falls back to DALL-E if unavailable",
-        },
-        {
-            "id": "fooocus",
-            "name": "Fooocus (Local)",
-            "provider": "Local SDXL",
-            "available": fooocus_available,
-            "cost": "FREE",
-            "description": "Local Stable Diffusion XL - fast, private, no cost",
-        },
-        {
-            "id": "dall-e-3",
-            "name": "DALL-E 3",
-            "provider": "OpenAI",
-            "available": True,
-            "cost": "$0.04-$0.12/image",
-            "description": "High quality, best prompt understanding",
-        },
-        {
-            "id": "dall-e-2",
-            "name": "DALL-E 2",
-            "provider": "OpenAI",
-            "available": True,
-            "cost": "$0.016-$0.02/image",
-            "description": "Lower cost, simpler generations",
-        },
-    ]
+        columns = [desc[0] for desc in cur.description]
+        item = dict(zip(columns, row))
 
-    vision_models = [
-        {
-            "id": "minicpm-v:8b",
-            "name": "MiniCPM-V 2.6",
-            "provider": "Ollama (Local)",
-            "available": True,
-            "cost": "FREE",
-            "description": "Best for OCR, multi-image understanding",
-        },
-        {
-            "id": "llava:7b",
-            "name": "LLaVA 7B",
-            "provider": "Ollama (Local)",
-            "available": True,
-            "cost": "FREE",
-            "description": "General vision tasks, lightweight",
-        },
-    ]
+        for key in ("created_at", "completed_at", "started_at"):
+            if item.get(key):
+                item[key] = item[key].isoformat()
 
-    styles = [
-        {
-            "id": "realistic",
-            "name": "Realistic / Photograph",
-            "description": "Photorealistic images",
-        },
-        {"id": "anime", "name": "Anime", "description": "Japanese animation style"},
-        {
-            "id": "artistic",
-            "name": "Artistic",
-            "description": "Painterly, fine art style",
-        },
-        {
-            "id": "cinematic",
-            "name": "Cinematic",
-            "description": "Movie-like, dramatic lighting",
-        },
-        {
-            "id": "digital-art",
-            "name": "Digital Art",
-            "description": "Sharp, trending on artstation",
-        },
-    ]
+        return jsonify(item)
+    except Exception as e:
+        logger.error(f"Queue item error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
-    return jsonify(
-        {
-            "success": True,
-            "image_models": image_models,
-            "vision_models": vision_models,
-            "styles": styles,
-            "fooocus_status": "online" if fooocus_available else "offline",
-            "default_model": "auto",
-            "default_style": "realistic",
-        }
-    )
+
+@media_studio_bp.route("/api/queue/<int:queue_id>", methods=["DELETE"])
+@login_required
+def cancel_queue_item(queue_id):
+    """Cancel a pending queue item."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE media_generation_queue
+            SET status = 'cancelled', completed_at = NOW()
+            WHERE id = %s AND requested_by = %s AND status IN ('pending', 'awaiting_approval')
+            RETURNING id
+        """,
+            (queue_id, current_user.id),
+        )
+
+        row = cur.fetchone()
+        conn.commit()
+
+        if not row:
+            return jsonify({"error": "Not found or not cancellable"}), 404
+
+        return jsonify({"status": "cancelled", "queue_id": queue_id})
+    except Exception as e:
+        logger.error(f"Queue cancel error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+# --- Gallery --------------------------------------------------------------
+
+
+@media_studio_bp.route("/api/gallery", methods=["GET"])
+@login_required
+def list_gallery():
+    """Browse completed media assets."""
+    try:
+        asset_type = request.args.get("type")
+        limit = min(int(request.args.get("limit", 50)), 100)
+        offset = int(request.args.get("offset", 0))
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        query = """
+            SELECT id, asset_type, title, prompt, file_path, file_size_bytes,
+                   mime_type, provider_key, model_used, cost_usd, generation_params,
+                   is_profile_image, agent_id, created_at
+            FROM media_assets
+            WHERE created_by = %s AND deleted_at IS NULL
+        """
+        params_list = [current_user.id]
+
+        if asset_type:
+            query += " AND asset_type = %s"
+            params_list.append(asset_type)
+
+        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        params_list.extend([limit, offset])
+
+        cur.execute(query, params_list)
+        columns = [desc[0] for desc in cur.description]
+        rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+
+        for row in rows:
+            if row.get("created_at"):
+                row["created_at"] = row["created_at"].isoformat()
+            if row.get("cost_usd"):
+                row["cost_usd"] = float(row["cost_usd"])
+
+        return jsonify({"assets": rows, "count": len(rows)})
+    except Exception as e:
+        logger.error(f"Gallery list error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@media_studio_bp.route("/api/gallery/<int:asset_id>", methods=["GET"])
+@login_required
+def get_asset(asset_id):
+    """Get single asset details."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, asset_type, title, prompt, file_path, file_size_bytes,
+                   mime_type, provider_key, model_used, cost_usd, generation_params,
+                   is_profile_image, agent_id, created_by, created_at
+            FROM media_assets
+            WHERE id = %s AND created_by = %s AND deleted_at IS NULL
+        """,
+            (asset_id, current_user.id),
+        )
+
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Not found"}), 404
+
+        columns = [desc[0] for desc in cur.description]
+        asset = dict(zip(columns, row))
+
+        if asset.get("created_at"):
+            asset["created_at"] = asset["created_at"].isoformat()
+        if asset.get("cost_usd"):
+            asset["cost_usd"] = float(asset["cost_usd"])
+
+        return jsonify(asset)
+    except Exception as e:
+        logger.error(f"Asset get error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@media_studio_bp.route("/api/gallery/<int:asset_id>", methods=["DELETE"])
+@login_required
+def delete_asset(asset_id):
+    """Soft-delete a media asset."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE media_assets SET deleted_at = NOW()
+            WHERE id = %s AND created_by = %s AND deleted_at IS NULL
+            RETURNING id
+        """,
+            (asset_id, current_user.id),
+        )
+
+        row = cur.fetchone()
+        conn.commit()
+
+        if not row:
+            return jsonify({"error": "Not found"}), 404
+
+        return jsonify({"status": "deleted", "asset_id": asset_id})
+    except Exception as e:
+        logger.error(f"Asset delete error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+# --- Profile Picture ------------------------------------------------------
+
+
+@media_studio_bp.route("/api/gallery/<int:asset_id>/set-profile", methods=["POST"])
+@login_required
+def set_profile_image(asset_id):
+    """Set a generated image as an agent's profile picture."""
+    try:
+        data = request.get_json() or {}
+        agent_id = data.get("agent_id")
+
+        if not agent_id:
+            return jsonify({"error": "agent_id is required"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Get the asset
+        cur.execute(
+            """
+            SELECT file_path, asset_type FROM media_assets
+            WHERE id = %s AND created_by = %s AND deleted_at IS NULL
+        """,
+            (asset_id, current_user.id),
+        )
+
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Asset not found"}), 404
+
+        file_path, asset_type = row
+        if asset_type != "image":
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Only images can be set as profile pictures"}), 400
+
+        # Clear previous profile image flag
+        cur.execute(
+            """
+            UPDATE media_assets SET is_profile_image = FALSE
+            WHERE agent_id = %s AND is_profile_image = TRUE
+        """,
+            (agent_id,),
+        )
+
+        # Set new profile image
+        cur.execute(
+            """
+            UPDATE media_assets SET is_profile_image = TRUE, agent_id = %s
+            WHERE id = %s
+        """,
+            (agent_id, asset_id),
+        )
+
+        # Update agent avatar_url
+        cur.execute("UPDATE agents SET avatar_url = %s WHERE id = %s", (file_path, agent_id))
+
+        conn.commit()
+
+        return jsonify(
+            {
+                "status": "set",
+                "agent_id": agent_id,
+                "asset_id": asset_id,
+                "avatar_url": file_path,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Set profile error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+# --- Status / Health ------------------------------------------------------
+
+
+@media_studio_bp.route("/api/status", methods=["GET"])
+@login_required
+def media_status():
+    """Health check for Media Studio."""
+    try:
+        from ai_bridge.external_providers import get_providers_with_capability
+
+        image_providers = get_providers_with_capability("image_gen")
+        tts_providers = get_providers_with_capability("audio_tts")
+
+        return jsonify(
+            {
+                "status": "operational" if image_providers else "degraded",
+                "image_providers": len(image_providers),
+                "tts_providers": len(tts_providers),
+                "providers": {
+                    "image_gen": [p["provider_key"] for p in image_providers],
+                    "audio_tts": [p["provider_key"] for p in tts_providers],
+                },
+            }
+        )
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500

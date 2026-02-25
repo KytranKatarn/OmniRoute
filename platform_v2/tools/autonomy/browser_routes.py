@@ -74,11 +74,15 @@ def get_browser_tasks():
             )
         tasks = [dict(r) for r in cur.fetchall()]
 
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "tasks": tasks})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/browser/tasks", methods=["POST"])
@@ -87,7 +91,7 @@ def get_browser_tasks():
 def create_browser_task():
     """Create a new browser automation task."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -113,12 +117,16 @@ def create_browser_task():
         )
         task_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "id": task_id})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/browser/tasks/<int:task_id>/run", methods=["POST"])
@@ -147,11 +155,15 @@ def delete_browser_task(task_id):
         cur.execute("DELETE FROM browser_task_results WHERE task_id = %s", (task_id,))
         cur.execute("DELETE FROM browser_tasks WHERE id = %s", (task_id,))
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -177,11 +189,15 @@ def get_task_results(task_id):
             (task_id,),
         )
         results = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "results": results})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -206,11 +222,15 @@ def get_approved_domains():
             """
         )
         domains = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "domains": domains})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/browser/domains", methods=["POST"])
@@ -219,7 +239,7 @@ def get_approved_domains():
 def add_approved_domain():
     """Add a domain to the approved list."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         from browser_automation import BrowserAutomation
 
         ba = BrowserAutomation()
@@ -246,8 +266,12 @@ def remove_approved_domain(domain_id):
             (domain_id,),
         )
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

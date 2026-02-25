@@ -109,9 +109,6 @@ def get_stats():
         )
         asset_stats = cur.fetchone() or {"total_assets": 0}
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -133,6 +130,12 @@ def get_stats():
                 "total_assets": 0,
             }
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -163,14 +166,18 @@ def get_games():
         )
 
         games = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "games": games})
 
     except Exception as e:
         logger.warning(f"Games query failed: {e}")
         return jsonify({"success": True, "games": []})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @game_studio_bp.route("/api/games", methods=["POST"])
@@ -197,8 +204,6 @@ def create_game():
 
         game = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -211,6 +216,12 @@ def create_game():
     except Exception as e:
         logger.error(f"Failed to create game: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @game_studio_bp.route("/api/games/<int:game_id>")
@@ -234,8 +245,6 @@ def get_game(game_id):
         )
 
         game = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not game:
             return jsonify({"success": False, "error": "Game not found"}), 404
@@ -245,6 +254,12 @@ def get_game(game_id):
     except Exception as e:
         logger.error(f"Failed to get game: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @game_studio_bp.route("/api/games/<int:game_id>", methods=["PUT"])
@@ -282,14 +297,18 @@ def update_game(game_id):
 
         game = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "game": game})
 
     except Exception as e:
         logger.error(f"Failed to update game: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @game_studio_bp.route("/api/games/<int:game_id>", methods=["DELETE"])
@@ -309,14 +328,18 @@ def delete_game(game_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Game deleted successfully"})
 
     except Exception as e:
         logger.error(f"Failed to delete game: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -347,14 +370,18 @@ def get_assets():
         )
 
         assets = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "assets": assets})
 
     except Exception as e:
         logger.warning(f"Assets query failed: {e}")
         return jsonify({"success": True, "assets": []})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @game_studio_bp.route("/api/assets/upload", methods=["POST"])
@@ -401,8 +428,6 @@ def upload_assets():
                 uploaded.append(asset)
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -415,6 +440,12 @@ def upload_assets():
     except Exception as e:
         logger.error(f"Failed to upload assets: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def get_asset_type(extension):
@@ -465,14 +496,18 @@ def get_scenes(game_id):
         )
 
         scenes = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "scenes": scenes})
 
     except Exception as e:
         logger.warning(f"Scenes query failed: {e}")
         return jsonify({"success": True, "scenes": []})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @game_studio_bp.route("/api/games/<int:game_id>/scenes", methods=["POST"])
@@ -504,14 +539,18 @@ def create_scene(game_id):
 
         scene = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "scene": scene})
 
     except Exception as e:
         logger.error(f"Failed to create scene: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -585,6 +624,12 @@ def ai_chat():
     except Exception as e:
         logger.error(f"AI chat failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================

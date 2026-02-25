@@ -257,7 +257,7 @@ def approve_proposal_manager(proposal_id):
 def reject_proposal_manager(proposal_id):
     """Reject proposal using manager"""
     try:
-        reason = request.json.get("reason", "No reason provided")
+        reason = (request.get_json() or {}).get("reason", "No reason provided")
         manager = ImprovementManager()
         result = manager.reject_proposal(proposal_id, current_user.id, reason)
         if result["success"]:
@@ -306,8 +306,6 @@ def list_improvements():
         )
 
         improvements = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -332,6 +330,12 @@ def list_improvements():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/<int:id>/approve", methods=["POST"])
@@ -362,13 +366,17 @@ def approve_improvement(id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/<int:id>/reject", methods=["POST"])
@@ -377,7 +385,7 @@ def approve_improvement(id):
 def reject_improvement(id):
     """Reject improvement"""
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         reason = data.get("reason", "No reason provided")
 
         conn = get_db()
@@ -401,13 +409,17 @@ def reject_improvement(id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/<int:id>/implement", methods=["POST"])
@@ -436,13 +448,17 @@ def implement_improvement(id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -486,9 +502,6 @@ def get_improvement_stats():
         )
         recent = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -499,6 +512,12 @@ def get_improvement_stats():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -514,8 +533,6 @@ def health_check():
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM improvement_proposals")
         count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -530,6 +547,12 @@ def health_check():
             jsonify({"healthy": False, "module": "improvements", "error": str(e)}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # MIGRATION START - Append everything below to improvements/routes.py
@@ -553,7 +576,7 @@ def improvements_chat():
         sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
         from improvement_conversation_engine import process_improvement_message
 
-        data = request.json
+        data = request.get_json() or {}
         user_message = data.get("message", "")
         print(f"Message: {user_message[:80]}...")
 
@@ -776,6 +799,12 @@ def improvements_chat():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/chat/history", methods=["GET"])
@@ -801,13 +830,17 @@ def improvements_chat_history():
         )
 
         conversations = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "conversations": [dict(c) for c in conversations]})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e), "conversations": []}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/chat/clear", methods=["POST"])
@@ -838,8 +871,6 @@ def improvements_chat_clear():
 
         deleted_count = cur.rowcount
         conn.commit()
-        cur.close()
-        conn.close()
 
         print(f"Deleted {deleted_count} conversation records from database")
 
@@ -847,6 +878,12 @@ def improvements_chat_clear():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -862,7 +899,7 @@ def improvements_apply_change():
     try:
         from consciousness.archie_tools import write_file
 
-        data = request.json
+        data = request.get_json() or {}
         file_path = data.get("path", "")
         content = data.get("content", "")
 
@@ -905,6 +942,12 @@ def improvements_apply_change():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/migrate-db", methods=["POST"])
@@ -927,14 +970,18 @@ def improvements_migrate_db():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Database migrated successfully"})
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -950,7 +997,7 @@ def improvements_create_plan():
     try:
         from ai_bridge.archie_bridge import archie_bridge_with_planning
 
-        data = request.json
+        data = request.get_json() or {}
         user_request = data.get("request", "")
 
         if not user_request:
@@ -1003,8 +1050,6 @@ def improvements_get_proposals():
             )
 
         proposals = cur.fetchall()
-        cur.close()
-        conn.close()
 
         # Convert to list of dicts with serializable dates
         proposals_list = []
@@ -1019,6 +1064,12 @@ def improvements_get_proposals():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>", methods=["GET"])
@@ -1039,8 +1090,6 @@ def improvements_get_proposal(proposal_id):
         )
 
         proposal = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not proposal:
             return jsonify({"success": False, "error": "Proposal not found"}), 404
@@ -1061,6 +1110,12 @@ def improvements_get_proposal(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>", methods=["DELETE"])
@@ -1121,8 +1176,6 @@ def improvements_delete_proposal(proposal_id):
         cur.execute("DELETE FROM improvement_proposals WHERE id = %s", (proposal_id,))
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1134,6 +1187,12 @@ def improvements_delete_proposal(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/approve", methods=["POST"])
@@ -1232,8 +1291,6 @@ def improvements_approve_proposal(proposal_id):
 
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         # =====================================================================
         # AUTO-SANDBOX: Create sandbox on approval (Phase 23)
@@ -1288,6 +1345,12 @@ def improvements_approve_proposal(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/reject", methods=["POST"])
@@ -1296,7 +1359,7 @@ def improvements_approve_proposal(proposal_id):
 def improvements_reject_proposal(proposal_id):
     """Reject an improvement proposal"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         reason = data.get("reason", "Rejected by user")
 
         conn = get_db()
@@ -1320,8 +1383,6 @@ def improvements_reject_proposal(proposal_id):
 
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not result:
             return (
@@ -1345,6 +1406,12 @@ def improvements_reject_proposal(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/retry", methods=["POST"])
@@ -1553,8 +1620,6 @@ def improvements_regenerate_plan(proposal_id):
 
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not result:
             return (
@@ -1577,6 +1642,12 @@ def improvements_regenerate_plan(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/execute", methods=["POST"])
@@ -1608,8 +1679,6 @@ def improvements_execute_proposal(proposal_id):
             (proposal_id,),
         )
         proposal = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not proposal:
             return jsonify({"success": False, "error": "Proposal not found"}), 404
@@ -1714,6 +1783,12 @@ def improvements_execute_proposal(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/restore", methods=["POST"])
@@ -1801,14 +1876,18 @@ def improvements_escalate_proposal(proposal_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Proposal escalated to senior developers"})
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/archive", methods=["POST"])
@@ -1833,14 +1912,18 @@ def improvements_archive_proposal(proposal_id):
             return jsonify({"success": False, "error": "Proposal not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Proposal archived"})
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/stuck", methods=["GET"])
@@ -1866,9 +1949,6 @@ def get_stuck_proposals():
         )
         stuck_proposals = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1880,6 +1960,12 @@ def get_stuck_proposals():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/unstuck", methods=["POST"])
@@ -1927,8 +2013,6 @@ def unstuck_proposal(proposal_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1940,6 +2024,12 @@ def unstuck_proposal(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/auto-escalate-stuck", methods=["POST"])
@@ -1981,8 +2071,6 @@ def auto_escalate_stuck_proposals():
             escalated_count += 1
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1995,6 +2083,12 @@ def auto_escalate_stuck_proposals():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2120,14 +2214,18 @@ def generate_implementation_steps(proposal_id):
             (json.dumps(steps_data), proposal_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "steps": steps_data})
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/update-step", methods=["POST"])
@@ -2187,8 +2285,6 @@ def generate_code_diff(proposal_id):
             (diff_markdown, proposal_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2202,6 +2298,12 @@ def generate_code_diff(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/preview", methods=["GET"])
@@ -2223,8 +2325,6 @@ def get_code_preview(proposal_id):
         )
 
         proposal = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not proposal:
             return jsonify({"success": False, "error": "Proposal not found"}), 404
@@ -2255,6 +2355,12 @@ def get_code_preview(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/apply-changes", methods=["POST"])
@@ -2307,6 +2413,12 @@ def apply_code_changes(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/activity", methods=["GET"])
@@ -2335,8 +2447,6 @@ def get_proposal_activity(proposal_id):
         )
 
         activities = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return (
             jsonify(
@@ -2351,6 +2461,12 @@ def get_proposal_activity(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2369,13 +2485,18 @@ def get_proposal_team(proposal_id):
         conn = get_db()
         engine = TeamAssignmentEngine(conn)
         team = engine.get_team_for_proposal(proposal_id)
-        conn.close()
 
         return jsonify({"success": True, "team": team, "team_size": len(team)})
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/assign-team", methods=["POST"])
@@ -2420,7 +2541,6 @@ def reassign_team_member(assignment_id):
         conn = get_db()
         engine = TeamAssignmentEngine(conn)
         success = engine.reassign_agent(assignment_id, new_agent_id, reason)
-        conn.close()
 
         if success:
             return jsonify({"success": True, "message": "Team member reassigned successfully"})
@@ -2433,6 +2553,12 @@ def reassign_team_member(assignment_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/team-assignments/<int:assignment_id>/update-status", methods=["POST"])
@@ -2476,14 +2602,18 @@ def update_team_assignment_status(assignment_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Status updated successfully"})
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/team/add-member", methods=["POST"])
@@ -2558,6 +2688,12 @@ def add_team_member(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route(
@@ -2615,14 +2751,18 @@ def remove_team_member(proposal_id, assignment_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Team member removed successfully"})
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/teams/active", methods=["GET"])
@@ -2655,14 +2795,18 @@ def get_active_team_assignments():
         )
 
         assignments = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "assignments": assignments}), 200
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/teams/assignments", methods=["GET"])
@@ -2849,8 +2993,6 @@ def determine_sandbox_type(proposal_id):
             (proposal_id,),
         )
         proposal = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not proposal:
             return jsonify({"success": False, "error": "Proposal not found"}), 404
@@ -2890,6 +3032,12 @@ def determine_sandbox_type(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/sandbox", methods=["GET"])
@@ -2947,9 +3095,6 @@ def get_proposal_sandbox(proposal_id):
             except:
                 pass
 
-        cur.close()
-        conn.close()
-
         if sandbox and tables_cloned is not None:
             if not sandbox.get("metadata"):
                 sandbox["metadata"] = {}
@@ -2969,6 +3114,12 @@ def get_proposal_sandbox(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/sandboxes/active", methods=["GET"])
@@ -3002,14 +3153,18 @@ def get_active_sandboxes():
         )
 
         sandboxes = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "sandboxes": sandboxes}), 200
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/sandboxes/create", methods=["POST"])
@@ -3159,9 +3314,6 @@ def get_sandbox_logs(sandbox_id):
             logs_parts.append(f"Failed: {test_summary.get('failed', 0)}")
             logs_parts.append(f"Total: {test_summary.get('total', 0)}")
 
-        cur.close()
-        conn.close()
-
         logs = "\n".join(logs_parts) if logs_parts else "No logs available"
 
         return jsonify({"success": True, "logs": logs}), 200
@@ -3169,6 +3321,12 @@ def get_sandbox_logs(sandbox_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/agents/available", methods=["GET"])
@@ -3198,14 +3356,18 @@ def get_available_agents():
         )
 
         agents = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "agents": [dict(a) for a in agents]}), 200
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/request-fix", methods=["POST"])
@@ -3327,8 +3489,6 @@ def request_fix():
             pass  # Chat table might not exist
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return (
             jsonify(
@@ -3345,6 +3505,12 @@ def request_fix():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/sandboxes/<int:sandbox_id>/clear-results", methods=["POST"])
@@ -3395,8 +3561,6 @@ def clear_sandbox_test_results(sandbox_id):
 
         deleted_count = cur.rowcount
         conn.commit()
-        cur.close()
-        conn.close()
 
         return (
             jsonify(
@@ -3412,6 +3576,12 @@ def clear_sandbox_test_results(sandbox_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/sandboxes/<int:sandbox_id>/access", methods=["GET"])
@@ -3434,8 +3604,6 @@ def access_sandbox_environment(sandbox_id):
         )
 
         sandbox = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not sandbox:
             return (
@@ -3463,6 +3631,12 @@ def access_sandbox_environment(sandbox_id):
         <h1>Error: {str(e)}</h1></body></html>""",
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/sandboxes/<int:sandbox_id>/test-connection", methods=["GET"])
@@ -3512,9 +3686,6 @@ def test_sandbox_connection(sandbox_id):
         )
         sample_tables = [row[0] for row in cur.fetchall()]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -3527,6 +3698,12 @@ def test_sandbox_connection(sandbox_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/sandboxes/<int:sandbox_id>/test", methods=["POST"])
@@ -3699,6 +3876,12 @@ def execute_sandbox_tests(sandbox_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/sandboxes/<int:sandbox_id>/health", methods=["GET"])
@@ -3750,14 +3933,18 @@ def get_sandbox_test_results(sandbox_id):
         )
 
         results = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "results": results}), 200
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/validate-and-generate-fix", methods=["POST"])
@@ -3998,9 +4185,6 @@ def deploy_proposal_to_production(proposal_id):
                 400,
             )
 
-        cur.close()
-        conn.close()
-
         from code_deployer import CodeDeployer
 
         deployer = CodeDeployer()
@@ -4026,6 +4210,12 @@ def deploy_proposal_to_production(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/restart-platform", methods=["POST"])
@@ -4202,14 +4392,18 @@ def get_recent_deployments():
         )
 
         deployments = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "deployments": deployments}), 200
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/deployments/<int:deployment_id>/logs", methods=["GET"])
@@ -4231,8 +4425,6 @@ def get_deployment_logs(deployment_id):
         )
 
         deployment = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not deployment:
             return jsonify({"success": False, "error": "Deployment not found"}), 404
@@ -4250,6 +4442,12 @@ def get_deployment_logs(deployment_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/deployments/<int:deployment_id>/rollback", methods=["POST"])
@@ -4734,14 +4932,18 @@ def get_proposal_discussions(proposal_id):
         )
 
         discussions = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "discussions": discussions}), 200
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -4936,8 +5138,6 @@ def auto_evaluate_proposal(proposal_id):
         )
 
         consensus = cur.fetchone()
-        cur.close()
-        conn.close()
 
         return (
             jsonify(
@@ -4958,6 +5158,12 @@ def auto_evaluate_proposal(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -5141,9 +5347,6 @@ def get_improvements_stats_comprehensive():
         )
         recent_activity = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Convert dates to ISO format
         for item in failed_improvements:
             if item["proposed_at"]:
@@ -5178,6 +5381,9 @@ def get_improvements_stats_comprehensive():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ============================================================================
@@ -5198,7 +5404,7 @@ def check_path_allowed(path):
 def read_file():
     """Read file contents"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         path = data.get("path")
 
         if not path or not check_path_allowed(path):
@@ -5221,7 +5427,7 @@ def read_file():
 def write_file():
     """Write file contents with backup"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         path = data.get("path")
         content = data.get("content")
 
@@ -5278,9 +5484,6 @@ def api_settings_agent_mapping():
         )
         providers = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Mask API keys
         for provider in providers:
             if provider["api_key"]:
@@ -5296,6 +5499,12 @@ def api_settings_agent_mapping():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/api-settings/providers", methods=["GET"])
@@ -5317,8 +5526,6 @@ def api_settings_providers():
         )
 
         providers = cur.fetchall()
-        cur.close()
-        conn.close()
 
         # Mask API keys (show only last 4 chars)
         for provider in providers:
@@ -5331,6 +5538,12 @@ def api_settings_providers():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/api-settings/toggle", methods=["POST"])
@@ -5339,7 +5552,7 @@ def api_settings_providers():
 def api_settings_toggle():
     """Toggle API provider enabled/disabled"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         provider = data.get("provider")
         enabled = data.get("enabled", False)
 
@@ -5356,13 +5569,17 @@ def api_settings_toggle():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/api-settings/set-default", methods=["POST"])
@@ -5371,7 +5588,7 @@ def api_settings_toggle():
 def api_settings_set_default():
     """Set default API provider"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         provider = data.get("provider")
 
         conn = get_db()
@@ -5391,13 +5608,17 @@ def api_settings_set_default():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/api-settings/save", methods=["POST"])
@@ -5406,7 +5627,7 @@ def api_settings_set_default():
 def api_settings_save():
     """Save API keys and settings"""
     try:
-        data = request.json
+        data = request.get_json() or {}
 
         conn = get_db()
         cur = conn.cursor()
@@ -5434,13 +5655,17 @@ def api_settings_save():
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/api-settings/test/<provider>", methods=["GET"])
@@ -5508,8 +5733,6 @@ def trigger_proposal_retry(proposal_id):
         )
 
         proposal = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not proposal:
             return jsonify({"success": False, "error": "Proposal not found"}), 404
@@ -5523,6 +5746,12 @@ def trigger_proposal_retry(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/retry-status", methods=["GET"])
@@ -5581,8 +5810,6 @@ def get_escalated_proposals():
         )
 
         proposals = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -5594,6 +5821,12 @@ def get_escalated_proposals():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/contractor-chat", methods=["POST"])
@@ -5706,8 +5939,6 @@ def apply_contractor_fix(proposal_id):
         chat.add_system_message(proposal_id, "Contractor fix applied. Ready for re-testing.", "action")
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -5719,6 +5950,12 @@ def apply_contractor_fix(proposal_id):
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/escalate-to-human-only", methods=["POST"])
@@ -5745,8 +5982,6 @@ def escalate_to_human_only(proposal_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Log to chat
         from ai_bridge.chat_handler import get_chat_handler
@@ -5762,6 +5997,12 @@ def escalate_to_human_only(proposal_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/proposals/<int:proposal_id>/try-another-contractor", methods=["POST"])
@@ -5834,8 +6075,6 @@ def try_another_contractor(proposal_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Log to chat
         from ai_bridge.chat_handler import get_chat_handler
@@ -5857,6 +6096,12 @@ def try_another_contractor(proposal_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @improvements_bp.route("/queue/status", methods=["GET"])

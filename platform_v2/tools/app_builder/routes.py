@@ -85,13 +85,16 @@ def index():
                 }
             )
 
-        cur.close()
-        conn.close()
-
         return render_template("tools/app_builder.html", projects=projects)
 
     except Exception as e:
         return render_template("tools/app_builder.html", projects=[], error=str(e))
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -141,7 +144,7 @@ def create_project():
             },
         }
 
-        result = validate_schema(request.json, schema)
+        result = validate_schema(request.get_json() or {}, schema)
         if not result.valid:
             return jsonify({"success": False, "errors": result.errors}), 400
 
@@ -203,8 +206,6 @@ def create_project():
 
         project_id = cur.fetchone()[0]
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Generate clarification questions
         agent = ClarificationAgent(project_id, current_user.id)
@@ -244,6 +245,12 @@ def create_project():
             jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>", methods=["GET"])
@@ -296,13 +303,16 @@ def get_project(project_id):
             "total_files": row[16],
         }
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "project": project})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects", methods=["GET"])
@@ -338,13 +348,16 @@ def list_projects():
                 }
             )
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "projects": projects})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -376,7 +389,7 @@ def submit_clarifications(project_id):
         }
     """
     try:
-        data = request.json
+        data = request.get_json() or {}
         answers = data.get("answers", {})
 
         # Verify ownership
@@ -424,8 +437,6 @@ def submit_clarifications(project_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Generate plan using planner agent
         from .agents.planner_agent import PlannerAgent
@@ -462,6 +473,12 @@ def submit_clarifications(project_id):
             jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -522,8 +539,6 @@ def approve_plan(project_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Audit log
         if audit_log:
@@ -544,6 +559,12 @@ def approve_plan(project_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -573,7 +594,7 @@ def generate_code(project_id):
         }
     """
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         generate_backend = data.get("backend", True)
         generate_frontend = data.get("frontend", True)
         generate_database = data.get("database", True)
@@ -615,9 +636,6 @@ def generate_code(project_id):
 
         if not project_plan:
             return jsonify({"success": False, "error": "No plan found"}), 400
-
-        cur.close()
-        conn.close()
 
         files_generated = 0
         results = {}
@@ -682,8 +700,6 @@ def generate_code(project_id):
             (project_id,),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Audit log
         if audit_log:
@@ -713,6 +729,12 @@ def generate_code(project_id):
             jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>/generate-tests", methods=["POST"])
@@ -738,7 +760,7 @@ def generate_tests(project_id):
         }
     """
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         test_backend = data.get("backend", True)
         test_frontend = data.get("frontend", True)
 
@@ -779,9 +801,6 @@ def generate_tests(project_id):
         if not project_plan:
             return jsonify({"success": False, "error": "No plan found"}), 400
 
-        cur.close()
-        conn.close()
-
         # Generate tests
         from .agents.test_generator import TestGenerator
         import asyncio
@@ -803,8 +822,6 @@ def generate_tests(project_id):
             (project_id,),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Audit log
         if audit_log:
@@ -836,6 +853,12 @@ def generate_tests(project_id):
             jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>/run-tests", methods=["POST"])
@@ -865,7 +888,7 @@ def run_tests(project_id):
         }
     """
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         test_backend = data.get("backend", True)
         test_frontend = data.get("frontend", True)
         test_type = data.get("test_type", "all")
@@ -892,9 +915,6 @@ def run_tests(project_id):
             return jsonify({"success": False, "error": "Access denied"}), 403
 
         project_path = row[1] or f"/tmp/app_builder_projects/{project_id}"
-
-        cur.close()
-        conn.close()
 
         # Run tests
         from .agents.test_runner import TestRunner
@@ -929,8 +949,6 @@ def run_tests(project_id):
             ),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Generate report
         report_text = runner.generate_report(format="text")
@@ -973,6 +991,12 @@ def run_tests(project_id):
             jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>/test-results", methods=["GET"])
@@ -1014,9 +1038,6 @@ def get_test_results(project_id):
         test_results = row[1]
         last_test_run = row[2].isoformat() if row[2] else None
 
-        cur.close()
-        conn.close()
-
         if not test_results:
             return (
                 jsonify(
@@ -1043,6 +1064,12 @@ def get_test_results(project_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1074,7 +1101,7 @@ def generate_deployment(project_id):
         }
     """
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         generate_docker = data.get("docker", True)
         generate_ci_cd = data.get("ci_cd", True)
         generate_kubernetes = data.get("kubernetes", False)
@@ -1117,9 +1144,6 @@ def generate_deployment(project_id):
         if not project_plan:
             return jsonify({"success": False, "error": "No plan found"}), 400
 
-        cur.close()
-        conn.close()
-
         # Generate deployment files
         from .agents.deployment_generator import DeploymentGenerator
         import asyncio
@@ -1149,8 +1173,6 @@ def generate_deployment(project_id):
             (project_id,),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Audit log
         if audit_log:
@@ -1185,6 +1207,12 @@ def generate_deployment(project_id):
             jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>/deploy", methods=["POST"])
@@ -1209,7 +1237,7 @@ def deploy_project(project_id):
         }
     """
     try:
-        data = request.json or {}
+        data = request.get_json() or {} or {}
         environment = data.get("environment", "production")
         auto_rollback = data.get("auto_rollback", True)
 
@@ -1261,8 +1289,6 @@ def deploy_project(project_id):
             (deployment_id, project_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
 
         # NOTE: Actual deployment logic would go here
         # This could include:
@@ -1306,6 +1332,12 @@ def deploy_project(project_id):
             jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>/deployment-status", methods=["GET"])
@@ -1350,9 +1382,6 @@ def get_deployment_status(project_id):
         last_deployment_at = row[3].isoformat() if row[3] else None
         deployment_generated_at = row[4].isoformat() if row[4] else None
 
-        cur.close()
-        conn.close()
-
         return (
             jsonify(
                 {
@@ -1369,6 +1398,12 @@ def get_deployment_status(project_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1423,13 +1458,16 @@ def get_project_files(project_id):
                 }
             )
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "files": files, "total": len(files)})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>/files/<int:file_id>", methods=["GET"])
@@ -1483,13 +1521,16 @@ def get_file_content(project_id, file_id):
             "created_at": row[5].isoformat() if row[5] else None,
         }
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "file": file_data})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1535,13 +1576,16 @@ def get_project_status(project_id):
             "deployment_url": row[7],
         }
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "status": status})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1598,13 +1642,16 @@ def get_execution_logs(project_id):
                 }
             )
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "logs": logs, "total": len(logs)})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>", methods=["DELETE"])
@@ -1634,8 +1681,6 @@ def delete_project(project_id):
         # Delete project (CASCADE will delete related records)
         cur.execute("DELETE FROM app_builder_projects WHERE id = %s", (project_id,))
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Audit log
         if audit_log:
@@ -1650,6 +1695,12 @@ def delete_project(project_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>/download", methods=["GET"])
@@ -1692,8 +1743,6 @@ def download_project(project_id):
         )
 
         files = cur.fetchall()
-        cur.close()
-        conn.close()
 
         if not files:
             return jsonify({"success": False, "error": "No files to download"}), 404
@@ -1725,6 +1774,12 @@ def download_project(project_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @app_builder_bp.route("/api/projects/<int:project_id>/stream")

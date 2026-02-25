@@ -101,12 +101,16 @@ def log_governance_event(
         )
         event_id = cur.fetchone()[0]
         conn.commit()
-        cur.close()
-        conn.close()
         return event_id
     except Exception as e:
         print(f"Error logging governance event: {e}")
         return None
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def check_constraints(action_name, agent_id=None):
@@ -241,9 +245,6 @@ def get_constraints():
         )
         by_type = {row["constraint_type"]: row["count"] for row in cur.fetchall()}
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -265,6 +266,12 @@ def get_constraints():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @iaae_bp.route("/constraints", methods=["POST"])
@@ -273,7 +280,7 @@ def get_constraints():
 def create_constraint():
     """Create a new ethics constraint"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         required = ["constraint_type", "constraint_name", "description"]
         for field in required:
             if not data.get(field):
@@ -316,9 +323,6 @@ def create_constraint():
             reason=f"New constraint: {data['constraint_name']}",
         )
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -335,6 +339,12 @@ def create_constraint():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @iaae_bp.route("/constraints/<int:constraint_id>", methods=["PUT"])
@@ -343,7 +353,7 @@ def create_constraint():
 def update_constraint(constraint_id):
     """Update an ethics constraint"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -407,9 +417,6 @@ def update_constraint(constraint_id):
             reason=f"Updated constraint: {constraint['constraint_name']}",
         )
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -427,6 +434,12 @@ def update_constraint(constraint_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @iaae_bp.route("/constraints/<int:constraint_id>", methods=["DELETE"])
@@ -466,9 +479,6 @@ def delete_constraint(constraint_id):
             reason=f"Deactivated constraint: {constraint['constraint_name']}",
         )
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -481,6 +491,12 @@ def delete_constraint(constraint_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @iaae_bp.route("/constraints/check", methods=["POST"])
@@ -489,7 +505,7 @@ def delete_constraint(constraint_id):
 def check_action_constraints():
     """Check if an action would violate any ethics constraints"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         action = data.get("action")
         agent_id = data.get("agent_id")
 
@@ -551,8 +567,8 @@ def get_audit_events():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        where_clauses = [f"timestamp >= NOW() - INTERVAL '{days} days'"]
-        params = []
+        where_clauses = ["timestamp >= NOW() - (%s * INTERVAL '1 day')"]
+        params = [days]
 
         if event_type:
             where_clauses.append("event_type = %s")
@@ -592,9 +608,6 @@ def get_audit_events():
 
         events = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -620,6 +633,12 @@ def get_audit_events():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @iaae_bp.route("/audit/summary", methods=["GET"])
@@ -680,9 +699,6 @@ def get_audit_summary():
         blocked = totals["blocked_count"] or 0
         compliance_score = round(((total - blocked) / total) * 100, 2)
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -711,6 +727,12 @@ def get_audit_summary():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @iaae_bp.route("/audit/<int:audit_id>", methods=["GET"])
@@ -741,9 +763,6 @@ def get_audit_event(audit_id):
             conn.close()
             return jsonify({"success": False, "error": "Audit event not found"}), 404
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -759,6 +778,12 @@ def get_audit_event(audit_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -779,74 +804,76 @@ def get_refusals_analytics():
 
         # Total refusals
         cur.execute(
-            f"""
+            """
             SELECT
                 COUNT(*) as total_refusals,
                 COUNT(*) FILTER (WHERE was_overridden = TRUE) as overridden_count,
                 COUNT(DISTINCT agent_id) as agents_with_refusals
             FROM task_refusal_log
-            WHERE timestamp >= NOW() - INTERVAL '{days} days'
-        """
+            WHERE timestamp >= NOW() - (%s * INTERVAL '1 day')
+        """,
+            (days,),
         )
         totals = cur.fetchone()
 
         # By task type
         cur.execute(
-            f"""
+            """
             SELECT task_type, COUNT(*) as count
             FROM task_refusal_log
-            WHERE timestamp >= NOW() - INTERVAL '{days} days'
+            WHERE timestamp >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY task_type
             ORDER BY count DESC
-        """
+        """,
+            (days,),
         )
         by_task_type = {row["task_type"]: row["count"] for row in cur.fetchall()}
 
         # By constraint
         cur.execute(
-            f"""
+            """
             SELECT ec.constraint_name, COUNT(*) as count
             FROM task_refusal_log trl
             JOIN ethics_constraints ec ON trl.ethics_constraint_id = ec.id
-            WHERE trl.timestamp >= NOW() - INTERVAL '{days} days'
+            WHERE trl.timestamp >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY ec.constraint_name
             ORDER BY count DESC
-        """
+        """,
+            (days,),
         )
         by_constraint = {row["constraint_name"]: row["count"] for row in cur.fetchall()}
 
         # By agent
         cur.execute(
-            f"""
+            """
             SELECT a.name as agent_name, COUNT(*) as count
             FROM task_refusal_log trl
             JOIN agents a ON trl.agent_id = a.id
-            WHERE trl.timestamp >= NOW() - INTERVAL '{days} days'
+            WHERE trl.timestamp >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY a.name
             ORDER BY count DESC
             LIMIT 10
-        """
+        """,
+            (days,),
         )
         by_agent = [{"agent_name": row["agent_name"], "count": row["count"]} for row in cur.fetchall()]
 
         # Top reasons
         cur.execute(
-            f"""
+            """
             SELECT refusal_reason, COUNT(*) as count
             FROM task_refusal_log
-            WHERE timestamp >= NOW() - INTERVAL '{days} days'
+            WHERE timestamp >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY refusal_reason
             ORDER BY count DESC
             LIMIT 10
-        """
+        """,
+            (days,),
         )
         top_reasons = [{"reason": row["refusal_reason"], "count": row["count"]} for row in cur.fetchall()]
 
         total = totals["total_refusals"] or 1
         override_rate = round((totals["overridden_count"] or 0) / total, 4)
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -870,6 +897,12 @@ def get_refusals_analytics():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -903,9 +936,6 @@ def get_resting_agents():
 
         resting = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -926,6 +956,12 @@ def get_resting_agents():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -952,9 +988,6 @@ def get_agent_welfare():
             if status in status_counts:
                 status_counts[status] += 1
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -977,6 +1010,12 @@ def get_agent_welfare():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -1045,9 +1084,6 @@ def get_compliance_dashboard():
         scores = cur.fetchone()
         compliance_score = round((scores["compliant"] / max(scores["total"], 1)) * 100, 2)
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1068,3 +1104,9 @@ def get_compliance_dashboard():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

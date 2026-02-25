@@ -98,8 +98,6 @@ class ArgusService:
             )
             scan_id = cur.fetchone()[0]
             conn.commit()
-            cur.close()
-            conn.close()
 
             thread = threading.Thread(
                 target=self._execute_scan, args=(scan_id, module_id, target, options or {}), daemon=True
@@ -108,6 +106,12 @@ class ArgusService:
             return scan_id
         except Exception:
             return None
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def _execute_scan(self, scan_id: int, module_id: str, target: str, options: dict):
         results = {}
@@ -145,10 +149,14 @@ class ArgusService:
                 (Json(results), status, scan_id),
             )
             conn.commit()
-            cur.close()
-            conn.close()
         except Exception:
             pass
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def _dns_lookup(self, target: str) -> Dict:
         try:
@@ -262,11 +270,15 @@ class ArgusService:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("SELECT * FROM security_recon_scans WHERE id = %s", (scan_id,))
             result = cur.fetchone()
-            cur.close()
-            conn.close()
             return dict(result) if result else None
         except Exception:
             return None
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def get_scan_history(self, limit: int = 50) -> List[Dict]:
         try:
@@ -280,11 +292,15 @@ class ArgusService:
                 (limit,),
             )
             results = cur.fetchall()
-            cur.close()
-            conn.close()
             return [dict(r) for r in results]
         except Exception:
             return []
+        finally:
+            try:
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
 
     def check_health(self) -> bool:
         return True

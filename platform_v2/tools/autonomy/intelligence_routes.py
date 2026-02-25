@@ -58,11 +58,15 @@ def get_briefings():
             """
         )
         briefings = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "briefings": briefings})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/briefings", methods=["POST"])
@@ -71,7 +75,7 @@ def get_briefings():
 def create_briefing():
     """Create a new briefing configuration."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
@@ -91,11 +95,15 @@ def create_briefing():
         )
         briefing_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "id": briefing_id})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/briefings/<int:briefing_id>/generate", methods=["POST"])
@@ -134,11 +142,15 @@ def get_briefing_history(briefing_id):
             (briefing_id,),
         )
         history = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "history": history})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/briefings/history/<int:history_id>", methods=["GET"])
@@ -151,13 +163,17 @@ def get_briefing_detail(history_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM briefing_history WHERE id = %s", (history_id,))
         entry = cur.fetchone()
-        cur.close()
-        conn.close()
         if not entry:
             return jsonify({"success": False, "error": "Not found"}), 404
         return jsonify({"success": True, "briefing": dict(entry)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -184,11 +200,15 @@ def get_anomaly_rules():
             """
         )
         rules = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "rules": rules})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/anomaly-rules", methods=["POST"])
@@ -197,7 +217,7 @@ def get_anomaly_rules():
 def create_anomaly_rule():
     """Create a new anomaly detection rule."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
@@ -219,11 +239,15 @@ def create_anomaly_rule():
         )
         rule_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "id": rule_id})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/anomaly-rules/<int:rule_id>/toggle", methods=["POST"])
@@ -240,11 +264,15 @@ def toggle_anomaly_rule(rule_id):
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "is_active": result["is_active"] if result else False})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/anomaly-rules/<int:rule_id>/check", methods=["POST"])
@@ -261,8 +289,6 @@ def check_anomaly_rule(rule_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM anomaly_rules WHERE id = %s", (rule_id,))
         rule = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not rule:
             return jsonify({"success": False, "error": "Rule not found"}), 404
@@ -283,6 +309,12 @@ def check_anomaly_rule(rule_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/detections", methods=["GET"])
@@ -310,11 +342,15 @@ def get_detections():
             (acknowledged, limit),
         )
         detections = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "detections": detections})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/detections/<int:detection_id>/acknowledge", methods=["POST"])
@@ -334,11 +370,15 @@ def acknowledge_detection(detection_id):
             (current_user.id, detection_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -363,11 +403,15 @@ def get_reports():
             """
         )
         reports = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "reports": reports})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/reports", methods=["POST"])
@@ -376,7 +420,7 @@ def get_reports():
 def create_report():
     """Create a new scheduled report."""
     try:
-        data = request.json
+        data = request.get_json() or {}
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
@@ -398,11 +442,15 @@ def create_report():
         )
         report_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "id": report_id})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @autonomy_bp.route("/api/intelligence/reports/<int:report_id>/generate", methods=["POST"])

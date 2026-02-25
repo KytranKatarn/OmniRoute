@@ -206,9 +206,6 @@ def get_agents():
         )
         stats = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         # Convert to list of dicts with serializable dates
         agents_list = []
         for agent in agents:
@@ -247,6 +244,12 @@ def get_agents():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>", methods=["GET"])
@@ -305,9 +308,6 @@ def get_agent_details(agent_id):
 
         recent_executions = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Convert dates
         agent_dict = dict(agent)
         if agent_dict.get("created_at"):
@@ -345,6 +345,12 @@ def get_agent_details(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>", methods=["PUT", "PATCH"])
@@ -356,7 +362,7 @@ def update_agent_profile(agent_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        data = request.json
+        data = request.get_json() or {}
 
         # Verify agent exists
         cur.execute("SELECT id FROM agents WHERE id = %s", (agent_id,))
@@ -439,8 +445,6 @@ def update_agent_profile(agent_id):
         updated_agent = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         # Convert to dict and format dates
         result = dict(updated_agent)
@@ -460,6 +464,12 @@ def update_agent_profile(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>", methods=["DELETE"])
@@ -499,8 +509,6 @@ def delete_agent(agent_id):
 
         cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -514,6 +522,12 @@ def delete_agent(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/work-history", methods=["GET"])
@@ -569,9 +583,6 @@ def get_agent_work_history(agent_id):
         )
         stats = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         # Format dates
         for p in proposals:
             if p.get("proposed_at"):
@@ -596,6 +607,12 @@ def get_agent_work_history(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/contractor-status", methods=["GET"])
@@ -615,9 +632,6 @@ def get_contractor_api_status(agent_id):
             (agent_id,),
         )
         agent = cur.fetchone()
-
-        cur.close()
-        conn.close()
 
         if not agent:
             return jsonify({"success": False, "error": "Agent not found"}), 404
@@ -682,6 +696,12 @@ def get_contractor_api_status(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/execute", methods=["POST"])
@@ -692,7 +712,7 @@ def execute_agent(agent_id):
     try:
         from ai_bridge.archie_bridge import execute_agent_task
 
-        data = request.json
+        data = request.get_json() or {}
         task = data.get("task", "")
 
         if not task:
@@ -723,7 +743,7 @@ def agent_chat():
     try:
         from ai_bridge.archie_bridge import archie_bridge
 
-        data = request.json
+        data = request.get_json() or {}
         agent_id = data.get("agent_id")
         message = data.get("message", "")
         history = data.get("history", [])
@@ -745,8 +765,6 @@ def agent_chat():
             (agent_id,),
         )
         agent = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not agent:
             return jsonify({"success": False, "error": "Agent not found"}), 404
@@ -807,6 +825,12 @@ Respond in character as this agent. Be helpful, professional, """
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================
@@ -838,12 +862,16 @@ def list_discussions():
         """
         )
         discussions = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "discussions": [dict(d) for d in discussions]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/discussions", methods=["POST"])
@@ -852,7 +880,7 @@ def list_discussions():
 def create_discussion():
     """Create a new team discussion"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         topic = data.get("topic", "Team Chat")
         description = data.get("description", "")
 
@@ -870,12 +898,16 @@ def create_discussion():
 
         discussion = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "discussion": dict(discussion)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/discussions/<int:discussion_id>/messages", methods=["GET"])
@@ -901,12 +933,16 @@ def get_discussion_messages(discussion_id):
         )
 
         messages = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "messages": [dict(m) for m in messages]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/team-chat", methods=["POST"])
@@ -917,7 +953,7 @@ def team_chat():
     try:
         from ai_bridge.archie_bridge import archie_bridge
 
-        data = request.json
+        data = request.get_json() or {}
         agent_ids = data.get("agent_ids", [])
         message = data.get("message", "")
         discussion_id = data.get("discussion_id")
@@ -1054,9 +1090,6 @@ Keep responses concise (2-4 sentences) unless more detail is needed."""
                     }
                 )
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "discussion_id": discussion_id, "responses": responses})
 
     except Exception as e:
@@ -1064,6 +1097,12 @@ Keep responses concise (2-4 sentences) unless more detail is needed."""
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/discussions/<int:discussion_id>/end", methods=["POST"])
@@ -1085,12 +1124,16 @@ def end_discussion(discussion_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Discussion ended"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/toggle", methods=["POST"])
@@ -1118,8 +1161,6 @@ def toggle_agent(agent_id):
 
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         if not result:
             return jsonify({"success": False, "error": "Agent not found"}), 404
@@ -1131,6 +1172,12 @@ def toggle_agent(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/types", methods=["GET"])
@@ -1151,8 +1198,6 @@ def get_agent_types():
         )
 
         types = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "types": [dict(t) for t in types]})
 
@@ -1161,6 +1206,12 @@ def get_agent_types():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -1389,9 +1440,6 @@ def get_agent_directory():
                 by_department[dept] = []
             by_department[dept].append(agent_dict)
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1406,6 +1454,9 @@ def get_agent_directory():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ============================================================================
@@ -1459,9 +1510,6 @@ def get_all_skills():
         cur.execute("SELECT COUNT(DISTINCT agent_id) as agents_with_skills FROM agent_skills")
         agents_with_skills = cur.fetchone()["agents_with_skills"]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1476,6 +1524,12 @@ def get_all_skills():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/skills/matrix", methods=["GET"])
@@ -1557,9 +1611,6 @@ def get_skills_matrix():
             }
             matrix.append(row)
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1575,6 +1626,12 @@ def get_skills_matrix():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/skills", methods=["GET"])
@@ -1612,9 +1669,6 @@ def get_agent_skills(agent_id):
 
         skills = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Format dates
         skills_list = []
         for skill in skills:
@@ -1639,6 +1693,12 @@ def get_agent_skills(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/skills", methods=["POST"])
@@ -1658,7 +1718,7 @@ def add_agent_skill(agent_id):
         if not cur.fetchone():
             return jsonify({"success": False, "error": "Agent not found"}), 404
 
-        data = request.json
+        data = request.get_json() or {}
         skill_name = data.get("skill_name")
         proficiency = data.get("proficiency_level", 3)
         category = data.get("skill_category", "general")
@@ -1700,8 +1760,6 @@ def add_agent_skill(agent_id):
 
         new_skill = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         skill_dict = dict(new_skill)
         if skill_dict.get("created_at"):
@@ -1722,6 +1780,12 @@ def add_agent_skill(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/skills/<skill_id>", methods=["PUT"])
@@ -1735,7 +1799,7 @@ def update_agent_skill(agent_id, skill_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        data = request.json
+        data = request.get_json() or {}
 
         # Build update
         update_fields = []
@@ -1785,8 +1849,6 @@ def update_agent_skill(agent_id, skill_id):
             return jsonify({"success": False, "error": "Skill not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         skill_dict = dict(updated)
         if skill_dict.get("updated_at"):
@@ -1799,6 +1861,12 @@ def update_agent_skill(agent_id, skill_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/skills/<skill_id>", methods=["DELETE"])
@@ -1825,8 +1893,6 @@ def delete_agent_skill(agent_id, skill_id):
             return jsonify({"success": False, "error": "Skill not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": f'Skill "{result[0]}" removed from agent'})
 
@@ -1835,6 +1901,12 @@ def delete_agent_skill(agent_id, skill_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/skills/categories", methods=["GET"])
@@ -1874,9 +1946,6 @@ def get_skill_categories():
         except Exception:
             task_categories = {}
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1890,6 +1959,12 @@ def get_skill_categories():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/skills/gaps", methods=["GET"])
@@ -1936,9 +2011,6 @@ def get_skill_gaps():
         )
         low_proficiency_skills = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -1953,6 +2025,12 @@ def get_skill_gaps():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/skills/recommendations", methods=["GET"])
@@ -2038,9 +2116,6 @@ def get_skill_recommendations():
                     "matches": [dict(m) for m in matches],
                 }
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2054,6 +2129,12 @@ def get_skill_recommendations():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/hr/dashboard", methods=["GET"])
@@ -2164,9 +2245,6 @@ def get_hr_dashboard():
         )
         top_performers = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2183,6 +2261,12 @@ def get_hr_dashboard():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2247,9 +2331,6 @@ def get_stations():
         )
         stations = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "stations": [dict(s) for s in stations]})
 
     except Exception as e:
@@ -2257,6 +2338,12 @@ def get_stations():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/assign-station", methods=["POST"])
@@ -2324,9 +2411,6 @@ def assign_agent_to_station(agent_id):
         assignment_id = cur.fetchone()["id"]
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2340,6 +2424,12 @@ def assign_agent_to_station(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/assign-station", methods=["DELETE"])
@@ -2378,8 +2468,6 @@ def remove_agent_from_station(agent_id):
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": f"Agent {agent_id} removed from station(s)"})
 
@@ -2388,6 +2476,12 @@ def remove_agent_from_station(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/station-roster", methods=["GET"])
@@ -2456,9 +2550,6 @@ def get_station_roster():
                     }
                 )
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "roster": list(roster.values())})
 
     except Exception as e:
@@ -2466,6 +2557,12 @@ def get_station_roster():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/stations/auto-assign", methods=["POST"])
@@ -2519,8 +2616,6 @@ def auto_assign_agents():
                 )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -2535,6 +2630,12 @@ def auto_assign_agents():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/station", methods=["GET"])
@@ -2564,9 +2665,6 @@ def get_agent_station(agent_id):
         )
         assignment = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         if assignment:
             return jsonify({"success": True, "assigned": True, "station": dict(assignment)})
         else:
@@ -2577,6 +2675,12 @@ def get_agent_station(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2592,8 +2696,6 @@ def health_check():
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM agents WHERE status = 'active'")
         count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
 
         return jsonify({"healthy": True, "module": "team_management", "active_agents": count})
     except Exception as e:
@@ -2601,6 +2703,12 @@ def health_check():
             jsonify({"healthy": False, "module": "team_management", "error": str(e)}),
             500,
         )
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2645,11 +2753,15 @@ def get_work_queue():
             (limit,),
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
         return jsonify({"tasks": [dict(r) for r in rows], "count": len(rows)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/dispatch/agent-summary", methods=["GET"])
@@ -2662,11 +2774,15 @@ def get_agent_summary():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM v_agent_work_summary ORDER BY total_tasks DESC")
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
         return jsonify({"agents": [dict(r) for r in rows]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/dispatch/station-summary", methods=["GET"])
@@ -2693,11 +2809,15 @@ def get_station_summary():
         """
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
         return jsonify({"stations": [dict(r) for r in rows]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2726,11 +2846,15 @@ def get_hr_daily_summary():
         """
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "summaries": [dict(r) for r in rows]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/hr/weekly-performance", methods=["GET"])
@@ -2743,11 +2867,15 @@ def get_hr_weekly_performance():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM v_agent_weekly_performance")
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "performance": [dict(r) for r in rows]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/hr/alerts", methods=["GET"])
@@ -2775,11 +2903,15 @@ def get_hr_alerts():
             cur.execute("SELECT * FROM v_active_alerts LIMIT 50")
 
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "alerts": [dict(r) for r in rows]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/hr/alerts/<int:alert_id>/resolve", methods=["POST"])
@@ -2799,11 +2931,15 @@ def resolve_hr_alert(alert_id):
             (current_user.username, alert_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -2830,12 +2966,15 @@ def get_shifts():
         )
         shifts = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "shifts": [dict(s) for s in shifts]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/shifts", methods=["POST"])
@@ -2869,12 +3008,16 @@ def create_shift():
 
         new_shift = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "shift": dict(new_shift)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/shifts/calendar", methods=["GET"])
@@ -2894,12 +3037,15 @@ def get_shift_calendar():
         )
         calendar = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "calendar": [dict(c) for c in calendar]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/shifts/on-duty", methods=["GET"])
@@ -2924,9 +3070,6 @@ def get_agents_on_duty():
 
         agents = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2936,6 +3079,12 @@ def get_agents_on_duty():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/shifts/conflicts", methods=["GET"])
@@ -2950,9 +3099,6 @@ def get_shift_conflicts():
         cur.execute("SELECT * FROM v_unresolved_shift_conflicts")
         conflicts = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2962,6 +3108,12 @@ def get_shift_conflicts():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/shifts/detect-conflicts", methods=["POST"])
@@ -2977,12 +3129,16 @@ def detect_conflicts():
         conflict_count = cur.fetchone()[0]
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "conflicts_detected": conflict_count})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/shifts/conflicts/<int:conflict_id>/resolve", methods=["POST"])
@@ -3014,12 +3170,16 @@ def resolve_conflict(conflict_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/shifts/staffing", methods=["GET"])
@@ -3034,12 +3194,15 @@ def get_staffing_summary():
         cur.execute("SELECT * FROM v_station_staffing")
         staffing = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "staffing": [dict(s) for s in staffing]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # Agent Shift Assignment Endpoints
@@ -3094,12 +3257,15 @@ def get_agent_shifts(agent_id):
 
         shifts = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "agent_id": agent_id, "shifts": [dict(s) for s in shifts]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/shifts", methods=["POST"])
@@ -3185,12 +3351,16 @@ def assign_agent_shift(agent_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "assignment_id": new_assignment["id"]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/shifts/<int:assignment_id>", methods=["DELETE"])
@@ -3241,12 +3411,16 @@ def remove_agent_shift(agent_id, assignment_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # Rotation Management Endpoints
@@ -3282,12 +3456,15 @@ def get_rotations():
         )
         rotations = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "rotations": [dict(r) for r in rotations]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/rotations", methods=["POST"])
@@ -3332,12 +3509,16 @@ def create_rotation():
 
         new_rotation = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "rotation": dict(new_rotation)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/rotations/<int:rotation_id>/advance", methods=["POST"])
@@ -3353,8 +3534,6 @@ def advance_rotation(rotation_id):
         success = cur.fetchone()[0]
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         if success:
             return jsonify({"success": True, "message": "Rotation advanced"})
@@ -3365,6 +3544,12 @@ def advance_rotation(rotation_id):
             )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # Bulk Operations
@@ -3400,8 +3585,6 @@ def bulk_deactivate_agents():
         deactivated_ids = [r[0] for r in deactivated]
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -3412,6 +3595,12 @@ def bulk_deactivate_agents():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/bulk-assign-shifts", methods=["POST"])
@@ -3478,8 +3667,6 @@ def bulk_assign_shifts():
                 assigned_count += 1
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -3490,6 +3677,12 @@ def bulk_assign_shifts():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -3550,12 +3743,15 @@ def get_task_assignments():
         cur.execute("SELECT COUNT(*) as count FROM agent_task_assignments")
         total = cur.fetchone()["count"]
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "tasks": [dict(t) for t in tasks], "total": total})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/tasks", methods=["POST"])
@@ -3626,8 +3822,6 @@ def create_task_assignment():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -3638,6 +3832,12 @@ def create_task_assignment():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/tasks/<int:task_id>", methods=["GET"])
@@ -3680,9 +3880,6 @@ def get_task_assignment(task_id):
         )
         logs = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -3692,6 +3889,12 @@ def get_task_assignment(task_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/tasks/<int:task_id>", methods=["PUT"])
@@ -3751,12 +3954,16 @@ def update_task_assignment(task_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Task updated"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/tasks/<int:task_id>/start", methods=["POST"])
@@ -3792,12 +3999,16 @@ def start_task(task_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Task started"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/tasks/<int:task_id>/complete", methods=["POST"])
@@ -3847,12 +4058,16 @@ def complete_task(task_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Task completed"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/tasks/<int:task_id>/execute", methods=["POST"])
@@ -3943,8 +4158,6 @@ Please complete this task and provide a clear summary of what you accomplished."
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Task executed successfully", "result": result})
     except Exception as e:
@@ -3974,6 +4187,12 @@ Please complete this task and provide a clear summary of what you accomplished."
         except Exception:
             pass
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/tasks/templates", methods=["GET"])
@@ -3999,12 +4218,15 @@ def get_task_templates():
         cur.execute(query, params)
         templates = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "templates": [dict(t) for t in templates]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/tasks/stats", methods=["GET"])
@@ -4061,9 +4283,6 @@ def get_task_stats():
         )
         by_module = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -4074,6 +4293,12 @@ def get_task_stats():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/tasks", methods=["GET"])
@@ -4106,12 +4331,15 @@ def get_agent_tasks(agent_id):
         cur.execute(query, params)
         tasks = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "tasks": [dict(t) for t in tasks]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/modules/available", methods=["GET"])
@@ -4158,11 +4386,15 @@ def get_workflow_templates():
         except Exception:
             # Table may not exist yet
             templates = []
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "templates": [dict(t) for t in templates]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/workflows/executions", methods=["GET"])
@@ -4184,11 +4416,15 @@ def get_workflow_executions():
         except Exception:
             # Table may not exist yet
             executions = []
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "executions": [dict(e) for e in executions]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -4256,9 +4492,6 @@ def get_agent_memories(agent_id):
 
         memories = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -4271,6 +4504,12 @@ def get_agent_memories(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/memory", methods=["POST"])
@@ -4331,8 +4570,6 @@ def create_agent_memory(agent_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -4343,6 +4580,12 @@ def create_agent_memory(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["GET"])
@@ -4364,15 +4607,18 @@ def get_agent_memory(agent_id, memory_id):
 
         memory = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         if not memory:
             return jsonify({"success": False, "error": "Memory not found"}), 404
 
         return jsonify({"success": True, "data": dict(memory)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["PUT"])
@@ -4456,8 +4702,6 @@ def update_agent_memory(agent_id, memory_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -4468,6 +4712,12 @@ def update_agent_memory(agent_id, memory_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>", methods=["DELETE"])
@@ -4501,12 +4751,16 @@ def delete_agent_memory(agent_id, memory_id):
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Memory soft-deleted successfully"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/memory/<int:memory_id>/restore", methods=["POST"])
@@ -4549,8 +4803,6 @@ def restore_agent_memory(agent_id, memory_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -4561,6 +4813,12 @@ def restore_agent_memory(agent_id, memory_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # -----------------------------------------------------------------------------
@@ -4600,9 +4858,6 @@ def get_agent_emotional_state(agent_id):
 
         welfare = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         # Define thresholds
         thresholds = {
             "energy_low": 0.2,
@@ -4624,6 +4879,12 @@ def get_agent_emotional_state(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 def _check_emotional_alerts(state, thresholds):
@@ -4663,7 +4924,7 @@ def get_agent_emotional_history(agent_id):
         cur.execute(
             """
             SELECT * FROM agent_emotional_state
-            WHERE agent_id = %s AND recorded_at >= NOW() - INTERVAL '%s days'
+            WHERE agent_id = %s AND recorded_at >= NOW() - (%s * INTERVAL '1 day')
             ORDER BY recorded_at DESC
             LIMIT %s
         """,
@@ -4671,9 +4932,6 @@ def get_agent_emotional_history(agent_id):
         )
 
         history = cur.fetchall()
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -4685,6 +4943,12 @@ def get_agent_emotional_history(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/emotional-state", methods=["POST"])
@@ -4760,8 +5024,6 @@ def record_agent_emotional_state(agent_id):
             rest_triggered = True
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         response = {
             "success": True,
@@ -4775,6 +5037,12 @@ def record_agent_emotional_state(agent_id):
         return jsonify(response)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # -----------------------------------------------------------------------------
@@ -4823,9 +5091,6 @@ def get_agent_rest_cycles(agent_id):
 
         cycles = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -4838,6 +5103,12 @@ def get_agent_rest_cycles(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/rest-cycles/start", methods=["POST"])
@@ -4889,8 +5160,6 @@ def start_agent_rest_cycle(agent_id):
         cycle = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -4901,6 +5170,12 @@ def start_agent_rest_cycle(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/rest-cycles/<int:cycle_id>/end", methods=["POST"])
@@ -4946,12 +5221,16 @@ def end_agent_rest_cycle(agent_id, cycle_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "data": dict(cycle), "message": "Rest cycle ended"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # -----------------------------------------------------------------------------
@@ -4991,9 +5270,6 @@ def get_agent_refusals(agent_id):
 
         refusals = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -5006,6 +5282,12 @@ def get_agent_refusals(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/refusals", methods=["POST"])
@@ -5059,12 +5341,16 @@ def log_agent_refusal(agent_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "data": dict(refusal), "message": "Task refusal logged"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/refusals/<int:refusal_id>/override", methods=["POST"])
@@ -5143,8 +5429,6 @@ def override_agent_refusal(agent_id, refusal_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -5155,6 +5439,12 @@ def override_agent_refusal(agent_id, refusal_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -5225,12 +5515,15 @@ def get_routing_rules():
 
         rules = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "data": [dict(r) for r in rules], "count": len(rules)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/routing/rules", methods=["POST"])
@@ -5283,12 +5576,16 @@ def create_or_update_routing_rule():
         rule = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "data": dict(rule), "message": "Routing rule saved"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/routing/rules/<int:rule_id>", methods=["DELETE"])
@@ -5318,12 +5615,16 @@ def deactivate_routing_rule(rule_id):
             return jsonify({"success": False, "error": "Rule not found"}), 404
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "data": dict(rule), "message": "Routing rule deactivated"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/routing/execute", methods=["POST"])
@@ -5443,9 +5744,6 @@ def get_agent_routing_performance():
         cur.execute("SELECT * FROM v_agent_routing_performance ORDER BY total_tasks DESC")
         performance = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -5455,6 +5753,12 @@ def get_agent_routing_performance():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/routing/model-tiers", methods=["GET"])
@@ -5475,12 +5779,15 @@ def get_model_tier_configs():
 
         tiers = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "data": [dict(t) for t in tiers], "count": len(tiers)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/routing/model-tiers", methods=["POST"])
@@ -5530,8 +5837,6 @@ def update_model_tier_config():
         tier = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -5542,6 +5847,12 @@ def update_model_tier_config():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -5719,12 +6030,15 @@ def get_compliance_reports():
 
         reports = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "data": [dict(r) for r in reports], "count": len(reports)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/ethics/reports/<int:report_id>", methods=["GET"])
@@ -5739,15 +6053,18 @@ def get_compliance_report(report_id):
         cur.execute("SELECT * FROM compliance_reports WHERE id = %s", (report_id,))
         report = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         if not report:
             return jsonify({"success": False, "error": "Report not found"}), 404
 
         return jsonify({"success": True, "data": dict(report)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/ethics/reports/generate", methods=["POST"])
@@ -5816,12 +6133,15 @@ def get_monitoring_runs():
 
         runs = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "data": [dict(r) for r in runs], "count": len(runs)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/ethics/config", methods=["GET"])
@@ -5836,15 +6156,18 @@ def get_ethics_config():
         cur.execute("SELECT * FROM ethics_monitoring_config ORDER BY config_key")
         configs = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         # Convert to dict for easier frontend use
         config_dict = {c["config_key"]: c["config_value"] for c in configs}
 
         return jsonify({"success": True, "data": config_dict, "raw": [dict(c) for c in configs]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/ethics/config", methods=["POST"])
@@ -5893,12 +6216,16 @@ def update_ethics_config():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "data": dict(config), "message": "Configuration updated"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # NOTE: Station Assignment UI APIs moved to Phase 39 section below (line ~5270)
@@ -5970,12 +6297,15 @@ def check_iaae_move_compliance(agent_id):
             if emotional.get("energy_level", 1) < 0.3:
                 result["warnings"].append(f"Low energy: {emotional['energy_level']:.0%}")
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "data": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -5995,9 +6325,6 @@ def get_training_assignments():
         cur.execute("SELECT * FROM v_training_room_agents")
         training = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -6007,6 +6334,12 @@ def get_training_assignments():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/training/assign", methods=["POST"])
@@ -6077,8 +6410,6 @@ def assign_to_training():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -6089,6 +6420,12 @@ def assign_to_training():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/training/<int:training_id>/complete", methods=["POST"])
@@ -6156,12 +6493,16 @@ def complete_training(training_id):
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "data": dict(training), "message": f"Training {action}d"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/training/skills", methods=["GET"])
@@ -6191,9 +6532,6 @@ def get_available_skills():
                 categories[cat] = []
             categories[cat].append(skill["skill_name"])
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -6203,6 +6541,12 @@ def get_available_skills():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/send-to-lounge", methods=["POST"])
@@ -6253,8 +6597,6 @@ def send_agent_to_lounge(agent_id):
         rest_cycle = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -6265,6 +6607,12 @@ def send_agent_to_lounge(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/return-from-lounge", methods=["POST"])
@@ -6322,8 +6670,6 @@ def return_agent_from_lounge(agent_id):
         updated = cur.fetchone()
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -6334,6 +6680,12 @@ def return_agent_from_lounge(agent_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -6444,9 +6796,6 @@ def get_stations_full_layout():
         cur.execute("SELECT COUNT(*) FROM agents WHERE status = 'active'")
         total_agents = cur.fetchone()["count"]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -6470,6 +6819,12 @@ def get_stations_full_layout():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/stations/drag-drop", methods=["POST"])
@@ -6705,8 +7060,6 @@ def process_drag_drop():
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -6722,6 +7075,12 @@ def process_drag_drop():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/iaae/check-move/<int:agent_id>", methods=["GET"])
@@ -6754,9 +7113,6 @@ def iaae_check_move(agent_id):
             (agent_id,),
         )
         agent = cur.fetchone()
-
-        cur.close()
-        conn.close()
 
         if not agent:
             return jsonify({"success": False, "error": "Agent not found"}), 404
@@ -6865,6 +7221,12 @@ def iaae_check_move(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/lounge", methods=["GET"])
@@ -6893,9 +7255,6 @@ def get_lounge_agents():
         )
         lounge = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -6905,6 +7264,12 @@ def get_lounge_agents():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -7062,6 +7427,12 @@ def generate_agent_avatar(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/<int:agent_id>/avatar-status", methods=["GET"])
@@ -7092,9 +7463,6 @@ def get_avatar_generation_status(agent_id):
         )
         agent = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         if not agent:
             return jsonify({"success": False, "error": "Agent not found"}), 404
 
@@ -7117,6 +7485,12 @@ def get_avatar_generation_status(agent_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/agents/bulk-generate-avatars", methods=["POST"])
@@ -7226,8 +7600,6 @@ def bulk_generate_avatars():
                 )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         successful = len([r for r in results if r.get("success")])
 
@@ -7247,6 +7619,12 @@ def bulk_generate_avatars():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -7275,13 +7653,16 @@ def get_contractor_config():
         )
         contractors = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "contractors": [dict(c) for c in contractors]})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/contractors/<int:agent_id>/test", methods=["POST"])
@@ -7344,9 +7725,6 @@ def test_contractor_api(agent_id):
         else:
             message = f"Unknown provider: {provider}"
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -7358,6 +7736,12 @@ def test_contractor_api(agent_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/contractors/<int:agent_id>/save-key", methods=["POST"])
@@ -7437,8 +7821,6 @@ def save_contractor_api_key(agent_id):
         )
         agent = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -7459,6 +7841,12 @@ def save_contractor_api_key(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/contractors/<int:agent_id>/toggle", methods=["POST"])
@@ -7517,9 +7905,6 @@ def toggle_contractor(agent_id):
         updated = cur.fetchone()
         conn.commit()
 
-        cur.close()
-        conn.close()
-
         if updated:
             return jsonify(
                 {
@@ -7533,6 +7918,12 @@ def toggle_contractor(agent_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/contractors/test-all", methods=["POST"])
@@ -7590,13 +7981,17 @@ def test_all_contractor_apis():
             )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "results": results})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -7702,9 +8097,6 @@ def get_contractor_approvals():
         )
         summary = dict(cur.fetchone())
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "approvals": approvals, "summary": summary})
 
     except Exception as e:
@@ -7712,6 +8104,12 @@ def get_contractor_approvals():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/contractor-approvals/<int:approval_id>/approve", methods=["POST"])
@@ -7779,6 +8177,12 @@ def approve_contractor_request(approval_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/contractor-approvals/<int:approval_id>/deny", methods=["POST"])
@@ -7856,6 +8260,12 @@ def deny_contractor_request(approval_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/contractor-budget", methods=["GET"])
@@ -7929,9 +8339,6 @@ def get_contractor_budget():
         )
         history = [dict(row) for row in cur.fetchall()]
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -7946,6 +8353,12 @@ def get_contractor_budget():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/contractor-budget/<int:agent_id>", methods=["PUT"])
@@ -8049,6 +8462,12 @@ def update_contractor_budget(agent_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/task-execution-log", methods=["GET"])
@@ -8161,9 +8580,6 @@ def get_task_execution_log():
         )
         summary = dict(cur.fetchone())
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "executions": executions, "summary": summary})
 
     except Exception as e:
@@ -8171,6 +8587,12 @@ def get_task_execution_log():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/team-productivity", methods=["GET"])
@@ -8220,7 +8642,7 @@ def get_team_productivity():
                 COUNT(DISTINCT DATE(tel.created_at)) as active_days
             FROM agents a
             LEFT JOIN task_execution_log tel ON a.id = tel.agent_id
-                AND tel.created_at > NOW() - INTERVAL '%s days'
+                AND tel.created_at > NOW() - (%s * INTERVAL '1 day')
             WHERE a.status = 'active' {where_clause}
             GROUP BY a.id, a.name, a.first_name, a.last_name, a.worker_type, a.department, a.model
             ORDER BY tasks_completed DESC
@@ -8242,7 +8664,7 @@ def get_team_productivity():
                     / NULLIF(COUNT(tel.id), 0), 2) as success_rate
             FROM agents a
             LEFT JOIN task_execution_log tel ON a.id = tel.agent_id
-                AND tel.created_at > NOW() - INTERVAL '%s days'
+                AND tel.created_at > NOW() - (%s * INTERVAL '1 day')
             WHERE a.status = 'active' {where_clause}
             GROUP BY a.department
             ORDER BY total_tasks DESC
@@ -8251,9 +8673,6 @@ def get_team_productivity():
         )
 
         by_department = [dict(row) for row in cur.fetchall()]
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -8269,6 +8688,12 @@ def get_team_productivity():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -8331,9 +8756,6 @@ def get_module_agents():
                         "station": row["station_code"],
                     }
 
-        cur.close()
-        conn.close()
-
         if module:
             return jsonify(
                 {
@@ -8355,6 +8777,12 @@ def get_module_agents():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/hr/wellness", methods=["GET"])
@@ -8393,9 +8821,6 @@ def get_hr_wellness():
             )
             wellness = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "agents": [dict(w) for w in wellness]})
 
     except Exception as e:
@@ -8403,6 +8828,12 @@ def get_hr_wellness():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/hr/workload-balance", methods=["GET"])
@@ -8420,9 +8851,6 @@ def get_hr_workload_balance():
         cur.execute("SELECT * FROM v_workload_balance ORDER BY module_count DESC")
         workload = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "workload": [dict(w) for w in workload]})
 
     except Exception as e:
@@ -8430,6 +8858,12 @@ def get_hr_workload_balance():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/hr/skill-validation", methods=["GET"])
@@ -8462,9 +8896,6 @@ def get_hr_skill_validation():
         cur.execute("SELECT * FROM v_skill_mismatch_summary")
         summary = cur.fetchall()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -8478,6 +8909,12 @@ def get_hr_skill_validation():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -10236,9 +10673,6 @@ def get_cloud_usage_summary():
         )
         today = cur.fetchone()
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -10252,6 +10686,12 @@ def get_cloud_usage_summary():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @team_management_bp.route("/api/cloud-usage/recent", methods=["GET"])
@@ -10280,10 +10720,14 @@ def get_cloud_usage_recent():
 
         cur.execute(query, params)
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "requests": [dict(r) for r in rows]})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass

@@ -106,9 +106,6 @@ def get_stats():
             "total_words": 0,
         }
 
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -121,6 +118,12 @@ def get_stats():
     except Exception as e:
         logger.warning(f"Stats query failed (tables may not exist yet): {e}")
         return jsonify({"success": True, "total_documents": 0, "published": 0, "total_words": 0})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -152,14 +155,18 @@ def get_documents():
         )
 
         documents = cur.fetchall()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "documents": documents})
 
     except Exception as e:
         logger.warning(f"Documents query failed: {e}")
         return jsonify({"success": True, "documents": []})
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @content_studio_bp.route("/api/documents", methods=["POST"])
@@ -191,8 +198,6 @@ def create_document():
 
         document = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -205,6 +210,12 @@ def create_document():
     except Exception as e:
         logger.error(f"Failed to create document: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @content_studio_bp.route("/api/documents/<int:doc_id>")
@@ -228,8 +239,6 @@ def get_document(doc_id):
         )
 
         document = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not document:
             return jsonify({"success": False, "error": "Document not found"}), 404
@@ -239,6 +248,12 @@ def get_document(doc_id):
     except Exception as e:
         logger.error(f"Failed to get document: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @content_studio_bp.route("/api/documents/<int:doc_id>", methods=["PUT"])
@@ -282,14 +297,18 @@ def update_document(doc_id):
 
         document = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "document": document})
 
     except Exception as e:
         logger.error(f"Failed to update document: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @content_studio_bp.route("/api/documents/<int:doc_id>", methods=["DELETE"])
@@ -309,14 +328,18 @@ def delete_document(doc_id):
         )
 
         conn.commit()
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Document deleted successfully"})
 
     except Exception as e:
         logger.error(f"Failed to delete document: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -534,8 +557,6 @@ def export_document(doc_id):
             ),
         )
         document = cur.fetchone()
-        cur.close()
-        conn.close()
 
         if not document:
             return jsonify({"success": False, "error": "Document not found"}), 404
@@ -556,6 +577,12 @@ def export_document(doc_id):
     except Exception as e:
         logger.error(f"Export failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================

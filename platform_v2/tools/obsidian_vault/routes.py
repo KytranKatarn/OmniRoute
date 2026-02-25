@@ -117,7 +117,6 @@ def note_editor(note_id):
 
         result = cursor.fetchone()
         cursor.close()
-        conn.close()
 
         if not result:
             return jsonify({"error": "Note not found"}), 404
@@ -153,6 +152,12 @@ def note_editor(note_id):
     except Exception as e:
         logger.error(f"Error loading note editor: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -230,7 +235,6 @@ def get_note(note_id):
 
         result = cursor.fetchone()
         cursor.close()
-        conn.close()
 
         if not result:
             return jsonify({"success": False, "message": "Note not found"}), 404
@@ -252,6 +256,12 @@ def get_note(note_id):
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @obsidian_vault_bp.route("/api/notes/<int:note_id>", methods=["PUT"])
@@ -275,7 +285,6 @@ def update_note(note_id):
 
         result = cursor.fetchone()
         cursor.close()
-        conn.close()
 
         if not result:
             return jsonify({"success": False, "message": "Note not found"}), 404
@@ -300,6 +309,12 @@ def update_note(note_id):
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @obsidian_vault_bp.route("/api/notes/<int:note_id>", methods=["DELETE"])
@@ -321,7 +336,6 @@ def delete_note(note_id):
 
         result = cursor.fetchone()
         cursor.close()
-        conn.close()
 
         if not result:
             return jsonify({"success": False, "message": "Note not found"}), 404
@@ -342,6 +356,12 @@ def delete_note(note_id):
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 @obsidian_vault_bp.route("/api/notes", methods=["GET"])
@@ -419,7 +439,6 @@ def list_notes():
         total_count = cursor.fetchone()[0]
 
         cursor.close()
-        conn.close()
 
         return (
             jsonify(
@@ -438,6 +457,12 @@ def list_notes():
     except Exception as e:
         logger.error(f"Error listing notes: {e}", exc_info=True)
         return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -561,7 +586,6 @@ def knowledge_stats():
         doc_count = cursor.fetchone()[0]
 
         cursor.close()
-        conn.close()
 
         return (
             jsonify(
@@ -580,6 +604,12 @@ def knowledge_stats():
     except Exception as e:
         logger.error(f"Error getting knowledge stats: {e}", exc_info=True)
         return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -717,12 +747,17 @@ def sync_logs():
             )
 
         cursor.close()
-        conn.close()
 
         return jsonify({"success": True, "logs": logs, "count": len(logs)}), 200
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
 
 # ============================================================================

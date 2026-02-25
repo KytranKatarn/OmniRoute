@@ -2987,6 +2987,20 @@ class BridgeDispatcher:
             enriched_meta["agent_station"] = agent_home
             enriched_meta["module_station"] = home_station
 
+            # ── Capacity check: determine slot number (ADR-055) ──
+            occupancy = self._get_station_slot_occupancy(station_code)
+            if is_cross_station:
+                slot_number = occupancy["max_primary"] + occupancy["auxiliary"] + 1
+                if occupancy["auxiliary"] >= occupancy["max_auxiliary"]:
+                    if not occupancy["allow_overflow"]:
+                        logger.info(
+                            f"[CAPACITY] {station_code} at capacity, overflow disabled — "
+                            f"job still created but flagged"
+                        )
+                    slot_number = occupancy["total"] + 1
+            else:
+                slot_number = occupancy["primary"] + 1
+
             cur.execute(
                 """
                 INSERT INTO bridge_jobs (job_type, module_source, description,
@@ -3011,6 +3025,32 @@ class BridgeDispatcher:
             logger.info(
                 f"[BridgeDispatcher] Created job #{job_id}: {description} "
                 f"({total_steps} steps, agent={agent_name}, station={station_code})"
+            )
+
+            # ── Capacity event logging (ADR-055) ──
+            cap_event_type = "primary_dispatch"
+            if is_cross_station:
+                max_cap = occupancy.get("max_primary", 2) + occupancy.get(
+                    "max_auxiliary", 1
+                )
+                cap_event_type = (
+                    "auxiliary_filled"
+                    if slot_number <= max_cap
+                    else "overflow_dispatch"
+                )
+            self._log_capacity_event(
+                station_code=station_code,
+                event_type=cap_event_type,
+                agent_id=agent.get("id") if agent else None,
+                agent_name=agent_name,
+                job_id=job_id,
+                capability=cap_key,
+                slot_number=slot_number,
+                reason=f"{'cross-station' if is_cross_station else 'primary'} dispatch for {cap_key}",
+                metadata={
+                    "module_source": module_source,
+                    "is_cross_station": is_cross_station,
+                },
             )
 
             # ── Cross-station Telegram advisory ──

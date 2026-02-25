@@ -103,3 +103,4 @@ host_commands/
 
 # HTML mockup files in root
 /*.html
+.worktrees/

@@ -2710,6 +2710,7 @@ class BridgeDispatcher:
         cloud_provider: Optional[str] = None,
         job_id: Optional[int] = None,
         reason: Optional[str] = None,
+        is_overflow: bool = False,
     ):
         """Send Telegram advisory with context-appropriate buttons.
 
@@ -2718,7 +2719,7 @@ class BridgeDispatcher:
         """
         # Suppress Telegram for high-volume internal batch capabilities
         SILENT_CAPABILITIES = {"translate", "detect_language"}
-        if capability in SILENT_CAPABILITIES:
+        if capability in SILENT_CAPABILITIES and not is_overflow:
             logger.debug(
                 f"[BridgeDispatcher] Silent advisory ({advisory_type}) "
                 f"for batch capability '{capability}'"
@@ -2727,17 +2728,47 @@ class BridgeDispatcher:
 
         try:
             if advisory_type == "cross_station":
-                agent_str = f" \u2192 {agent_name}" if agent_name else ""
+                # Get occupancy for narrative context
+                occ = self._get_station_slot_occupancy(dispatch_station or "COMMAND")
+                slots_used = occ["total"]
+                max_cap = occ["max_primary"] + occ["max_auxiliary"]
+                is_over = slots_used > max_cap
+
+                agent_label = self._agent_display(agent_name) if agent_name else "an agent"
+                station_label = dispatch_station or "unknown"
+                home_label = home_station or "another station"
+
+                if is_over:
+                    title = "Station Capacity Overflow"
+                    message = (
+                        f"Commander, {station_label} station is experiencing elevated "
+                        f"request volume.\n\n"
+                        f"All {max_cap} slots are occupied. "
+                        f"{agent_label} from {home_label} "
+                        f"dispatched as overflow (slot {slots_used}/{max_cap}) "
+                        f"for {capability} task.\n\n"
+                        f"Module: {module_id}"
+                    )
+                    notif_type = "warning"
+                    emoji = "\u26a0\ufe0f"
+                else:
+                    title = "Cross-Station Dispatch"
+                    message = (
+                        f"Commander, {station_label} station needed assistance "
+                        f"with {capability}.\n\n"
+                        f"{agent_label} from {home_label} is assisting "
+                        f"as auxiliary (slot {slots_used}/{max_cap}).\n\n"
+                        f"Module: {module_id}"
+                    )
+                    notif_type = "info"
+                    emoji = "\U0001f500"
+
                 job_str = f" (job #{job_id})" if job_id else ""
-                title = "Cross-Station Dispatch"
-                message = (
-                    f"{module_id} [{home_station}] needs '{capability}' "
-                    f"\u2192 routed to {dispatch_station}{agent_str}{job_str}"
-                )
+                if job_str:
+                    message += job_str
                 if reason:
                     message += f"\n{reason}"
-                notif_type = "info"
-                emoji = "\U0001f500"
+
                 # Buttons: OK (acknowledge) + Escalate to Cloud
                 buttons = [
                     {"text": "\u2705 OK", "callback_data": "esc_ack"},

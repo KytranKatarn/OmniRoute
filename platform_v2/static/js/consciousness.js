@@ -856,6 +856,12 @@ function _renderStationStatus(allJobs, myJobs) {
 
   /* GitHub tab — update LCARS ops terminal */
   renderGitHubOps(null, jobData);
+
+  /* Languages tab — update LCARS ops terminal */
+  var langJobs = (myJobs || []).filter(function(j) {
+    return (j.job_type || "").indexOf("translate") > -1;
+  });
+  renderLangOps(null, langJobs.length ? langJobs : null);
 }
 
 function _buildJobHtml(job) {

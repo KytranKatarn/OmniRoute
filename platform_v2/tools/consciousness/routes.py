@@ -190,6 +190,17 @@ def api_dashboard_summary():
         cur.execute("SELECT count(*) as cnt FROM bridge_stations WHERE is_active = true")
         stations = cur.fetchone()
 
+        # Translation stats
+        cur.execute(
+            """
+            SELECT count(DISTINCT key) as total_keys,
+                   count(DISTINCT language) as languages,
+                   count(*) as total_translations
+            FROM translations
+        """
+        )
+        trans = cur.fetchone()
+
         embed_pct = 0
         if knowledge["total"] > 0:
             embed_pct = round(100.0 * knowledge["embedded"] / knowledge["total"], 1)
@@ -219,6 +230,7 @@ def api_dashboard_summary():
                 },
                 "activity": [dict(r) for r in activity],
                 "stations_active": stations["cnt"],
+                "translations": trans["total_translations"],
             }
         )
     except Exception as e:
@@ -6255,12 +6267,57 @@ def translation_audit_templates():
 @login_required
 @require_permission(Permission.ADMIN_ACCESS)
 def translation_module_coverage():
-    """Per-module i18n coverage: which modules have data-i18n attributes."""
+    """Per-module i18n coverage — counts data-i18n keys vs hardcoded strings."""
+    import html.parser as _hp
+
+    class _Counter(_hp.HTMLParser):
+        """Count data-i18n tagged strings vs bare hardcoded text."""
+
+        SKIP = {"script", "style", "code", "pre", "svg", "path", "option"}
+
+        def __init__(self):
+            super().__init__()
+            self._skip = 0
+            self._in_i18n = False
+            self.tagged = 0
+            self.hardcoded = 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag in self.SKIP:
+                self._skip += 1
+            self._in_i18n = any(k.startswith("data-i18n") for k, _ in attrs)
+            if self._in_i18n:
+                self.tagged += 1
+
+        def handle_endtag(self, tag):
+            if tag in self.SKIP and self._skip > 0:
+                self._skip -= 1
+            self._in_i18n = False
+
+        def handle_data(self, data):
+            if self._skip > 0 or self._in_i18n:
+                return
+            text = data.strip()
+            if (
+                len(text) >= 3
+                and not text.startswith("{")
+                and not text.startswith("{{")
+                and not text.startswith("--")
+                and re.search(r"[a-zA-Z]{2,}", text)
+            ):
+                self.hardcoded += 1
+
+    def _scan_file(fpath, counter):
+        try:
+            with open(fpath, "r", encoding="utf-8") as fh:
+                counter.feed(fh.read())
+        except Exception:
+            pass
+
     try:
         platform_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         tools_root = os.path.join(platform_root, "tools")
-        i18n_pattern = re.compile(r'data-i18n(?:-\w+)?="([^"]+)"')
-        t_call_pattern = re.compile(r"archieI18n\.t\(")
+        shared_tpl_dir = os.path.join(platform_root, "templates", "tools")
 
         modules = []
         try:
@@ -6271,55 +6328,32 @@ def translation_module_coverage():
             all_modules = []
 
         for mod in all_modules:
-            mod_dir = os.path.join(tools_root, mod.id)
-            if not os.path.isdir(mod_dir):
-                modules.append(
-                    {
-                        "id": mod.id,
-                        "name": mod.name,
-                        "key_count": 0,
-                        "status": "no_templates",
-                    }
-                )
-                continue
+            counter = _Counter()
 
-            key_count = 0
-            has_t_calls = False
-            # Scan all HTML files in the module's templates directory
+            # 1) Shared template: templates/tools/<module_id>.html
+            shared_file = os.path.join(shared_tpl_dir, mod.id + ".html")
+            if os.path.isfile(shared_file):
+                _scan_file(shared_file, counter)
+
+            # 2) Module-local templates: tools/<module_id>/templates/
+            mod_dir = os.path.join(tools_root, mod.id)
             tpl_dir = os.path.join(mod_dir, "templates")
             if os.path.isdir(tpl_dir):
                 for root, _dirs, files in os.walk(tpl_dir):
                     for fname in files:
-                        if not fname.endswith(".html"):
-                            continue
-                        try:
-                            fpath = os.path.join(root, fname)
-                            with open(fpath, "r", encoding="utf-8") as fh:
-                                content = fh.read()
-                            key_count += len(i18n_pattern.findall(content))
-                            if t_call_pattern.search(content):
-                                has_t_calls = True
-                        except Exception:
-                            pass
+                        if fname.endswith(".html"):
+                            _scan_file(os.path.join(root, fname), counter)
 
-            # Also scan static JS files in the module dir
-            static_dir = os.path.join(mod_dir, "static")
-            if os.path.isdir(static_dir):
-                for root, _dirs, files in os.walk(static_dir):
-                    for fname in files:
-                        if not fname.endswith(".js"):
-                            continue
-                        try:
-                            fpath = os.path.join(root, fname)
-                            with open(fpath, "r", encoding="utf-8") as fh:
-                                content = fh.read()
-                            if t_call_pattern.search(content):
-                                has_t_calls = True
-                        except Exception:
-                            pass
+            total = counter.tagged + counter.hardcoded
+            translated = counter.tagged
+            pct = round(translated * 100 / total) if total > 0 else 0
 
-            if key_count > 0 or has_t_calls:
-                status = "done" if key_count >= 5 else "partial"
+            if total == 0:
+                status = "no_templates"
+            elif pct >= 90:
+                status = "done"
+            elif pct > 0:
+                status = "partial"
             else:
                 status = "none"
 
@@ -6327,8 +6361,10 @@ def translation_module_coverage():
                 {
                     "id": mod.id,
                     "name": mod.name,
-                    "key_count": key_count,
-                    "has_t_calls": has_t_calls,
+                    "total": total,
+                    "translated": translated,
+                    "hardcoded": counter.hardcoded,
+                    "coverage_pct": pct,
                     "status": status,
                 }
             )

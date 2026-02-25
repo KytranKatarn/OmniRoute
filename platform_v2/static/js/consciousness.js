@@ -85,7 +85,16 @@ window.switchConsciousnessTab = function (tab) {
   }
 };
 
+var _headerLoaded = false;
 function loadTabData(tab) {
+  // Always populate header stats on first tab load
+  if (!_headerLoaded) {
+    _headerLoaded = true;
+    api("/api/dashboard/summary").then(function(d) {
+      if (d.success) updateHeaderStats(d);
+    }).catch(function() {});
+  }
+
   if (_cache[tab]) return;
   _cache[tab] = true;
 

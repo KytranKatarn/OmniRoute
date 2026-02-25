@@ -1187,17 +1187,7 @@ function loadImprovements() {
 
 /* ── Languages Tab ─────────────────────────────────── */
 
-window.switchLangSubtab = function(sub) {
-  document.querySelectorAll("#panel-languages .cs-subtab").forEach(function(b) {
-    b.classList.toggle("active", b.textContent.toLowerCase() === sub);
-  });
-  document.querySelectorAll("#panel-languages .cs-subpanel").forEach(function(p) {
-    p.classList.toggle("active", p.id === "lang-" + sub);
-  });
-  if (sub === "browser") loadLangBrowser();
-  if (sub === "review") loadLangReview();
-  if (sub === "glossary") loadLangGlossary();
-};
+/* switchLangSubtab removed — Languages tab is now single-page LCARS layout */
 
 var _langGenQueue = [];
 var _langGenRunning = false;
@@ -1275,7 +1265,7 @@ function loadLanguages() {
   // Render ops terminal (always available, even before data loads)
   renderLangOps();
 
-  // Load dashboard stats — aggregate across all languages
+  // Load dashboard stats — aggregate across all languages → readout strips
   api("/api/translations/stats").then(function(data) {
     if (!data.success || !data.stats) return;
     var totalKeys = 0;
@@ -1287,88 +1277,77 @@ function loadLanguages() {
       totalApproved += s.approved || 0;
       totalPending += s.pending || 0;
     });
-    setHtml("langTotalKeys", totalKeys);
-    setHtml("langApproved", totalApproved);
-    setHtml("langPending", totalPending);
+    setHtml("langTotalKeys", totalKeys.toLocaleString());
+    setHtml("langApproved", totalApproved.toLocaleString());
+    setHtml("langPending", totalPending.toLocaleString());
   }).catch(function() {});
 
-  // Per-language coverage with missing counts
+  // Per-language coverage → compact LCARS rows
+  var flags = {fr:"\ud83c\uddeb\ud83c\uddf7",es:"\ud83c\uddea\ud83c\uddf8",pt:"\ud83c\udde7\ud83c\uddf7",de:"\ud83c\udde9\ud83c\uddea",zh:"\ud83c\udde8\ud83c\uddf3",ar:"\ud83c\uddf8\ud83c\udde6",he:"\ud83c\uddee\ud83c\uddf1"};
   api("/api/translations/language-coverage").then(function(data) {
     if (!data.success) return;
     var langs = data.languages || [];
-    var enTotal = data.en_total || 0;
-    var flags = {fr:"\ud83c\uddeb\ud83c\uddf7",es:"\ud83c\uddea\ud83c\uddf8",pt:"\ud83c\udde7\ud83c\uddf7",de:"\ud83c\udde9\ud83c\uddea",zh:"\ud83c\udde8\ud83c\uddf3",ar:"\ud83c\uddf8\ud83c\udde6",he:"\ud83c\uddee\ud83c\uddf1"};
-    var html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:12px;">';
+    var html = '';
     langs.forEach(function(l) {
       var pct = l.coverage_pct || 0;
-      var barColor = pct >= 100 ? "#4ade80" : pct >= 80 ? "#facc15" : "#f87171";
-      var flag = flags[l.code] || "";
-      html += '<div class="cs-card" style="padding:14px;" id="langCard-' + l.code + '">' +
-        '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">' +
-          '<span style="font-weight:600; color:#fff; font-size:0.88rem;">' + flag + ' ' + escHtml(l.name) + '</span>' +
-          '<span style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + l.code.toUpperCase() + '</span>' +
-        '</div>' +
-        '<div style="background:rgba(255,255,255,0.06); border-radius:4px; height:6px; margin-bottom:8px; overflow:hidden;">' +
-          '<div style="width:' + pct + '%; height:100%; background:' + barColor + '; border-radius:4px; transition:width 0.3s;"></div>' +
-        '</div>' +
-        '<div style="display:flex; justify-content:space-between; font-size:0.78rem; color:rgba(255,255,255,0.5);">' +
-          '<span>' + l.translated + '/' + l.total_keys + ' (' + pct + '%)</span>' +
-          '<span>' + l.approved + ' approved</span>' +
-        '</div>';
+      var barColor = pct >= 100 ? "#22c55e" : pct >= 80 ? "#f59e0b" : "#f87171";
+      var rowCls = pct >= 100 ? "complete" : pct >= 80 ? "warning" : "critical";
+      var flag = flags[l.code] || "\ud83c\udf10";
+      html += '<div class="cs-lang-row ' + rowCls + '" id="langCard-' + l.code + '">' +
+        '<span class="cs-lang-flag">' + flag + '</span>' +
+        '<span class="cs-lang-name">' + escHtml(l.name) + '</span>' +
+        '<div class="cs-lang-bar"><div class="cs-lang-bar-fill" style="width:' + pct + '%; background:' + barColor + ';"></div></div>' +
+        '<span class="cs-lang-stats">' + l.translated + '/' + l.total_keys + ' (' + pct + '%)</span>';
       if (l.missing > 0) {
-        html += '<div style="margin-top:8px; display:flex; align-items:center; justify-content:space-between;">' +
-          '<span style="font-size:0.78rem; color:#f87171;">' + l.missing + ' missing</span>' +
-          '<button onclick="langGenerateOne(\'' + l.code + '\')" class="lang-gen-btn" id="langGenBtn-' + l.code + '"' +
-          ' style="font-size:0.72rem; padding:3px 10px; border-radius:4px; background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); cursor:pointer;">' +
-          'Generate</button></div>';
+        html += '<span class="cs-lang-badge miss">' + l.missing + ' MISSING</span>' +
+          '<div class="cs-lang-actions"><button class="gen" onclick="langGenerateOne(\'' + l.code + '\')" ' +
+          'id="langGenBtn-' + l.code + '">Generate</button></div>';
       } else {
-        html += '<div style="margin-top:8px; font-size:0.78rem; color:#4ade80;">\u2713 Complete</div>';
+        html += '<span class="cs-lang-badge ok">\u2713 COMPLETE</span>';
       }
       html += '</div>';
     });
-    html += '</div>';
-    setHtml("langCoverageByLang", html);
-    if (typeof lucide !== "undefined") lucide.createIcons();
+    setHtml("langCoverageByLang", html || '<div class="cs-empty">No language data</div>');
   }).catch(function() {
     setHtml("langCoverageByLang", '<div class="cs-empty">Coverage data unavailable</div>');
   });
 
-  // Module coverage
+  // Module coverage → compact LCARS rows
   api("/api/translations/module-coverage").then(function(data) {
     var modules = data.modules || data.coverage || [];
     if (!modules.length) {
       setHtml("langCoverageGrid", '<div class="cs-empty">No coverage data</div>');
       return;
     }
-    var html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">';
+    var html = '';
     modules.forEach(function(m) {
       var pct = m.coverage_pct || m.percentage || 0;
-      var color = pct >= 90 ? "green" : pct >= 50 ? "amber" : "red";
-      html += '<div class="cs-card" style="padding:12px;" id="modCard-' + escHtml(m.id) + '">' +
-        '<div style="font-weight:600; color:#fff; font-size:0.85rem;">' + escHtml(m.module || m.name) + '</div>' +
-        '<div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">' +
-          '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4);">' +
-            '<span class="cs-badge ' + color + '">' + pct + '%</span> ' +
-            (m.translated || 0) + '/' + (m.total || 0) +
-          '</div>';
-      html += '<div style="display:flex; gap:4px;">';
+      var barColor = pct >= 90 ? "#22c55e" : pct >= 50 ? "#f59e0b" : "#f87171";
+      var rowCls = pct >= 90 ? "complete" : pct >= 50 ? "warning" : "critical";
+      html += '<div class="cs-lang-row ' + rowCls + '" id="modCard-' + escHtml(m.id) + '">' +
+        '<span class="cs-lang-name" style="min-width:120px;">' + escHtml(m.module || m.name) + '</span>' +
+        '<div class="cs-lang-bar"><div class="cs-lang-bar-fill" style="width:' + pct + '%; background:' + barColor + ';"></div></div>' +
+        '<span class="cs-lang-stats">' + (m.translated || 0) + '/' + (m.total || 0) + ' (' + pct + '%)</span>' +
+        '<div class="cs-lang-actions">';
       if ((m.hardcoded || 0) > 0) {
-        html += '<button onclick="langTagModule(\'' + escHtml(m.id) + '\')" id="tagBtn-' + escHtml(m.id) + '"' +
-          ' style="font-size:0.68rem; padding:2px 8px; border-radius:3px; background:rgba(139,92,246,0.15);' +
-          ' color:#a78bfa; border:1px solid rgba(139,92,246,0.3); cursor:pointer;">Tag</button>';
+        html += '<button class="tag" onclick="langTagModule(\'' + escHtml(m.id) + '\')" ' +
+          'id="tagBtn-' + escHtml(m.id) + '">' + m.hardcoded + ' Tag</button>';
       }
       if (pct < 100) {
-        html += '<button onclick="langGenerateModule(\'' + escHtml(m.id) + '\')" id="genModBtn-' + escHtml(m.id) + '"' +
-          ' style="font-size:0.68rem; padding:2px 8px; border-radius:3px; background:rgba(34,197,94,0.15);' +
-          ' color:#4ade80; border:1px solid rgba(34,197,94,0.3); cursor:pointer;">Gen</button>';
+        html += '<button class="gen" onclick="langGenerateModule(\'' + escHtml(m.id) + '\')" ' +
+          'id="genModBtn-' + escHtml(m.id) + '">Gen</button>';
       }
-      html += '</div></div></div>';
+      html += '</div></div>';
     });
-    html += '</div>';
     setHtml("langCoverageGrid", html);
   }).catch(function() {
     setHtml("langCoverageGrid", '<div class="cs-empty">Coverage data unavailable</div>');
   });
+
+  // Auto-load browser, review, glossary (no more subtab switching)
+  loadLangBrowser();
+  loadLangReview();
+  loadLangGlossary();
 }
 
 /* ── Scan & Generate Actions ───────────────────── */
@@ -1671,14 +1650,18 @@ function loadLangBrowser() {
       setHtml("langBrowserTable", '<div class="cs-empty">No translations found</div>');
       return;
     }
-    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr><th>Key</th><th>English</th><th>Translation</th><th>Status</th></tr></thead><tbody>';
+    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr>' +
+      '<th style="width:30%;">Key</th><th style="width:30%;">English</th>' +
+      '<th style="width:30%;">Translation</th><th style="width:10%;">Status</th></tr></thead><tbody>';
     items.slice(0, 50).forEach(function(t) {
-      html += '<tr><td>' + escHtml(t.key) + '</td>' +
-        '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis;">' + escHtml(t.english || "\u2014") + '</td>' +
-        '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis;">' + escHtml(t.target || "\u2014") + '</td>' +
-        '<td><span class="cs-badge">' + escHtml(t.status || "\u2014") + '</span></td></tr>';
+      var statusCls = (t.status === "approved") ? "ok" : (t.status === "pending_review") ? "miss" : "";
+      html += '<tr><td style="font-family:\'IBM Plex Mono\',monospace; font-size:0.72rem; opacity:0.7;">' + escHtml(t.key) + '</td>' +
+        '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escHtml(t.english || "\u2014") + '</td>' +
+        '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escHtml(t.target || "\u2014") + '</td>' +
+        '<td><span class="cs-lang-badge ' + statusCls + '">' + escHtml(t.status || "\u2014") + '</span></td></tr>';
     });
     html += '</tbody></table></div>';
+    if (items.length > 50) html += '<div style="text-align:center; padding:8px; font-size:0.72rem; color:rgba(255,255,255,0.3);">Showing 50 of ' + items.length + '</div>';
     setHtml("langBrowserTable", html);
   }).catch(function() {
     setHtml("langBrowserTable", '<div class="cs-empty">Error loading translations</div>');
@@ -1692,17 +1675,20 @@ function loadLangReview() {
   api("/api/translations/review" + params).then(function(data) {
     var items = data.translations || [];
     if (!items.length) {
-      setHtml("langReviewList", '<div class="cs-empty">No pending reviews</div>');
+      setHtml("langReviewList", '<div class="cs-empty" style="padding:12px;">No pending reviews for ' + ((lang && lang.value) || "fr").toUpperCase() + '</div>');
       return;
     }
-    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr><th>Key</th><th>Language</th><th>Text</th><th>Generated By</th></tr></thead><tbody>';
+    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr>' +
+      '<th style="width:35%;">Key</th><th style="width:10%;">Lang</th>' +
+      '<th style="width:40%;">Text</th><th style="width:15%;">Source</th></tr></thead><tbody>';
     items.slice(0, 30).forEach(function(t) {
-      html += '<tr><td>' + escHtml(t.key) + '</td>' +
-        '<td>' + escHtml(t.language) + '</td>' +
-        '<td style="max-width:300px; overflow:hidden; text-overflow:ellipsis;">' + escHtml(t.text || "\u2014") + '</td>' +
-        '<td>' + escHtml(t.generated_by || "\u2014") + '</td></tr>';
+      html += '<tr><td style="font-family:\'IBM Plex Mono\',monospace; font-size:0.72rem; opacity:0.7;">' + escHtml(t.key) + '</td>' +
+        '<td><span class="cs-lang-badge miss">' + escHtml(t.language).toUpperCase() + '</span></td>' +
+        '<td style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escHtml(t.text || "\u2014") + '</td>' +
+        '<td style="font-size:0.72rem; opacity:0.5;">' + escHtml(t.generated_by || "\u2014") + '</td></tr>';
     });
     html += '</tbody></table></div>';
+    if (items.length > 30) html += '<div style="text-align:center; padding:8px; font-size:0.72rem; color:rgba(255,255,255,0.3);">Showing 30 of ' + items.length + '</div>';
     setHtml("langReviewList", html);
   }).catch(function() {
     setHtml("langReviewList", '<div class="cs-empty">Review data unavailable</div>');
@@ -1710,18 +1696,22 @@ function loadLangReview() {
 }
 
 function loadLangGlossary() {
-  api("/api/translation-memory?language=fr").then(function(data) {
+  var langSel = document.getElementById("langGlossaryLang");
+  var lang = langSel ? langSel.value : "fr";
+  api("/api/translation-memory?language=" + lang).then(function(data) {
     var items = data.entries || data.glossary || [];
     if (!items.length) {
-      setHtml("langGlossaryList", '<div class="cs-empty">No glossary entries</div>');
+      setHtml("langGlossaryList", '<div class="cs-empty" style="padding:12px;">No glossary entries for ' + lang.toUpperCase() + '</div>');
       return;
     }
-    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr><th>Source</th><th>Translation</th><th>Language</th><th>Category</th></tr></thead><tbody>';
+    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr>' +
+      '<th style="width:30%;">Source</th><th style="width:35%;">Translation</th>' +
+      '<th style="width:10%;">Lang</th><th style="width:25%;">Category</th></tr></thead><tbody>';
     items.forEach(function(g) {
-      html += '<tr><td>' + escHtml(g.source_text) + '</td>' +
+      html += '<tr><td style="font-weight:600;">' + escHtml(g.source_text) + '</td>' +
         '<td>' + escHtml(g.translated_text) + '</td>' +
-        '<td>' + escHtml(g.language) + '</td>' +
-        '<td>' + escHtml(g.category || "\u2014") + '</td></tr>';
+        '<td><span class="cs-lang-badge ok">' + escHtml(g.language).toUpperCase() + '</span></td>' +
+        '<td style="font-size:0.72rem; opacity:0.5;">' + escHtml(g.category || "\u2014") + '</td></tr>';
     });
     html += '</tbody></table></div>';
     setHtml("langGlossaryList", html);

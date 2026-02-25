@@ -1,0 +1,119 @@
+/* ═══════════════════════════════════════════════════════
+   GlassNav — Frosted Glass Navigation Bar
+   Shared component. Theme via CSS custom properties.
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+    --glass-blur: 16px;
+    --glass-bg: rgba(15, 15, 30, 0.6);
+    --glass-border: rgba(139, 92, 246, 0.15);
+    --glass-accent: #8b5cf6;
+    --glass-accent-rgb: 139, 92, 246;
+}
+
+.glass-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    justify-content: center;
+    padding: 10px 16px;
+    margin-bottom: 20px;
+}
+
+.glass-nav-track {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 2px;
+    max-width: 680px;
+    width: 100%;
+    padding: 5px 6px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    box-shadow:
+        0 4px 30px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ── Sliding Indicator ────────────────────────────── */
+.glass-nav-indicator {
+    position: absolute;
+    height: calc(100% - 10px);
+    top: 5px;
+    border-radius: 16px;
+    background: rgba(var(--glass-accent-rgb), 0.18);
+    box-shadow:
+        0 0 20px rgba(var(--glass-accent-rgb), 0.2),
+        inset 0 0 8px rgba(var(--glass-accent-rgb), 0.08);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    z-index: 0;
+}
+.glass-nav-indicator::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 25%; right: 25%;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--glass-accent);
+    box-shadow: 0 0 8px rgba(var(--glass-accent-rgb), 0.5);
+}
+
+/* ── Tab Items ────────────────────────────────────── */
+.glass-nav-item {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.2s;
+    border-radius: 14px;
+}
+.glass-nav-item i {
+    width: 14px; height: 14px;
+    flex-shrink: 0;
+}
+.glass-nav-item:hover {
+    color: rgba(255, 255, 255, 0.65);
+}
+.glass-nav-item.active {
+    color: #fff;
+}
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 767px) {
+    .glass-nav-item span { display: none; }
+    .glass-nav-item { padding: 8px 12px; }
+    .glass-nav-track { max-width: none; }
+}
+
+@media (max-width: 500px) {
+    .glass-nav { padding: 6px 8px; }
+    .glass-nav-track {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        justify-content: flex-start;
+        gap: 0;
+    }
+    .glass-nav-track::-webkit-scrollbar { display: none; }
+    .glass-nav-item { padding: 6px 10px; }
+}

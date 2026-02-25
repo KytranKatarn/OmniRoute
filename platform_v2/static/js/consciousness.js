@@ -19,6 +19,19 @@ function setHtml(el, html) {
   if (el) el.innerHTML = html;
 }
 
+/**
+ * Build an LCARS-styled job notification bar.
+ * @param {string} type - "ok"|"warn"|"err"|"info"
+ * @param {string} icon - single character for the endcap (▶ ✓ ✗ ● etc.)
+ * @param {string} msg  - message HTML (safe — caller must escHtml user data)
+ * @returns {string} HTML string
+ */
+function lcarsMsg(type, icon, msg) {
+  return '<div class="cs-job-msg ' + type + '">' +
+    '<span class="cs-job-msg-cap">' + icon + '</span>' +
+    '<span class="cs-job-msg-text">' + msg + '</span></div>';
+}
+
 function formatAge(dateStr) {
   if (!dateStr) return "\u2014";
   var d = new Date(dateStr);
@@ -535,6 +548,9 @@ function checkActiveJobs() {
       if (ghEl && ghEl.innerHTML.indexOf("cs-pipeline-step") > -1 && ghEl.innerHTML.indexOf("\u25B6") > -1) {
         setHtml("ghActionResult", "");
       }
+      /* Still render ops terminal crews (no active jobs = no cross-station assists) */
+      renderGitHubOps(null, null);
+      renderLangOps(null, null);
       return;
     }
 
@@ -558,19 +574,14 @@ function checkActiveJobs() {
       }
     });
 
-    /* Render ALL running jobs on GitHub tab */
-    var ghEl = document.getElementById("ghActionResult");
-    if (ghEl) {
-      _renderBridgeJobs(myJobs, "ghActionResult", "gh");
-      _disableGitHubBtnsByJobType(myJobs);
-    }
+    /* GitHub tab — jobs display in ops terminal (ghOpsJobs); just disable buttons + poll here */
+    _disableGitHubBtnsByJobType(myJobs);
     myJobs.forEach(function(job) {
       var pollKey = "gh_" + job.id;
       if (!_activeJobPolls[pollKey]) {
         _activeJobPolls[pollKey] = true;
         _pollJobStatus(job.id, "bjob-gh-" + job.id, function() {
           _activeJobPolls[pollKey] = false;
-          /* Re-check which buttons should be enabled (other jobs may still run) */
           loadGitHub();
           loadGitHubEmbedStats();
           checkActiveJobs();
@@ -663,9 +674,8 @@ function _renderStationStatus(allJobs, myJobs) {
 }
 
 function _buildJobHtml(job) {
-  /* Build HTML for a single Bridge job — progress bar with agent + station context */
+  /* Build HTML for a single Bridge job — LCARS notification bar with progress */
   var pct = job.progress_pct || 0;
-  var barColor = "#8b5cf6";
   var agent = job.agent_name || "Queued";
   if (job.station_code) agent += " \u2022 " + job.station_code;
   var eta = "";
@@ -674,23 +684,30 @@ function _buildJobHtml(job) {
     var s = job.eta_seconds % 60;
     eta = m > 0 ? " \u2022 ~" + m + "m " + s + "s remaining" : " \u2022 ~" + s + "s remaining";
   }
-  var statusColor = job.status === "failed" ? "#f87171" : job.status === "completed" ? "#22c55e" : barColor;
-  var statusIcon = job.status === "failed" ? "\u2717" : job.status === "completed" ? "\u2713" : "\u25B6";
+  var type = job.status === "failed" ? "err" : job.status === "completed" ? "ok" : "info";
+  var icon = job.status === "failed" ? "\u2717" : job.status === "completed" ? "\u2713" : "\u25B6";
+  var capColor = job.status === "failed" ? "#ef4444" : job.status === "completed" ? "#10b981" : "#8b5cf6";
+  var barColor = job.status === "failed" ? "#ef4444" : job.status === "completed" ? "#10b981" : "#8b5cf6";
 
-  return '<div class="cs-pipeline-step" style="flex-direction:column;align-items:stretch;gap:8px">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      '<span><span class="cs-pipeline-icon" style="color:' + statusColor + '">' + statusIcon + '</span> ' +
-        escHtml(job.description) + '</span>' +
-      '<span class="cs-badge blue">' + escHtml(agent) + '</span>' +
+  var countStr = (job.completed_steps || 0) + ' / ' + (job.total_steps || 0);
+  if (job.failed_steps > 0) countStr += ' (' + job.failed_steps + ' failed)';
+
+  return '<div class="cs-job-msg ' + type + '" style="flex-direction:column;align-items:stretch;">' +
+    '<div style="display:flex;align-items:stretch;">' +
+      '<span class="cs-job-msg-cap" style="background:' + capColor + ';">' + icon + '</span>' +
+      '<span class="cs-job-msg-text" style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span>' + escHtml(job.description) + '</span>' +
+        '<span style="font-size:0.7rem;opacity:0.7;white-space:nowrap;margin-left:8px;">' + escHtml(agent) + '</span>' +
+      '</span>' +
     '</div>' +
-    '<div style="background:rgba(255,255,255,0.08);border-radius:6px;height:8px;overflow:hidden">' +
-      '<div style="width:' + pct + '%;height:100%;background:' + statusColor + ';transition:width 0.5s ease"></div>' +
-    '</div>' +
-    '<div style="display:flex;justify-content:space-between;font-size:0.82rem;opacity:0.7">' +
-      '<span>' + (job.completed_steps || 0) + ' / ' + (job.total_steps || 0) + ' steps' +
-        (job.failed_steps > 0 ? ' (' + job.failed_steps + ' failed)' : '') +
-        eta + '</span>' +
-      '<span>' + pct + '%</span>' +
+    '<div style="padding:0 12px 8px 12px;">' +
+      '<div style="background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px;">' +
+        '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width 0.5s ease;border-radius:4px;"></div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;font-size:0.7rem;opacity:0.6;">' +
+        '<span>' + countStr + eta + '</span>' +
+        '<span>' + pct + '%</span>' +
+      '</div>' +
     '</div>' +
   '</div>';
 }
@@ -759,7 +776,7 @@ window.startAnalysis = function() {
   _disableProcessingBtns();
   var cat = document.getElementById("procCategory");
   var batch = document.getElementById("procBatchSize");
-  setHtml("procResult", '<div class="cs-loading">Assigning agent for analysis\u2026</div>');
+  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for analysis\u2026"));
 
   api("/api/processing/start", {
     method: "POST",
@@ -769,33 +786,27 @@ window.startAnalysis = function() {
     }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("procResult", '<div class="cs-pipeline-step" style="color:#f59e0b;"><span class="cs-pipeline-icon">\u25B6</span><span>' + escHtml(data.error || "Job already running") + '</span></div>');
+      setHtml("procResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Job already running")));
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      /* Job created — poll for progress */
-      setHtml("procResult", '<div class="cs-pipeline-step"><span class="cs-pipeline-icon" style="color:#8b5cf6;">\u25B6</span><span>Job #' + data.job_id + ' started \u2014 ' + (data.total || 0) + ' items queued</span></div>');
+      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " items queued"));
       _pollJobStatus(data.job_id, "procResult", function() {
         _enableProcessingBtns();
         loadProcessingStatus();
       });
     } else if (data.success) {
-      /* Completed synchronously (e.g. no items to process) */
-      var html = '<div class="cs-pipeline-step green">' +
-        '<span class="cs-pipeline-icon">\u2713</span>' +
-        '<span>' + escHtml(data.message || "Processed " + (data.processed || 0) + " items") + '</span>' +
-        '</div>';
-      setHtml("procResult", html);
+      setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "Processed " + (data.processed || 0) + " items")));
       if (btn) btn.disabled = false;
       _enableProcessingBtns();
       loadProcessingStatus();
     } else {
-      setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Processing failed") + '</span></div>');
+      setHtml("procResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Processing failed")));
       _enableProcessingBtns();
     }
   }).catch(function(err) {
-    setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>Error: ' + escHtml(err.message || "Request failed") + '</span></div>');
+    setHtml("procResult", lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
     _enableProcessingBtns();
   });
 };
@@ -803,37 +814,33 @@ window.startAnalysis = function() {
 window.generateEmbeddings = function() {
   _disableProcessingBtns();
   var batch = document.getElementById("procBatchSize");
-  setHtml("procResult", '<div class="cs-loading">Assigning agent for embeddings\u2026</div>');
+  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for embeddings\u2026"));
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
     body: { batch_size: batch ? parseInt(batch.value) : 50 }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("procResult", '<div class="cs-pipeline-step" style="color:#f59e0b;"><span class="cs-pipeline-icon">\u25B6</span><span>' + escHtml(data.error || "Embedding job already running") + '</span></div>');
+      setHtml("procResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Embedding job already running")));
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("procResult", '<div class="cs-pipeline-step"><span class="cs-pipeline-icon" style="color:#8b5cf6;">\u25B6</span><span>Job #' + data.job_id + ' started \u2014 ' + (data.total || 0) + ' entries queued</span></div>');
+      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
       _pollJobStatus(data.job_id, "procResult", function() {
         _enableProcessingBtns();
         loadEmbeddingStatus();
       });
     } else if (data.success) {
-      var html = '<div class="cs-pipeline-step green">' +
-        '<span class="cs-pipeline-icon">\u2713</span>' +
-        '<span>' + escHtml(data.message || "All entries already embedded") + '</span>' +
-        '</div>';
-      setHtml("procResult", html);
+      setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All entries already embedded")));
       _enableProcessingBtns();
       loadEmbeddingStatus();
     } else {
-      setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Embedding generation failed") + '</span></div>');
+      setHtml("procResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Embedding generation failed")));
       _enableProcessingBtns();
     }
   }).catch(function(err) {
-    setHtml("procResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>Error: ' + escHtml(err.message || "Request failed") + '</span></div>');
+    setHtml("procResult", lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
     _enableProcessingBtns();
   });
 };
@@ -1198,7 +1205,7 @@ var _langGenRunning = false;
 /* ── Languages LCARS Operations Terminal ───────────── */
 
 function renderLangOps(agentData, jobData) {
-  /* Render agents section */
+  /* Render agents section — ANALYTICS crew + cross-station assists */
   var agentsEl = document.getElementById("langOpsAgents");
   if (agentsEl) {
     if (agentData && agentData.length) {
@@ -1211,39 +1218,7 @@ function renderLangOps(agentData, jobData) {
       });
       setHtml(agentsEl, html);
     } else {
-      /* Fetch from Bridge stations — show Wordsmith (translate) + analytics agents */
-      fetch("/tools/bridge/api/stations").then(function(resp) {
-        var ct = resp.headers.get("content-type") || "";
-        if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
-        return resp.json();
-      }).then(function(data) {
-        if (!data.success) return;
-        var agents = [];
-        var stations = data.stations || [];
-        /* Collect agents from ANALYTICS (consciousness home) and CREATIVE (Wordsmith) */
-        var targetStations = ["ANALYTICS", "CREATIVE"];
-        stations.forEach(function(s) {
-          if (targetStations.indexOf(s.code) === -1) return;
-          var stAgents = s.assigned_agents || [];
-          stAgents.forEach(function(a) {
-            agents.push({
-              name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
-              title: a.title || a.assignment_type || "agent",
-              station: s.code
-            });
-          });
-        });
-        if (agents.length) {
-          var html = '<div class="cs-ops-section-label">STATION CREW</div>';
-          agents.forEach(function(a) {
-            html += '<div class="cs-ops-agent-row">' +
-              '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-              '<span class="cs-ops-agent-role">' + escHtml(a.station) + ' \u2022 ' + escHtml(a.title) + '</span>' +
-              '</div>';
-          });
-          setHtml(agentsEl, html);
-        }
-      }).catch(function() {});
+      _renderOpsAgents("langOpsAgents", "ANALYTICS", jobData);
     }
   }
 
@@ -1257,12 +1232,16 @@ function renderLangOps(agentData, jobData) {
         var agentLabel = j.agent_name || "Queued";
         var stationLabel = j.station_code || "";
         if (stationLabel) agentLabel += " \u2022 " + stationLabel;
+        var completed = j.completed_steps || 0;
+        var total = j.total_steps || 0;
+        var countLabel = total > 0 ? ('<span class="cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
         html += '<div class="cs-ops-job-row">' +
           '<div class="cs-ops-job-info">' +
             '<div class="cs-ops-job-desc">' + escHtml(j.description) + '</div>' +
             '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
           '</div>' +
           '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
+          countLabel +
           '<div class="cs-ops-job-pct">' + pct + '%</div>' +
           '</div>';
       });
@@ -1396,22 +1375,19 @@ function loadLanguages() {
 
 window.langScanKeys = function() {
   var btn = document.getElementById("langScanBtn");
-  var status = document.getElementById("langScanStatus");
-  if (btn) btn.disabled = true;
-  if (status) { status.style.display = "block"; setHtml("langScanStatus", "Scanning templates, modules, JS..."); }
+  if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
+  _showLangJob("Scanning templates, modules, JS...");
 
   api("/api/translations/scan-and-seed", { method: "POST" }).then(function(data) {
     var msg = "Scanned " + (data.total || 0) + " keys \u2014 " + (data.seeded || 0) + " new, " + (data.skipped || 0) + " existing.";
-    if (status) setHtml("langScanStatus", msg);
-    if (btn) btn.disabled = false;
-    if (data.seeded > 0) {
-      // Reload to reflect new keys
-      _cache.languages = false;
-      loadLanguages();
-    }
+    _showLangJob(msg);
+    if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+    // Always reload stats to keep totals fresh
+    _cache.languages = false;
+    loadLanguages();
   }).catch(function(err) {
-    if (status) setHtml("langScanStatus", "Scan failed: " + err);
-    if (btn) btn.disabled = false;
+    _showLangJob("Scan failed: " + err);
+    if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   });
 };
 
@@ -1423,7 +1399,7 @@ window.langGenerateOne = function(langCode) {
   api("/api/translations/generate-async", { method: "POST", body: { languages: [langCode] } }).then(function(data) {
     if (!data.success) {
       var msg = data.duplicate ? "Translation job already running" : (data.error || "Failed");
-      _showLangJob(msg);
+      _showLangJob(msg, data.duplicate ? "warn" : "err");
       if (btn) { btn.disabled = false; btn.textContent = "Retry"; }
       return;
     }
@@ -1432,7 +1408,8 @@ window.langGenerateOne = function(langCode) {
       if (btn) { btn.disabled = false; btn.textContent = "Done"; btn.style.color = "#4ade80"; }
       return;
     }
-    _showLangJob("Job #" + data.job_id + " started — " + data.total + " keys to " + langCode.toUpperCase());
+    _showLangJob("Job #" + data.job_id + " started \u2014 " + data.total + " keys to " + langCode.toUpperCase());
+    checkActiveJobs();
     _startLangJobPoll(data.job_id, function() {
       if (btn) { btn.disabled = false; btn.textContent = "Done!"; btn.style.color = "#4ade80"; }
     });
@@ -1453,7 +1430,7 @@ window.langGenerateAll = function() {
   }).then(function(data) {
     if (!data.success) {
       var msg = data.duplicate ? "Translation job already running" : (data.error || "Failed");
-      _showLangJob(msg);
+      _showLangJob(msg, data.duplicate ? "warn" : "err");
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
       return;
     }
@@ -1462,7 +1439,8 @@ window.langGenerateAll = function() {
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
       return;
     }
-    _showLangJob("Job #" + data.job_id + " started — " + data.total + " keys across 7 languages");
+    _showLangJob("Job #" + data.job_id + " started \u2014 " + data.total + " keys across 7 languages");
+    checkActiveJobs();
     _startLangJobPoll(data.job_id, function() {
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
     });
@@ -1484,7 +1462,7 @@ window.langGenerateModule = function(moduleId) {
   }).then(function(data) {
     if (!data.success) {
       var msg = data.duplicate ? "Job already running" : (data.error || "Failed");
-      _showLangJob(msg);
+      _showLangJob(msg, data.duplicate ? "warn" : "err");
       if (btn) { btn.disabled = false; btn.textContent = "Gen"; }
       return;
     }
@@ -1493,7 +1471,8 @@ window.langGenerateModule = function(moduleId) {
       if (btn) { btn.disabled = false; btn.textContent = "Done"; btn.style.color = "#4ade80"; }
       return;
     }
-    _showLangJob("Job #" + data.job_id + " — " + data.total + " keys for " + moduleId);
+    _showLangJob("Job #" + data.job_id + " \u2014 " + data.total + " keys for " + moduleId);
+    checkActiveJobs();
     _startLangJobPoll(data.job_id, function() {
       if (btn) { btn.disabled = false; btn.textContent = "Done!"; btn.style.color = "#4ade80"; }
     });
@@ -1524,33 +1503,38 @@ function _startLangJobPoll(jobId, onDone) {
   });
 }
 
-function _showLangJob(msg) {
+function _showLangJob(msg, type) {
   var el = document.getElementById("langActiveJob");
   if (el) {
     el.style.display = "block";
-    setHtml(el, '<div class="cs-ops-section-label" style="margin-bottom:0;">' +
-      '<span class="cs-pulse-dot" style="width:6px;height:6px;border-radius:50%;background:#4ade80;animation:csPulse 1.5s infinite;display:inline-block;margin-right:6px;vertical-align:middle;"></span>' +
-      escHtml(msg) + '</div>');
+    var t = type || "ok";
+    var icon = t === "err" ? "\u2717" : t === "warn" ? "\u25B6" : "\u25B6";
+    setHtml(el, lcarsMsg(t, icon, escHtml(msg)));
   }
 }
 
-/* ----------  Template Audit  ---------- */
+/* ----------  Template Audit (modal popup)  ---------- */
 window.langAuditTemplates = function() {
   var btn = document.getElementById("langAuditBtn");
   if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
   _showLangJob("Auditing templates for hardcoded text...");
 
+  /* Show modal immediately with loading state */
+  setHtml("langAuditModalBody", '<span class="cs-loading" style="padding:0;">Scanning templates\u2026</span>');
+  var overlay = document.getElementById("langAuditOverlay");
+  if (overlay) overlay.classList.add("open");
+
   api("/api/translations/audit-templates", { method: "POST" }).then(function(data) {
-    var card = document.getElementById("langAuditCard");
-    var summary = document.getElementById("langAuditSummary");
-    var body = document.getElementById("langAuditResults");
-    if (card) card.style.display = "block";
-    if (summary) setHtml("langAuditSummary", escHtml(data.total_hardcoded + " hardcoded strings in " + data.files + " files"));
+    var html = '<div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">' +
+      '<span style="font-size:0.95rem; font-weight:600; color:#fb923c;">' +
+        escHtml(data.total_hardcoded) + ' hardcoded strings</span>' +
+      '<span style="font-size:0.82rem; color:rgba(255,255,255,0.5);">' +
+        escHtml(data.files) + ' files scanned</span></div>';
 
     if (!data.results || !data.results.length) {
-      if (body) setHtml("langAuditResults", '<div class="cs-empty" style="color:#4ade80;">All templates are i18n-ready!</div>');
+      html += '<div class="cs-empty" style="color:#4ade80; padding:20px; text-align:center;">All templates are i18n-ready!</div>';
     } else {
-      var html = '<div style="max-height:400px; overflow-y:auto;">';
+      html += '<div style="max-height:55vh; overflow-y:auto;">';
       data.results.forEach(function(r) {
         html += '<div style="margin-bottom:12px; padding:10px; background:rgba(251,146,60,0.06); border:1px solid rgba(251,146,60,0.15); border-radius:6px;">';
         html += '<div style="display:flex; justify-content:space-between; margin-bottom:6px;">';
@@ -1565,14 +1549,20 @@ window.langAuditTemplates = function() {
         html += '</div></div>';
       });
       html += '</div>';
-      if (body) setHtml("langAuditResults", html);
     }
-    _showLangJob("Audit complete — " + data.total_hardcoded + " hardcoded strings found");
+    setHtml("langAuditModalBody", html);
+    _showLangJob("Audit complete \u2014 " + data.total_hardcoded + " hardcoded strings found");
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   }).catch(function(err) {
+    setHtml("langAuditModalBody", '<div class="cs-empty" style="color:#f87171;">Audit failed: ' + escHtml(String(err)) + '</div>');
     _showLangJob("Audit failed: " + err);
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   });
+};
+
+window.closeLangAuditModal = function() {
+  var overlay = document.getElementById("langAuditOverlay");
+  if (overlay) overlay.classList.remove("open");
 };
 
 /* ----------  Full i18n Pass  ---------- */
@@ -1581,33 +1571,19 @@ window.langFullPass = function() {
   if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
 
   // Step 1: Audit templates
-  _showLangJob("Full i18n Pass — Step 1/3: Auditing templates...");
+  _showLangJob("Full i18n Pass \u2014 Step 1/3: Auditing templates...");
   api("/api/translations/audit-templates", { method: "POST" }).then(function(auditData) {
-    // Show audit results
-    var card = document.getElementById("langAuditCard");
-    var summary = document.getElementById("langAuditSummary");
-    if (card) card.style.display = "block";
-    if (summary) setHtml("langAuditSummary", escHtml(auditData.total_hardcoded + " hardcoded strings in " + auditData.files + " files"));
-    var body = document.getElementById("langAuditResults");
-    if (body && auditData.results && auditData.results.length) {
-      var html = '<div style="max-height:300px; overflow-y:auto;">';
-      auditData.results.forEach(function(r) {
-        html += '<div style="margin-bottom:8px; padding:8px; background:rgba(251,146,60,0.06); border:1px solid rgba(251,146,60,0.15); border-radius:6px;">';
-        html += '<span style="color:#fb923c; font-weight:600;">' + escHtml(r.module) + '/' + escHtml(r.file) + '</span>';
-        html += ' <span style="color:rgba(255,255,255,0.4); font-size:0.78rem;">(' + r.count + ')</span></div>';
-      });
-      html += '</div>';
-      setHtml("langAuditResults", html);
-    } else if (body) {
-      setHtml("langAuditResults", '<div class="cs-empty" style="color:#4ade80;">All templates are i18n-ready!</div>');
-    }
+    _showLangJob("Full i18n Pass \u2014 Step 1/3 done: " + auditData.total_hardcoded + " hardcoded strings. Step 2/3: Scanning keys...");
 
     // Step 2: Scan and seed new keys
-    _showLangJob("Full i18n Pass — Step 2/3: Scanning for new keys...");
     return api("/api/translations/scan-and-seed", { method: "POST" });
   }).then(function(scanData) {
-    var stats = scanData.stats || scanData;
-    _showLangJob("Full i18n Pass — Step 3/3: Queuing all 7 languages (background)...");
+    var seeded = scanData.seeded || 0;
+    var total = scanData.total || 0;
+    _showLangJob("Full i18n Pass \u2014 Step 2/3 done: " + total + " keys (" + seeded + " new). Step 3/3: Generating translations...");
+    // Refresh stats to pick up any newly seeded keys
+    _cache.languages = false;
+    loadLanguages();
 
     // Step 3: Launch async background job for all 7 languages
     return api("/api/translations/generate-async", {
@@ -1617,16 +1593,18 @@ window.langFullPass = function() {
   }).then(function(data) {
     if (!data.success) {
       var msg = data.duplicate ? "Translation job already running" : (data.error || "Failed");
-      _showLangJob("Full i18n Pass — " + msg);
+      _showLangJob("Full i18n Pass \u2014 " + msg, data.duplicate ? "warn" : "err");
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
       return;
     }
     if (!data.job_id) {
-      _showLangJob("Full i18n Pass complete — no missing translations!");
+      _showLangJob("Full i18n Pass complete \u2014 no missing translations!");
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
       return;
     }
-    _showLangJob("Full i18n Pass — Job #" + data.job_id + " running (" + data.total + " keys, 7 languages)");
+    _showLangJob("Full i18n Pass \u2014 Job #" + data.job_id + " running (" + data.total + " keys, 7 languages)");
+    /* Immediately refresh ops terminal to show the new job */
+    checkActiveJobs();
     _startLangJobPoll(data.job_id, function() {
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
     });
@@ -1659,7 +1637,7 @@ window.langTagModule = function(moduleId) {
   }).then(function(data) {
     if (!data || !data.success) {
       var msg = (data && data.duplicate) ? "Translation job already running" : ((data && data.error) || "");
-      if (msg) _showLangJob(moduleId + ": tagged. " + msg);
+      if (msg) _showLangJob(moduleId + ": tagged. " + msg, (data && data.duplicate) ? "warn" : "err");
       if (btn) btn.disabled = false;
       return;
     }
@@ -1670,7 +1648,8 @@ window.langTagModule = function(moduleId) {
       setTimeout(function() { loadLanguages(); }, 1000);
       return;
     }
-    _showLangJob(moduleId + ": Job #" + data.job_id + " — translating " + data.total + " keys");
+    _showLangJob(moduleId + ": Job #" + data.job_id + " \u2014 translating " + data.total + " keys");
+    checkActiveJobs();
     _startLangJobPoll(data.job_id, function() {
       if (btn) btn.disabled = false;
     });
@@ -1753,15 +1732,6 @@ function loadLangGlossary() {
 
 /* ── GitHub Tab ────────────────────────────────────── */
 
-window.switchGithubSubtab = function(sub) {
-  document.querySelectorAll("#panel-github .cs-subtab").forEach(function(b) {
-    b.classList.toggle("active", b.textContent.toLowerCase() === sub);
-  });
-  document.querySelectorAll("#panel-github .cs-subpanel").forEach(function(p) {
-    p.classList.toggle("active", p.id === "gh-" + sub);
-  });
-};
-
 function loadGitHub() {
   // Render ops terminal commands (always available, even before data loads)
   renderGitHubOps();
@@ -1777,26 +1747,25 @@ function loadGitHub() {
       setHtml("ghRepoGrid", '<div class="cs-empty">No repositories indexed</div>');
       return;
     }
-    var html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">';
+    var html = '';
     repos.forEach(function(r) {
-      var statusColor = r.indexed ? "green" : "amber";
-      html += '<div class="cs-card" style="padding:16px;">' +
-        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
-          '<div style="font-weight:600; color:#fff; font-size:0.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px;" title="' + escHtml(r.repo_name) + '">' + escHtml(r.repo_name) + '</div>' +
-          '<span class="cs-badge ' + statusColor + '">' + (r.indexed ? 'Indexed' : 'Pending') + '</span>' +
+      var cls = r.indexed ? 'indexed' : '';
+      var badge = r.indexed
+        ? '<span class="cs-gh-repo-badge indexed">Indexed</span>'
+        : '<span class="cs-gh-repo-badge pending">Pending</span>';
+      html += '<div class="cs-gh-repo-row ' + cls + '">' +
+        '<div class="cs-gh-repo-name" title="' + escHtml(r.repo_name) + '">' + escHtml(r.repo_name) + '</div>' +
+        '<div class="cs-gh-repo-meta">' +
+          badge +
+          '<span>' + (r.indexed_files || 0) + ' files</span>' +
+          (r.indexed_at ? '<span>' + formatAge(r.indexed_at) + '</span>' : '') +
         '</div>' +
-        '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4); margin-bottom:8px;">' +
-          '<div>' + (r.indexed_files || 0) + ' files indexed</div>' +
-          '<div>Type: ' + escHtml(r.repo_type || "\u2014") + '</div>' +
-          (r.indexed_at ? '<div>Last indexed: ' + formatAge(r.indexed_at) + '</div>' : '') +
+        '<div class="cs-gh-repo-actions">' +
+          '<button class="cs-gh-repo-btn reindex" onclick="reindexRepo(' + r.id + ')">Re-index</button>' +
+          '<a class="cs-gh-repo-btn link" href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank">\u2197</a>' +
         '</div>' +
-        '<div style="display:flex; gap:6px;">' +
-          '<button onclick="reindexRepo(' + r.id + ')" style="padding:4px 10px; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); border-radius:4px; color:#8b5cf6; cursor:pointer; font-size:0.72rem;">Re-index</button>' +
-          '<a href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank" style="padding:4px 10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:rgba(255,255,255,0.5); text-decoration:none; font-size:0.72rem;">GitHub \u2197</a>' +
-        '</div>' +
-        '</div>';
+      '</div>';
     });
-    html += '</div>';
     setHtml("ghRepoGrid", html);
 
     // Fetch GitHub-specific embedding stats
@@ -1818,10 +1787,88 @@ function loadGitHubEmbedStats() {
   }).catch(function() {});
 }
 
+/* ── Shared: Render station crew + cross-station assists ─── */
+
+function _renderOpsAgents(elId, homeStationCode, jobData) {
+  var agentsEl = document.getElementById(elId);
+  if (!agentsEl) return;
+
+  fetch("/tools/bridge/api/stations").then(function(resp) {
+    var ct = resp.headers.get("content-type") || "";
+    if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
+    return resp.json();
+  }).then(function(data) {
+    if (!data.success) return;
+    var crew = [];
+    var stations = data.stations || [];
+    stations.forEach(function(s) {
+      if (s.code !== homeStationCode) return;
+      (s.assigned_agents || []).forEach(function(a) {
+        crew.push({
+          name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
+          title: a.title || a.assignment_type || "agent"
+        });
+      });
+    });
+    /* Cross-station agents only if they have an active job here */
+    var assists = [];
+    if (jobData && jobData.length) {
+      jobData.forEach(function(j) {
+        var meta = j.metadata || {};
+        if (meta.is_cross_station && meta.agent_station && meta.agent_station !== homeStationCode) {
+          var name = j.agent_name || "Cross-station agent";
+          var already = assists.some(function(a) { return a.name === name; });
+          if (!already) {
+            assists.push({ name: name, station: meta.agent_station, cap: meta.capability || "assist" });
+          }
+        }
+      });
+    }
+    /* Build lookup of busy agents from active jobs */
+    var busyMap = {};
+    if (jobData && jobData.length) {
+      jobData.forEach(function(j) {
+        if (j.agent_name && j.status === "running") {
+          busyMap[j.agent_name] = j.description || j.job_type || "task";
+        }
+      });
+    }
+    var html = '';
+    if (crew.length) {
+      html += '<div class="cs-ops-section-label">STATION CREW</div>';
+      crew.forEach(function(a) {
+        var busy = busyMap[a.name];
+        html += '<div class="cs-ops-agent-row">' +
+          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
+          (busy ? '<span class="cs-ops-agent-busy">WORKING</span>' : '') +
+          '<span class="cs-ops-agent-role">' + escHtml(a.title) + '</span>' +
+          '</div>';
+      });
+    }
+    if (assists.length) {
+      html += '<div class="cs-ops-section-label" style="margin-top:8px;">CROSS-STATION ASSIST</div>';
+      assists.forEach(function(a) {
+        html += '<div class="cs-ops-agent-row">' +
+          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
+          '<span class="cs-ops-agent-busy">WORKING</span>' +
+          '<span class="cs-ops-agent-role" style="color:#facc15;">' + escHtml(a.station) + ' \u2022 ' + escHtml(a.cap) + '</span>' +
+          '</div>';
+      });
+    }
+    if (html) {
+      setHtml(agentsEl, html);
+    } else {
+      setHtml(agentsEl, '<div style="font-size:0.75rem; color:rgba(255,255,255,0.35); padding:4px 0;">No agents assigned</div>');
+    }
+  }).catch(function() {
+    setHtml(agentsEl, "");
+  });
+}
+
 /* ── GitHub LCARS Operations Terminal ─────────────── */
 
 function renderGitHubOps(agentData, jobData) {
-  /* Render agents section */
+  /* Render agents section — ANALYTICS crew + cross-station assists */
   var agentsEl = document.getElementById("ghOpsAgents");
   if (agentsEl) {
     if (agentData && agentData.length) {
@@ -1834,65 +1881,37 @@ function renderGitHubOps(agentData, jobData) {
       });
       setHtml(agentsEl, html);
     } else {
-      /* Fetch from Bridge stations — show agents from station that owns this module */
-      fetch("/tools/bridge/api/stations").then(function(resp) {
-        var ct = resp.headers.get("content-type") || "";
-        if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
-        return resp.json();
-      }).then(function(data) {
-        if (!data.success) return;
-        var agents = [];
-        var homeStation = null;
-        var stations = data.stations || [];
-        /* Find the station that owns the consciousness module */
-        stations.forEach(function(s) {
-          var mods = s.modules || [];
-          if (mods.indexOf("consciousness") !== -1) {
-            homeStation = s;
-            var stAgents = s.assigned_agents || [];
-            stAgents.forEach(function(a) {
-              agents.push({
-                name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
-                title: a.title || a.assignment_type || "agent"
-              });
-            });
-          }
-        });
-        var stationLabel = homeStation ? homeStation.code : "UNASSIGNED";
-        if (agents.length) {
-          var html = '<div class="cs-ops-section-label">' + escHtml(stationLabel) + ' STATION CREW</div>';
-          agents.forEach(function(a) {
-            html += '<div class="cs-ops-agent-row">' +
-              '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-              '<span class="cs-ops-agent-role">' + escHtml(a.title) + '</span>' +
-              '</div>';
-          });
-          setHtml(agentsEl, html);
-        } else {
-          setHtml(agentsEl, '<div style="font-size:0.75rem; color:rgba(255,255,255,0.35); padding:4px 0;">No agents assigned to this module\'s station</div>');
-        }
-      }).catch(function() {
-        setHtml(agentsEl, "");
-      });
+      _renderOpsAgents("ghOpsAgents", "ANALYTICS", jobData);
     }
   }
 
-  /* Render jobs section */
+  /* Render jobs section — only show unique jobs (deduplicate by id) */
   var jobsEl = document.getElementById("ghOpsJobs");
   if (jobsEl) {
     if (jobData && jobData.length) {
+      var seen = {};
+      var unique = jobData.filter(function(j) {
+        if (seen[j.id]) return false;
+        seen[j.id] = true;
+        return true;
+      });
       var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
-      jobData.forEach(function(j) {
+      unique.forEach(function(j) {
         var pct = j.progress_pct || 0;
+        var desc = j.description || j.job_type || "Processing";
         var agentLabel = j.agent_name || "Queued";
         var stationLabel = j.station_code || "";
         if (stationLabel) agentLabel += " \u2022 " + stationLabel;
+        var completed = j.completed_steps || 0;
+        var total = j.total_steps || 0;
+        var countLabel = total > 0 ? ('<span class="cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
         html += '<div class="cs-ops-job-row">' +
           '<div class="cs-ops-job-info">' +
-            '<div class="cs-ops-job-desc">' + escHtml(j.description) + '</div>' +
+            '<div class="cs-ops-job-desc">' + escHtml(desc) + '</div>' +
             '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
           '</div>' +
           '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
+          countLabel +
           '<div class="cs-ops-job-pct">' + pct + '%</div>' +
           '</div>';
       });
@@ -2028,77 +2047,77 @@ window.addRepo = function() {
 
   var btn = document.querySelector("#addRepoOverlay .btn-submit");
   if (btn) btn.disabled = true;
-  setHtml("addRepoResult", '<div class="cs-loading">Creating Bridge job\u2026 An agent will index this repo.</div>');
+  setHtml("addRepoResult", lcarsMsg("info", "\u25CF", "Creating Bridge job\u2026 An agent will index this repo."));
 
   var body = { repo_url: url, priority: "high" };
   if (maxFiles) body.max_files = parseInt(maxFiles);
 
   api("/github/index-selective", { method: "POST", body: body }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("addRepoResult", '<span style="color:#f59e0b;">\u25B6 ' + escHtml(data.error || "Index job already running") + '</span>');
+      setHtml("addRepoResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Index job already running")));
       if (btn) btn.disabled = false;
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("addRepoResult", '<div class="cs-pipeline-step green"><span class="cs-pipeline-icon">\u25B6</span><span>Job #' + data.job_id + ' started \u2014 indexing ' + escHtml(data.repo || url) + '</span></div>');
+      setHtml("addRepoResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 indexing " + escHtml(data.repo || url)));
       if (btn) btn.disabled = false;
       setTimeout(function() { closeAddRepoModal(); checkActiveJobs(); }, 1500);
     } else if (data.success) {
-      setHtml("addRepoResult", '<div class="cs-pipeline-step green"><span class="cs-pipeline-icon">\u2713</span><span>' + escHtml(data.message || "Done") + '</span></div>');
+      setHtml("addRepoResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "Done")));
       if (btn) btn.disabled = false;
       _cache.github = false;
       loadGitHub();
     } else {
-      setHtml("addRepoResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(data.error || "Failed to index") + '</span></div>');
+      setHtml("addRepoResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed to index")));
       if (btn) btn.disabled = false;
     }
   }).catch(function(err) {
-    setHtml("addRepoResult", '<div class="cs-pipeline-step red"><span class="cs-pipeline-icon">\u2717</span><span>' + escHtml(err.message || "Request failed") + '</span></div>');
+    setHtml("addRepoResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Request failed")));
     if (btn) btn.disabled = false;
   });
 };
 
 window.reindexRepo = function(repoId) {
-  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Assigning agent to re-index repo\u2026</span>');
+  setHtml("ghActionResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index repo\u2026"));
   api("/github/reindex/" + repoId, { method: "POST" }).then(function(data) {
     if (data.success) {
-      var msg = '\u2713 Re-indexed ' + (data.indexed || 0) + ' files from ' + escHtml(data.repo || '#' + repoId);
-      if (data.job_id) msg += ' <span class="cs-badge blue" style="font-size:0.7rem;">Job #' + data.job_id + '</span>';
-      setHtml("ghActionResult", '<span style="color:#4ade80;">' + msg + '</span>');
+      var msg = 'Re-indexed ' + (data.indexed || 0) + ' files from ' + escHtml(data.repo || '#' + repoId);
+      if (data.job_id) msg += ' \u2014 Job #' + data.job_id;
+      setHtml("ghActionResult", lcarsMsg("ok", "\u2713", msg));
       _cache.github = false;
       loadGitHub();
       setTimeout(checkActiveJobs, 1000);
     } else {
-      setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
+      setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
     }
   }).catch(function(err) {
-    setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
+    setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
   });
 };
 
 window.reindexAllRepos = function() {
   var btn = document.getElementById("btnReindexAll");
   _disableGitHubBtns();
-  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Assigning agent to re-index all repos\u2026</span>');
+  setHtml("ghActionResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index all repos\u2026"));
   api("/github/reindex-all", { method: "POST" }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("ghActionResult", '<span style="color:#f59e0b;">\u25B6 ' + escHtml(data.error || "Reindex job already running") + '</span>');
+      setHtml("ghActionResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Reindex job already running")));
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("ghActionResult", '<span style="color:#4ade80;">\u25B6 Job #' + data.job_id + ' started \u2014 ' + (data.total_repos || 0) + ' repos queued</span>');
+      setHtml("ghActionResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " repos queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
-      setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 No repos to re-index</span>');
+      setHtml("ghActionResult", lcarsMsg("ok", "\u2713", "No repos to re-index"));
       _enableGitHubBtns();
     } else {
-      setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
+      setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
       _enableGitHubBtns();
     }
   }).catch(function(err) {
-    setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
+    setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
     _enableGitHubBtns();
   });
 };
@@ -2109,36 +2128,47 @@ window.embedGitHubFiles = function() {
   var btn = document.getElementById("btnEmbedGH");
   if (btn) btn.disabled = true;
   _disableGitHubBtns();
-  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Assigning agent to embed files\u2026</span>');
+  setHtml("ghActionResult", lcarsMsg("info", "\u25CF", "Assigning agent to embed files\u2026"));
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
     body: { batch_size: 100 }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("ghActionResult", '<span style="color:#f59e0b;">\u25B6 ' + escHtml(data.error || "Job already running") + '</span>');
+      setHtml("ghActionResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Job already running")));
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("ghActionResult", '<span style="color:#4ade80;">\u25B6 Job #' + data.job_id + ' started \u2014 ' + (data.total || 0) + ' entries queued</span>');
+      setHtml("ghActionResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
-      setHtml("ghActionResult", '<span style="color:#4ade80;">\u2713 ' + escHtml(data.message || "All files already embedded") + '</span>');
+      setHtml("ghActionResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All files already embedded")));
       _enableGitHubBtns();
     } else {
-      setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Failed") + '</span>');
+      setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
       _enableGitHubBtns();
     }
   }).catch(function(err) {
-    setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Error") + '</span>');
+    setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
     _enableGitHubBtns();
   });
 }
 
 window.searchGithub = function() {
   var q = document.getElementById("ghSearchInput").value;
-  if (!q) return;
+  if (!q) {
+    // Clear search, show repos again
+    var sr = document.getElementById("ghSearchResults");
+    var rg = document.getElementById("ghRepoGrid");
+    if (sr) sr.style.display = "none";
+    if (rg) rg.style.display = "";
+    return;
+  }
+  var sr = document.getElementById("ghSearchResults");
+  var rg = document.getElementById("ghRepoGrid");
+  if (sr) sr.style.display = "";
+  if (rg) rg.style.display = "none";
   setHtml("ghSearchResults", '<div class="cs-loading">Searching...</div>');
   api("/github/search-semantic", { method: "POST", body: { query: q, limit: 20 } }).then(function(data) {
     var results = data.results || [];
@@ -2146,13 +2176,19 @@ window.searchGithub = function() {
       setHtml("ghSearchResults", '<div class="cs-empty">No results found</div>');
       return;
     }
-    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr><th>File</th><th>Score</th><th>Snippet</th></tr></thead><tbody>';
+    var html = '';
     results.forEach(function(r) {
-      html += '<tr><td>' + escHtml(r.file_name || r.file_path || "\u2014") + '</td>' +
-        '<td>' + (r.similarity ? r.similarity.toFixed(2) : "\u2014") + '</td>' +
-        '<td style="max-width:400px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escHtml((r.content || "").substring(0, 100)) + '</td></tr>';
+      var fname = escHtml(r.file_name || r.file_path || "\u2014");
+      var score = r.similarity ? r.similarity.toFixed(2) : "";
+      var snippet = escHtml((r.content || "").substring(0, 120));
+      html += '<div class="cs-gh-repo-row">' +
+        '<div class="cs-gh-repo-name" title="' + fname + '">' + fname + '</div>' +
+        '<div class="cs-gh-repo-meta">' +
+          (score ? '<span style="color:#8b5cf6;">' + score + '</span>' : '') +
+        '</div>' +
+      '</div>' +
+      (snippet ? '<div style="padding:2px 12px 8px 15px; font-size:0.72rem; color:rgba(255,255,255,0.3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + snippet + '</div>' : '');
     });
-    html += '</tbody></table></div>';
     setHtml("ghSearchResults", html);
   }).catch(function() {
     setHtml("ghSearchResults", '<div class="cs-empty">Search error</div>');
@@ -2235,6 +2271,17 @@ window.testPipeline = function() {
 
 document.addEventListener("DOMContentLoaded", function () {
   refreshIcons();
+
+  // Populate LCARS stardate readouts in modal headers
+  (function() {
+    var now = new Date();
+    var sd = (now.getFullYear() - 2000) + "" +
+             String(Math.floor((now.getMonth() * 30 + now.getDate()) / 3.65)).padStart(3, "0") + "." +
+             String(now.getHours() * 60 + now.getMinutes()).padStart(4, "0");
+    document.querySelectorAll(".cs-modal-header-stardate").forEach(function(el) {
+      el.textContent = "SD " + sd;
+    });
+  })();
 
   // Close modals on overlay click
   var overlay = document.getElementById("agentModalOverlay");

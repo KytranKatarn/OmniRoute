@@ -32,24 +32,23 @@
     </div>
 
     <div class="nav-right">
-        <!-- Theme Controls -->
-        <div class="theme-controls">
+        <div class="nav-utils">
             <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
                 <i data-lucide="sun" id="themeIcon"></i>
             </button>
             <button class="nav-icon-btn" onclick="showLanguageMenu()" title="Language (Coming Soon)">
                 <i data-lucide="globe"></i>
             </button>
+            {% if current_user.is_authenticated and current_user.is_admin %}
+            <a href="{{ url_for('dev_hq.index') }}"
+               class="nav-icon-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
+               onclick="showTransition(event, this.href)"
+               title="Dev HQ">
+                <i data-lucide="compass"></i>
+            </a>
+            {% endif %}
         </div>
-        {% if current_user.is_authenticated and current_user.is_admin %}
-        <a href="{{ url_for('dev_hq.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Dev HQ">
-            <i data-lucide="compass"></i>
-        </a>
-        {% endif %}
-        <div class="nav-divider"></div>
+        <div class="nav-modules">
         <a href="{{ url_for('social_media.index') }}"
            class="nav-module-btn {% if request.endpoint and 'social_media' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
@@ -137,201 +136,13 @@
             <i data-lucide="globe-2"></i>
             <span>Sites</span>
         </a>
+        </div>
     </div>
 </nav>
 
 <style>
-/* ═══════════════════════════════════════════════════════════════════════════════
-   PAGE TRANSITION OVERLAY - BUSINESS TOOLS (PINK THEME)
-   ═══════════════════════════════════════════════════════════════════════════════ */
-.business-transition .transition-logo {
-    color: #FF69B4;
-    text-shadow: 0 0 30px rgba(255, 105, 180, 0.5), 0 0 60px rgba(255, 105, 180, 0.3);
-}
-
-.business-transition .transition-bar {
-    background: rgba(255, 105, 180, 0.2);
-}
-
-.business-transition .transition-progress {
-    background: linear-gradient(90deg, #FF69B4, #8B5CF6);
-}
-
-.business-transition .transition-text {
-    color: rgba(255, 105, 180, 0.7);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════
-   BUSINESS TOOLS NAVIGATION BAR (PINK THEME)
-   ═══════════════════════════════════════════════════════════════════════════════ */
-.business-tools-nav {
-    border-bottom: 1px solid rgba(255, 105, 180, 0.2);
-}
-
-.business-tools-nav::after {
-    background: linear-gradient(90deg, transparent, rgba(255, 105, 180, 0.5), transparent);
-}
-
-.business-tools-nav .nav-category-label {
-    color: #FF69B4;
-    text-shadow: 0 0 10px rgba(255, 105, 180, 0.3);
-}
-
-.business-tools-nav .nav-module-btn {
-    border-color: rgba(255, 105, 180, 0.2);
-    color: rgba(255, 105, 180, 0.6);
-}
-
-.business-tools-nav .nav-module-btn::before {
-    background: #FF69B4;
-}
-
-.business-tools-nav .nav-module-btn:hover {
-    color: #FF69B4;
-    border-color: rgba(255, 105, 180, 0.4);
-    background: rgba(255, 105, 180, 0.05);
-}
-
-.business-tools-nav .nav-module-btn.active {
-    color: #FF69B4;
-    border-color: rgba(255, 105, 180, 0.5);
-    background: rgba(255, 105, 180, 0.1);
-    box-shadow: 0 0 15px rgba(255, 105, 180, 0.15);
-}
-
-/* Theme Controls */
-.business-tools-nav .theme-controls {
-    display: flex;
-    gap: 4px;
-}
-
-.business-tools-nav .nav-icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: transparent;
-    border: 1px solid rgba(255, 105, 180, 0.2);
-    border-radius: 8px;
-    color: rgba(255, 105, 180, 0.6);
-    cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.business-tools-nav .nav-icon-btn:hover {
-    color: #FF69B4;
-    border-color: rgba(255, 105, 180, 0.5);
-    background: rgba(255, 105, 180, 0.1);
-    box-shadow: 0 0 15px rgba(255, 105, 180, 0.15);
-}
-
-.business-tools-nav .nav-icon-btn i {
-    width: 18px;
-    height: 18px;
-}
-
-.business-tools-nav .nav-divider {
-    width: 1px;
-    height: 24px;
-    background: rgba(255, 105, 180, 0.2);
-    margin: 0 8px;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════
-   LIGHT MODE - BUSINESS TOOLS NAV
-   ═══════════════════════════════════════════════════════════════════════════════ */
-body.light-mode .business-tools-nav {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.9) 100%);
-    border-bottom: 1px solid rgba(204, 68, 145, 0.2);
-}
-
-body.light-mode .business-tools-nav::after {
-    background: linear-gradient(90deg, transparent, rgba(204, 68, 145, 0.4), transparent);
-}
-
-body.light-mode .business-tools-nav .nav-category-label {
-    color: #CC4491;
-    text-shadow: none;
-}
-
-body.light-mode .business-tools-nav .nav-module-btn {
-    color: rgba(204, 68, 145, 0.7);
-    border-color: rgba(204, 68, 145, 0.2);
-}
-
-body.light-mode .business-tools-nav .nav-module-btn:hover {
-    color: #CC4491;
-    border-color: rgba(204, 68, 145, 0.4);
-    background: rgba(204, 68, 145, 0.05);
-}
-
-body.light-mode .business-tools-nav .nav-module-btn::before {
-    background: #CC4491;
-}
-
-body.light-mode .business-tools-nav .nav-module-btn.active {
-    color: #CC4491;
-    border-color: rgba(204, 68, 145, 0.5);
-    background: rgba(204, 68, 145, 0.08);
-    box-shadow: 0 0 15px rgba(204, 68, 145, 0.1);
-}
-
-body.light-mode .business-tools-nav .nav-icon-btn {
-    color: rgba(204, 68, 145, 0.6);
-    border-color: rgba(204, 68, 145, 0.2);
-}
-
-body.light-mode .business-tools-nav .nav-icon-btn:hover {
-    color: #CC4491;
-    border-color: rgba(204, 68, 145, 0.5);
-    background: rgba(204, 68, 145, 0.08);
-    box-shadow: 0 0 15px rgba(204, 68, 145, 0.1);
-}
-
-body.light-mode .business-tools-nav .nav-divider {
-    background: rgba(204, 68, 145, 0.2);
-}
-
-body.light-mode .business-transition {
-    background: #f8f9fa;
-}
-
-body.light-mode .business-transition .transition-logo {
-    color: #CC4491;
-    text-shadow: 0 0 20px rgba(204, 68, 145, 0.3);
-}
-
-body.light-mode .business-transition .transition-bar {
-    background: rgba(204, 68, 145, 0.1);
-}
-
-body.light-mode .business-transition .transition-progress {
-    background: linear-gradient(90deg, #CC4491, #8B5CF6);
-}
-
-body.light-mode .business-transition .transition-text {
-    color: rgba(204, 68, 145, 0.7);
-}
-
-/* Unread Badge */
-.nav-badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    background: #FF4444;
-    color: white;
-    font-size: 10px;
-    font-weight: 700;
-    min-width: 16px;
-    height: 16px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 4px;
-    line-height: 1;
-}
+/* Business Tools Nav — accent override */
+.business-tools-nav { --cat-accent: #FF69B4; --cat-accent-light: #CC4491; }
 </style>
 
 <script>

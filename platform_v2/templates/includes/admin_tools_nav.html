@@ -32,24 +32,23 @@
     </div>
 
     <div class="nav-right">
-        <!-- Theme Controls -->
-        <div class="theme-controls">
+        <div class="nav-utils">
             <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
                 <i data-lucide="sun" id="themeIcon"></i>
             </button>
             <button class="nav-icon-btn" onclick="showLanguageMenu()" title="Language (Coming Soon)">
                 <i data-lucide="globe"></i>
             </button>
+            {% if current_user.is_authenticated and current_user.is_admin %}
+            <a href="{{ url_for('dev_hq.index') }}"
+               class="nav-icon-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
+               onclick="showTransition(event, this.href)"
+               title="Dev HQ">
+                <i data-lucide="compass"></i>
+            </a>
+            {% endif %}
         </div>
-        {% if current_user.is_authenticated and current_user.is_admin %}
-        <a href="{{ url_for('dev_hq.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Dev HQ">
-            <i data-lucide="compass"></i>
-        </a>
-        {% endif %}
-        <div class="nav-divider"></div>
+        <div class="nav-modules">
         <a href="{{ url_for('account_center.index') }}"
            class="nav-module-btn {% if request.endpoint and 'account_center' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
@@ -78,180 +77,13 @@
             <i data-lucide="shield"></i>
             <span>Security</span>
         </a>
+        </div>
     </div>
 </nav>
 
 <style>
-/* ═══════════════════════════════════════════════════════════════════════════════
-   PAGE TRANSITION OVERLAY - ADMIN TOOLS (RED THEME)
-   ═══════════════════════════════════════════════════════════════════════════════ */
-.admin-transition .transition-logo {
-    color: #f97316;
-    text-shadow: 0 0 30px rgba(255, 107, 107, 0.5), 0 0 60px rgba(255, 107, 107, 0.3);
-}
-
-.admin-transition .transition-bar {
-    background: rgba(255, 107, 107, 0.2);
-}
-
-.admin-transition .transition-progress {
-    background: linear-gradient(90deg, #f97316, #fb923c);
-}
-
-.admin-transition .transition-text {
-    color: rgba(255, 107, 107, 0.7);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════
-   ADMIN TOOLS NAVIGATION BAR (RED THEME)
-   ═══════════════════════════════════════════════════════════════════════════════ */
-.admin-tools-nav {
-    border-bottom: 1px solid rgba(255, 107, 107, 0.2);
-}
-
-.admin-tools-nav::after {
-    background: linear-gradient(90deg, transparent, rgba(255, 107, 107, 0.5), transparent);
-}
-
-.admin-tools-nav .nav-category-label {
-    color: #f97316;
-    text-shadow: 0 0 10px rgba(255, 107, 107, 0.3);
-}
-
-.admin-tools-nav .nav-module-btn {
-    border-color: rgba(255, 107, 107, 0.2);
-    color: rgba(255, 107, 107, 0.6);
-}
-
-.admin-tools-nav .nav-module-btn::before {
-    background: #f97316;
-}
-
-.admin-tools-nav .nav-module-btn:hover {
-    color: #f97316;
-    border-color: rgba(255, 107, 107, 0.4);
-    background: rgba(255, 107, 107, 0.05);
-}
-
-.admin-tools-nav .nav-module-btn.active {
-    color: #f97316;
-    border-color: rgba(255, 107, 107, 0.5);
-    background: rgba(255, 107, 107, 0.1);
-    box-shadow: 0 0 15px rgba(255, 107, 107, 0.15);
-}
-
-/* Theme Controls */
-.admin-tools-nav .theme-controls {
-    display: flex;
-    gap: 4px;
-}
-
-.admin-tools-nav .nav-icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: transparent;
-    border: 1px solid rgba(255, 107, 107, 0.2);
-    border-radius: 8px;
-    color: rgba(255, 107, 107, 0.6);
-    cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.admin-tools-nav .nav-icon-btn:hover {
-    color: #f97316;
-    border-color: rgba(255, 107, 107, 0.5);
-    background: rgba(255, 107, 107, 0.1);
-    box-shadow: 0 0 15px rgba(255, 107, 107, 0.15);
-}
-
-.admin-tools-nav .nav-icon-btn i {
-    width: 18px;
-    height: 18px;
-}
-
-.admin-tools-nav .nav-divider {
-    width: 1px;
-    height: 24px;
-    background: rgba(255, 107, 107, 0.2);
-    margin: 0 8px;
-}
-
-/* Light Mode - Admin Tools Nav */
-body.light-mode .admin-tools-nav {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.9) 100%);
-    border-bottom: 1px solid rgba(204, 34, 68, 0.2);
-}
-
-body.light-mode .admin-tools-nav::after {
-    background: linear-gradient(90deg, transparent, rgba(204, 34, 68, 0.4), transparent);
-}
-
-body.light-mode .admin-tools-nav .nav-category-label {
-    color: #ea580c;
-    text-shadow: none;
-}
-
-body.light-mode .admin-tools-nav .nav-module-btn {
-    color: rgba(204, 34, 68, 0.7);
-    border-color: rgba(204, 34, 68, 0.2);
-}
-
-body.light-mode .admin-tools-nav .nav-module-btn:hover {
-    color: #ea580c;
-    border-color: rgba(204, 34, 68, 0.4);
-    background: rgba(204, 34, 68, 0.05);
-}
-
-body.light-mode .admin-tools-nav .nav-module-btn::before {
-    background: #ea580c;
-}
-
-body.light-mode .admin-tools-nav .nav-module-btn.active {
-    color: #ea580c;
-    border-color: rgba(204, 34, 68, 0.5);
-    background: rgba(204, 34, 68, 0.08);
-    box-shadow: 0 0 15px rgba(204, 34, 68, 0.1);
-}
-
-body.light-mode .admin-tools-nav .nav-icon-btn {
-    color: rgba(204, 34, 68, 0.6);
-    border-color: rgba(204, 34, 68, 0.2);
-}
-
-body.light-mode .admin-tools-nav .nav-icon-btn:hover {
-    color: #ea580c;
-    border-color: rgba(204, 34, 68, 0.5);
-    background: rgba(204, 34, 68, 0.08);
-    box-shadow: 0 0 15px rgba(204, 34, 68, 0.1);
-}
-
-body.light-mode .admin-tools-nav .nav-divider {
-    background: rgba(204, 34, 68, 0.2);
-}
-
-body.light-mode .admin-transition .transition-logo {
-    color: #ea580c;
-    text-shadow: 0 0 20px rgba(204, 34, 68, 0.3);
-}
-
-body.light-mode .admin-transition .transition-bar {
-    background: rgba(204, 34, 68, 0.1);
-}
-
-body.light-mode .admin-transition .transition-progress {
-    background: linear-gradient(90deg, #ea580c, #fb923c);
-}
-
-body.light-mode .admin-transition .transition-text {
-    color: rgba(204, 34, 68, 0.7);
-}
-
-body.light-mode .admin-transition {
-    background: #f8f9fa;
-}
+/* Admin Tools Nav — accent override */
+.admin-tools-nav { --cat-accent: #f97316; --cat-accent-light: #ea580c; }
 </style>
 
 <script>

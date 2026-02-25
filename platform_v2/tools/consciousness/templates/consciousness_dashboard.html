@@ -3,7 +3,7 @@
 {% block extra_head %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 {% endblock %}
 
 {% block title %}Consciousness - A.R.C.H.I.E.{% endblock %}
@@ -73,47 +73,64 @@
     overflow-x: hidden;
 }
 
-/* --- LCARS Framed Header (purple accent) --- */
+/* --- LCARS Header Bar --- */
 .cs-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 20px;
-    margin: 0 16px 12px;
-    border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+    align-items: stretch;
+    gap: 0;
+    padding: 0 16px;
+    margin: 0 0 8px;
     animation: fadeIn 0.5s ease-out;
     position: relative;
+    min-height: 36px;
 }
 .cs-header::after { display: none; }
+.cs-header-elbow {
+    width: 14px; flex-shrink: 0;
+    background: #8b5cf6;
+    border-radius: 12px 0 0 12px;
+}
 .cs-header-title {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-family: 'Orbitron', var(--archie-font-heading, sans-serif);
+    padding: 0 16px;
+    background: #8b5cf6;
+    font-family: 'Antonio', sans-serif;
     font-size: 1rem;
     font-weight: 700;
-    color: #8b5cf6;
-    letter-spacing: 2px;
+    color: #fff;
+    letter-spacing: 3px;
     margin: 0;
+    white-space: nowrap;
 }
-.cs-header-title i { width: 20px; height: 20px; }
+.cs-header-title i { width: 18px; height: 18px; }
 .cs-header-subtitle { display: none; }
+.cs-header-divider {
+    width: 20px; flex-shrink: 0;
+    background: #8b5cf6;
+    clip-path: polygon(0 0, 100% 0, 0 100%, 0 100%);
+}
 .cs-header-status {
     display: flex;
     align-items: center;
     gap: 16px;
-    margin-top: 12px;
-    flex-wrap: wrap;
+    flex-shrink: 0;
+    margin-left: auto;
+    padding-right: 4px;
 }
 .cs-status-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.7rem;
+    gap: 5px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
     letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 .cs-status-item .status-dot {
-    width: 6px; height: 6px;
+    width: 5px; height: 5px;
     border-radius: 50%;
     animation: status-pulse 2s ease-in-out infinite;
 }
@@ -125,15 +142,14 @@
 .status-dot.warning { background: #f59e0b; color: #f59e0b; }
 
 .cs-status-item .status-label { color: var(--archie-text-muted); }
-.cs-status-item .status-value { color: #8b5cf6; font-weight: 500; }
+.cs-status-item .status-value { color: #8b5cf6; font-weight: 700; }
 
-/* --- Tab Navigation (pill style) --- */
+/* --- Tab Navigation (LCARS strip) --- */
 .cs-tabs {
     display: flex;
-    gap: 8px;
-    padding: 0 16px 16px;
-    border-bottom: 1px solid rgba(139, 92, 246, 0.1);
-    margin-bottom: 16px;
+    gap: 3px;
+    padding: 0 16px 10px;
+    margin-bottom: 12px;
     overflow-x: auto;
     scrollbar-width: none;
 }
@@ -141,40 +157,36 @@
 .cs-tab {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    color: var(--archie-text-tertiary, #8b949e);
-    font-family: var(--archie-font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
+    gap: 5px;
+    padding: 6px 12px;
+    background: rgba(139,92,246,0.06);
+    border: none;
+    border-radius: 4px;
+    color: rgba(255,255,255,0.4);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     cursor: pointer;
     white-space: nowrap;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.15s ease;
     position: relative;
 }
-.cs-tab i { width: 14px; height: 14px; }
-.cs-tab span { font-size: 0.85rem; }
+.cs-tab:first-child { border-radius: 12px 4px 4px 12px; }
+.cs-tab:last-child { border-radius: 4px 12px 12px 4px; }
+.cs-tab i { width: 13px; height: 13px; }
+.cs-tab span { font-size: 0.72rem; }
 .cs-tab:hover {
-    color: var(--archie-text-secondary);
-    border-color: rgba(139, 92, 246, 0.3);
-    background: rgba(139, 92, 246, 0.03);
+    color: rgba(255,255,255,0.7);
+    background: rgba(139,92,246,0.12);
 }
 .cs-tab.active {
-    color: #8b5cf6;
-    border-color: #8b5cf6;
-    background: rgba(139, 92, 246, 0.06);
-}
-.cs-tab.active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px; left: 20%; width: 60%; height: 2px;
+    color: #fff;
     background: #8b5cf6;
-    border-radius: 1px;
+    box-shadow: 0 0 12px rgba(139,92,246,0.3);
 }
+.cs-tab.active::after { display: none; }
 
 /* --- Tab Panels --- */
 .cs-panel { display: none; animation: fadeIn 0.3s ease-out; }
@@ -244,6 +256,152 @@
     font-size: 0.72rem;
     color: rgba(255,255,255,0.35);
     margin-top: 2px;
+}
+
+/* --- GitHub tab: LCARS readout strips --- */
+#panel-github .cs-gh-readouts {
+    display: flex; flex-direction: column; gap: 6px;
+    margin-bottom: 14px;
+}
+.cs-gh-strip {
+    display: flex; align-items: center;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0 8px 8px 0;
+    overflow: hidden;
+    height: 38px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cs-gh-strip:hover {
+    border-color: rgba(255,255,255,0.12);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+.cs-gh-cap {
+    width: 8px; min-height: 100%; flex-shrink: 0;
+    border-radius: 4px 0 0 4px;
+}
+.cs-gh-strip.purple .cs-gh-cap { background: #8b5cf6; box-shadow: 0 0 8px rgba(139,92,246,0.3); }
+.cs-gh-strip.blue .cs-gh-cap   { background: #3b82f6; box-shadow: 0 0 8px rgba(59,130,246,0.3); }
+.cs-gh-strip.green .cs-gh-cap  { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.3); }
+.cs-gh-strip.amber .cs-gh-cap  { background: #f59e0b; box-shadow: 0 0 8px rgba(245,158,11,0.3); }
+.cs-gh-strip-icon {
+    width: 28px; height: 28px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    margin-left: 12px;
+    border-radius: 6px; opacity: 0.7;
+}
+.cs-gh-strip-icon i { width: 15px; height: 15px; }
+.cs-gh-strip.purple .cs-gh-strip-icon { color: #8b5cf6; background: rgba(139,92,246,0.1); }
+.cs-gh-strip.blue .cs-gh-strip-icon   { color: #3b82f6; background: rgba(59,130,246,0.1); }
+.cs-gh-strip.green .cs-gh-strip-icon  { color: #22c55e; background: rgba(34,197,94,0.1); }
+.cs-gh-strip.amber .cs-gh-strip-icon  { color: #f59e0b; background: rgba(245,158,11,0.1); }
+.cs-gh-strip-label {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 1.2px;
+    color: rgba(255,255,255,0.45);
+    margin-left: 10px;
+    white-space: nowrap;
+}
+.cs-gh-strip-line {
+    flex: 1; height: 1px;
+    background: rgba(255,255,255,0.06);
+    margin: 0 12px;
+    min-width: 20px;
+}
+.cs-gh-strip-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem; font-weight: 700;
+    margin-right: 16px;
+    white-space: nowrap;
+}
+.cs-gh-strip.purple .cs-gh-strip-value { color: #8b5cf6; }
+.cs-gh-strip.blue .cs-gh-strip-value   { color: #3b82f6; }
+.cs-gh-strip.green .cs-gh-strip-value  { color: #22c55e; }
+.cs-gh-strip.amber .cs-gh-strip-value  { color: #f59e0b; }
+/* Responsive: 2-column at wider screens */
+@media (min-width: 600px) {
+    #panel-github .cs-gh-readouts {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    }
+}
+
+/* --- GitHub repo section --- */
+.cs-gh-repo-section { margin-top: 14px; }
+.cs-gh-repo-bar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+}
+.cs-gh-repo-bar-cap {
+    width: 6px; height: 24px; border-radius: 3px;
+    background: #8b5cf6; flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(139,92,246,0.3);
+}
+.cs-gh-repo-bar-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem; font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 1.5px; text-transform: uppercase;
+    flex-shrink: 0;
+}
+.cs-gh-repo-bar-search {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px; padding: 0 10px;
+    margin-left: auto; max-width: 320px;
+}
+.cs-gh-repo-bar-search input {
+    flex: 1; background: none; border: none; outline: none;
+    color: #fff; font-size: 0.78rem; padding: 6px 0;
+}
+.cs-gh-repo-bar-search input::placeholder { color: rgba(255,255,255,0.25); }
+/* Compact repo rows */
+.cs-gh-repo-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    border-left: 3px solid rgba(139,92,246,0.3);
+    background: rgba(255,255,255,0.02);
+    border-radius: 0 6px 6px 0;
+    margin-bottom: 4px;
+    transition: background 0.15s, border-color 0.15s;
+}
+.cs-gh-repo-row:hover {
+    background: rgba(139,92,246,0.06);
+    border-left-color: #8b5cf6;
+}
+.cs-gh-repo-row.indexed { border-left-color: rgba(34,197,94,0.4); }
+.cs-gh-repo-row.indexed:hover { border-left-color: #22c55e; }
+.cs-gh-repo-name {
+    font-weight: 600; font-size: 0.82rem; color: rgba(255,255,255,0.9);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0; flex: 1;
+}
+.cs-gh-repo-meta {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 0.68rem; color: rgba(255,255,255,0.35);
+    flex-shrink: 0; white-space: nowrap;
+}
+.cs-gh-repo-badge {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 3px;
+}
+.cs-gh-repo-badge.indexed { background: rgba(34,197,94,0.15); color: #22c55e; }
+.cs-gh-repo-badge.pending { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.cs-gh-repo-actions {
+    display: flex; gap: 4px; flex-shrink: 0;
+}
+.cs-gh-repo-btn {
+    padding: 3px 8px; border-radius: 4px; cursor: pointer;
+    font-size: 0.68rem; font-weight: 600; border: none;
+    transition: filter 0.15s;
+}
+.cs-gh-repo-btn:hover { filter: brightness(1.3); }
+.cs-gh-repo-btn.reindex { background: rgba(139,92,246,0.15); color: #8b5cf6; }
+.cs-gh-repo-btn.link { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); text-decoration: none; display: inline-flex; }
+@media (max-width: 600px) {
+    .cs-gh-repo-bar-search { max-width: none; }
+    .cs-gh-repo-meta { display: none; }
 }
 
 /* --- Cards --- */
@@ -413,39 +571,294 @@
 .cs-mini-fill.red   { background: #ef4444; }
 
 /* --- Modal --- */
+/* ═══ LCARS TABLET MODAL ═══ */
 .cs-modal-overlay {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(8px);
     z-index: 1000;
     justify-content: center;
     align-items: center;
 }
 .cs-modal-overlay.open { display: flex; }
+
+/* Tablet device shell */
 .cs-modal {
-    background: #1a1a2e;
-    border: 1px solid rgba(139,92,246,0.3);
-    border-radius: 12px;
+    background: #06060c;
+    border: none;
+    border-radius: 24px;
     width: 90%; max-width: 700px;
     max-height: 85vh;
-    overflow-y: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    box-shadow:
+        0 0 0 2px #1e1e35,
+        0 0 0 4px rgba(139,92,246,0.12),
+        0 24px 80px rgba(0,0,0,0.8),
+        0 0 60px rgba(139,92,246,0.06);
+    animation: lcarsTabletIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
+@keyframes lcarsTabletIn {
+    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ─── Left LCARS sidebar frame ─── */
+.cs-modal-frame {
+    flex-shrink: 0;
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 0;
+    background: transparent;
+}
+/* Top elbow — big rounded corner piece */
+.cs-modal-frame-elbow {
+    height: 52px;
+    background: #8b5cf6;
+    border-radius: 20px 0 0 0;
+    position: relative;
+}
+/* Cutout in elbow bottom-right */
+.cs-modal-frame-elbow::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 18px; height: 18px;
+    background: #06060c;
+    border-radius: 0 10px 0 0;
+}
+/* Side strip segments (colored blocks down the left) */
+.cs-modal-frame-seg {
+    height: 28px;
+    border-radius: 0 8px 8px 0;
+    margin-right: 6px;
+}
+.cs-modal-frame-seg.purple { background: #8b5cf6; }
+.cs-modal-frame-seg.amber  { background: #FFAA00; }
+.cs-modal-frame-seg.cyan   { background: #00d4ff; }
+.cs-modal-frame-seg.rose   { background: #f472b6; }
+.cs-modal-frame-seg.green  { background: #10b981; }
+/* Animated indicator light */
+.cs-modal-frame-light {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin: 4px auto;
+    animation: lcarsLightPulse 2s ease-in-out infinite;
+}
+.cs-modal-frame-light.on  { background: #10b981; box-shadow: 0 0 8px #10b981; }
+.cs-modal-frame-light.amber { background: #FFAA00; box-shadow: 0 0 8px #FFAA00; animation-delay: 0.7s; }
+.cs-modal-frame-light.cyan { background: #00d4ff; box-shadow: 0 0 8px #00d4ff; animation-delay: 1.4s; }
+@keyframes lcarsLightPulse {
+    0%, 100% { opacity: 1; }
+    40% { opacity: 0.3; }
+    60% { opacity: 0.3; }
+}
+/* Spacer fills remaining left side */
+.cs-modal-frame-fill {
+    flex: 1;
+    background: rgba(139,92,246,0.25);
+    border-radius: 0 8px 0 0;
+    margin-right: 6px;
+    min-height: 20px;
+}
+/* Bottom elbow */
+.cs-modal-frame-bottom {
+    height: 36px;
+    background: #8b5cf6;
+    border-radius: 0 0 0 20px;
+    position: relative;
+}
+.cs-modal-frame-bottom::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 18px; height: 14px;
+    background: #06060c;
+    border-radius: 0 0 0 10px;
+}
+
+/* ─── Right content column ─── */
+.cs-modal-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* Top header bar */
 .cs-modal-header {
     display: flex;
-    justify-content: space-between;
+    align-items: stretch;
+    gap: 3px;
+    padding: 0;
+    border-bottom: none;
+    background: transparent;
+    min-height: 44px;
+    flex-shrink: 0;
+}
+/* Title bar (solid purple strip) */
+.cs-modal-header-title {
+    display: flex;
     align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 0 18px;
+    background: #8b5cf6;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #fff;
+    white-space: nowrap;
 }
-.cs-modal-header span { font-weight: 600; color: #8b5cf6; }
+/* Status indicator strip with decorative elements */
+.cs-modal-header-strip {
+    flex: 1;
+    background: rgba(139,92,246,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 8px;
+    border-radius: 0 20px 0 0;
+    gap: 6px;
+}
+/* Decorative readout pips */
+.cs-modal-header-pip {
+    height: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.cs-modal-header-pip.w1 { width: 20px; background: rgba(139,92,246,0.35); }
+.cs-modal-header-pip.w2 { width: 35px; background: rgba(255,170,0,0.3); }
+.cs-modal-header-pip.w3 { width: 14px; background: rgba(0,212,255,0.3); }
+/* Stardate readout */
+.cs-modal-header-stardate {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: rgba(139,92,246,0.5);
+    margin-right: 4px;
+}
+/* Close button */
 .cs-modal-close {
-    background: none; border: none;
-    color: rgba(255,255,255,0.5);
-    font-size: 1.2rem; cursor: pointer;
+    background: rgba(139,92,246,0.15);
+    border: 1px solid rgba(139,92,246,0.3);
+    color: rgba(255,255,255,0.6);
+    font-size: 1rem;
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    flex-shrink: 0;
 }
-.cs-modal-close:hover { color: #fff; }
-.cs-modal-body { padding: 20px; }
+.cs-modal-close:hover {
+    background: rgba(139,92,246,0.3);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(139,92,246,0.2);
+}
+/* Legacy span inside header (hidden — use cs-modal-header-title instead) */
+.cs-modal-header > span { display: none; }
+
+/* Screen area */
+.cs-modal-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+    background: transparent;
+    font-family: 'Antonio', sans-serif;
+}
+.cs-modal-body * { font-family: 'Antonio', sans-serif; }
+.cs-modal-body code, .cs-modal-body pre { font-family: 'IBM Plex Mono', monospace; }
+.cs-modal-body::-webkit-scrollbar { width: 4px; }
+.cs-modal-body::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.3); border-radius: 2px; }
+.cs-modal-body::-webkit-scrollbar-track { background: transparent; }
+
+/* Bottom bar */
+.cs-modal-footer {
+    display: flex;
+    align-items: stretch;
+    min-height: 14px;
+    flex-shrink: 0;
+    gap: 3px;
+}
+.cs-modal-footer-strip {
+    flex: 1;
+    background: rgba(139,92,246,0.18);
+    border-radius: 0 0 20px 0;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 4px;
+}
+/* Footer decorative dots */
+.cs-modal-footer-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.cs-modal-footer-dot.purple { background: rgba(139,92,246,0.5); }
+.cs-modal-footer-dot.amber  { background: rgba(255,170,0,0.4); }
+.cs-modal-footer-dot.cyan   { background: rgba(0,212,255,0.4); }
+
+/* ─── Form elements inside tablet ─── */
+.cs-modal-body p {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.02em;
+}
+.cs-modal-body input[type="text"],
+.cs-modal-body input[type="number"],
+.cs-modal-body select,
+.cs-modal-body textarea {
+    background: rgba(139,92,246,0.06) !important;
+    border: 1px solid rgba(139,92,246,0.2) !important;
+    border-radius: 8px !important;
+    color: #fff !important;
+    font-family: 'Antonio', sans-serif !important;
+    font-size: 0.88rem !important;
+    letter-spacing: 0.03em;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cs-modal-body input:focus,
+.cs-modal-body select:focus,
+.cs-modal-body textarea:focus {
+    outline: none;
+    border-color: #8b5cf6 !important;
+    box-shadow: 0 0 12px rgba(139,92,246,0.15);
+}
+.cs-modal-body label {
+    font-family: 'Antonio', sans-serif !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase;
+    font-size: 0.72rem !important;
+    color: rgba(139,92,246,0.6) !important;
+}
+/* Submit / action buttons */
+.cs-modal-body .btn-submit,
+.cs-modal-body button[onclick*="addRepo"],
+.cs-modal-body button[onclick*="Submit"] {
+    background: rgba(139,92,246,0.2) !important;
+    border: 1px solid rgba(139,92,246,0.5) !important;
+    border-radius: 8px !important;
+    color: #fff !important;
+    font-family: 'Antonio', sans-serif !important;
+    font-size: 0.88rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase;
+    transition: background 0.2s, box-shadow 0.2s;
+}
+.cs-modal-body .btn-submit:hover,
+.cs-modal-body button[onclick*="addRepo"]:hover {
+    background: rgba(139,92,246,0.35) !important;
+    box-shadow: 0 0 16px rgba(139,92,246,0.2);
+}
 
 /* --- Tables --- */
 .cs-table { width: 100%; border-collapse: collapse; }
@@ -513,22 +926,130 @@
 .cs-link { color: #8b5cf6; text-decoration: none; font-size: 0.82rem; }
 .cs-link:hover { text-decoration: underline; }
 
-/* --- Pipeline steps --- */
+/* --- LCARS Job Notification Bar --- */
 .cs-pipeline-step {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    margin-bottom: 4px;
-    border-radius: 6px;
-    font-size: 0.82rem;
+    gap: 0;
+    padding: 0;
+    margin-bottom: 6px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.06em;
+    overflow: hidden;
+    background: rgba(139,92,246,0.06);
+    border: 1px solid rgba(139,92,246,0.12);
+    animation: lcarsNotifIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.cs-pipeline-step.green { background: rgba(34,197,94,0.08); color: #4ade80; }
-.cs-pipeline-step.amber { background: rgba(245,158,11,0.08); color: #fbbf24; }
-.cs-pipeline-step.red   { background: rgba(239,68,68,0.08); color: #f87171; }
-.cs-pipeline-icon { font-weight: 700; font-size: 1rem; }
-.cs-pipeline-ms { font-size: 0.72rem; color: rgba(255,255,255,0.4); }
-.cs-error { font-size: 0.72rem; color: #f87171; }
+@keyframes lcarsNotifIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+/* Left cap — solid color endcap */
+.cs-pipeline-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    min-height: 32px;
+    flex-shrink: 0;
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: #8b5cf6;
+    color: #fff;
+    border-radius: 10px 0 0 10px;
+}
+/* Message text */
+.cs-pipeline-step span:not(.cs-pipeline-icon) {
+    padding: 7px 14px;
+    flex: 1;
+    color: rgba(255,255,255,0.7);
+}
+/* Color variants */
+.cs-pipeline-step.green {
+    background: rgba(34,197,94,0.06);
+    border-color: rgba(34,197,94,0.15);
+}
+.cs-pipeline-step.green .cs-pipeline-icon { background: #10b981; }
+.cs-pipeline-step.green span:not(.cs-pipeline-icon) { color: #4ade80; }
+
+.cs-pipeline-step.amber {
+    background: rgba(245,158,11,0.06);
+    border-color: rgba(245,158,11,0.15);
+}
+.cs-pipeline-step.amber .cs-pipeline-icon { background: #f59e0b; }
+.cs-pipeline-step.amber span:not(.cs-pipeline-icon) { color: #fbbf24; }
+
+.cs-pipeline-step.red {
+    background: rgba(239,68,68,0.06);
+    border-color: rgba(239,68,68,0.15);
+}
+.cs-pipeline-step.red .cs-pipeline-icon { background: #ef4444; }
+.cs-pipeline-step.red span:not(.cs-pipeline-icon) { color: #f87171; }
+
+.cs-pipeline-ms { font-size: 0.68rem; color: rgba(255,255,255,0.35); padding-right: 12px !important; flex: none !important; font-family: 'Antonio', sans-serif; }
+.cs-error { font-size: 0.72rem; color: #f87171; font-family: 'Antonio', sans-serif; }
+
+/* Inline job result messages (ghActionResult, addRepoResult etc.) */
+.cs-job-msg {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    animation: lcarsNotifIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    margin-top: 6px;
+}
+.cs-job-msg-cap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    min-height: 28px;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    color: #fff;
+    border-radius: 8px 0 0 8px;
+}
+.cs-job-msg-text {
+    padding: 6px 12px;
+    flex: 1;
+}
+.cs-job-msg-text a { text-decoration: underline; }
+/* Variants */
+.cs-job-msg.ok {
+    background: rgba(34,197,94,0.06);
+    border: 1px solid rgba(34,197,94,0.15);
+}
+.cs-job-msg.ok .cs-job-msg-cap { background: #10b981; }
+.cs-job-msg.ok .cs-job-msg-text { color: #4ade80; }
+.cs-job-msg.ok .cs-job-msg-text a { color: #4ade80; }
+
+.cs-job-msg.warn {
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.15);
+}
+.cs-job-msg.warn .cs-job-msg-cap { background: #f59e0b; }
+.cs-job-msg.warn .cs-job-msg-text { color: #fbbf24; }
+
+.cs-job-msg.err {
+    background: rgba(239,68,68,0.06);
+    border: 1px solid rgba(239,68,68,0.15);
+}
+.cs-job-msg.err .cs-job-msg-cap { background: #ef4444; }
+.cs-job-msg.err .cs-job-msg-text { color: #f87171; }
+
+.cs-job-msg.info {
+    background: rgba(139,92,246,0.06);
+    border: 1px solid rgba(139,92,246,0.15);
+}
+.cs-job-msg.info .cs-job-msg-cap { background: #8b5cf6; }
+.cs-job-msg.info .cs-job-msg-text { color: rgba(139,92,246,0.8); }
+.cs-job-msg.info .cs-job-msg-text a { color: #8b5cf6; }
 
 /* --- Brain Map Treemap --- */
 .cs-brain-treemap { display: flex; flex-wrap: wrap; gap: 4px; min-height: 120px; }
@@ -614,7 +1135,8 @@
 }
 .cs-ops-body { padding: 12px 16px; }
 .cs-ops-section-label {
-    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.65rem; font-weight: 600; letter-spacing: 0.12em;
     text-transform: uppercase; color: rgba(255,255,255,0.35);
     margin-bottom: 6px; margin-top: 10px;
 }
@@ -626,9 +1148,20 @@
     background: rgba(255,255,255,0.02);
     margin-bottom: 4px;
 }
-.cs-ops-agent-name { font-weight: 600; font-size: 0.8rem; color: rgba(255,255,255,0.9); }
+.cs-ops-agent-name {
+    font-family: 'Antonio', sans-serif;
+    font-weight: 600; font-size: 0.85rem; color: rgba(255,255,255,0.9);
+}
+.cs-ops-agent-busy {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.6rem; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 3px;
+    background: rgba(245,158,11,0.15); color: #f59e0b;
+    animation: status-pulse 2s ease-in-out infinite;
+}
 .cs-ops-agent-role {
-    font-size: 0.55rem; font-weight: 600; letter-spacing: 0.08em;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.6rem; font-weight: 600; letter-spacing: 0.08em;
     text-transform: uppercase; padding: 2px 6px; border-radius: 3px;
     background: rgba(139,92,246,0.2); color: #8b5cf6;
     margin-left: auto;
@@ -642,10 +1175,14 @@
 }
 .cs-ops-job-info { flex: 1; min-width: 0; }
 .cs-ops-job-desc {
-    font-size: 0.78rem; color: rgba(255,255,255,0.7);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.82rem; color: rgba(255,255,255,0.7);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.cs-ops-job-agent { font-size: 0.65rem; color: #8b5cf6; margin-top: 2px; }
+.cs-ops-job-agent {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.7rem; color: #8b5cf6; margin-top: 2px;
+}
 .cs-ops-job-bar {
     width: 80px; height: 4px; border-radius: 2px;
     background: rgba(255,255,255,0.08);
@@ -656,6 +1193,7 @@
     background: #10b981;
     transition: width 0.3s ease;
 }
+.cs-ops-job-count { font-family: 'Antonio', sans-serif; font-size: 0.65rem; color: #8b5cf6; flex-shrink: 0; letter-spacing: 0.05em; white-space: nowrap; }
 .cs-ops-job-pct { font-size: 0.65rem; color: rgba(255,255,255,0.5); flex-shrink: 0; width: 30px; text-align: right; }
 .cs-ops-commands {
     display: flex; gap: 8px; flex-wrap: wrap;
@@ -685,10 +1223,9 @@
 @media (max-width: 768px) {
     .cs-stats { grid-template-columns: 1fr 1fr; }
     .cs-agent-grid { grid-template-columns: 1fr 1fr; }
-    .cs-header { margin: 0 12px 16px; }
-    .cs-tabs { gap: 6px; }
-    .cs-tab { padding: 8px 12px; }
-    .cs-tab span { font-size: 0.75rem; }
+    .cs-header { margin: 0 0 6px; }
+    .cs-header-status { gap: 10px; }
+    .cs-header-title { font-size: 0.9rem; letter-spacing: 2px; padding: 0 12px; }
     .cs-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .cs-voice-grid { grid-template-columns: 1fr; }
     .cs-ops-commands { display: grid; grid-template-columns: 1fr 1fr; }
@@ -697,15 +1234,25 @@
 
 @media (max-width: 480px) {
     .cs-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
-    .cs-tabs { flex-wrap: nowrap; gap: 4px; }
     .cs-tab span { display: none; }
-    .cs-tab { padding: 8px 10px; }
+    .cs-tab { padding: 6px 8px; }
     .cs-agent-grid { grid-template-columns: 1fr 1fr; }
     .cs-card { padding: 12px; }
-    .cs-modal { width: 95%; max-height: 85vh; }
-    .cs-header-status { flex-wrap: wrap; gap: 6px; }
-    .cs-header { margin: 0 8px 8px; padding: 8px 12px; }
-    .cs-header-title { font-size: 0.85rem; letter-spacing: 1px; }
+    .cs-modal { width: 95%; max-height: 85vh; border-radius: 16px; }
+    .cs-modal-frame { width: 32px; }
+    .cs-modal-frame-elbow { height: 38px; border-radius: 14px 0 0 0; }
+    .cs-modal-frame-bottom { height: 26px; border-radius: 0 0 0 14px; }
+    .cs-modal-frame-seg { height: 20px; }
+    .cs-modal-header { min-height: 36px; }
+    .cs-modal-header-title { font-size: 0.75rem; padding: 0 10px; }
+    .cs-modal-header-stardate { display: none; }
+    .cs-modal-header-pip.w2 { display: none; }
+    .cs-modal-body { padding: 16px; }
+    .cs-header-status { display: none; }
+    .cs-header { margin: 0 0 4px; padding: 0 8px; }
+    .cs-header-elbow { width: 10px; }
+    .cs-header-title { font-size: 0.8rem; letter-spacing: 1.5px; padding: 0 10px; }
+    .cs-header-divider { width: 14px; }
     .cs-body { padding: 0 8px 16px; }
     .cs-ops-commands { grid-template-columns: 1fr; }
     .cs-ops-elbow { width: 24px; height: 20px; }
@@ -716,17 +1263,21 @@
     .cs-stats { grid-template-columns: repeat(4, 1fr); }
     .cs-agent-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* Consciousness page — purple accent override (admin-ops default is orange) */
+.admin-ops-nav { --cat-accent: #8b5cf6; --cat-accent-light: #6d28d9; }
 </style>
 
 <div class="cs-container" data-module="consciousness">
 
     <!-- LCARS Header -->
     <div class="cs-header">
+        <div class="cs-header-elbow"></div>
         <div class="cs-header-title">
             <i data-lucide="brain"></i>
             <span data-i18n="consciousness.title">CONSCIOUSNESS</span>
         </div>
-        <div class="cs-header-subtitle" data-i18n="consciousness.subtitle">A.R.C.H.I.E. Neural Core</div>
+        <div class="cs-header-divider"></div>
         <div class="cs-header-status">
             <div class="cs-status-item">
                 <span class="status-dot online"></span>
@@ -1100,14 +1651,7 @@
               </div>
             </div>
 
-            <!-- Template Audit Results (hidden until audit runs) -->
-            <div class="cs-card" id="langAuditCard" style="margin-bottom:20px; display:none;">
-              <div class="cs-card-header" style="display:flex; align-items:center; justify-content:space-between;">
-                <span><span data-i18n="consciousness.template_audit">Template Audit</span></span>
-                <span id="langAuditSummary" style="font-size:0.78rem; color:rgba(255,255,255,0.5);"></span>
-              </div>
-              <div class="cs-card-body" id="langAuditResults"></div>
-            </div>
+            <!-- Template Audit Results (inline card removed — now uses modal) -->
 
             <!-- Per-Language Coverage Grid -->
             <div class="cs-card" style="margin-bottom:20px;">
@@ -1163,30 +1707,7 @@
         <!-- GitHub Panel                                              -->
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-github">
-          <!-- Stats -->
-          <div class="cs-stats" style="margin-bottom:16px;">
-            <div class="cs-stat purple">
-              <div class="cs-stat-icon"><i data-lucide="git-branch"></i></div>
-              <div class="cs-stat-value" id="ghRepoCount">--</div>
-              <div class="cs-stat-label"><span data-i18n="consciousness.repositories">Repositories</span></div>
-            </div>
-            <div class="cs-stat blue">
-              <div class="cs-stat-icon"><i data-lucide="file-code"></i></div>
-              <div class="cs-stat-value" id="ghFileCount">--</div>
-              <div class="cs-stat-label"><span data-i18n="consciousness.files_indexed">Files Indexed</span></div>
-            </div>
-            <div class="cs-stat green">
-              <div class="cs-stat-icon"><i data-lucide="database"></i></div>
-              <div class="cs-stat-value" id="ghEmbedPct">--</div>
-              <div class="cs-stat-label"><span data-i18n="consciousness.embedded">Embedded</span></div>
-            </div>
-            <div class="cs-stat amber">
-              <div class="cs-stat-icon"><i data-lucide="search"></i></div>
-              <div class="cs-stat-value" id="ghSearchable">--</div>
-              <div class="cs-stat-label"><span data-i18n="consciousness.searchable">Searchable</span></div>
-            </div>
-          </div>
-          <!-- LCARS Operations Terminal -->
+          <!-- LCARS Operations Terminal (top) -->
           <div class="cs-ops-terminal" id="ghOpsTerminal">
             <div class="cs-ops-header">
               <div class="cs-ops-elbow"></div>
@@ -1196,31 +1717,56 @@
               </div>
             </div>
             <div class="cs-ops-body">
-              <!-- Agents section — populated by JS -->
               <div id="ghOpsAgents"></div>
-              <!-- Active jobs — populated by JS -->
               <div id="ghOpsJobs"></div>
-              <!-- Command buttons — populated by JS -->
               <div class="cs-ops-commands" id="ghOpsCommands"></div>
-              <!-- Action result feedback -->
               <div id="ghActionResult" style="margin-top:10px; font-size:0.82rem;"></div>
             </div>
           </div>
-
-          <div class="cs-subtabs">
-            <button class="cs-subtab active" onclick="switchGithubSubtab('repos')"><span data-i18n="consciousness.repos">Repos</span></button>
-            <button class="cs-subtab" onclick="switchGithubSubtab('search')"><span data-i18n="consciousness.search">Search</span></button>
-          </div>
-          <div class="cs-subpanel active" id="gh-repos">
-            <div id="ghRepoGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_repositories">Loading repositories...</span></div></div>
-          </div>
-          <div class="cs-subpanel" id="gh-search">
-            <div style="margin-bottom:16px;">
-              <input type="text" id="ghSearchInput" placeholder="Search indexed code..."
-                     style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;"
-                     onkeydown="if(event.key==='Enter')searchGithub()">
+          <!-- LCARS Readout Strips -->
+          <div class="cs-gh-readouts">
+            <div class="cs-gh-strip purple">
+              <div class="cs-gh-cap"></div>
+              <div class="cs-gh-strip-icon"><i data-lucide="git-branch"></i></div>
+              <div class="cs-gh-strip-label"><span data-i18n="consciousness.repositories">Repositories</span></div>
+              <div class="cs-gh-strip-line"></div>
+              <div class="cs-gh-strip-value" id="ghRepoCount">--</div>
             </div>
-            <div id="ghSearchResults"><div class="cs-empty"><span data-i18n="consciousness.enter_a_query_to_search_indexed_code">Enter a query to search indexed code</span></div></div>
+            <div class="cs-gh-strip blue">
+              <div class="cs-gh-cap"></div>
+              <div class="cs-gh-strip-icon"><i data-lucide="file-code"></i></div>
+              <div class="cs-gh-strip-label"><span data-i18n="consciousness.files_indexed">Files Indexed</span></div>
+              <div class="cs-gh-strip-line"></div>
+              <div class="cs-gh-strip-value" id="ghFileCount">--</div>
+            </div>
+            <div class="cs-gh-strip green">
+              <div class="cs-gh-cap"></div>
+              <div class="cs-gh-strip-icon"><i data-lucide="database"></i></div>
+              <div class="cs-gh-strip-label"><span data-i18n="consciousness.embedded">Embedded</span></div>
+              <div class="cs-gh-strip-line"></div>
+              <div class="cs-gh-strip-value" id="ghEmbedPct">--</div>
+            </div>
+            <div class="cs-gh-strip amber">
+              <div class="cs-gh-cap"></div>
+              <div class="cs-gh-strip-icon"><i data-lucide="search"></i></div>
+              <div class="cs-gh-strip-label"><span data-i18n="consciousness.searchable">Searchable</span></div>
+              <div class="cs-gh-strip-line"></div>
+              <div class="cs-gh-strip-value" id="ghSearchable">--</div>
+            </div>
+          </div>
+          <!-- Repo list with inline search -->
+          <div class="cs-gh-repo-section">
+            <div class="cs-gh-repo-bar">
+              <div class="cs-gh-repo-bar-cap"></div>
+              <div class="cs-gh-repo-bar-title"><span data-i18n="consciousness.repos">Repos</span></div>
+              <div class="cs-gh-repo-bar-search">
+                <i data-lucide="search" style="width:14px; height:14px; opacity:0.4;"></i>
+                <input type="text" id="ghSearchInput" placeholder="Search indexed code..."
+                       onkeydown="if(event.key==='Enter')searchGithub()">
+              </div>
+            </div>
+            <div id="ghRepoGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_repositories">Loading repositories...</span></div></div>
+            <div id="ghSearchResults" style="display:none;"></div>
           </div>
         </div>
 
@@ -1279,66 +1825,175 @@
     <!-- Agent Profile Modal -->
     <div class="cs-modal-overlay" id="agentModalOverlay">
         <div class="cs-modal">
-            <div class="cs-modal-header">
-                <span id="agentModalTitle" data-i18n="consciousness.team.agent_profile">Agent Profile</span>
-                <button class="cs-modal-close" onclick="closeAgentModal()"><span data-i18n="consciousness.times">&times;</span></button>
+            <div class="cs-modal-frame">
+                <div class="cs-modal-frame-elbow"></div>
+                <div class="cs-modal-frame-seg purple"></div>
+                <div class="cs-modal-frame-seg amber"></div>
+                <div class="cs-modal-frame-light on"></div>
+                <div class="cs-modal-frame-light amber"></div>
+                <div class="cs-modal-frame-seg cyan"></div>
+                <div class="cs-modal-frame-seg purple"></div>
+                <div class="cs-modal-frame-light cyan"></div>
+                <div class="cs-modal-frame-fill"></div>
+                <div class="cs-modal-frame-bottom"></div>
             </div>
-            <div class="cs-modal-body" id="agentModalBody"></div>
+            <div class="cs-modal-content">
+                <div class="cs-modal-header">
+                    <span class="cs-modal-header-title" id="agentModalTitle" data-i18n="consciousness.team.agent_profile">Agent Profile</span>
+                    <div class="cs-modal-header-strip">
+                        <span class="cs-modal-header-pip w1"></span>
+                        <span class="cs-modal-header-pip w2"></span>
+                        <span class="cs-modal-header-pip w3"></span>
+                        <span class="cs-modal-header-stardate"></span>
+                        <button class="cs-modal-close" onclick="closeAgentModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="cs-modal-body" id="agentModalBody"></div>
+                <div class="cs-modal-footer">
+                    <div class="cs-modal-footer-strip">
+                        <span class="cs-modal-footer-dot purple"></span>
+                        <span class="cs-modal-footer-dot amber"></span>
+                        <span class="cs-modal-footer-dot cyan"></span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Add Repository Modal -->
     <div class="cs-modal-overlay" id="addRepoOverlay">
-        <div class="cs-modal" style="max-width:500px;">
-            <div class="cs-modal-header">
-                <span><span data-i18n="consciousness.add_github_repository">Add GitHub Repository</span></span>
-                <button class="cs-modal-close" onclick="closeAddRepoModal()"><span data-i18n="consciousness.times_2">&times;</span></button>
+        <div class="cs-modal" style="max-width:520px;">
+            <div class="cs-modal-frame">
+                <div class="cs-modal-frame-elbow"></div>
+                <div class="cs-modal-frame-seg purple"></div>
+                <div class="cs-modal-frame-seg green"></div>
+                <div class="cs-modal-frame-light on"></div>
+                <div class="cs-modal-frame-light amber"></div>
+                <div class="cs-modal-frame-fill"></div>
+                <div class="cs-modal-frame-bottom"></div>
             </div>
-            <div class="cs-modal-body">
-                <p style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-bottom:16px;">
-                    Enter a GitHub repository URL to index its code and documentation into ARCHIE's knowledge base.
-                </p>
-                <div style="margin-bottom:12px;">
-                    <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;"><span data-i18n="consciousness.repository_url">Repository URL</span></label>
-                    <input type="text" id="addRepoUrl" placeholder="https://github.com/owner/repo"
-                           style="width:100%; padding:10px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.9rem; box-sizing:border-box;">
-                </div>
-                <div style="display:flex; gap:12px; margin-bottom:16px;">
-                    <div style="flex:1;">
-                        <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;"><span data-i18n="consciousness.type_optional">Type (optional)</span></label>
-                        <select id="addRepoType" style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.85rem;">
-                            <option value=""><span data-i18n="consciousness.auto_detect">Auto-detect</span></option>
-                            <option value="ai-agents"><span data-i18n="consciousness.ai_agents">AI Agents</span></option>
-                            <option value="claude-skills"><span data-i18n="consciousness.claude_skills">Claude Skills</span></option>
-                            <option value="ai-tools"><span data-i18n="consciousness.ai_tools">AI Tools</span></option>
-                            <option value="python"><span data-i18n="consciousness.python">Python</span></option>
-                            <option value="skills-library"><span data-i18n="consciousness.skills_library">Skills Library</span></option>
-                            <option value="reference"><span data-i18n="consciousness.reference">Reference</span></option>
-                        </select>
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;"><span data-i18n="consciousness.max_files">Max Files</span></label>
-                        <input type="number" id="addRepoMax" placeholder="2000" value="2000"
-                               style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.85rem; box-sizing:border-box;">
+            <div class="cs-modal-content">
+                <div class="cs-modal-header">
+                    <span class="cs-modal-header-title" data-i18n="consciousness.add_github_repository">Add Repository</span>
+                    <div class="cs-modal-header-strip">
+                        <span class="cs-modal-header-pip w1"></span>
+                        <span class="cs-modal-header-pip w3"></span>
+                        <span class="cs-modal-header-stardate"></span>
+                        <button class="cs-modal-close" onclick="closeAddRepoModal()">&times;</button>
                     </div>
                 </div>
-                <button class="btn-submit" onclick="addRepo()"
-                        style="width:100%; padding:10px; background:rgba(139,92,246,0.3); border:1px solid #8b5cf6; border-radius:6px; color:#8b5cf6; cursor:pointer; font-size:0.9rem; font-weight:600;">
-                    Index Repository
-                </button>
-                <div id="addRepoResult" style="margin-top:12px;"></div>
+                <div class="cs-modal-body">
+                    <p style="margin-bottom:16px;">
+                        Enter a GitHub repository URL to index its code and documentation into ARCHIE's knowledge base.
+                    </p>
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block; margin-bottom:4px;"><span data-i18n="consciousness.repository_url">Repository URL</span></label>
+                        <input type="text" id="addRepoUrl" placeholder="https://github.com/owner/repo"
+                               style="width:100%; padding:10px 12px; box-sizing:border-box;">
+                    </div>
+                    <div style="display:flex; gap:12px; margin-bottom:16px;">
+                        <div style="flex:1;">
+                            <label style="display:block; margin-bottom:4px;"><span data-i18n="consciousness.type_optional">Type (optional)</span></label>
+                            <select id="addRepoType" style="width:100%; padding:8px 12px;">
+                                <option value="">Auto-detect</option>
+                                <option value="ai-agents">AI Agents</option>
+                                <option value="claude-skills">Claude Skills</option>
+                                <option value="ai-tools">AI Tools</option>
+                                <option value="python">Python</option>
+                                <option value="skills-library">Skills Library</option>
+                                <option value="reference">Reference</option>
+                            </select>
+                        </div>
+                        <div style="flex:1;">
+                            <label style="display:block; margin-bottom:4px;"><span data-i18n="consciousness.max_files">Max Files</span></label>
+                            <input type="number" id="addRepoMax" placeholder="2000" value="2000"
+                                   style="width:100%; padding:8px 12px; box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <button class="btn-submit" onclick="addRepo()"
+                            style="width:100%; padding:10px; cursor:pointer;">
+                        Index Repository
+                    </button>
+                    <div id="addRepoResult" style="margin-top:12px;"></div>
+                </div>
+                <div class="cs-modal-footer">
+                    <div class="cs-modal-footer-strip">
+                        <span class="cs-modal-footer-dot purple"></span>
+                        <span class="cs-modal-footer-dot amber"></span>
+                        <span class="cs-modal-footer-dot cyan"></span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Verify Results Modal -->
     <div class="cs-modal-overlay" id="verifyOverlay">
-        <div class="cs-modal" style="max-width:600px;">
-            <div class="cs-modal-header">
-                <span><span data-i18n="consciousness.github_verification_report">GitHub Verification Report</span></span>
-                <button class="cs-modal-close" onclick="closeVerifyModal()"><span data-i18n="consciousness.times_3">&times;</span></button>
+        <div class="cs-modal" style="max-width:620px;">
+            <div class="cs-modal-frame">
+                <div class="cs-modal-frame-elbow"></div>
+                <div class="cs-modal-frame-seg cyan"></div>
+                <div class="cs-modal-frame-seg purple"></div>
+                <div class="cs-modal-frame-light on"></div>
+                <div class="cs-modal-frame-light cyan"></div>
+                <div class="cs-modal-frame-seg amber"></div>
+                <div class="cs-modal-frame-fill"></div>
+                <div class="cs-modal-frame-bottom"></div>
             </div>
-            <div class="cs-modal-body" id="verifyModalBody">
+            <div class="cs-modal-content">
+                <div class="cs-modal-header">
+                    <span class="cs-modal-header-title" data-i18n="consciousness.github_verification_report">Verification Report</span>
+                    <div class="cs-modal-header-strip">
+                        <span class="cs-modal-header-pip w2"></span>
+                        <span class="cs-modal-header-pip w1"></span>
+                        <span class="cs-modal-header-stardate"></span>
+                        <button class="cs-modal-close" onclick="closeVerifyModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="cs-modal-body" id="verifyModalBody"></div>
+                <div class="cs-modal-footer">
+                    <div class="cs-modal-footer-strip">
+                        <span class="cs-modal-footer-dot cyan"></span>
+                        <span class="cs-modal-footer-dot purple"></span>
+                        <span class="cs-modal-footer-dot amber"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Audit Modal -->
+    <div class="cs-modal-overlay" id="langAuditOverlay">
+        <div class="cs-modal" style="max-width:670px;">
+            <div class="cs-modal-frame">
+                <div class="cs-modal-frame-elbow"></div>
+                <div class="cs-modal-frame-seg amber"></div>
+                <div class="cs-modal-frame-seg purple"></div>
+                <div class="cs-modal-frame-light on"></div>
+                <div class="cs-modal-frame-light amber"></div>
+                <div class="cs-modal-frame-seg rose"></div>
+                <div class="cs-modal-frame-fill"></div>
+                <div class="cs-modal-frame-bottom"></div>
+            </div>
+            <div class="cs-modal-content">
+                <div class="cs-modal-header">
+                    <span class="cs-modal-header-title">Template Audit</span>
+                    <div class="cs-modal-header-strip">
+                        <span class="cs-modal-header-pip w1"></span>
+                        <span class="cs-modal-header-pip w2"></span>
+                        <span class="cs-modal-header-pip w3"></span>
+                        <span class="cs-modal-header-stardate"></span>
+                        <button class="cs-modal-close" onclick="closeLangAuditModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="cs-modal-body" id="langAuditModalBody"></div>
+                <div class="cs-modal-footer">
+                    <div class="cs-modal-footer-strip">
+                        <span class="cs-modal-footer-dot amber"></span>
+                        <span class="cs-modal-footer-dot purple"></span>
+                        <span class="cs-modal-footer-dot cyan"></span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -32,8 +32,7 @@
     </div>
 
     <div class="nav-right">
-        <!-- Theme Controls -->
-        <div class="theme-controls">
+        <div class="nav-utils">
             <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
                 <i data-lucide="sun" id="navThemeIconSun" style="display:none;"></i>
                 <i data-lucide="moon" id="navThemeIconMoon"></i>
@@ -53,260 +52,51 @@
                     <button class="nav-lang-option" data-lang="he">&#x05E2;&#x05D1;&#x05E8;&#x05D9;&#x05EA;</button>
                 </div>
             </div>
+            {% if current_user.is_authenticated and current_user.is_admin %}
+            <a href="{{ url_for('dev_hq.index') }}"
+               class="nav-icon-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
+               onclick="showTransition(event, this.href)"
+               title="Dev HQ">
+                <i data-lucide="compass"></i>
+            </a>
+            {% endif %}
         </div>
-        {% if current_user.is_authenticated and current_user.is_admin %}
-        <a href="{{ url_for('dev_hq.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Dev HQ">
-            <i data-lucide="compass"></i>
-        </a>
-        {% endif %}
-        <div class="nav-divider"></div>
-        <a href="{{ url_for('bridge.bridge_dashboard') }}"
-           class="nav-module-btn {% if request.endpoint and 'bridge' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Bridge Command">
-            <i data-lucide="monitor"></i>
-            <span>Bridge</span>
-        </a>
-        <!-- Team Management retired — absorbed into Bridge Command Crew tab -->
-        <a href="{{ url_for('consciousness.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'consciousness' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Consciousness">
-            <i data-lucide="brain"></i>
-            <span>Mind</span>
-        </a>
-        <a href="{{ url_for('pool_management.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'pool_management' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Pool Management">
-            <i data-lucide="sliders"></i>
-            <span>Pool</span>
-        </a>
-        <a href="{{ url_for('project_manager.dashboard') }}"
-           class="nav-module-btn {% if request.endpoint and 'project_manager' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Project Manager">
-            <i data-lucide="folder-kanban"></i>
-            <span>Projects</span>
-        </a>
+        <div class="nav-modules">
+            <a href="{{ url_for('bridge.bridge_dashboard') }}"
+               class="nav-module-btn {% if request.endpoint and 'bridge' in request.endpoint %}active{% endif %}"
+               onclick="showTransition(event, this.href)"
+               title="Bridge Command">
+                <i data-lucide="monitor"></i>
+                <span>Bridge</span>
+            </a>
+            <a href="{{ url_for('consciousness.index') }}"
+               class="nav-module-btn {% if request.endpoint and 'consciousness' in request.endpoint %}active{% endif %}"
+               onclick="showTransition(event, this.href)"
+               title="Consciousness">
+                <i data-lucide="brain"></i>
+                <span>Mind</span>
+            </a>
+            <a href="{{ url_for('pool_management.index') }}"
+               class="nav-module-btn {% if request.endpoint and 'pool_management' in request.endpoint %}active{% endif %}"
+               onclick="showTransition(event, this.href)"
+               title="Pool Management">
+                <i data-lucide="sliders"></i>
+                <span>Pool</span>
+            </a>
+            <a href="{{ url_for('project_manager.dashboard') }}"
+               class="nav-module-btn {% if request.endpoint and 'project_manager' in request.endpoint %}active{% endif %}"
+               onclick="showTransition(event, this.href)"
+               title="Project Manager">
+                <i data-lucide="folder-kanban"></i>
+                <span>Projects</span>
+            </a>
+        </div>
     </div>
 </nav>
 
 <style>
-/* ═══════════════════════════════════════════════════════════════════════════════
-   ADMIN OPERATIONS - ORANGE THEME OVERRIDES
-   Base styles come from category-nav.css
-   ═══════════════════════════════════════════════════════════════════════════════ */
-
-/* Page transition - orange theme */
-.admin-ops-transition .transition-logo {
-    color: #FFAA00;
-    text-shadow: 0 0 30px rgba(255, 170, 0, 0.5), 0 0 60px rgba(255, 170, 0, 0.3);
-}
-.admin-ops-transition .transition-bar {
-    background: rgba(255, 170, 0, 0.2);
-}
-.admin-ops-transition .transition-progress {
-    background: linear-gradient(90deg, #FFAA00, #FF8C00);
-}
-.admin-ops-transition .transition-text {
-    color: rgba(255, 170, 0, 0.7);
-}
-
-/* Nav bar - orange accents */
-.admin-ops-nav {
-    border-bottom: 1px solid rgba(255, 170, 0, 0.2);
-}
-.admin-ops-nav::after {
-    background: linear-gradient(90deg, transparent, rgba(255, 170, 0, 0.5), transparent);
-}
-
-.admin-ops-nav .nav-category-label {
-    color: #FFAA00;
-    text-shadow: 0 0 10px rgba(255, 170, 0, 0.3);
-}
-
-.admin-ops-nav .nav-module-btn {
-    border-color: rgba(255, 170, 0, 0.2);
-    color: rgba(255, 170, 0, 0.6);
-}
-.admin-ops-nav .nav-module-btn::before {
-    background: #FFAA00;
-}
-.admin-ops-nav .nav-module-btn:hover {
-    color: #FFAA00;
-    border-color: rgba(255, 170, 0, 0.4);
-    background: rgba(255, 170, 0, 0.05);
-}
-.admin-ops-nav .nav-module-btn.active {
-    color: #FFAA00;
-    border-color: rgba(255, 170, 0, 0.5);
-    background: rgba(255, 170, 0, 0.1);
-    box-shadow: 0 0 15px rgba(255, 170, 0, 0.15);
-}
-
-/* Theme/language icon buttons */
-.admin-ops-nav .theme-controls {
-    display: flex;
-    gap: 4px;
-}
-.admin-ops-nav .nav-icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: transparent;
-    border: 1px solid rgba(255, 170, 0, 0.2);
-    border-radius: 8px;
-    color: rgba(255, 170, 0, 0.6);
-    cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.admin-ops-nav .nav-icon-btn:hover {
-    color: #FFAA00;
-    border-color: rgba(255, 170, 0, 0.5);
-    background: rgba(255, 170, 0, 0.1);
-    box-shadow: 0 0 15px rgba(255, 170, 0, 0.15);
-}
-.admin-ops-nav .nav-icon-btn i {
-    width: 18px;
-    height: 18px;
-}
-
-.admin-ops-nav .nav-divider {
-    width: 1px;
-    height: 24px;
-    background: rgba(255, 170, 0, 0.2);
-    margin: 0 8px;
-}
-
-/* Language Dropdown */
-.nav-lang-menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    background: rgba(10, 10, 20, 0.95);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 170, 0, 0.2);
-    border-radius: 8px;
-    padding: 4px 0;
-    min-width: 140px;
-    z-index: 300;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-}
-.nav-lang-menu.hidden { display: none; }
-
-.nav-lang-option {
-    display: block;
-    width: 100%;
-    padding: 7px 14px;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.6);
-    border: none;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-}
-.nav-lang-option:hover {
-    background: rgba(255, 170, 0, 0.08);
-    color: #fff;
-}
-.nav-lang-option.active {
-    color: #FFAA00;
-    font-weight: 600;
-}
-
-/* ─── Light Mode ─── */
-body.light-mode .admin-ops-nav {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.9) 100%);
-    border-bottom: 1px solid rgba(204, 102, 0, 0.2);
-}
-body.light-mode .admin-ops-nav::after {
-    background: linear-gradient(90deg, transparent, rgba(204, 102, 0, 0.4), transparent);
-}
-body.light-mode .admin-ops-nav .nav-category-label {
-    color: #cc6600;
-    text-shadow: none;
-}
-body.light-mode .admin-ops-nav .nav-module-btn {
-    color: rgba(204, 102, 0, 0.7);
-    border-color: rgba(204, 102, 0, 0.2);
-}
-body.light-mode .admin-ops-nav .nav-module-btn:hover {
-    color: #cc6600;
-    border-color: rgba(204, 102, 0, 0.4);
-    background: rgba(204, 102, 0, 0.05);
-}
-body.light-mode .admin-ops-nav .nav-module-btn::before {
-    background: #cc6600;
-}
-body.light-mode .admin-ops-nav .nav-module-btn.active {
-    color: #cc6600;
-    border-color: rgba(204, 102, 0, 0.5);
-    background: rgba(204, 102, 0, 0.08);
-    box-shadow: 0 0 15px rgba(204, 102, 0, 0.1);
-}
-body.light-mode .admin-ops-nav .nav-icon-btn {
-    color: rgba(204, 102, 0, 0.6);
-    border-color: rgba(204, 102, 0, 0.2);
-}
-body.light-mode .admin-ops-nav .nav-icon-btn:hover {
-    color: #cc6600;
-    border-color: rgba(204, 102, 0, 0.5);
-    background: rgba(204, 102, 0, 0.08);
-    box-shadow: 0 0 15px rgba(204, 102, 0, 0.1);
-}
-body.light-mode .admin-ops-nav .nav-divider {
-    background: rgba(204, 102, 0, 0.2);
-}
-body.light-mode .nav-lang-menu {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(204, 102, 0, 0.2);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-body.light-mode .nav-lang-option {
-    color: rgba(0, 0, 0, 0.5);
-}
-body.light-mode .nav-lang-option:hover {
-    background: rgba(204, 102, 0, 0.06);
-    color: #333;
-}
-body.light-mode .nav-lang-option.active {
-    color: #cc6600;
-}
-body.light-mode .admin-ops-transition {
-    background: #f8f9fa;
-}
-body.light-mode .admin-ops-transition .transition-logo {
-    color: #cc6600;
-    text-shadow: 0 0 20px rgba(204, 102, 0, 0.3);
-}
-body.light-mode .admin-ops-transition .transition-bar {
-    background: rgba(204, 102, 0, 0.1);
-}
-body.light-mode .admin-ops-transition .transition-progress {
-    background: linear-gradient(90deg, #cc6600, #ff8c00);
-}
-body.light-mode .admin-ops-transition .transition-text {
-    color: rgba(204, 102, 0, 0.7);
-}
-
-/* ─── Back button (green, inherits from category-nav.css) ─── */
-body.light-mode .admin-ops-nav .nav-back-btn {
-    color: #00aa33;
-    border-color: rgba(0, 170, 51, 0.3);
-}
-body.light-mode .admin-ops-nav .nav-back-btn:hover {
-    background: rgba(0, 170, 51, 0.08);
-    border-color: rgba(0, 170, 51, 0.5);
-    box-shadow: 0 0 15px rgba(0, 170, 51, 0.15);
-}
+/* Admin Operations — Orange accent */
+.admin-ops-nav { --cat-accent: #FFAA00; --cat-accent-light: #cc6600; }
 </style>
 
 <script>

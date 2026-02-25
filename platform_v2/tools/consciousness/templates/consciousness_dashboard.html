@@ -656,12 +656,24 @@
     color: rgba(255,255,255,0.7);
     background: rgba(139,92,246,0.12);
 }
+.cs-tab::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 20%; right: 20%;
+    height: 2px;
+    background: transparent;
+    border-radius: 1px;
+    transition: background 0.2s, box-shadow 0.2s;
+}
 .cs-tab.active {
     color: #fff;
     background: #8b5cf6;
-    box-shadow: 0 0 12px rgba(139,92,246,0.3);
+    box-shadow: 0 0 12px rgba(139,92,246,0.2);
 }
-.cs-tab.active::after { display: none; }
+.cs-tab.active::after {
+    background: #8b5cf6;
+    box-shadow: 0 0 8px rgba(139,92,246,0.4);
+}
 
 /* --- Tab Panels --- */
 .cs-panel { display: none; animation: fadeIn 0.3s ease-out; }

@@ -2317,67 +2317,103 @@
         <!-- GitHub Panel                                              -->
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-github">
-          <!-- LCARS Operations Terminal (top) -->
-          <div class="cs-ops-terminal" id="ghOpsTerminal">
-            <div class="cs-ops-header">
-              <div class="cs-ops-elbow"></div>
-              <div class="cs-ops-title"><span data-i18n="consciousness.github_operations">GITHUB OPERATIONS</span></div>
-              <div class="cs-ops-status" id="ghOpsOnline">
-                <span class="cs-ops-dot"></span> ONLINE
-              </div>
+
+            <!-- Zone 1: Knowledge Intake Port -->
+            <div class="gh-intake">
+                <div class="gh-intake-title">Knowledge Intake</div>
+                <div class="gh-intake-row">
+                    <input type="text" class="gh-intake-input" id="ghIntakeUrl"
+                           placeholder="https://github.com/owner/repo"
+                           onkeydown="if(event.key==='Enter')ingestRepo()">
+                    <button class="gh-intake-btn" id="ghIntakeBtn" onclick="ingestRepo()">Ingest</button>
+                </div>
+                <button class="gh-intake-toggle" onclick="toggleIntakeOptions()">Options</button>
+                <div class="gh-intake-options" id="ghIntakeOptions">
+                    <div>
+                        <label style="display:block; margin-bottom:4px; font-size:0.72rem; color:rgba(255,255,255,0.4);">Type</label>
+                        <select id="ghIntakeType" style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.82rem;">
+                            <option value="">Auto-detect</option>
+                            <option value="ai-agents">AI Agents</option>
+                            <option value="claude-skills">Claude Skills</option>
+                            <option value="ai-tools">AI Tools</option>
+                            <option value="python">Python</option>
+                            <option value="skills-library">Skills Library</option>
+                            <option value="reference">Reference</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; margin-bottom:4px; font-size:0.72rem; color:rgba(255,255,255,0.4);">Max Files</label>
+                        <input type="number" id="ghIntakeMax" value="2000"
+                               style="width:80px; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.82rem;">
+                    </div>
+                </div>
+                <div class="gh-intake-progress" id="ghIntakeProgress">
+                    <div class="gh-intake-progress-bar">
+                        <div class="gh-intake-progress-fill" id="ghIntakeFill" style="width:0%"></div>
+                    </div>
+                    <span style="font-size:0.72rem; color:rgba(255,255,255,0.4);" id="ghIntakeStatus">Indexing...</span>
+                </div>
+                <div id="ghIntakeResult" style="padding-left:12px; margin-top:8px;"></div>
             </div>
-            <div class="cs-ops-body">
-              <div id="ghOpsAgents"></div>
-              <div id="ghOpsJobs"></div>
-              <div class="cs-ops-commands" id="ghOpsCommands"></div>
-              <div id="ghActionResult" style="margin-top:10px; font-size:0.82rem;"></div>
+
+            <!-- LCARS Readout Strips (retained) -->
+            <div class="cs-gh-readouts">
+                <div class="cs-gh-strip purple">
+                    <div class="cs-gh-cap"></div>
+                    <div class="cs-gh-strip-icon"><i data-lucide="git-branch"></i></div>
+                    <div class="cs-gh-strip-label">Repositories</div>
+                    <div class="cs-gh-strip-line"></div>
+                    <div class="cs-gh-strip-value" id="ghRepoCount">--</div>
+                </div>
+                <div class="cs-gh-strip blue">
+                    <div class="cs-gh-cap"></div>
+                    <div class="cs-gh-strip-icon"><i data-lucide="file-code"></i></div>
+                    <div class="cs-gh-strip-label">Files Indexed</div>
+                    <div class="cs-gh-strip-line"></div>
+                    <div class="cs-gh-strip-value" id="ghFileCount">--</div>
+                </div>
+                <div class="cs-gh-strip green">
+                    <div class="cs-gh-cap"></div>
+                    <div class="cs-gh-strip-icon"><i data-lucide="database"></i></div>
+                    <div class="cs-gh-strip-label">Embedded</div>
+                    <div class="cs-gh-strip-line"></div>
+                    <div class="cs-gh-strip-value" id="ghEmbedPct">--</div>
+                </div>
+                <div class="cs-gh-strip amber">
+                    <div class="cs-gh-cap"></div>
+                    <div class="cs-gh-strip-icon"><i data-lucide="search"></i></div>
+                    <div class="cs-gh-strip-label">Searchable</div>
+                    <div class="cs-gh-strip-line"></div>
+                    <div class="cs-gh-strip-value" id="ghSearchable">--</div>
+                </div>
             </div>
-          </div>
-          <!-- LCARS Readout Strips -->
-          <div class="cs-gh-readouts">
-            <div class="cs-gh-strip purple">
-              <div class="cs-gh-cap"></div>
-              <div class="cs-gh-strip-icon"><i data-lucide="git-branch"></i></div>
-              <div class="cs-gh-strip-label"><span data-i18n="consciousness.repositories">Repositories</span></div>
-              <div class="cs-gh-strip-line"></div>
-              <div class="cs-gh-strip-value" id="ghRepoCount">--</div>
+
+            <!-- Zone 2: Repository Intelligence Cards -->
+            <div class="gh-cards-header">
+                <div class="gh-cards-header-cap"></div>
+                <div class="gh-cards-header-title">Indexed Repositories</div>
+                <div style="flex:1;"></div>
+                <div style="display:flex; gap:6px;">
+                    <button class="cs-ops-cmd amber" onclick="reindexAllRepos()" id="btnReindexAll" style="font-size:0.65rem; padding:4px 10px;">Reindex All</button>
+                    <button class="cs-ops-cmd green" onclick="embedGitHubFiles()" id="btnEmbedGH" style="font-size:0.65rem; padding:4px 10px;">Embed Files</button>
+                    <button class="cs-ops-cmd cyan" onclick="verifyGitHubData()" style="font-size:0.65rem; padding:4px 10px;">Verify</button>
+                </div>
             </div>
-            <div class="cs-gh-strip blue">
-              <div class="cs-gh-cap"></div>
-              <div class="cs-gh-strip-icon"><i data-lucide="file-code"></i></div>
-              <div class="cs-gh-strip-label"><span data-i18n="consciousness.files_indexed">Files Indexed</span></div>
-              <div class="cs-gh-strip-line"></div>
-              <div class="cs-gh-strip-value" id="ghFileCount">--</div>
+            <div class="gh-cards-grid" id="ghRepoGrid">
+                <div class="cs-loading">Loading repositories...</div>
             </div>
-            <div class="cs-gh-strip green">
-              <div class="cs-gh-cap"></div>
-              <div class="cs-gh-strip-icon"><i data-lucide="database"></i></div>
-              <div class="cs-gh-strip-label"><span data-i18n="consciousness.embedded">Embedded</span></div>
-              <div class="cs-gh-strip-line"></div>
-              <div class="cs-gh-strip-value" id="ghEmbedPct">--</div>
+
+            <!-- Active jobs display -->
+            <div id="ghOpsJobs" style="margin-bottom:16px;"></div>
+
+            <!-- Zone 3: Discovery Console -->
+            <div class="gh-discovery">
+                <div class="gh-discovery-title">Discovery</div>
+                <input type="text" class="gh-discovery-input" id="ghDiscoveryInput"
+                       placeholder="Search ARCHIE's indexed knowledge..."
+                       onkeydown="if(event.key==='Enter')searchGithubSemantic()">
+                <div class="gh-discovery-results" id="ghDiscoveryResults"></div>
             </div>
-            <div class="cs-gh-strip amber">
-              <div class="cs-gh-cap"></div>
-              <div class="cs-gh-strip-icon"><i data-lucide="search"></i></div>
-              <div class="cs-gh-strip-label"><span data-i18n="consciousness.searchable">Searchable</span></div>
-              <div class="cs-gh-strip-line"></div>
-              <div class="cs-gh-strip-value" id="ghSearchable">--</div>
-            </div>
-          </div>
-          <!-- Repo list with inline search -->
-          <div class="cs-gh-repo-section">
-            <div class="cs-gh-repo-bar">
-              <div class="cs-gh-repo-bar-cap"></div>
-              <div class="cs-gh-repo-bar-title"><span data-i18n="consciousness.repos">Repos</span></div>
-              <div class="cs-gh-repo-bar-search">
-                <i data-lucide="search" style="width:14px; height:14px; opacity:0.4;"></i>
-                <input type="text" id="ghSearchInput" placeholder="Search indexed code..."
-                       onkeydown="if(event.key==='Enter')searchGithub()">
-              </div>
-            </div>
-            <div id="ghRepoGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_repositories">Loading repositories...</span></div></div>
-            <div id="ghSearchResults" style="display:none;"></div>
-          </div>
         </div>
 
         <!-- ════════════════════════════════════════════════════════ -->
@@ -2459,73 +2495,6 @@
                     </div>
                 </div>
                 <div class="cs-modal-body" id="agentModalBody"></div>
-                <div class="cs-modal-footer">
-                    <div class="cs-modal-footer-strip">
-                        <span class="cs-modal-footer-dot purple"></span>
-                        <span class="cs-modal-footer-dot amber"></span>
-                        <span class="cs-modal-footer-dot cyan"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add Repository Modal -->
-    <div class="cs-modal-overlay" id="addRepoOverlay">
-        <div class="cs-modal" style="max-width:520px;">
-            <div class="cs-modal-frame">
-                <div class="cs-modal-frame-elbow"></div>
-                <div class="cs-modal-frame-seg purple"></div>
-                <div class="cs-modal-frame-seg green"></div>
-                <div class="cs-modal-frame-light on"></div>
-                <div class="cs-modal-frame-light amber"></div>
-                <div class="cs-modal-frame-fill"></div>
-                <div class="cs-modal-frame-bottom"></div>
-            </div>
-            <div class="cs-modal-content">
-                <div class="cs-modal-header">
-                    <span class="cs-modal-header-title" data-i18n="consciousness.add_github_repository">Add Repository</span>
-                    <div class="cs-modal-header-strip">
-                        <span class="cs-modal-header-pip w1"></span>
-                        <span class="cs-modal-header-pip w3"></span>
-                        <span class="cs-modal-header-stardate"></span>
-                        <button class="cs-modal-close" onclick="closeAddRepoModal()">&times;</button>
-                    </div>
-                </div>
-                <div class="cs-modal-body">
-                    <p style="margin-bottom:16px;">
-                        Enter a GitHub repository URL to index its code and documentation into ARCHIE's knowledge base.
-                    </p>
-                    <div style="margin-bottom:12px;">
-                        <label style="display:block; margin-bottom:4px;"><span data-i18n="consciousness.repository_url">Repository URL</span></label>
-                        <input type="text" id="addRepoUrl" placeholder="https://github.com/owner/repo"
-                               style="width:100%; padding:10px 12px; box-sizing:border-box;">
-                    </div>
-                    <div style="display:flex; gap:12px; margin-bottom:16px;">
-                        <div style="flex:1;">
-                            <label style="display:block; margin-bottom:4px;"><span data-i18n="consciousness.type_optional">Type (optional)</span></label>
-                            <select id="addRepoType" style="width:100%; padding:8px 12px;">
-                                <option value="">Auto-detect</option>
-                                <option value="ai-agents">AI Agents</option>
-                                <option value="claude-skills">Claude Skills</option>
-                                <option value="ai-tools">AI Tools</option>
-                                <option value="python">Python</option>
-                                <option value="skills-library">Skills Library</option>
-                                <option value="reference">Reference</option>
-                            </select>
-                        </div>
-                        <div style="flex:1;">
-                            <label style="display:block; margin-bottom:4px;"><span data-i18n="consciousness.max_files">Max Files</span></label>
-                            <input type="number" id="addRepoMax" placeholder="2000" value="2000"
-                                   style="width:100%; padding:8px 12px; box-sizing:border-box;">
-                        </div>
-                    </div>
-                    <button class="btn-submit" onclick="addRepo()"
-                            style="width:100%; padding:10px; cursor:pointer;">
-                        Index Repository
-                    </button>
-                    <div id="addRepoResult" style="margin-top:12px;"></div>
-                </div>
                 <div class="cs-modal-footer">
                     <div class="cs-modal-footer-strip">
                         <span class="cs-modal-footer-dot purple"></span>

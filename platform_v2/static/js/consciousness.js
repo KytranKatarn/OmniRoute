@@ -1252,7 +1252,7 @@ window.langScanKeys = function() {
   if (btn) btn.disabled = true;
   if (status) { status.style.display = "block"; setHtml("langScanStatus", "Scanning templates, modules, JS..."); }
 
-  api("/api/translations/scan-and-seed", "POST").then(function(data) {
+  api("/api/translations/scan-and-seed", { method: "POST" }).then(function(data) {
     var msg = "Scanned " + (data.total || 0) + " keys \u2014 " + (data.seeded || 0) + " new, " + (data.skipped || 0) + " existing.";
     if (status) setHtml("langScanStatus", msg);
     if (btn) btn.disabled = false;
@@ -1272,7 +1272,7 @@ window.langGenerateOne = function(langCode) {
   if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
   _showLangJob("Generating translations for " + langCode.toUpperCase() + "...");
 
-  api("/api/translations/generate", "POST", { language: langCode }).then(function(data) {
+  api("/api/translations/generate", { method: "POST", body: { language: langCode } }).then(function(data) {
     var stats = data.stats || {};
     var msg = langCode.toUpperCase() + ": " + (stats.inserted || 0) + " inserted, " +
               (stats.updated || 0) + " updated, " + (stats.failed || 0) + " failed";
@@ -1313,7 +1313,7 @@ function _langGenNext() {
   var cardBtn = document.getElementById("langGenBtn-" + code);
   if (cardBtn) { cardBtn.disabled = true; cardBtn.textContent = "..."; }
 
-  api("/api/translations/generate", "POST", { language: code }).then(function(data) {
+  api("/api/translations/generate", { method: "POST", body: { language: code } }).then(function(data) {
     var stats = data.stats || {};
     if (cardBtn) { cardBtn.textContent = (stats.inserted || 0) + " done"; cardBtn.style.color = "#4ade80"; }
     _langGenNext();
@@ -1336,7 +1336,7 @@ window.langAuditTemplates = function() {
   if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
   _showLangJob("Auditing templates for hardcoded text...");
 
-  api("/api/translations/audit-templates", "POST").then(function(data) {
+  api("/api/translations/audit-templates", { method: "POST" }).then(function(data) {
     var card = document.getElementById("langAuditCard");
     var summary = document.getElementById("langAuditSummary");
     var body = document.getElementById("langAuditResults");
@@ -1378,7 +1378,7 @@ window.langFullPass = function() {
 
   // Step 1: Audit templates
   _showLangJob("Full i18n Pass — Step 1/3: Auditing templates...");
-  api("/api/translations/audit-templates", "POST").then(function(auditData) {
+  api("/api/translations/audit-templates", { method: "POST" }).then(function(auditData) {
     // Show audit results
     var card = document.getElementById("langAuditCard");
     var summary = document.getElementById("langAuditSummary");
@@ -1400,7 +1400,7 @@ window.langFullPass = function() {
 
     // Step 2: Scan and seed new keys
     _showLangJob("Full i18n Pass — Step 2/3: Scanning for new keys...");
-    return api("/api/translations/scan-and-seed", "POST");
+    return api("/api/translations/scan-and-seed", { method: "POST" });
   }).then(function(scanData) {
     var stats = scanData.stats || scanData;
     _showLangJob("Full i18n Pass — Step 2/3 done: " + (stats.new_keys || 0) + " new keys seeded. Starting translations...");
@@ -1424,7 +1424,7 @@ window.langFullPass = function() {
       var cardBtn = document.getElementById("langGenBtn-" + code);
       if (cardBtn) { cardBtn.disabled = true; cardBtn.textContent = "..."; }
 
-      api("/api/translations/generate", "POST", { language: code }).then(function(data) {
+      api("/api/translations/generate", { method: "POST", body: { language: code } }).then(function(data) {
         var s = data.stats || {};
         if (cardBtn) { cardBtn.textContent = (s.inserted || 0) + " done"; cardBtn.style.color = "#4ade80"; }
         genNext();

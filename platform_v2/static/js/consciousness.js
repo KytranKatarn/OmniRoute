@@ -458,51 +458,115 @@ window.switchKnowledgeSubtab = function(sub) {
   if (sub === "embeddings") loadEmbeddingStatus();
 };
 
+var _kbPage = 1;
+var _kbPageSize = 25;
+var _kbEntries = [];
+
 function loadKnowledge() {
   loadKnowledgeBrowser();
+  _loadTypeSummary();
+}
+
+function _loadTypeSummary() {
+  api("/knowledge/categories").then(function(data) {
+    var cats = data.categories || [];
+    var typeMap = {};
+    cats.forEach(function(c) {
+      var name = (c.category || c.name || "").toLowerCase();
+      if (name === "github") typeMap.github = (typeMap.github || 0) + (c.count || 0);
+      else if (name === "conversation") typeMap.convo = (typeMap.convo || 0) + (c.count || 0);
+      else if (name.indexOf("api") === 0) typeMap.api = (typeMap.api || 0) + (c.count || 0);
+      else if (name === "code_scan") typeMap.code = (typeMap.code || 0) + (c.count || 0);
+    });
+    var el = document.getElementById("kbTypeSummary");
+    if (!el) return;
+    var html = '<span class="cs-type-chip github"><span class="chip-count">' + (typeMap.github || 0).toLocaleString() + '</span> GitHub</span>' +
+      '<span class="cs-type-chip convo"><span class="chip-count">' + (typeMap.convo || 0).toLocaleString() + '</span> Conversations</span>' +
+      '<span class="cs-type-chip api"><span class="chip-count">' + (typeMap.api || 0).toLocaleString() + '</span> API</span>' +
+      '<span class="cs-type-chip code"><span class="chip-count">' + (typeMap.code || 0).toLocaleString() + '</span> Code</span>';
+    setHtml(el, html);
+  }).catch(function() {});
 }
 
 function loadKnowledgeBrowser() {
   var search = document.getElementById("kbSearch");
   var typeFilter = document.getElementById("kbFilterType");
-  var params = "?limit=50";
+  var params = "?limit=200";
   if (typeFilter && typeFilter.value) params += "&type=" + encodeURIComponent(typeFilter.value);
   if (search && search.value) params += "&search=" + encodeURIComponent(search.value);
 
   api("/knowledge/list" + params).then(function(data) {
-    var entries = data.entries || data.knowledge || [];
-    var el = document.getElementById("kbBrowserTable");
-    if (!entries.length) {
-      setHtml(el, '<div class="cs-empty">No entries found</div>');
-      return;
-    }
-    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr>' +
-      '<th>Title</th><th>Type</th><th>Category</th><th class="center">Embedded</th><th>Created</th>' +
-      '</tr></thead><tbody>';
-    entries.forEach(function(e) {
-      html += '<tr>' +
-        '<td>' + escHtml(e.title || e.file_name || "Untitled") + '</td>' +
-        '<td><span class="cs-badge">' + escHtml(e.knowledge_type || e.type || "\u2014") + '</span></td>' +
-        '<td>' + escHtml(e.category || "\u2014") + '</td>' +
-        '<td class="center">' + (e.has_embedding ? '\u2713' : '\u2014') + '</td>' +
-        '<td>' + formatAge(e.created_at) + '</td>' +
-        '</tr>';
-    });
-    html += '</tbody></table></div>';
-    setHtml(el, html);
+    _kbEntries = data.entries || data.knowledge || [];
+    _kbPage = 1;
+    _renderKbPage();
   }).catch(function(err) {
     console.error("loadKnowledgeBrowser error:", err);
     setHtml("kbBrowserTable", '<div class="cs-empty">Error loading knowledge</div>');
   });
 }
 
+function _renderKbPage() {
+  var el = document.getElementById("kbBrowserTable");
+  if (!_kbEntries.length) {
+    setHtml(el, '<div class="cs-empty">No entries found</div>');
+    setHtml("kbPagination", "");
+    return;
+  }
+  var total = _kbEntries.length;
+  var pages = Math.ceil(total / _kbPageSize);
+  var start = (_kbPage - 1) * _kbPageSize;
+  var slice = _kbEntries.slice(start, start + _kbPageSize);
+
+  var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr>' +
+    '<th>Title</th><th>Type</th><th>Category</th><th class="center">Embedded</th><th>Created</th>' +
+    '</tr></thead><tbody>';
+  slice.forEach(function(e) {
+    var typeClass = "";
+    var kt = (e.knowledge_type || e.type || "").toLowerCase();
+    if (kt.indexOf("github") >= 0) typeClass = "green";
+    else if (kt.indexOf("conversation") >= 0) typeClass = "blue";
+    else if (kt.indexOf("vault") >= 0) typeClass = "purple";
+    else if (kt.indexOf("code") >= 0 || kt.indexOf("api") >= 0) typeClass = "amber";
+    html += '<tr>' +
+      '<td style="max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escHtml(e.title || e.file_name || "Untitled") + '</td>' +
+      '<td><span class="cs-badge ' + typeClass + '">' + escHtml(e.knowledge_type || e.type || "\u2014") + '</span></td>' +
+      '<td style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + escHtml(e.category || "\u2014") + '</td>' +
+      '<td class="center">' + (e.has_embedding ? '<span style="color:#22c55e;">\u2713</span>' : '<span style="color:rgba(255,255,255,0.15);">\u2014</span>') + '</td>' +
+      '<td style="font-size:0.75rem; white-space:nowrap;">' + formatAge(e.created_at) + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table></div>';
+  setHtml(el, html);
+
+  /* Pagination */
+  var pHtml = '';
+  if (pages > 1) {
+    pHtml += '<button class="cs-page-btn" onclick="_kbPage=1;_renderKbPage()" ' + (_kbPage <= 1 ? 'disabled' : '') + '>&laquo;</button>';
+    pHtml += '<button class="cs-page-btn" onclick="_kbPage--;_renderKbPage()" ' + (_kbPage <= 1 ? 'disabled' : '') + '>&lsaquo;</button>';
+    pHtml += '<span class="cs-page-info">' + start + '\u2013' + Math.min(start + _kbPageSize, total) + ' of ' + total + '</span>';
+    pHtml += '<button class="cs-page-btn" onclick="_kbPage++;_renderKbPage()" ' + (_kbPage >= pages ? 'disabled' : '') + '>&rsaquo;</button>';
+    pHtml += '<button class="cs-page-btn" onclick="_kbPage=' + pages + ';_renderKbPage()" ' + (_kbPage >= pages ? 'disabled' : '') + '>&raquo;</button>';
+  }
+  setHtml("kbPagination", pHtml);
+}
+
 function loadProcessingStatus() {
-  api("/processing/status").then(function(data) {
-    if (data.queue_size !== undefined) setHtml("procQueueCount", data.queue_size);
-    if (data.processed !== undefined) setHtml("procCompleted", data.processed);
+  api("/api/processing/status").then(function(data) {
+    /* Backend returns { backlog: { total, ... }, services: { ... } } */
+    var queue = (data.backlog && data.backlog.total !== undefined) ? data.backlog.total : (data.queue_size !== undefined ? data.queue_size : "--");
+    var processed = data.processed !== undefined ? data.processed : "--";
+    setHtml("procQueueCount", queue);
+    setHtml("procCompleted", processed);
     var html = '<div class="cs-card"><div class="cs-card-header">Processing Status</div><div class="cs-card-body">';
-    html += '<p style="color:rgba(255,255,255,0.7); font-size:0.85rem;">Status: ' + escHtml(data.status || "idle") + '</p>';
-    if (data.last_run) html += '<p style="color:rgba(255,255,255,0.5); font-size:0.82rem;">Last run: ' + formatAge(data.last_run) + '</p>';
+    /* Service health indicators */
+    var svc = data.services || {};
+    var embedOk = svc.embedding && svc.embedding.healthy;
+    var analyzerOk = svc.analyzer && svc.analyzer.healthy;
+    html += '<div style="display:flex; gap:16px; margin-bottom:8px;">';
+    html += '<span style="font-size:0.78rem; color:rgba(255,255,255,0.6);"><span style="color:' + (embedOk ? '#22c55e' : '#ef4444') + ';">\u25cf</span> Embedding Service</span>';
+    html += '<span style="font-size:0.78rem; color:rgba(255,255,255,0.6);"><span style="color:' + (analyzerOk ? '#22c55e' : '#ef4444') + ';">\u25cf</span> Analyzer</span>';
+    html += '</div>';
+    if (data.cost) html += '<p style="color:rgba(255,255,255,0.5); font-size:0.78rem;">Daily cost: $' + (data.cost.daily_cost || 0).toFixed(2) + '</p>';
     html += '</div></div>';
     setHtml("procStatus", html);
   }).catch(function() {
@@ -517,11 +581,18 @@ function loadCategories() {
       setHtml("categoryGrid", '<div class="cs-empty">No categories found</div>');
       return;
     }
-    var html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">';
+    /* Sort by count descending */
+    cats.sort(function(a, b) { return (b.count || 0) - (a.count || 0); });
+    var maxCount = cats[0].count || 1;
+    var html = '<div class="cs-cat-grid">';
     cats.forEach(function(c) {
-      html += '<div class="cs-card" style="padding:12px;">' +
-        '<div style="font-weight:600; color:#fff; font-size:0.85rem;">' + escHtml(c.category || c.name || "Uncategorized") + '</div>' +
-        '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4);">' + (c.count || 0) + ' entries</div>' +
+      var cnt = c.count || 0;
+      var tier = cnt >= 1000 ? "tier-1" : cnt >= 100 ? "tier-2" : cnt >= 10 ? "tier-3" : "tier-4";
+      var barW = Math.max(5, Math.round(cnt / maxCount * 100));
+      html += '<div class="cs-cat-card ' + tier + '" onclick="document.getElementById(\'kbFilterType\').value=\'\'; document.getElementById(\'kbSearch\').value=' + "'" + escHtml(c.category || c.name || "") + "'" + '; _cache.knowledge=false; switchKnowledgeSubtab(\'browser\'); loadKnowledgeBrowser();">' +
+        '<div class="cat-name">' + escHtml(c.category || c.name || "Uncategorized") + '</div>' +
+        '<div class="cat-count">' + cnt.toLocaleString() + ' entries</div>' +
+        '<div class="cat-bar" style="width:' + barW + '%;"></div>' +
         '</div>';
     });
     html += '</div>';
@@ -532,12 +603,35 @@ function loadCategories() {
 }
 
 function loadEmbeddingStatus() {
-  api("/processing/embedding-coverage").then(function(data) {
-    if (data.coverage_pct !== undefined) setHtml("embedCoverage", data.coverage_pct + "%");
-    if (data.total !== undefined) setHtml("embedTotal", data.total);
+  api("/api/processing/embedding-coverage").then(function(data) {
+    /* Backend returns { totals: { total, embedded, analyzed }, types: [...] } */
+    var totals = data.totals || {};
+    var total = totals.total || data.total || 0;
+    var embedded = totals.embedded || data.embedded || 0;
+    var pct = total > 0 ? Math.round(embedded / total * 100) : 0;
+    setHtml("embedCoverage", pct + "%");
+    setHtml("embedTotal", total.toLocaleString());
     var html = '<div class="cs-card"><div class="cs-card-header">Embedding Details</div><div class="cs-card-body">';
-    html += '<p style="color:rgba(255,255,255,0.7); font-size:0.85rem;">Embedded: ' + (data.embedded || 0) + ' / ' + (data.total || 0) + '</p>';
-    html += '<p style="color:rgba(255,255,255,0.5); font-size:0.82rem;">Model: arctic-embed-cpu (768-dim)</p>';
+    html += '<div style="display:flex; justify-content:space-between; margin-bottom:6px;">';
+    html += '<span style="color:rgba(255,255,255,0.6); font-size:0.82rem;">' + embedded.toLocaleString() + ' / ' + total.toLocaleString() + ' embedded</span>';
+    html += '<span style="color:#22c55e; font-family:Orbitron,sans-serif; font-size:0.78rem; font-weight:700;">' + pct + '%</span>';
+    html += '</div>';
+    html += '<div class="cs-embed-bar-wrap"><div class="cs-embed-bar" style="width:' + pct + '%;"></div></div>';
+    html += '<p style="color:rgba(255,255,255,0.4); font-size:0.75rem; margin-top:8px;">Model: arctic-embed-cpu (768-dim)</p>';
+    /* Breakdown by source type */
+    var types = data.types || [];
+    if (types.length) {
+      html += '<div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.06); padding-top:10px;">';
+      html += '<div style="font-family:Antonio,sans-serif; font-size:0.7rem; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">By Source</div>';
+      types.forEach(function(t) {
+        if (t.source_type === "archie_v1") return;
+        var tPct = t.total > 0 ? Math.round(t.embedded / t.total * 100) : 0;
+        html += '<div style="display:flex; justify-content:space-between; font-size:0.78rem; color:rgba(255,255,255,0.5); margin-bottom:4px;">' +
+          '<span>' + escHtml(t.source_type) + '</span>' +
+          '<span style="color:rgba(255,255,255,0.3);">' + t.embedded + '/' + t.total + ' (' + tPct + '%)</span></div>';
+      });
+      html += '</div>';
+    }
     html += '</div></div>';
     setHtml("embedStatus", html);
   }).catch(function() {

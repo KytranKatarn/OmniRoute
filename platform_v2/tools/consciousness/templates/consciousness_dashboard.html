@@ -1331,38 +1331,157 @@
 .cs-table th {
     text-align: left;
     padding: 8px 12px;
-    font-size: 0.75rem;
-    color: rgba(255,255,255,0.4);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    color: rgba(139,92,246,0.6);
+    border-bottom: 1px solid rgba(139,92,246,0.15);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1.5px;
 }
 .cs-table td {
-    padding: 8px 12px;
-    font-size: 0.82rem;
+    padding: 7px 12px;
+    font-size: 0.8rem;
     color: rgba(255,255,255,0.7);
     border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.cs-table tr:hover { background: rgba(139,92,246,0.05); }
+.cs-table tr { cursor: pointer; transition: background 0.15s; }
+.cs-table tr:hover { background: rgba(139,92,246,0.08); }
 .cs-table .center { text-align: center; }
 
-/* --- Sub-tabs --- */
-.cs-subtabs { display: flex; gap: 4px; margin-bottom: 16px; }
+/* --- Knowledge search bar --- */
+.cs-search-bar {
+    display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.cs-search-input-wrap {
+    flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 20px;
+}
+.cs-search-input-wrap input {
+    flex: 1; background: none; border: none; outline: none;
+    color: #fff; font-size: 0.85rem; font-family: inherit;
+}
+.cs-search-bar select {
+    padding: 8px 14px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 20px;
+    color: #fff; font-family: 'Antonio', sans-serif; font-size: 0.78rem;
+    letter-spacing: 0.5px; cursor: pointer;
+}
+.cs-search-bar select:focus { border-color: rgba(139,92,246,0.4); outline: none; }
+
+/* --- Type summary chips --- */
+.cs-type-chips {
+    display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.cs-type-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 12px;
+    font-family: 'Antonio', sans-serif; font-size: 0.68rem;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.5); cursor: pointer; transition: all 0.2s;
+}
+.cs-type-chip:hover { border-color: rgba(139,92,246,0.3); color: #fff; }
+.cs-type-chip .chip-count {
+    font-family: 'Orbitron', sans-serif; font-size: 0.6rem; font-weight: 700;
+}
+.cs-type-chip.github   { border-color: rgba(34,197,94,0.2); }
+.cs-type-chip.github .chip-count  { color: #22c55e; }
+.cs-type-chip.convo    { border-color: rgba(59,130,246,0.2); }
+.cs-type-chip.convo .chip-count   { color: #3b82f6; }
+.cs-type-chip.vault    { border-color: rgba(139,92,246,0.2); }
+.cs-type-chip.vault .chip-count   { color: #8b5cf6; }
+.cs-type-chip.code     { border-color: rgba(245,158,11,0.2); }
+.cs-type-chip.code .chip-count    { color: #f59e0b; }
+.cs-type-chip.api      { border-color: rgba(6,182,212,0.2); }
+.cs-type-chip.api .chip-count     { color: #06b6d4; }
+
+/* --- Pagination --- */
+.cs-pagination {
+    display: flex; justify-content: center; align-items: center;
+    gap: 8px; margin-top: 12px; padding-top: 12px;
+}
+.cs-page-btn {
+    padding: 5px 12px; border-radius: 16px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.5); cursor: pointer;
+    font-family: 'Antonio', sans-serif; font-size: 0.72rem;
+    letter-spacing: 0.5px; transition: all 0.2s;
+}
+.cs-page-btn:hover { border-color: rgba(139,92,246,0.3); color: #fff; }
+.cs-page-btn.active { color: #8b5cf6; border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.1); }
+.cs-page-btn:disabled { opacity: 0.3; cursor: default; }
+.cs-page-info {
+    font-family: 'Antonio', sans-serif; font-size: 0.7rem;
+    color: rgba(255,255,255,0.35); letter-spacing: 0.5px;
+}
+
+/* --- Category card visual hierarchy --- */
+.cs-cat-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;
+}
+.cs-cat-card {
+    padding: 12px 14px; border-radius: 0 10px 10px 0;
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid rgba(139,92,246,0.3);
+    cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
+}
+.cs-cat-card:hover { border-color: rgba(139,92,246,0.3); background: rgba(139,92,246,0.04); }
+.cs-cat-card .cat-name {
+    font-family: 'Antonio', sans-serif; font-size: 0.82rem;
+    color: #fff; letter-spacing: 0.3px; text-transform: uppercase;
+}
+.cs-cat-card .cat-count {
+    font-family: 'Orbitron', sans-serif; font-size: 0.68rem;
+    color: rgba(255,255,255,0.4); margin-top: 2px;
+}
+.cs-cat-card .cat-bar {
+    position: absolute; bottom: 0; left: 0; height: 2px;
+    background: linear-gradient(90deg, #8b5cf6, transparent);
+    transition: width 0.3s;
+}
+.cs-cat-card.tier-1 { border-left-color: #8b5cf6; }
+.cs-cat-card.tier-1 .cat-count { color: #8b5cf6; }
+.cs-cat-card.tier-2 { border-left-color: #3b82f6; }
+.cs-cat-card.tier-2 .cat-count { color: #3b82f6; }
+.cs-cat-card.tier-3 { border-left-color: #22c55e; }
+.cs-cat-card.tier-3 .cat-count { color: #22c55e; }
+.cs-cat-card.tier-4 { border-left-color: rgba(255,255,255,0.15); }
+
+/* --- Embedding progress bar --- */
+.cs-embed-bar-wrap {
+    width: 100%; height: 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.06); margin: 8px 0; overflow: hidden;
+}
+.cs-embed-bar {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, #22c55e, #8b5cf6);
+    transition: width 0.5s ease;
+}
+
+/* --- Sub-tabs (LCARS pill style) --- */
+.cs-subtabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
 .cs-subtab {
-    padding: 6px 12px;
-    border-radius: 6px;
+    padding: 7px 16px;
+    border-radius: 20px;
     background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
     color: rgba(255,255,255,0.5);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
     transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
 }
-.cs-subtab:hover { color: #fff; border-color: rgba(139,92,246,0.2); }
+.cs-subtab i, .cs-subtab svg { width: 14px; height: 14px; }
+.cs-subtab:hover { color: #fff; border-color: rgba(139,92,246,0.3); background: rgba(139,92,246,0.06); }
 .cs-subtab.active {
     color: #8b5cf6;
-    border-color: rgba(139,92,246,0.3);
-    background: rgba(139,92,246,0.08);
+    border-color: rgba(139,92,246,0.4);
+    background: rgba(139,92,246,0.1);
+    box-shadow: 0 0 12px rgba(139,92,246,0.15);
 }
 .cs-subpanel { display: none; }
 .cs-subpanel.active { display: block; }
@@ -1906,30 +2025,42 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-knowledge">
           <div class="cs-subtabs">
-            <button class="cs-subtab active" onclick="switchKnowledgeSubtab('browser')"><span data-i18n="consciousness.browser">Browser</span></button>
-            <button class="cs-subtab" onclick="switchKnowledgeSubtab('processing')"><span data-i18n="consciousness.processing">Processing</span></button>
-            <button class="cs-subtab" onclick="switchKnowledgeSubtab('categories')"><span data-i18n="consciousness.categories">Categories</span></button>
-            <button class="cs-subtab" onclick="switchKnowledgeSubtab('embeddings')"><span data-i18n="consciousness.embeddings">Embeddings</span></button>
+            <button class="cs-subtab active" onclick="switchKnowledgeSubtab('browser')"><i data-lucide="search"></i> <span data-i18n="consciousness.browser">Browser</span></button>
+            <button class="cs-subtab" onclick="switchKnowledgeSubtab('processing')"><i data-lucide="cpu"></i> <span data-i18n="consciousness.processing">Processing</span></button>
+            <button class="cs-subtab" onclick="switchKnowledgeSubtab('categories')"><i data-lucide="folder-tree"></i> <span data-i18n="consciousness.categories">Categories</span></button>
+            <button class="cs-subtab" onclick="switchKnowledgeSubtab('embeddings')"><i data-lucide="database"></i> <span data-i18n="consciousness.embeddings">Embeddings</span></button>
           </div>
 
           <div class="cs-subpanel active" id="kb-browser">
-            <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
-              <input type="text" id="kbSearch" placeholder="Search knowledge..."
-                     style="flex:1; min-width:200px; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;"
-                     oninput="debounceReload('knowledge', loadKnowledgeBrowser)">
-              <select id="kbFilterType" onchange="_cache.knowledge=false; loadKnowledgeBrowser()"
-                      style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
-                <option value=""><span data-i18n="consciousness.all_types">All Types</span></option>
-                <option value="vault_note"><span data-i18n="consciousness.vault_notes">Vault Notes</span></option>
-                <option value="conversation_memory"><span data-i18n="consciousness.conversations">Conversations</span></option>
-                <option value="github_file"><span data-i18n="consciousness.github_files">GitHub Files</span></option>
-                <option value="code_snippet"><span data-i18n="consciousness.code_snippets">Code Snippets</span></option>
-                <option value="improvement"><span data-i18n="consciousness.improvements">Improvements</span></option>
-                <option value="mistake_learned"><span data-i18n="consciousness.mistakes_learned">Mistakes Learned</span></option>
-                <option value="upgrade_suggestion"><span data-i18n="consciousness.upgrade_suggestions">Upgrade Suggestions</span></option>
+            <!-- Type summary chips -->
+            <div id="kbTypeSummary" class="cs-type-chips"></div>
+            <!-- Search + filter controls -->
+            <div class="cs-search-bar">
+              <div class="cs-search-input-wrap">
+                <i data-lucide="search" style="width:14px;height:14px;color:rgba(255,255,255,0.3);"></i>
+                <input type="text" id="kbSearch" placeholder="Search knowledge..."
+                       oninput="debounceReload('knowledge', loadKnowledgeBrowser)">
+              </div>
+              <select id="kbFilterType" onchange="_cache.knowledge=false; loadKnowledgeBrowser()">
+                <option value="">All Types</option>
+                <option value="vault_note">Vault Notes</option>
+                <option value="conversation_memory">Conversations</option>
+                <option value="github_file">GitHub Files</option>
+                <option value="code_snippet">Code Snippets</option>
+                <option value="api_endpoint">API Endpoints</option>
+                <option value="knowledge_card_concept">Knowledge Cards</option>
+                <option value="improvement">Improvements</option>
+                <option value="mistake_learned">Mistakes Learned</option>
+                <option value="upgrade_suggestion">Upgrades</option>
               </select>
             </div>
-            <div id="kbBrowserTable"><div class="cs-loading"><span data-i18n="consciousness.loading">Loading...</span></div></div>
+            <div class="cs-card">
+              <div class="cs-card-body" style="max-height:400px;">
+                <div id="kbBrowserTable"><div class="cs-loading">Loading...</div></div>
+              </div>
+            </div>
+            <!-- Pagination -->
+            <div id="kbPagination" class="cs-pagination"></div>
           </div>
 
           <div class="cs-subpanel" id="kb-processing">

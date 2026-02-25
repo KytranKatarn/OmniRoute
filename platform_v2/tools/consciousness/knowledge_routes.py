@@ -57,7 +57,9 @@ def register_knowledge_routes(bp, admin_required):
         try:
             # Build query with filters
             sql = """
-                SELECT * FROM knowledge_base
+                SELECT id, title, content, knowledge_type, category, tags,
+                       importance_score, source_type, created_at, updated_at
+                FROM knowledge_base
                 WHERE (content ILIKE %s OR title ILIKE %s)
             """
             params = [f"%{query}%", f"%{query}%"]
@@ -121,6 +123,7 @@ def register_knowledge_routes(bp, admin_required):
             conn.commit()
             return jsonify({"success": True, "message": "Knowledge added"})
         except Exception as e:
+            conn.rollback()
             return jsonify({"error": str(e)}), 500
         finally:
 
@@ -179,6 +182,7 @@ def register_knowledge_routes(bp, admin_required):
             conn.commit()
             return jsonify({"success": True, "message": "Knowledge entry created", "id": new_id})
         except Exception as e:
+            conn.rollback()
             return jsonify({"error": str(e)}), 500
         finally:
 
@@ -225,8 +229,11 @@ def register_knowledge_routes(bp, admin_required):
         """List knowledge entries with filtering and pagination"""
         category = request.args.get("category")
         knowledge_type = request.args.get("type")
-        limit = int(request.args.get("limit", 50))
-        offset = int(request.args.get("offset", 0))
+        try:
+            limit = min(int(request.args.get("limit", 50)), 200)
+            offset = max(int(request.args.get("offset", 0)), 0)
+        except (ValueError, TypeError):
+            limit, offset = 50, 0
 
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -401,6 +408,12 @@ def register_knowledge_routes(bp, admin_required):
         data = request.get_json() or {}
         directory_path = data.get("path", "/mnt/archie_brain/docs")
 
+        # Security: restrict to allowed base directories
+        allowed_bases = ["/mnt/archie_brain/docs", "/mnt/archie_brain/ai_bridge", "/app"]
+        abs_dir = os.path.abspath(directory_path)
+        if not any(abs_dir.startswith(base) for base in allowed_bases):
+            return jsonify({"success": False, "error": "Access denied"}), 403
+
         try:
             # Get all files in directory recursively
             files_info = []
@@ -453,7 +466,7 @@ def register_knowledge_routes(bp, admin_required):
                     FROM long_term_memory
                     WHERE metadata->>'file_path' = %s
                 """,
-                    (file_info["full_path"],),
+                    (file_info["path"],),
                 )
 
                 result = cur.fetchone()

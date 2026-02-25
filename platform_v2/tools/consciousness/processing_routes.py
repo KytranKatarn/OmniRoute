@@ -30,6 +30,18 @@ processing_bp = Blueprint(
     url_prefix="/api/processing",
 )
 
+
+@processing_bp.before_request
+def _require_admin():
+    """Require authentication and admin access for all processing routes."""
+    from flask_login import current_user
+
+    if not current_user.is_authenticated:
+        return jsonify({"error": "Authentication required"}), 401
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"error": "Admin access required"}), 403
+
+
 # Conversation logs directory
 CONVERSATION_LOGS_DIR = "/mnt/archie_brain/conversation_logs"
 
@@ -614,65 +626,6 @@ def _log_batch_processing(batch_id: str, category: str, results: dict):
         cur.close()
 
         conn.close()
-
-
-def _auto_embed_processed_items(item_ids: list) -> dict:
-    """Generate embeddings for a list of knowledge_base IDs after processing"""
-    results = {"processed": 0, "failed": 0}
-    if not item_ids:
-        return results
-
-    try:
-        from ai_bridge.embedding_service import generate_embedding
-
-        conn = get_db()
-        cur = conn.cursor()
-
-        for item_id in item_ids:
-            try:
-                cur.execute(
-                    """
-                    SELECT title, content FROM knowledge_base
-                    WHERE id = %s AND embedding IS NULL
-                    AND content IS NOT NULL AND LENGTH(content) > 50
-                    """,
-                    (item_id,),
-                )
-                row = cur.fetchone()
-                if not row:
-                    continue
-
-                title, content = row
-                text = f"{title or ''}. {content[:800]}"
-                embedding = generate_embedding(text)
-
-                if embedding:
-                    cur.execute(
-                        """
-                        UPDATE knowledge_base
-                        SET embedding = %s, has_embedding = true, embedding_generated_at = NOW()
-                        WHERE id = %s
-                        """,
-                        (embedding, item_id),
-                    )
-                    results["processed"] += 1
-                else:
-                    results["failed"] += 1
-            except Exception as e:
-                logger.error(f"Auto-embed for {item_id} failed: {e}")
-                results["failed"] += 1
-
-        conn.commit()
-        logger.info(f"Auto-embedded {results['processed']}/{len(item_ids)} items")
-    except Exception as e:
-        logger.error(f"Auto-embed batch failed: {e}")
-    finally:
-
-        cur.close()
-
-        conn.close()
-
-    return results
 
 
 def _run_embedding_job(item_ids_and_data, job_id):

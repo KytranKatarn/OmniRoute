@@ -173,12 +173,10 @@ def register_team_routes(bp, admin_required):
                 """
                 SELECT
                     COUNT(*) as total_tasks,
-                    COUNT(*) FILTER (WHERE status = 'completed') as completed_tasks,
-                    COUNT(*) FILTER (WHERE status = 'failed') as failed_tasks,
-                    AVG(CASE WHEN completion_time IS NOT NULL
-                        THEN EXTRACT(EPOCH FROM completion_time - created_at)
-                        ELSE NULL END) as avg_completion_seconds
-                FROM agent_tasks
+                    COUNT(*) FILTER (WHERE success = true) as completed_tasks,
+                    COUNT(*) FILTER (WHERE success = false) as failed_tasks,
+                    AVG(duration_ms) / 1000.0 as avg_completion_seconds
+                FROM task_execution_log
                 WHERE agent_id = %s
             """,
                 (agent_id,),
@@ -304,6 +302,13 @@ def register_team_routes(bp, admin_required):
             )
             stats = cur.fetchone()
 
+            # Convert datetime objects to ISO format BEFORE building by_department
+            for agent in agents:
+                if agent["last_used"]:
+                    agent["last_used"] = agent["last_used"].isoformat()
+                if agent["created_at"]:
+                    agent["created_at"] = agent["created_at"].isoformat()
+
             # Organize agents by department
             by_department = {}
             for agent in agents:
@@ -311,12 +316,6 @@ def register_team_routes(bp, admin_required):
                 if dept not in by_department:
                     by_department[dept] = []
                 by_department[dept].append(dict(agent))
-            # Convert datetime objects to ISO format
-            for agent in agents:
-                if agent["last_used"]:
-                    agent["last_used"] = agent["last_used"].isoformat()
-                if agent["created_at"]:
-                    agent["created_at"] = agent["created_at"].isoformat()
 
             result = {
                 "success": True,
@@ -412,6 +411,13 @@ def register_team_routes(bp, admin_required):
             )
             stats = cur.fetchone()
 
+            # Convert datetime objects to ISO format BEFORE building by_department
+            for agent in agents:
+                if agent["last_used"]:
+                    agent["last_used"] = agent["last_used"].isoformat()
+                if agent["created_at"]:
+                    agent["created_at"] = agent["created_at"].isoformat()
+
             # Organize agents by department
             by_department = {}
             for agent in agents:
@@ -419,12 +425,6 @@ def register_team_routes(bp, admin_required):
                 if dept not in by_department:
                     by_department[dept] = []
                 by_department[dept].append(dict(agent))
-            # Convert datetime objects to ISO format
-            for agent in agents:
-                if agent["last_used"]:
-                    agent["last_used"] = agent["last_used"].isoformat()
-                if agent["created_at"]:
-                    agent["created_at"] = agent["created_at"].isoformat()
 
             result = {
                 "success": True,

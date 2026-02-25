@@ -551,6 +551,7 @@ def register_github_routes(bp, admin_required):
 
     @bp.route("/github/auth-status", methods=["GET"])
     @login_required
+    @admin_required
     def github_auth_status():
         """Check GitHub token validity and rate limit status."""
         headers, has_token = _get_github_headers()
@@ -1265,6 +1266,7 @@ def register_github_routes(bp, admin_required):
 
     @bp.route("/github/search-semantic", methods=["POST"])
     @login_required
+    @admin_required
     def github_search_semantic():
         """Semantic search across indexed GitHub files"""
         data = request.get_json() or {}
@@ -1576,6 +1578,7 @@ def register_github_routes(bp, admin_required):
 
     @bp.route("/github/stats")
     @login_required
+    @admin_required
     def github_stats():
         """GitHub-specific file counts and embedding coverage."""
         try:
@@ -1636,8 +1639,9 @@ def register_github_routes(bp, admin_required):
     @admin_required
     def api_github_repos():
         """Simple repos listing for integration/dashboard use"""
-        with _get_db() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
             cur.execute(
                 """
                 SELECT id, repo_name, repo_type, local_path, status,
@@ -1647,3 +1651,8 @@ def register_github_routes(bp, admin_required):
             """
             )
             return jsonify({"success": True, "repos": [dict(r) for r in cur.fetchall()]})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()

@@ -158,9 +158,12 @@ def register_insights_routes(bp, admin_required):
         try:
             cur.execute(
                 """
-                SELECT * FROM knowledge_base
+                SELECT id, knowledge_type, title, content, category, tags,
+                       importance_score, access_count, source_type, created_at, updated_at
+                FROM knowledge_base
                 WHERE knowledge_type = 'mistake_learned'
                 ORDER BY importance_score DESC, created_at DESC
+                LIMIT 100
             """
             )
 

@@ -906,6 +906,7 @@ def delete_memory(memory_id):
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
 
@@ -918,34 +919,43 @@ def delete_memory(memory_id):
 @login_required
 @admin_required
 def update_memory(memory_id):
-    """Update a memory"""
+    """Update a memory — only updates fields that are provided"""
     data = request.get_json() or {}
 
     conn = get_db()
     cur = conn.cursor()
 
     try:
+        # Build dynamic UPDATE — only set fields that were provided
+        updates = []
+        params = []
+        if "content" in data:
+            updates.append("content = %s")
+            params.append(data["content"])
+        if "category" in data:
+            updates.append("category = %s")
+            params.append(data["category"])
+        if "tags" in data:
+            updates.append("tags = %s")
+            params.append(data["tags"])
+        if "importance_score" in data:
+            updates.append("importance_score = %s")
+            params.append(data["importance_score"])
+
+        if not updates:
+            return jsonify({"success": False, "error": "No fields to update"}), 400
+
+        updates.append("updated_at = NOW()")
+        params.append(memory_id)
+
         cur.execute(
-            """
-            UPDATE knowledge_base
-            SET content = %s,
-                category = %s,
-                tags = %s,
-                importance_score = %s,
-                updated_at = NOW()
-            WHERE id = %s
-        """,
-            (
-                data.get("content"),
-                data.get("category"),
-                data.get("tags", []),
-                data.get("importance_score"),
-                memory_id,
-            ),
+            f"UPDATE knowledge_base SET {', '.join(updates)} WHERE id = %s",
+            params,
         )
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
+        conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
 
@@ -1602,11 +1612,6 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
-            finally:
-
-                cur.close()
-
-                conn.close()
 
         # 3. Recent improvement proposals (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "improvement":
@@ -1642,11 +1647,6 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
-            finally:
-
-                cur.close()
-
-                conn.close()
 
         # 4. Recent conversation sessions (Claude Code ingests)
         if not event_type or event_type == "session":
@@ -1725,11 +1725,6 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
-            finally:
-
-                cur.close()
-
-                conn.close()
 
         # 7. Project activity (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "project":
@@ -1756,11 +1751,6 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
-            finally:
-
-                cur.close()
-
-                conn.close()
 
         # 8. Work sessions (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "work_session":
@@ -1787,11 +1777,6 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
-            finally:
-
-                cur.close()
-
-                conn.close()
 
         # Sort all activities by created_at descending
         activities.sort(key=lambda x: x.get("created_at") or "", reverse=True)
@@ -2340,11 +2325,6 @@ def save_conversation():
             conn.commit()
         except Exception as embed_err:
             print(f"Embedding generation failed (non-critical): {embed_err}")
-        finally:
-
-            cur.close()
-
-            conn.close()
 
         return jsonify(
             {
@@ -2361,10 +2341,14 @@ def save_conversation():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # GitHub routes (auth, indexing, repositories, search, dependencies)
@@ -4423,11 +4407,6 @@ def save_work_product_to_kb(product_id):
                 conn.commit()
         except Exception as emb_err:
             logger.warning(f"Failed to generate embedding for KB entry {kb_id}: {emb_err}")
-        finally:
-
-            cur.close()
-
-            conn.close()
 
         return jsonify({"success": True, "kb_id": kb_id, "title": title})
 
@@ -4437,10 +4416,14 @@ def save_work_product_to_kb(product_id):
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @consciousness_bp.route("/api/collab/work-products/<session_id>", methods=["GET"])
@@ -4994,11 +4977,6 @@ def chat_file_upload():
                 os.unlink(tmp_path)
             except OSError:
                 pass
-            finally:
-
-                cur.close()
-
-                conn.close()
 
 
 @consciousness_bp.route("/api/terminal/token", methods=["POST"])
@@ -5117,11 +5095,6 @@ def claude_side_chat():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-
-        cur.close()
-
-        conn.close()
 
 
 @consciousness_bp.route("/api/claude/status", methods=["GET"])
@@ -5838,10 +5811,14 @@ def voice_pregen_start():
         logger.error(f"Voice pregen start error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @consciousness_bp.route("/api/voice/pregen/full-dna", methods=["POST"])
@@ -5904,10 +5881,14 @@ def voice_full_dna():
         logger.error(f"Voice full DNA error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @consciousness_bp.route("/api/voice/pregen/<int:job_id>", methods=["GET"])
@@ -5968,12 +5949,16 @@ def voice_profile_lock_status(profile_id):
         count = cur.fetchone()[0]
         return jsonify({"success": True, "locked_count": count})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -6553,11 +6538,6 @@ def translation_tag_module():
                         seeded += 1
                 except Exception:
                     pass
-                finally:
-
-                    cur.close()
-
-                    conn.close()
 
             conn.commit()
         return jsonify(
@@ -6573,10 +6553,14 @@ def translation_tag_module():
         logger.error(f"Tag module error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @consciousness_bp.route("/api/translations/module-coverage")
@@ -6783,10 +6767,14 @@ def translation_coverage():
         logger.error(f"Translation coverage error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @consciousness_bp.route("/api/translations/browser")
@@ -6887,10 +6875,14 @@ def translation_browser():
         logger.error(f"Translation browser error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @consciousness_bp.route("/api/translations/language-coverage")
@@ -7145,10 +7137,14 @@ def translation_generate_async():
         logger.error(f"Async translation generate error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def _run_translate_bg(languages, module_id, parent_job_id):
@@ -7234,11 +7230,6 @@ def _run_translate_bg(languages, module_id, parent_job_id):
                 )
             except Exception:
                 pass
-            finally:
-
-                cur.close()
-
-                conn.close()
 
     except Exception as e:
         logger.error(f"[TranslateBG] Job #{parent_job_id} error: {e}")
@@ -7247,11 +7238,6 @@ def _run_translate_bg(languages, module_id, parent_job_id):
             dispatcher.complete_job(parent_job_id)
         except Exception:
             pass
-        finally:
-
-            cur.close()
-
-            conn.close()
 
         logger.info(
             f"[TranslateBG] Job #{parent_job_id} finished: "

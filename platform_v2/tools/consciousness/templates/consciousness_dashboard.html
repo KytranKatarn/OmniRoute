@@ -256,6 +256,269 @@
     .nc-container { max-height: 200px; aspect-ratio: auto; height: 200px; }
 }
 
+/* --- GitHub Tab: Knowledge Intake --- */
+.gh-intake {
+    background: rgba(139,92,246,0.03);
+    border: 1px solid rgba(139,92,246,0.12);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+}
+.gh-intake::before {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 6px; height: 100%;
+    background: #8b5cf6;
+    border-radius: 6px 0 0 6px;
+}
+.gh-intake-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem; font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: 12px; padding-left: 12px;
+}
+.gh-intake-row {
+    display: flex; gap: 10px; align-items: center;
+    padding-left: 12px;
+}
+.gh-intake-input {
+    flex: 1; padding: 12px 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1.5px solid rgba(139,92,246,0.2);
+    border-radius: 8px;
+    color: #fff; font-size: 0.9rem;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.gh-intake-input:focus {
+    outline: none;
+    border-color: #8b5cf6;
+    box-shadow: 0 0 16px rgba(139,92,246,0.2);
+}
+.gh-intake-input::placeholder { color: rgba(255,255,255,0.25); }
+.gh-intake-btn {
+    padding: 12px 24px;
+    background: rgba(139,92,246,0.2);
+    border: 1.5px solid rgba(139,92,246,0.5);
+    border-radius: 0 20px 20px 0;
+    color: #8b5cf6; font-weight: 700;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.85rem; letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+.gh-intake-btn:hover {
+    background: #8b5cf6;
+    color: #fff;
+}
+.gh-intake-btn:disabled {
+    opacity: 0.4; cursor: not-allowed;
+}
+.gh-intake-options {
+    display: none;
+    padding: 12px 12px 0;
+    gap: 12px;
+}
+.gh-intake-options.open { display: flex; }
+.gh-intake-toggle {
+    font-size: 0.72rem; color: rgba(255,255,255,0.3);
+    cursor: pointer; padding: 6px 12px; border: none; background: none;
+    font-family: 'Antonio', sans-serif; letter-spacing: 0.5px;
+}
+.gh-intake-toggle:hover { color: rgba(255,255,255,0.6); }
+.gh-intake-progress {
+    margin-top: 12px; padding-left: 12px;
+    display: none;
+}
+.gh-intake-progress.active { display: block; }
+.gh-intake-progress-bar {
+    height: 6px; background: rgba(255,255,255,0.06);
+    border-radius: 3px; overflow: hidden;
+    margin-bottom: 6px;
+}
+.gh-intake-progress-fill {
+    height: 100%; background: linear-gradient(90deg, #8b5cf6, #3b82f6);
+    border-radius: 3px; transition: width 0.3s;
+    box-shadow: 0 0 8px rgba(139,92,246,0.3);
+}
+
+/* --- Repo Intelligence Cards --- */
+.gh-cards-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+}
+.gh-cards-header-cap {
+    width: 6px; height: 24px; border-radius: 3px;
+    background: #8b5cf6; flex-shrink: 0;
+}
+.gh-cards-header-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem; font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase; letter-spacing: 1.5px;
+}
+.gh-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+.gh-repo-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+.gh-repo-card:hover {
+    border-color: rgba(139,92,246,0.25);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.gh-repo-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 4px; height: 100%;
+    border-radius: 4px 0 0 4px;
+}
+.gh-repo-card.coverage-high::before   { background: #22c55e; }
+.gh-repo-card.coverage-mid::before    { background: #f59e0b; }
+.gh-repo-card.coverage-low::before    { background: #ef4444; }
+.gh-repo-card-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem; font-weight: 500;
+    color: rgba(255,255,255,0.85);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 10px;
+}
+.gh-repo-card-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+/* SVG circular progress ring */
+.gh-progress-ring {
+    width: 48px; height: 48px; flex-shrink: 0;
+}
+.gh-progress-ring-bg {
+    fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 4;
+}
+.gh-progress-ring-fill {
+    fill: none; stroke-width: 4; stroke-linecap: round;
+    transition: stroke-dashoffset 0.6s ease;
+}
+.gh-repo-card-meta {
+    font-size: 0.72rem; color: rgba(255,255,255,0.4);
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-top: 8px;
+}
+.gh-repo-card-meta span {
+    display: inline-flex; align-items: center; gap: 3px;
+}
+.gh-repo-card-actions {
+    display: flex; gap: 6px; margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.gh-repo-card-actions button, .gh-repo-card-actions a {
+    padding: 5px 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.7rem; font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    cursor: pointer; text-decoration: none;
+    transition: all 0.15s;
+}
+.gh-repo-card-actions button:hover, .gh-repo-card-actions a:hover {
+    background: rgba(139,92,246,0.15);
+    border-color: rgba(139,92,246,0.3);
+    color: #8b5cf6;
+}
+.gh-repo-card-actions .danger:hover {
+    background: rgba(239,68,68,0.15);
+    border-color: rgba(239,68,68,0.3);
+    color: #ef4444;
+}
+
+/* --- Discovery Console --- */
+.gh-discovery {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+}
+.gh-discovery::before {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 6px; height: 100%;
+    background: #06b6d4;
+    border-radius: 6px 0 0 6px;
+}
+.gh-discovery-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem; font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: 12px; padding-left: 12px;
+}
+.gh-discovery-input {
+    width: calc(100% - 12px); padding: 12px 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1.5px solid rgba(6,182,212,0.2);
+    border-radius: 8px; box-sizing: border-box;
+    color: #fff; font-size: 0.9rem;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    margin-left: 12px;
+}
+.gh-discovery-input:focus {
+    outline: none;
+    border-color: #06b6d4;
+    box-shadow: 0 0 16px rgba(6,182,212,0.2);
+}
+.gh-discovery-results {
+    margin-top: 14px; padding-left: 12px;
+}
+.gh-discovery-result {
+    padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: border-color 0.15s;
+}
+.gh-discovery-result:hover {
+    border-color: rgba(6,182,212,0.2);
+}
+.gh-discovery-result-path {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem; color: #06b6d4;
+}
+.gh-discovery-result-repo {
+    font-size: 0.68rem; color: rgba(255,255,255,0.3);
+    margin-left: 8px;
+}
+.gh-discovery-result-score {
+    float: right; font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem; color: #22c55e;
+}
+.gh-discovery-result-snippet {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem; color: rgba(255,255,255,0.4);
+    margin-top: 6px; padding: 6px 8px;
+    background: rgba(0,0,0,0.2); border-radius: 4px;
+    white-space: pre-wrap; max-height: 80px; overflow: hidden;
+}
+
 /* --- Main Container --- */
 .cs-container {
     min-height: 100vh;

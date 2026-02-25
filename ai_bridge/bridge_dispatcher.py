@@ -85,14 +85,21 @@ CAPABILITY_STATION_MAP = {
     "fact_checking": "RESEARCH",
     "semantic_search": "RESEARCH",
     "context_retrieval": "RESEARCH",
-    # Creative station — translation (language content creation)
-    "translate": "CREATIVE",
+    # Analytics station — translation (linguistic processing, Languages tab)
+    "translate": "ANALYTICS",
     # Analytics — language detection (classification task)
     "detect_language": "ANALYTICS",
     # Generic fallbacks
     "analysis": "ANALYTICS",
     "general": "COMMAND",
     "json": "ANALYTICS",
+}
+
+# Capabilities that require explicit agent skill (no generous 0.3 default).
+# If no agent at the mapped station has the skill, cross-station dispatch
+# finds an agent elsewhere who does.
+CAPABILITY_REQUIRES_SKILL = {
+    "translate",  # Needs a capable chat LLM — not a classifier or embedder
 }
 
 # Specialized agent selection within stations
@@ -472,6 +479,10 @@ class BridgeDispatcher:
         skill_entry = agent_info.get("skills", {}).get(capability, {})
         if skill_entry:
             skills_score = skill_entry.get("level", 1) / 5.0
+        elif capability in CAPABILITY_REQUIRES_SKILL:
+            # Capability requires explicit skill — don't use generous default.
+            # Forces cross-station dispatch to an agent who actually has it.
+            return (0.0, f"{agent_name} lacks required skill '{capability}'")
         else:
             skills_score = 0.3  # generous default — agent may still handle it
 

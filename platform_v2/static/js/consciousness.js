@@ -787,32 +787,32 @@ function checkActiveJobs() {
         setHtml("ghIntakeResult", "");
       }
       /* Still render ops terminal crews (no active jobs = no cross-station assists) */
+      renderKnowledgeOps(null, null);
       renderGitHubOps(null, null);
       renderLangOps(null, null);
       return;
     }
 
-    /* Render ALL running jobs on Processing tab */
-    var procEl = document.getElementById("procResult");
-    if (procEl) {
-      _renderBridgeJobs(myJobs, "procResult", "proc");
+    /* ── Knowledge tab — show active jobs in ops terminal ── */
+    var kbJobsEl = document.getElementById("kbOpsJobs");
+    if (kbJobsEl) {
+      _renderBridgeJobs(myJobs, "kbOpsJobs", "kb");
       _disableProcessingBtns();
     }
     myJobs.forEach(function(job) {
-      var pollKey = "proc_" + job.id;
+      var pollKey = "kb_" + job.id;
       if (!_activeJobPolls[pollKey]) {
         _activeJobPolls[pollKey] = true;
-        _pollJobStatus(job.id, "bjob-proc-" + job.id, function() {
+        _pollJobStatus(job.id, "bjob-kb-" + job.id, function() {
           _activeJobPolls[pollKey] = false;
           _enableProcessingBtns();
-          loadProcessingStatus();
           loadEmbeddingStatus();
           checkActiveJobs();
         });
       }
     });
 
-    /* GitHub tab — jobs display in ops terminal (ghOpsJobs); just disable buttons + poll here */
+    /* ── GitHub tab — show active jobs in ops terminal ── */
     _disableGitHubBtnsByJobType(myJobs);
     myJobs.forEach(function(job) {
       var pollKey = "gh_" + job.id;
@@ -827,7 +827,7 @@ function checkActiveJobs() {
       }
     });
 
-    /* Render translation jobs on Languages tab (ops terminal + progress area) */
+    /* ── Languages tab — show translation jobs in ops terminal ── */
     var langJobs = myJobs.filter(function(j) {
       return (j.job_type || "").indexOf("translate") > -1;
     });

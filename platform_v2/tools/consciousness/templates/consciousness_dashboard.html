@@ -1636,35 +1636,80 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel active" id="panel-dashboard">
 
-            <!-- Stat Cards -->
-            <div class="cs-stats">
-                <div class="cs-stat purple">
-                    <div class="cs-stat-icon"><i data-lucide="brain"></i></div>
-                    <div class="cs-stat-value" id="statKnowledgeTotal">--</div>
-                    <div class="cs-stat-label" data-i18n="consciousness.dashboard.knowledge_entries">Knowledge Entries</div>
-                    <div class="cs-stat-sub"><span id="statEmbedPct">--</span> <span data-i18n="consciousness.dashboard.embedded">embedded</span></div>
+            <!-- Neural Core Visualization -->
+            <div class="nc-container" id="neuralCore">
+                <!-- SVG Circuit Pathways (background) -->
+                <svg class="nc-pathways" id="ncPathways" viewBox="0 0 700 595" preserveAspectRatio="xMidYMid meet"></svg>
+
+                <!-- Particle Canvas (overlay) -->
+                <canvas class="nc-particle-layer" id="ncParticles"></canvas>
+
+                <!-- Outer Ring (recent entries) -->
+                <div class="nc-orbital-ring nc-ring-outer" id="ncOuterRing"></div>
+
+                <!-- Inner Ring (knowledge clusters) -->
+                <div class="nc-orbital-ring nc-ring-inner" id="ncInnerRing">
+                    <div class="nc-node conversations" data-tab="knowledge" style="top:-24px; left:50%; margin-left:-24px;"
+                         title="Conversations" onclick="switchConsciousnessTab('knowledge')">
+                        <span class="nc-node-count" id="ncConvCount">--</span>
+                        <span class="nc-node-label">Conv</span>
+                    </div>
+                    <div class="nc-node code" data-tab="knowledge" style="top:20%; right:-24px;"
+                         title="Code & GitHub Files" onclick="switchConsciousnessTab('github')">
+                        <span class="nc-node-count" id="ncCodeCount">--</span>
+                        <span class="nc-node-label">Code</span>
+                    </div>
+                    <div class="nc-node vault" data-tab="knowledge" style="bottom:20%; right:-24px;"
+                         title="Vault Notes" onclick="switchConsciousnessTab('knowledge')">
+                        <span class="nc-node-count" id="ncVaultCount">--</span>
+                        <span class="nc-node-label">Vault</span>
+                    </div>
+                    <div class="nc-node repos" data-tab="github" style="bottom:-24px; left:50%; margin-left:-24px;"
+                         title="GitHub Repositories" onclick="switchConsciousnessTab('github')">
+                        <span class="nc-node-count" id="ncRepoCount">--</span>
+                        <span class="nc-node-label">Repos</span>
+                    </div>
+                    <div class="nc-node learned" data-tab="insights" style="bottom:20%; left:-24px;"
+                         title="Learned & Improved" onclick="switchConsciousnessTab('insights')">
+                        <span class="nc-node-count" id="ncLearnedCount">--</span>
+                        <span class="nc-node-label">Learn</span>
+                    </div>
+                    <div class="nc-node sessions" data-tab="insights" style="top:20%; left:-24px;"
+                         title="Sessions" onclick="switchConsciousnessTab('insights')">
+                        <span class="nc-node-count" id="ncSessionCount">--</span>
+                        <span class="nc-node-label">Sessions</span>
+                    </div>
                 </div>
-                <div class="cs-stat blue">
-                    <div class="cs-stat-icon"><i data-lucide="users"></i></div>
-                    <div class="cs-stat-value" id="statAgentTotal">--</div>
-                    <div class="cs-stat-label" data-i18n="consciousness.dashboard.agent_fleet">Agent Fleet</div>
-                    <div class="cs-stat-sub"><span id="statAgentActive">--</span> <span data-i18n="consciousness.dashboard.active">active</span></div>
-                </div>
-                <div class="cs-stat green">
-                    <div class="cs-stat-icon"><i data-lucide="folder-kanban"></i></div>
-                    <div class="cs-stat-value" id="statProjectsActive">--</div>
-                    <div class="cs-stat-label" data-i18n="consciousness.dashboard.projects">Active Projects</div>
-                    <div class="cs-stat-sub"><span id="statTasksInProgress">--</span> <span data-i18n="consciousness.dashboard.in_progress">in progress</span></div>
-                </div>
-                <div class="cs-stat amber">
-                    <div class="cs-stat-icon"><i data-lucide="radio-tower"></i></div>
-                    <div class="cs-stat-value" id="statStationsActive">--</div>
-                    <div class="cs-stat-label" data-i18n="consciousness.dashboard.stations">Active Stations</div>
-                    <div class="cs-stat-sub" data-i18n="consciousness.dashboard.bridge_connected">Bridge Connected</div>
+
+                <!-- Center Core Node -->
+                <div class="nc-core" id="ncCoreNode">
+                    <div class="nc-core-ring"></div>
+                    <span class="nc-core-name">A.R.C.H.I.E.</span>
+                    <span class="nc-core-mood" id="ncCoreMood">focused</span>
                 </div>
             </div>
 
-            <!-- Activity + Wellness Row -->
+            <!-- Stats HUD -->
+            <div class="nc-stats-hud">
+                <div class="nc-hud-item purple">
+                    <span class="nc-hud-value" id="ncTotalKnowledge">--</span>
+                    <span class="nc-hud-label">Knowledge</span>
+                </div>
+                <div class="nc-hud-item blue">
+                    <span class="nc-hud-value" id="ncGitHubFiles">--</span>
+                    <span class="nc-hud-label">GitHub Files</span>
+                </div>
+                <div class="nc-hud-item green">
+                    <span class="nc-hud-value" id="ncEmbedPct">--</span>
+                    <span class="nc-hud-label">Embedded</span>
+                </div>
+                <div class="nc-hud-item amber">
+                    <span class="nc-hud-value" id="ncActiveAgents">--</span>
+                    <span class="nc-hud-label">Agents</span>
+                </div>
+            </div>
+
+            <!-- Activity + Wellness Row (retained from original) -->
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
                 <div class="cs-card">
                     <div class="cs-card-header" data-i18n="consciousness.dashboard.recent_activity">Recent Activity</div>
@@ -1694,34 +1739,12 @@
                 </div>
             </div>
 
-            <!-- Integration Health -->
+            <!-- Integration Health (retained from original) -->
             <div class="cs-card">
                 <div class="cs-card-header" data-i18n="consciousness.dashboard.integration_health">Integration Health</div>
                 <div class="cs-card-body">
                     <div class="cs-integration-grid" id="dashboardIntegration">
                         <div class="cs-loading" data-i18n="common.loading">Loading...</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Brain Map + Emotional State Row -->
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
-                <div class="cs-card">
-                    <div class="cs-card-header">
-                        <i data-lucide="brain" style="width:16px;height:16px;display:inline;vertical-align:middle;margin-right:6px;"></i>
-                        Knowledge Brain Map
-                    </div>
-                    <div class="cs-card-body" id="brainMapContainer">
-                        <div class="cs-loading"><span data-i18n="consciousness.loading_brain_map">Loading brain map...</span></div>
-                    </div>
-                </div>
-                <div class="cs-card">
-                    <div class="cs-card-header">
-                        <i data-lucide="heart-pulse" style="width:16px;height:16px;display:inline;vertical-align:middle;margin-right:6px;"></i>
-                        Emotional Timeline
-                    </div>
-                    <div class="cs-card-body" style="position:relative; height:220px;">
-                        <canvas id="emotionalChart"></canvas>
                     </div>
                 </div>
             </div>

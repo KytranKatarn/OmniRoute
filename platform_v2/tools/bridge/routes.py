@@ -329,6 +329,7 @@ def get_stations():
                 SELECT bs.id, bs.station_code, bs.station_name, bs.full_name,
                        bs.description, bs.color, bs.icon, bs.default_llm,
                        bs.modules, bs.position_row, bs.position_order,
+                       bs.max_primary, bs.max_auxiliary, bs.allow_overflow,
                        COALESCE(
                            json_agg(
                                json_build_object(
@@ -352,7 +353,8 @@ def get_stations():
                 WHERE bs.is_active = TRUE
                 GROUP BY bs.id, bs.station_code, bs.station_name, bs.full_name,
                          bs.description, bs.color, bs.icon, bs.default_llm,
-                         bs.modules, bs.position_row, bs.position_order
+                         bs.modules, bs.position_row, bs.position_order,
+                         bs.max_primary, bs.max_auxiliary, bs.allow_overflow
                 ORDER BY bs.position_row, bs.position_order
             """
             )
@@ -387,6 +389,9 @@ def get_stations():
                         "primary_count": primary_count,
                         "backup_count": backup_count,
                         "total_agents": len(agents),
+                        "max_primary": station.get("max_primary", 2),
+                        "max_auxiliary": station.get("max_auxiliary", 1),
+                        "allow_overflow": station.get("allow_overflow", True),
                         "status": "active",
                         "node_coverage": {
                             "total_nodes": cov.get("total_nodes", 0),

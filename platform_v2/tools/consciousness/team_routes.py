@@ -102,14 +102,15 @@ def register_team_routes(bp, admin_required):
                     agent["full_name"] = agent.get("name", "Unknown")
                 # Ensure role fallback
                 agent["role"] = agent.get("title") or agent.get("agent_type") or "Agent"
-
-            cur.close()
-            conn.close()
-
             return jsonify({"success": True, "agents": agents})
         except Exception as e:
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/team/agents/<int:agent_id>", methods=["GET"])
     @login_required
@@ -144,13 +145,14 @@ def register_team_routes(bp, admin_required):
             )
 
             recent_tasks = cur.fetchall()
-
-            cur.close()
-            conn.close()
-
             return jsonify({"agent": agent, "recent_tasks": recent_tasks})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # PERFORMANCE
@@ -181,12 +183,14 @@ def register_team_routes(bp, admin_required):
             )
 
             performance = cur.fetchone()
-            cur.close()
-            conn.close()
-
             return jsonify(performance)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/team/leaderboard", methods=["GET"])
     @login_required
@@ -216,12 +220,14 @@ def register_team_routes(bp, admin_required):
             )
 
             leaderboard = cur.fetchall()
-            cur.close()
-            conn.close()
-
             return jsonify({"leaderboard": leaderboard})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # TEAM AWARENESS DATA (COMPREHENSIVE)
@@ -303,10 +309,6 @@ def register_team_routes(bp, admin_required):
                 if dept not in by_department:
                     by_department[dept] = []
                 by_department[dept].append(dict(agent))
-
-            cur.close()
-            conn.close()
-
             # Convert datetime objects to ISO format
             for agent in agents:
                 if agent["last_used"]:
@@ -333,6 +335,11 @@ def register_team_routes(bp, admin_required):
             print("❌ [BACKEND] Error in get_team_awareness_data:")
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/team-awareness", methods=["GET"])
     @login_required
@@ -410,10 +417,6 @@ def register_team_routes(bp, admin_required):
                 if dept not in by_department:
                     by_department[dept] = []
                 by_department[dept].append(dict(agent))
-
-            cur.close()
-            conn.close()
-
             # Convert datetime objects to ISO format
             for agent in agents:
                 if agent["last_used"]:
@@ -440,6 +443,11 @@ def register_team_routes(bp, admin_required):
             print("❌ [BACKEND] Error in get_team_awareness:")
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # EMOTIONAL STATE
@@ -473,8 +481,8 @@ def register_team_routes(bp, admin_required):
                     AVG(relationship_strength) as avg_confidence,
                     COUNT(*) as measurement_count,
                     MODE() WITHIN GROUP (ORDER BY current_mood) as dominant_mood
-                FROM archie_emotional_state
-                WHERE timestamp > NOW() - INTERVAL '%s days'
+                FROM agent_emotional_state
+                WHERE timestamp > NOW() - (%s * INTERVAL '1 day')
                 GROUP BY DATE(timestamp)
                 ORDER BY date ASC
             """,
@@ -490,7 +498,7 @@ def register_team_routes(bp, admin_required):
                     AVG(stress_level) as avg_stress,
                     AVG(energy_level) as avg_agent_energy
                 FROM agent_emotional_state
-                WHERE timestamp > NOW() - INTERVAL '%s days'
+                WHERE timestamp > NOW() - (%s * INTERVAL '1 day')
                 GROUP BY DATE(timestamp)
                 ORDER BY date ASC
             """,
@@ -510,18 +518,19 @@ def register_team_routes(bp, admin_required):
                 """
                 SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
                        relationship_strength as confidence, user_id, notes
-                FROM archie_emotional_state
+                FROM agent_emotional_state
                 ORDER BY timestamp DESC LIMIT 1
             """
             )
             current_state = cur.fetchone()
-
-            cur.close()
-            conn.close()
-
             return jsonify({"timeline": timeline, "current_state": current_state})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # TEAM ROSTER & AGENT PROFILE (Agent Command Center)
@@ -584,14 +593,15 @@ def register_team_routes(bp, admin_required):
                 agent["skills"] = skills_map.get(a["id"], [])
                 agent["skill_count"] = len(agent["skills"])
                 result.append(agent)
-
-            cur.close()
-            conn.close()
-
             return jsonify({"success": True, "agents": result})
         except Exception as e:
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/api/team/agents/<int:agent_id>/profile")
     @login_required
@@ -605,8 +615,6 @@ def register_team_routes(bp, admin_required):
             cur.execute("SELECT * FROM agent_profiles WHERE id = %s", (agent_id,))
             agent = cur.fetchone()
             if not agent:
-                cur.close()
-                conn.close()
                 return jsonify({"success": False, "error": "Agent not found"}), 404
 
             # Identity traits (from agent_identity table, NOT agent_personalities)
@@ -683,10 +691,6 @@ def register_team_routes(bp, admin_required):
                 (agent_id,),
             )
             station = cur.fetchone()
-
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -703,6 +707,11 @@ def register_team_routes(bp, admin_required):
         except Exception as e:
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # EMOTIONAL STATE
@@ -724,7 +733,7 @@ def register_team_routes(bp, admin_required):
                        relationship_strength as confidence, user_id, notes,
                        mood_context, conversation_tone,
                        user_happiness_detected, user_stress_detected
-                FROM archie_emotional_state
+                FROM agent_emotional_state
                 ORDER BY timestamp DESC
                 LIMIT 1
             """
@@ -743,7 +752,7 @@ def register_team_routes(bp, admin_required):
             )
             agent_state = cur.fetchone()
 
-            # Recent mood transitions — derived from archie_emotional_state via LAG()
+            # Recent mood transitions — derived from agent_emotional_state via LAG()
             cur.execute(
                 """
                 SELECT current_mood, previous_mood, trigger_event, mood_duration_minutes, timestamp
@@ -753,7 +762,7 @@ def register_team_routes(bp, admin_required):
                            notes as trigger_event,
                            EXTRACT(EPOCH FROM (timestamp - LAG(timestamp) OVER (ORDER BY timestamp))) / 60 as mood_duration_minutes,
                            timestamp
-                    FROM archie_emotional_state
+                    FROM agent_emotional_state
                     ORDER BY timestamp DESC
                 ) sub
                 WHERE previous_mood IS NOT NULL AND current_mood != previous_mood
@@ -779,7 +788,7 @@ def register_team_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT current_mood, COUNT(*) as count
-                FROM archie_emotional_state
+                FROM agent_emotional_state
                 GROUP BY current_mood
                 ORDER BY count DESC
             """
@@ -792,7 +801,7 @@ def register_team_routes(bp, admin_required):
                 SELECT
                     mood_context->'sentiment'->>'user_emotion' as detected_emotion,
                     COUNT(*) as count
-                FROM archie_emotional_state
+                FROM agent_emotional_state
                 WHERE mood_context IS NOT NULL
                   AND mood_context->'sentiment'->>'user_emotion' IS NOT NULL
                 GROUP BY detected_emotion
@@ -807,7 +816,7 @@ def register_team_routes(bp, admin_required):
                 SELECT mood_context->'sentiment'->'emotional_signals' as signals,
                        mood_context->'trust'->>'user_satisfaction' as satisfaction,
                        mood_context->'sentiment'->'indicators' as indicators
-                FROM archie_emotional_state
+                FROM agent_emotional_state
                 WHERE mood_context IS NOT NULL
                 ORDER BY timestamp DESC
                 LIMIT 1
@@ -816,7 +825,7 @@ def register_team_routes(bp, admin_required):
             latest_sentiment = cur.fetchone()
 
             # Data freshness counts
-            cur.execute("SELECT COUNT(*) as cnt FROM archie_emotional_state")
+            cur.execute("SELECT COUNT(*) as cnt FROM agent_emotional_state")
             state_count = cur.fetchone()["cnt"]
             cur.execute("SELECT COUNT(*) as cnt FROM emotional_memory")
             memory_count = cur.fetchone()["cnt"]
@@ -827,11 +836,11 @@ def register_team_routes(bp, admin_required):
                 SELECT aes.user_id, u.username,
                        aes.relationship_strength, aes.current_mood,
                        aes.timestamp
-                FROM archie_emotional_state aes
+                FROM agent_emotional_state aes
                 JOIN users u ON aes.user_id = u.id
                 WHERE aes.user_id IS NOT NULL
                 AND aes.id IN (
-                    SELECT MAX(id) FROM archie_emotional_state
+                    SELECT MAX(id) FROM agent_emotional_state
                     WHERE user_id IS NOT NULL
                     GROUP BY user_id
                 )
@@ -839,10 +848,6 @@ def register_team_routes(bp, admin_required):
             """
             )
             relationships = cur.fetchall()
-
-            cur.close()
-            conn.close()
-
             result = dict(state) if state else {"mood": "neutral", "energy": 0.5, "confidence": 0.5}
             if agent_state:
                 result["agent_state"] = dict(agent_state)
@@ -867,3 +872,9 @@ def register_team_routes(bp, admin_required):
             return jsonify(result)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+        finally:
+
+            cur.close()
+
+            conn.close()

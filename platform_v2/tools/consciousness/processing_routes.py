@@ -278,14 +278,15 @@ def _get_backlog_counts() -> dict:
             ingested_count = cur.fetchone()[0]
             counts["log_files_total"] = len(log_files)
             counts["log_files_pending"] = max(0, len(log_files) - ingested_count)
-
-        cur.close()
-        conn.close()
-
         counts["total"] = counts["conversations"] + counts["github"] + counts["claude_hooks"]
 
     except Exception as e:
         logger.error(f"Failed to get backlog counts: {e}")
+    finally:
+
+        cur.close()
+
+        conn.close()
 
     return counts
 
@@ -399,7 +400,9 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                 "batch_id": batch_id,
                 "processed": processed,
                 "cards_created": cards_created,
-                "errors": [{"count": errors}],
+                "relationships_created": 0,
+                "total_tokens": total_input_tokens + total_output_tokens,
+                "errors": errors,
                 "log": [],
             },
         )
@@ -486,9 +489,6 @@ def start_processing():
             (batch_size,),
         )
         items = cur.fetchall()
-        cur.close()
-        conn.close()
-
         if not items:
             return jsonify({"success": True, "message": "No items to process", "processed": 0})
 
@@ -536,6 +536,11 @@ def start_processing():
     except Exception as e:
         logger.error(f"Processing failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 def _update_source_analysis(item_id: int, result, batch_id: str):
@@ -563,10 +568,13 @@ def _update_source_analysis(item_id: int, result, batch_id: str):
             (json.dumps(ai_analysis), item_id),
         )
         conn.commit()
-        cur.close()
-        conn.close()
     except Exception as e:
         logger.error(f"Failed to update source analysis: {e}")
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 def _log_batch_processing(batch_id: str, category: str, results: dict):
@@ -592,17 +600,20 @@ def _log_batch_processing(batch_id: str, category: str, results: dict):
                 json.dumps(
                     {
                         "processed": results["processed"],
-                        "errors": len(results["errors"]),
+                        "errors": results["errors"] if isinstance(results["errors"], int) else len(results["errors"]),
                         "log": results["log"][:20],  # Limit log size
                     }
                 ),
             ),
         )
         conn.commit()
-        cur.close()
-        conn.close()
     except Exception as e:
         logger.error(f"Failed to log batch: {e}")
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 def _auto_embed_processed_items(item_ids: list) -> dict:
@@ -650,13 +661,21 @@ def _auto_embed_processed_items(item_ids: list) -> dict:
             except Exception as e:
                 logger.error(f"Auto-embed for {item_id} failed: {e}")
                 results["failed"] += 1
+            finally:
+
+                cur.close()
+
+                conn.close()
 
         conn.commit()
-        cur.close()
-        conn.close()
         logger.info(f"Auto-embedded {results['processed']}/{len(item_ids)} items")
     except Exception as e:
         logger.error(f"Auto-embed batch failed: {e}")
+    finally:
+
+        cur.close()
+
+        conn.close()
 
     return results
 
@@ -704,11 +723,13 @@ def _run_embedding_job(item_ids_and_data, job_id):
                 failed += 1
                 if job_id:
                     dispatcher.update_job_progress(job_id, processed, failed)
+            finally:
+
+                cur.close()
+
+                conn.close()
 
         conn.commit()
-        cur.close()
-        conn.close()
-
     except Exception as e:
         logger.error(f"Embedding background job failed: {e}")
     finally:
@@ -747,9 +768,6 @@ def generate_embeddings():
             (batch_size,),
         )
         items = cur.fetchall()
-        cur.close()
-        conn.close()
-
         if not items:
             return jsonify({"success": True, "message": "All entries already embedded", "processed": 0, "total": 0})
 
@@ -797,6 +815,11 @@ def generate_embeddings():
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @processing_bp.route("/embedding-coverage", methods=["GET"])
@@ -837,10 +860,6 @@ def get_embedding_coverage():
                 total_all += row[1]
                 embedded_all += row[2]
                 analyzed_all += row[3]
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -855,6 +874,11 @@ def get_embedding_coverage():
     except Exception as e:
         logger.error(f"Embedding coverage failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @processing_bp.route("/job-status/<int:job_id>", methods=["GET"])
@@ -885,9 +909,6 @@ def get_job_status(job_id):
             (job_id,),
         )
         row = cur.fetchone()
-        cur.close()
-        conn.close()
-
         if not row:
             return jsonify({"success": False, "error": "Job not found"}), 404
 
@@ -914,6 +935,11 @@ def get_job_status(job_id):
     except Exception as e:
         logger.error(f"Job status lookup failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @processing_bp.route("/active-jobs", methods=["GET"])
@@ -946,9 +972,6 @@ def get_active_jobs():
             """,
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
         jobs = []
         for row in rows:
             jobs.append(
@@ -972,6 +995,11 @@ def get_active_jobs():
     except Exception as e:
         logger.error(f"Active jobs lookup failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @processing_bp.route("/history", methods=["GET"])
@@ -995,9 +1023,6 @@ def get_processing_history():
         )
 
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
         history = []
         for row in rows:
             history.append(
@@ -1018,3 +1043,9 @@ def get_processing_history():
     except Exception as e:
         logger.error(f"History fetch failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+    finally:
+
+        cur.close()
+
+        conn.close()

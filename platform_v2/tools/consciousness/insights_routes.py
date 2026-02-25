@@ -118,15 +118,14 @@ def register_insights_routes(bp, admin_required):
     @admin_required
     def knowledge_growth():
         """Knowledge base growth metrics over time"""
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            conn = _get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
             # Growth by day (last 30 days)
             cur.execute(
                 """
                 SELECT
-                    DATE(created_at) as date,
+                    DATE(created_at)::text as date,
                     COUNT(*) as entries_added,
                     knowledge_type
                 FROM knowledge_base
@@ -137,12 +136,13 @@ def register_insights_routes(bp, admin_required):
             )
 
             growth_data = cur.fetchall()
-            cur.close()
-            conn.close()
 
             return jsonify({"growth_data": growth_data})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
 
     # ==================================================================
     # IMPROVEMENTS
@@ -153,10 +153,8 @@ def register_insights_routes(bp, admin_required):
     @admin_required
     def get_consciousness_improvements():
         """Get improvements tracked in consciousness (mistake_learned entries)"""
-
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
             cur.execute(
                 """
@@ -167,12 +165,13 @@ def register_insights_routes(bp, admin_required):
             )
 
             improvements = cur.fetchall()
-            cur.close()
-            conn.close()
 
             return jsonify({"improvements": improvements})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
 
     # ==================================================================
     # CONVERSATION SESSIONS - ARCHIE'S MEMORY TIMELINE
@@ -183,10 +182,8 @@ def register_insights_routes(bp, admin_required):
     @admin_required
     def get_conversation_sessions():
         """Get all conversation sessions - ARCHIE's memory timeline"""
-
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
             # Get query parameters
             limit = request.args.get("limit", 50, type=int)
@@ -237,22 +234,20 @@ def register_insights_routes(bp, admin_required):
             )
             stats = cur.fetchone()
 
-            cur.close()
-            conn.close()
-
             return jsonify({"sessions": sessions, "stats": stats, "count": len(sessions)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
 
     @bp.route("/sessions/<int:session_id>", methods=["GET"])
     @login_required
     @admin_required
     def get_session_detail(session_id):
         """Get full details of a specific conversation session"""
-
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
             cur.execute(
                 """
@@ -277,12 +272,12 @@ def register_insights_routes(bp, admin_required):
 
             knowledge_entries = cur.fetchall()
 
-            cur.close()
-            conn.close()
-
             return jsonify({"session": session, "knowledge_entries": knowledge_entries})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
 
     # ==================================================================
     # LEARNING PATTERNS - ARCHIE'S KNOWLEDGE ACQUISITION
@@ -293,10 +288,8 @@ def register_insights_routes(bp, admin_required):
     @admin_required
     def get_learning_patterns():
         """Analyze ARCHIE's learning patterns"""
-
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
             # Most accessed knowledge (what ARCHIE references most)
             cur.execute(
@@ -325,7 +318,7 @@ def register_insights_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT
-                    DATE(created_at) as date,
+                    DATE(created_at)::text as date,
                     COUNT(*) as entries_added,
                     AVG(importance_score) as avg_importance
                 FROM knowledge_base
@@ -380,9 +373,6 @@ def register_insights_routes(bp, admin_required):
 
             importance_distribution = cur.fetchall()
 
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "most_accessed": most_accessed,
@@ -393,6 +383,9 @@ def register_insights_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
 
     # ==================================================================
     # TAGGED EXPERIENCES
@@ -403,10 +396,8 @@ def register_insights_routes(bp, admin_required):
     @admin_required
     def get_tagged_experiences():
         """Get all tagged experiences - ARCHIE's categorized memories"""
-
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
             # Get all unique tags with counts
             cur.execute(
@@ -463,9 +454,6 @@ def register_insights_routes(bp, admin_required):
             else:
                 experiences = []
 
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "popular_tags": popular_tags,
@@ -475,6 +463,9 @@ def register_insights_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
 
     # ==================================================================
     # WORK CONTEXT - GIT BRANCHES, PHASES, TOPICS
@@ -485,10 +476,8 @@ def register_insights_routes(bp, admin_required):
     @admin_required
     def get_work_context():
         """Get ARCHIE's work context - Git branches, commits, phases"""
-
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
         try:
             # Sessions by branch
             cur.execute(
@@ -563,9 +552,6 @@ def register_insights_routes(bp, admin_required):
 
             topic_distribution = cur.fetchall()
 
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "branch_activity": branch_activity,
@@ -576,3 +562,6 @@ def register_insights_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()

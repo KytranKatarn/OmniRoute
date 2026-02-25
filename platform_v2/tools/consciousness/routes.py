@@ -272,14 +272,15 @@ def memory():
         """
         )
         table_stats = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
         return render_template("consciousness_memory.html", table_stats=table_stats)
     except Exception as e:
         flash(f"Error loading memory: {str(e)}", "error")
         return redirect(url_for("consciousness.index"))
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/memories/<view_type>", methods=["GET"])
@@ -342,12 +343,14 @@ def get_memories(view_type):
             )
 
         memories = cur.fetchall()
-        cur.close()
-        conn.close()
-
         return jsonify({"memories": memories, "view_type": view_type})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # emotional-state route moved to team_routes.py
@@ -696,10 +699,6 @@ def get_stats():
         """
         )
         repository_health = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
         # Convert to JSON-serializable format
         for item in learning_timeline:
             if item["date"]:
@@ -784,6 +783,9 @@ def get_stats():
         print("❌ [BACKEND] Error in get_consciousness_stats:")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 
 @consciousness_bp.route("/charts-data", methods=["GET"])
@@ -854,7 +856,7 @@ def get_charts_data():
             """
             SELECT knowledge_type,
                 COUNT(*) as total,
-                SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END) as embedded
+                SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END) as embedded
             FROM knowledge_base GROUP BY knowledge_type ORDER BY total DESC
         """
         )
@@ -866,10 +868,6 @@ def get_charts_data():
             }
             for r in cur.fetchall()
         ]
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -885,6 +883,11 @@ def get_charts_data():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # search_knowledge() moved to knowledge_routes.py
@@ -901,11 +904,14 @@ def delete_memory(memory_id):
     try:
         cur.execute("DELETE FROM knowledge_base WHERE id = %s", (memory_id,))
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/memory/<int:memory_id>", methods=["PUT"])
@@ -938,11 +944,14 @@ def update_memory(memory_id):
             ),
         )
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ingest_text(), create_knowledge(), get_knowledge(), list_knowledge(),
@@ -1056,16 +1065,12 @@ def get_complete_brain_state():
             """
             SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
                    relationship_strength as confidence, user_id, notes
-            FROM archie_emotional_state
+            FROM agent_emotional_state
             ORDER BY timestamp DESC LIMIT 1
         """
         )
 
         current_emotion = cur.fetchone()
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "overall_stats": overall_stats,
@@ -1078,6 +1083,11 @@ def get_complete_brain_state():
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ingest_directory(), browse_files(), view_file(), ingest_all_docs()
@@ -1380,6 +1390,11 @@ def get_brain_map_data():
     except Exception as e:
         logger.error(f"Brain map data error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/brain-map/drill-down", methods=["GET"])
@@ -1453,6 +1468,11 @@ def get_brain_map_drill_down():
     except Exception as e:
         logger.error(f"Brain map drill-down error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/knowledge/<int:knowledge_id>/backlinks", methods=["GET"])
@@ -1536,7 +1556,7 @@ def get_activity_feed():
                         ELSE 'Knowledge added'
                     END as description
                 FROM knowledge_base
-                WHERE created_at >= NOW() - INTERVAL '%s hours'
+                WHERE created_at >= NOW() - (%s * INTERVAL '1 hour')
                 AND source_type != 'archie_v1'
                 ORDER BY created_at DESC
                 LIMIT %s
@@ -1570,7 +1590,7 @@ def get_activity_feed():
                         END as description
                     FROM agent_executions ae
                     JOIN agents a ON ae.agent_id = a.id
-                    WHERE ae.started_at >= NOW() - INTERVAL '%s hours'
+                    WHERE ae.started_at >= NOW() - (%s * INTERVAL '1 hour')
                     ORDER BY ae.started_at DESC
                     LIMIT %s
                 """,
@@ -1582,6 +1602,11 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
+            finally:
+
+                cur.close()
+
+                conn.close()
 
         # 3. Recent improvement proposals (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "improvement":
@@ -1605,7 +1630,7 @@ def get_activity_feed():
                             ELSE 'Improvement ' || status
                         END as description
                     FROM improvement_proposals
-                    WHERE proposed_at >= NOW() - INTERVAL '%s hours'
+                    WHERE proposed_at >= NOW() - (%s * INTERVAL '1 hour')
                     ORDER BY proposed_at DESC
                     LIMIT %s
                 """,
@@ -1617,6 +1642,11 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
+            finally:
+
+                cur.close()
+
+                conn.close()
 
         # 4. Recent conversation sessions (Claude Code ingests)
         if not event_type or event_type == "session":
@@ -1633,7 +1663,7 @@ def get_activity_feed():
                     started_at as created_at,
                     'Claude Code session: ' || COALESCE(session_name, 'Unnamed') as description
                 FROM conversation_sessions
-                WHERE started_at >= NOW() - INTERVAL '%s hours'
+                WHERE started_at >= NOW() - (%s * INTERVAL '1 hour')
                 ORDER BY started_at DESC
                 LIMIT %s
             """,
@@ -1657,8 +1687,8 @@ def get_activity_feed():
                     relationship_strength as confidence,
                     timestamp as created_at,
                     'Mood: ' || current_mood || ' (Energy: ' || ROUND(mood_intensity::numeric, 2) || ')' as description
-                FROM archie_emotional_state
-                WHERE timestamp >= NOW() - INTERVAL '%s hours'
+                FROM agent_emotional_state
+                WHERE timestamp >= NOW() - (%s * INTERVAL '1 hour')
                 ORDER BY timestamp DESC
                 LIMIT %s
             """,
@@ -1683,7 +1713,7 @@ def get_activity_feed():
                         acknowledged,
                         created_at
                     FROM llm_alerts
-                    WHERE created_at >= NOW() - INTERVAL '%s hours'
+                    WHERE created_at >= NOW() - (%s * INTERVAL '1 hour')
                     ORDER BY created_at DESC
                     LIMIT %s
                 """,
@@ -1695,6 +1725,11 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
+            finally:
+
+                cur.close()
+
+                conn.close()
 
         # 7. Project activity (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "project":
@@ -1709,7 +1744,7 @@ def get_activity_feed():
                         entity_type,
                         created_at
                     FROM project_activity
-                    WHERE created_at >= NOW() - INTERVAL '%s hours'
+                    WHERE created_at >= NOW() - (%s * INTERVAL '1 hour')
                     ORDER BY created_at DESC
                     LIMIT %s
                 """,
@@ -1721,6 +1756,11 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
+            finally:
+
+                cur.close()
+
+                conn.close()
 
         # 8. Work sessions (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "work_session":
@@ -1735,7 +1775,7 @@ def get_activity_feed():
                         status,
                         started_at as created_at
                     FROM work_sessions
-                    WHERE started_at >= NOW() - INTERVAL '%s hours'
+                    WHERE started_at >= NOW() - (%s * INTERVAL '1 hour')
                     ORDER BY started_at DESC
                     LIMIT %s
                 """,
@@ -1747,9 +1787,11 @@ def get_activity_feed():
                     activities.append(dict(event))
             except Exception:
                 conn.rollback()
+            finally:
 
-        cur.close()
-        conn.close()
+                cur.close()
+
+                conn.close()
 
         # Sort all activities by created_at descending
         activities.sort(key=lambda x: x.get("created_at") or "", reverse=True)
@@ -1778,6 +1820,11 @@ def get_activity_feed():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/activity-stats")
@@ -1821,7 +1868,7 @@ def get_activity_stats():
             """
             SELECT current_mood as mood, mood_intensity as energy,
                    relationship_strength as confidence, timestamp
-            FROM archie_emotional_state
+            FROM agent_emotional_state
             ORDER BY timestamp DESC
             LIMIT 1
         """
@@ -1953,6 +2000,11 @@ def get_activity_stats():
             )
         except Exception:
             module_count = 0
+        finally:
+
+            cur.close()
+
+            conn.close()
 
         kb_total = embed_row["total"] if embed_row else 0
         footprint_total = (
@@ -2039,10 +2091,6 @@ def get_activity_stats():
                 "complexity_patterns": fp["complexity_patterns"],
             },
         }
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2060,6 +2108,11 @@ def get_activity_stats():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ============================================================================
@@ -2186,17 +2239,15 @@ def api_record_memory():
             source_module=source_module,
         )
 
-        return (
-            jsonify(
+        if memory_id:
+            return jsonify(
                 {
                     "success": True,
                     "memory_id": memory_id,
                     "source": "agent_memory" if agent_id else "long_term_memory",
                 }
             )
-            if memory_id
-            else jsonify({"success": False, "error": "Failed to record"})
-        ), 500
+        return jsonify({"success": False, "error": "Failed to record"}), 500
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2289,9 +2340,11 @@ def save_conversation():
             conn.commit()
         except Exception as embed_err:
             print(f"Embedding generation failed (non-critical): {embed_err}")
+        finally:
 
-        cur.close()
-        conn.close()
+            cur.close()
+
+            conn.close()
 
         return jsonify(
             {
@@ -2307,6 +2360,11 @@ def save_conversation():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # GitHub routes (auth, indexing, repositories, search, dependencies)
@@ -2325,20 +2383,21 @@ def get_chat_volume():
             """
             SELECT DATE(created_at) as date, COUNT(*) as count
             FROM ai_conversations
-            WHERE created_at >= NOW() - INTERVAL '%s days'
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
             GROUP BY DATE(created_at)
             ORDER BY date ASC
         """,
             (days,),
         )
         volume = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "volume": [dict(v) for v in volume]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/collections")
@@ -2379,11 +2438,9 @@ def api_create_collection():
             icon=data.get("icon"),
             color=data.get("color"),
         )
-        return (
-            jsonify({"success": True, "collection_id": collection_id})
-            if collection_id
-            else jsonify({"success": False, "error": "Failed"})
-        ), 500
+        if collection_id:
+            return jsonify({"success": True, "collection_id": collection_id})
+        return jsonify({"success": False, "error": "Failed"}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2484,9 +2541,9 @@ def reinforce_api(memory_type, memory_id):
     data = request.get_json() or {}
     try:
         new_score = reinforce_memory(memory_type, memory_id, data.get("boost", 0.05))
-        return (
-            jsonify({"success": True, "new_importance": new_score}) if new_score else jsonify({"success": False})
-        ), 500
+        if new_score:
+            return jsonify({"success": True, "new_importance": new_score})
+        return jsonify({"success": False}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2510,9 +2567,6 @@ def run_memory_maintenance():
         results = [dict(r) for r in cur.fetchall()]
 
         conn.commit()
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2522,6 +2576,11 @@ def run_memory_maintenance():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/memory/preferences", methods=["GET"])
@@ -2541,13 +2600,14 @@ def get_preferences():
             (user_id, category, min_confidence),
         )
         preferences = [dict(p) for p in cur.fetchall()]
-
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "data": preferences, "count": len(preferences)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/memory/preferences", methods=["POST"])
@@ -2589,9 +2649,6 @@ def learn_preference():
         pref_id = cur.fetchone()[0]
 
         conn.commit()
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2601,6 +2658,11 @@ def learn_preference():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/memory/system-stats", methods=["GET"])
@@ -2646,10 +2708,6 @@ def get_memory_system_stats():
         """
         )
         recent_extractions = [dict(e) for e in cur.fetchall()]
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2666,6 +2724,11 @@ def get_memory_system_stats():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/memory/extract", methods=["POST"])
@@ -2693,9 +2756,6 @@ def extract_memories():
         memory_id = cur.fetchone()[0]
 
         conn.commit()
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2705,6 +2765,11 @@ def extract_memories():
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ============================================================================
@@ -2842,10 +2907,6 @@ def get_user_time():
             )
             user_stats = cur.fetchall()
             recent_sessions = []
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2858,6 +2919,11 @@ def get_user_time():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ============================================================================
@@ -2944,10 +3010,6 @@ def get_bridge_analytics():
         """
         )
         daily_trend = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -2960,6 +3022,11 @@ def get_bridge_analytics():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/agent-skills", methods=["GET"])
@@ -3031,10 +3098,6 @@ def get_agent_skills():
         """
         )
         by_category = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -3047,6 +3110,11 @@ def get_agent_skills():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/improvements-proposals", methods=["GET"])
@@ -3109,10 +3177,6 @@ def get_improvement_proposals():
         """
         )
         stats = cur.fetchone() or {}
-
-        cur.close()
-        conn.close()
-
         # Map 'proposed' status to 'pending' for frontend consistency
         formatted_proposals = []
         for p in proposals:
@@ -3131,6 +3195,11 @@ def get_improvement_proposals():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/improvements/<int:proposal_id>/approve", methods=["POST"])
@@ -3163,9 +3232,6 @@ def approve_proposal(proposal_id):
 
         proposal = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
-
         if proposal:
             audit_log(
                 "PROPOSAL_APPROVED",
@@ -3177,6 +3243,11 @@ def approve_proposal(proposal_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/improvements/<int:proposal_id>/reject", methods=["POST"])
@@ -3207,9 +3278,6 @@ def reject_proposal(proposal_id):
 
         proposal = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
-
         if proposal:
             audit_log(
                 "PROPOSAL_REJECTED",
@@ -3225,6 +3293,11 @@ def reject_proposal(proposal_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/improvements/<int:proposal_id>/test", methods=["POST"])
@@ -3251,9 +3324,6 @@ def test_proposal_in_sandbox(proposal_id):
 
         proposal = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
-
         if proposal:
             audit_log(
                 "PROPOSAL_TESTING",
@@ -3272,6 +3342,11 @@ def test_proposal_in_sandbox(proposal_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ============================================================================
@@ -3340,10 +3415,6 @@ def list_agent_memories():
             params,
         )
         total = cur.fetchone()["total"]
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -3356,6 +3427,11 @@ def list_agent_memories():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>", methods=["GET"])
@@ -3392,10 +3468,6 @@ def get_agent_memory(memory_id):
                 (memory_id,),
             )
             conn.commit()
-
-        cur.close()
-        conn.close()
-
         if memory:
             return jsonify({"success": True, "memory": dict(memory)})
         else:
@@ -3403,6 +3475,11 @@ def get_agent_memory(memory_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>", methods=["PUT"])
@@ -3464,10 +3541,6 @@ def update_agent_memory(memory_id):
                     "updated_by": current_user.id,
                 },
             )
-
-        cur.close()
-        conn.close()
-
         if memory:
             return jsonify({"success": True, "memory": dict(memory)})
         else:
@@ -3478,6 +3551,11 @@ def update_agent_memory(memory_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>/soft-delete", methods=["POST"])
@@ -3524,10 +3602,6 @@ def soft_delete_agent_memory(memory_id):
                     "reason": reason,
                 },
             )
-
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -3538,8 +3612,6 @@ def soft_delete_agent_memory(memory_id):
                 }
             )
         else:
-            cur.close()
-            conn.close()
             return (
                 jsonify({"success": False, "error": "Memory not found or already deleted"}),
                 404,
@@ -3547,6 +3619,11 @@ def soft_delete_agent_memory(memory_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>/restore", methods=["POST"])
@@ -3588,10 +3665,6 @@ def restore_agent_memory(memory_id):
                     "restored_by": current_user.id,
                 },
             )
-
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -3600,8 +3673,6 @@ def restore_agent_memory(memory_id):
                 }
             )
         else:
-            cur.close()
-            conn.close()
             return (
                 jsonify({"success": False, "error": "Memory not found or not deleted"}),
                 404,
@@ -3609,6 +3680,11 @@ def restore_agent_memory(memory_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/<int:memory_id>/reinforce", methods=["POST"])
@@ -3652,10 +3728,6 @@ def reinforce_agent_memory(memory_id):
                     "reinforcement_count": memory.get("reinforcement_count"),
                 },
             )
-
-        cur.close()
-        conn.close()
-
         if memory:
             return jsonify(
                 {
@@ -3672,6 +3744,11 @@ def reinforce_agent_memory(memory_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/agent-memory/stats", methods=["GET"])
@@ -3736,10 +3813,6 @@ def agent_memory_stats():
         )
 
         by_type = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -3751,6 +3824,11 @@ def agent_memory_stats():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ============================================================================
@@ -4316,8 +4394,6 @@ def save_work_product_to_kb(product_id):
         )
         product = cur.fetchone()
         if not product:
-            cur.close()
-            conn.close()
             return jsonify({"success": False, "error": "Work product not found"}), 404
 
         # Insert into knowledge_base
@@ -4347,9 +4423,11 @@ def save_work_product_to_kb(product_id):
                 conn.commit()
         except Exception as emb_err:
             logger.warning(f"Failed to generate embedding for KB entry {kb_id}: {emb_err}")
+        finally:
 
-        cur.close()
-        conn.close()
+            cur.close()
+
+            conn.close()
 
         return jsonify({"success": True, "kb_id": kb_id, "title": title})
 
@@ -4358,6 +4436,11 @@ def save_work_product_to_kb(product_id):
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/collab/work-products/<session_id>", methods=["GET"])
@@ -4452,9 +4535,6 @@ def get_chat_history():
             (current_user.id,),
         )
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
         # Group by conversation_id, most recent conversation first
         conversations = {}
         for row in rows:
@@ -4507,6 +4587,11 @@ def get_chat_history():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ============================================================================
@@ -4540,9 +4625,6 @@ def list_conversations():
             (current_user.id,),
         )
         threads = cur.fetchall()
-        cur.close()
-        conn.close()
-
         # Serialize datetimes
         for t in threads:
             if t.get("created_at"):
@@ -4555,6 +4637,11 @@ def list_conversations():
     except Exception as e:
         logging.error(f"Error listing conversations: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/conversations/<conv_id>/messages", methods=["GET"])
@@ -4580,9 +4667,6 @@ def get_conversation_messages(conv_id):
             (current_user.id, conv_id),
         )
         messages = cur.fetchall()
-        cur.close()
-        conn.close()
-
         # Serialize datetimes and extract chat_mode from metadata
         for m in messages:
             if m.get("created_at"):
@@ -4597,6 +4681,11 @@ def get_conversation_messages(conv_id):
     except Exception as e:
         logging.error(f"Error fetching conversation messages: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/conversations/<conv_id>", methods=["DELETE"])
@@ -4633,9 +4722,6 @@ def delete_conversation(conv_id):
         thread_deleted = cur.rowcount
 
         conn.commit()
-        cur.close()
-        conn.close()
-
         if thread_deleted == 0 and messages_deleted == 0:
             return jsonify({"success": False, "error": "Conversation not found"}), 404
 
@@ -4650,6 +4736,11 @@ def delete_conversation(conv_id):
     except Exception as e:
         logging.error(f"Error deleting conversation: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/conversations/<conv_id>", methods=["PUT"])
@@ -4688,9 +4779,6 @@ def update_conversation(conv_id):
         updated = cur.rowcount
 
         conn.commit()
-        cur.close()
-        conn.close()
-
         if updated == 0:
             return jsonify({"success": False, "error": "Conversation not found"}), 404
 
@@ -4699,6 +4787,11 @@ def update_conversation(conv_id):
     except Exception as e:
         logging.error(f"Error updating conversation: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ─── File Upload Endpoint ───────────────────────────────────────────────────────
@@ -4871,10 +4964,13 @@ def chat_file_upload():
                     ),
                 )
                 conn.commit()
-                cur.close()
-                conn.close()
             except Exception as e:
                 logging.error(f"Knowledge base insert error: {e}")
+            finally:
+
+                cur.close()
+
+                conn.close()
 
         return jsonify(
             {
@@ -4898,6 +4994,11 @@ def chat_file_upload():
                 os.unlink(tmp_path)
             except OSError:
                 pass
+            finally:
+
+                cur.close()
+
+                conn.close()
 
 
 @consciousness_bp.route("/api/terminal/token", methods=["POST"])
@@ -4925,14 +5026,16 @@ def generate_terminal_token():
             (current_user.id, token),
         )
         conn.commit()
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "token": token})
 
     except Exception as e:
         logging.error(f"Error generating terminal token: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/claude/chat", methods=["POST"])
@@ -4997,10 +5100,13 @@ def claude_side_chat():
                     ),
                 )
                 conn.commit()
-                cur.close()
-                conn.close()
             except Exception as db_err:
                 logger.warning(f"Failed to persist Claude message: {db_err}")
+            finally:
+
+                cur.close()
+
+                conn.close()
 
             return jsonify({"success": True, "response": response})
         else:
@@ -5011,6 +5117,11 @@ def claude_side_chat():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/claude/status", methods=["GET"])
@@ -5165,10 +5276,6 @@ def voice_dashboard():
         """
         )
         engine_breakdown = {r["engine"]: r["count"] for r in cur.fetchall()}
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -5191,6 +5298,11 @@ def voice_dashboard():
     except Exception as e:
         logger.error(f"Voice dashboard error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/speakers", methods=["GET"])
@@ -5369,15 +5481,16 @@ def voice_profiles_list():
         """
         )
         agents = [dict(r) for r in cur.fetchall()]
-
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "profiles": profiles, "agents": agents})
 
     except Exception as e:
         logger.error(f"Voice profiles list error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/profiles", methods=["POST"])
@@ -5463,14 +5576,16 @@ def voice_profile_save():
         )
         result = cur.fetchone()
         conn.commit()
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True, "profile_id": result["id"]})
 
     except Exception as e:
         logger.error(f"Voice profile save error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/profiles/<int:profile_id>", methods=["DELETE"])
@@ -5484,9 +5599,6 @@ def voice_profile_delete(profile_id):
         cur.execute("DELETE FROM agent_voice_profiles WHERE id = %s", (profile_id,))
         deleted = cur.rowcount
         conn.commit()
-        cur.close()
-        conn.close()
-
         if deleted:
             return jsonify({"success": True})
         return jsonify({"success": False, "error": "Profile not found"}), 404
@@ -5494,6 +5606,11 @@ def voice_profile_delete(profile_id):
     except Exception as e:
         logger.error(f"Voice profile delete error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/profiles/<int:profile_id>/agent-name", methods=["PATCH"])
@@ -5512,19 +5629,20 @@ def voice_profile_rename_agent(profile_id):
         cur.execute("SELECT agent_id FROM agent_voice_profiles WHERE id = %s", (profile_id,))
         row = cur.fetchone()
         if not row:
-            cur.close()
-            conn.close()
             return jsonify({"success": False, "error": "Profile not found"}), 404
 
         cur.execute("UPDATE agents SET name = %s WHERE id = %s", (new_name, row[0]))
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True})
 
     except Exception as e:
         logger.error(f"Voice agent rename error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/cache", methods=["GET"])
@@ -5616,10 +5734,6 @@ def voice_cache_list():
         for row in cur.fetchall():
             d = dict(row)
             agent_groups.append(d)
-
-        cur.close()
-        conn.close()
-
         return jsonify(
             {
                 "success": True,
@@ -5635,6 +5749,11 @@ def voice_cache_list():
     except Exception as e:
         logger.error(f"Voice cache list error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/pregen", methods=["POST"])
@@ -5685,8 +5804,6 @@ def voice_pregen_start():
                 (agent_id, language),
             )
             profile = cur.fetchone()
-            cur.close()
-            conn.close()
             if not profile:
                 return (
                     jsonify(
@@ -5720,6 +5837,11 @@ def voice_pregen_start():
     except Exception as e:
         logger.error(f"Voice pregen start error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/pregen/full-dna", methods=["POST"])
@@ -5743,9 +5865,6 @@ def voice_full_dna():
             (agent_id,),
         )
         profile = cur.fetchone()
-        cur.close()
-        conn.close()
-
         if not profile:
             return (
                 jsonify({"success": False, "error": "Agent has no voice profile"}),
@@ -5784,6 +5903,11 @@ def voice_full_dna():
     except Exception as e:
         logger.error(f"Voice full DNA error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/pregen/<int:job_id>", methods=["GET"])
@@ -5803,9 +5927,6 @@ def voice_pregen_status(job_id):
             (job_id,),
         )
         job = cur.fetchone()
-        cur.close()
-        conn.close()
-
         if not job:
             return jsonify({"success": False, "error": "Job not found"}), 404
 
@@ -5820,6 +5941,11 @@ def voice_pregen_status(job_id):
     except Exception as e:
         logger.error(f"Voice pregen status error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/voice/profile-lock-status/<int:profile_id>")
@@ -5840,11 +5966,14 @@ def voice_profile_lock_status(profile_id):
             (profile_id,),
         )
         count = cur.fetchone()[0]
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "locked_count": count})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -6060,45 +6189,46 @@ def _seed_keys(keys_dict):
     conn = get_db()
     cur = conn.cursor()
 
-    seeded = 0
-    skipped = 0
+    try:
+        seeded = 0
+        skipped = 0
 
-    context_map = {
-        "module_name": "module_registry",
-        "module_desc": "module_registry",
-        "category": "module_registry",
-        "js": "js_manifest",
-        "template": "template",
-    }
+        context_map = {
+            "module_name": "module_registry",
+            "module_desc": "module_registry",
+            "category": "module_registry",
+            "js": "js_manifest",
+            "template": "template",
+        }
 
-    for key, info in keys_dict.items():
-        english = info.get("english", "")
-        source_type = info.get("source", "")
-        if not english:
-            skipped += 1
-            continue
+        for key, info in keys_dict.items():
+            english = info.get("english", "")
+            source_type = info.get("source", "")
+            if not english:
+                skipped += 1
+                continue
 
-        context = context_map.get(source_type, source_type)
+            context = context_map.get(source_type, source_type)
 
-        cur.execute(
-            """
-            INSERT INTO translations (key, language, text, source, status, context,
-                                      created_at, updated_at)
-            VALUES (%s, 'en', %s, 'imported', 'approved', %s, NOW(), NOW())
-            ON CONFLICT (key, language) DO NOTHING
-            """,
-            (key, english, context),
-        )
-        if cur.rowcount > 0:
-            seeded += 1
-        else:
-            skipped += 1
+            cur.execute(
+                """
+                INSERT INTO translations (key, language, text, source, status, context,
+                                          created_at, updated_at)
+                VALUES (%s, 'en', %s, 'imported', 'approved', %s, NOW(), NOW())
+                ON CONFLICT (key, language) DO NOTHING
+                """,
+                (key, english, context),
+            )
+            if cur.rowcount > 0:
+                seeded += 1
+            else:
+                skipped += 1
 
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return seeded, skipped
+        conn.commit()
+        return seeded, skipped
+    finally:
+        cur.close()
+        conn.close()
 
 
 def scan_and_seed_keys():
@@ -6314,6 +6444,11 @@ def translation_tag_module():
             conn2.close()
         except Exception:
             pass
+        finally:
+
+            cur.close()
+
+            conn.close()
 
         for line in lines:
             in_skip += len(SKIP_RE_OPEN.findall(line))
@@ -6418,10 +6553,13 @@ def translation_tag_module():
                         seeded += 1
                 except Exception:
                     pass
-            conn.commit()
-            cur.close()
-            conn.close()
+                finally:
 
+                    cur.close()
+
+                    conn.close()
+
+            conn.commit()
         return jsonify(
             {
                 "success": True,
@@ -6434,6 +6572,11 @@ def translation_tag_module():
     except Exception as e:
         logger.error(f"Tag module error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translations/module-coverage")
@@ -6605,9 +6748,6 @@ def translation_coverage():
             (language, key_list),
         )
         target_rows = {row["key"]: row["status"] for row in cur.fetchall()}
-        cur.close()
-        conn.close()
-
         # Build per-source stats
         sources = {}
         for key, info in keys.items():
@@ -6642,6 +6782,11 @@ def translation_coverage():
     except Exception as e:
         logger.error(f"Translation coverage error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translations/browser")
@@ -6684,10 +6829,6 @@ def translation_browser():
             (language, key_list),
         )
         target_db = {row["key"]: row for row in cur.fetchall()}
-
-        cur.close()
-        conn.close()
-
         # Build paired list
         translations = []
         for key, info in keys.items():
@@ -6745,6 +6886,11 @@ def translation_browser():
     except Exception as e:
         logger.error(f"Translation browser error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translations/language-coverage")
@@ -6799,13 +6945,15 @@ def translation_language_coverage():
                     "coverage_pct": round(100 * row["translated"] / en_total, 1) if en_total > 0 else 0,
                 }
             )
-
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "en_total": en_total, "languages": languages})
     except Exception as e:
         logger.error(f"Language coverage error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translations/generate", methods=["POST"])
@@ -6847,8 +6995,6 @@ def translation_generate():
                 (language,),
             )
             rows = cur.fetchall()
-            cur.close()
-            conn.close()
             strings = [(r["key"], r["english_text"], r.get("context") or "") for r in rows]
 
         if not strings:
@@ -6867,6 +7013,11 @@ def translation_generate():
     except Exception as e:
         logger.error(f"Translation generate error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translations/generate-async", methods=["POST"])
@@ -6933,9 +7084,6 @@ def translation_generate_async():
                 params,
             )
             total_missing += (cur.fetchone() or {}).get("cnt", 0)
-        cur.close()
-        conn.close()
-
         if total_missing == 0:
             return jsonify(
                 {
@@ -6996,6 +7144,11 @@ def translation_generate_async():
     except Exception as e:
         logger.error(f"Async translation generate error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 def _run_translate_bg(languages, module_id, parent_job_id):
@@ -7042,9 +7195,6 @@ def _run_translate_bg(languages, module_id, parent_job_id):
                     params,
                 )
                 rows = cur.fetchall()
-                cur.close()
-                conn.close()
-
                 strings = [(r["key"], r["english_text"], r.get("context") or "") for r in rows]
 
                 if strings:
@@ -7064,6 +7214,11 @@ def _run_translate_bg(languages, module_id, parent_job_id):
             except Exception as lang_err:
                 logger.error(f"[TranslateBG] {lang_name} failed: {lang_err}")
                 failed_langs += 1
+            finally:
+
+                cur.close()
+
+                conn.close()
 
             # Update parent job progress after each language
             try:
@@ -7079,6 +7234,11 @@ def _run_translate_bg(languages, module_id, parent_job_id):
                 )
             except Exception:
                 pass
+            finally:
+
+                cur.close()
+
+                conn.close()
 
     except Exception as e:
         logger.error(f"[TranslateBG] Job #{parent_job_id} error: {e}")
@@ -7087,6 +7247,12 @@ def _run_translate_bg(languages, module_id, parent_job_id):
             dispatcher.complete_job(parent_job_id)
         except Exception:
             pass
+        finally:
+
+            cur.close()
+
+            conn.close()
+
         logger.info(
             f"[TranslateBG] Job #{parent_job_id} finished: "
             f"{completed_langs}/{len(languages)} languages, "
@@ -7130,9 +7296,6 @@ def translation_review():
             )
 
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
-
         result = []
         for row in rows:
             d = dict(row)
@@ -7145,6 +7308,11 @@ def translation_review():
     except Exception as e:
         logger.error(f"Translation review error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translations/approve", methods=["PUT"])
@@ -7192,8 +7360,6 @@ def translation_approve():
         elif action == "edit":
             new_text = data.get("text")
             if not new_text:
-                cur.close()
-                conn.close()
                 return (
                     jsonify({"success": False, "error": "text required for edit action"}),
                     400,
@@ -7234,12 +7400,15 @@ def translation_approve():
                     )
 
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "action": action, "id": translation_id})
     except Exception as e:
         logger.error(f"Translation approve error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translations/bulk-approve", methods=["PUT"])
@@ -7265,12 +7434,15 @@ def translation_bulk_approve():
         )
         count = cur.rowcount
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "approved_count": count})
     except Exception as e:
         logger.error(f"Translation bulk approve error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translation-memory", methods=["GET", "POST"])
@@ -7295,9 +7467,6 @@ def translation_memory_api():
                 (language,),
             )
             rows = cur.fetchall()
-            cur.close()
-            conn.close()
-
             result = []
             for row in rows:
                 d = dict(row)
@@ -7314,8 +7483,6 @@ def translation_memory_api():
         category = data.get("category", "ui")
 
         if not source_text or not translated_text:
-            cur.close()
-            conn.close()
             return (
                 jsonify(
                     {
@@ -7337,13 +7504,16 @@ def translation_memory_api():
         )
         new_id = cur.fetchone()["id"]
         conn.commit()
-        cur.close()
-        conn.close()
         return jsonify({"success": True, "id": new_id})
 
     except Exception as e:
         logger.error(f"Translation memory error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+
+        cur.close()
+
+        conn.close()
 
 
 @consciousness_bp.route("/api/translation-memory/<int:entry_id>", methods=["DELETE"])
@@ -7357,12 +7527,15 @@ def translation_memory_delete(entry_id):
         cur.execute("DELETE FROM translation_memory WHERE id = %s", (entry_id,))
         deleted = cur.rowcount
         conn.commit()
-        cur.close()
-        conn.close()
-
         if deleted == 0:
             return jsonify({"success": False, "error": "Entry not found"}), 404
         return jsonify({"success": True, "deleted_id": entry_id})
     except Exception as e:
         logger.error(f"Translation memory delete error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+    finally:
+
+        cur.close()
+
+        conn.close()

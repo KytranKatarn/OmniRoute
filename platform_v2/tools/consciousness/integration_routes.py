@@ -37,8 +37,9 @@ def register_integration_routes(bp, admin_required):
     @admin_required
     def integration_health():
         """Cross-module health status"""
-        with _get_db() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
             cur.execute("SELECT count(*) as cnt FROM unified_projects WHERE status = 'active'")
             devhq = cur.fetchone()
             cur.execute("SELECT count(*) as cnt FROM bridge_stations WHERE is_active = true")
@@ -65,6 +66,11 @@ def register_integration_routes(bp, admin_required):
                     },
                 }
             )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
 
     @bp.route("/api/integration/test-pipeline", methods=["POST"])
     @login_required

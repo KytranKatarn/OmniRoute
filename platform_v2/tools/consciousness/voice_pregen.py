@@ -356,7 +356,7 @@ def get_conversation_words(days: int = 30, limit: int = 200):
         cur.execute(
             """
             SELECT response FROM ai_conversations
-            WHERE created_at > NOW() - INTERVAL '%s days'
+            WHERE created_at > NOW() - (%s * INTERVAL '1 day')
             AND response IS NOT NULL
             ORDER BY created_at DESC
             LIMIT 500

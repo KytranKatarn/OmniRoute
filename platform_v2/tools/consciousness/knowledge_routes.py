@@ -75,13 +75,14 @@ def register_knowledge_routes(bp, admin_required):
 
             cur.execute(sql, params)
             results = cur.fetchall()
-
-            cur.close()
-            conn.close()
-
             return jsonify({"results": results, "count": len(results)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # INGESTION
@@ -118,12 +119,14 @@ def register_knowledge_routes(bp, admin_required):
             )
 
             conn.commit()
-            cur.close()
-            conn.close()
-
             return jsonify({"success": True, "message": "Knowledge added"})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # KNOWLEDGE CRUD
@@ -174,12 +177,14 @@ def register_knowledge_routes(bp, admin_required):
 
             new_id = cur.fetchone()[0]
             conn.commit()
-            cur.close()
-            conn.close()
-
             return jsonify({"success": True, "message": "Knowledge entry created", "id": new_id})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/knowledge/<int:knowledge_id>", methods=["GET"])
     @login_required
@@ -201,15 +206,17 @@ def register_knowledge_routes(bp, admin_required):
             )
 
             entry = cur.fetchone()
-            cur.close()
-            conn.close()
-
             if entry:
                 return jsonify({"success": True, "entry": dict(entry)})
             else:
                 return jsonify({"error": "Entry not found"}), 404
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/knowledge/list", methods=["GET"])
     @login_required
@@ -259,10 +266,6 @@ def register_knowledge_routes(bp, admin_required):
 
             cur.execute(count_query, count_params)
             total = cur.fetchone()["count"]
-
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -274,6 +277,11 @@ def register_knowledge_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/knowledge/categories", methods=["GET"])
     @login_required
@@ -295,12 +303,14 @@ def register_knowledge_routes(bp, admin_required):
             )
 
             categories = cur.fetchall()
-            cur.close()
-            conn.close()
-
             return jsonify({"success": True, "categories": [dict(c) for c in categories]})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # DOCUMENT INGESTION
@@ -341,9 +351,8 @@ def register_knowledge_routes(bp, admin_required):
                             cur.execute(
                                 """
                                 INSERT INTO long_term_memory
-                                (id, content, category, tags, source, importance, metadata, created_at)
-                                VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, NOW())
-                                ON CONFLICT DO NOTHING
+                                (content, category, tags, source_type, importance_score, metadata)
+                                VALUES (%s, %s, %s, %s, %s, %s)
                             """,
                                 (
                                     content[:5000],  # Limit content size
@@ -357,7 +366,7 @@ def register_knowledge_routes(bp, admin_required):
                                     json.dumps(
                                         {
                                             "filename": filename,
-                                            "path": rel_path,
+                                            "file_path": rel_path,
                                             "size": len(content),
                                         }
                                     ),
@@ -366,18 +375,21 @@ def register_knowledge_routes(bp, admin_required):
 
                             files_processed += 1
                         except Exception as e:
+                            conn.rollback()
                             errors.append(f"{filename}: {str(e)}")
 
             conn.commit()
-            cur.close()
-            conn.close()
-
             return jsonify({"success": True, "files_processed": files_processed, "errors": errors})
         except Exception as e:
             import traceback
 
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/browse-files", methods=["POST"])
     @login_required
@@ -464,10 +476,6 @@ def register_knowledge_routes(bp, admin_required):
                     file_info["needs_update"] = file_modified > last_ingested
                 else:
                     file_info["needs_update"] = False
-
-            cur.close()
-            conn.close()
-
             # Sort by name
             files_info.sort(key=lambda x: x["name"])
 
@@ -484,6 +492,11 @@ def register_knowledge_routes(bp, admin_required):
 
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/view-file", methods=["POST"])
     @login_required
@@ -538,9 +551,6 @@ def register_knowledge_routes(bp, admin_required):
             cur = conn.cursor()
             cur.execute("SELECT COUNT(*) FROM knowledge_base WHERE source_type = 'docs_migration'")
             kb_count = cur.fetchone()[0]
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -563,6 +573,11 @@ def register_knowledge_routes(bp, admin_required):
                 ),
                 500,
             )
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # UNIFIED KNOWLEDGE API (Phase 4: Integration Layer)

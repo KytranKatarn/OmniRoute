@@ -654,9 +654,6 @@ def register_github_routes(bp, admin_required):
                         (req_max_files, f"%{owner}/{repo}%"),
                     )
                     conn.commit()
-                cur.close()
-                conn.close()
-
                 # ── Create Bridge Job ───────────────────────
                 dispatcher = get_dispatcher()
                 job_id = dispatcher.create_job(
@@ -720,6 +717,11 @@ def register_github_routes(bp, admin_required):
             except Exception as e:
                 traceback.print_exc()
                 return jsonify({"success": False, "error": str(e)}), 500
+            finally:
+
+                cur.close()
+
+                conn.close()
 
         # Paths specified — use Contents API for targeted indexing
         indexed_count = 0
@@ -816,15 +818,17 @@ def register_github_routes(bp, admin_required):
 
                         except Exception as file_err:
                             errors.append(f"Error processing {item.get('name')}: {str(file_err)}")
+                        finally:
+
+                            cur.close()
+
+                            conn.close()
 
                     elif item.get("type") == "dir":
                         # Recurse into directories
                         paths.append(item.get("path", ""))
 
             conn.commit()
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -838,6 +842,11 @@ def register_github_routes(bp, admin_required):
         except Exception as e:
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # REINDEX
@@ -859,9 +868,6 @@ def register_github_routes(bp, admin_required):
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories ORDER BY id")
             repos = cur.fetchall()
-            cur.close()
-            conn.close()
-
             if not repos:
                 return jsonify({"success": True, "total_indexed": 0, "total_repos": 0, "results": []})
 
@@ -951,6 +957,11 @@ def register_github_routes(bp, admin_required):
         except Exception as e:
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/github/reindex/<int:repo_id>", methods=["POST"])
     @login_required
@@ -970,9 +981,6 @@ def register_github_routes(bp, admin_required):
                 (repo_id,),
             )
             repo_row = cur.fetchone()
-            cur.close()
-            conn.close()
-
             if not repo_row:
                 return jsonify({"success": False, "error": "Repository not found"}), 404
 
@@ -1046,6 +1054,11 @@ def register_github_routes(bp, admin_required):
         except Exception as e:
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # REPOSITORY CRUD
@@ -1073,10 +1086,6 @@ def register_github_routes(bp, admin_required):
             """
             )
             repos = cur.fetchall()
-
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -1086,6 +1095,11 @@ def register_github_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/github/repositories/<int:repo_id>", methods=["PATCH"])
     @login_required
@@ -1100,8 +1114,6 @@ def register_github_routes(bp, admin_required):
             cur.execute("SELECT id, repo_name FROM github_repositories WHERE id = %s", (repo_id,))
             repo = cur.fetchone()
             if not repo:
-                cur.close()
-                conn.close()
                 return jsonify({"success": False, "error": "Repository not found"}), 404
 
             # Update max_files (None resets to global default)
@@ -1114,12 +1126,14 @@ def register_github_routes(bp, admin_required):
                     (new_max, repo_id),
                 )
                 conn.commit()
-
-            cur.close()
-            conn.close()
             return jsonify({"success": True, "repo_id": repo_id, "max_files": data.get("max_files")})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/github/repositories/<int:repo_id>", methods=["DELETE"])
     @login_required
@@ -1138,8 +1152,6 @@ def register_github_routes(bp, admin_required):
             )
             repo = cur.fetchone()
             if not repo:
-                cur.close()
-                conn.close()
                 return jsonify({"success": False, "error": "Repository not found"}), 404
 
             repo = dict(repo)
@@ -1159,8 +1171,6 @@ def register_github_routes(bp, admin_required):
             impact = dict(cur.fetchone())
 
             if preview:
-                cur.close()
-                conn.close()
                 return jsonify({"success": True, "preview": True, "repo": repo, "impact": impact})
 
             # Actually delete
@@ -1171,9 +1181,6 @@ def register_github_routes(bp, admin_required):
             deleted_files = cur.rowcount
             cur.execute("DELETE FROM github_repositories WHERE id = %s", (repo_id,))
             conn.commit()
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -1183,6 +1190,11 @@ def register_github_routes(bp, admin_required):
             )
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # INDEXED FILE LISTING
@@ -1234,10 +1246,6 @@ def register_github_routes(bp, admin_required):
             """
             )
             stats = cur.fetchone()
-
-            cur.close()
-            conn.close()
-
             items_list = [dict(i) for i in items]
             return jsonify(
                 {
@@ -1250,6 +1258,11 @@ def register_github_routes(bp, admin_required):
 
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # SEMANTIC SEARCH
@@ -1378,6 +1391,11 @@ def register_github_routes(bp, admin_required):
                     except Exception as e:
                         cur.execute("ROLLBACK TO SAVEPOINT dep_scan")
                         logger.warning(f"Failed to scan {owner_repo}/{dep_file}: {e}")
+                    finally:
+
+                        cur.close()
+
+                        conn.close()
 
             # Scan local platform requirements.txt if requested
             if include_platform:
@@ -1411,16 +1429,23 @@ def register_github_routes(bp, admin_required):
                 except Exception as e:
                     cur.execute("ROLLBACK TO SAVEPOINT local_scan")
                     logger.warning(f"Failed to scan local requirements.txt: {e}")
+                finally:
+
+                    cur.close()
+
+                    conn.close()
 
             conn.commit()
-            cur.close()
-            conn.close()
-
             return jsonify({"success": True, **results_summary})
 
         except Exception as e:
             logger.error(f"Dependency scan failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # DEPENDENCY REPORTS & SUGGESTIONS
@@ -1479,10 +1504,6 @@ def register_github_routes(bp, admin_required):
             """
             )
             by_source = [dict(r) for r in cur.fetchall()]
-
-            cur.close()
-            conn.close()
-
             return jsonify(
                 {
                     "success": True,
@@ -1494,6 +1515,11 @@ def register_github_routes(bp, admin_required):
 
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     @bp.route("/github/upgrade-suggestions", methods=["GET"])
     @login_required
@@ -1539,14 +1565,15 @@ def register_github_routes(bp, admin_required):
                 if isinstance(r.get("memory_metadata"), str):
                     r["memory_metadata"] = json.loads(r["memory_metadata"])
                 suggestions.append(r)
-
-            cur.close()
-            conn.close()
-
             return jsonify({"success": True, "suggestions": suggestions, "count": len(suggestions)})
 
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # REPOS SUMMARY API (NEW)
@@ -1592,10 +1619,6 @@ def register_github_routes(bp, admin_required):
             )
             repos = [dict(r) for r in cur.fetchall()]
             mismatches = [r for r in repos if (r["expected"] or 0) != (r["actual"] or 0)]
-
-            cur.close()
-            conn.close()
-
             return jsonify(
                 success=True,
                 total_files=total,
@@ -1607,6 +1630,11 @@ def register_github_routes(bp, admin_required):
         except Exception as e:
             logger.error(f"GitHub stats error: {e}")
             return jsonify(success=False, error=str(e)), 500
+        finally:
+
+            cur.close()
+
+            conn.close()
 
     # ==================================================================
     # REPOS SUMMARY API

@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bridge Crew Avatar Styles — Pick Your Vibe</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0e14;
+    color: #e6edf3;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px 60px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    background: linear-gradient(90deg, #f0a030, #e6edf3, #f0a030);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    text-align: center;
+    font-size: 14px;
+    color: #6e7681;
+    letter-spacing: 2px;
+    margin-bottom: 48px;
+    font-family: 'Courier New', monospace;
+  }
+
+  .style-row {
+    margin-bottom: 36px;
+    padding: 24px 28px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    transition: background 0.3s;
+  }
+  .style-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .style-label {
+    font-family: 'Courier New', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    color: #f0a030;
+  }
+  .style-desc {
+    font-weight: 300;
+    font-size: 12px;
+    color: #6e7681;
+  }
+
+  .style-api {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #484f58;
+    margin-bottom: 20px;
+  }
+
+  .agents-row {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .agent-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 80px;
+  }
+
+  .avatar-ring {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .avatar-ring img {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #0a0e14;
+    display: block;
+    transition: opacity 0.3s;
+  }
+
+  .ring-gold {
+    border: 2px solid #f0a030;
+    box-shadow: 0 0 12px rgba(240, 160, 48, 0.5), 0 0 4px rgba(240, 160, 48, 0.3);
+    animation: halo-pulse-gold 3s ease-in-out infinite;
+  }
+  .ring-cyan {
+    border: 2px solid #00d4ff;
+    box-shadow: 0 0 12px rgba(0, 212, 255, 0.5), 0 0 4px rgba(0, 212, 255, 0.3);
+    animation: halo-pulse-cyan 3s ease-in-out infinite;
+  }
+  .ring-green {
+    border: 2px solid #3fb950;
+    box-shadow: 0 0 12px rgba(63, 185, 80, 0.5), 0 0 4px rgba(63, 185, 80, 0.3);
+    animation: halo-pulse-green 3s ease-in-out infinite;
+  }
+  .ring-pink {
+    border: 2px solid #f778ba;
+    box-shadow: 0 0 12px rgba(247, 120, 186, 0.5), 0 0 4px rgba(247, 120, 186, 0.3);
+    animation: halo-pulse-pink 3s ease-in-out infinite;
+  }
+  .ring-blue {
+    border: 2px solid #58a6ff;
+    box-shadow: 0 0 12px rgba(88, 166, 255, 0.5), 0 0 4px rgba(88, 166, 255, 0.3);
+    animation: halo-pulse-blue 3s ease-in-out infinite;
+  }
+
+  @keyframes halo-pulse-gold {
+    0%, 100% { box-shadow: 0 0 12px rgba(240, 160, 48, 0.5), 0 0 4px rgba(240, 160, 48, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(240, 160, 48, 0.7), 0 0 8px rgba(240, 160, 48, 0.5); }
+  }
+  @keyframes halo-pulse-cyan {
+    0%, 100% { box-shadow: 0 0 12px rgba(0, 212, 255, 0.5), 0 0 4px rgba(0, 212, 255, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.7), 0 0 8px rgba(0, 212, 255, 0.5); }
+  }
+  @keyframes halo-pulse-green {
+    0%, 100% { box-shadow: 0 0 12px rgba(63, 185, 80, 0.5), 0 0 4px rgba(63, 185, 80, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(63, 185, 80, 0.7), 0 0 8px rgba(63, 185, 80, 0.5); }
+  }
+  @keyframes halo-pulse-pink {
+    0%, 100% { box-shadow: 0 0 12px rgba(247, 120, 186, 0.5), 0 0 4px rgba(247, 120, 186, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(247, 120, 186, 0.7), 0 0 8px rgba(247, 120, 186, 0.5); }
+  }
+  @keyframes halo-pulse-blue {
+    0%, 100% { box-shadow: 0 0 12px rgba(88, 166, 255, 0.5), 0 0 4px rgba(88, 166, 255, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(88, 166, 255, 0.7), 0 0 8px rgba(88, 166, 255, 0.5); }
+  }
+
+  .agent-name {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #8b949e;
+    text-transform: uppercase;
+  }
+  .agent-name.commander { color: #f0a030; }
+
+  /* Stagger glow animations per cell */
+  .agent-cell:nth-child(1) .avatar-ring { animation-delay: 0s; }
+  .agent-cell:nth-child(2) .avatar-ring { animation-delay: 0.5s; }
+  .agent-cell:nth-child(3) .avatar-ring { animation-delay: 1.0s; }
+  .agent-cell:nth-child(4) .avatar-ring { animation-delay: 1.5s; }
+  .agent-cell:nth-child(5) .avatar-ring { animation-delay: 2.0s; }
+  .agent-cell:nth-child(6) .avatar-ring { animation-delay: 2.5s; }
+
+  /* --- Station zone preview --- */
+  .station-section {
+    margin-top: 64px;
+    padding-top: 48px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .station-section h2 {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 300;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    color: #e6edf3;
+  }
+
+  .station-subtitle {
+    text-align: center;
+    font-size: 12px;
+    color: #484f58;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 36px;
+  }
+
+  .station-grid {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .station-card {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(240, 160, 48, 0.15);
+    border-radius: 12px;
+    padding: 20px 28px 18px;
+    min-width: 200px;
+    text-align: center;
+    transition: border-color 0.3s, transform 0.2s;
+  }
+  .station-card:hover {
+    border-color: rgba(240, 160, 48, 0.35);
+    transform: translateY(-2px);
+  }
+
+  .station-style-label {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: #484f58;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+
+  .station-name {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #f0a030;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  .station-avatars {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+
+  .station-avatars .avatar-ring {
+    width: 56px;
+    height: 56px;
+  }
+  .station-avatars .avatar-ring img {
+    width: 48px;
+    height: 48px;
+  }
+
+  .station-modules {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #6e7681;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Bridge Crew Avatar Styles</h1>
+<p class="subtitle">Pick Your Vibe</p>
+
+<!-- ============================================ -->
+<!-- STYLE 1: BOTTTS                              -->
+<!-- ============================================ -->
+<div class="style-row">
+  <div class="style-label">Bottts <span class="style-desc">-- robots</span></div>
+  <div class="style-api">api.dicebear.com/9.x/bottts/svg</div>
+  <div class="agents-row">
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/bottts/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+      </div>
+      <span class="agent-name commander">ARCHIE</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+      </div>
+      <span class="agent-name commander">Vigil</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-cyan">
+        <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Amara&backgroundColor=0a0e14" alt="Amara">
+      </div>
+      <span class="agent-name">Amara</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-green">
+        <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Marcus&backgroundColor=0a0e14" alt="Marcus">
+      </div>
+      <span class="agent-name">Marcus</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-pink">
+        <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Dante&backgroundColor=0a0e14" alt="Dante">
+      </div>
+      <span class="agent-name">Dante</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-blue">
+        <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Sofia&backgroundColor=0a0e14" alt="Sofia">
+      </div>
+      <span class="agent-name">Sofia</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- STYLE 2: ADVENTURER                          -->
+<!-- ============================================ -->
+<div class="style-row">
+  <div class="style-label">Adventurer <span class="style-desc">-- illustrated faces</span></div>
+  <div class="style-api">api.dicebear.com/9.x/adventurer/svg</div>
+  <div class="agents-row">
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+      </div>
+      <span class="agent-name commander">ARCHIE</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+      </div>
+      <span class="agent-name commander">Vigil</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-cyan">
+        <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=Amara&backgroundColor=0a0e14" alt="Amara">
+      </div>
+      <span class="agent-name">Amara</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-green">
+        <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=Marcus&backgroundColor=0a0e14" alt="Marcus">
+      </div>
+      <span class="agent-name">Marcus</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-pink">
+        <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=Dante&backgroundColor=0a0e14" alt="Dante">
+      </div>
+      <span class="agent-name">Dante</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-blue">
+        <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=Sofia&backgroundColor=0a0e14" alt="Sofia">
+      </div>
+      <span class="agent-name">Sofia</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- STYLE 3: LORELEI                             -->
+<!-- ============================================ -->
+<div class="style-row">
+  <div class="style-label">Lorelei <span class="style-desc">-- soft line art</span></div>
+  <div class="style-api">api.dicebear.com/9.x/lorelei/svg</div>
+  <div class="agents-row">
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/lorelei/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+      </div>
+      <span class="agent-name commander">ARCHIE</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/lorelei/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+      </div>
+      <span class="agent-name commander">Vigil</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-cyan">
+        <img src="https://api.dicebear.com/9.x/lorelei/svg?seed=Amara&backgroundColor=0a0e14" alt="Amara">
+      </div>
+      <span class="agent-name">Amara</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-green">
+        <img src="https://api.dicebear.com/9.x/lorelei/svg?seed=Marcus&backgroundColor=0a0e14" alt="Marcus">
+      </div>
+      <span class="agent-name">Marcus</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-pink">
+        <img src="https://api.dicebear.com/9.x/lorelei/svg?seed=Dante&backgroundColor=0a0e14" alt="Dante">
+      </div>
+      <span class="agent-name">Dante</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-blue">
+        <img src="https://api.dicebear.com/9.x/lorelei/svg?seed=Sofia&backgroundColor=0a0e14" alt="Sofia">
+      </div>
+      <span class="agent-name">Sofia</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- STYLE 4: PIXEL-ART                           -->
+<!-- ============================================ -->
+<div class="style-row">
+  <div class="style-label">Pixel Art <span class="style-desc">-- retro pixels</span></div>
+  <div class="style-api">api.dicebear.com/9.x/pixel-art/svg</div>
+  <div class="agents-row">
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/pixel-art/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+      </div>
+      <span class="agent-name commander">ARCHIE</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/pixel-art/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+      </div>
+      <span class="agent-name commander">Vigil</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-cyan">
+        <img src="https://api.dicebear.com/9.x/pixel-art/svg?seed=Amara&backgroundColor=0a0e14" alt="Amara">
+      </div>
+      <span class="agent-name">Amara</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-green">
+        <img src="https://api.dicebear.com/9.x/pixel-art/svg?seed=Marcus&backgroundColor=0a0e14" alt="Marcus">
+      </div>
+      <span class="agent-name">Marcus</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-pink">
+        <img src="https://api.dicebear.com/9.x/pixel-art/svg?seed=Dante&backgroundColor=0a0e14" alt="Dante">
+      </div>
+      <span class="agent-name">Dante</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-blue">
+        <img src="https://api.dicebear.com/9.x/pixel-art/svg?seed=Sofia&backgroundColor=0a0e14" alt="Sofia">
+      </div>
+      <span class="agent-name">Sofia</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- STYLE 5: NOTIONISTS                          -->
+<!-- ============================================ -->
+<div class="style-row">
+  <div class="style-label">Notionists <span class="style-desc">-- minimal sketches</span></div>
+  <div class="style-api">api.dicebear.com/9.x/notionists/svg</div>
+  <div class="agents-row">
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/notionists/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+      </div>
+      <span class="agent-name commander">ARCHIE</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/notionists/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+      </div>
+      <span class="agent-name commander">Vigil</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-cyan">
+        <img src="https://api.dicebear.com/9.x/notionists/svg?seed=Amara&backgroundColor=0a0e14" alt="Amara">
+      </div>
+      <span class="agent-name">Amara</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-green">
+        <img src="https://api.dicebear.com/9.x/notionists/svg?seed=Marcus&backgroundColor=0a0e14" alt="Marcus">
+      </div>
+      <span class="agent-name">Marcus</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-pink">
+        <img src="https://api.dicebear.com/9.x/notionists/svg?seed=Dante&backgroundColor=0a0e14" alt="Dante">
+      </div>
+      <span class="agent-name">Dante</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-blue">
+        <img src="https://api.dicebear.com/9.x/notionists/svg?seed=Sofia&backgroundColor=0a0e14" alt="Sofia">
+      </div>
+      <span class="agent-name">Sofia</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- STYLE 6: AVATAAARS                           -->
+<!-- ============================================ -->
+<div class="style-row">
+  <div class="style-label">Avataaars <span class="style-desc">-- cartoon people</span></div>
+  <div class="style-api">api.dicebear.com/9.x/avataaars/svg</div>
+  <div class="agents-row">
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+      </div>
+      <span class="agent-name commander">ARCHIE</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-gold">
+        <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+      </div>
+      <span class="agent-name commander">Vigil</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-cyan">
+        <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Amara&backgroundColor=0a0e14" alt="Amara">
+      </div>
+      <span class="agent-name">Amara</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-green">
+        <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Marcus&backgroundColor=0a0e14" alt="Marcus">
+      </div>
+      <span class="agent-name">Marcus</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-pink">
+        <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Dante&backgroundColor=0a0e14" alt="Dante">
+      </div>
+      <span class="agent-name">Dante</span>
+    </div>
+    <div class="agent-cell">
+      <div class="avatar-ring ring-blue">
+        <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Sofia&backgroundColor=0a0e14" alt="Sofia">
+      </div>
+      <span class="agent-name">Sofia</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- STATION ZONE PREVIEW                         -->
+<!-- ============================================ -->
+<div class="station-section">
+  <h2>Station Zone Preview</h2>
+  <p class="station-subtitle">How the "COMMAND" station card looks with each style</p>
+  <div class="station-grid">
+
+    <div class="station-card">
+      <div class="station-style-label">bottts</div>
+      <div class="station-name">Command</div>
+      <div class="station-avatars">
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/bottts/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+          </div>
+          <span class="agent-name commander">ARCHIE</span>
+        </div>
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/bottts/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+          </div>
+          <span class="agent-name commander">Vigil</span>
+        </div>
+      </div>
+      <div class="station-modules">5 modules</div>
+    </div>
+
+    <div class="station-card">
+      <div class="station-style-label">adventurer</div>
+      <div class="station-name">Command</div>
+      <div class="station-avatars">
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+          </div>
+          <span class="agent-name commander">ARCHIE</span>
+        </div>
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/adventurer/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+          </div>
+          <span class="agent-name commander">Vigil</span>
+        </div>
+      </div>
+      <div class="station-modules">5 modules</div>
+    </div>
+
+    <div class="station-card">
+      <div class="station-style-label">lorelei</div>
+      <div class="station-name">Command</div>
+      <div class="station-avatars">
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/lorelei/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+          </div>
+          <span class="agent-name commander">ARCHIE</span>
+        </div>
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/lorelei/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+          </div>
+          <span class="agent-name commander">Vigil</span>
+        </div>
+      </div>
+      <div class="station-modules">5 modules</div>
+    </div>
+
+    <div class="station-card">
+      <div class="station-style-label">pixel-art</div>
+      <div class="station-name">Command</div>
+      <div class="station-avatars">
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/pixel-art/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+          </div>
+          <span class="agent-name commander">ARCHIE</span>
+        </div>
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/pixel-art/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+          </div>
+          <span class="agent-name commander">Vigil</span>
+        </div>
+      </div>
+      <div class="station-modules">5 modules</div>
+    </div>
+
+    <div class="station-card">
+      <div class="station-style-label">notionists</div>
+      <div class="station-name">Command</div>
+      <div class="station-avatars">
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/notionists/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+          </div>
+          <span class="agent-name commander">ARCHIE</span>
+        </div>
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/notionists/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+          </div>
+          <span class="agent-name commander">Vigil</span>
+        </div>
+      </div>
+      <div class="station-modules">5 modules</div>
+    </div>
+
+    <div class="station-card">
+      <div class="station-style-label">avataaars</div>
+      <div class="station-name">Command</div>
+      <div class="station-avatars">
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=ARCHIE&backgroundColor=0a0e14" alt="ARCHIE">
+          </div>
+          <span class="agent-name commander">ARCHIE</span>
+        </div>
+        <div class="agent-cell">
+          <div class="avatar-ring ring-gold">
+            <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Vigil&backgroundColor=0a0e14" alt="Vigil">
+          </div>
+          <span class="agent-name commander">Vigil</span>
+        </div>
+      </div>
+      <div class="station-modules">5 modules</div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

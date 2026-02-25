@@ -76,5 +76,30 @@ persistence/
 
 # Host-specific data
 host_monitor_data.json
+bandwidth_history.json
 CREDENTIALS.md
-CREDENTIALS.md
+
+# Backups directory (36GB+, managed separately)
+backups/
+
+# Screenshots & test artifacts (Playwright, visual baselines)
+/*.png
+screenshots/
+test-results/
+.playwright-mcp/
+
+# Audio samples (generated/test WAV files)
+platform_v2/static/voice_*.wav
+
+# Node.js (Playwright test runner)
+package.json
+package-lock.json
+
+# Root-level test scripts (one-off, not part of CI)
+/test_*.py
+
+# Host command queue
+host_commands/
+
+# HTML mockup files in root
+/*.html

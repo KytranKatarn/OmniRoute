@@ -1,0 +1,6 @@
+# Keep directory structure but ignore generated media files
+images/*
+video/*
+audio/*
+!.gitkeep
+!.gitignore

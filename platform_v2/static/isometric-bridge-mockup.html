@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bridge Command — Starship Bridge</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════════════ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #060a10;
+  --text: #e6edf3;
+  --cyan: #00ffff;
+  --gold: #FFD700;
+  --pink: #FF69B4;
+  --green: #32CD32;
+  --orange: #FF8C00;
+  --darkCyan: #00CED1;
+  --blue: #6495ED;
+  --panel: rgba(8, 12, 18, 0.95);
+  --border: rgba(0, 255, 255, 0.15);
+  --hull: rgba(15, 20, 30, 0.98);
+}
+
+html { font-size: 16px; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Courier New', 'Consolas', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STARFIELD
+   ═══════════════════════════════════════════════════════════════ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(1.5px 1.5px at 10% 15%, rgba(0,255,255,0.4), transparent),
+    radial-gradient(1px 1px at 25% 35%, rgba(255,215,0,0.3), transparent),
+    radial-gradient(1.2px 1.2px at 40% 8%, rgba(100,149,237,0.4), transparent),
+    radial-gradient(1px 1px at 55% 60%, rgba(0,255,255,0.2), transparent),
+    radial-gradient(1.5px 1.5px at 70% 25%, rgba(255,105,180,0.3), transparent),
+    radial-gradient(1px 1px at 85% 45%, rgba(50,205,50,0.3), transparent),
+    radial-gradient(1.2px 1.2px at 15% 75%, rgba(255,140,0,0.2), transparent),
+    radial-gradient(1px 1px at 60% 80%, rgba(100,149,237,0.2), transparent),
+    radial-gradient(0.8px 0.8px at 90% 70%, rgba(255,215,0,0.2), transparent),
+    radial-gradient(0.8px 0.8px at 45% 22%, rgba(100,149,237,0.3), transparent);
+  pointer-events: none;
+  z-index: 0;
+  animation: starTwinkle 8s ease-in-out infinite alternate;
+}
+
+@keyframes starTwinkle {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════════════════════════════ */
+.page-header {
+  text-align: center;
+  padding: 1.5rem 1rem 0.5rem;
+  position: relative;
+  z-index: 10;
+}
+
+.page-header h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 1.6rem;
+  letter-spacing: 0.2em;
+  color: var(--cyan);
+  text-shadow:
+    0 0 10px rgba(0,255,255,0.6),
+    0 0 30px rgba(0,255,255,0.2);
+  margin-bottom: 0.2rem;
+}
+
+.page-header .subtitle {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 400;
+  font-size: 0.65rem;
+  letter-spacing: 0.3em;
+  color: rgba(230, 237, 243, 0.3);
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BRIDGE ROOM — The main oval container
+   ═══════════════════════════════════════════════════════════════ */
+.bridge-room {
+  position: relative;
+  z-index: 5;
+  width: 96%;
+  max-width: 900px;
+  aspect-ratio: 1 / 1.05;
+  margin: 1rem auto 2rem;
+  perspective: 1400px;
+}
+
+.bridge-room-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform: rotateX(18deg);
+  transform-style: preserve-3d;
+  transform-origin: center 35%;
+}
+
+/* Hull shape — oval bridge outline */
+.bridge-hull {
+  position: absolute;
+  inset: 0;
+  border-radius: 50% 50% 42% 42%;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(15,22,35,0.98) 40%, rgba(8,12,20,0.99) 75%, rgba(4,6,10,1) 100%);
+  border: 2px solid rgba(0,255,255,0.12);
+  box-shadow:
+    0 0 40px rgba(0,255,255,0.06),
+    0 0 100px rgba(0,0,0,0.5),
+    inset 0 0 60px rgba(0,0,0,0.4),
+    inset 0 0 120px rgba(0,255,255,0.02);
+  overflow: hidden;
+}
+
+/* Hull inner ring — deck plating */
+.bridge-hull::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border-radius: 50% 50% 42% 42%;
+  border: 1px solid rgba(0,255,255,0.06);
+}
+
+/* Concentric floor rings */
+.bridge-hull::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 48%, transparent 15%, rgba(0,255,255,0.02) 15.5%, transparent 16%,
+      transparent 30%, rgba(0,255,255,0.015) 30.5%, transparent 31%,
+      transparent 45%, rgba(0,255,255,0.012) 45.5%, transparent 46%,
+      transparent 60%, rgba(0,255,255,0.01) 60.5%, transparent 61%,
+      transparent 75%, rgba(0,255,255,0.008) 75.5%, transparent 76%);
+  pointer-events: none;
+}
+
+/* Floor radial lines */
+.bridge-floor-lines {
+  position: absolute;
+  inset: 0;
+  border-radius: 50% 50% 42% 42%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bridge-floor-lines::before {
+  content: '';
+  position: absolute;
+  top: 48%;
+  left: 50%;
+  width: 200%;
+  height: 200%;
+  transform: translate(-50%, -50%);
+  background:
+    conic-gradient(from 0deg at 50% 50%,
+      transparent 0deg, transparent 29deg, rgba(0,255,255,0.015) 29.5deg, transparent 30deg,
+      transparent 59deg, rgba(0,255,255,0.015) 59.5deg, transparent 60deg,
+      transparent 89deg, rgba(0,255,255,0.015) 89.5deg, transparent 90deg,
+      transparent 119deg, rgba(0,255,255,0.015) 119.5deg, transparent 120deg,
+      transparent 149deg, rgba(0,255,255,0.015) 149.5deg, transparent 150deg,
+      transparent 179deg, rgba(0,255,255,0.015) 179.5deg, transparent 180deg,
+      transparent 209deg, rgba(0,255,255,0.015) 209.5deg, transparent 210deg,
+      transparent 239deg, rgba(0,255,255,0.015) 239.5deg, transparent 240deg,
+      transparent 269deg, rgba(0,255,255,0.015) 269.5deg, transparent 270deg,
+      transparent 299deg, rgba(0,255,255,0.015) 299.5deg, transparent 300deg,
+      transparent 329deg, rgba(0,255,255,0.015) 329.5deg, transparent 330deg,
+      transparent 359deg, rgba(0,255,255,0.015) 359.5deg, transparent 360deg
+    );
+  pointer-events: none;
+}
+
+/* Center deck marker */
+.bridge-center-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,255,255,0.06);
+  pointer-events: none;
+}
+
+.bridge-center-marker::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,255,255,0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   VIEWSCREEN — Front of the bridge (top)
+   ═══════════════════════════════════════════════════════════════ */
+.viewscreen {
+  position: absolute;
+  top: 4%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 52%;
+  max-width: 380px;
+  background: rgba(2,4,8,0.95);
+  border: 2px solid rgba(0,255,255,0.3);
+  border-radius: 8px 8px 12px 12px;
+  padding: 10px 14px;
+  z-index: 15;
+  box-shadow:
+    0 0 30px rgba(0,255,255,0.12),
+    0 0 80px rgba(0,255,255,0.04),
+    0 8px 30px rgba(0,0,0,0.5),
+    inset 0 0 20px rgba(0,255,255,0.03);
+  overflow: hidden;
+}
+
+/* CRT scanlines */
+.viewscreen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,255,255,0.012) 2px, rgba(0,255,255,0.012) 4px
+  );
+  pointer-events: none;
+  animation: scanlines 4s linear infinite;
+  z-index: 2;
+}
+
+@keyframes scanlines {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(4px); }
+}
+
+/* Top glow bar */
+.viewscreen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0.4;
+}
+
+.viewscreen-title {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 0.55rem;
+  letter-spacing: 0.35em;
+  color: var(--cyan);
+  text-align: center;
+  margin-bottom: 6px;
+  opacity: 0.7;
+}
+
+.viewscreen-line {
+  font-size: 0.62rem;
+  line-height: 1.7;
+  color: rgba(0,255,255,0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  position: relative;
+  z-index: 4;
+}
+
+.viewscreen-line .time { color: rgba(0,255,255,0.35); }
+.viewscreen-line .agent { color: var(--gold); }
+.viewscreen-line .station { color: var(--orange); }
+.viewscreen-line .model { color: rgba(0,255,255,0.45); font-size: 0.55rem; }
+.viewscreen-line .status { color: var(--green); }
+
+/* ═══════════════════════════════════════════════════════════════
+   STATION CONSOLE — Each station around the bridge
+   ═══════════════════════════════════════════════════════════════ */
+.station {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  transition: transform 0.3s ease;
+}
+
+.station:hover {
+  transform: scale(1.06);
+  z-index: 20;
+}
+
+/* Console desk — curved panel */
+.console {
+  position: relative;
+  width: 110px;
+  height: 50px;
+  background: linear-gradient(180deg,
+    rgba(18,24,36,0.95) 0%,
+    rgba(12,16,26,0.98) 100%);
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  box-shadow:
+    0 4px 16px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* Console screen glow */
+.console::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.04);
+  pointer-events: none;
+}
+
+/* Console screen content */
+.console-screen {
+  width: 100%;
+  height: 100%;
+  padding: 5px 7px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.console-status {
+  font-size: 0.42rem;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.3;
+}
+
+.console-status .status-icon { margin-right: 2px; }
+.console-status.active { opacity: 0.9; }
+.console-status.idle { opacity: 0.4; font-style: italic; }
+
+/* Mini progress bar */
+.console-progress {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.console-progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  animation: progress-pulse 2s ease-in-out infinite;
+}
+
+@keyframes progress-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Idle station — dim console */
+.station.is-idle .console {
+  opacity: 0.5;
+}
+.station.is-idle .console-glow {
+  opacity: 0.15;
+}
+.station.is-idle .avatar-ring {
+  animation-duration: 6s;
+}
+.station.is-idle .status-dot {
+  background: rgba(255,255,255,0.2);
+  box-shadow: none;
+  animation: none;
+}
+
+/* Active station — bright console + glow */
+.station.is-active .console {
+  opacity: 1;
+}
+.station.is-active .console-glow {
+  opacity: 0.6;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 3px;
+  height: 6px;
+  margin-left: 2px;
+  animation: blink-cursor 1s step-end infinite;
+  vertical-align: middle;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Console underglow */
+.console-glow {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90px;
+  height: 8px;
+  border-radius: 50%;
+  filter: blur(6px);
+  opacity: 0.4;
+}
+
+/* Station label */
+.station-name {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 600;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.station-name .module-count {
+  font-family: 'Courier New', monospace;
+  font-size: 0.5rem;
+  opacity: 0.4;
+  font-weight: 400;
+}
+
+/* Status dot */
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+  animation: pulse-dot 2s ease-in-out infinite;
+  box-shadow: 0 0 4px rgba(50,205,50,0.5);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AVATAR — Crew members at stations
+   ═══════════════════════════════════════════════════════════════ */
+.crew-row {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.crew-member {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.avatar-ring {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  padding: 2px;
+  position: relative;
+  animation: halo-pulse 3s ease-in-out infinite;
+}
+
+@keyframes halo-pulse {
+  0%, 100% { filter: brightness(1) drop-shadow(0 0 3px currentColor); }
+  50% { filter: brightness(1.2) drop-shadow(0 0 8px currentColor); }
+}
+
+.avatar-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0.5;
+  animation: ring-rotate 6s linear infinite;
+}
+
+@keyframes ring-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.avatar-ring::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px dashed currentColor;
+  opacity: 0.15;
+  animation: ring-rotate 10s linear infinite reverse;
+}
+
+.avatar-img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(10,14,20,0.9);
+  display: block;
+  position: relative;
+  z-index: 2;
+}
+
+.crew-name {
+  font-size: 0.55rem;
+  font-family: 'Courier New', monospace;
+  opacity: 0.65;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+/* Commander badge */
+.commander-badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  font-size: 0.8rem;
+  z-index: 20;
+  filter: drop-shadow(0 0 5px rgba(255,215,0,0.8));
+  animation: badge-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes badge-glow {
+  0% { filter: drop-shadow(0 0 3px rgba(255,215,0,0.4)); }
+  100% { filter: drop-shadow(0 0 8px rgba(255,215,0,1)); }
+}
+
+/* Dual avatar overlap */
+.crew-row.dual { gap: 0; }
+.crew-row.dual .crew-member:nth-child(2) { margin-left: -12px; }
+.crew-row.dual .avatar-ring { width: 48px; height: 48px; }
+.crew-row.dual .avatar-img { width: 42px; height: 42px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   FLOOR GLOW — Under each station
+   ═══════════════════════════════════════════════════════════════ */
+.station-floor-glow {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 30px;
+  border-radius: 50%;
+  filter: blur(12px);
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STATION POSITIONS — Horseshoe arrangement
+   ═══════════════════════════════════════════════════════════════ */
+
+/* === COMMAND — Dead center, captain's chair === */
+.station-command {
+  top: 46%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* === CREATIVE — Front-left (10 o'clock) === */
+.station-creative {
+  top: 22%;
+  left: 14%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+}
+
+/* === ENGINEERING — Front-right (2 o'clock) === */
+.station-engineering {
+  top: 22%;
+  right: 14%;
+  left: auto;
+  transform: translate(50%, -50%) rotate(8deg);
+}
+
+/* === OPERATIONS — Mid-left (8 o'clock) === */
+.station-operations {
+  top: 52%;
+  left: 6%;
+  transform: translate(-50%, -50%) rotate(-12deg);
+}
+
+/* === ANALYTICS — Mid-right (4 o'clock) === */
+.station-analytics {
+  top: 52%;
+  right: 6%;
+  left: auto;
+  transform: translate(50%, -50%) rotate(12deg);
+}
+
+/* === RESEARCH — Rear-center (6 o'clock) === */
+.station-research {
+  top: 78%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STATION COLORS
+   ═══════════════════════════════════════════════════════════════ */
+.station-creative .station-name { color: var(--pink); }
+.station-creative .console { box-shadow: 0 0 12px rgba(255,105,180,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(255,105,180,0.2); }
+.station-creative .console-label { color: var(--pink); }
+.station-creative .console-glow { background: var(--pink); }
+.station-creative .avatar-ring { color: var(--pink); }
+.station-creative .typing-cursor { background: var(--pink); }
+.station-creative .station-floor-glow { background: var(--pink); }
+
+.station-engineering .station-name { color: var(--green); }
+.station-engineering .console { box-shadow: 0 0 12px rgba(50,205,50,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(50,205,50,0.2); }
+.station-engineering .console-label { color: var(--green); }
+.station-engineering .console-glow { background: var(--green); }
+.station-engineering .avatar-ring { color: var(--green); }
+.station-engineering .typing-cursor { background: var(--green); }
+.station-engineering .station-floor-glow { background: var(--green); }
+
+.station-command .station-name { color: var(--gold); }
+.station-command .console { box-shadow: 0 0 18px rgba(255,215,0,0.2), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(255,215,0,0.25); width: 130px; }
+.station-command .console-label { color: var(--gold); }
+.station-command .console-glow { background: var(--gold); }
+.station-command .avatar-ring { color: var(--gold); }
+.station-command .typing-cursor { background: var(--gold); }
+.station-command .station-floor-glow { background: var(--gold); opacity: 0.25; }
+
+.station-operations .station-name { color: var(--orange); }
+.station-operations .console { box-shadow: 0 0 12px rgba(255,140,0,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(255,140,0,0.2); }
+.station-operations .console-label { color: var(--orange); }
+.station-operations .console-glow { background: var(--orange); }
+.station-operations .avatar-ring { color: var(--orange); }
+.station-operations .typing-cursor { background: var(--orange); }
+.station-operations .station-floor-glow { background: var(--orange); }
+
+.station-analytics .station-name { color: var(--darkCyan); }
+.station-analytics .console { box-shadow: 0 0 12px rgba(0,206,209,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(0,206,209,0.2); }
+.station-analytics .console-label { color: var(--darkCyan); }
+.station-analytics .console-glow { background: var(--darkCyan); }
+.station-analytics .avatar-ring { color: var(--darkCyan); }
+.station-analytics .typing-cursor { background: var(--darkCyan); }
+.station-analytics .station-floor-glow { background: var(--darkCyan); }
+
+.station-research .station-name { color: var(--blue); }
+.station-research .console { box-shadow: 0 0 12px rgba(100,149,237,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(100,149,237,0.2); }
+.station-research .console-label { color: var(--blue); }
+.station-research .console-glow { background: var(--blue); }
+.station-research .avatar-ring { color: var(--blue); }
+.station-research .typing-cursor { background: var(--blue); }
+.station-research .station-floor-glow { background: var(--blue); }
+
+/* ═══════════════════════════════════════════════════════════════
+   WALL CONSOLES — ambient panels along the hull edge
+   ═══════════════════════════════════════════════════════════════ */
+.wall-panel {
+  position: absolute;
+  width: 40px;
+  height: 18px;
+  background: rgba(10,14,22,0.9);
+  border: 1px solid rgba(0,255,255,0.06);
+  border-radius: 3px;
+  z-index: 3;
+}
+
+.wall-panel::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: linear-gradient(90deg,
+    rgba(0,255,255,0.04),
+    rgba(0,255,255,0.01));
+  border-radius: 2px;
+}
+
+.wall-panel:nth-child(1) { top: 12%; left: 36%; transform: rotate(-15deg); }
+.wall-panel:nth-child(2) { top: 12%; right: 36%; left: auto; transform: rotate(15deg); }
+.wall-panel:nth-child(3) { top: 36%; left: 4%; transform: rotate(-30deg); }
+.wall-panel:nth-child(4) { top: 36%; right: 4%; left: auto; transform: rotate(30deg); }
+.wall-panel:nth-child(5) { top: 65%; left: 4%; transform: rotate(-20deg); }
+.wall-panel:nth-child(6) { top: 65%; right: 4%; left: auto; transform: rotate(20deg); }
+.wall-panel:nth-child(7) { top: 85%; left: 28%; transform: rotate(-5deg); }
+.wall-panel:nth-child(8) { top: 85%; right: 28%; left: auto; transform: rotate(5deg); }
+
+/* ═══════════════════════════════════════════════════════════════
+   AMBIENT PARTICLES
+   ═══════════════════════════════════════════════════════════════ */
+.particle {
+  position: fixed;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--cyan);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+  animation: float-particle linear infinite;
+}
+
+.particle:nth-child(1) { left: 15%; animation-duration: 12s; animation-delay: 0s; }
+.particle:nth-child(2) { left: 35%; animation-duration: 16s; animation-delay: 3s; }
+.particle:nth-child(3) { left: 55%; animation-duration: 14s; animation-delay: 6s; }
+.particle:nth-child(4) { left: 75%; animation-duration: 18s; animation-delay: 2s; }
+.particle:nth-child(5) { left: 90%; animation-duration: 13s; animation-delay: 8s; }
+.particle:nth-child(6) { left: 8%; animation-duration: 15s; animation-delay: 4s; background: var(--gold); }
+
+@keyframes float-particle {
+  0% { transform: translateY(100vh); opacity: 0; }
+  10% { opacity: 0.3; }
+  90% { opacity: 0.3; }
+  100% { transform: translateY(-20vh); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ENTRANCE ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+.bridge-hull {
+  opacity: 0;
+  animation: hull-appear 1.2s ease-out 0.2s forwards;
+}
+
+@keyframes hull-appear {
+  0% { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.viewscreen {
+  opacity: 0;
+  animation: viewscreen-on 0.8s ease-out 0.6s forwards;
+}
+
+@keyframes viewscreen-on {
+  0% { opacity: 0; transform: translateX(-50%) scaleX(0.01) scaleY(0.01); }
+  40% { opacity: 0.6; transform: translateX(-50%) scaleX(1) scaleY(0.02); }
+  70% { opacity: 0.9; transform: translateX(-50%) scaleX(1) scaleY(1); }
+  100% { opacity: 1; transform: translateX(-50%) scaleX(1) scaleY(1); }
+}
+
+.station {
+  opacity: 0;
+  animation: station-arrive 0.6s ease-out forwards;
+}
+
+.station-creative { animation-delay: 0.8s; }
+.station-engineering { animation-delay: 0.95s; }
+.station-command { animation-delay: 1.1s; }
+.station-operations { animation-delay: 1.25s; }
+.station-analytics { animation-delay: 1.4s; }
+.station-research { animation-delay: 1.55s; }
+
+@keyframes station-arrive {
+  0% { opacity: 0; filter: blur(4px); }
+  100% { opacity: 1; filter: blur(0); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════════════════ */
+.footer {
+  text-align: center;
+  padding: 0.5rem 1rem 2rem;
+  position: relative;
+  z-index: 10;
+}
+
+.footer-text {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.5rem;
+  letter-spacing: 0.35em;
+  color: rgba(230,237,243,0.15);
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — Tablet
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .page-header h1 { font-size: 1.2rem; letter-spacing: 0.12em; }
+  .bridge-room { max-width: 600px; }
+  .viewscreen { width: 58%; padding: 8px 10px; }
+  .viewscreen-line { font-size: 0.52rem; }
+  .viewscreen-line .model { display: none; }
+  .console { width: 95px; height: 46px; }
+  .station-command .console { width: 112px; }
+  .console-status { font-size: 0.36rem; }
+  .avatar-ring { width: 48px; height: 48px; }
+  .avatar-img { width: 42px; height: 42px; }
+  .crew-row.dual .avatar-ring { width: 42px; height: 42px; }
+  .crew-row.dual .avatar-img { width: 36px; height: 36px; }
+  .crew-name { font-size: 0.48rem; }
+  .station-name { font-size: 0.48rem; }
+  .station-name .module-count { display: none; }
+  .wall-panel { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — Mobile (Fold5 ~374px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 500px) {
+  .page-header { padding: 1rem 0.5rem 0.25rem; }
+  .page-header h1 { font-size: 0.9rem; letter-spacing: 0.1em; }
+  .page-header .subtitle { font-size: 0.5rem; }
+
+  .bridge-room {
+    max-width: 370px;
+    aspect-ratio: 1 / 1.25;
+    margin: 0.5rem auto 1rem;
+  }
+
+  .bridge-room-inner {
+    transform: rotateX(8deg);
+  }
+
+  .viewscreen { width: 52%; padding: 5px 7px; top: 2%; }
+  .viewscreen-title { font-size: 0.38rem; margin-bottom: 2px; }
+  .viewscreen-line { font-size: 0.38rem; line-height: 1.4; }
+  .viewscreen-line .model { display: none; }
+  .viewscreen-line .station { display: none; }
+
+  .console { width: 70px; height: 32px; }
+  .station-command .console { width: 82px; }
+  .console-status { font-size: 0.26rem; }
+  .console-glow { width: 50px; height: 4px; bottom: -3px; }
+
+  .avatar-ring { width: 36px; height: 36px; }
+  .avatar-img { width: 32px; height: 32px; }
+  .crew-row.dual .avatar-ring { width: 32px; height: 32px; }
+  .crew-row.dual .avatar-img { width: 28px; height: 28px; }
+  .crew-row.dual .crew-member:nth-child(2) { margin-left: -6px; }
+  .crew-name { font-size: 0.38rem; }
+  .station-name { font-size: 0.38rem; letter-spacing: 0.06em; }
+  .station-name .module-count { display: none; }
+
+  .station-floor-glow { width: 60px; height: 16px; bottom: -10px; filter: blur(6px); }
+
+  .station-creative { top: 18%; left: 18%; }
+  .station-engineering { top: 18%; right: 18%; }
+  .station-operations { top: 46%; left: 10%; }
+  .station-analytics { top: 46%; right: 10%; }
+  .station-research { top: 74%; }
+  .station-command { top: 44%; }
+
+  .wall-panel { display: none; }
+  .bridge-center-marker { width: 30px; height: 30px; }
+  .commander-badge { font-size: 0.6rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Ambient particles -->
+<div class="particle"></div>
+<div class="particle"></div>
+<div class="particle"></div>
+<div class="particle"></div>
+<div class="particle"></div>
+<div class="particle"></div>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<header class="page-header">
+  <h1>BRIDGE COMMAND</h1>
+  <p class="subtitle">USS A.R.C.H.I.E. &mdash; Deck 1</p>
+</header>
+
+<!-- ═══════════════ BRIDGE ROOM ═══════════════ -->
+<div class="bridge-room">
+<div class="bridge-room-inner">
+
+  <!-- Hull shell -->
+  <div class="bridge-hull">
+    <div class="bridge-floor-lines"></div>
+    <!-- Wall panels -->
+    <div class="wall-panel"></div>
+    <div class="wall-panel"></div>
+    <div class="wall-panel"></div>
+    <div class="wall-panel"></div>
+    <div class="wall-panel"></div>
+    <div class="wall-panel"></div>
+    <div class="wall-panel"></div>
+    <div class="wall-panel"></div>
+  </div>
+
+  <!-- Center deck marker -->
+  <div class="bridge-center-marker"></div>
+
+  <!-- ── VIEWSCREEN (front of bridge) ── -->
+  <div class="viewscreen">
+    <div class="viewscreen-title">MAIN VIEWSCREEN</div>
+    <div class="viewscreen-line">
+      <span class="time">14:52</span>&ensp;
+      <span class="agent">Amara</span>&ensp;&rarr;&ensp;
+      <span class="station">OPS</span>&ensp;
+      <span class="model">qwen25</span>&ensp;
+      <span class="status">&check;</span>
+    </div>
+    <div class="viewscreen-line">
+      <span class="time">10:16</span>&ensp;
+      <span class="agent">ARCHIE</span>&ensp;&rarr;&ensp;
+      <span class="station">CMD</span>&ensp;
+      <span class="model">dolphin3</span>&ensp;
+      <span class="status">&check;</span>
+    </div>
+    <div class="viewscreen-line">
+      <span class="time">07:04</span>&ensp;
+      <span class="agent">Sofia</span>&ensp;&rarr;&ensp;
+      <span class="station">RES</span>&ensp;
+      <span class="model">haiku</span>&ensp;
+      <span class="status">&check;</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       STATIONS — Horseshoe around the bridge
+       ═══════════════════════════════════════════════════ -->
+
+  <!-- CREATIVE — Front-left — Dante -->
+  <div class="station station-creative is-active">
+    <div class="station-name">
+      <span class="status-dot"></span>
+      Creative
+      <span class="module-count">9 mod</span>
+    </div>
+    <div class="crew-row">
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/dante.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Dante&backgroundColor=transparent'"
+               alt="Dante" loading="lazy">
+        </div>
+        <span class="crew-name">Dante</span>
+      </div>
+    </div>
+    <div class="console">
+      <div class="console-screen">
+        <div class="console-status active"><span class="status-icon">&#9654;</span> Rendering UI kit<span class="typing-cursor"></span></div>
+        <div class="console-progress"><div class="console-progress-bar" style="width:68%; background: var(--pink);"></div></div>
+      </div>
+      <div class="console-glow"></div>
+    </div>
+    <div class="station-floor-glow"></div>
+  </div>
+
+  <!-- ENGINEERING — Front-right — Marcus, Aria -->
+  <div class="station station-engineering is-active">
+    <div class="station-name">
+      <span class="status-dot"></span>
+      Engineering
+      <span class="module-count">5 mod</span>
+    </div>
+    <div class="crew-row dual">
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/marcus.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Marcus&backgroundColor=transparent'"
+               alt="Marcus" loading="lazy">
+        </div>
+        <span class="crew-name">Marcus</span>
+      </div>
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/aria.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Aria&backgroundColor=transparent'"
+               alt="Aria" loading="lazy">
+        </div>
+        <span class="crew-name">Aria</span>
+      </div>
+    </div>
+    <div class="console">
+      <div class="console-screen">
+        <div class="console-status active"><span class="status-icon">&#9654;</span> DB migration #82<span class="typing-cursor"></span></div>
+        <div class="console-progress"><div class="console-progress-bar" style="width:42%; background: var(--green);"></div></div>
+      </div>
+      <div class="console-glow"></div>
+    </div>
+    <div class="station-floor-glow"></div>
+  </div>
+
+  <!-- COMMAND — Center — ARCHIE ★, Vigil -->
+  <div class="station station-command is-active">
+    <div class="station-name">
+      <span class="status-dot"></span>
+      Command
+      <span class="module-count">5 mod</span>
+    </div>
+    <div class="crew-row dual">
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/archie.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=ARCHIE&backgroundColor=transparent'"
+               alt="ARCHIE" loading="lazy">
+          <span class="commander-badge" title="Commander">&#9733;</span>
+        </div>
+        <span class="crew-name" style="color: var(--gold); opacity: 1;">ARCHIE</span>
+      </div>
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/vigil.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Vigil&backgroundColor=transparent'"
+               alt="Vigil" loading="lazy">
+        </div>
+        <span class="crew-name">Vigil</span>
+      </div>
+    </div>
+    <div class="console">
+      <div class="console-screen">
+        <div class="console-status active"><span class="status-icon">&#9654;</span> Orchestrating dispatch<span class="typing-cursor"></span></div>
+        <div class="console-progress"><div class="console-progress-bar" style="width:85%; background: var(--gold);"></div></div>
+      </div>
+      <div class="console-glow"></div>
+    </div>
+    <div class="station-floor-glow"></div>
+  </div>
+
+  <!-- OPERATIONS — Mid-left — Nia, Liam -->
+  <div class="station station-operations is-idle">
+    <div class="station-name">
+      <span class="status-dot"></span>
+      Operations
+      <span class="module-count">7 mod</span>
+    </div>
+    <div class="crew-row dual">
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/nia.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Nia&backgroundColor=transparent'"
+               alt="Nia" loading="lazy">
+        </div>
+        <span class="crew-name">Nia</span>
+      </div>
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/liam.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Liam&backgroundColor=transparent'"
+               alt="Liam" loading="lazy">
+        </div>
+        <span class="crew-name">Liam</span>
+      </div>
+    </div>
+    <div class="console">
+      <div class="console-screen">
+        <div class="console-status idle"><span class="status-icon">&#9724;</span> Standing by</div>
+        <div class="console-progress"><div class="console-progress-bar" style="width:0%; background: var(--orange);"></div></div>
+      </div>
+      <div class="console-glow"></div>
+    </div>
+    <div class="station-floor-glow"></div>
+  </div>
+
+  <!-- ANALYTICS — Mid-right — Amara, Jin -->
+  <div class="station station-analytics is-active">
+    <div class="station-name">
+      <span class="status-dot"></span>
+      Analytics
+      <span class="module-count">4 mod</span>
+    </div>
+    <div class="crew-row dual">
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/amara.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Amara&backgroundColor=transparent'"
+               alt="Amara" loading="lazy">
+        </div>
+        <span class="crew-name">Amara</span>
+      </div>
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/jin.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Jin&backgroundColor=transparent'"
+               alt="Jin" loading="lazy">
+        </div>
+        <span class="crew-name">Jin</span>
+      </div>
+    </div>
+    <div class="console">
+      <div class="console-screen">
+        <div class="console-status active"><span class="status-icon">&#9654;</span> Classifying traffic<span class="typing-cursor"></span></div>
+        <div class="console-progress"><div class="console-progress-bar" style="width:34%; background: var(--darkCyan);"></div></div>
+      </div>
+      <div class="console-glow"></div>
+    </div>
+    <div class="station-floor-glow"></div>
+  </div>
+
+  <!-- RESEARCH — Rear-center — Sofia -->
+  <div class="station station-research is-idle">
+    <div class="station-name">
+      <span class="status-dot"></span>
+      Research
+      <span class="module-count">3 mod</span>
+    </div>
+    <div class="crew-row">
+      <div class="crew-member">
+        <div class="avatar-ring">
+          <img class="avatar-img"
+               src="/static/avatars/sofia.svg"
+               onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=Sofia&backgroundColor=transparent'"
+               alt="Sofia" loading="lazy">
+        </div>
+        <span class="crew-name">Sofia</span>
+      </div>
+    </div>
+    <div class="console">
+      <div class="console-screen">
+        <div class="console-status idle"><span class="status-icon">&#9724;</span> Idle &mdash; 2h 14m</div>
+        <div class="console-progress"><div class="console-progress-bar" style="width:0%; background: var(--blue);"></div></div>
+      </div>
+      <div class="console-glow"></div>
+    </div>
+    <div class="station-floor-glow"></div>
+  </div>
+
+</div><!-- /bridge-room-inner -->
+</div><!-- /bridge-room -->
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<footer class="footer">
+  <div class="footer-text">A.R.C.H.I.E. Platform v5.32.0 &mdash; Bridge Command</div>
+</footer>
+
+</body>
+</html>

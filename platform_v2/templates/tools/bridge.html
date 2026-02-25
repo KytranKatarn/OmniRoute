@@ -1020,6 +1020,83 @@ body.light-mode .bridge-ops-status-value {
     opacity: 0;
 }
 
+/* --- Cross-Station Connector Lines (SVG dashed) --- */
+.bridge-cross-station-line {
+    fill: none;
+    stroke-width: 1.5px;
+    stroke-dasharray: 6 4;
+    opacity: 0.6;
+    animation: cross-station-flow 1.2s linear infinite;
+}
+@keyframes cross-station-flow {
+    to { stroke-dashoffset: -10; }
+}
+.bridge-cross-station-label {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    fill: rgba(255,255,255,0.7);
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+}
+.bridge-cross-station-dot {
+    animation: cross-dot-pulse 1.5s ease-in-out infinite;
+}
+@keyframes cross-dot-pulse {
+    0%, 100% { opacity: 1; r: 3; }
+    50% { opacity: 0.5; r: 5; }
+}
+
+/* --- Contractor Badge (cloud provider indicator) --- */
+.iso-contractor-badge {
+    background: rgba(0,0,0,0.85);
+    border: 1px solid var(--contractor-color, #9333EA);
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-size: 0.5rem;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    z-index: 20;
+    box-shadow: 0 0 12px rgba(var(--contractor-rgb, 147,51,234), 0.4), inset 0 0 6px rgba(var(--contractor-rgb, 147,51,234), 0.1);
+    animation: contractor-pulse 2s ease-in-out infinite;
+    cursor: default;
+    margin-top: 2px;
+}
+.iso-contractor-badge .contractor-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--contractor-color, #9333EA);
+    flex-shrink: 0;
+    animation: cross-dot-pulse 1.5s ease-in-out infinite;
+}
+.iso-contractor-badge .contractor-icon {
+    font-size: 0.6rem;
+}
+.iso-contractor-badge .contractor-name {
+    color: var(--contractor-color, #9333EA);
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 0.55rem;
+}
+.iso-contractor-badge .contractor-model {
+    color: rgba(255,255,255,0.45);
+    font-size: 0.4rem;
+}
+@keyframes contractor-pulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(var(--contractor-rgb, 147,51,234), 0.4), inset 0 0 6px rgba(var(--contractor-rgb, 147,51,234), 0.1); }
+    50% { box-shadow: 0 0 20px rgba(var(--contractor-rgb, 147,51,234), 0.7), inset 0 0 10px rgba(var(--contractor-rgb, 147,51,234), 0.2); }
+}
+@media (max-width: 500px) {
+    .iso-contractor-badge { display: none; }
+    .bridge-cross-station-line { display: none; }
+}
+
 /* --- Mobile Responsive (< 768px) --- */
 @media (max-width: 768px) {
     .bridge-spatial-layout {
@@ -1129,10 +1206,6 @@ body.light-mode .bridge-ops-status-value {
 
     /* Hide node count on mobile — just show module count */
     .bridge-zone-footer span:last-child {
-        display: none;
-    }
-
-    .bridge-dispatch-overlay {
         display: none;
     }
 
@@ -2504,8 +2577,9 @@ body.light-mode .bridge-zone-unstaffed {
     .iso-bridge-center-marker { width: 30px; height: 30px; }
     .iso-commander-badge { font-size: 0.6rem; }
 
-    /* Hide dispatch arcs on mobile */
+    /* Hide dispatch arcs + cross-station visuals on Fold5 folded */
     .iso-bridge-room .bridge-dispatch-overlay { display: none; }
+    .iso-contractor-badge { display: none; }
 }
 
 /* ── Warp-In Intro ── */
@@ -7658,6 +7732,31 @@ for (const [zoneName, zoneInfo] of Object.entries(ISOMETRIC_ZONE_MAP)) {
     }
 }
 
+// ── Cloud contractor provider branding ──
+const CLOUD_PROVIDER_BRANDS = {
+    'minimax':   { color: '#7C3AED', rgb: '124,58,237',  label: 'MiniMax' },
+    'qwen':      { color: '#6366F1', rgb: '99,102,241',  label: 'Qwen' },
+    'groq':      { color: '#F97316', rgb: '249,115,22',  label: 'Groq' },
+    'cerebras':  { color: '#3B82F6', rgb: '59,130,246',  label: 'Cerebras' },
+    'cohere':    { color: '#06B6D4', rgb: '6,182,212',   label: 'Cohere' },
+    'gemini':    { color: '#4285F4', rgb: '66,133,244',  label: 'Gemini' },
+    'mistral':   { color: '#FF6B35', rgb: '255,107,53',  label: 'Mistral' },
+    'openai':    { color: '#10A37F', rgb: '16,163,127',  label: 'OpenAI' },
+    'anthropic': { color: '#D4A26E', rgb: '212,162,110', label: 'Anthropic' },
+    'ollama':    { color: '#9333EA', rgb: '147,51,234',  label: 'Ollama Cloud' },
+};
+function getProviderBrand(agentName) {
+    // Parse cloud model from agent_name like "CLOUD→minimax-m2.5:cloud"
+    if (!agentName) return null;
+    const name = agentName.toLowerCase();
+    for (const [key, brand] of Object.entries(CLOUD_PROVIDER_BRANDS)) {
+        if (name.includes(key)) return brand;
+    }
+    // Fallback for any cloud model
+    if (name.startsWith('cloud')) return { color: '#9333EA', rgb: '147,51,234', label: 'Cloud' };
+    return null;
+}
+
 // Global state
 let allStations = [];
 let stationNodeCoverage = {}; // Maps station_id to node data
@@ -7835,11 +7934,38 @@ function renderStations(stations, runningJobs) {
         zd.totalNodes += (cov.total_nodes || 0);
     }
 
-    // Match running jobs to zones via agent callsign
+    // Match running jobs to zones via agent callsign OR station_code fallback
+    const matchedJobIds = new Set();
     for (const [zoneName, zd] of Object.entries(zoneData)) {
         for (const agent of zd.agents) {
             const jobs = agentJobMap[agent.name];
-            if (jobs) zd.activeJobs = zd.activeJobs.concat(jobs);
+            if (jobs) {
+                zd.activeJobs = zd.activeJobs.concat(jobs);
+                jobs.forEach(j => matchedJobIds.add(j.id));
+            }
+        }
+    }
+    // Cross-station jobs: also add to DISPATCH zone so destination sees the helper
+    for (const job of runningJobs) {
+        const meta = job.metadata || {};
+        if (!meta.is_cross_station || !meta.dispatch_station) continue;
+        const dispatchZone = STATION_TO_ISO_ZONE[meta.dispatch_station];
+        const homeZone = STATION_TO_ISO_ZONE[meta.home_station];
+        if (dispatchZone && zoneData[dispatchZone] && dispatchZone !== homeZone) {
+            // Add to dispatch zone as helper job (avoid duplicate)
+            if (!zoneData[dispatchZone].activeJobs.some(j => j.id === job.id)) {
+                zoneData[dispatchZone].activeJobs.push(job);
+            }
+        }
+    }
+    // Fallback: jobs with station_code but no agent (budget-blocked dispatch)
+    for (const job of runningJobs) {
+        if (matchedJobIds.has(job.id)) continue;
+        const sc = job.station_code || (job.metadata && job.metadata.dispatch_station);
+        if (!sc) continue;
+        const zoneName = STATION_TO_ISO_ZONE[sc];
+        if (zoneName && zoneData[zoneName]) {
+            zoneData[zoneName].activeJobs.push(job);
         }
     }
 
@@ -7848,6 +7974,117 @@ function renderStations(stations, runningJobs) {
         const zd = zoneData[zoneName];
         const zoneEl = createIsometricZone(zoneName, zoneInfo, zd);
         container.appendChild(zoneEl);
+    }
+
+    // Draw cross-station connector lines for active cross-station jobs
+    drawCrossStationLines(runningJobs);
+}
+
+/**
+ * Draw SVG dashed lines between stations when an agent is helping another station.
+ * Scans running jobs for metadata.is_cross_station=true and draws connectors
+ * from the home station zone to the dispatch station zone.
+ */
+function drawCrossStationLines(runningJobs) {
+    const overlay = document.getElementById('dispatchArcOverlay');
+    const container = document.getElementById('bridgeSpatialLayout');
+    if (!overlay || !container || window.innerWidth < 500) return;
+
+    // Clear any previous cross-station lines (keep dispatch arcs)
+    overlay.querySelectorAll('.cross-station-group').forEach(function(g) { g.remove(); });
+
+    if (!runningJobs || !runningJobs.length) return;
+
+    // Use local coordinates (offsetLeft/Top) to avoid CSS 3D transform distortion
+    const inner = overlay.parentElement; // iso-bridge-room-inner
+    const vw = inner ? inner.offsetWidth : container.offsetWidth;
+    const vh = inner ? inner.offsetHeight : container.offsetHeight;
+    overlay.setAttribute('viewBox', '0 0 ' + vw + ' ' + vh);
+
+    for (const job of runningJobs) {
+        const meta = job.metadata || {};
+        if (!meta.is_cross_station) continue;
+
+        // Determine source (home) and target (dispatch) zones
+        const homeStation = meta.home_station;
+        const dispatchStation = meta.dispatch_station;
+        if (!homeStation || !dispatchStation) continue;
+        if (dispatchStation === 'CLOUD') continue; // Cloud handled by contractor badge
+
+        const homeZone = STATION_TO_ISO_ZONE[homeStation];
+        const dispatchZone = STATION_TO_ISO_ZONE[dispatchStation];
+        if (!homeZone || !dispatchZone || homeZone === dispatchZone) continue;
+
+        const fromEl = document.querySelector('.iso-station-zone[data-station-code="' + homeZone + '"]');
+        const toEl = document.querySelector('.iso-station-zone[data-station-code="' + dispatchZone + '"]');
+        if (!fromEl || !toEl) continue;
+
+        // Use offsetLeft/Top for coordinates in the untransformed container space
+        const fromX = fromEl.offsetLeft + fromEl.offsetWidth / 2;
+        const fromY = fromEl.offsetTop + fromEl.offsetHeight / 2;
+        const toX = toEl.offsetLeft + toEl.offsetWidth / 2;
+        const toY = toEl.offsetTop + toEl.offsetHeight / 2;
+
+        // Determine colors: use dispatch zone color
+        const zoneColor = (ISOMETRIC_ZONE_MAP[dispatchZone] && ISOMETRIC_ZONE_MAP[dispatchZone].color) || '#00FFFF';
+
+        // Create a group for line + label + dots
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'cross-station-group');
+
+        // Dashed line
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', fromX);
+        line.setAttribute('y1', fromY);
+        line.setAttribute('x2', toX);
+        line.setAttribute('y2', toY);
+        line.setAttribute('stroke', zoneColor);
+        line.setAttribute('class', 'bridge-cross-station-line');
+        g.appendChild(line);
+
+        // Pulsing dots at each end
+        var dot1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot1.setAttribute('cx', fromX);
+        dot1.setAttribute('cy', fromY);
+        dot1.setAttribute('r', '3');
+        dot1.setAttribute('fill', zoneColor);
+        dot1.setAttribute('class', 'bridge-cross-station-dot');
+        g.appendChild(dot1);
+        var dot2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot2.setAttribute('cx', toX);
+        dot2.setAttribute('cy', toY);
+        dot2.setAttribute('r', '3');
+        dot2.setAttribute('fill', zoneColor);
+        dot2.setAttribute('class', 'bridge-cross-station-dot');
+        g.appendChild(dot2);
+
+        // Task label at midpoint
+        const midX = (fromX + toX) / 2;
+        const midY = (fromY + toY) / 2;
+        const taskLabel = job.description || job.job_type || 'Cross-station';
+        // Label background (dark pill behind text)
+        const labelBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        const textLen = Math.min(taskLabel.length * 5.5, 120);
+        labelBg.setAttribute('x', midX - textLen / 2 - 4);
+        labelBg.setAttribute('y', midY - 8);
+        labelBg.setAttribute('width', textLen + 8);
+        labelBg.setAttribute('height', 16);
+        labelBg.setAttribute('rx', '4');
+        labelBg.setAttribute('fill', 'rgba(0,0,0,0.8)');
+        labelBg.setAttribute('stroke', zoneColor);
+        labelBg.setAttribute('stroke-width', '0.5');
+        labelBg.setAttribute('stroke-opacity', '0.4');
+        g.appendChild(labelBg);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', midX);
+        text.setAttribute('y', midY);
+        text.setAttribute('class', 'bridge-cross-station-label');
+        text.setAttribute('fill', zoneColor);
+        text.textContent = taskLabel.length > 22 ? taskLabel.substring(0, 20) + '..' : taskLabel;
+        g.appendChild(text);
+
+        overlay.appendChild(g);
     }
 }
 
@@ -7877,10 +8114,24 @@ function renderOpsStrip(stations, runningJobs) {
         if (!zoneName) continue;
         zoneAgents[zoneName] = (zoneAgents[zoneName] || []).concat(station.assigned_agents || []);
     }
+    const opsMatchedIds = new Set();
     for (const [zoneName, agents] of Object.entries(zoneAgents)) {
         for (const agent of agents) {
             const jobs = agentJobMap[agent.name];
-            if (jobs) zoneJobs[zoneName] = zoneJobs[zoneName].concat(jobs);
+            if (jobs) {
+                zoneJobs[zoneName] = zoneJobs[zoneName].concat(jobs);
+                jobs.forEach(j => opsMatchedIds.add(j.id));
+            }
+        }
+    }
+    // Fallback: match unassigned jobs by station_code
+    for (const job of runningJobs) {
+        if (opsMatchedIds.has(job.id)) continue;
+        const sc = job.station_code || (job.metadata && job.metadata.dispatch_station);
+        if (!sc) continue;
+        const zoneName = STATION_TO_ISO_ZONE[sc];
+        if (zoneName && zoneJobs[zoneName]) {
+            zoneJobs[zoneName].push(job);
         }
     }
 
@@ -8046,14 +8297,26 @@ function createIsometricZone(zoneName, zoneInfo, zd) {
             const isCommander = zoneName === 'COMMAND' && isPrimary && !commanderAssigned;
             if (isCommander) commanderAssigned = true;
 
+            // Check if agent is away on cross-station duty
+            const awayJob = (zd.activeJobs || []).find(function(j) {
+                const m = j.metadata || {};
+                return m.is_cross_station && (j.agent_callsign || j.agent_name || '').toLowerCase() === agent.name.toLowerCase()
+                    && STATION_TO_ISO_ZONE[m.home_station] === zoneName
+                    && STATION_TO_ISO_ZONE[m.dispatch_station] !== zoneName;
+            });
+            const isAway = !!awayJob;
+
             const avatarSlug = displayName.toLowerCase();
             const dicebearFallback = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + encodeURIComponent(displayName) + '&backgroundColor=transparent';
 
             const member = document.createElement('div');
             member.className = 'iso-crew-member';
+            if (isAway) member.style.opacity = '0.35';
+            if (isAway) member.style.filter = 'grayscale(0.8)';
 
             const ring = document.createElement('div');
             ring.className = 'iso-avatar-ring';
+            if (isAway) ring.style.animationPlayState = 'paused';
 
             const img = document.createElement('img');
             img.className = 'iso-avatar-img';
@@ -8154,6 +8417,36 @@ function createIsometricZone(zoneName, zoneInfo, zd) {
     glow.className = 'iso-console-glow';
     console.appendChild(glow);
     el.appendChild(console);
+
+    // -- Contractor badge (cloud provider indicator, below console) --
+    if (hasActiveJobs) {
+        const cloudJob = zd.activeJobs.find(function(j) {
+            const name = (j.agent_callsign || '').toLowerCase();
+            const meta = j.metadata || {};
+            return name.startsWith('cloud') || meta.is_cloud || meta.dispatch_station === 'CLOUD';
+        });
+        if (cloudJob) {
+            const brand = getProviderBrand(cloudJob.agent_callsign || cloudJob.metadata.cloud_model || '');
+            if (brand) {
+                const badge = document.createElement('div');
+                badge.className = 'iso-contractor-badge';
+                badge.style.setProperty('--contractor-color', brand.color);
+                badge.style.setProperty('--contractor-rgb', brand.rgb);
+                const icon = document.createElement('span');
+                icon.className = 'contractor-icon';
+                icon.textContent = '\u2601'; // cloud icon
+                badge.appendChild(icon);
+                const dot = document.createElement('span');
+                dot.className = 'contractor-dot';
+                badge.appendChild(dot);
+                const nameEl = document.createElement('span');
+                nameEl.className = 'contractor-name';
+                nameEl.textContent = brand.label;
+                badge.appendChild(nameEl);
+                el.appendChild(badge);
+            }
+        }
+    }
 
     // -- Floor glow --
     const floorGlow = document.createElement('div');
@@ -8575,22 +8868,39 @@ function renderCrewTab(agents, stationColor) {
     if (!panel) return;
     panel.textContent = '';
 
-    // Show active job banner if zone has running jobs
     var zoneCtx = _consoleCurrentZone;
+    var zoneName = zoneCtx ? zoneCtx.zoneName : '';
     var activeJobs = (zoneCtx && zoneCtx.zd && zoneCtx.zd.activeJobs) || [];
-    if (activeJobs.length > 0) {
+
+    // Separate jobs: local station jobs vs cross-station away jobs
+    var stationJobs = [];    // Jobs done AT this station (including by helpers/contractors)
+    var awayAgentMap = {};   // agent_callsign → { job, dispatchZone }
+    for (var ji = 0; ji < activeJobs.length; ji++) {
+        var j = activeJobs[ji];
+        var m = j.metadata || {};
+        if (m.is_cross_station && STATION_TO_ISO_ZONE[m.home_station] === zoneName && STATION_TO_ISO_ZONE[m.dispatch_station] !== zoneName) {
+            // This agent is AWAY from this zone, working elsewhere
+            awayAgentMap[(j.agent_callsign || '').toLowerCase()] = { job: j, dispatchZone: STATION_TO_ISO_ZONE[m.dispatch_station], dispatchLabel: (ISOMETRIC_ZONE_MAP[STATION_TO_ISO_ZONE[m.dispatch_station]] || {}).label || m.dispatch_station };
+        } else {
+            // Job is being worked AT this station (by local agent, helper, or contractor)
+            stationJobs.push(j);
+        }
+    }
+
+    // -- Active jobs banner (only jobs being done AT this station) --
+    if (stationJobs.length > 0) {
         var jobBanner = document.createElement('div');
         jobBanner.style.cssText = 'background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;';
 
         var bannerHeader = document.createElement('div');
         bannerHeader.style.cssText = 'font-size:0.65rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#10b981;margin-bottom:6px;';
-        bannerHeader.textContent = '\u2699 ACTIVE JOBS (' + activeJobs.length + ')';
+        bannerHeader.textContent = '\u2699 ACTIVE JOBS (' + stationJobs.length + ')';
         jobBanner.appendChild(bannerHeader);
 
-        for (var ji = 0; ji < activeJobs.length; ji++) {
-            var ajob = activeJobs[ji];
+        for (var si = 0; si < stationJobs.length; si++) {
+            var ajob = stationJobs[si];
             var jobRow = document.createElement('div');
-            jobRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;' + (ji > 0 ? 'border-top:1px solid rgba(255,255,255,0.05);' : '');
+            jobRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;' + (si > 0 ? 'border-top:1px solid rgba(255,255,255,0.05);' : '');
 
             var jobInfo = document.createElement('div');
             jobInfo.style.cssText = 'flex:1;min-width:0;';
@@ -8602,7 +8912,11 @@ function renderCrewTab(agents, stationColor) {
 
             var jobAgent = document.createElement('div');
             jobAgent.style.cssText = 'font-size:0.7rem;opacity:0.5;';
-            jobAgent.textContent = ajob.agent_name || '';
+            var agentLabel = ajob.agent_name || '';
+            var ajMeta = ajob.metadata || {};
+            if (ajMeta.is_cross_station) agentLabel += ' (cross-station)';
+            if (ajMeta.is_cloud) agentLabel = '\u2601 ' + (ajMeta.cloud_provider || 'Cloud').toUpperCase();
+            jobAgent.textContent = agentLabel;
             jobInfo.appendChild(jobAgent);
 
             jobRow.appendChild(jobInfo);
@@ -8627,63 +8941,191 @@ function renderCrewTab(agents, stationColor) {
         panel.appendChild(jobBanner);
     }
 
+    // -- Assigned Crew --
     if (!agents || agents.length === 0) {
         var emptyEl = document.createElement('div');
         emptyEl.className = 'lcars-empty';
         emptyEl.textContent = 'No crew assigned to this station';
         panel.appendChild(emptyEl);
-        return;
+    } else {
+        var label = document.createElement('div');
+        label.className = 'lcars-section-label';
+        label.textContent = 'ASSIGNED CREW';
+        panel.appendChild(label);
+
+        for (var i = 0; i < agents.length; i++) {
+            var agent = agents[i];
+            var awayInfo = awayAgentMap[(agent.name || '').toLowerCase()];
+            var isAway = !!awayInfo;
+
+            var row = document.createElement('div');
+            row.className = 'lcars-crew-row';
+            if (isAway) row.style.opacity = '0.4';
+            if (isAway) row.style.filter = 'grayscale(0.7)';
+
+            var avatarUrl = agent.avatar_url || ('https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(agent.name || 'agent'));
+            var img = document.createElement('img');
+            img.className = 'lcars-crew-avatar';
+            img.src = avatarUrl;
+            img.alt = agent.name || '';
+            img.onerror = function() { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=fallback'; };
+            row.appendChild(img);
+
+            var info = document.createElement('div');
+            info.style.cssText = 'flex:1;min-width:0;';
+
+            var nameEl = document.createElement('div');
+            nameEl.className = 'lcars-crew-name';
+            var displayName = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.name || 'Unknown';
+            nameEl.textContent = displayName;
+            info.appendChild(nameEl);
+
+            if (isAway) {
+                // Show "Assigned to [STATION]" link instead of title/model
+                var awayEl = document.createElement('div');
+                awayEl.style.cssText = 'font-size:0.7rem;color:#F59E0B;cursor:pointer;';
+                awayEl.textContent = '\u2192 Working at ' + awayInfo.dispatchLabel + ' Station';
+                awayEl.title = 'Click to view ' + awayInfo.dispatchLabel;
+                (function(destZone) {
+                    awayEl.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        closeStationConsole();
+                        // Find and click the destination zone element
+                        var destEl = document.querySelector('.iso-station-zone[data-station-code="' + destZone + '"]');
+                        if (destEl) setTimeout(function() { destEl.click(); }, 300);
+                    });
+                })(awayInfo.dispatchZone);
+                info.appendChild(awayEl);
+
+                var taskEl = document.createElement('div');
+                taskEl.style.cssText = 'font-size:0.65rem;opacity:0.5;font-style:italic;';
+                taskEl.textContent = awayInfo.job.description || awayInfo.job.job_type || '';
+                info.appendChild(taskEl);
+            } else {
+                if (agent.title) {
+                    var titleEl = document.createElement('div');
+                    titleEl.style.cssText = 'font-size:0.7rem;opacity:0.5;';
+                    titleEl.textContent = agent.title;
+                    info.appendChild(titleEl);
+                }
+
+                var modelEl = document.createElement('div');
+                modelEl.className = 'lcars-crew-model';
+                modelEl.textContent = agent.model || 'No model';
+                info.appendChild(modelEl);
+            }
+
+            row.appendChild(info);
+
+            if (isAway) {
+                var awayBadge = document.createElement('span');
+                awayBadge.className = 'lcars-role-badge';
+                awayBadge.style.cssText = 'background:rgba(245,158,11,0.15);color:#F59E0B;border-color:rgba(245,158,11,0.3);';
+                awayBadge.textContent = 'AWAY';
+                row.appendChild(awayBadge);
+            } else if (agent.assignment_type) {
+                var badge = document.createElement('span');
+                badge.className = 'lcars-role-badge';
+                badge.textContent = agent.assignment_type.toUpperCase();
+                row.appendChild(badge);
+            }
+
+            panel.appendChild(row);
+        }
     }
 
-    var label = document.createElement('div');
-    label.className = 'lcars-section-label';
-    label.textContent = 'ASSIGNED CREW';
-    panel.appendChild(label);
-
-    for (var i = 0; i < agents.length; i++) {
-        var agent = agents[i];
-        var row = document.createElement('div');
-        row.className = 'lcars-crew-row';
-
-        var avatarUrl = agent.avatar_url || ('https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(agent.name || 'agent'));
-        var img = document.createElement('img');
-        img.className = 'lcars-crew-avatar';
-        img.src = avatarUrl;
-        img.alt = agent.name || '';
-        img.onerror = function() { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=fallback'; };
-        row.appendChild(img);
-
-        var info = document.createElement('div');
-        info.style.cssText = 'flex:1;min-width:0;';
-
-        var nameEl = document.createElement('div');
-        nameEl.className = 'lcars-crew-name';
-        var displayName = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.name || 'Unknown';
-        nameEl.textContent = displayName;
-        info.appendChild(nameEl);
-
-        if (agent.title) {
-            var titleEl = document.createElement('div');
-            titleEl.style.cssText = 'font-size:0.7rem;opacity:0.5;';
-            titleEl.textContent = agent.title;
-            info.appendChild(titleEl);
+    // -- Helping Crew (cross-station agents + contractors working AT this station) --
+    var helpers = [];
+    for (var hi = 0; hi < stationJobs.length; hi++) {
+        var hj = stationJobs[hi];
+        var hm = hj.metadata || {};
+        if (hm.is_cross_station || hm.is_cloud) {
+            helpers.push(hj);
         }
+    }
 
-        var modelEl = document.createElement('div');
-        modelEl.className = 'lcars-crew-model';
-        modelEl.textContent = agent.model || 'No model';
-        info.appendChild(modelEl);
+    if (helpers.length > 0) {
+        var helperLabel = document.createElement('div');
+        helperLabel.className = 'lcars-section-label';
+        helperLabel.style.cssText = 'margin-top:16px;color:#F59E0B;';
+        helperLabel.textContent = '\u2693 ASSISTING CREW';
+        panel.appendChild(helperLabel);
 
-        row.appendChild(info);
+        for (var k = 0; k < helpers.length; k++) {
+            var hJob = helpers[k];
+            var hMeta = hJob.metadata || {};
+            var hRow = document.createElement('div');
+            hRow.className = 'lcars-crew-row';
 
-        if (agent.assignment_type) {
-            var badge = document.createElement('span');
-            badge.className = 'lcars-role-badge';
-            badge.textContent = agent.assignment_type.toUpperCase();
-            row.appendChild(badge);
+            // Avatar — use agent avatar or cloud icon
+            var hImg = document.createElement('div');
+            hImg.style.cssText = 'width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;';
+            if (hMeta.is_cloud) {
+                var brand = getProviderBrand(hJob.agent_callsign || hMeta.cloud_model || '');
+                hImg.style.background = 'rgba(' + ((brand && brand.rgb) || '147,51,234') + ',0.15)';
+                hImg.style.border = '1px solid ' + ((brand && brand.color) || '#9333EA');
+                hImg.textContent = '\u2601';
+            } else {
+                // Cross-station agent — try to find their avatar
+                var helperName = (hJob.agent_callsign || hJob.agent_name || '').split(' ')[0];
+                var helperSlug = helperName.toLowerCase();
+                hImg = document.createElement('img');
+                hImg.className = 'lcars-crew-avatar';
+                hImg.src = '/static/avatars/' + helperSlug + '.svg';
+                hImg.alt = helperName;
+                hImg.onerror = function() { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(this.alt); };
+            }
+            hRow.appendChild(hImg);
+
+            var hInfo = document.createElement('div');
+            hInfo.style.cssText = 'flex:1;min-width:0;';
+
+            var hName = document.createElement('div');
+            hName.className = 'lcars-crew-name';
+            if (hMeta.is_cloud) {
+                var cBrand = getProviderBrand(hJob.agent_callsign || hMeta.cloud_model || '');
+                hName.textContent = (cBrand && cBrand.label) || 'Cloud Provider';
+                hName.style.color = (cBrand && cBrand.color) || '#9333EA';
+            } else {
+                hName.textContent = hJob.agent_name || hJob.agent_callsign || 'Unknown';
+            }
+            hInfo.appendChild(hName);
+
+            var hFrom = document.createElement('div');
+            hFrom.style.cssText = 'font-size:0.7rem;opacity:0.5;';
+            if (hMeta.is_cloud) {
+                hFrom.textContent = hMeta.cloud_model || 'Cloud model';
+            } else {
+                var homeLabel = (ISOMETRIC_ZONE_MAP[STATION_TO_ISO_ZONE[hMeta.home_station]] || {}).label || hMeta.home_station || '';
+                hFrom.textContent = 'From ' + homeLabel + ' Station';
+                hFrom.style.cursor = 'pointer';
+                hFrom.style.color = '#6495ED';
+                (function(homeZone) {
+                    hFrom.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        closeStationConsole();
+                        var srcEl = document.querySelector('.iso-station-zone[data-station-code="' + homeZone + '"]');
+                        if (srcEl) setTimeout(function() { srcEl.click(); }, 300);
+                    });
+                })(STATION_TO_ISO_ZONE[hMeta.home_station]);
+            }
+            hInfo.appendChild(hFrom);
+
+            hRow.appendChild(hInfo);
+
+            var hBadge = document.createElement('span');
+            hBadge.className = 'lcars-role-badge';
+            if (hMeta.is_cloud) {
+                hBadge.style.cssText = 'background:rgba(147,51,234,0.15);color:#9333EA;border-color:rgba(147,51,234,0.3);';
+                hBadge.textContent = 'CONTRACTOR';
+            } else {
+                hBadge.style.cssText = 'background:rgba(100,149,237,0.15);color:#6495ED;border-color:rgba(100,149,237,0.3);';
+                hBadge.textContent = 'HELPING';
+            }
+            hRow.appendChild(hBadge);
+
+            panel.appendChild(hRow);
         }
-
-        panel.appendChild(row);
     }
 }
 
@@ -10016,7 +10458,7 @@ function triggerArcsFromViewscreen() {
     }
 }
 
-// Clear arcs on window resize (positions become stale)
+// Clear arcs + cross-station lines on window resize (positions become stale)
 let _resizeTimer = null;
 window.addEventListener('resize', function() {
     clearTimeout(_resizeTimer);

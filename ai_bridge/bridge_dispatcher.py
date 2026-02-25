@@ -1038,6 +1038,10 @@ class BridgeDispatcher:
                 f"({busy_job['description']}, {busy_job['progress_pct']}%). "
                 f"Trying free cloud: {cloud_model}"
             )
+            # Create visible bridge_job for 3D bridge view
+            cloud_job_id = self._create_cloud_job(
+                cloud_model, "ollama_cloud", station_code, capability, module_id
+            )
             llm_result = self._execute_llm(
                 model=cloud_model,
                 prompt=prompt,
@@ -1046,6 +1050,7 @@ class BridgeDispatcher:
                 timeout=timeout,
             )
             if llm_result.get("success"):
+                self._complete_cloud_job(cloud_job_id, success=True)
                 duration_ms = int((time.time() - start) * 1000)
                 self._log_escalation(
                     original_agent_id=None,
@@ -1085,10 +1090,15 @@ class BridgeDispatcher:
                     metadata={
                         "escalation": "throughput_free_cloud",
                         "original_agent": agent_name,
+                        "is_cloud": True,
+                        "cloud_model": cloud_model,
+                        "cloud_provider": "ollama_cloud",
                     },
                 )
                 self._log_execution(result, module_id, user_id, job_id=job_id)
                 return result
+            else:
+                self._complete_cloud_job(cloud_job_id, success=False)
 
         # --- Free cloud unavailable; request paid cloud via Telegram ---
         if routing_mode == "local_cloud":
@@ -1303,6 +1313,68 @@ class BridgeDispatcher:
             conn.close()
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Failed to log escalation: {e}")
+
+    # ========================================================================
+    # CLOUD JOB VISIBILITY (temp bridge_jobs for 3D bridge view)
+    # ========================================================================
+
+    def _create_cloud_job(
+        self, cloud_model, cloud_provider, station_code, capability, module_id
+    ):
+        """Create a temporary bridge_job so cloud dispatches appear on the isometric bridge."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO bridge_jobs (job_type, module_source, description,
+                    total_steps, status, agent_name, station_code, metadata)
+                VALUES ('cloud_dispatch', %s, %s, 1, 'running', %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    module_id,
+                    f"Cloud {capability}",
+                    f"CLOUD→{cloud_model}",
+                    station_code,
+                    json.dumps(
+                        {
+                            "dispatch_station": "CLOUD",
+                            "cloud_model": cloud_model,
+                            "cloud_provider": cloud_provider,
+                            "is_cloud": True,
+                            "home_station": station_code,
+                        }
+                    ),
+                ),
+            )
+            job_id = cur.fetchone()[0]
+            conn.commit()
+            cur.close()
+            conn.close()
+            return job_id
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Cloud job creation failed: {e}")
+            return None
+
+    def _complete_cloud_job(self, cloud_job_id, success=True):
+        """Mark a temporary cloud job as completed/failed."""
+        if not cloud_job_id:
+            return
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            status = "completed" if success else "failed"
+            cur.execute(
+                "UPDATE bridge_jobs SET status=%s, completed_steps=total_steps, "
+                "completed_at=NOW() WHERE id=%s",
+                (status, cloud_job_id),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Cloud job completion failed: {e}")
 
     # ========================================================================
     # BUDGET TRACKING
@@ -1869,6 +1941,10 @@ class BridgeDispatcher:
                         f"[BridgeDispatcher] Station {blocked_station} exhausted "
                         f"for '{capability}'. Trying cloud: {cloud_model}"
                     )
+                    # Create visible bridge_job for 3D bridge view
+                    cloud_job_id = self._create_cloud_job(
+                        cloud_model, "ollama_cloud", blocked_station, capability, module_id
+                    )
                     llm_result = self._execute_llm(
                         model=cloud_model,
                         prompt=prompt,
@@ -1877,6 +1953,7 @@ class BridgeDispatcher:
                         timeout=timeout,
                     )
                     if llm_result.get("success"):
+                        self._complete_cloud_job(cloud_job_id, success=True)
                         duration_ms = int((time.time() - start) * 1000)
                         self._telegram_dispatch_advisory(
                             advisory_type="free_cloud",
@@ -1905,11 +1982,16 @@ class BridgeDispatcher:
                                 "home_station": home_station,
                                 "dispatch_station": "CLOUD",
                                 "is_cross_station": True,
+                                "is_cloud": True,
+                                "cloud_model": cloud_model,
+                                "cloud_provider": "ollama_cloud",
                                 "capability_station": capability_station,
                             },
                         )
                         self._log_execution(result, module_id, user_id, job_id=job_id)
                         return result
+                    else:
+                        self._complete_cloud_job(cloud_job_id, success=False)
 
             # 2d. Free cloud failed — request paid cloud via Telegram approval
             if routing_mode not in ("local_only", "local_cloud"):

@@ -2997,7 +2997,7 @@ class BridgeDispatcher:
                             f"[CAPACITY] {station_code} at capacity, overflow disabled — "
                             f"job still created but flagged"
                         )
-                    slot_number = occupancy["total"] + 1
+                    slot_number = occupancy["primary"] + occupancy["auxiliary"] + 1
             else:
                 slot_number = occupancy["primary"] + 1
 

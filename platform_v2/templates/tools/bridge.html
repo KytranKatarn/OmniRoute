@@ -5912,7 +5912,7 @@ body.light-mode .bridge-hud-value {
 
         <!-- Mobile Controls Toggle -->
         <button class="bridge-controls-toggle" id="bridgeControlsToggle" onclick="toggleBridgeControls()">
-            <span>Controls</span>
+            <span><span data-i18n="bridge.controls">Controls</span></span>
             <i data-lucide="chevron-down"></i>
         </button>
 
@@ -5938,7 +5938,7 @@ body.light-mode .bridge-hud-value {
             </div>
             <div class="bridge-live-indicator">
                 <div class="bridge-live-dot"></div>
-                <span>LIVE</span>
+                <span><span data-i18n="bridge.live">LIVE</span></span>
             </div>
         </div>
     </div>
@@ -5972,7 +5972,7 @@ body.light-mode .bridge-hud-value {
         <div class="status-bar-item">
             <span class="status-bar-dot online" id="bridgeStatusDot"></span>
             <span class="status-bar-label" data-i18n="bridge.status.bridge">Bridge</span>
-            <span class="status-bar-value" id="bridgeStatusText">Online</span>
+            <span class="status-bar-value" id="bridgeStatusText"><span data-i18n="bridge.online">Online</span></span>
         </div>
         <div class="status-bar-divider"></div>
         <div class="status-bar-item">
@@ -6009,22 +6009,22 @@ body.light-mode .bridge-hud-value {
                     <div class="bridge-hud-pod">
                         <span class="bridge-hud-label" data-i18n="bridge.overview.throughput">Throughput (24h)</span>
                         <div class="bridge-hud-value" id="hudBridgeThroughput">--</div>
-                        <span class="bridge-hud-unit" id="hudThroughputUnit">req/min</span>
+                        <span class="bridge-hud-unit" id="hudThroughputUnit"><span data-i18n="bridge.req_min">req/min</span></span>
                     </div>
                     <div class="bridge-hud-pod">
                         <span class="bridge-hud-label" data-i18n="bridge.overview.utilization">Utilization</span>
                         <div class="bridge-hud-value" id="hudAgentUtil">--%</div>
-                        <span class="bridge-hud-unit">active (24h)</span>
+                        <span class="bridge-hud-unit"><span data-i18n="bridge.active_24h">active (24h)</span></span>
                     </div>
                     <div class="bridge-hud-pod">
                         <span class="bridge-hud-label" data-i18n="bridge.overview.models">Models</span>
                         <div class="bridge-hud-value" id="hudModelCount">--</div>
-                        <span class="bridge-hud-unit">available</span>
+                        <span class="bridge-hud-unit"><span data-i18n="bridge.available">available</span></span>
                     </div>
                     <div class="bridge-hud-pod">
                         <span class="bridge-hud-label" data-i18n="bridge.overview.iaae">IAAE</span>
                         <div class="bridge-hud-value" id="hudIAAEScore">--%</div>
-                        <span class="bridge-hud-unit">compliance</span>
+                        <span class="bridge-hud-unit"><span data-i18n="bridge.compliance">compliance</span></span>
                     </div>
                 </div>
 
@@ -6066,11 +6066,11 @@ body.light-mode .bridge-hud-value {
                 <div class="briefing-card" style="--card-accent: #ff6b6b;">
                     <div class="briefing-card-header">
                         <i data-lucide="shield-alert"></i>
-                        <span>Vigil's Log</span>
-                        <a href="#" onclick="openVigilLogModal(); return false;" class="briefing-card-link">View All</a>
+                        <span><span data-i18n="bridge.vigil_s_log">Vigil's Log</span></span>
+                        <a href="#" onclick="openVigilLogModal(); return false;" class="briefing-card-link"><span data-i18n="bridge.view_all">View All</span></a>
                     </div>
                     <div class="briefing-card-body" id="overviewVigilLog">
-                        <span class="briefing-muted">Loading...</span>
+                        <span class="briefing-muted"><span data-i18n="bridge.loading">Loading...</span></span>
                     </div>
                 </div>
 
@@ -6103,7 +6103,7 @@ body.light-mode .bridge-hud-value {
                         <div class="iso-warp-streak"></div>
                         <div class="iso-warp-streak"></div>
                         <div class="iso-warp-flash"></div>
-                        <div class="iso-warp-text">BRIDGE ONLINE</div>
+                        <div class="iso-warp-text"><span data-i18n="bridge.bridge_online">BRIDGE ONLINE</span></div>
                     </div>
                     <div class="iso-bridge-room-inner">
 
@@ -6259,11 +6259,11 @@ body.light-mode .bridge-hud-value {
                             <i data-lucide="users"></i>
                             <span data-i18n="bridge.crew.active_roster">Active Roster</span>
                             <span class="briefing-card-link" id="crew-manifest-count">-- agents</span>
-                            <button onclick="openAgentFormModal()" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;">+ Add Agent</button>
+                            <button onclick="openAgentFormModal()" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;"><span data-i18n="bridge.add_agent">+ Add Agent</span></button>
                         </div>
                         <div class="briefing-card-body">
                             <div class="crew-manifest-grid" id="crew-manifest-grid">
-                                <span class="briefing-muted">Loading crew manifest...</span>
+                                <span class="briefing-muted"><span data-i18n="bridge.loading_crew_manifest">Loading crew manifest...</span></span>
                             </div>
                         </div>
                     </div>
@@ -6276,12 +6276,12 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card" style="--card-accent: #ff6b6b; margin: 0 16px 12px 16px;">
                         <div class="briefing-card-header">
                             <i data-lucide="alert-triangle"></i>
-                            <span>Skill Gap Alerts</span>
+                            <span><span data-i18n="bridge.skill_gap_alerts">Skill Gap Alerts</span></span>
                             <span id="training-rec-count" style="background:rgba(255,107,107,0.2);color:#ff6b6b;padding:1px 7px;border-radius:8px;font-size:0.65rem;margin-left:auto;">0</span>
                         </div>
                         <div class="briefing-card-body">
                             <div id="training-recommendations">
-                                <span class="briefing-muted" style="font-size:0.75rem;">Scanning for skill gaps...</span>
+                                <span class="briefing-muted" style="font-size:0.75rem;"><span data-i18n="bridge.scanning_for_skill_gaps">Scanning for skill gaps...</span></span>
                             </div>
                         </div>
                     </div>
@@ -6290,29 +6290,29 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card" style="--card-accent: #ffaa00; margin: 0 16px 12px 16px;">
                         <div class="briefing-card-header">
                             <i data-lucide="graduation-cap"></i>
-                            <span>Training Rooms</span>
-                            <span id="training-active-count" style="background:rgba(255,170,0,0.2);color:#ffaa00;padding:1px 7px;border-radius:8px;font-size:0.65rem;margin-left:auto;">0 active</span>
+                            <span><span data-i18n="bridge.training_rooms">Training Rooms</span></span>
+                            <span id="training-active-count" style="background:rgba(255,170,0,0.2);color:#ffaa00;padding:1px 7px;border-radius:8px;font-size:0.65rem;margin-left:auto;"><span data-i18n="bridge.0_active">0 active</span></span>
                         </div>
                         <div class="briefing-card-body">
                             <!-- Assignment controls -->
                             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
                                 <select id="training-agent-select" style="flex:1;min-width:120px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
-                                    <option value="">Select agent...</option>
+                                    <option value=""><span data-i18n="bridge.select_agent">Select agent...</span></option>
                                 </select>
                                 <select id="training-skill-select" style="flex:1;min-width:120px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;" disabled>
-                                    <option value="">Select skill...</option>
+                                    <option value=""><span data-i18n="bridge.select_skill">Select skill...</span></option>
                                 </select>
                                 <select id="training-target-select" style="width:80px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
-                                    <option value="2">Level 2</option>
-                                    <option value="3">Level 3</option>
-                                    <option value="4">Level 4</option>
-                                    <option value="5">Level 5</option>
+                                    <option value="2"><span data-i18n="bridge.level_2">Level 2</span></option>
+                                    <option value="3"><span data-i18n="bridge.level_3">Level 3</span></option>
+                                    <option value="4"><span data-i18n="bridge.level_4">Level 4</span></option>
+                                    <option value="5"><span data-i18n="bridge.level_5">Level 5</span></option>
                                 </select>
-                                <button onclick="assignTraining()" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Assign Training</button>
+                                <button onclick="assignTraining()" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;"><span data-i18n="bridge.assign_training">Assign Training</span></button>
                             </div>
                             <!-- Active training list -->
                             <div id="training-active-list">
-                                <span class="briefing-muted" style="font-size:0.75rem;">No active training sessions</span>
+                                <span class="briefing-muted" style="font-size:0.75rem;"><span data-i18n="bridge.no_active_training_sessions">No active training sessions</span></span>
                             </div>
                         </div>
                     </div>
@@ -6321,12 +6321,12 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card" style="--card-accent: rgba(255,170,0,0.5); margin: 0 16px 12px 16px;">
                         <div class="briefing-card-header" onclick="toggleTrainingHistory()" style="cursor:pointer;">
                             <i data-lucide="history"></i>
-                            <span>Training History</span>
-                            <span id="training-history-toggle" style="margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.5);">Show &#9662;</span>
+                            <span><span data-i18n="bridge.training_history">Training History</span></span>
+                            <span id="training-history-toggle" style="margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.5);"><span data-i18n="bridge.show_9662">Show &#9662;</span></span>
                         </div>
                         <div class="briefing-card-body" id="training-history-body" style="display:none;">
                             <div id="training-history-list">
-                                <span class="briefing-muted" style="font-size:0.75rem;">Loading history...</span>
+                                <span class="briefing-muted" style="font-size:0.75rem;"><span data-i18n="bridge.loading_history">Loading history...</span></span>
                             </div>
                         </div>
                     </div>
@@ -6335,11 +6335,11 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card" style="--card-accent: #00bfff; margin: 0 16px;">
                         <div class="briefing-card-header">
                             <i data-lucide="network"></i>
-                            <span>Node Training Requests</span>
-                            <span style="background:rgba(0,191,255,0.15);color:#00bfff;padding:1px 7px;border-radius:8px;font-size:0.6rem;margin-left:auto;">Coming Soon</span>
+                            <span><span data-i18n="bridge.node_training_requests">Node Training Requests</span></span>
+                            <span style="background:rgba(0,191,255,0.15);color:#00bfff;padding:1px 7px;border-radius:8px;font-size:0.6rem;margin-left:auto;"><span data-i18n="bridge.coming_soon">Coming Soon</span></span>
                         </div>
                         <div class="briefing-card-body">
-                            <span class="briefing-muted" style="font-size:0.75rem;">Cross-node training coordination will allow agents to request specialized training from peer ARCHIE nodes on the network.</span>
+                            <span class="briefing-muted" style="font-size:0.75rem;"><span data-i18n="bridge.cross_node_training_coordination_will_allow_agents">Cross-node training coordination will allow agents to request specialized training from peer ARCHIE nodes on the network.</span></span>
                         </div>
                     </div>
 
@@ -6352,15 +6352,15 @@ body.light-mode .bridge-hud-value {
                     <div style="display:flex;gap:10px;margin:0 16px 10px 16px;">
                         <div id="wellness-healthy" style="flex:1;text-align:center;padding:10px 6px;background:rgba(0,255,65,0.06);border:1px solid rgba(0,255,65,0.2);border-radius:8px;">
                             <div style="font-size:1.4rem;font-weight:700;color:#00ff41;">--</div>
-                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;">Healthy</div>
+                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;"><span data-i18n="bridge.healthy">Healthy</span></div>
                         </div>
                         <div id="wellness-at-risk" style="flex:1;text-align:center;padding:10px 6px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:8px;">
                             <div style="font-size:1.4rem;font-weight:700;color:#f59e0b;">--</div>
-                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;">At Risk</div>
+                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;"><span data-i18n="bridge.at_risk">At Risk</span></div>
                         </div>
                         <div id="wellness-resting" style="flex:1;text-align:center;padding:10px 6px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.2);border-radius:8px;">
                             <div style="font-size:1.4rem;font-weight:700;color:#8b5cf6;">--</div>
-                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;">Resting</div>
+                            <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;"><span data-i18n="bridge.resting">Resting</span></div>
                         </div>
                     </div>
 
@@ -6368,11 +6368,11 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card" style="--card-accent: #ef4444; margin: 0 16px 10px 16px;">
                         <div class="briefing-card-header">
                             <i data-lucide="heart-pulse"></i>
-                            <span>Burnout Risk Alerts</span>
+                            <span><span data-i18n="bridge.burnout_risk_alerts">Burnout Risk Alerts</span></span>
                         </div>
                         <div class="briefing-card-body">
                             <div id="burnout-alerts">
-                                <span class="briefing-muted" style="font-size:0.75rem;">Loading...</span>
+                                <span class="briefing-muted" style="font-size:0.75rem;"><span data-i18n="bridge.loading_2">Loading...</span></span>
                             </div>
                         </div>
                     </div>
@@ -6387,14 +6387,14 @@ body.light-mode .bridge-hud-value {
                             <!-- Send to lounge controls -->
                             <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
                                 <select id="lounge-agent-select" style="flex:1;min-width:100px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
-                                    <option value="">Select agent...</option>
+                                    <option value=""><span data-i18n="bridge.select_agent_2">Select agent...</span></option>
                                 </select>
                                 <input id="lounge-reason-input" type="text" placeholder="Reason (optional)" style="flex:1;min-width:80px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
-                                <button onclick="sendToLounge()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;">Send to Rest</button>
+                                <button onclick="sendToLounge()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;"><span data-i18n="bridge.send_to_rest">Send to Rest</span></button>
                             </div>
                             <!-- Agents currently in lounge -->
                             <div id="lounge-agents-list">
-                                <span class="briefing-muted" style="font-size:0.75rem;">Loading...</span>
+                                <span class="briefing-muted" style="font-size:0.75rem;"><span data-i18n="bridge.loading_3">Loading...</span></span>
                             </div>
                         </div>
                     </div>
@@ -6403,12 +6403,12 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card" style="--card-accent: rgba(139,92,246,0.5); margin: 0 16px;">
                         <div class="briefing-card-header" style="cursor:pointer;" onclick="toggleRestHistory()">
                             <i data-lucide="history"></i>
-                            <span>Rest History</span>
-                            <span id="rest-history-toggle-label" style="margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.4);">Show</span>
+                            <span><span data-i18n="bridge.rest_history">Rest History</span></span>
+                            <span id="rest-history-toggle-label" style="margin-left:auto;font-size:0.65rem;color:rgba(255,255,255,0.4);"><span data-i18n="bridge.show">Show</span></span>
                         </div>
                         <div id="rest-history-body" class="briefing-card-body" style="display:none;">
                             <div id="rest-history-list">
-                                <span class="briefing-muted" style="font-size:0.75rem;">Loading...</span>
+                                <span class="briefing-muted" style="font-size:0.75rem;"><span data-i18n="bridge.loading_4">Loading...</span></span>
                             </div>
                         </div>
                     </div>
@@ -6422,11 +6422,11 @@ body.light-mode .bridge-hud-value {
                             <i data-lucide="building-2"></i>
                             <span data-i18n="bridge.crew.external_contractors">External Contractors</span>
                             <span class="briefing-card-link" id="contractors-summary">-- providers</span>
-                            <button onclick="openAddProviderModal()" style="background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.3);color:#a855f7;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;">+ Add Provider</button>
+                            <button onclick="openAddProviderModal()" style="background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.3);color:#a855f7;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;"><span data-i18n="bridge.add_provider">+ Add Provider</span></button>
                         </div>
                         <div class="briefing-card-body">
                             <div id="contractors-grid">
-                                <span class="briefing-muted">Loading contractors...</span>
+                                <span class="briefing-muted"><span data-i18n="bridge.loading_contractors">Loading contractors...</span></span>
                             </div>
                         </div>
                     </div>
@@ -6438,11 +6438,11 @@ body.light-mode .bridge-hud-value {
                         <div class="briefing-card-header">
                             <i data-lucide="trophy"></i>
                             <span data-i18n="bridge.crew.leaderboard">Performance Leaderboard</span>
-                            <button onclick="loadLeaderboard()" style="margin-left:auto;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;padding:3px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;">Refresh</button>
+                            <button onclick="loadLeaderboard()" style="margin-left:auto;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;padding:3px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;"><span data-i18n="bridge.refresh">Refresh</span></button>
                         </div>
                         <div class="briefing-card-body">
                             <div id="leaderboard-container">
-                                <span class="briefing-muted">Loading leaderboard...</span>
+                                <span class="briefing-muted"><span data-i18n="bridge.loading_leaderboard">Loading leaderboard...</span></span>
                             </div>
                         </div>
                     </div>
@@ -6499,7 +6499,7 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card-header">
                         <i data-lucide="users"></i>
                         <span data-i18n="bridge.nodes.mesh_pool">Agent Mesh Pool</span>
-                        <span class="briefing-card-link" id="mesh-loans-sub-count">0 active</span>
+                        <span class="briefing-card-link" id="mesh-loans-sub-count"><span data-i18n="bridge.0_active_2">0 active</span></span>
                     </div>
                     <div class="briefing-card-body">
                         <div class="mesh-subsection">
@@ -6509,7 +6509,7 @@ body.light-mode .bridge-hud-value {
                             </div>
                             <div class="mesh-subsection-body" id="mesh-loans-body">
                                 <div class="mesh-loans-table" id="mesh-loans-container">
-                                    <div class="mesh-empty-state">No agent loans recorded</div>
+                                    <div class="mesh-empty-state"><span data-i18n="bridge.no_agent_loans_recorded">No agent loans recorded</span></div>
                                 </div>
                             </div>
                         </div>
@@ -6521,7 +6521,7 @@ body.light-mode .bridge-hud-value {
                     <div class="briefing-card-header">
                         <i data-lucide="brain"></i>
                         <span data-i18n="bridge.nodes.learning_patterns">Learning Patterns</span>
-                        <span class="briefing-card-link" id="mesh-learning-sub-count">0 patterns</span>
+                        <span class="briefing-card-link" id="mesh-learning-sub-count"><span data-i18n="bridge.0_patterns">0 patterns</span></span>
                     </div>
                     <div class="briefing-card-body">
                         <div class="mesh-subsection">
@@ -6531,7 +6531,7 @@ body.light-mode .bridge-hud-value {
                             </div>
                             <div class="mesh-subsection-body" id="mesh-learning-body">
                                 <div class="mesh-learning-feed" id="mesh-learnings-container">
-                                    <div class="mesh-empty-state">No learning patterns shared</div>
+                                    <div class="mesh-empty-state"><span data-i18n="bridge.no_learning_patterns_shared">No learning patterns shared</span></div>
                                 </div>
                             </div>
                         </div>
@@ -6542,8 +6542,8 @@ body.light-mode .bridge-hud-value {
                 <div class="briefing-card" style="--card-accent: #00ffff;">
                     <div class="briefing-card-header">
                         <i data-lucide="hard-drive"></i>
-                        <span>Local Models</span>
-                        <span class="briefing-card-link" id="local-model-count">0 models</span>
+                        <span><span data-i18n="bridge.local_models">Local Models</span></span>
+                        <span class="briefing-card-link" id="local-model-count"><span data-i18n="bridge.0_models">0 models</span></span>
                     </div>
                     <div class="briefing-card-body">
                         <div class="model-grid" id="local-models-grid">
@@ -6558,9 +6558,9 @@ body.light-mode .bridge-hud-value {
                 <div class="briefing-card" style="--card-accent: #ff6b6b;">
                     <div class="briefing-card-header">
                         <i data-lucide="globe"></i>
-                        <span>Remote Node Models</span>
+                        <span><span data-i18n="bridge.remote_node_models">Remote Node Models</span></span>
                         <span class="briefing-card-link" id="remote-model-stats">
-                            <span>0</span> models &middot; <span>0</span> nodes
+                            <span>0</span><span data-i18n="bridge.models_middot"> models &middot; </span><span>0</span> nodes
                         </span>
                     </div>
                     <div class="briefing-card-body">
@@ -6584,49 +6584,49 @@ body.light-mode .bridge-hud-value {
 <div class="assignment-modal-overlay" id="assignment-modal">
     <div class="assignment-modal">
         <div class="assignment-modal-header">
-            <h3 id="assignment-modal-title">Assign Node to Station</h3>
-            <button class="assignment-modal-close" onclick="closeAssignmentModal()">&times;</button>
+            <h3 id="assignment-modal-title"><span data-i18n="bridge.assign_node_to_station">Assign Node to Station</span></h3>
+            <button class="assignment-modal-close" onclick="closeAssignmentModal()"><span data-i18n="bridge.times">&times;</span></button>
         </div>
         <div class="assignment-modal-body">
             <div class="assignment-form-group">
-                <label>Node</label>
+                <label><span data-i18n="bridge.node">Node</span></label>
                 <select id="assignment-node-select">
-                    <option value="">Select a node...</option>
+                    <option value=""><span data-i18n="bridge.select_a_node">Select a node...</span></option>
                 </select>
             </div>
             <div class="assignment-form-group">
-                <label>Station</label>
+                <label><span data-i18n="bridge.station">Station</span></label>
                 <select id="assignment-station-select" disabled>
-                    <option value="">Select station first</option>
+                    <option value=""><span data-i18n="bridge.select_station_first">Select station first</span></option>
                 </select>
             </div>
             <div class="assignment-form-group">
-                <label>Role</label>
+                <label><span data-i18n="bridge.role">Role</span></label>
                 <select id="assignment-role-select">
-                    <option value="worker">Worker</option>
-                    <option value="primary">Primary</option>
-                    <option value="backup">Backup</option>
-                    <option value="relief">Relief</option>
+                    <option value="worker"><span data-i18n="bridge.worker">Worker</span></option>
+                    <option value="primary"><span data-i18n="bridge.primary">Primary</span></option>
+                    <option value="backup"><span data-i18n="bridge.backup">Backup</span></option>
+                    <option value="relief"><span data-i18n="bridge.relief">Relief</span></option>
                 </select>
             </div>
             <div class="assignment-form-group">
-                <label>Priority (1 = Highest)</label>
+                <label><span data-i18n="bridge.priority_1_highest">Priority (1 = Highest)</span></label>
                 <input type="number" id="assignment-priority" value="10" min="1" max="100">
             </div>
             <div class="assignment-form-group">
-                <label>Shift Preference</label>
+                <label><span data-i18n="bridge.shift_preference">Shift Preference</span></label>
                 <select id="assignment-shift-select">
-                    <option value="any">Any Shift</option>
-                    <option value="alpha">Alpha (Morning)</option>
-                    <option value="beta">Beta (Afternoon)</option>
-                    <option value="gamma">Gamma (Night)</option>
+                    <option value="any"><span data-i18n="bridge.any_shift">Any Shift</span></option>
+                    <option value="alpha"><span data-i18n="bridge.alpha_morning">Alpha (Morning)</span></option>
+                    <option value="beta"><span data-i18n="bridge.beta_afternoon">Beta (Afternoon)</span></option>
+                    <option value="gamma"><span data-i18n="bridge.gamma_night">Gamma (Night)</span></option>
                 </select>
             </div>
         </div>
         <div class="assignment-modal-footer">
-            <button class="btn-delete" id="assignment-delete-btn" style="display:none;" onclick="deleteAssignment()">Delete</button>
-            <button class="btn-cancel" onclick="closeAssignmentModal()">Cancel</button>
-            <button class="btn-submit" id="assignment-submit-btn" onclick="submitAssignment()">Assign</button>
+            <button class="btn-delete" id="assignment-delete-btn" style="display:none;" onclick="deleteAssignment()"><span data-i18n="bridge.delete">Delete</span></button>
+            <button class="btn-cancel" onclick="closeAssignmentModal()"><span data-i18n="bridge.cancel">Cancel</span></button>
+            <button class="btn-submit" id="assignment-submit-btn" onclick="submitAssignment()"><span data-i18n="bridge.assign">Assign</span></button>
         </div>
     </div>
 </div>
@@ -6635,15 +6635,15 @@ body.light-mode .bridge-hud-value {
 <div class="assignment-modal-overlay" id="station-detail-modal">
     <div class="assignment-modal" style="width: 600px;">
         <div class="assignment-modal-header">
-            <h3 id="station-detail-title">Station Nodes</h3>
-            <button class="assignment-modal-close" onclick="closeStationDetailModal()">&times;</button>
+            <h3 id="station-detail-title"><span data-i18n="bridge.station_nodes">Station Nodes</span></h3>
+            <button class="assignment-modal-close" onclick="closeStationDetailModal()"><span data-i18n="bridge.times_2">&times;</span></button>
         </div>
         <div class="assignment-modal-body" id="station-detail-body">
             <!-- Filled by JavaScript -->
         </div>
         <div class="assignment-modal-footer">
-            <button class="btn-cancel" onclick="closeStationDetailModal()">Close</button>
-            <button class="btn-submit" onclick="openAssignModalForStation()">+ Add Node</button>
+            <button class="btn-cancel" onclick="closeStationDetailModal()"><span data-i18n="bridge.close">Close</span></button>
+            <button class="btn-submit" onclick="openAssignModalForStation()"><span data-i18n="bridge.add_node">+ Add Node</span></button>
         </div>
     </div>
 </div>
@@ -6652,13 +6652,13 @@ body.light-mode .bridge-hud-value {
 <div class="assignment-modal-overlay" id="iso-zone-info-modal">
     <div class="assignment-modal" style="width: 560px; max-height: 80vh;">
         <div class="assignment-modal-header">
-            <h3 id="iso-zone-info-title">Station Info</h3>
-            <button class="assignment-modal-close" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')">&times;</button>
+            <h3 id="iso-zone-info-title"><span data-i18n="bridge.station_info">Station Info</span></h3>
+            <button class="assignment-modal-close" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')"><span data-i18n="bridge.times_3">&times;</span></button>
         </div>
         <div class="assignment-modal-body" id="iso-zone-info-body" style="overflow-y: auto; max-height: 55vh;">
         </div>
         <div class="assignment-modal-footer">
-            <button class="btn-cancel" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')">Close</button>
+            <button class="btn-cancel" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')"><span data-i18n="bridge.close_2">Close</span></button>
         </div>
     </div>
 </div>
@@ -6669,20 +6669,20 @@ body.light-mode .bridge-hud-value {
     <div class="lcars-console-header">
         <div class="lcars-console-elbow"></div>
         <div style="flex:1;padding-left:20px;">
-            <div class="lcars-console-title" id="lcarsConsoleTitle">STATION</div>
+            <div class="lcars-console-title" id="lcarsConsoleTitle"><span data-i18n="bridge.station_2">STATION</span></div>
             <div class="lcars-console-subtitle" id="lcarsConsoleSubtitle"></div>
         </div>
-        <button class="lcars-console-close" id="lcarsConsoleClose">&times;</button>
+        <button class="lcars-console-close" id="lcarsConsoleClose"><span data-i18n="bridge.times_4">&times;</span></button>
     </div>
     <div class="lcars-module-rail" id="lcarsModuleRail"></div>
     <div class="lcars-console-body">
         <div class="lcars-tab-rail" id="lcarsTabRail">
-            <button class="lcars-tab-pill active" data-console-tab="crew">CREW</button>
-            <button class="lcars-tab-pill" data-console-tab="dispatch">DSPCH</button>
-            <button class="lcars-tab-pill" data-console-tab="nodes">NODES</button>
-            <button class="lcars-tab-pill" data-console-tab="metrics">STATS</button>
-            <button class="lcars-tab-pill" data-console-tab="memory">MEM</button>
-            <button class="lcars-tab-pill" data-console-tab="routing" id="lcarsRoutingTab" style="display:none;">CTRL</button>
+            <button class="lcars-tab-pill active" data-console-tab="crew"><span data-i18n="bridge.crew">CREW</span></button>
+            <button class="lcars-tab-pill" data-console-tab="dispatch"><span data-i18n="bridge.dspch">DSPCH</span></button>
+            <button class="lcars-tab-pill" data-console-tab="nodes"><span data-i18n="bridge.nodes">NODES</span></button>
+            <button class="lcars-tab-pill" data-console-tab="metrics"><span data-i18n="bridge.stats">STATS</span></button>
+            <button class="lcars-tab-pill" data-console-tab="memory"><span data-i18n="bridge.mem">MEM</span></button>
+            <button class="lcars-tab-pill" data-console-tab="routing" id="lcarsRoutingTab" style="display:none;"><span data-i18n="bridge.ctrl">CTRL</span></button>
         </div>
         <div class="lcars-tab-content" id="lcarsTabContent">
             <div class="lcars-tab-panel active" data-console-panel="crew" id="lcarsCrewPanel"></div>
@@ -6702,9 +6702,9 @@ body.light-mode .bridge-hud-value {
         <div class="assignment-modal-header">
             <div class="node-detail-header-info">
                 <span class="node-detail-status" id="node-detail-status"></span>
-                <h3 id="node-detail-title">Node Details</h3>
+                <h3 id="node-detail-title"><span data-i18n="bridge.node_details">Node Details</span></h3>
             </div>
-            <button class="assignment-modal-close" onclick="closeNodeDetailModal()">&times;</button>
+            <button class="assignment-modal-close" onclick="closeNodeDetailModal()"><span data-i18n="bridge.times_5">&times;</span></button>
         </div>
 
         <!-- Tabs -->
@@ -6731,47 +6731,47 @@ body.light-mode .bridge-hud-value {
             <div class="node-tab-content active" id="tab-overview">
                 <div class="node-detail-grid">
                     <div class="node-detail-section">
-                        <h4><i data-lucide="server"></i> System Information</h4>
+                        <h4><i data-lucide="server"></i><span data-i18n="bridge.system_information"> System Information</span></h4>
                         <div class="node-detail-info">
-                            <div class="info-row"><span class="label">Node ID:</span><span class="value" id="nd-node-id">--</span></div>
-                            <div class="info-row"><span class="label">Hostname:</span><span class="value" id="nd-hostname">--</span></div>
-                            <div class="info-row"><span class="label">IP Address:</span><span class="value" id="nd-ip">--</span></div>
-                            <div class="info-row"><span class="label">Port:</span><span class="value" id="nd-port">--</span></div>
-                            <div class="info-row"><span class="label">OS:</span><span class="value" id="nd-os">--</span></div>
-                            <div class="info-row"><span class="label">Registered:</span><span class="value" id="nd-registered">--</span></div>
-                            <div class="info-row"><span class="label">Last Heartbeat:</span><span class="value" id="nd-heartbeat">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.node_id">Node ID:</span></span><span class="value" id="nd-node-id">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.hostname">Hostname:</span></span><span class="value" id="nd-hostname">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.ip_address">IP Address:</span></span><span class="value" id="nd-ip">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.port">Port:</span></span><span class="value" id="nd-port">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.os">OS:</span></span><span class="value" id="nd-os">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.registered">Registered:</span></span><span class="value" id="nd-registered">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.last_heartbeat">Last Heartbeat:</span></span><span class="value" id="nd-heartbeat">--</span></div>
                         </div>
                     </div>
                     <div class="node-detail-section">
-                        <h4><i data-lucide="cpu"></i> Hardware Specs</h4>
+                        <h4><i data-lucide="cpu"></i><span data-i18n="bridge.hardware_specs"> Hardware Specs</span></h4>
                         <div class="node-detail-info">
-                            <div class="info-row"><span class="label">CPU:</span><span class="value" id="nd-cpu">--</span></div>
-                            <div class="info-row"><span class="label">CPU Cores:</span><span class="value" id="nd-cores">--</span></div>
-                            <div class="info-row"><span class="label">RAM:</span><span class="value" id="nd-ram">--</span></div>
-                            <div class="info-row"><span class="label">Disk:</span><span class="value" id="nd-disk">--</span></div>
-                            <div class="info-row"><span class="label">GPU:</span><span class="value" id="nd-gpu">--</span></div>
-                            <div class="info-row"><span class="label">GPU VRAM:</span><span class="value" id="nd-vram">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.cpu">CPU:</span></span><span class="value" id="nd-cpu">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.cpu_cores">CPU Cores:</span></span><span class="value" id="nd-cores">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.ram">RAM:</span></span><span class="value" id="nd-ram">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.disk">Disk:</span></span><span class="value" id="nd-disk">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.gpu">GPU:</span></span><span class="value" id="nd-gpu">--</span></div>
+                            <div class="info-row"><span class="label"><span data-i18n="bridge.gpu_vram">GPU VRAM:</span></span><span class="value" id="nd-vram">--</span></div>
                         </div>
                     </div>
                 </div>
                 <div class="node-detail-section full-width">
-                    <h4><i data-lucide="gauge"></i> Current Status</h4>
+                    <h4><i data-lucide="gauge"></i><span data-i18n="bridge.current_status"> Current Status</span></h4>
                     <div class="node-status-cards">
                         <div class="status-card">
                             <div class="status-card-value" id="nd-status-load">0/5</div>
-                            <div class="status-card-label">Active Tasks</div>
+                            <div class="status-card-label"><span data-i18n="bridge.active_tasks">Active Tasks</span></div>
                         </div>
                         <div class="status-card">
                             <div class="status-card-value" id="nd-status-latency">--</div>
-                            <div class="status-card-label">Avg Latency</div>
+                            <div class="status-card-label"><span data-i18n="bridge.avg_latency">Avg Latency</span></div>
                         </div>
                         <div class="status-card">
                             <div class="status-card-value" id="nd-status-models">0</div>
-                            <div class="status-card-label">Models</div>
+                            <div class="status-card-label"><span data-i18n="bridge.models">Models</span></div>
                         </div>
                         <div class="status-card">
                             <div class="status-card-value" id="nd-status-stations">0</div>
-                            <div class="status-card-label">Stations</div>
+                            <div class="status-card-label"><span data-i18n="bridge.stations">Stations</span></div>
                         </div>
                     </div>
                 </div>
@@ -6780,7 +6780,7 @@ body.light-mode .bridge-hud-value {
             <!-- Stations Tab -->
             <div class="node-tab-content" id="tab-stations">
                 <div class="node-detail-section full-width">
-                    <h4><i data-lucide="git-branch"></i> Station Assignments</h4>
+                    <h4><i data-lucide="git-branch"></i><span data-i18n="bridge.station_assignments"> Station Assignments</span></h4>
                     <p style="font-size:0.7rem;color:var(--archie-text-muted);margin-bottom:12px;">
                         Toggle stations on/off to assign this node. Select a role for active assignments.
                     </p>
@@ -6794,7 +6794,7 @@ body.light-mode .bridge-hud-value {
             <div class="node-tab-content" id="tab-models">
                 <!-- AI Services Overview -->
                 <div class="node-detail-section full-width">
-                    <h4><i data-lucide="cpu"></i> AI Services</h4>
+                    <h4><i data-lucide="cpu"></i><span data-i18n="bridge.ai_services"> AI Services</span></h4>
                     <div id="node-services-grid" class="node-services-grid">
                         <!-- Filled by JavaScript -->
                     </div>
@@ -6803,8 +6803,8 @@ body.light-mode .bridge-hud-value {
                 <!-- LLM Models -->
                 <div class="node-detail-section full-width">
                     <div class="section-header">
-                        <h4><i data-lucide="box"></i> LLM Models (Ollama)</h4>
-                        <button class="btn-small" onclick="syncNodeModels(event)"><i data-lucide="refresh-cw"></i> Sync</button>
+                        <h4><i data-lucide="box"></i><span data-i18n="bridge.llm_models_ollama"> LLM Models (Ollama)</span></h4>
+                        <button class="btn-small" onclick="syncNodeModels(event)"><i data-lucide="refresh-cw"></i><span data-i18n="bridge.sync"> Sync</span></button>
                     </div>
                     <div id="node-models-list" class="node-models-grid">
                         <!-- Filled by JavaScript -->
@@ -6815,7 +6815,7 @@ body.light-mode .bridge-hud-value {
             <!-- Health Tab -->
             <div class="node-tab-content" id="tab-health">
                 <div class="node-detail-section full-width">
-                    <h4><i data-lucide="activity"></i> Health History (Last 50 Heartbeats)</h4>
+                    <h4><i data-lucide="activity"></i><span data-i18n="bridge.health_history_last_50_heartbeats"> Health History (Last 50 Heartbeats)</span></h4>
                     <div class="health-charts">
                         <canvas id="health-chart" height="200"></canvas>
                     </div>
@@ -6828,37 +6828,37 @@ body.light-mode .bridge-hud-value {
             <!-- Config Tab -->
             <div class="node-tab-content" id="tab-config">
                 <div class="node-detail-section full-width">
-                    <h4><i data-lucide="settings"></i> Node Configuration</h4>
+                    <h4><i data-lucide="settings"></i><span data-i18n="bridge.node_configuration"> Node Configuration</span></h4>
                     <div class="config-form">
                         <div class="form-row">
-                            <label>Node Name:</label>
+                            <label><span data-i18n="bridge.node_name">Node Name:</span></label>
                             <input type="text" id="nd-config-name" placeholder="Node name">
                         </div>
                         <div class="form-row">
-                            <label>Description:</label>
+                            <label><span data-i18n="bridge.description">Description:</span></label>
                             <textarea id="nd-config-desc" rows="2" placeholder="Optional description"></textarea>
                         </div>
                         <div class="form-row">
-                            <label>Max Concurrent Tasks:</label>
+                            <label><span data-i18n="bridge.max_concurrent_tasks">Max Concurrent Tasks:</span></label>
                             <input type="number" id="nd-config-max" value="5" min="1" max="50">
-                            <span class="help-text">How many tasks this node can handle simultaneously</span>
+                            <span class="help-text"><span data-i18n="bridge.how_many_tasks_this_node_can_handle_simultaneously">How many tasks this node can handle simultaneously</span></span>
                         </div>
                         <div class="form-row">
-                            <label>Priority:</label>
+                            <label><span data-i18n="bridge.priority">Priority:</span></label>
                             <input type="number" id="nd-config-priority" value="10" min="1" max="100">
-                            <span class="help-text">Lower = higher priority for task assignment</span>
+                            <span class="help-text"><span data-i18n="bridge.lower_higher_priority_for_task_assignment">Lower = higher priority for task assignment</span></span>
                         </div>
                         <div class="form-row">
-                            <label>Weight:</label>
+                            <label><span data-i18n="bridge.weight">Weight:</span></label>
                             <input type="number" id="nd-config-weight" value="100" min="1" max="1000">
-                            <span class="help-text">Load balancing weight (higher = more tasks)</span>
+                            <span class="help-text"><span data-i18n="bridge.load_balancing_weight_higher_more_tasks">Load balancing weight (higher = more tasks)</span></span>
                         </div>
                         <div class="form-row checkbox-row">
                             <label>
                                 <input type="checkbox" id="nd-config-bridge">
                                 Enable Bridge LLM Sharing
                             </label>
-                            <span class="help-text">Allow this node's models to be used by other stations</span>
+                            <span class="help-text"><span data-i18n="bridge.allow_this_node_s_models_to_be_used_by_other_stati">Allow this node's models to be used by other stations</span></span>
                         </div>
                     </div>
                 </div>
@@ -6869,8 +6869,8 @@ body.light-mode .bridge-hud-value {
             <button class="btn-danger" onclick="confirmDeleteNode()" style="margin-right:auto;">
                 <i data-lucide="trash-2"></i> Delete Node
             </button>
-            <button class="btn-cancel" onclick="closeNodeDetailModal()">Close</button>
-            <button class="btn-submit" onclick="saveNodeConfig()">Save Changes</button>
+            <button class="btn-cancel" onclick="closeNodeDetailModal()"><span data-i18n="bridge.close_3">Close</span></button>
+            <button class="btn-submit" onclick="saveNodeConfig()"><span data-i18n="bridge.save_changes">Save Changes</span></button>
         </div>
     </div>
 </div>
@@ -6879,18 +6879,18 @@ body.light-mode .bridge-hud-value {
 <div class="assignment-modal-overlay" id="agent-profile-modal">
     <div class="assignment-modal" style="width: 640px; max-height: 85vh; overflow-y: auto;">
         <div class="assignment-modal-header">
-            <span id="agent-profile-title">Agent Profile</span>
-            <button class="assignment-modal-close" onclick="closeAgentProfile()">&times;</button>
+            <span id="agent-profile-title"><span data-i18n="bridge.agent_profile">Agent Profile</span></span>
+            <button class="assignment-modal-close" onclick="closeAgentProfile()"><span data-i18n="bridge.times_6">&times;</span></button>
         </div>
         <div class="assignment-modal-body" id="agent-profile-body">
-            <span class="briefing-muted">Loading...</span>
+            <span class="briefing-muted"><span data-i18n="bridge.loading_5">Loading...</span></span>
         </div>
         <div class="assignment-modal-footer" id="agent-profile-footer">
-            <button class="btn-danger" onclick="deleteAgentFromProfile()" style="margin-right:auto;font-size:0.7rem;">Delete</button>
-            <button class="btn-cancel" onclick="toggleAgentFromProfile()" style="font-size:0.7rem;">Toggle Status</button>
-            <button class="btn-submit" onclick="editAgentFromProfile()" style="font-size:0.7rem;">Edit</button>
+            <button class="btn-danger" onclick="deleteAgentFromProfile()" style="margin-right:auto;font-size:0.7rem;"><span data-i18n="bridge.delete_2">Delete</span></button>
+            <button class="btn-cancel" onclick="toggleAgentFromProfile()" style="font-size:0.7rem;"><span data-i18n="bridge.toggle_status">Toggle Status</span></button>
+            <button class="btn-submit" onclick="editAgentFromProfile()" style="font-size:0.7rem;"><span data-i18n="bridge.edit">Edit</span></button>
             <button class="btn-submit" onclick="viewPersonnelFile()" style="font-size:0.7rem;background:var(--archie-purple,#8b5cf6);" data-i18n="bridge.agent.view_personnel_file">Personnel File</button>
-            <button class="btn-cancel" onclick="closeAgentProfile()">Close</button>
+            <button class="btn-cancel" onclick="closeAgentProfile()"><span data-i18n="bridge.close_4">Close</span></button>
         </div>
     </div>
 </div>
@@ -6899,57 +6899,57 @@ body.light-mode .bridge-hud-value {
 <div class="assignment-modal-overlay" id="agent-form-modal">
     <div class="assignment-modal" style="width: 540px; max-height: 85vh; overflow-y: auto;">
         <div class="assignment-modal-header">
-            <span id="agent-form-title">Add Agent</span>
-            <button class="assignment-modal-close" onclick="closeAgentFormModal()">&times;</button>
+            <span id="agent-form-title"><span data-i18n="bridge.add_agent_2">Add Agent</span></span>
+            <button class="assignment-modal-close" onclick="closeAgentFormModal()"><span data-i18n="bridge.times_7">&times;</span></button>
         </div>
         <div class="assignment-modal-body">
             <input type="hidden" id="agent-form-id" value="">
             <div style="margin-bottom:8px;">
-                <label style="font-size:0.7rem;color:var(--archie-text-muted);">Codename</label>
+                <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.codename">Codename</span></label>
                 <input type="text" id="agent-form-name" placeholder="e.g. Sentinel, Vigil" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                 <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">First Name</label>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.first_name">First Name</span></label>
                     <input type="text" id="agent-form-first" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
                 </div>
                 <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Last Name</label>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.last_name">Last Name</span></label>
                     <input type="text" id="agent-form-last" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
                 </div>
                 <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Title</label>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.title_2">Title</span></label>
                     <input type="text" id="agent-form-title-input" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
                 </div>
                 <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Department</label>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.department">Department</span></label>
                     <input type="text" id="agent-form-dept" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
                 </div>
                 <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Model *</label>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.model">Model *</span></label>
                     <input type="text" id="agent-form-model" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;" placeholder="e.g. dolphin3-8k:latest">
                 </div>
                 <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);">Worker Type</label>
+                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.worker_type">Worker Type</span></label>
                     <select id="agent-form-worker" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
                         <option value="ai">AI</option>
-                        <option value="internal">Internal</option>
-                        <option value="contractor">Contractor</option>
+                        <option value="internal"><span data-i18n="bridge.internal">Internal</span></option>
+                        <option value="contractor"><span data-i18n="bridge.contractor">Contractor</span></option>
                     </select>
                 </div>
             </div>
             <div style="margin-top:8px;">
-                <label style="font-size:0.7rem;color:var(--archie-text-muted);">Bio</label>
+                <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.bio">Bio</span></label>
                 <textarea id="agent-form-bio" rows="2" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;resize:vertical;"></textarea>
             </div>
             <div style="margin-top:8px;">
-                <label style="font-size:0.7rem;color:var(--archie-text-muted);">System Prompt</label>
+                <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.system_prompt">System Prompt</span></label>
                 <textarea id="agent-form-prompt" rows="3" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;resize:vertical;"></textarea>
             </div>
         </div>
         <div class="assignment-modal-footer">
-            <button class="btn-cancel" onclick="closeAgentFormModal()">Cancel</button>
-            <button class="btn-submit" onclick="saveAgent()">Save Agent</button>
+            <button class="btn-cancel" onclick="closeAgentFormModal()"><span data-i18n="bridge.cancel_2">Cancel</span></button>
+            <button class="btn-submit" onclick="saveAgent()"><span data-i18n="bridge.save_agent">Save Agent</span></button>
         </div>
     </div>
 </div>
@@ -6958,25 +6958,25 @@ body.light-mode .bridge-hud-value {
 <div class="assignment-modal-overlay" id="vigil-log-modal">
     <div class="assignment-modal" style="width: 700px;">
         <div class="assignment-modal-header" style="background: linear-gradient(90deg, rgba(255, 107, 107, 0.2), transparent); border-color: rgba(255, 107, 107, 0.3);">
-            <h3 style="color: #ff6b6b; display:flex; align-items:center; gap:8px;"><i data-lucide="shield-alert" style="width:18px;height:18px;"></i> Vigil's Log</h3>
-            <button class="assignment-modal-close" onclick="closeVigilLogModal()">&times;</button>
+            <h3 style="color: #ff6b6b; display:flex; align-items:center; gap:8px;"><i data-lucide="shield-alert" style="width:18px;height:18px;"></i><span data-i18n="bridge.vigil_s_log_2"> Vigil's Log</span></h3>
+            <button class="assignment-modal-close" onclick="closeVigilLogModal()"><span data-i18n="bridge.times_8">&times;</span></button>
         </div>
         <!-- Filters -->
         <div style="display:flex;gap:8px;padding:10px 1.5rem 0;flex-wrap:wrap;">
-            <button class="vigil-filter-btn active" data-filter="all" onclick="filterVigilLog('all')">All</button>
-            <button class="vigil-filter-btn" data-filter="dispatch" onclick="filterVigilLog('dispatch')">Dispatch</button>
-            <button class="vigil-filter-btn" data-filter="welfare" onclick="filterVigilLog('welfare')">Welfare</button>
-            <button class="vigil-filter-btn" data-filter="governance" onclick="filterVigilLog('governance')">Governance</button>
-            <button class="vigil-filter-btn" data-filter="archie_wellness" onclick="filterVigilLog('archie_wellness')">ARCHIE</button>
+            <button class="vigil-filter-btn active" data-filter="all" onclick="filterVigilLog('all')"><span data-i18n="bridge.all">All</span></button>
+            <button class="vigil-filter-btn" data-filter="dispatch" onclick="filterVigilLog('dispatch')"><span data-i18n="bridge.dispatch">Dispatch</span></button>
+            <button class="vigil-filter-btn" data-filter="welfare" onclick="filterVigilLog('welfare')"><span data-i18n="bridge.welfare">Welfare</span></button>
+            <button class="vigil-filter-btn" data-filter="governance" onclick="filterVigilLog('governance')"><span data-i18n="bridge.governance">Governance</span></button>
+            <button class="vigil-filter-btn" data-filter="archie_wellness" onclick="filterVigilLog('archie_wellness')"><span data-i18n="bridge.archie">ARCHIE</span></button>
         </div>
         <div class="assignment-modal-body" id="vigil-log-modal-body" style="max-height:55vh;overflow-y:auto;">
-            <div style="text-align:center;color:var(--archie-text-muted);padding:2rem;">Loading...</div>
+            <div style="text-align:center;color:var(--archie-text-muted);padding:2rem;"><span data-i18n="bridge.loading_6">Loading...</span></div>
         </div>
         <div class="assignment-modal-footer" style="justify-content:space-between;align-items:center;">
-            <span id="vigil-log-page-info" style="font-size:0.7rem;color:var(--archie-text-muted);font-family:var(--archie-font-mono);">Page 1</span>
+            <span id="vigil-log-page-info" style="font-size:0.7rem;color:var(--archie-text-muted);font-family:var(--archie-font-mono);"><span data-i18n="bridge.page_1">Page 1</span></span>
             <div style="display:flex;gap:8px;">
-                <button class="btn-cancel" id="vigil-prev-btn" onclick="vigilLogPage(-1)" disabled>&larr; Prev</button>
-                <button class="btn-cancel" id="vigil-next-btn" onclick="vigilLogPage(1)">Next &rarr;</button>
+                <button class="btn-cancel" id="vigil-prev-btn" onclick="vigilLogPage(-1)" disabled><span data-i18n="bridge.larr_prev">&larr; Prev</span></button>
+                <button class="btn-cancel" id="vigil-next-btn" onclick="vigilLogPage(1)"><span data-i18n="bridge.next_rarr">Next &rarr;</span></button>
             </div>
         </div>
     </div>
@@ -7930,6 +7930,8 @@ function renderStations(stations, runningJobs) {
         if (!zd.primaryStation) zd.primaryStation = station;
         zd.modules = zd.modules.concat(station.modules || []);
         zd.agents = zd.agents.concat(station.assigned_agents || []);
+        zd.maxPrimary = station.max_primary || 2;
+        zd.maxAuxiliary = station.max_auxiliary || 1;
         const cov = stationNodeCoverage[station.code] || {};
         zd.totalNodes += (cov.total_nodes || 0);
     }
@@ -8603,7 +8605,7 @@ function openStationConsole(zoneName, zoneInfo, zd) {
     buildModuleRail(zd.modules, zoneInfo.color);
 
     // Load crew tab (default, no API call needed)
-    renderCrewTab(zd.agents, zoneInfo.color);
+    renderCrewTab(zd.agents, zoneInfo.color, zd.maxPrimary || 2, zd.maxAuxiliary || 1);
 
     // Reset to crew tab
     switchConsoleTab('crew');
@@ -8863,7 +8865,7 @@ async function buildModuleRail(moduleNames, stationColor) {
 
 // === CREW TAB CONTENT ===
 
-function renderCrewTab(agents, stationColor) {
+function renderCrewTab(agents, stationColor, maxPrimary, maxAuxiliary) {
     var panel = document.getElementById('lcarsCrewPanel');
     if (!panel) return;
     panel.textContent = '';
@@ -8950,7 +8952,7 @@ function renderCrewTab(agents, stationColor) {
     } else {
         var label = document.createElement('div');
         label.className = 'lcars-section-label';
-        label.textContent = 'ASSIGNED CREW';
+        label.textContent = 'ASSIGNED CREW (' + agents.length + '/' + (maxPrimary || 2) + ')';
         panel.appendChild(label);
 
         for (var i = 0; i < agents.length; i++) {
@@ -9034,97 +9036,128 @@ function renderCrewTab(agents, stationColor) {
         }
     }
 
-    // -- Helping Crew (cross-station agents + contractors working AT this station) --
-    var helpers = [];
+    // -- AUXILIARY (cross-station agents, non-cloud) --
+    var auxHelpers = [];
+    var cloudHelpers = [];
     for (var hi = 0; hi < stationJobs.length; hi++) {
         var hj = stationJobs[hi];
         var hm = hj.metadata || {};
-        if (hm.is_cross_station || hm.is_cloud) {
-            helpers.push(hj);
+        if (hm.is_cloud) {
+            cloudHelpers.push(hj);
+        } else if (hm.is_cross_station) {
+            auxHelpers.push(hj);
         }
     }
 
-    if (helpers.length > 0) {
-        var helperLabel = document.createElement('div');
-        helperLabel.className = 'lcars-section-label';
-        helperLabel.style.cssText = 'margin-top:16px;color:#F59E0B;';
-        helperLabel.textContent = '\u2693 ASSISTING CREW';
-        panel.appendChild(helperLabel);
+    // AUXILIARY section
+    var auxLabel = document.createElement('div');
+    auxLabel.className = 'lcars-section-label';
+    auxLabel.style.cssText = 'margin-top:16px;color:#F59E0B;';
+    auxLabel.textContent = '\u2693 AUXILIARY (' + auxHelpers.length + '/' + (maxAuxiliary || 1) + ')';
+    panel.appendChild(auxLabel);
 
-        for (var k = 0; k < helpers.length; k++) {
-            var hJob = helpers[k];
-            var hMeta = hJob.metadata || {};
-            var hRow = document.createElement('div');
-            hRow.className = 'lcars-crew-row';
+    if (auxHelpers.length > 0) {
+        for (var ai = 0; ai < auxHelpers.length; ai++) {
+            var aJob = auxHelpers[ai];
+            var aMeta = aJob.metadata || {};
+            var aRow = document.createElement('div');
+            aRow.className = 'lcars-crew-row';
 
-            // Avatar — use agent avatar or cloud icon
-            var hImg = document.createElement('div');
-            hImg.style.cssText = 'width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;';
-            if (hMeta.is_cloud) {
-                var brand = getProviderBrand(hJob.agent_callsign || hMeta.cloud_model || '');
-                hImg.style.background = 'rgba(' + ((brand && brand.rgb) || '147,51,234') + ',0.15)';
-                hImg.style.border = '1px solid ' + ((brand && brand.color) || '#9333EA');
-                hImg.textContent = '\u2601';
-            } else {
-                // Cross-station agent — try to find their avatar
-                var helperName = (hJob.agent_callsign || hJob.agent_name || '').split(' ')[0];
-                var helperSlug = helperName.toLowerCase();
-                hImg = document.createElement('img');
-                hImg.className = 'lcars-crew-avatar';
-                hImg.src = '/static/avatars/' + helperSlug + '.svg';
-                hImg.alt = helperName;
-                hImg.onerror = function() { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(this.alt); };
-            }
-            hRow.appendChild(hImg);
+            // Cross-station agent avatar
+            var aHelperName = (aJob.agent_callsign || aJob.agent_name || '').split(' ')[0];
+            var aHelperSlug = aHelperName.toLowerCase();
+            var aImg = document.createElement('img');
+            aImg.className = 'lcars-crew-avatar';
+            aImg.src = '/static/avatars/' + aHelperSlug + '.svg';
+            aImg.alt = aHelperName;
+            aImg.onerror = function() { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(this.alt); };
+            aRow.appendChild(aImg);
 
-            var hInfo = document.createElement('div');
-            hInfo.style.cssText = 'flex:1;min-width:0;';
+            var aInfo = document.createElement('div');
+            aInfo.style.cssText = 'flex:1;min-width:0;';
 
-            var hName = document.createElement('div');
-            hName.className = 'lcars-crew-name';
-            if (hMeta.is_cloud) {
-                var cBrand = getProviderBrand(hJob.agent_callsign || hMeta.cloud_model || '');
-                hName.textContent = (cBrand && cBrand.label) || 'Cloud Provider';
-                hName.style.color = (cBrand && cBrand.color) || '#9333EA';
-            } else {
-                hName.textContent = hJob.agent_name || hJob.agent_callsign || 'Unknown';
-            }
-            hInfo.appendChild(hName);
+            var aName = document.createElement('div');
+            aName.className = 'lcars-crew-name';
+            aName.textContent = aJob.agent_name || aJob.agent_callsign || 'Unknown';
+            aInfo.appendChild(aName);
 
-            var hFrom = document.createElement('div');
-            hFrom.style.cssText = 'font-size:0.7rem;opacity:0.5;';
-            if (hMeta.is_cloud) {
-                hFrom.textContent = hMeta.cloud_model || 'Cloud model';
-            } else {
-                var homeLabel = (ISOMETRIC_ZONE_MAP[STATION_TO_ISO_ZONE[hMeta.home_station]] || {}).label || hMeta.home_station || '';
-                hFrom.textContent = 'From ' + homeLabel + ' Station';
-                hFrom.style.cursor = 'pointer';
-                hFrom.style.color = '#6495ED';
-                (function(homeZone) {
-                    hFrom.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        closeStationConsole();
-                        var srcEl = document.querySelector('.iso-station-zone[data-station-code="' + homeZone + '"]');
-                        if (srcEl) setTimeout(function() { srcEl.click(); }, 300);
-                    });
-                })(STATION_TO_ISO_ZONE[hMeta.home_station]);
-            }
-            hInfo.appendChild(hFrom);
+            var aFrom = document.createElement('div');
+            aFrom.style.cssText = 'font-size:0.7rem;opacity:0.5;cursor:pointer;color:#6495ED;';
+            var aHomeLabel = (ISOMETRIC_ZONE_MAP[STATION_TO_ISO_ZONE[aMeta.home_station]] || {}).label || aMeta.home_station || '';
+            aFrom.textContent = 'From ' + aHomeLabel + ' Station';
+            (function(homeZone) {
+                aFrom.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    closeStationConsole();
+                    var srcEl = document.querySelector('.iso-station-zone[data-station-code="' + homeZone + '"]');
+                    if (srcEl) setTimeout(function() { srcEl.click(); }, 300);
+                });
+            })(STATION_TO_ISO_ZONE[aMeta.home_station]);
+            aInfo.appendChild(aFrom);
 
-            hRow.appendChild(hInfo);
+            aRow.appendChild(aInfo);
 
-            var hBadge = document.createElement('span');
-            hBadge.className = 'lcars-role-badge';
-            if (hMeta.is_cloud) {
-                hBadge.style.cssText = 'background:rgba(147,51,234,0.15);color:#9333EA;border-color:rgba(147,51,234,0.3);';
-                hBadge.textContent = 'CONTRACTOR';
-            } else {
-                hBadge.style.cssText = 'background:rgba(100,149,237,0.15);color:#6495ED;border-color:rgba(100,149,237,0.3);';
-                hBadge.textContent = 'HELPING';
-            }
-            hRow.appendChild(hBadge);
+            var aBadge = document.createElement('span');
+            aBadge.className = 'lcars-role-badge';
+            aBadge.style.cssText = 'background:rgba(100,149,237,0.15);color:#6495ED;border-color:rgba(100,149,237,0.3);';
+            aBadge.textContent = 'HELPING';
+            aRow.appendChild(aBadge);
 
-            panel.appendChild(hRow);
+            panel.appendChild(aRow);
+        }
+    } else {
+        var auxEmpty = document.createElement('div');
+        auxEmpty.style.cssText = 'font-size:0.72rem;color:rgba(255,255,255,0.3);padding:6px 12px;font-style:italic;';
+        auxEmpty.textContent = 'Slot available';
+        panel.appendChild(auxEmpty);
+    }
+
+    // CONTRACTOR section (only if cloud helpers exist)
+    if (cloudHelpers.length > 0) {
+        var cLabel = document.createElement('div');
+        cLabel.className = 'lcars-section-label';
+        cLabel.style.cssText = 'margin-top:16px;color:#9333EA;';
+        cLabel.textContent = '\u2601 CONTRACTOR (' + cloudHelpers.length + ')';
+        panel.appendChild(cLabel);
+
+        for (var ci = 0; ci < cloudHelpers.length; ci++) {
+            var cJob = cloudHelpers[ci];
+            var cMeta = cJob.metadata || {};
+            var cRow = document.createElement('div');
+            cRow.className = 'lcars-crew-row';
+
+            var cImg = document.createElement('div');
+            cImg.style.cssText = 'width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;';
+            var brand = getProviderBrand(cJob.agent_callsign || cMeta.cloud_model || '');
+            cImg.style.background = 'rgba(' + ((brand && brand.rgb) || '147,51,234') + ',0.15)';
+            cImg.style.border = '1px solid ' + ((brand && brand.color) || '#9333EA');
+            cImg.textContent = '\u2601';
+            cRow.appendChild(cImg);
+
+            var cInfo = document.createElement('div');
+            cInfo.style.cssText = 'flex:1;min-width:0;';
+
+            var cName = document.createElement('div');
+            cName.className = 'lcars-crew-name';
+            var cBrand = getProviderBrand(cJob.agent_callsign || cMeta.cloud_model || '');
+            cName.textContent = (cBrand && cBrand.label) || 'Cloud Provider';
+            cName.style.color = (cBrand && cBrand.color) || '#9333EA';
+            cInfo.appendChild(cName);
+
+            var cModel = document.createElement('div');
+            cModel.style.cssText = 'font-size:0.7rem;opacity:0.5;';
+            cModel.textContent = cMeta.cloud_model || 'Cloud model';
+            cInfo.appendChild(cModel);
+
+            cRow.appendChild(cInfo);
+
+            var cBadge = document.createElement('span');
+            cBadge.className = 'lcars-role-badge';
+            cBadge.style.cssText = 'background:rgba(147,51,234,0.15);color:#9333EA;border-color:rgba(147,51,234,0.3);';
+            cBadge.textContent = 'CONTRACTOR';
+            cRow.appendChild(cBadge);
+
+            panel.appendChild(cRow);
         }
     }
 }

@@ -2024,9 +2024,29 @@
         <!-- Placeholder Panels (populated by consciousness.js)      -->
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-knowledge">
+          <!-- Knowledge Operations Terminal (like Languages pattern) -->
+          <div class="cs-ops-terminal" id="kbOpsTerminal">
+            <div class="cs-ops-header">
+              <div class="cs-ops-elbow"></div>
+              <div class="cs-ops-title">KNOWLEDGE OPERATIONS</div>
+              <div class="cs-ops-status" id="kbOpsOnline">
+                <span class="cs-ops-dot"></span> ONLINE
+              </div>
+            </div>
+            <div class="cs-ops-body">
+              <div id="kbOpsAgents"></div>
+              <div id="kbOpsJobs"></div>
+              <div class="cs-ops-commands" id="kbOpsCommands"></div>
+              <div id="kbActiveJob" style="display:none; margin-top:10px; font-size:0.82rem;"></div>
+              <div id="kbJobProgress" style="display:none; margin-top:10px;">
+                <div id="kbJobProgressInner" style="font-size:0.82rem;"></div>
+              </div>
+              <div id="procResult" style="margin-top:8px;"></div>
+            </div>
+          </div>
+
           <div class="cs-subtabs">
             <button class="cs-subtab active" onclick="switchKnowledgeSubtab('browser')"><i data-lucide="search"></i> <span data-i18n="consciousness.browser">Browser</span></button>
-            <button class="cs-subtab" onclick="switchKnowledgeSubtab('processing')"><i data-lucide="cpu"></i> <span data-i18n="consciousness.processing">Processing</span></button>
             <button class="cs-subtab" onclick="switchKnowledgeSubtab('categories')"><i data-lucide="folder-tree"></i> <span data-i18n="consciousness.categories">Categories</span></button>
             <button class="cs-subtab" onclick="switchKnowledgeSubtab('embeddings')"><i data-lucide="database"></i> <span data-i18n="consciousness.embeddings">Embeddings</span></button>
           </div>
@@ -2061,48 +2081,6 @@
             </div>
             <!-- Pagination -->
             <div id="kbPagination" class="cs-pagination"></div>
-          </div>
-
-          <div class="cs-subpanel" id="kb-processing">
-            <div class="cs-stats" style="margin-bottom:20px;">
-              <div class="cs-stat purple">
-                <div class="cs-stat-icon"><i data-lucide="clock"></i></div>
-                <div class="cs-stat-value" id="procQueueCount">--</div>
-                <div class="cs-stat-label"><span data-i18n="consciousness.queue_size">Queue Size</span></div>
-              </div>
-              <div class="cs-stat blue">
-                <div class="cs-stat-icon"><i data-lucide="check-circle"></i></div>
-                <div class="cs-stat-value" id="procCompleted">--</div>
-                <div class="cs-stat-label"><span data-i18n="consciousness.processed">Processed</span></div>
-              </div>
-            </div>
-            <!-- Station Agent Status (populated from Bridge Command) -->
-            <div id="stationStatusProc"></div>
-            <!-- Processing Controls -->
-            <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
-              <div style="display:flex; gap:8px; align-items:center;">
-                <select id="procCategory" style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
-                  <option value="conversations"><span data-i18n="consciousness.conversations_2">Conversations</span></option>
-                  <option value="github"><span data-i18n="consciousness.github_files_2">GitHub Files</span></option>
-                  <option value="claude_hooks"><span data-i18n="consciousness.claude_hooks">Claude Hooks</span></option>
-                </select>
-                <select id="procBatchSize" style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
-                  <option value="10"><span data-i18n="consciousness.10_items">10 items</span></option>
-                  <option value="25"><span data-i18n="consciousness.25_items">25 items</span></option>
-                  <option value="50"><span data-i18n="consciousness.50_items">50 items</span></option>
-                </select>
-              </div>
-              <button id="btnStartAnalysis" onclick="startAnalysis()"
-                      style="padding:8px 16px; background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.4); border-radius:6px; color:#8b5cf6; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
-                <i data-lucide="play" style="width:14px;height:14px;"></i> Start Analysis
-              </button>
-              <button id="btnGenerateEmbed" onclick="generateEmbeddings()"
-                      style="padding:8px 16px; background:rgba(34,197,94,0.2); border:1px solid rgba(34,197,94,0.4); border-radius:6px; color:#22c55e; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
-                <i data-lucide="database" style="width:14px;height:14px;"></i> Generate Embeddings
-              </button>
-            </div>
-            <div id="procResult" style="margin-bottom:16px;"></div>
-            <div id="procStatus"><div class="cs-loading"><span data-i18n="consciousness.loading_processing_status">Loading processing status...</span></div></div>
           </div>
 
           <div class="cs-subpanel" id="kb-categories">
@@ -2336,6 +2314,23 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-github">
 
+            <!-- GitHub Operations Terminal (Station Crew pattern) -->
+            <div class="cs-ops-terminal" id="ghOpsTerminal">
+              <div class="cs-ops-header">
+                <div class="cs-ops-elbow"></div>
+                <div class="cs-ops-title">GITHUB OPERATIONS</div>
+                <div class="cs-ops-status" id="ghOpsOnline">
+                  <span class="cs-ops-dot"></span> ONLINE
+                </div>
+              </div>
+              <div class="cs-ops-body">
+                <div id="ghOpsAgents"></div>
+                <div id="ghOpsJobs"></div>
+                <div class="cs-ops-commands" id="ghOpsCommands"></div>
+                <div id="ghActiveJob" style="display:none; margin-top:10px; font-size:0.82rem;"></div>
+              </div>
+            </div>
+
             <!-- Zone 1: Knowledge Intake Port -->
             <div class="gh-intake">
                 <div class="gh-intake-title">Knowledge Intake</div>
@@ -2410,19 +2405,10 @@
             <div class="gh-cards-header">
                 <div class="gh-cards-header-cap"></div>
                 <div class="gh-cards-header-title">Indexed Repositories</div>
-                <div style="flex:1;"></div>
-                <div style="display:flex; gap:6px;">
-                    <button class="cs-ops-cmd amber" onclick="reindexAllRepos()" id="btnReindexAll" style="font-size:0.65rem; padding:4px 10px;">Reindex All</button>
-                    <button class="cs-ops-cmd green" onclick="embedGitHubFiles()" id="btnEmbedGH" style="font-size:0.65rem; padding:4px 10px;">Embed Files</button>
-                    <button class="cs-ops-cmd cyan" onclick="verifyGitHubData()" style="font-size:0.65rem; padding:4px 10px;">Verify</button>
-                </div>
             </div>
             <div class="gh-cards-grid" id="ghRepoGrid">
                 <div class="cs-loading">Loading repositories...</div>
             </div>
-
-            <!-- Active jobs display -->
-            <div id="ghOpsJobs" style="margin-bottom:16px;"></div>
 
             <!-- Zone 3: Discovery Console -->
             <div class="gh-discovery">

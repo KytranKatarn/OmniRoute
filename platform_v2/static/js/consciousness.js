@@ -444,16 +444,15 @@ function updateHeaderStats(data) {
 
 window.switchKnowledgeSubtab = function(sub) {
   document.querySelectorAll("#panel-knowledge .cs-subtab").forEach(function(b) {
-    b.classList.toggle("active", b.textContent.toLowerCase().replace(/ /g, "") === sub ||
-      (sub === "browser" && b.textContent === "Browser") ||
-      (sub === "processing" && b.textContent === "Processing") ||
-      (sub === "categories" && b.textContent === "Categories") ||
-      (sub === "embeddings" && b.textContent === "Embeddings"));
+    var txt = b.textContent.trim().toLowerCase().replace(/ /g, "");
+    b.classList.toggle("active", txt === sub ||
+      (sub === "browser" && txt === "browser") ||
+      (sub === "categories" && txt === "categories") ||
+      (sub === "embeddings" && txt === "embeddings"));
   });
   document.querySelectorAll("#panel-knowledge .cs-subpanel").forEach(function(p) {
     p.classList.toggle("active", p.id === "kb-" + sub);
   });
-  if (sub === "processing") loadProcessingStatus();
   if (sub === "categories") loadCategories();
   if (sub === "embeddings") loadEmbeddingStatus();
 };
@@ -462,7 +461,75 @@ var _kbPage = 1;
 var _kbPageSize = 25;
 var _kbEntries = [];
 
+/* ── Knowledge LCARS Operations Terminal ─────────── */
+
+function renderKnowledgeOps(agentData, jobData) {
+  /* Render agents section — RESEARCH station crew */
+  var agentsEl = document.getElementById("kbOpsAgents");
+  if (agentsEl) {
+    if (agentData && agentData.length) {
+      var html = '<div class="cs-ops-section-label">ASSIGNED AGENTS</div>';
+      agentData.forEach(function(a) {
+        html += '<div class="cs-ops-agent-row">' +
+          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
+          '<span class="cs-ops-agent-role">' + escHtml(a.role || "agent") + '</span>' +
+          '</div>';
+      });
+      setHtml(agentsEl, html);
+    } else {
+      _renderOpsAgents("kbOpsAgents", "RESEARCH", jobData);
+    }
+  }
+
+  /* Render jobs section */
+  var jobsEl = document.getElementById("kbOpsJobs");
+  if (jobsEl) {
+    if (jobData && jobData.length) {
+      var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
+      jobData.forEach(function(j) {
+        var pct = j.progress_pct || 0;
+        var agentLabel = j.agent_name || "Queued";
+        var stationLabel = j.station_code || "";
+        if (stationLabel) agentLabel += " \u2022 " + stationLabel;
+        var completed = j.completed_steps || 0;
+        var total = j.total_steps || 0;
+        var countLabel = total > 0 ? ('<span class="cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
+        html += '<div class="cs-ops-job-row">' +
+          '<div class="cs-ops-job-info">' +
+            '<div class="cs-ops-job-desc">' + escHtml(j.description) + '</div>' +
+            '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
+          '</div>' +
+          '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
+          countLabel +
+          '<div class="cs-ops-job-pct">' + pct + '%</div>' +
+          '</div>';
+      });
+      setHtml(jobsEl, html);
+    } else {
+      setHtml(jobsEl, "");
+    }
+  }
+
+  /* Render command buttons (only once) */
+  var cmdsEl = document.getElementById("kbOpsCommands");
+  if (cmdsEl && !cmdsEl.hasChildNodes()) {
+    var commands = [
+      { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" },
+      { label: "EMBED", cls: "green", fn: "generateEmbeddings()", id: "btnGenerateEmbed" }
+    ];
+    commands.forEach(function(c) {
+      var btn = document.createElement("button");
+      btn.className = "cs-ops-cmd " + c.cls;
+      btn.textContent = c.label;
+      btn.setAttribute("onclick", c.fn);
+      if (c.id) btn.id = c.id;
+      cmdsEl.appendChild(btn);
+    });
+  }
+}
+
 function loadKnowledge() {
+  renderKnowledgeOps();
   loadKnowledgeBrowser();
   _loadTypeSummary();
 }
@@ -1895,6 +1962,7 @@ function loadLangGlossary() {
 /* ── GitHub Tab ────────────────────────────────────── */
 
 function loadGitHub() {
+  renderGitHubOps();
   api("/api/github/repos").then(function(data) {
     if (!data.success) return;
     var repos = data.repos || [];

@@ -477,7 +477,7 @@ function renderKnowledgeOps(agentData, jobData) {
       });
       setHtml(agentsEl, html);
     } else {
-      _renderOpsAgents("kbOpsAgents", "RESEARCH", jobData);
+      _renderOpsAgents("kbOpsAgents", "ANALYTICS", jobData);
     }
   }
 

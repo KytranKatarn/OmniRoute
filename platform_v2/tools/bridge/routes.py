@@ -6605,50 +6605,35 @@ def get_station_dispatch(station_code):
 @bridge_bp.route("/api/stations/<station_code>/metrics")
 @login_required
 def get_station_metrics(station_code):
-    """Get performance metrics for a station (24h window)"""
+    """Get performance metrics for a station (24h window).
+
+    Uses task_execution_log with capability_station metadata to attribute
+    work to the station it was done FOR — including cross-station helpers
+    and cloud contractors.
+    """
     try:
         with get_db_cursor(commit=False) as (conn, cur):
-            # Get agent IDs assigned to this station
-            cur.execute(
-                """
-                SELECT sa.agent_id
-                FROM station_assignments sa
-                JOIN bridge_stations bs ON bs.id = sa.station_id
-                WHERE bs.station_code = %s AND sa.is_active = TRUE
-            """,
-                (station_code,),
-            )
-            agent_ids = [r["agent_id"] for r in cur.fetchall()]
-
-            if not agent_ids:
-                return jsonify(
-                    {
-                        "success": True,
-                        "metrics": {
-                            "requests_24h": 0,
-                            "avg_response_ms": 0,
-                            "tokens_24h": 0,
-                            "success_rate": 0,
-                        },
-                    }
-                )
-
-            # Aggregate from bridge_interaction_log
+            # Query task_execution_log using capability_station metadata
+            # for correct attribution of cross-station + contractor work.
+            # Fallback to station_code for older entries without the field.
             cur.execute(
                 """
                 SELECT
                     COUNT(*) AS total_requests,
-                    COALESCE(AVG(execution_time_ms), 0)::int AS avg_response_ms,
+                    COALESCE(AVG(duration_ms), 0)::int AS avg_response_ms,
                     COALESCE(SUM(tokens_used), 0) AS total_tokens,
                     CASE WHEN COUNT(*) > 0
                         THEN ROUND(100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END) / COUNT(*), 1)
                         ELSE 0
                     END AS success_rate
-                FROM bridge_interaction_log
-                WHERE agent_id = ANY(%s)
+                FROM task_execution_log
+                WHERE (
+                    request_metadata->>'capability_station' = %s
+                    OR (request_metadata->>'capability_station' IS NULL AND station_code = %s)
+                )
                 AND created_at > NOW() - INTERVAL '24 hours'
-            """,
-                (agent_ids,),
+                """,
+                (station_code, station_code),
             )
             stats = cur.fetchone()
 

@@ -20,18 +20,18 @@
                 <i data-lucide="dumbbell"></i>
                 FITNESS
             </h1>
-            <p class="fitness-subtitle">AI Coach - Your personal training partner</p>
+            <p class="fitness-subtitle"><span data-i18n="fitness.ai_coach_your_personal_training_partner">AI Coach - Your personal training partner</span></p>
         </div>
         <div class="fitness-status">
             <span class="status-indicator status-online"></span>
-            <span>Coach Ready</span>
+            <span><span data-i18n="fitness.coach_ready">Coach Ready</span></span>
         </div>
     </header>
 
     <!-- Motivation Banner -->
     <div class="fitness-motivation">
         <i data-lucide="flame"></i>
-        <span id="motivationText">Every rep counts. Every step matters. Let's crush your goals today!</span>
+        <span id="motivationText"><span data-i18n="fitness.every_rep_counts_every_step_matters_let_s_crush_yo">Every rep counts. Every step matters. Let's crush your goals today!</span></span>
         <button class="motivation-refresh" onclick="refreshMotivation()" title="New motivation">
             <i data-lucide="refresh-cw"></i>
         </button>
@@ -45,7 +45,7 @@
             </div>
             <div class="fitness-stat-info">
                 <span class="fitness-stat-value" id="workoutsCompleted">0</span>
-                <span class="fitness-stat-label">WORKOUTS</span>
+                <span class="fitness-stat-label"><span data-i18n="fitness.workouts">WORKOUTS</span></span>
             </div>
         </div>
         <div class="fitness-stat-card" style="animation-delay: 0.2s">
@@ -54,7 +54,7 @@
             </div>
             <div class="fitness-stat-info">
                 <span class="fitness-stat-value" id="currentStreak">0</span>
-                <span class="fitness-stat-label">DAY STREAK</span>
+                <span class="fitness-stat-label"><span data-i18n="fitness.day_streak">DAY STREAK</span></span>
             </div>
         </div>
         <div class="fitness-stat-card" style="animation-delay: 0.3s">
@@ -63,7 +63,7 @@
             </div>
             <div class="fitness-stat-info">
                 <span class="fitness-stat-value" id="caloriesBurned">0</span>
-                <span class="fitness-stat-label">CALORIES</span>
+                <span class="fitness-stat-label"><span data-i18n="fitness.calories">CALORIES</span></span>
             </div>
         </div>
         <div class="fitness-stat-card" style="animation-delay: 0.4s">
@@ -72,7 +72,7 @@
             </div>
             <div class="fitness-stat-info">
                 <span class="fitness-stat-value" id="exercisesLogged">0</span>
-                <span class="fitness-stat-label">EXERCISES</span>
+                <span class="fitness-stat-label"><span data-i18n="fitness.exercises">EXERCISES</span></span>
             </div>
         </div>
     </section>
@@ -113,12 +113,12 @@
                                 <div class="fitness-message-text">
                                     Hey there, champion! I'm your AI Fitness Coach. Ready to help you:
                                     <ul>
-                                        <li>Design personalized workout plans</li>
-                                        <li>Perfect your exercise form</li>
-                                        <li>Optimize your nutrition</li>
-                                        <li>Track and smash your goals</li>
+                                        <li><span data-i18n="fitness.design_personalized_workout_plans">Design personalized workout plans</span></li>
+                                        <li><span data-i18n="fitness.perfect_your_exercise_form">Perfect your exercise form</span></li>
+                                        <li><span data-i18n="fitness.optimize_your_nutrition">Optimize your nutrition</span></li>
+                                        <li><span data-i18n="fitness.track_and_smash_your_goals">Track and smash your goals</span></li>
                                     </ul>
-                                    <strong>Let's get after it!</strong> What would you like to work on today?
+                                    <strong><span data-i18n="fitness.let_s_get_after_it">Let's get after it!</span></strong> What would you like to work on today?
                                 </div>
                             </div>
                         </div>
@@ -151,7 +151,7 @@
 
                 <!-- Quick Prompts Sidebar -->
                 <div class="fitness-sidebar">
-                    <h4>Quick Prompts</h4>
+                    <h4><span data-i18n="fitness.quick_prompts">Quick Prompts</span></h4>
                     <div class="fitness-quick-prompts">
                         <button class="fitness-prompt-btn" onclick="askPrompt('workout')">
                             <i data-lucide="clipboard-list"></i>
@@ -179,11 +179,11 @@
                         </button>
                     </div>
 
-                    <h4>AI Model</h4>
+                    <h4><span data-i18n="fitness.ai_model">AI Model</span></h4>
                     <select class="fitness-select" id="modelSelect">
-                        <option value="llama3.2:latest">Llama 3.2 (Local)</option>
-                        <option value="mistral:latest">Mistral (Local)</option>
-                        <option value="deepseek-coder-v2:16b">DeepSeek v2 (Local)</option>
+                        <option value="llama3.2:latest"><span data-i18n="fitness.llama_3_2_local">Llama 3.2 (Local)</span></option>
+                        <option value="mistral:latest"><span data-i18n="fitness.mistral_local">Mistral (Local)</span></option>
+                        <option value="deepseek-coder-v2:16b"><span data-i18n="fitness.deepseek_v2_local">DeepSeek v2 (Local)</span></option>
                     </select>
                 </div>
             </div>
@@ -217,10 +217,10 @@
                     <!-- Strength Exercises -->
                     <div class="fitness-exercise-card" data-category="strength">
                         <div class="exercise-icon"><i data-lucide="dumbbell"></i></div>
-                        <h5>Push-ups</h5>
-                        <span class="exercise-muscles">Chest, Triceps, Shoulders</span>
+                        <h5><span data-i18n="fitness.push_ups">Push-ups</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.chest_triceps_shoulders">Chest, Triceps, Shoulders</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Push-ups')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -228,10 +228,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="strength">
                         <div class="exercise-icon"><i data-lucide="dumbbell"></i></div>
-                        <h5>Squats</h5>
-                        <span class="exercise-muscles">Quads, Glutes, Hamstrings</span>
+                        <h5><span data-i18n="fitness.squats">Squats</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.quads_glutes_hamstrings">Quads, Glutes, Hamstrings</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_2">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Squats')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -239,10 +239,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="strength">
                         <div class="exercise-icon"><i data-lucide="dumbbell"></i></div>
-                        <h5>Deadlifts</h5>
-                        <span class="exercise-muscles">Back, Glutes, Hamstrings</span>
+                        <h5><span data-i18n="fitness.deadlifts">Deadlifts</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.back_glutes_hamstrings">Back, Glutes, Hamstrings</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-intermediate">Intermediate</span>
+                            <span class="exercise-difficulty difficulty-intermediate"><span data-i18n="fitness.intermediate">Intermediate</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Deadlifts')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -250,10 +250,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="strength">
                         <div class="exercise-icon"><i data-lucide="dumbbell"></i></div>
-                        <h5>Bench Press</h5>
-                        <span class="exercise-muscles">Chest, Triceps, Shoulders</span>
+                        <h5><span data-i18n="fitness.bench_press">Bench Press</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.chest_triceps_shoulders_2">Chest, Triceps, Shoulders</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-intermediate">Intermediate</span>
+                            <span class="exercise-difficulty difficulty-intermediate"><span data-i18n="fitness.intermediate_2">Intermediate</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Bench Press')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -261,10 +261,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="strength">
                         <div class="exercise-icon"><i data-lucide="dumbbell"></i></div>
-                        <h5>Pull-ups</h5>
-                        <span class="exercise-muscles">Back, Biceps, Core</span>
+                        <h5><span data-i18n="fitness.pull_ups">Pull-ups</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.back_biceps_core">Back, Biceps, Core</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-advanced">Advanced</span>
+                            <span class="exercise-difficulty difficulty-advanced"><span data-i18n="fitness.advanced">Advanced</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Pull-ups')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -272,10 +272,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="strength">
                         <div class="exercise-icon"><i data-lucide="dumbbell"></i></div>
-                        <h5>Lunges</h5>
-                        <span class="exercise-muscles">Quads, Glutes, Balance</span>
+                        <h5><span data-i18n="fitness.lunges">Lunges</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.quads_glutes_balance">Quads, Glutes, Balance</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_3">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Lunges')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -285,10 +285,10 @@
                     <!-- Cardio Exercises -->
                     <div class="fitness-exercise-card" data-category="cardio">
                         <div class="exercise-icon"><i data-lucide="heart-pulse"></i></div>
-                        <h5>Running</h5>
-                        <span class="exercise-muscles">Full Body, Endurance</span>
+                        <h5><span data-i18n="fitness.running">Running</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.full_body_endurance">Full Body, Endurance</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_4">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Running')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -296,10 +296,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="cardio">
                         <div class="exercise-icon"><i data-lucide="heart-pulse"></i></div>
-                        <h5>Burpees</h5>
-                        <span class="exercise-muscles">Full Body, HIIT</span>
+                        <h5><span data-i18n="fitness.burpees">Burpees</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.full_body_hiit">Full Body, HIIT</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-intermediate">Intermediate</span>
+                            <span class="exercise-difficulty difficulty-intermediate"><span data-i18n="fitness.intermediate_3">Intermediate</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Burpees')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -307,10 +307,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="cardio">
                         <div class="exercise-icon"><i data-lucide="heart-pulse"></i></div>
-                        <h5>Jump Rope</h5>
-                        <span class="exercise-muscles">Calves, Coordination</span>
+                        <h5><span data-i18n="fitness.jump_rope">Jump Rope</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.calves_coordination">Calves, Coordination</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_5">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Jump Rope')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -318,10 +318,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="cardio">
                         <div class="exercise-icon"><i data-lucide="heart-pulse"></i></div>
-                        <h5>Mountain Climbers</h5>
-                        <span class="exercise-muscles">Core, Shoulders, HIIT</span>
+                        <h5><span data-i18n="fitness.mountain_climbers">Mountain Climbers</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.core_shoulders_hiit">Core, Shoulders, HIIT</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-intermediate">Intermediate</span>
+                            <span class="exercise-difficulty difficulty-intermediate"><span data-i18n="fitness.intermediate_4">Intermediate</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Mountain Climbers')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -329,10 +329,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="cardio">
                         <div class="exercise-icon"><i data-lucide="heart-pulse"></i></div>
-                        <h5>Cycling</h5>
-                        <span class="exercise-muscles">Legs, Cardio Endurance</span>
+                        <h5><span data-i18n="fitness.cycling">Cycling</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.legs_cardio_endurance">Legs, Cardio Endurance</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_6">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Cycling')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -340,10 +340,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="cardio">
                         <div class="exercise-icon"><i data-lucide="heart-pulse"></i></div>
-                        <h5>Box Jumps</h5>
-                        <span class="exercise-muscles">Legs, Power, Explosiveness</span>
+                        <h5><span data-i18n="fitness.box_jumps">Box Jumps</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.legs_power_explosiveness">Legs, Power, Explosiveness</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-advanced">Advanced</span>
+                            <span class="exercise-difficulty difficulty-advanced"><span data-i18n="fitness.advanced_2">Advanced</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Box Jumps')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -353,10 +353,10 @@
                     <!-- Flexibility Exercises -->
                     <div class="fitness-exercise-card" data-category="flexibility">
                         <div class="exercise-icon"><i data-lucide="stretch-horizontal"></i></div>
-                        <h5>Yoga Flow</h5>
-                        <span class="exercise-muscles">Full Body, Mobility</span>
+                        <h5><span data-i18n="fitness.yoga_flow">Yoga Flow</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.full_body_mobility">Full Body, Mobility</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_7">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Yoga Flow')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -364,10 +364,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="flexibility">
                         <div class="exercise-icon"><i data-lucide="stretch-horizontal"></i></div>
-                        <h5>Hip Stretches</h5>
-                        <span class="exercise-muscles">Hips, Lower Back</span>
+                        <h5><span data-i18n="fitness.hip_stretches">Hip Stretches</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.hips_lower_back">Hips, Lower Back</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_8">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Hip Stretches')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -375,10 +375,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="flexibility">
                         <div class="exercise-icon"><i data-lucide="stretch-horizontal"></i></div>
-                        <h5>Shoulder Mobility</h5>
-                        <span class="exercise-muscles">Shoulders, Upper Back</span>
+                        <h5><span data-i18n="fitness.shoulder_mobility">Shoulder Mobility</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.shoulders_upper_back">Shoulders, Upper Back</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_9">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Shoulder Mobility')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -386,10 +386,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="flexibility">
                         <div class="exercise-icon"><i data-lucide="stretch-horizontal"></i></div>
-                        <h5>Hamstring Stretch</h5>
-                        <span class="exercise-muscles">Hamstrings, Lower Back</span>
+                        <h5><span data-i18n="fitness.hamstring_stretch">Hamstring Stretch</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.hamstrings_lower_back">Hamstrings, Lower Back</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_10">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Hamstring Stretch')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -397,10 +397,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="flexibility">
                         <div class="exercise-icon"><i data-lucide="stretch-horizontal"></i></div>
-                        <h5>Foam Rolling</h5>
-                        <span class="exercise-muscles">Muscle Recovery</span>
+                        <h5><span data-i18n="fitness.foam_rolling">Foam Rolling</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.muscle_recovery">Muscle Recovery</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-beginner">Beginner</span>
+                            <span class="exercise-difficulty difficulty-beginner"><span data-i18n="fitness.beginner_11">Beginner</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Foam Rolling')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -408,10 +408,10 @@
                     </div>
                     <div class="fitness-exercise-card" data-category="flexibility">
                         <div class="exercise-icon"><i data-lucide="stretch-horizontal"></i></div>
-                        <h5>Pilates Core</h5>
-                        <span class="exercise-muscles">Core, Stability</span>
+                        <h5><span data-i18n="fitness.pilates_core">Pilates Core</span></h5>
+                        <span class="exercise-muscles"><span data-i18n="fitness.core_stability">Core, Stability</span></span>
                         <div class="exercise-meta">
-                            <span class="exercise-difficulty difficulty-intermediate">Intermediate</span>
+                            <span class="exercise-difficulty difficulty-intermediate"><span data-i18n="fitness.intermediate_5">Intermediate</span></span>
                             <button class="exercise-add-btn" onclick="addToWorkout('Pilates Core')">
                                 <i data-lucide="plus"></i>
                             </button>
@@ -433,7 +433,7 @@
                         </h3>
                         <div class="fitness-progress-input">
                             <div class="fitness-form-group">
-                                <label>Current Weight (lbs/kg)</label>
+                                <label><span data-i18n="fitness.current_weight_lbs_kg">Current Weight (lbs/kg)</span></label>
                                 <input type="number" id="weightInput" placeholder="Enter weight" step="0.1">
                             </div>
                             <button class="fitness-btn fitness-btn-primary" onclick="logWeight()">
@@ -444,7 +444,7 @@
                         <div class="fitness-progress-chart" id="weightChart">
                             <div class="fitness-empty-chart">
                                 <i data-lucide="line-chart"></i>
-                                <p>Log weights to see your progress chart</p>
+                                <p><span data-i18n="fitness.log_weights_to_see_your_progress_chart">Log weights to see your progress chart</span></p>
                             </div>
                         </div>
                     </div>
@@ -457,42 +457,42 @@
                         </h3>
                         <div class="fitness-pr-list" id="prList">
                             <div class="fitness-pr-item">
-                                <div class="pr-exercise">Bench Press</div>
+                                <div class="pr-exercise"><span data-i18n="fitness.bench_press_2">Bench Press</span></div>
                                 <div class="pr-value">--</div>
                                 <button class="pr-edit-btn" onclick="editPR('Bench Press')">
                                     <i data-lucide="edit-2"></i>
                                 </button>
                             </div>
                             <div class="fitness-pr-item">
-                                <div class="pr-exercise">Squat</div>
+                                <div class="pr-exercise"><span data-i18n="fitness.squat">Squat</span></div>
                                 <div class="pr-value">--</div>
                                 <button class="pr-edit-btn" onclick="editPR('Squat')">
                                     <i data-lucide="edit-2"></i>
                                 </button>
                             </div>
                             <div class="fitness-pr-item">
-                                <div class="pr-exercise">Deadlift</div>
+                                <div class="pr-exercise"><span data-i18n="fitness.deadlift">Deadlift</span></div>
                                 <div class="pr-value">--</div>
                                 <button class="pr-edit-btn" onclick="editPR('Deadlift')">
                                     <i data-lucide="edit-2"></i>
                                 </button>
                             </div>
                             <div class="fitness-pr-item">
-                                <div class="pr-exercise">Pull-ups</div>
+                                <div class="pr-exercise"><span data-i18n="fitness.pull_ups_2">Pull-ups</span></div>
                                 <div class="pr-value">--</div>
                                 <button class="pr-edit-btn" onclick="editPR('Pull-ups')">
                                     <i data-lucide="edit-2"></i>
                                 </button>
                             </div>
                             <div class="fitness-pr-item">
-                                <div class="pr-exercise">Push-ups</div>
+                                <div class="pr-exercise"><span data-i18n="fitness.push_ups_2">Push-ups</span></div>
                                 <div class="pr-value">--</div>
                                 <button class="pr-edit-btn" onclick="editPR('Push-ups')">
                                     <i data-lucide="edit-2"></i>
                                 </button>
                             </div>
                             <div class="fitness-pr-item">
-                                <div class="pr-exercise">1 Mile Run</div>
+                                <div class="pr-exercise"><span data-i18n="fitness.1_mile_run">1 Mile Run</span></div>
                                 <div class="pr-value">--</div>
                                 <button class="pr-edit-btn" onclick="editPR('1 Mile Run')">
                                     <i data-lucide="edit-2"></i>
@@ -513,20 +513,20 @@
                         </h3>
                         <div class="fitness-log-form">
                             <div class="fitness-form-group">
-                                <label>Exercise</label>
+                                <label><span data-i18n="fitness.exercise">Exercise</span></label>
                                 <input type="text" id="exerciseInput" placeholder="e.g., Bench Press">
                             </div>
                             <div class="fitness-form-row">
                                 <div class="fitness-form-group">
-                                    <label>Sets</label>
+                                    <label><span data-i18n="fitness.sets">Sets</span></label>
                                     <input type="number" id="setsInput" placeholder="3" min="1">
                                 </div>
                                 <div class="fitness-form-group">
-                                    <label>Reps</label>
+                                    <label><span data-i18n="fitness.reps">Reps</span></label>
                                     <input type="number" id="repsInput" placeholder="10" min="1">
                                 </div>
                                 <div class="fitness-form-group">
-                                    <label>Weight</label>
+                                    <label><span data-i18n="fitness.weight">Weight</span></label>
                                     <input type="number" id="exerciseWeightInput" placeholder="135" min="0">
                                 </div>
                             </div>
@@ -547,7 +547,7 @@
                     <button class="fitness-btn fitness-btn-icon" onclick="previousWeek()">
                         <i data-lucide="chevron-left"></i>
                     </button>
-                    <h3 id="weekLabel">This Week</h3>
+                    <h3 id="weekLabel"><span data-i18n="fitness.this_week">This Week</span></h3>
                     <button class="fitness-btn fitness-btn-icon" onclick="nextWeek()">
                         <i data-lucide="chevron-right"></i>
                     </button>
@@ -559,27 +559,27 @@
 
                 <!-- Workout Plan Templates -->
                 <div class="fitness-plan-templates">
-                    <h4>Quick Plans</h4>
+                    <h4><span data-i18n="fitness.quick_plans">Quick Plans</span></h4>
                     <div class="fitness-plan-grid">
                         <button class="fitness-plan-btn" onclick="applyPlan('ppl')">
                             <i data-lucide="layers"></i>
-                            <span>Push/Pull/Legs</span>
-                            <small>6-day split</small>
+                            <span><span data-i18n="fitness.push_pull_legs">Push/Pull/Legs</span></span>
+                            <small><span data-i18n="fitness.6_day_split">6-day split</span></small>
                         </button>
                         <button class="fitness-plan-btn" onclick="applyPlan('fullbody')">
                             <i data-lucide="user"></i>
-                            <span>Full Body</span>
-                            <small>3-day program</small>
+                            <span><span data-i18n="fitness.full_body">Full Body</span></span>
+                            <small><span data-i18n="fitness.3_day_program">3-day program</span></small>
                         </button>
                         <button class="fitness-plan-btn" onclick="applyPlan('upperlower')">
                             <i data-lucide="move-vertical"></i>
-                            <span>Upper/Lower</span>
-                            <small>4-day split</small>
+                            <span><span data-i18n="fitness.upper_lower">Upper/Lower</span></span>
+                            <small><span data-i18n="fitness.4_day_split">4-day split</span></small>
                         </button>
                         <button class="fitness-plan-btn" onclick="applyPlan('cardio')">
                             <i data-lucide="heart-pulse"></i>
-                            <span>Cardio Focus</span>
-                            <small>5-day endurance</small>
+                            <span><span data-i18n="fitness.cardio_focus">Cardio Focus</span></span>
+                            <small><span data-i18n="fitness.5_day_endurance">5-day endurance</span></small>
                         </button>
                     </div>
                 </div>
@@ -592,24 +592,24 @@
 <div class="fitness-modal" id="prModal" style="display: none;">
     <div class="fitness-modal-content">
         <div class="fitness-modal-header">
-            <h3 id="prModalTitle">Edit Personal Record</h3>
+            <h3 id="prModalTitle"><span data-i18n="fitness.edit_personal_record">Edit Personal Record</span></h3>
             <button class="fitness-modal-close" onclick="closePRModal()">
                 <i data-lucide="x"></i>
             </button>
         </div>
         <div class="fitness-modal-body">
             <div class="fitness-form-group">
-                <label>Value (weight/reps/time)</label>
+                <label><span data-i18n="fitness.value_weight_reps_time">Value (weight/reps/time)</span></label>
                 <input type="text" id="prValueInput" placeholder="e.g., 225 lbs, 15 reps, 6:30">
             </div>
             <div class="fitness-form-group">
-                <label>Date</label>
+                <label><span data-i18n="fitness.date">Date</span></label>
                 <input type="date" id="prDateInput">
             </div>
         </div>
         <div class="fitness-modal-footer">
-            <button class="fitness-btn fitness-btn-outline" onclick="closePRModal()">Cancel</button>
-            <button class="fitness-btn fitness-btn-primary" onclick="savePR()">Save PR</button>
+            <button class="fitness-btn fitness-btn-outline" onclick="closePRModal()"><span data-i18n="fitness.cancel">Cancel</span></button>
+            <button class="fitness-btn fitness-btn-primary" onclick="savePR()"><span data-i18n="fitness.save_pr">Save PR</span></button>
         </div>
     </div>
 </div>

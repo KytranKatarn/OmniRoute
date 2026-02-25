@@ -18,18 +18,18 @@
                     <i data-lucide="mail"></i>
                 </div>
                 <div class="em-title-group">
-                    <h1 class="em-title">EMAIL MANAGER</h1>
-                    <p class="em-subtitle">Automated communications & campaigns</p>
+                    <h1 class="em-title"><span data-i18n="email_manager.email_manager">EMAIL MANAGER</span></h1>
+                    <p class="em-subtitle"><span data-i18n="email_manager.automated_communications_campaigns">Automated communications & campaigns</span></p>
                 </div>
             </div>
             <div class="em-header-actions">
                 <button class="em-btn em-btn--outline" onclick="showCreateTemplateModal()">
                     <i data-lucide="file-plus"></i>
-                    <span>Template</span>
+                    <span><span data-i18n="email_manager.template">Template</span></span>
                 </button>
                 <button class="em-btn em-btn--primary" onclick="showComposeModal()">
                     <i data-lucide="send"></i>
-                    <span>Compose</span>
+                    <span><span data-i18n="email_manager.compose">Compose</span></span>
                 </button>
             </div>
         </div>
@@ -39,27 +39,27 @@
             <div class="em-stat-card" style="animation-delay: 0.1s">
                 <div class="em-stat-icon"><i data-lucide="send"></i></div>
                 <div class="em-stat-value">{{ stats.total_sent|default(0) }}</div>
-                <div class="em-stat-label">SENT (30D)</div>
+                <div class="em-stat-label"><span data-i18n="email_manager.sent_30d">SENT (30D)</span></div>
             </div>
             <div class="em-stat-card" style="animation-delay: 0.2s">
                 <div class="em-stat-icon em-stat-icon--success"><i data-lucide="check-circle"></i></div>
                 <div class="em-stat-value">{{ stats.delivered|default(0) }}</div>
-                <div class="em-stat-label">DELIVERED</div>
+                <div class="em-stat-label"><span data-i18n="email_manager.delivered">DELIVERED</span></div>
             </div>
             <div class="em-stat-card" style="animation-delay: 0.3s">
                 <div class="em-stat-icon em-stat-icon--info"><i data-lucide="eye"></i></div>
                 <div class="em-stat-value">{{ stats.opened|default(0) }}</div>
-                <div class="em-stat-label">OPENED</div>
+                <div class="em-stat-label"><span data-i18n="email_manager.opened">OPENED</span></div>
             </div>
             <div class="em-stat-card" style="animation-delay: 0.4s">
                 <div class="em-stat-icon em-stat-icon--purple"><i data-lucide="mouse-pointer-click"></i></div>
                 <div class="em-stat-value">{{ stats.clicked|default(0) }}</div>
-                <div class="em-stat-label">CLICKED</div>
+                <div class="em-stat-label"><span data-i18n="email_manager.clicked">CLICKED</span></div>
             </div>
             <div class="em-stat-card" style="animation-delay: 0.5s">
                 <div class="em-stat-icon em-stat-icon--danger"><i data-lucide="x-circle"></i></div>
                 <div class="em-stat-value">{{ stats.failed|default(0) }}</div>
-                <div class="em-stat-label">FAILED</div>
+                <div class="em-stat-label"><span data-i18n="email_manager.failed">FAILED</span></div>
             </div>
         </div>
 
@@ -68,21 +68,21 @@
         <div class="em-smtp-banner em-smtp-banner--configured">
             <div class="em-smtp-info">
                 <i data-lucide="server"></i>
-                <span><strong>SMTP Configured:</strong> {{ smtp_status.from_email }}</span>
+                <span><strong><span data-i18n="email_manager.smtp_configured">SMTP Configured:</span></strong> {{ smtp_status.from_email }}</span>
             </div>
             {% if smtp_status.test_result == 'success' %}
-            <span class="em-badge em-badge--success">Verified</span>
+            <span class="em-badge em-badge--success"><span data-i18n="email_manager.verified">Verified</span></span>
             {% else %}
-            <span class="em-badge em-badge--warning">Not Tested</span>
+            <span class="em-badge em-badge--warning"><span data-i18n="email_manager.not_tested">Not Tested</span></span>
             {% endif %}
         </div>
         {% else %}
         <div class="em-smtp-banner em-smtp-banner--warning">
             <div class="em-smtp-info">
                 <i data-lucide="alert-triangle"></i>
-                <span><strong>SMTP Not Configured</strong> - Configure SMTP settings to send emails</span>
+                <span><strong><span data-i18n="email_manager.smtp_not_configured">SMTP Not Configured</span></strong><span data-i18n="email_manager.configure_smtp_settings_to_send_emails"> - Configure SMTP settings to send emails</span></span>
             </div>
-            <button class="em-btn em-btn--sm em-btn--outline" onclick="showSettingsModal()">Configure Now</button>
+            <button class="em-btn em-btn--sm em-btn--outline" onclick="showSettingsModal()"><span data-i18n="email_manager.configure_now">Configure Now</span></button>
         </div>
         {% endif %}
 
@@ -97,24 +97,24 @@
         <div class="em-tabs">
             <button class="em-tab active" data-tab="inbox">
                 <i data-lucide="mail-open"></i>
-                <span>Inbox</span>
+                <span><span data-i18n="email_manager.inbox">Inbox</span></span>
                 <span class="em-tab-badge" id="inbox-unread-badge" style="display: none;">0</span>
             </button>
             <button class="em-tab" data-tab="templates">
                 <i data-lucide="file-text"></i>
-                <span>Templates</span>
+                <span><span data-i18n="email_manager.templates">Templates</span></span>
             </button>
             <button class="em-tab" data-tab="sent">
                 <i data-lucide="send"></i>
-                <span>Sent Emails</span>
+                <span><span data-i18n="email_manager.sent_emails">Sent Emails</span></span>
             </button>
             <button class="em-tab" data-tab="campaigns">
                 <i data-lucide="megaphone"></i>
-                <span>Campaigns</span>
+                <span><span data-i18n="email_manager.campaigns">Campaigns</span></span>
             </button>
             <button class="em-tab" data-tab="settings">
                 <i data-lucide="settings"></i>
-                <span>Settings</span>
+                <span><span data-i18n="email_manager.settings">Settings</span></span>
             </button>
         </div>
 
@@ -128,11 +128,11 @@
                     </h2>
                     <div class="inbox-header-actions">
                         <select id="inbox-sort-select" class="em-select em-select--compact" onchange="sortInbox()">
-                            <option value="date_desc">Newest First</option>
-                            <option value="date_asc">Oldest First</option>
-                            <option value="priority_asc">Highest Priority</option>
-                            <option value="unread_first">Unread First</option>
-                            <option value="sentiment">By Sentiment</option>
+                            <option value="date_desc"><span data-i18n="email_manager.newest_first">Newest First</span></option>
+                            <option value="date_asc"><span data-i18n="email_manager.oldest_first">Oldest First</span></option>
+                            <option value="priority_asc"><span data-i18n="email_manager.highest_priority">Highest Priority</span></option>
+                            <option value="unread_first"><span data-i18n="email_manager.unread_first">Unread First</span></option>
+                            <option value="sentiment"><span data-i18n="email_manager.by_sentiment">By Sentiment</span></option>
                         </select>
                         <div class="inbox-search-group">
                             <input type="text" id="inbox-search-input" class="em-input" placeholder="Search emails..." onkeydown="if(event.key==='Enter')searchInbox()">
@@ -142,7 +142,7 @@
                         </div>
                         <button class="em-btn em-btn--sm em-btn--primary" onclick="checkInboxNow()" id="inbox-check-btn">
                             <i data-lucide="refresh-cw"></i>
-                            <span>Check Now</span>
+                            <span><span data-i18n="email_manager.check_now">Check Now</span></span>
                         </button>
                     </div>
                 </div>
@@ -171,7 +171,7 @@
                         </div>
                         <button class="em-btn em-btn--sm em-btn--outline" id="analyze-remaining-btn" onclick="analyzeRemaining()" style="display: none;">
                             <i data-lucide="sparkles"></i>
-                            <span>Analyze Remaining</span>
+                            <span><span data-i18n="email_manager.analyze_remaining">Analyze Remaining</span></span>
                         </button>
                         <span class="inbox-auto-check" id="inbox-auto-check" style="display: none;">
                             <i data-lucide="clock"></i>
@@ -181,7 +181,7 @@
                 </div>
                 <!-- Bulk Action Bar -->
                 <div class="inbox-bulk-bar" id="inbox-bulk-bar" style="display: none;">
-                    <span class="bulk-count" id="bulk-count">0 selected</span>
+                    <span class="bulk-count" id="bulk-count"><span data-i18n="email_manager.0_selected">0 selected</span></span>
                     <div class="bulk-actions">
                         <button class="em-btn em-btn--sm em-btn--outline" onclick="bulkAction('mark_read')">
                             <i data-lucide="eye"></i> Mark Read
@@ -249,13 +249,13 @@
                                     <input type="checkbox" id="inbox-select-all" onchange="toggleSelectAll(this.checked)" title="Select all">
                                 </th>
                                 <th style="width: 40px;"></th>
-                                <th>From</th>
-                                <th>Subject</th>
-                                <th>Category</th>
-                                <th style="width: 80px;">Priority</th>
-                                <th style="width: 80px;">Sentiment</th>
-                                <th style="width: 100px;">Date</th>
-                                <th style="width: 100px;">Account</th>
+                                <th><span data-i18n="email_manager.from">From</span></th>
+                                <th><span data-i18n="email_manager.subject">Subject</span></th>
+                                <th><span data-i18n="email_manager.category">Category</span></th>
+                                <th style="width: 80px;"><span data-i18n="email_manager.priority">Priority</span></th>
+                                <th style="width: 80px;"><span data-i18n="email_manager.sentiment">Sentiment</span></th>
+                                <th style="width: 100px;"><span data-i18n="email_manager.date">Date</span></th>
+                                <th style="width: 100px;"><span data-i18n="email_manager.account">Account</span></th>
                             </tr>
                         </thead>
                         <tbody id="inbox-tbody">
@@ -263,7 +263,7 @@
                                 <td colspan="9">
                                     <div class="em-loading">
                                         <i data-lucide="loader-2" class="em-spinner"></i>
-                                        <span>Loading inbox...</span>
+                                        <span><span data-i18n="email_manager.loading_inbox">Loading inbox...</span></span>
                                     </div>
                                 </td>
                             </tr>
@@ -280,46 +280,46 @@
                     </div>
                     <div class="email-detail-meta">
                         <div class="email-detail-from">
-                            <strong>From:</strong> <span id="detail-from"></span>
+                            <strong><span data-i18n="email_manager.from_2">From:</span></strong> <span id="detail-from"></span>
                         </div>
                         <div class="email-detail-to">
-                            <strong>To:</strong> <span id="detail-to"></span>
+                            <strong><span data-i18n="email_manager.to">To:</span></strong> <span id="detail-to"></span>
                         </div>
                         <div class="email-detail-cc" id="detail-cc-row" style="display: none;">
-                            <strong>CC:</strong> <span id="detail-cc"></span>
+                            <strong><span data-i18n="email_manager.cc">CC:</span></strong> <span id="detail-cc"></span>
                         </div>
                         <div class="email-detail-date">
-                            <strong>Date:</strong> <span id="detail-date"></span>
+                            <strong><span data-i18n="email_manager.date_2">Date:</span></strong> <span id="detail-date"></span>
                         </div>
                         <div class="email-detail-account" id="detail-account-row" style="display: none;">
-                            <strong>Account:</strong> <span id="detail-account"></span>
+                            <strong><span data-i18n="email_manager.account_2">Account:</span></strong> <span id="detail-account"></span>
                         </div>
                         <div class="email-detail-attachments" id="detail-attachments-row" style="display: none;">
-                            <strong>Attachments:</strong> <span id="detail-attachments"></span>
+                            <strong><span data-i18n="email_manager.attachments">Attachments:</span></strong> <span id="detail-attachments"></span>
                         </div>
                     </div>
                     <!-- AI Analysis Section -->
                     <div class="email-detail-ai">
-                        <h4><i data-lucide="brain"></i> AI Analysis</h4>
+                        <h4><i data-lucide="brain"></i><span data-i18n="email_manager.ai_analysis"> AI Analysis</span></h4>
                         <div class="email-ai-grid">
                             <div class="email-ai-item">
-                                <span class="email-ai-label">Category</span>
+                                <span class="email-ai-label"><span data-i18n="email_manager.category_2">Category</span></span>
                                 <span class="email-ai-value" id="detail-ai-category"></span>
                             </div>
                             <div class="email-ai-item">
-                                <span class="email-ai-label">Priority</span>
+                                <span class="email-ai-label"><span data-i18n="email_manager.priority_2">Priority</span></span>
                                 <span class="email-ai-value" id="detail-ai-priority"></span>
                             </div>
                             <div class="email-ai-item">
-                                <span class="email-ai-label">Sentiment</span>
+                                <span class="email-ai-label"><span data-i18n="email_manager.sentiment_2">Sentiment</span></span>
                                 <span class="email-ai-value" id="detail-ai-sentiment"></span>
                             </div>
                             <div class="email-ai-item email-ai-item--full">
-                                <span class="email-ai-label">Summary</span>
+                                <span class="email-ai-label"><span data-i18n="email_manager.summary">Summary</span></span>
                                 <span class="email-ai-value" id="detail-ai-summary"></span>
                             </div>
                             <div class="email-ai-item email-ai-item--full">
-                                <span class="email-ai-label">Suggested Action</span>
+                                <span class="email-ai-label"><span data-i18n="email_manager.suggested_action">Suggested Action</span></span>
                                 <span class="email-ai-value" id="detail-ai-action"></span>
                             </div>
                         </div>
@@ -328,7 +328,7 @@
                     <div class="email-detail-body" id="detail-body"></div>
                     <!-- Draft Section -->
                     <div class="email-detail-drafts" id="detail-drafts" style="display: none;">
-                        <h4><i data-lucide="edit-3"></i> Draft Reply</h4>
+                        <h4><i data-lucide="edit-3"></i><span data-i18n="email_manager.draft_reply"> Draft Reply</span></h4>
                         <div id="detail-draft-content"></div>
                     </div>
                     <!-- Thread View -->
@@ -337,23 +337,23 @@
                     <div class="email-detail-actions">
                         <button class="em-btn em-btn--primary" onclick="generateDraft(currentEmailId)">
                             <i data-lucide="reply"></i>
-                            <span>Generate Reply</span>
+                            <span><span data-i18n="email_manager.generate_reply">Generate Reply</span></span>
                         </button>
                         <button class="em-btn em-btn--outline" id="detail-read-toggle" onclick="toggleDetailRead()" title="Toggle read/unread">
                             <i data-lucide="mail-open" id="detail-read-icon"></i>
-                            <span id="detail-read-label">Mark Unread</span>
+                            <span id="detail-read-label"><span data-i18n="email_manager.mark_unread">Mark Unread</span></span>
                         </button>
                         <button class="em-btn em-btn--outline" onclick="archiveEmail(currentEmailId)">
                             <i data-lucide="archive"></i>
-                            <span>Archive</span>
+                            <span><span data-i18n="email_manager.archive">Archive</span></span>
                         </button>
                         <button class="em-btn em-btn--outline" onclick="saveToKB(currentEmailId)">
                             <i data-lucide="database"></i>
-                            <span>Save to KB</span>
+                            <span><span data-i18n="email_manager.save_to_kb">Save to KB</span></span>
                         </button>
                         <button class="em-btn em-btn--danger" onclick="deleteEmail()" title="Delete email">
                             <i data-lucide="trash-2"></i>
-                            <span>Delete</span>
+                            <span><span data-i18n="email_manager.delete">Delete</span></span>
                         </button>
                     </div>
                 </div>
@@ -362,7 +362,7 @@
                     <button class="em-btn em-btn--sm em-btn--outline" id="inbox-prev-btn" onclick="loadInbox(inboxCurrentPage - 1)" disabled>
                         <i data-lucide="chevron-left"></i>
                     </button>
-                    <span class="inbox-page-info" id="inbox-page-info">Page 1 of 1</span>
+                    <span class="inbox-page-info" id="inbox-page-info"><span data-i18n="email_manager.page_1_of_1">Page 1 of 1</span></span>
                     <button class="em-btn em-btn--sm em-btn--outline" id="inbox-next-btn" onclick="loadInbox(inboxCurrentPage + 1)" disabled>
                         <i data-lucide="chevron-right"></i>
                     </button>
@@ -400,8 +400,8 @@
                         <div class="em-empty-icon">
                             <i data-lucide="file-plus"></i>
                         </div>
-                        <p>No templates created yet</p>
-                        <button class="em-btn em-btn--outline" onclick="showCreateTemplateModal()">Create First Template</button>
+                        <p><span data-i18n="email_manager.no_templates_created_yet">No templates created yet</span></p>
+                        <button class="em-btn em-btn--outline" onclick="showCreateTemplateModal()"><span data-i18n="email_manager.create_first_template">Create First Template</span></button>
                     </div>
                     {% endfor %}
                 </div>
@@ -418,12 +418,12 @@
                     </h2>
                     <div class="em-filter-group">
                         <select id="status-filter" onchange="filterLogs()" class="em-select">
-                            <option value="">All Status</option>
-                            <option value="sent">Sent</option>
-                            <option value="opened">Opened</option>
-                            <option value="clicked">Clicked</option>
-                            <option value="failed">Failed</option>
-                            <option value="bounced">Bounced</option>
+                            <option value=""><span data-i18n="email_manager.all_status">All Status</span></option>
+                            <option value="sent"><span data-i18n="email_manager.sent">Sent</span></option>
+                            <option value="opened"><span data-i18n="email_manager.opened_2">Opened</span></option>
+                            <option value="clicked"><span data-i18n="email_manager.clicked_2">Clicked</span></option>
+                            <option value="failed"><span data-i18n="email_manager.failed_2">Failed</span></option>
+                            <option value="bounced"><span data-i18n="email_manager.bounced">Bounced</span></option>
                         </select>
                     </div>
                 </div>
@@ -431,11 +431,11 @@
                     <table class="em-table">
                         <thead>
                             <tr>
-                                <th>Recipient</th>
-                                <th>Subject</th>
-                                <th>Status</th>
-                                <th>Sent</th>
-                                <th>Opened</th>
+                                <th><span data-i18n="email_manager.recipient">Recipient</span></th>
+                                <th><span data-i18n="email_manager.subject_2">Subject</span></th>
+                                <th><span data-i18n="email_manager.status">Status</span></th>
+                                <th><span data-i18n="email_manager.sent_2">Sent</span></th>
+                                <th><span data-i18n="email_manager.opened_3">Opened</span></th>
                             </tr>
                         </thead>
                         <tbody id="logs-tbody">
@@ -459,7 +459,7 @@
                                 <td colspan="5">
                                     <div class="em-empty-state em-empty-state--inline">
                                         <i data-lucide="inbox"></i>
-                                        <p>No emails sent yet</p>
+                                        <p><span data-i18n="email_manager.no_emails_sent_yet">No emails sent yet</span></p>
                                     </div>
                                 </td>
                             </tr>
@@ -487,13 +487,13 @@
                     <table class="em-table">
                         <thead>
                             <tr>
-                                <th>Campaign</th>
-                                <th>Template</th>
-                                <th>Recipients</th>
-                                <th>Sent</th>
-                                <th>Opened</th>
-                                <th>Status</th>
-                                <th>Actions</th>
+                                <th><span data-i18n="email_manager.campaign">Campaign</span></th>
+                                <th><span data-i18n="email_manager.template_2">Template</span></th>
+                                <th><span data-i18n="email_manager.recipients">Recipients</span></th>
+                                <th><span data-i18n="email_manager.sent_3">Sent</span></th>
+                                <th><span data-i18n="email_manager.opened_4">Opened</span></th>
+                                <th><span data-i18n="email_manager.status_2">Status</span></th>
+                                <th><span data-i18n="email_manager.actions">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -531,7 +531,7 @@
                                 <td colspan="7">
                                     <div class="em-empty-state em-empty-state--inline">
                                         <i data-lucide="megaphone"></i>
-                                        <p>No campaigns created yet</p>
+                                        <p><span data-i18n="email_manager.no_campaigns_created_yet">No campaigns created yet</span></p>
                                     </div>
                                 </td>
                             </tr>
@@ -558,7 +558,7 @@
                 <div id="unified-accounts-list">
                     <div class="em-loading">
                         <i data-lucide="loader-2" class="em-spinner"></i>
-                        <span>Loading accounts...</span>
+                        <span><span data-i18n="email_manager.loading_accounts">Loading accounts...</span></span>
                     </div>
                 </div>
             </div>
@@ -582,13 +582,13 @@
         <div class="em-modal-body">
             <form id="compose-form" onsubmit="sendEmail(event)">
                 <div class="em-form-group">
-                    <label>From</label>
+                    <label><span data-i18n="email_manager.from_3">From</span></label>
                     <select id="compose-from" class="em-select">
-                        <option value="">Default SMTP</option>
+                        <option value=""><span data-i18n="email_manager.default_smtp">Default SMTP</span></option>
                     </select>
                 </div>
                 <div class="em-form-group">
-                    <label>Template (Optional)</label>
+                    <label><span data-i18n="email_manager.template_optional">Template (Optional)</span></label>
                     <select id="compose-template" onchange="loadTemplate()" class="em-select">
                         <option value="">-- No Template --</option>
                         {% for template in templates %}
@@ -601,15 +601,15 @@
                     <input type="email" id="compose-to" required placeholder="recipient@example.com" class="em-input">
                 </div>
                 <div class="em-form-group">
-                    <label>Subject <span class="em-required">*</span></label>
+                    <label><span data-i18n="email_manager.subject_3">Subject </span><span class="em-required">*</span></label>
                     <input type="text" id="compose-subject" required placeholder="Email subject" class="em-input">
                 </div>
                 <div class="em-form-group">
-                    <label>Body (HTML)</label>
+                    <label><span data-i18n="email_manager.body_html">Body (HTML)</span></label>
                     <textarea id="compose-body" rows="8" class="em-textarea" placeholder="Enter email body in HTML..."></textarea>
                 </div>
                 <div class="em-modal-actions">
-                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('compose-modal')">Cancel</button>
+                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('compose-modal')"><span data-i18n="email_manager.cancel">Cancel</span></button>
                     <button type="submit" class="em-btn em-btn--primary">
                         <i data-lucide="send"></i>
                         Send Email
@@ -638,35 +638,35 @@
                 <input type="hidden" id="template-id">
                 <div class="em-form-row">
                     <div class="em-form-group">
-                        <label>Name <span class="em-required">*</span></label>
+                        <label><span data-i18n="email_manager.name">Name </span><span class="em-required">*</span></label>
                         <input type="text" id="template-name" required placeholder="Template name" class="em-input">
                     </div>
                     <div class="em-form-group">
-                        <label>Type</label>
+                        <label><span data-i18n="email_manager.type">Type</span></label>
                         <select id="template-type" class="em-select">
-                            <option value="custom">Custom</option>
-                            <option value="welcome">Welcome</option>
-                            <option value="order_confirm">Order Confirmation</option>
-                            <option value="invoice">Invoice</option>
-                            <option value="renewal">Subscription Renewal</option>
-                            <option value="shipping">Shipping</option>
+                            <option value="custom"><span data-i18n="email_manager.custom">Custom</span></option>
+                            <option value="welcome"><span data-i18n="email_manager.welcome">Welcome</span></option>
+                            <option value="order_confirm"><span data-i18n="email_manager.order_confirmation">Order Confirmation</span></option>
+                            <option value="invoice"><span data-i18n="email_manager.invoice">Invoice</span></option>
+                            <option value="renewal"><span data-i18n="email_manager.subscription_renewal">Subscription Renewal</span></option>
+                            <option value="shipping"><span data-i18n="email_manager.shipping">Shipping</span></option>
                         </select>
                     </div>
                 </div>
                 <div class="em-form-group">
-                    <label>Subject <span class="em-required">*</span></label>
+                    <label><span data-i18n="email_manager.subject_4">Subject </span><span class="em-required">*</span></label>
                     <input type="text" id="template-subject" required placeholder="Use {{variable}} for placeholders" class="em-input">
                 </div>
                 <div class="em-form-group">
-                    <label>Body (HTML)</label>
+                    <label><span data-i18n="email_manager.body_html_2">Body (HTML)</span></label>
                     <textarea id="template-body-html" rows="8" class="em-textarea" placeholder="<h1>Hello {{first_name}}!</h1>"></textarea>
                 </div>
                 <div class="em-form-group">
-                    <label>Body (Plain Text)</label>
+                    <label><span data-i18n="email_manager.body_plain_text">Body (Plain Text)</span></label>
                     <textarea id="template-body-text" rows="4" class="em-textarea" placeholder="Hello {{first_name}}!"></textarea>
                 </div>
                 <div class="em-modal-actions">
-                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('template-modal')">Cancel</button>
+                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('template-modal')"><span data-i18n="email_manager.cancel_2">Cancel</span></button>
                     <button type="button" class="em-btn em-btn--danger" id="delete-template-btn" style="display: none;" onclick="deleteTemplate()">
                         <i data-lucide="trash-2"></i>
                         Delete
@@ -698,45 +698,45 @@
             <form id="settings-form" onsubmit="saveSettings(event)">
                 <input type="hidden" id="settings-id">
                 <div class="em-form-group">
-                    <label>Configuration Name</label>
+                    <label><span data-i18n="email_manager.configuration_name">Configuration Name</span></label>
                     <input type="text" id="settings-name" value="Gmail SMTP" class="em-input">
                 </div>
                 <div class="em-form-row">
                     <div class="em-form-group">
-                        <label>SMTP Host <span class="em-required">*</span></label>
+                        <label><span data-i18n="email_manager.smtp_host">SMTP Host </span><span class="em-required">*</span></label>
                         <input type="text" id="settings-host" required value="smtp.gmail.com" placeholder="smtp.gmail.com" class="em-input">
                     </div>
                     <div class="em-form-group">
-                        <label>Port</label>
+                        <label><span data-i18n="email_manager.port">Port</span></label>
                         <input type="number" id="settings-port" value="587" class="em-input">
                     </div>
                 </div>
                 <div class="em-form-row">
                     <div class="em-form-group">
-                        <label>Username</label>
+                        <label><span data-i18n="email_manager.username">Username</span></label>
                         <input type="text" id="settings-user" placeholder="your-email@gmail.com" class="em-input" value="{{ current_user.email if current_user and current_user.email else '' }}">
                     </div>
                     <div class="em-form-group">
-                        <label>Password</label>
+                        <label><span data-i18n="email_manager.password">Password</span></label>
                         <input type="password" id="settings-password" placeholder="App Password" class="em-input">
                     </div>
                 </div>
                 <div class="em-form-row">
                     <div class="em-form-group">
-                        <label>From Email <span class="em-required">*</span></label>
+                        <label><span data-i18n="email_manager.from_email">From Email </span><span class="em-required">*</span></label>
                         <input type="email" id="settings-from-email" required placeholder="you@gmail.com" class="em-input" value="{{ current_user.email if current_user and current_user.email else '' }}">
                     </div>
                     <div class="em-form-group">
-                        <label>From Name</label>
+                        <label><span data-i18n="email_manager.from_name">From Name</span></label>
                         <input type="text" id="settings-from-name" placeholder="A.R.C.H.I.E." class="em-input">
                     </div>
                 </div>
                 <div class="em-form-group">
-                    <label>Encryption</label>
+                    <label><span data-i18n="email_manager.encryption">Encryption</span></label>
                     <select id="settings-encryption" class="em-select">
-                        <option value="tls" selected>TLS (Recommended)</option>
-                        <option value="ssl">SSL</option>
-                        <option value="none">None</option>
+                        <option value="tls" selected><span data-i18n="email_manager.tls_recommended">TLS (Recommended)</span></option>
+                        <option value="ssl"><span data-i18n="email_manager.ssl">SSL</span></option>
+                        <option value="none"><span data-i18n="email_manager.none">None</span></option>
                     </select>
                 </div>
                 <div class="em-modal-actions">
@@ -759,76 +759,76 @@
     <div class="em-modal-backdrop" onclick="closeModal('account-edit-modal')"></div>
     <div class="em-modal-content em-modal-content--lg">
         <div class="em-modal-header">
-            <h2><i data-lucide="mail"></i> Edit Email Account</h2>
+            <h2><i data-lucide="mail"></i><span data-i18n="email_manager.edit_email_account"> Edit Email Account</span></h2>
             <button class="em-modal-close" onclick="closeModal('account-edit-modal')"><i data-lucide="x"></i></button>
         </div>
         <div class="em-modal-body">
             <form id="account-edit-form" onsubmit="saveUnifiedAccount(event)">
                 <input type="hidden" id="acct-setting-id" value="">
 
-                <h3 style="color:var(--archie-accent,#00FFFF);margin:0 0 12px 0;font-size:0.95rem;">INCOMING (IMAP)</h3>
+                <h3 style="color:var(--archie-accent,#00FFFF);margin:0 0 12px 0;font-size:0.95rem;"><span data-i18n="email_manager.incoming_imap">INCOMING (IMAP)</span></h3>
                 <div class="em-form-row">
-                    <div class="em-form-group"><label>Account Name</label><input type="text" id="acct-name" class="em-input"></div>
-                    <div class="em-form-group"><label>IMAP Host</label><input type="text" id="acct-imap-host" class="em-input"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.account_name">Account Name</span></label><input type="text" id="acct-name" class="em-input"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.imap_host">IMAP Host</span></label><input type="text" id="acct-imap-host" class="em-input"></div>
                 </div>
                 <div class="em-form-row">
-                    <div class="em-form-group"><label>Port</label><input type="number" id="acct-imap-port" class="em-input" value="993"></div>
-                    <div class="em-form-group"><label>Encryption</label>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.port_2">Port</span></label><input type="number" id="acct-imap-port" class="em-input" value="993"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.encryption_2">Encryption</span></label>
                         <select id="acct-imap-encryption" class="em-select">
-                            <option value="ssl">SSL</option><option value="tls">TLS</option><option value="none">None</option>
+                            <option value="ssl"><span data-i18n="email_manager.ssl_2">SSL</span></option><option value="tls"><span data-i18n="email_manager.tls">TLS</span></option><option value="none"><span data-i18n="email_manager.none_2">None</span></option>
                         </select>
                     </div>
                 </div>
                 <div class="em-form-row">
-                    <div class="em-form-group"><label>Email / Username</label><input type="text" id="acct-imap-user" class="em-input"></div>
-                    <div class="em-form-group"><label>Password</label><input type="password" id="acct-imap-password" class="em-input" placeholder="Leave blank to keep current"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.email_username">Email / Username</span></label><input type="text" id="acct-imap-user" class="em-input"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.password_2">Password</span></label><input type="password" id="acct-imap-password" class="em-input" placeholder="Leave blank to keep current"></div>
                 </div>
                 <div class="em-form-row">
-                    <div class="em-form-group"><label>Folder</label><input type="text" id="acct-imap-folder" class="em-input" value="INBOX"></div>
-                    <div class="em-form-group"><label>Check Interval</label>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.folder">Folder</span></label><input type="text" id="acct-imap-folder" class="em-input" value="INBOX"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.check_interval">Check Interval</span></label>
                         <select id="acct-check-interval" class="em-select">
-                            <option value="1">1 min</option><option value="2">2 min</option>
-                            <option value="5" selected>5 min</option><option value="10">10 min</option>
-                            <option value="15">15 min</option><option value="30">30 min</option>
+                            <option value="1"><span data-i18n="email_manager.1_min">1 min</span></option><option value="2"><span data-i18n="email_manager.2_min">2 min</span></option>
+                            <option value="5" selected><span data-i18n="email_manager.5_min">5 min</span></option><option value="10"><span data-i18n="email_manager.10_min">10 min</span></option>
+                            <option value="15"><span data-i18n="email_manager.15_min">15 min</span></option><option value="30"><span data-i18n="email_manager.30_min">30 min</span></option>
                         </select>
                     </div>
                 </div>
                 <div class="em-form-row">
                     <div class="em-form-group imap-toggle-group">
-                        <label class="imap-toggle-label"><input type="checkbox" id="acct-auto-analyze" checked><span class="imap-toggle-switch"></span><span class="imap-toggle-text"><strong>Auto-Analyze</strong></span></label>
+                        <label class="imap-toggle-label"><input type="checkbox" id="acct-auto-analyze" checked><span class="imap-toggle-switch"></span><span class="imap-toggle-text"><strong><span data-i18n="email_manager.auto_analyze">Auto-Analyze</span></strong></span></label>
                     </div>
                     <div class="em-form-group imap-toggle-group">
-                        <label class="imap-toggle-label"><input type="checkbox" id="acct-auto-file-kb"><span class="imap-toggle-switch"></span><span class="imap-toggle-text"><strong>Auto-File KB</strong></span></label>
+                        <label class="imap-toggle-label"><input type="checkbox" id="acct-auto-file-kb"><span class="imap-toggle-switch"></span><span class="imap-toggle-text"><strong><span data-i18n="email_manager.auto_file_kb">Auto-File KB</span></strong></span></label>
                     </div>
                 </div>
 
                 <hr style="border-color:var(--archie-border,#333);margin:20px 0;">
 
-                <h3 style="color:var(--archie-accent,#00FFFF);margin:0 0 12px 0;font-size:0.95rem;">OUTGOING (SMTP)</h3>
+                <h3 style="color:var(--archie-accent,#00FFFF);margin:0 0 12px 0;font-size:0.95rem;"><span data-i18n="email_manager.outgoing_smtp">OUTGOING (SMTP)</span></h3>
                 <div class="em-form-row">
-                    <div class="em-form-group"><label>SMTP Host</label><input type="text" id="acct-smtp-host" class="em-input" placeholder="smtp.gmail.com"></div>
-                    <div class="em-form-group"><label>Port</label><input type="number" id="acct-smtp-port" class="em-input" value="587"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.smtp_host_2">SMTP Host</span></label><input type="text" id="acct-smtp-host" class="em-input" placeholder="smtp.gmail.com"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.port_3">Port</span></label><input type="number" id="acct-smtp-port" class="em-input" value="587"></div>
                 </div>
                 <div class="em-form-row">
-                    <div class="em-form-group"><label>Username</label><input type="text" id="acct-smtp-user" class="em-input"></div>
-                    <div class="em-form-group"><label>Password</label><input type="password" id="acct-smtp-password" class="em-input" placeholder="Leave blank to keep current"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.username_2">Username</span></label><input type="text" id="acct-smtp-user" class="em-input"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.password_3">Password</span></label><input type="password" id="acct-smtp-password" class="em-input" placeholder="Leave blank to keep current"></div>
                 </div>
                 <div class="em-form-row">
-                    <div class="em-form-group"><label>Encryption</label>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.encryption_3">Encryption</span></label>
                         <select id="acct-smtp-encryption" class="em-select">
-                            <option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">None</option>
+                            <option value="tls"><span data-i18n="email_manager.tls_2">TLS</span></option><option value="ssl"><span data-i18n="email_manager.ssl_3">SSL</span></option><option value="none"><span data-i18n="email_manager.none_3">None</span></option>
                         </select>
                     </div>
-                    <div class="em-form-group"><label>From Email</label><input type="email" id="acct-from-email" class="em-input"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.from_email_2">From Email</span></label><input type="email" id="acct-from-email" class="em-input"></div>
                 </div>
                 <div class="em-form-row">
-                    <div class="em-form-group"><label>From Name</label><input type="text" id="acct-from-name" class="em-input"></div>
-                    <div class="em-form-group"><label>Reply-To</label><input type="text" id="acct-reply-to" class="em-input"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.from_name_2">From Name</span></label><input type="text" id="acct-from-name" class="em-input"></div>
+                    <div class="em-form-group"><label><span data-i18n="email_manager.reply_to">Reply-To</span></label><input type="text" id="acct-reply-to" class="em-input"></div>
                 </div>
 
                 <div class="em-modal-actions">
-                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('account-edit-modal')">Cancel</button>
-                    <button type="submit" class="em-btn em-btn--primary"><i data-lucide="save"></i> Save Account</button>
+                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('account-edit-modal')"><span data-i18n="email_manager.cancel_3">Cancel</span></button>
+                    <button type="submit" class="em-btn em-btn--primary"><i data-lucide="save"></i><span data-i18n="email_manager.save_account"> Save Account</span></button>
                 </div>
             </form>
         </div>
@@ -851,11 +851,11 @@
         <div class="em-modal-body">
             <form id="campaign-form" onsubmit="saveCampaign(event)">
                 <div class="em-form-group">
-                    <label>Campaign Name <span class="em-required">*</span></label>
+                    <label><span data-i18n="email_manager.campaign_name">Campaign Name </span><span class="em-required">*</span></label>
                     <input type="text" id="campaign-name" required placeholder="e.g., January Newsletter" class="em-input">
                 </div>
                 <div class="em-form-group">
-                    <label>Template <span class="em-required">*</span></label>
+                    <label><span data-i18n="email_manager.template_3">Template </span><span class="em-required">*</span></label>
                     <select id="campaign-template" required class="em-select">
                         <option value="">-- Select Template --</option>
                         {% for template in templates %}
@@ -864,11 +864,11 @@
                     </select>
                 </div>
                 <div class="em-form-group">
-                    <label>Recipients (comma-separated emails)</label>
+                    <label><span data-i18n="email_manager.recipients_comma_separated_emails">Recipients (comma-separated emails)</span></label>
                     <textarea id="campaign-recipients" rows="4" class="em-textarea" placeholder="user1@example.com, user2@example.com"></textarea>
                 </div>
                 <div class="em-modal-actions">
-                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('campaign-modal')">Cancel</button>
+                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('campaign-modal')"><span data-i18n="email_manager.cancel_4">Cancel</span></button>
                     <button type="submit" class="em-btn em-btn--primary">
                         <i data-lucide="save"></i>
                         Save as Draft
@@ -3035,8 +3035,8 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
 <div class="em-confirm-overlay" id="wizard-overlay" style="display:none">
     <div class="wizard-dialog">
         <div class="wizard-header">
-            <h3 class="wizard-title" id="wizard-title">Add Mailbox</h3>
-            <button class="em-btn em-btn--sm em-btn--outline" onclick="closeWizard()" style="padding:4px 8px">&times;</button>
+            <h3 class="wizard-title" id="wizard-title"><span data-i18n="email_manager.add_mailbox">Add Mailbox</span></h3>
+            <button class="em-btn em-btn--sm em-btn--outline" onclick="closeWizard()" style="padding:4px 8px"><span data-i18n="email_manager.times">&times;</span></button>
         </div>
         <div class="wizard-progress">
             <div class="wizard-step-dot active" data-step="1">1</div>
@@ -3052,63 +3052,63 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
 
         <!-- Step 1: Choose Provider -->
         <div class="wizard-step" id="wizard-step-1">
-            <p class="wizard-subtitle">Choose your email provider</p>
+            <p class="wizard-subtitle"><span data-i18n="email_manager.choose_your_email_provider">Choose your email provider</span></p>
             <div class="wizard-providers">
                 <button class="wizard-provider-btn" onclick="selectProvider('gmail')">
                     <span class="wizard-provider-icon" style="color:#EA4335">G</span>
-                    <span>Gmail</span>
+                    <span><span data-i18n="email_manager.gmail">Gmail</span></span>
                 </button>
                 <button class="wizard-provider-btn" onclick="selectProvider('zoho')">
                     <span class="wizard-provider-icon" style="color:#F4C400">Z</span>
-                    <span>Zoho</span>
+                    <span><span data-i18n="email_manager.zoho">Zoho</span></span>
                 </button>
                 <button class="wizard-provider-btn" onclick="selectProvider('outlook')">
                     <span class="wizard-provider-icon" style="color:#0078D4">O</span>
-                    <span>Outlook / Hotmail</span>
+                    <span><span data-i18n="email_manager.outlook_hotmail">Outlook / Hotmail</span></span>
                 </button>
                 <button class="wizard-provider-btn" onclick="selectProvider('yahoo')">
                     <span class="wizard-provider-icon" style="color:#6001D2">Y</span>
-                    <span>Yahoo</span>
+                    <span><span data-i18n="email_manager.yahoo">Yahoo</span></span>
                 </button>
                 <button class="wizard-provider-btn" onclick="selectProvider('icloud')">
                     <span class="wizard-provider-icon" style="color:#999">iC</span>
-                    <span>iCloud</span>
+                    <span><span data-i18n="email_manager.icloud">iCloud</span></span>
                 </button>
                 <button class="wizard-provider-btn" onclick="selectProvider('custom')">
                     <span class="wizard-provider-icon" style="color:#00FFFF">?</span>
-                    <span>Other / Custom</span>
+                    <span><span data-i18n="email_manager.other_custom">Other / Custom</span></span>
                 </button>
             </div>
         </div>
 
         <!-- Step 2: Credentials -->
         <div class="wizard-step" id="wizard-step-2" style="display:none">
-            <p class="wizard-subtitle" id="wizard-provider-label">Enter your credentials</p>
+            <p class="wizard-subtitle" id="wizard-provider-label"><span data-i18n="email_manager.enter_your_credentials">Enter your credentials</span></p>
             <div class="wizard-hint" id="wizard-hint"></div>
             <div class="wizard-form">
-                <label class="wizard-label">Display Name</label>
+                <label class="wizard-label"><span data-i18n="email_manager.display_name">Display Name</span></label>
                 <input type="text" class="em-input wizard-input" id="wizard-name" placeholder="e.g. Work Gmail">
-                <label class="wizard-label">Email Address</label>
+                <label class="wizard-label"><span data-i18n="email_manager.email_address">Email Address</span></label>
                 <input type="email" class="em-input wizard-input" id="wizard-email" placeholder="you@example.com">
-                <label class="wizard-label" id="wizard-password-label">App Password</label>
+                <label class="wizard-label" id="wizard-password-label"><span data-i18n="email_manager.app_password">App Password</span></label>
                 <input type="password" class="em-input wizard-input" id="wizard-password" placeholder="App-specific password">
                 <div id="wizard-advanced" style="display:none">
-                    <label class="wizard-label">IMAP Host</label>
+                    <label class="wizard-label"><span data-i18n="email_manager.imap_host_2">IMAP Host</span></label>
                     <input type="text" class="em-input wizard-input" id="wizard-host" placeholder="imap.example.com">
                     <div style="display:flex;gap:12px">
                         <div style="flex:1">
-                            <label class="wizard-label">Port</label>
+                            <label class="wizard-label"><span data-i18n="email_manager.port_4">Port</span></label>
                             <input type="number" class="em-input wizard-input" id="wizard-port" value="993">
                         </div>
                         <div style="flex:1">
-                            <label class="wizard-label">Encryption</label>
+                            <label class="wizard-label"><span data-i18n="email_manager.encryption_4">Encryption</span></label>
                             <select class="em-select wizard-input" id="wizard-encryption">
-                                <option value="ssl">SSL (993)</option>
-                                <option value="tls">STARTTLS (143)</option>
+                                <option value="ssl"><span data-i18n="email_manager.ssl_993">SSL (993)</span></option>
+                                <option value="tls"><span data-i18n="email_manager.starttls_143">STARTTLS (143)</span></option>
                             </select>
                         </div>
                     </div>
-                    <label class="wizard-label">Folder</label>
+                    <label class="wizard-label"><span data-i18n="email_manager.folder_2">Folder</span></label>
                     <input type="text" class="em-input wizard-input" id="wizard-folder" value="INBOX">
                 </div>
                 <button class="wizard-toggle-advanced" onclick="toggleWizardAdvanced()" id="wizard-advanced-toggle">
@@ -3116,8 +3116,8 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
                 </button>
             </div>
             <div class="wizard-actions">
-                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardBack()">Back</button>
-                <button class="em-btn em-btn--sm em-btn--primary" onclick="wizardTestConnection()">Test Connection</button>
+                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardBack()"><span data-i18n="email_manager.back">Back</span></button>
+                <button class="em-btn em-btn--sm em-btn--primary" onclick="wizardTestConnection()"><span data-i18n="email_manager.test_connection">Test Connection</span></button>
             </div>
         </div>
 
@@ -3126,7 +3126,7 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
             <div class="wizard-testing">
                 <div class="wizard-spinner" id="wizard-test-spinner">
                     <i data-lucide="loader-2" class="em-spinner"></i>
-                    <p>Testing connection...</p>
+                    <p><span data-i18n="email_manager.testing_connection">Testing connection...</span></p>
                 </div>
                 <div id="wizard-test-result" style="display:none">
                     <div class="wizard-result-icon" id="wizard-result-icon"></div>
@@ -3134,38 +3134,38 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
                 </div>
             </div>
             <div class="wizard-actions">
-                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardGoStep(2)">Back</button>
-                <button class="em-btn em-btn--sm em-btn--primary" id="wizard-save-btn" onclick="wizardSave()" style="display:none">Save &amp; Fetch Emails</button>
+                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardGoStep(2)"><span data-i18n="email_manager.back_2">Back</span></button>
+                <button class="em-btn em-btn--sm em-btn--primary" id="wizard-save-btn" onclick="wizardSave()" style="display:none"><span data-i18n="email_manager.save_amp_fetch_emails">Save &amp; Fetch Emails</span></button>
             </div>
         </div>
 
         <!-- Step 4: SMTP Configuration -->
         <div class="wizard-step" id="wizard-step-4" style="display:none">
-            <p class="wizard-subtitle">Configure outgoing email (optional)</p>
+            <p class="wizard-subtitle"><span data-i18n="email_manager.configure_outgoing_email_optional">Configure outgoing email (optional)</span></p>
             <div class="wizard-form">
-                <label class="wizard-label">SMTP Host</label>
+                <label class="wizard-label"><span data-i18n="email_manager.smtp_host_3">SMTP Host</span></label>
                 <input type="text" class="em-input wizard-input" id="wizard-smtp-host" placeholder="smtp.gmail.com">
                 <div style="display:flex;gap:12px">
-                    <div style="flex:1"><label class="wizard-label">Port</label>
+                    <div style="flex:1"><label class="wizard-label"><span data-i18n="email_manager.port_5">Port</span></label>
                         <input type="number" class="em-input wizard-input" id="wizard-smtp-port" value="587"></div>
-                    <div style="flex:1"><label class="wizard-label">Encryption</label>
+                    <div style="flex:1"><label class="wizard-label"><span data-i18n="email_manager.encryption_5">Encryption</span></label>
                         <select class="em-select wizard-input" id="wizard-smtp-encryption">
-                            <option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">None</option>
+                            <option value="tls"><span data-i18n="email_manager.tls_3">TLS</span></option><option value="ssl"><span data-i18n="email_manager.ssl_4">SSL</span></option><option value="none"><span data-i18n="email_manager.none_4">None</span></option>
                         </select></div>
                 </div>
-                <label class="wizard-label">SMTP Username</label>
+                <label class="wizard-label"><span data-i18n="email_manager.smtp_username">SMTP Username</span></label>
                 <input type="text" class="em-input wizard-input" id="wizard-smtp-user" placeholder="you@example.com">
-                <label class="wizard-label">SMTP Password</label>
+                <label class="wizard-label"><span data-i18n="email_manager.smtp_password">SMTP Password</span></label>
                 <input type="password" class="em-input wizard-input" id="wizard-smtp-password" placeholder="App password">
-                <label class="wizard-label">From Email</label>
+                <label class="wizard-label"><span data-i18n="email_manager.from_email_3">From Email</span></label>
                 <input type="email" class="em-input wizard-input" id="wizard-from-email" placeholder="you@example.com">
-                <label class="wizard-label">From Name</label>
+                <label class="wizard-label"><span data-i18n="email_manager.from_name_3">From Name</span></label>
                 <input type="text" class="em-input wizard-input" id="wizard-from-name" placeholder="Your Name">
             </div>
             <div class="wizard-actions">
-                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardGoStep(3)">Back</button>
-                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardSkipSmtp()">Skip</button>
-                <button class="em-btn em-btn--sm em-btn--primary" onclick="wizardSaveSmtp()">Save &amp; Test SMTP</button>
+                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardGoStep(3)"><span data-i18n="email_manager.back_3">Back</span></button>
+                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardSkipSmtp()"><span data-i18n="email_manager.skip">Skip</span></button>
+                <button class="em-btn em-btn--sm em-btn--primary" onclick="wizardSaveSmtp()"><span data-i18n="email_manager.save_amp_test_smtp">Save &amp; Test SMTP</span></button>
             </div>
         </div>
 
@@ -3173,11 +3173,11 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
         <div class="wizard-step" id="wizard-step-5" style="display:none">
             <div class="wizard-done">
                 <div style="font-size:48px;margin-bottom:12px">&#x2705;</div>
-                <h3>Mailbox Added!</h3>
-                <p id="wizard-done-msg">Fetching emails in background...</p>
+                <h3><span data-i18n="email_manager.mailbox_added">Mailbox Added!</span></h3>
+                <p id="wizard-done-msg"><span data-i18n="email_manager.fetching_emails_in_background">Fetching emails in background...</span></p>
             </div>
             <div class="wizard-actions">
-                <button class="em-btn em-btn--sm em-btn--primary" onclick="closeWizard(); loadUnifiedAccounts();">Done</button>
+                <button class="em-btn em-btn--sm em-btn--primary" onclick="closeWizard(); loadUnifiedAccounts();"><span data-i18n="email_manager.done">Done</span></button>
             </div>
         </div>
     </div>
@@ -3185,11 +3185,11 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
 
 <div class="em-confirm-overlay" id="confirm-overlay" style="display:none">
     <div class="em-confirm-dialog">
-        <div class="em-confirm-title" id="confirm-title">Confirm Delete</div>
-        <div class="em-confirm-message" id="confirm-message">Are you sure?</div>
+        <div class="em-confirm-title" id="confirm-title"><span data-i18n="email_manager.confirm_delete">Confirm Delete</span></div>
+        <div class="em-confirm-message" id="confirm-message"><span data-i18n="email_manager.are_you_sure">Are you sure?</span></div>
         <div class="em-confirm-actions">
-            <button class="em-btn em-btn--sm em-btn--outline" onclick="closeConfirm()">Cancel</button>
-            <button class="em-btn em-btn--sm em-btn--danger" id="confirm-action-btn">Confirm</button>
+            <button class="em-btn em-btn--sm em-btn--outline" onclick="closeConfirm()"><span data-i18n="email_manager.cancel_5">Cancel</span></button>
+            <button class="em-btn em-btn--sm em-btn--danger" id="confirm-action-btn"><span data-i18n="email_manager.confirm">Confirm</span></button>
         </div>
     </div>
 </div>

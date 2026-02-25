@@ -491,7 +491,7 @@
                     <i data-lucide="building-2" class="header-icon"></i>
                     SAAS MANAGER
                 </h1>
-                <p class="header-subtitle">Multi-tenant organization & domain management</p>
+                <p class="header-subtitle"><span data-i18n="saas_manager.multi_tenant_organization_domain_management">Multi-tenant organization & domain management</span></p>
             </div>
         </div>
 
@@ -499,19 +499,19 @@
             <!-- Stats Overview -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-label">TOTAL ORGS</div>
+                    <div class="stat-label"><span data-i18n="saas_manager.total_orgs">TOTAL ORGS</span></div>
                     <div class="stat-value" id="stat-orgs">-</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">TOTAL DOMAINS</div>
+                    <div class="stat-label"><span data-i18n="saas_manager.total_domains">TOTAL DOMAINS</span></div>
                     <div class="stat-value" id="stat-domains" style="color: var(--archie-cyan);">-</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">ACTIVE MODULES</div>
+                    <div class="stat-label"><span data-i18n="saas_manager.active_modules">ACTIVE MODULES</span></div>
                     <div class="stat-value" id="stat-modules" style="color: var(--archie-orange);">-</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">PUBLIC IP</div>
+                    <div class="stat-label"><span data-i18n="saas_manager.public_ip">PUBLIC IP</span></div>
                     <div class="stat-value" id="stat-ip" style="color: var(--archie-green); font-size: var(--archie-text-lg);">-</div>
                 </div>
             </div>
@@ -553,7 +553,7 @@
 
                 <div id="orgs-empty" class="empty-state" style="display:none;">
                     <i data-lucide="building-2" style="width:48px;height:48px"></i>
-                    <p>No organizations yet. Create your first one.</p>
+                    <p><span data-i18n="saas_manager.no_organizations_yet_create_your_first_one">No organizations yet. Create your first one.</span></p>
                 </div>
             </div>
 
@@ -578,12 +578,12 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Domain</th>
-                                <th>Organization</th>
-                                <th>Target Module</th>
-                                <th>DNS Status</th>
-                                <th>SSL Status</th>
-                                <th>Actions</th>
+                                <th><span data-i18n="saas_manager.domain">Domain</span></th>
+                                <th><span data-i18n="saas_manager.organization">Organization</span></th>
+                                <th><span data-i18n="saas_manager.target_module">Target Module</span></th>
+                                <th><span data-i18n="saas_manager.dns_status">DNS Status</span></th>
+                                <th><span data-i18n="saas_manager.ssl_status">SSL Status</span></th>
+                                <th><span data-i18n="saas_manager.actions">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody id="domains-tbody"></tbody>
@@ -592,7 +592,7 @@
 
                 <div id="domains-empty" class="empty-state" style="display:none;">
                     <i data-lucide="globe" style="width:48px;height:48px"></i>
-                    <p>No domains configured yet.</p>
+                    <p><span data-i18n="saas_manager.no_domains_configured_yet">No domains configured yet.</span></p>
                 </div>
             </div>
 
@@ -600,8 +600,8 @@
             <div class="tab-content" id="tab-network">
                 <!-- Public IP -->
                 <div class="ip-display" id="ip-display">
-                    <div class="ip-display-label">Current Public IP</div>
-                    <div class="ip-display-value" id="network-public-ip">Loading...</div>
+                    <div class="ip-display-label"><span data-i18n="saas_manager.current_public_ip">Current Public IP</span></div>
+                    <div class="ip-display-value" id="network-public-ip"><span data-i18n="saas_manager.loading">Loading...</span></div>
                     <div class="ip-display-changed" id="ip-changed-notice" style="display:none;">
                         IP address has changed since last check
                     </div>
@@ -619,12 +619,12 @@
                     </div>
                     <div class="port-grid" id="port-grid">
                         <div class="port-card">
-                            <div class="port-card-port">Port 80</div>
-                            <div class="port-card-status port-unknown" id="port-80-status">Not checked</div>
+                            <div class="port-card-port"><span data-i18n="saas_manager.port_80">Port 80</span></div>
+                            <div class="port-card-status port-unknown" id="port-80-status"><span data-i18n="saas_manager.not_checked">Not checked</span></div>
                         </div>
                         <div class="port-card">
-                            <div class="port-card-port">Port 443</div>
-                            <div class="port-card-status port-unknown" id="port-443-status">Not checked</div>
+                            <div class="port-card-port"><span data-i18n="saas_manager.port_443">Port 443</span></div>
+                            <div class="port-card-status port-unknown" id="port-443-status"><span data-i18n="saas_manager.not_checked_2">Not checked</span></div>
                         </div>
                     </div>
                 </div>
@@ -638,12 +638,12 @@
                     <table class="data-table" id="ip-history-table">
                         <thead>
                             <tr>
-                                <th>Timestamp</th>
-                                <th>IP Address</th>
+                                <th><span data-i18n="saas_manager.timestamp">Timestamp</span></th>
+                                <th><span data-i18n="saas_manager.ip_address">IP Address</span></th>
                             </tr>
                         </thead>
                         <tbody id="ip-history-tbody">
-                            <tr><td colspan="2" style="text-align:center; color: var(--archie-text-muted);">Loading...</td></tr>
+                            <tr><td colspan="2" style="text-align:center; color: var(--archie-text-muted);"><span data-i18n="saas_manager.loading_2">Loading...</span></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -656,20 +656,20 @@
                     </div>
                     <div class="server-info-grid">
                         <div class="server-info-item">
-                            <div class="server-info-label">LAN IP</div>
+                            <div class="server-info-label"><span data-i18n="saas_manager.lan_ip">LAN IP</span></div>
                             <div class="server-info-value">192.168.1.200</div>
                         </div>
                         <div class="server-info-item">
-                            <div class="server-info-label">Gateway</div>
+                            <div class="server-info-label"><span data-i18n="saas_manager.gateway">Gateway</span></div>
                             <div class="server-info-value">192.168.1.254</div>
                         </div>
                         <div class="server-info-item">
-                            <div class="server-info-label">Platform Port</div>
+                            <div class="server-info-label"><span data-i18n="saas_manager.platform_port">Platform Port</span></div>
                             <div class="server-info-value">3000</div>
                         </div>
                         <div class="server-info-item">
-                            <div class="server-info-label">Platform URL</div>
-                            <div class="server-info-value">http://192.168.1.200:3000</div>
+                            <div class="server-info-label"><span data-i18n="saas_manager.platform_url">Platform URL</span></div>
+                            <div class="server-info-value"><span data-i18n="saas_manager.http_192_168_1_200_3000">http://192.168.1.200:3000</span></div>
                         </div>
                     </div>
                 </div>
@@ -681,7 +681,7 @@
     <div class="detail-panel-overlay" id="detail-overlay" onclick="closeDetailPanel()"></div>
     <div class="detail-panel" id="detail-panel">
         <div class="detail-panel-header">
-            <h2 id="detail-org-name">Organization</h2>
+            <h2 id="detail-org-name"><span data-i18n="saas_manager.organization_2">Organization</span></h2>
             <button class="btn btn-ghost btn-sm" onclick="closeDetailPanel()">
                 <i data-lucide="x" style="width:18px;height:18px"></i>
             </button>
@@ -736,22 +736,22 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">Organization Name</label>
+                    <label class="form-label"><span data-i18n="saas_manager.organization_name">Organization Name</span></label>
                     <input type="text" class="form-input" id="new-org-name" placeholder="e.g., Acme Corp">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Owner</label>
+                    <label class="form-label"><span data-i18n="saas_manager.owner">Owner</span></label>
                     <select class="form-select" id="new-org-owner">
-                        <option value="">Select owner...</option>
+                        <option value=""><span data-i18n="saas_manager.select_owner">Select owner...</span></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Initial Modules</label>
+                    <label class="form-label"><span data-i18n="saas_manager.initial_modules">Initial Modules</span></label>
                     <div id="new-org-modules" class="module-check-list"></div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-ghost" onclick="closeNewOrgModal()">Cancel</button>
+                <button class="btn btn-ghost" onclick="closeNewOrgModal()"><span data-i18n="saas_manager.cancel">Cancel</span></button>
                 <button class="btn btn-primary" onclick="createOrg()" id="btn-create-org">
                     <i data-lucide="plus" style="width:16px;height:16px"></i>
                     Create Organization
@@ -774,24 +774,24 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">Organization</label>
+                    <label class="form-label"><span data-i18n="saas_manager.organization_3">Organization</span></label>
                     <select class="form-select" id="domain-org-select">
-                        <option value="">Select organization...</option>
+                        <option value=""><span data-i18n="saas_manager.select_organization">Select organization...</span></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Domain</label>
+                    <label class="form-label"><span data-i18n="saas_manager.domain_2">Domain</span></label>
                     <input type="text" class="form-input" id="domain-name" placeholder="e.g., app.example.com">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Target Module</label>
+                    <label class="form-label"><span data-i18n="saas_manager.target_module_2">Target Module</span></label>
                     <select class="form-select" id="domain-target-module">
-                        <option value="">Select module...</option>
+                        <option value=""><span data-i18n="saas_manager.select_module">Select module...</span></option>
                     </select>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-ghost" onclick="closeAddDomainModal()">Cancel</button>
+                <button class="btn btn-ghost" onclick="closeAddDomainModal()"><span data-i18n="saas_manager.cancel_2">Cancel</span></button>
                 <button class="btn btn-primary" onclick="addDomain()" id="btn-add-domain">
                     <i data-lucide="plus" style="width:16px;height:16px"></i>
                     Add Domain

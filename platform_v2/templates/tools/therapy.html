@@ -20,11 +20,11 @@
                 <i data-lucide="flower-2"></i>
                 THERAPY
             </h1>
-            <p class="therapy-subtitle">Mental Health AI - Your compassionate companion</p>
+            <p class="therapy-subtitle"><span data-i18n="therapy.mental_health_ai_your_compassionate_companion">Mental Health AI - Your compassionate companion</span></p>
         </div>
         <div class="therapy-status">
             <span class="status-indicator status-online"></span>
-            <span>AI Ready</span>
+            <span><span data-i18n="therapy.ai_ready">AI Ready</span></span>
         </div>
     </header>
 
@@ -32,7 +32,7 @@
     <div class="therapy-disclaimer">
         <i data-lucide="shield-alert"></i>
         <div class="therapy-disclaimer-content">
-            <span><strong>Important:</strong> This AI provides supportive conversation only. It is not a replacement for professional mental health care. If you're in crisis, please contact a mental health professional or call the 988 Suicide & Crisis Lifeline.</span>
+            <span><strong><span data-i18n="therapy.important">Important:</span></strong><span data-i18n="therapy.this_ai_provides_supportive_conversation_only_it_i"> This AI provides supportive conversation only. It is not a replacement for professional mental health care. If you're in crisis, please contact a mental health professional or call the 988 Suicide & Crisis Lifeline.</span></span>
             <a href="tel:988" class="crisis-link">
                 <i data-lucide="phone"></i>
                 988
@@ -48,7 +48,7 @@
             </div>
             <div class="therapy-stat-info">
                 <span class="therapy-stat-value" id="totalSessions">0</span>
-                <span class="therapy-stat-label">SESSIONS</span>
+                <span class="therapy-stat-label"><span data-i18n="therapy.sessions">SESSIONS</span></span>
             </div>
         </div>
         <div class="therapy-stat-card" style="animation-delay: 0.2s">
@@ -57,7 +57,7 @@
             </div>
             <div class="therapy-stat-info">
                 <span class="therapy-stat-value" id="totalJournals">0</span>
-                <span class="therapy-stat-label">JOURNAL ENTRIES</span>
+                <span class="therapy-stat-label"><span data-i18n="therapy.journal_entries">JOURNAL ENTRIES</span></span>
             </div>
         </div>
         <div class="therapy-stat-card" style="animation-delay: 0.3s">
@@ -66,7 +66,7 @@
             </div>
             <div class="therapy-stat-info">
                 <span class="therapy-stat-value" id="moodAverage">--</span>
-                <span class="therapy-stat-label">MOOD AVERAGE</span>
+                <span class="therapy-stat-label"><span data-i18n="therapy.mood_average">MOOD AVERAGE</span></span>
             </div>
         </div>
         <div class="therapy-stat-card" style="animation-delay: 0.4s">
@@ -75,7 +75,7 @@
             </div>
             <div class="therapy-stat-info">
                 <span class="therapy-stat-value" id="currentStreak">0</span>
-                <span class="therapy-stat-label">DAY STREAK</span>
+                <span class="therapy-stat-label"><span data-i18n="therapy.day_streak">DAY STREAK</span></span>
             </div>
         </div>
     </section>
@@ -118,13 +118,13 @@
                                     <br><br>
                                     I can help you explore:
                                     <ul>
-                                        <li>Processing difficult emotions</li>
-                                        <li>Managing stress and anxiety</li>
-                                        <li>Building healthier thought patterns</li>
-                                        <li>Practicing mindfulness and self-compassion</li>
-                                        <li>Working through relationship concerns</li>
+                                        <li><span data-i18n="therapy.processing_difficult_emotions">Processing difficult emotions</span></li>
+                                        <li><span data-i18n="therapy.managing_stress_and_anxiety">Managing stress and anxiety</span></li>
+                                        <li><span data-i18n="therapy.building_healthier_thought_patterns">Building healthier thought patterns</span></li>
+                                        <li><span data-i18n="therapy.practicing_mindfulness_and_self_compassion">Practicing mindfulness and self-compassion</span></li>
+                                        <li><span data-i18n="therapy.working_through_relationship_concerns">Working through relationship concerns</span></li>
                                     </ul>
-                                    <strong>Remember:</strong> Everything shared here is private. Take your time - there's no rush.
+                                    <strong><span data-i18n="therapy.remember">Remember:</span></strong> Everything shared here is private. Take your time - there's no rush.
                                     <br><br>
                                     How are you feeling today?
                                 </div>
@@ -159,7 +159,7 @@
 
                 <!-- Quick Topics Sidebar -->
                 <div class="therapy-sidebar">
-                    <h4>Quick Topics</h4>
+                    <h4><span data-i18n="therapy.quick_topics">Quick Topics</span></h4>
                     <div class="therapy-quick-topics">
                         <button class="therapy-topic-btn" onclick="askTopic('anxiety')">
                             <i data-lucide="cloud-lightning"></i>
@@ -195,27 +195,27 @@
                         </button>
                     </div>
 
-                    <h4>Exercises</h4>
+                    <h4><span data-i18n="therapy.exercises">Exercises</span></h4>
                     <div class="therapy-exercises">
                         <button class="therapy-exercise-btn" onclick="showBreathingExercise()">
                             <i data-lucide="wind"></i>
-                            <span>Breathing</span>
+                            <span><span data-i18n="therapy.breathing">Breathing</span></span>
                         </button>
                         <button class="therapy-exercise-btn" onclick="showGroundingExercise()">
                             <i data-lucide="anchor"></i>
-                            <span>Grounding</span>
+                            <span><span data-i18n="therapy.grounding">Grounding</span></span>
                         </button>
                         <button class="therapy-exercise-btn" onclick="showGratitudeExercise()">
                             <i data-lucide="heart"></i>
-                            <span>Gratitude</span>
+                            <span><span data-i18n="therapy.gratitude">Gratitude</span></span>
                         </button>
                     </div>
 
-                    <h4>AI Model</h4>
+                    <h4><span data-i18n="therapy.ai_model">AI Model</span></h4>
                     <select class="therapy-select" id="modelSelect">
-                        <option value="llama3.2:latest">Llama 3.2 (Local)</option>
-                        <option value="mistral:latest">Mistral (Local)</option>
-                        <option value="deepseek-coder-v2:16b">DeepSeek v2 (Local)</option>
+                        <option value="llama3.2:latest"><span data-i18n="therapy.llama_3_2_local">Llama 3.2 (Local)</span></option>
+                        <option value="mistral:latest"><span data-i18n="therapy.mistral_local">Mistral (Local)</span></option>
+                        <option value="deepseek-coder-v2:16b"><span data-i18n="therapy.deepseek_v2_local">DeepSeek v2 (Local)</span></option>
                     </select>
                 </div>
             </div>
@@ -234,18 +234,18 @@
                         <span id="journalDate"></span>
                     </div>
                     <div class="therapy-journal-prompts">
-                        <span class="therapy-prompt-label">Writing prompts:</span>
+                        <span class="therapy-prompt-label"><span data-i18n="therapy.writing_prompts">Writing prompts:</span></span>
                         <div class="therapy-prompt-chips">
-                            <button class="therapy-prompt-chip" onclick="usePrompt('grateful')">What am I grateful for?</button>
-                            <button class="therapy-prompt-chip" onclick="usePrompt('feeling')">How am I feeling?</button>
-                            <button class="therapy-prompt-chip" onclick="usePrompt('accomplish')">What did I accomplish?</button>
-                            <button class="therapy-prompt-chip" onclick="usePrompt('challenge')">What challenged me?</button>
+                            <button class="therapy-prompt-chip" onclick="usePrompt('grateful')"><span data-i18n="therapy.what_am_i_grateful_for">What am I grateful for?</span></button>
+                            <button class="therapy-prompt-chip" onclick="usePrompt('feeling')"><span data-i18n="therapy.how_am_i_feeling">How am I feeling?</span></button>
+                            <button class="therapy-prompt-chip" onclick="usePrompt('accomplish')"><span data-i18n="therapy.what_did_i_accomplish">What did I accomplish?</span></button>
+                            <button class="therapy-prompt-chip" onclick="usePrompt('challenge')"><span data-i18n="therapy.what_challenged_me">What challenged me?</span></button>
                         </div>
                     </div>
                     <textarea class="therapy-journal-textarea" id="journalTextarea" placeholder="Start writing your thoughts..."></textarea>
                     <div class="therapy-journal-actions">
                         <div class="therapy-journal-mood-select">
-                            <span>How's your mood?</span>
+                            <span><span data-i18n="therapy.how_s_your_mood">How's your mood?</span></span>
                             <div class="therapy-mini-mood">
                                 <button class="mini-mood-btn" data-mood="1" onclick="selectMiniMood(1)">😢</button>
                                 <button class="mini-mood-btn" data-mood="2" onclick="selectMiniMood(2)">😔</button>
@@ -269,8 +269,8 @@
                     <div class="therapy-entries-list" id="journalEntries">
                         <div class="therapy-empty-state">
                             <i data-lucide="book-open"></i>
-                            <p>No journal entries yet</p>
-                            <span>Start writing to track your thoughts</span>
+                            <p><span data-i18n="therapy.no_journal_entries_yet">No journal entries yet</span></p>
+                            <span><span data-i18n="therapy.start_writing_to_track_your_thoughts">Start writing to track your thoughts</span></span>
                         </div>
                     </div>
                 </div>
@@ -288,28 +288,28 @@
                     <div class="therapy-mood-grid">
                         <button class="therapy-mood-btn" data-mood="1" onclick="selectMood(1)">
                             <span class="mood-emoji">😢</span>
-                            <span class="mood-label">Very Low</span>
+                            <span class="mood-label"><span data-i18n="therapy.very_low">Very Low</span></span>
                         </button>
                         <button class="therapy-mood-btn" data-mood="2" onclick="selectMood(2)">
                             <span class="mood-emoji">😔</span>
-                            <span class="mood-label">Low</span>
+                            <span class="mood-label"><span data-i18n="therapy.low">Low</span></span>
                         </button>
                         <button class="therapy-mood-btn" data-mood="3" onclick="selectMood(3)">
                             <span class="mood-emoji">😐</span>
-                            <span class="mood-label">Neutral</span>
+                            <span class="mood-label"><span data-i18n="therapy.neutral">Neutral</span></span>
                         </button>
                         <button class="therapy-mood-btn" data-mood="4" onclick="selectMood(4)">
                             <span class="mood-emoji">🙂</span>
-                            <span class="mood-label">Good</span>
+                            <span class="mood-label"><span data-i18n="therapy.good">Good</span></span>
                         </button>
                         <button class="therapy-mood-btn" data-mood="5" onclick="selectMood(5)">
                             <span class="mood-emoji">😊</span>
-                            <span class="mood-label">Great</span>
+                            <span class="mood-label"><span data-i18n="therapy.great">Great</span></span>
                         </button>
                     </div>
 
                     <div class="therapy-mood-factors">
-                        <h4>What's influencing your mood?</h4>
+                        <h4><span data-i18n="therapy.what_s_influencing_your_mood">What's influencing your mood?</span></h4>
                         <div class="therapy-factors-grid">
                             <button class="therapy-factor-btn" onclick="toggleFactor(this, 'sleep')">
                                 <i data-lucide="moon"></i>
@@ -347,7 +347,7 @@
                     </div>
 
                     <div class="therapy-mood-note">
-                        <label>Add a note (optional)</label>
+                        <label><span data-i18n="therapy.add_a_note_optional">Add a note (optional)</span></label>
                         <textarea id="moodNote" placeholder="Any thoughts about how you're feeling?"></textarea>
                     </div>
 
@@ -368,8 +368,8 @@
                     <div class="therapy-mood-list" id="moodHistory">
                         <div class="therapy-empty-state">
                             <i data-lucide="heart-pulse"></i>
-                            <p>No moods logged yet</p>
-                            <span>Start tracking to see patterns</span>
+                            <p><span data-i18n="therapy.no_moods_logged_yet">No moods logged yet</span></p>
+                            <span><span data-i18n="therapy.start_tracking_to_see_patterns">Start tracking to see patterns</span></span>
                         </div>
                     </div>
                 </div>
@@ -388,7 +388,7 @@
                         <div class="therapy-progress-card">
                             <div class="progress-card-header">
                                 <i data-lucide="trending-up"></i>
-                                <span>Mood Trend</span>
+                                <span><span data-i18n="therapy.mood_trend">Mood Trend</span></span>
                             </div>
                             <div class="progress-card-chart" id="moodTrendChart">
                                 <canvas id="moodChart"></canvas>
@@ -397,7 +397,7 @@
                         <div class="therapy-progress-card">
                             <div class="progress-card-header">
                                 <i data-lucide="pie-chart"></i>
-                                <span>Mood Distribution</span>
+                                <span><span data-i18n="therapy.mood_distribution">Mood Distribution</span></span>
                             </div>
                             <div class="progress-card-stats" id="moodDistribution">
                                 <div class="mood-dist-item">
@@ -441,8 +441,8 @@
                                 <i data-lucide="calendar-check"></i>
                             </div>
                             <div class="insight-content">
-                                <h4>Consistency Matters</h4>
-                                <p>Regular check-ins help build self-awareness. Try to log your mood at the same time each day.</p>
+                                <h4><span data-i18n="therapy.consistency_matters">Consistency Matters</span></h4>
+                                <p><span data-i18n="therapy.regular_check_ins_help_build_self_awareness_try_to">Regular check-ins help build self-awareness. Try to log your mood at the same time each day.</span></p>
                             </div>
                         </div>
                         <div class="therapy-insight-card">
@@ -450,8 +450,8 @@
                                 <i data-lucide="pen-tool"></i>
                             </div>
                             <div class="insight-content">
-                                <h4>Journaling Benefits</h4>
-                                <p>Writing down your thoughts can help process emotions and identify patterns in your thinking.</p>
+                                <h4><span data-i18n="therapy.journaling_benefits">Journaling Benefits</span></h4>
+                                <p><span data-i18n="therapy.writing_down_your_thoughts_can_help_process_emotio">Writing down your thoughts can help process emotions and identify patterns in your thinking.</span></p>
                             </div>
                         </div>
                         <div class="therapy-insight-card">
@@ -459,8 +459,8 @@
                                 <i data-lucide="heart-handshake"></i>
                             </div>
                             <div class="insight-content">
-                                <h4>Self-Compassion</h4>
-                                <p>Remember that all feelings are valid. Be kind to yourself on difficult days.</p>
+                                <h4><span data-i18n="therapy.self_compassion">Self-Compassion</span></h4>
+                                <p><span data-i18n="therapy.remember_that_all_feelings_are_valid_be_kind_to_yo">Remember that all feelings are valid. Be kind to yourself on difficult days.</span></p>
                             </div>
                         </div>
                     </div>
@@ -473,27 +473,27 @@
                         <div class="therapy-milestones-grid" id="milestonesGrid">
                             <div class="therapy-milestone" data-achieved="false">
                                 <i data-lucide="message-circle"></i>
-                                <span>First Session</span>
+                                <span><span data-i18n="therapy.first_session">First Session</span></span>
                             </div>
                             <div class="therapy-milestone" data-achieved="false">
                                 <i data-lucide="book-open"></i>
-                                <span>First Journal</span>
+                                <span><span data-i18n="therapy.first_journal">First Journal</span></span>
                             </div>
                             <div class="therapy-milestone" data-achieved="false">
                                 <i data-lucide="calendar-check"></i>
-                                <span>7-Day Streak</span>
+                                <span><span data-i18n="therapy.7_day_streak">7-Day Streak</span></span>
                             </div>
                             <div class="therapy-milestone" data-achieved="false">
                                 <i data-lucide="flame"></i>
-                                <span>30-Day Streak</span>
+                                <span><span data-i18n="therapy.30_day_streak">30-Day Streak</span></span>
                             </div>
                             <div class="therapy-milestone" data-achieved="false">
                                 <i data-lucide="star"></i>
-                                <span>10 Sessions</span>
+                                <span><span data-i18n="therapy.10_sessions">10 Sessions</span></span>
                             </div>
                             <div class="therapy-milestone" data-achieved="false">
                                 <i data-lucide="award"></i>
-                                <span>25 Journals</span>
+                                <span><span data-i18n="therapy.25_journals">25 Journals</span></span>
                             </div>
                         </div>
                     </div>
@@ -513,10 +513,10 @@
             <i data-lucide="wind"></i>
             4-7-8 Breathing Exercise
         </h3>
-        <p class="breathing-instruction">Follow the circle to calm your mind</p>
+        <p class="breathing-instruction"><span data-i18n="therapy.follow_the_circle_to_calm_your_mind">Follow the circle to calm your mind</span></p>
         <div class="breathing-circle-container">
             <div class="breathing-circle" id="breathingCircle">
-                <span class="breathing-text" id="breathingText">Ready</span>
+                <span class="breathing-text" id="breathingText"><span data-i18n="therapy.ready">Ready</span></span>
             </div>
         </div>
         <div class="breathing-controls">
@@ -538,31 +538,31 @@
             <i data-lucide="anchor"></i>
             5-4-3-2-1 Grounding
         </h3>
-        <p class="grounding-instruction">Use your senses to ground yourself in the present</p>
+        <p class="grounding-instruction"><span data-i18n="therapy.use_your_senses_to_ground_yourself_in_the_present">Use your senses to ground yourself in the present</span></p>
         <div class="grounding-steps">
             <div class="grounding-step" data-step="5">
                 <span class="step-number">5</span>
-                <span class="step-text">Things you can <strong>SEE</strong></span>
+                <span class="step-text"><span data-i18n="therapy.things_you_can">Things you can </span><strong><span data-i18n="therapy.see">SEE</span></strong></span>
                 <i data-lucide="eye"></i>
             </div>
             <div class="grounding-step" data-step="4">
                 <span class="step-number">4</span>
-                <span class="step-text">Things you can <strong>TOUCH</strong></span>
+                <span class="step-text"><span data-i18n="therapy.things_you_can_2">Things you can </span><strong><span data-i18n="therapy.touch">TOUCH</span></strong></span>
                 <i data-lucide="hand"></i>
             </div>
             <div class="grounding-step" data-step="3">
                 <span class="step-number">3</span>
-                <span class="step-text">Things you can <strong>HEAR</strong></span>
+                <span class="step-text"><span data-i18n="therapy.things_you_can_3">Things you can </span><strong><span data-i18n="therapy.hear">HEAR</span></strong></span>
                 <i data-lucide="ear"></i>
             </div>
             <div class="grounding-step" data-step="2">
                 <span class="step-number">2</span>
-                <span class="step-text">Things you can <strong>SMELL</strong></span>
+                <span class="step-text"><span data-i18n="therapy.things_you_can_4">Things you can </span><strong><span data-i18n="therapy.smell">SMELL</span></strong></span>
                 <i data-lucide="flower"></i>
             </div>
             <div class="grounding-step" data-step="1">
                 <span class="step-number">1</span>
-                <span class="step-text">Thing you can <strong>TASTE</strong></span>
+                <span class="step-text"><span data-i18n="therapy.thing_you_can">Thing you can </span><strong><span data-i18n="therapy.taste">TASTE</span></strong></span>
                 <i data-lucide="coffee"></i>
             </div>
         </div>
@@ -579,7 +579,7 @@
             <i data-lucide="heart"></i>
             Gratitude Practice
         </h3>
-        <p class="gratitude-instruction">Take a moment to acknowledge the good in your life</p>
+        <p class="gratitude-instruction"><span data-i18n="therapy.take_a_moment_to_acknowledge_the_good_in_your_life">Take a moment to acknowledge the good in your life</span></p>
         <div class="gratitude-inputs">
             <div class="gratitude-item">
                 <span class="gratitude-number">1</span>

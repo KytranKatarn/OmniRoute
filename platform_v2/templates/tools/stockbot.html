@@ -20,18 +20,18 @@
                 <i data-lucide="trending-up"></i>
                 STOCKBOT
             </h1>
-            <p class="stockbot-subtitle">AI Stock Screener - Data-driven investment insights</p>
+            <p class="stockbot-subtitle"><span data-i18n="stockbot.ai_stock_screener_data_driven_investment_insights">AI Stock Screener - Data-driven investment insights</span></p>
         </div>
         <div class="stockbot-status">
             <span class="status-indicator status-online"></span>
-            <span>AI Ready</span>
+            <span><span data-i18n="stockbot.ai_ready">AI Ready</span></span>
         </div>
     </header>
 
     <!-- Disclaimer Banner -->
     <div class="stockbot-disclaimer">
         <i data-lucide="alert-triangle"></i>
-        <span><strong>Disclaimer:</strong> StockBot provides educational information only. This is NOT financial advice. Always consult a licensed financial advisor before making investment decisions. Past performance does not guarantee future results.</span>
+        <span><strong><span data-i18n="stockbot.disclaimer">Disclaimer:</span></strong><span data-i18n="stockbot.stockbot_provides_educational_information_only_thi"> StockBot provides educational information only. This is NOT financial advice. Always consult a licensed financial advisor before making investment decisions. Past performance does not guarantee future results.</span></span>
     </div>
 
     <!-- Stats Overview -->
@@ -42,7 +42,7 @@
             </div>
             <div class="stockbot-stat-info">
                 <span class="stockbot-stat-value" id="watchlistCount">0</span>
-                <span class="stockbot-stat-label">WATCHLIST</span>
+                <span class="stockbot-stat-label"><span data-i18n="stockbot.watchlist">WATCHLIST</span></span>
             </div>
         </div>
         <div class="stockbot-stat-card" style="animation-delay: 0.2s">
@@ -51,7 +51,7 @@
             </div>
             <div class="stockbot-stat-info">
                 <span class="stockbot-stat-value" id="alertsActive">0</span>
-                <span class="stockbot-stat-label">ALERTS ACTIVE</span>
+                <span class="stockbot-stat-label"><span data-i18n="stockbot.alerts_active">ALERTS ACTIVE</span></span>
             </div>
         </div>
         <div class="stockbot-stat-card" style="animation-delay: 0.3s">
@@ -60,7 +60,7 @@
             </div>
             <div class="stockbot-stat-info">
                 <span class="stockbot-stat-value" id="screenedToday">0</span>
-                <span class="stockbot-stat-label">SCREENED TODAY</span>
+                <span class="stockbot-stat-label"><span data-i18n="stockbot.screened_today">SCREENED TODAY</span></span>
             </div>
         </div>
         <div class="stockbot-stat-card" style="animation-delay: 0.4s">
@@ -69,7 +69,7 @@
             </div>
             <div class="stockbot-stat-info">
                 <span class="stockbot-stat-value" id="portfolioValue">$0</span>
-                <span class="stockbot-stat-label">PORTFOLIO VALUE</span>
+                <span class="stockbot-stat-label"><span data-i18n="stockbot.portfolio_value">PORTFOLIO VALUE</span></span>
             </div>
         </div>
     </section>
@@ -110,13 +110,13 @@
                                 <div class="stockbot-message-text">
                                     Welcome to StockBot! I'm your AI-powered stock analysis assistant. I can help you with:
                                     <ul>
-                                        <li>Stock analysis and fundamental research</li>
-                                        <li>Technical indicators (RSI, MACD, Moving Averages)</li>
-                                        <li>Dividend stock screening</li>
-                                        <li>Market trends and sector analysis</li>
-                                        <li>Portfolio allocation strategies</li>
+                                        <li><span data-i18n="stockbot.stock_analysis_and_fundamental_research">Stock analysis and fundamental research</span></li>
+                                        <li><span data-i18n="stockbot.technical_indicators_rsi_macd_moving_averages">Technical indicators (RSI, MACD, Moving Averages)</span></li>
+                                        <li><span data-i18n="stockbot.dividend_stock_screening">Dividend stock screening</span></li>
+                                        <li><span data-i18n="stockbot.market_trends_and_sector_analysis">Market trends and sector analysis</span></li>
+                                        <li><span data-i18n="stockbot.portfolio_allocation_strategies">Portfolio allocation strategies</span></li>
                                     </ul>
-                                    <strong>Remember:</strong> I provide educational information only, not financial advice.
+                                    <strong><span data-i18n="stockbot.remember">Remember:</span></strong> I provide educational information only, not financial advice.
                                     <br><br>
                                     What would you like to analyze today?
                                 </div>
@@ -151,7 +151,7 @@
 
                 <!-- Quick Topics Sidebar -->
                 <div class="stockbot-sidebar">
-                    <h4>Quick Prompts</h4>
+                    <h4><span data-i18n="stockbot.quick_prompts">Quick Prompts</span></h4>
                     <div class="stockbot-quick-topics">
                         <button class="stockbot-topic-btn" onclick="askTopic('analysis')">
                             <i data-lucide="bar-chart-2"></i>
@@ -179,18 +179,18 @@
                         </button>
                     </div>
 
-                    <h4>AI Model</h4>
+                    <h4><span data-i18n="stockbot.ai_model">AI Model</span></h4>
                     <select class="stockbot-select" id="modelSelect">
-                        <option value="llama3.2:latest">Llama 3.2 (Local)</option>
-                        <option value="mistral:latest">Mistral (Local)</option>
-                        <option value="deepseek-coder-v2:16b">DeepSeek v2 (Local)</option>
+                        <option value="llama3.2:latest"><span data-i18n="stockbot.llama_3_2_local">Llama 3.2 (Local)</span></option>
+                        <option value="mistral:latest"><span data-i18n="stockbot.mistral_local">Mistral (Local)</span></option>
+                        <option value="deepseek-coder-v2:16b"><span data-i18n="stockbot.deepseek_v2_local">DeepSeek v2 (Local)</span></option>
                     </select>
 
-                    <h4>Market Status</h4>
+                    <h4><span data-i18n="stockbot.market_status">Market Status</span></h4>
                     <div class="stockbot-market-status">
                         <div class="market-indicator" id="marketStatus">
                             <span class="market-dot"></span>
-                            <span class="market-text">Market Closed</span>
+                            <span class="market-text"><span data-i18n="stockbot.market_closed">Market Closed</span></span>
                         </div>
                         <div class="market-time" id="marketTime">--:--</div>
                     </div>
@@ -211,17 +211,17 @@
                         <input type="text" placeholder="Search watchlist..." id="watchlistSearch" onkeyup="filterWatchlist()">
                     </div>
                     <select class="stockbot-select" id="watchlistSort" onchange="sortWatchlist()">
-                        <option value="name">Sort by Name</option>
-                        <option value="price">Sort by Price</option>
-                        <option value="change">Sort by Change</option>
-                        <option value="volume">Sort by Volume</option>
+                        <option value="name"><span data-i18n="stockbot.sort_by_name">Sort by Name</span></option>
+                        <option value="price"><span data-i18n="stockbot.sort_by_price">Sort by Price</span></option>
+                        <option value="change"><span data-i18n="stockbot.sort_by_change">Sort by Change</span></option>
+                        <option value="volume"><span data-i18n="stockbot.sort_by_volume">Sort by Volume</span></option>
                     </select>
                 </div>
 
                 <div class="stockbot-watchlist-grid" id="watchlistGrid">
                     <div class="stockbot-empty-state">
                         <i data-lucide="eye"></i>
-                        <p>No stocks in watchlist</p>
+                        <p><span data-i18n="stockbot.no_stocks_in_watchlist">No stocks in watchlist</span></p>
                         <button class="stockbot-btn stockbot-btn-primary" onclick="showAddStockModal()">
                             <i data-lucide="plus"></i>
                             Add Your First Stock
@@ -248,86 +248,86 @@
                     <div class="stockbot-filter-grid">
                         <!-- RSI Filter -->
                         <div class="stockbot-filter-group">
-                            <label>RSI (14-day)</label>
+                            <label><span data-i18n="stockbot.rsi_14_day">RSI (14-day)</span></label>
                             <div class="stockbot-range-container">
                                 <input type="number" class="stockbot-input" id="rsiMin" placeholder="Min" value="0">
                                 <span class="stockbot-range-sep">to</span>
                                 <input type="number" class="stockbot-input" id="rsiMax" placeholder="Max" value="100">
                             </div>
                             <div class="stockbot-filter-presets">
-                                <button class="stockbot-preset-btn" onclick="setRSI(0, 30)">Oversold</button>
-                                <button class="stockbot-preset-btn" onclick="setRSI(70, 100)">Overbought</button>
+                                <button class="stockbot-preset-btn" onclick="setRSI(0, 30)"><span data-i18n="stockbot.oversold">Oversold</span></button>
+                                <button class="stockbot-preset-btn" onclick="setRSI(70, 100)"><span data-i18n="stockbot.overbought">Overbought</span></button>
                             </div>
                         </div>
 
                         <!-- Price Filter -->
                         <div class="stockbot-filter-group">
-                            <label>Price ($)</label>
+                            <label><span data-i18n="stockbot.price">Price ($)</span></label>
                             <div class="stockbot-range-container">
                                 <input type="number" class="stockbot-input" id="priceMin" placeholder="Min" value="">
                                 <span class="stockbot-range-sep">to</span>
                                 <input type="number" class="stockbot-input" id="priceMax" placeholder="Max" value="">
                             </div>
                             <div class="stockbot-filter-presets">
-                                <button class="stockbot-preset-btn" onclick="setPrice(0, 20)">Under $20</button>
+                                <button class="stockbot-preset-btn" onclick="setPrice(0, 20)"><span data-i18n="stockbot.under_20">Under $20</span></button>
                                 <button class="stockbot-preset-btn" onclick="setPrice(100, 999999)">$100+</button>
                             </div>
                         </div>
 
                         <!-- Volume Filter -->
                         <div class="stockbot-filter-group">
-                            <label>Avg Volume (M)</label>
+                            <label><span data-i18n="stockbot.avg_volume_m">Avg Volume (M)</span></label>
                             <div class="stockbot-range-container">
                                 <input type="number" class="stockbot-input" id="volumeMin" placeholder="Min" value="">
                                 <span class="stockbot-range-sep">to</span>
                                 <input type="number" class="stockbot-input" id="volumeMax" placeholder="Max" value="">
                             </div>
                             <div class="stockbot-filter-presets">
-                                <button class="stockbot-preset-btn" onclick="setVolume(1, 999999)">High Volume</button>
-                                <button class="stockbot-preset-btn" onclick="setVolume(0, 0.5)">Low Volume</button>
+                                <button class="stockbot-preset-btn" onclick="setVolume(1, 999999)"><span data-i18n="stockbot.high_volume">High Volume</span></button>
+                                <button class="stockbot-preset-btn" onclick="setVolume(0, 0.5)"><span data-i18n="stockbot.low_volume">Low Volume</span></button>
                             </div>
                         </div>
 
                         <!-- Dividend Yield Filter -->
                         <div class="stockbot-filter-group">
-                            <label>Dividend Yield (%)</label>
+                            <label><span data-i18n="stockbot.dividend_yield">Dividend Yield (%)</span></label>
                             <div class="stockbot-range-container">
                                 <input type="number" class="stockbot-input" id="dividendMin" placeholder="Min" value="">
                                 <span class="stockbot-range-sep">to</span>
                                 <input type="number" class="stockbot-input" id="dividendMax" placeholder="Max" value="">
                             </div>
                             <div class="stockbot-filter-presets">
-                                <button class="stockbot-preset-btn" onclick="setDividend(3, 100)">High Yield</button>
-                                <button class="stockbot-preset-btn" onclick="setDividend(0, 0)">No Dividend</button>
+                                <button class="stockbot-preset-btn" onclick="setDividend(3, 100)"><span data-i18n="stockbot.high_yield">High Yield</span></button>
+                                <button class="stockbot-preset-btn" onclick="setDividend(0, 0)"><span data-i18n="stockbot.no_dividend">No Dividend</span></button>
                             </div>
                         </div>
 
                         <!-- Market Cap Filter -->
                         <div class="stockbot-filter-group">
-                            <label>Market Cap</label>
+                            <label><span data-i18n="stockbot.market_cap">Market Cap</span></label>
                             <select class="stockbot-select" id="marketCapFilter">
-                                <option value="">Any</option>
-                                <option value="mega">Mega Cap ($200B+)</option>
-                                <option value="large">Large Cap ($10B-$200B)</option>
-                                <option value="mid">Mid Cap ($2B-$10B)</option>
-                                <option value="small">Small Cap ($300M-$2B)</option>
-                                <option value="micro">Micro Cap (<$300M)</option>
+                                <option value=""><span data-i18n="stockbot.any">Any</span></option>
+                                <option value="mega"><span data-i18n="stockbot.mega_cap_200b">Mega Cap ($200B+)</span></option>
+                                <option value="large"><span data-i18n="stockbot.large_cap_10b_200b">Large Cap ($10B-$200B)</span></option>
+                                <option value="mid"><span data-i18n="stockbot.mid_cap_2b_10b">Mid Cap ($2B-$10B)</span></option>
+                                <option value="small"><span data-i18n="stockbot.small_cap_300m_2b">Small Cap ($300M-$2B)</span></option>
+                                <option value="micro"><span data-i18n="stockbot.micro_cap">Micro Cap (</span><$300M)</option>
                             </select>
                         </div>
 
                         <!-- Sector Filter -->
                         <div class="stockbot-filter-group">
-                            <label>Sector</label>
+                            <label><span data-i18n="stockbot.sector">Sector</span></label>
                             <select class="stockbot-select" id="sectorFilter">
-                                <option value="">Any Sector</option>
-                                <option value="technology">Technology</option>
-                                <option value="healthcare">Healthcare</option>
-                                <option value="financial">Financial</option>
-                                <option value="consumer">Consumer Discretionary</option>
-                                <option value="energy">Energy</option>
-                                <option value="utilities">Utilities</option>
-                                <option value="industrial">Industrial</option>
-                                <option value="realestate">Real Estate</option>
+                                <option value=""><span data-i18n="stockbot.any_sector">Any Sector</span></option>
+                                <option value="technology"><span data-i18n="stockbot.technology">Technology</span></option>
+                                <option value="healthcare"><span data-i18n="stockbot.healthcare">Healthcare</span></option>
+                                <option value="financial"><span data-i18n="stockbot.financial">Financial</span></option>
+                                <option value="consumer"><span data-i18n="stockbot.consumer_discretionary">Consumer Discretionary</span></option>
+                                <option value="energy"><span data-i18n="stockbot.energy">Energy</span></option>
+                                <option value="utilities"><span data-i18n="stockbot.utilities">Utilities</span></option>
+                                <option value="industrial"><span data-i18n="stockbot.industrial">Industrial</span></option>
+                                <option value="realestate"><span data-i18n="stockbot.real_estate">Real Estate</span></option>
                             </select>
                         </div>
                     </div>
@@ -348,13 +348,13 @@
                     <h3>
                         <i data-lucide="list"></i>
                         Screener Results
-                        <span class="results-count" id="resultsCount">0 matches</span>
+                        <span class="results-count" id="resultsCount"><span data-i18n="stockbot.0_matches">0 matches</span></span>
                     </h3>
                     <div class="stockbot-results-table" id="screenerResults">
                         <div class="stockbot-empty-state">
                             <i data-lucide="filter"></i>
-                            <p>Configure filters and run screener</p>
-                            <p class="stockbot-empty-hint">Set your criteria above to find matching stocks</p>
+                            <p><span data-i18n="stockbot.configure_filters_and_run_screener">Configure filters and run screener</span></p>
+                            <p class="stockbot-empty-hint"><span data-i18n="stockbot.set_your_criteria_above_to_find_matching_stocks">Set your criteria above to find matching stocks</span></p>
                         </div>
                     </div>
                 </div>
@@ -380,8 +380,8 @@
                     <div class="telegram-info">
                         <i data-lucide="send"></i>
                         <div>
-                            <strong>Telegram Notifications</strong>
-                            <p>Connect your Telegram account to receive instant price alerts</p>
+                            <strong><span data-i18n="stockbot.telegram_notifications">Telegram Notifications</span></strong>
+                            <p><span data-i18n="stockbot.connect_your_telegram_account_to_receive_instant_p">Connect your Telegram account to receive instant price alerts</span></p>
                         </div>
                     </div>
                     <button class="stockbot-btn stockbot-btn-telegram" onclick="connectTelegram()">
@@ -393,8 +393,8 @@
                 <div class="stockbot-alerts-list" id="alertsList">
                     <div class="stockbot-empty-state">
                         <i data-lucide="bell-off"></i>
-                        <p>No alerts configured</p>
-                        <p class="stockbot-empty-hint">Create price alerts to get notified when stocks hit your target</p>
+                        <p><span data-i18n="stockbot.no_alerts_configured">No alerts configured</span></p>
+                        <p class="stockbot-empty-hint"><span data-i18n="stockbot.create_price_alerts_to_get_notified_when_stocks_hi">Create price alerts to get notified when stocks hit your target</span></p>
                         <button class="stockbot-btn stockbot-btn-primary" onclick="showAddAlertModal()">
                             <i data-lucide="plus"></i>
                             Create Your First Alert
@@ -406,46 +406,46 @@
                 <div class="stockbot-modal" id="alertModal" style="display: none;">
                     <div class="stockbot-modal-content">
                         <div class="stockbot-modal-header">
-                            <h3>Create Price Alert</h3>
+                            <h3><span data-i18n="stockbot.create_price_alert">Create Price Alert</span></h3>
                             <button class="stockbot-modal-close" onclick="closeAlertModal()">
                                 <i data-lucide="x"></i>
                             </button>
                         </div>
                         <div class="stockbot-modal-body">
                             <div class="stockbot-form-group">
-                                <label>Stock Symbol</label>
+                                <label><span data-i18n="stockbot.stock_symbol">Stock Symbol</span></label>
                                 <input type="text" class="stockbot-input" id="alertSymbol" placeholder="e.g., AAPL">
                             </div>
                             <div class="stockbot-form-group">
-                                <label>Alert Type</label>
+                                <label><span data-i18n="stockbot.alert_type">Alert Type</span></label>
                                 <select class="stockbot-select" id="alertType">
-                                    <option value="above">Price Goes Above</option>
-                                    <option value="below">Price Goes Below</option>
-                                    <option value="percent_up">Increases by %</option>
-                                    <option value="percent_down">Decreases by %</option>
+                                    <option value="above"><span data-i18n="stockbot.price_goes_above">Price Goes Above</span></option>
+                                    <option value="below"><span data-i18n="stockbot.price_goes_below">Price Goes Below</span></option>
+                                    <option value="percent_up"><span data-i18n="stockbot.increases_by">Increases by %</span></option>
+                                    <option value="percent_down"><span data-i18n="stockbot.decreases_by">Decreases by %</span></option>
                                 </select>
                             </div>
                             <div class="stockbot-form-group">
-                                <label>Target Value</label>
+                                <label><span data-i18n="stockbot.target_value">Target Value</span></label>
                                 <input type="number" class="stockbot-input" id="alertTarget" placeholder="Enter target price or percentage">
                             </div>
                             <div class="stockbot-form-group">
-                                <label>Notification Method</label>
+                                <label><span data-i18n="stockbot.notification_method">Notification Method</span></label>
                                 <div class="stockbot-checkbox-group">
                                     <label class="stockbot-checkbox">
                                         <input type="checkbox" id="notifyApp" checked>
-                                        <span>In-App Notification</span>
+                                        <span><span data-i18n="stockbot.in_app_notification">In-App Notification</span></span>
                                     </label>
                                     <label class="stockbot-checkbox">
                                         <input type="checkbox" id="notifyTelegram">
-                                        <span>Telegram</span>
+                                        <span><span data-i18n="stockbot.telegram">Telegram</span></span>
                                     </label>
                                 </div>
                             </div>
                         </div>
                         <div class="stockbot-modal-footer">
-                            <button class="stockbot-btn stockbot-btn-secondary" onclick="closeAlertModal()">Cancel</button>
-                            <button class="stockbot-btn stockbot-btn-primary" onclick="createAlert()">Create Alert</button>
+                            <button class="stockbot-btn stockbot-btn-secondary" onclick="closeAlertModal()"><span data-i18n="stockbot.cancel">Cancel</span></button>
+                            <button class="stockbot-btn stockbot-btn-primary" onclick="createAlert()"><span data-i18n="stockbot.create_alert">Create Alert</span></button>
                         </div>
                     </div>
                 </div>

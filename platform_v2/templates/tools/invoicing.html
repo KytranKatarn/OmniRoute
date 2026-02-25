@@ -10,7 +10,7 @@
             <h2 class="mb-1">
                 <i class="bi bi-receipt me-2"></i>Invoicing
             </h2>
-            <p class="text-muted mb-0">Subscription billing and invoice management</p>
+            <p class="text-muted mb-0"><span data-i18n="invoicing.subscription_billing_and_invoice_management">Subscription billing and invoice management</span></p>
         </div>
         <div class="d-flex gap-2 align-items-center">
             <button class="btn btn-success" onclick="showCreateInvoiceModal()">
@@ -27,7 +27,7 @@
                 <div class="card-body text-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="text-white-50 mb-1">Total Invoices</h6>
+                            <h6 class="text-white-50 mb-1"><span data-i18n="invoicing.total_invoices">Total Invoices</span></h6>
                             <h3 class="mb-0" id="statTotal">{{ stats.total_invoices or 0 }}</h3>
                         </div>
                         <div class="bg-white bg-opacity-25 rounded-circle p-2">
@@ -42,7 +42,7 @@
                 <div class="card-body text-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="text-white-50 mb-1">Outstanding</h6>
+                            <h6 class="text-white-50 mb-1"><span data-i18n="invoicing.outstanding">Outstanding</span></h6>
                             <h3 class="mb-0">$<span id="statOutstanding">{{ "%.2f"|format(stats.outstanding or 0) }}</span></h3>
                         </div>
                         <div class="bg-white bg-opacity-25 rounded-circle p-2">
@@ -58,7 +58,7 @@
                 <div class="card-body text-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="text-white-50 mb-1">Paid (90 days)</h6>
+                            <h6 class="text-white-50 mb-1"><span data-i18n="invoicing.paid_90_days">Paid (90 days)</span></h6>
                             <h3 class="mb-0">$<span id="statPaid">{{ "%.2f"|format(stats.paid_value or 0) }}</span></h3>
                         </div>
                         <div class="bg-white bg-opacity-25 rounded-circle p-2">
@@ -74,14 +74,14 @@
                 <div class="card-body text-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="text-white-50 mb-1">Drafts</h6>
+                            <h6 class="text-white-50 mb-1"><span data-i18n="invoicing.drafts">Drafts</span></h6>
                             <h3 class="mb-0" id="statDraft">{{ stats.draft or 0 }}</h3>
                         </div>
                         <div class="bg-white bg-opacity-25 rounded-circle p-2">
                             <i class="bi bi-pencil-square fs-4"></i>
                         </div>
                     </div>
-                    <small class="text-white-50">Pending review</small>
+                    <small class="text-white-50"><span data-i18n="invoicing.pending_review">Pending review</span></small>
                 </div>
             </div>
         </div>
@@ -122,20 +122,20 @@
                         </div>
                         <div class="col-md-2">
                             <select class="form-select" id="filterStatus">
-                                <option value="">All Status</option>
-                                <option value="draft">Draft</option>
-                                <option value="sent">Sent</option>
-                                <option value="paid">Paid</option>
-                                <option value="overdue">Overdue</option>
-                                <option value="void">Void</option>
+                                <option value=""><span data-i18n="invoicing.all_status">All Status</span></option>
+                                <option value="draft"><span data-i18n="invoicing.draft">Draft</span></option>
+                                <option value="sent"><span data-i18n="invoicing.sent">Sent</span></option>
+                                <option value="paid"><span data-i18n="invoicing.paid">Paid</span></option>
+                                <option value="overdue"><span data-i18n="invoicing.overdue">Overdue</span></option>
+                                <option value="void"><span data-i18n="invoicing.void">Void</span></option>
                             </select>
                         </div>
                         <div class="col-md-2">
                             <select class="form-select" id="filterPeriod">
-                                <option value="30">Last 30 Days</option>
-                                <option value="90" selected>Last 90 Days</option>
-                                <option value="365">Last Year</option>
-                                <option value="">All Time</option>
+                                <option value="30"><span data-i18n="invoicing.last_30_days">Last 30 Days</span></option>
+                                <option value="90" selected><span data-i18n="invoicing.last_90_days">Last 90 Days</span></option>
+                                <option value="365"><span data-i18n="invoicing.last_year">Last Year</span></option>
+                                <option value=""><span data-i18n="invoicing.all_time">All Time</span></option>
                             </select>
                         </div>
                         <div class="col-md-2">
@@ -159,13 +159,13 @@
                         <table class="table table-hover mb-0" id="invoicesTable">
                             <thead class="bg-light">
                                 <tr>
-                                    <th class="border-0 ps-4">Invoice #</th>
-                                    <th class="border-0">Customer</th>
-                                    <th class="border-0">Issue Date</th>
-                                    <th class="border-0">Due Date</th>
-                                    <th class="border-0 text-end">Amount</th>
-                                    <th class="border-0">Status</th>
-                                    <th class="border-0 text-end pe-4">Actions</th>
+                                    <th class="border-0 ps-4"><span data-i18n="invoicing.invoice">Invoice #</span></th>
+                                    <th class="border-0"><span data-i18n="invoicing.customer">Customer</span></th>
+                                    <th class="border-0"><span data-i18n="invoicing.issue_date">Issue Date</span></th>
+                                    <th class="border-0"><span data-i18n="invoicing.due_date">Due Date</span></th>
+                                    <th class="border-0 text-end"><span data-i18n="invoicing.amount">Amount</span></th>
+                                    <th class="border-0"><span data-i18n="invoicing.status">Status</span></th>
+                                    <th class="border-0 text-end pe-4"><span data-i18n="invoicing.actions">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="invoicesTableBody">
@@ -184,7 +184,7 @@
                                         <div>{{ invoice.customer_name }}</div>
                                         <small class="text-muted">{{ invoice.customer_email }}</small>
                                         {% else %}
-                                        <span class="text-muted">No customer</span>
+                                        <span class="text-muted"><span data-i18n="invoicing.no_customer">No customer</span></span>
                                         {% endif %}
                                     </td>
                                     <td>{{ invoice.issue_date.strftime('%b %d, %Y') if invoice.issue_date else (invoice.created_at.strftime('%b %d, %Y') if invoice.created_at else '-') }}</td>
@@ -234,11 +234,11 @@
                                             <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="More">
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><a class="dropdown-item" href="#" onclick="editInvoice({{ invoice.id }})"><i class="bi bi-pencil me-2"></i>Edit</a></li>
-                                                <li><a class="dropdown-item" href="#" onclick="duplicateInvoice({{ invoice.id }})"><i class="bi bi-copy me-2"></i>Duplicate</a></li>
-                                                <li><a class="dropdown-item" href="#" onclick="downloadPdf({{ invoice.id }})"><i class="bi bi-file-pdf me-2"></i>Download PDF</a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="editInvoice({{ invoice.id }})"><i class="bi bi-pencil me-2"></i><span data-i18n="invoicing.edit">Edit</span></a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="duplicateInvoice({{ invoice.id }})"><i class="bi bi-copy me-2"></i><span data-i18n="invoicing.duplicate">Duplicate</span></a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="downloadPdf({{ invoice.id }})"><i class="bi bi-file-pdf me-2"></i><span data-i18n="invoicing.download_pdf">Download PDF</span></a></li>
                                                 <li><hr class="dropdown-divider"></li>
-                                                <li><a class="dropdown-item text-danger" href="#" onclick="voidInvoice({{ invoice.id }})"><i class="bi bi-x-circle me-2"></i>Void</a></li>
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="voidInvoice({{ invoice.id }})"><i class="bi bi-x-circle me-2"></i><span data-i18n="invoicing.void_2">Void</span></a></li>
                                             </ul>
                                         </div>
                                     </td>
@@ -262,7 +262,7 @@
         <div class="tab-pane fade" id="recurring" role="tabpanel">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Recurring Invoices</h5>
+                    <h5 class="mb-0"><span data-i18n="invoicing.recurring_invoices">Recurring Invoices</span></h5>
                     <button class="btn btn-sm btn-success" onclick="showCreateRecurringModal()">
                         <i class="bi bi-plus-lg me-1"></i>New Schedule
                     </button>
@@ -272,12 +272,12 @@
                         <table class="table table-hover mb-0">
                             <thead class="bg-light">
                                 <tr>
-                                    <th class="border-0 ps-4">Customer</th>
-                                    <th class="border-0">Interval</th>
-                                    <th class="border-0">Amount</th>
-                                    <th class="border-0">Next Invoice</th>
-                                    <th class="border-0">Status</th>
-                                    <th class="border-0 text-end pe-4">Actions</th>
+                                    <th class="border-0 ps-4"><span data-i18n="invoicing.customer_2">Customer</span></th>
+                                    <th class="border-0"><span data-i18n="invoicing.interval">Interval</span></th>
+                                    <th class="border-0"><span data-i18n="invoicing.amount_2">Amount</span></th>
+                                    <th class="border-0"><span data-i18n="invoicing.next_invoice">Next Invoice</span></th>
+                                    <th class="border-0"><span data-i18n="invoicing.status_2">Status</span></th>
+                                    <th class="border-0 text-end pe-4"><span data-i18n="invoicing.actions_2">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="recurringTableBody">
@@ -337,28 +337,28 @@
                 <div class="col-lg-6">
                     <div class="card border-0 shadow-sm h-100">
                         <div class="card-header bg-white">
-                            <h5 class="mb-0"><i class="bi bi-building me-2"></i>Company Information</h5>
+                            <h5 class="mb-0"><i class="bi bi-building me-2"></i><span data-i18n="invoicing.company_information">Company Information</span></h5>
                         </div>
                         <div class="card-body">
                             <form id="companySettingsForm">
                                 <div class="mb-3">
-                                    <label class="form-label">Company Name</label>
+                                    <label class="form-label"><span data-i18n="invoicing.company_name">Company Name</span></label>
                                     <input type="text" class="form-control" id="settingCompanyName" value="{{ settings.company_name or '' }}">
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Email</label>
+                                    <label class="form-label"><span data-i18n="invoicing.email">Email</span></label>
                                     <input type="email" class="form-control" id="settingCompanyEmail" value="{{ settings.company_email or '' }}">
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Phone</label>
+                                    <label class="form-label"><span data-i18n="invoicing.phone">Phone</span></label>
                                     <input type="tel" class="form-control" id="settingCompanyPhone" value="{{ settings.company_phone or '' }}">
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Address</label>
+                                    <label class="form-label"><span data-i18n="invoicing.address">Address</span></label>
                                     <textarea class="form-control" id="settingCompanyAddress" rows="3">{{ settings.company_address or '' }}</textarea>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Logo URL</label>
+                                    <label class="form-label"><span data-i18n="invoicing.logo_url">Logo URL</span></label>
                                     <input type="url" class="form-control" id="settingLogoUrl" value="{{ settings.logo_url or '' }}" placeholder="https://...">
                                 </div>
                             </form>
@@ -370,41 +370,41 @@
                 <div class="col-lg-6">
                     <div class="card border-0 shadow-sm h-100">
                         <div class="card-header bg-white">
-                            <h5 class="mb-0"><i class="bi bi-sliders me-2"></i>Invoice Settings</h5>
+                            <h5 class="mb-0"><i class="bi bi-sliders me-2"></i><span data-i18n="invoicing.invoice_settings">Invoice Settings</span></h5>
                         </div>
                         <div class="card-body">
                             <form id="invoiceSettingsForm">
                                 <div class="row mb-3">
                                     <div class="col-6">
-                                        <label class="form-label">Invoice Prefix</label>
+                                        <label class="form-label"><span data-i18n="invoicing.invoice_prefix">Invoice Prefix</span></label>
                                         <input type="text" class="form-control" id="settingPrefix" value="{{ settings.invoice_prefix or 'INV-' }}">
                                     </div>
                                     <div class="col-6">
-                                        <label class="form-label">Next Number</label>
+                                        <label class="form-label"><span data-i18n="invoicing.next_number">Next Number</span></label>
                                         <input type="number" class="form-control" id="settingNextNumber" value="{{ settings.next_invoice_number or 1001 }}">
                                     </div>
                                 </div>
                                 <div class="row mb-3">
                                     <div class="col-6">
-                                        <label class="form-label">Default Tax Rate (%)</label>
+                                        <label class="form-label"><span data-i18n="invoicing.default_tax_rate">Default Tax Rate (%)</span></label>
                                         <input type="number" class="form-control" id="settingTaxRate" step="0.01" value="{{ settings.default_tax_rate or 13 }}">
                                     </div>
                                     <div class="col-6">
-                                        <label class="form-label">Currency</label>
+                                        <label class="form-label"><span data-i18n="invoicing.currency">Currency</span></label>
                                         <select class="form-select" id="settingCurrency">
-                                            <option value="CAD" {{ 'selected' if settings.default_currency == 'CAD' }}>CAD</option>
-                                            <option value="USD" {{ 'selected' if settings.default_currency == 'USD' }}>USD</option>
-                                            <option value="EUR" {{ 'selected' if settings.default_currency == 'EUR' }}>EUR</option>
-                                            <option value="GBP" {{ 'selected' if settings.default_currency == 'GBP' }}>GBP</option>
+                                            <option value="CAD" {{ 'selected' if settings.default_currency == 'CAD' }}><span data-i18n="invoicing.cad">CAD</span></option>
+                                            <option value="USD" {{ 'selected' if settings.default_currency == 'USD' }}><span data-i18n="invoicing.usd">USD</span></option>
+                                            <option value="EUR" {{ 'selected' if settings.default_currency == 'EUR' }}><span data-i18n="invoicing.eur">EUR</span></option>
+                                            <option value="GBP" {{ 'selected' if settings.default_currency == 'GBP' }}><span data-i18n="invoicing.gbp">GBP</span></option>
                                         </select>
                                     </div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Default Terms</label>
+                                    <label class="form-label"><span data-i18n="invoicing.default_terms">Default Terms</span></label>
                                     <textarea class="form-control" id="settingTerms" rows="3">{{ settings.default_terms or 'Payment is due within 30 days of invoice date.' }}</textarea>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Default Notes</label>
+                                    <label class="form-label"><span data-i18n="invoicing.default_notes">Default Notes</span></label>
                                     <textarea class="form-control" id="settingNotes" rows="2">{{ settings.default_notes or 'Thank you for your business!' }}</textarea>
                                 </div>
                             </form>
@@ -416,7 +416,7 @@
                 <div class="col-lg-6">
                     <div class="card border-0 shadow-sm">
                         <div class="card-header bg-white">
-                            <h5 class="mb-0"><i class="bi bi-credit-card me-2"></i>Payment Methods</h5>
+                            <h5 class="mb-0"><i class="bi bi-credit-card me-2"></i><span data-i18n="invoicing.payment_methods">Payment Methods</span></h5>
                         </div>
                         <div class="card-body">
                             <div class="form-check form-switch mb-3">
@@ -432,7 +432,7 @@
                                 </label>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Bank Transfer Details</label>
+                                <label class="form-label"><span data-i18n="invoicing.bank_transfer_details">Bank Transfer Details</span></label>
                                 <textarea class="form-control" id="settingBankDetails" rows="4" placeholder="Account Name:&#10;Bank:&#10;Account #:&#10;Routing #:">{{ settings.bank_details or '' }}</textarea>
                             </div>
                         </div>
@@ -443,15 +443,15 @@
                 <div class="col-lg-6">
                     <div class="card border-0 shadow-sm">
                         <div class="card-header bg-white">
-                            <h5 class="mb-0"><i class="bi bi-palette me-2"></i>Footer & Branding</h5>
+                            <h5 class="mb-0"><i class="bi bi-palette me-2"></i><span data-i18n="invoicing.footer_branding">Footer & Branding</span></h5>
                         </div>
                         <div class="card-body">
                             <div class="mb-3">
-                                <label class="form-label">Invoice Footer Text</label>
+                                <label class="form-label"><span data-i18n="invoicing.invoice_footer_text">Invoice Footer Text</span></label>
                                 <textarea class="form-control" id="settingFooter" rows="3">{{ settings.footer_text or '' }}</textarea>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Payment Instructions</label>
+                                <label class="form-label"><span data-i18n="invoicing.payment_instructions">Payment Instructions</span></label>
                                 <textarea class="form-control" id="settingPaymentInstructions" rows="3">{{ settings.payment_instructions or '' }}</textarea>
                             </div>
                         </div>
@@ -486,31 +486,31 @@
                     <div class="row g-3">
                         <!-- Customer Selection -->
                         <div class="col-md-6">
-                            <label class="form-label">Customer *</label>
+                            <label class="form-label"><span data-i18n="invoicing.customer_3">Customer *</span></label>
                             <select class="form-select" id="invoiceCustomer" required>
-                                <option value="">Select customer...</option>
+                                <option value=""><span data-i18n="invoicing.select_customer">Select customer...</span></option>
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">Issue Date</label>
+                            <label class="form-label"><span data-i18n="invoicing.issue_date_2">Issue Date</span></label>
                             <input type="date" class="form-control" id="invoiceIssueDate">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">Due Date</label>
+                            <label class="form-label"><span data-i18n="invoicing.due_date_2">Due Date</span></label>
                             <input type="date" class="form-control" id="invoiceDueDate">
                         </div>
 
                         <!-- Line Items -->
                         <div class="col-12">
-                            <label class="form-label">Line Items</label>
+                            <label class="form-label"><span data-i18n="invoicing.line_items">Line Items</span></label>
                             <div class="table-responsive">
                                 <table class="table table-bordered" id="lineItemsTable">
                                     <thead class="bg-light">
                                         <tr>
-                                            <th style="width: 45%">Description</th>
-                                            <th style="width: 15%">Quantity</th>
-                                            <th style="width: 20%">Unit Price</th>
-                                            <th style="width: 15%">Amount</th>
+                                            <th style="width: 45%"><span data-i18n="invoicing.description">Description</span></th>
+                                            <th style="width: 15%"><span data-i18n="invoicing.quantity">Quantity</span></th>
+                                            <th style="width: 20%"><span data-i18n="invoicing.unit_price">Unit Price</span></th>
+                                            <th style="width: 15%"><span data-i18n="invoicing.amount_3">Amount</span></th>
                                             <th style="width: 5%"></th>
                                         </tr>
                                     </thead>
@@ -538,14 +538,14 @@
 
                         <!-- Totals -->
                         <div class="col-md-6">
-                            <label class="form-label">Notes</label>
+                            <label class="form-label"><span data-i18n="invoicing.notes">Notes</span></label>
                             <textarea class="form-control" id="invoiceNotes" rows="3"></textarea>
                         </div>
                         <div class="col-md-6">
                             <div class="card bg-light">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between mb-2">
-                                        <span>Subtotal:</span>
+                                        <span><span data-i18n="invoicing.subtotal">Subtotal:</span></span>
                                         <strong>$<span id="invoiceSubtotal">0.00</span></strong>
                                     </div>
                                     <div class="d-flex justify-content-between mb-2">
@@ -563,7 +563,7 @@
                                     </div>
                                     <hr>
                                     <div class="d-flex justify-content-between">
-                                        <strong>Total:</strong>
+                                        <strong><span data-i18n="invoicing.total">Total:</span></strong>
                                         <strong class="fs-5">$<span id="invoiceTotal">0.00</span></strong>
                                     </div>
                                 </div>
@@ -582,9 +582,9 @@
                                 <div class="row g-2">
                                     <div class="col-md-4">
                                         <select class="form-select form-select-sm" id="invoiceRecurringInterval">
-                                            <option value="weekly">Weekly</option>
-                                            <option value="monthly" selected>Monthly</option>
-                                            <option value="yearly">Yearly</option>
+                                            <option value="weekly"><span data-i18n="invoicing.weekly">Weekly</span></option>
+                                            <option value="monthly" selected><span data-i18n="invoicing.monthly">Monthly</span></option>
+                                            <option value="yearly"><span data-i18n="invoicing.yearly">Yearly</span></option>
                                         </select>
                                     </div>
                                     <div class="col-md-4">
@@ -597,7 +597,7 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="invoicing.cancel">Cancel</span></button>
                 <button type="button" class="btn btn-outline-success" onclick="saveInvoice('draft')">
                     <i class="bi bi-file-earmark me-1"></i>Save as Draft
                 </button>
@@ -615,7 +615,7 @@
         <div class="modal-content">
             <div class="modal-header bg-light">
                 <h5 class="modal-title">
-                    <i class="bi bi-receipt me-2"></i>Invoice <span id="viewInvoiceNumber"></span>
+                    <i class="bi bi-receipt me-2"></i><span data-i18n="invoicing.invoice_2">Invoice </span><span id="viewInvoiceNumber"></span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -623,7 +623,7 @@
                 <!-- Invoice preview will be loaded here -->
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="invoicing.close">Close</span></button>
                 <button type="button" class="btn btn-outline-primary" id="btnDownloadPdf">
                     <i class="bi bi-file-pdf me-1"></i>Download PDF
                 </button>
@@ -640,47 +640,47 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i>Record Payment</h5>
+                <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i><span data-i18n="invoicing.record_payment">Record Payment</span></h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="paymentForm">
                     <input type="hidden" id="paymentInvoiceId">
                     <div class="mb-3">
-                        <label class="form-label">Amount</label>
+                        <label class="form-label"><span data-i18n="invoicing.amount_4">Amount</span></label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
                             <input type="number" class="form-control" id="paymentAmount" step="0.01" required>
                         </div>
-                        <small class="text-muted">Balance due: $<span id="paymentBalanceDue">0.00</span></small>
+                        <small class="text-muted"><span data-i18n="invoicing.balance_due">Balance due: $</span><span id="paymentBalanceDue">0.00</span></small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Payment Method</label>
+                        <label class="form-label"><span data-i18n="invoicing.payment_method">Payment Method</span></label>
                         <select class="form-select" id="paymentMethod">
-                            <option value="stripe">Stripe</option>
-                            <option value="paypal">PayPal</option>
-                            <option value="bank_transfer">Bank Transfer</option>
-                            <option value="cash">Cash</option>
-                            <option value="check">Check</option>
-                            <option value="other">Other</option>
+                            <option value="stripe"><span data-i18n="invoicing.stripe">Stripe</span></option>
+                            <option value="paypal"><span data-i18n="invoicing.paypal">PayPal</span></option>
+                            <option value="bank_transfer"><span data-i18n="invoicing.bank_transfer">Bank Transfer</span></option>
+                            <option value="cash"><span data-i18n="invoicing.cash">Cash</span></option>
+                            <option value="check"><span data-i18n="invoicing.check">Check</span></option>
+                            <option value="other"><span data-i18n="invoicing.other">Other</span></option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Reference/Transaction ID</label>
+                        <label class="form-label"><span data-i18n="invoicing.reference_transaction_id">Reference/Transaction ID</span></label>
                         <input type="text" class="form-control" id="paymentReference" placeholder="Optional">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Payment Date</label>
+                        <label class="form-label"><span data-i18n="invoicing.payment_date">Payment Date</span></label>
                         <input type="date" class="form-control" id="paymentDate">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Notes</label>
+                        <label class="form-label"><span data-i18n="invoicing.notes_2">Notes</span></label>
                         <textarea class="form-control" id="paymentNotes" rows="2"></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="invoicing.cancel_2">Cancel</span></button>
                 <button type="button" class="btn btn-success" onclick="recordPayment()">
                     <i class="bi bi-check-lg me-1"></i>Record Payment
                 </button>

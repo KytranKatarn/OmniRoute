@@ -2531,6 +2531,15 @@ class BridgeDispatcher:
         All escalation types get interactive buttons so the user can
         acknowledge, override, or escalate further.
         """
+        # Suppress Telegram for high-volume internal batch capabilities
+        SILENT_CAPABILITIES = {"translate", "detect_language"}
+        if capability in SILENT_CAPABILITIES:
+            logger.debug(
+                f"[BridgeDispatcher] Silent advisory ({advisory_type}) "
+                f"for batch capability '{capability}'"
+            )
+            return
+
         try:
             if advisory_type == "cross_station":
                 agent_str = f" \u2192 {agent_name}" if agent_name else ""
@@ -2754,8 +2763,51 @@ class BridgeDispatcher:
                         agent_name = name
                         break
 
+            # ── Cross-station fallback (mirrors dispatch() logic) ──
+            if not agent:
+                blocked_station = home_station or capability_station
+                all_stations = set(
+                    info.get("station_code")
+                    for info in self._agent_cache.values()
+                    if info.get("station_code")
+                )
+                tried_stations = {blocked_station, "COMMAND"}
+                if (
+                    home_station
+                    and capability_station
+                    and home_station != capability_station
+                ):
+                    tried_stations.add(capability_station)
+
+                for other_station in sorted(all_stations - tried_stations):
+                    for agent_name_candidate, info in self._agent_cache.items():
+                        if info.get("station_code") != other_station:
+                            continue
+                        if cap_key not in (info.get("skills") or {}):
+                            continue
+                        score, _block = self._score_agent(
+                            agent_name_candidate, info, cap_key, other_station
+                        )
+                        if score <= 0:
+                            continue
+
+                        agent = info
+                        agent_name = agent_name_candidate
+                        station_code = other_station
+                        dispatch_station = other_station
+                        is_cross_station = True
+                        logger.info(
+                            f"[BridgeDispatcher] create_job cross-station: "
+                            f"{blocked_station} → {other_station} "
+                            f"({self._agent_display(agent_name_candidate)}) "
+                            f"for '{cap_key}'"
+                        )
+                        break
+                    if agent:
+                        break
+
             if not agent_name:
-                # No agent available at station — notify bridge via Telegram
+                # No agent available at any station — advisory only
                 blocked_station = home_station or capability_station
                 self._telegram_dispatch_advisory(
                     advisory_type="cross_station",

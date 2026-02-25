@@ -4,17 +4,17 @@
 
 {% block content %}
 <div class="memory-management">
-    <h1>📚 Memory Management</h1>
-    <p class="subtitle">View and manage A.R.C.H.I.E.'s conversation memories</p>
+    <h1><span data-i18n="consciousness.memory_management">📚 Memory Management</span></h1>
+    <p class="subtitle"><span data-i18n="consciousness.view_and_manage_a_r_c_h_i_e_s_conversation_memorie">View and manage A.R.C.H.I.E.'s conversation memories</span></p>
 
     <div class="table-stats">
-        <h2>Knowledge Base Statistics</h2>
+        <h2><span data-i18n="consciousness.knowledge_base_statistics">Knowledge Base Statistics</span></h2>
         <table class="table">
             <thead>
                 <tr>
-                    <th>Table</th>
-                    <th>Row Count</th>
-                    <th>Total Size</th>
+                    <th><span data-i18n="consciousness.table">Table</span></th>
+                    <th><span data-i18n="consciousness.row_count">Row Count</span></th>
+                    <th><span data-i18n="consciousness.total_size">Total Size</span></th>
                 </tr>
             </thead>
             <tbody>
@@ -30,10 +30,10 @@
     </div>
 
     <div class="memory-controls">
-        <button class="btn btn-primary" onclick="loadMemories('recent')">Recent</button>
-        <button class="btn btn-primary" onclick="loadMemories('important')">Important</button>
-        <button class="btn btn-primary" onclick="loadMemories('accessed')">Most Accessed</button>
-        <button class="btn btn-primary" onclick="loadMemories('types')">By Type</button>
+        <button class="btn btn-primary" onclick="loadMemories('recent')"><span data-i18n="consciousness.recent">Recent</span></button>
+        <button class="btn btn-primary" onclick="loadMemories('important')"><span data-i18n="consciousness.important">Important</span></button>
+        <button class="btn btn-primary" onclick="loadMemories('accessed')"><span data-i18n="consciousness.most_accessed">Most Accessed</span></button>
+        <button class="btn btn-primary" onclick="loadMemories('types')"><span data-i18n="consciousness.by_type">By Type</span></button>
     </div>
 
     <div id="memory-list" class="memory-list">

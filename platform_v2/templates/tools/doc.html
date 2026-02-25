@@ -20,18 +20,18 @@
                 <i data-lucide="stethoscope"></i>
                 DOC
             </h1>
-            <p class="doc-subtitle">AI Medical Assistant - Your health companion</p>
+            <p class="doc-subtitle"><span data-i18n="doc.ai_medical_assistant_your_health_companion">AI Medical Assistant - Your health companion</span></p>
         </div>
         <div class="doc-status">
             <span class="status-indicator status-online"></span>
-            <span>AI Ready</span>
+            <span><span data-i18n="doc.ai_ready">AI Ready</span></span>
         </div>
     </header>
 
     <!-- Disclaimer Banner -->
     <div class="doc-disclaimer">
         <i data-lucide="alert-triangle"></i>
-        <span><strong>Disclaimer:</strong> DOC provides general health information only. Always consult a healthcare professional for medical advice, diagnosis, or treatment.</span>
+        <span><strong><span data-i18n="doc.disclaimer">Disclaimer:</span></strong><span data-i18n="doc.doc_provides_general_health_information_only_alway"> DOC provides general health information only. Always consult a healthcare professional for medical advice, diagnosis, or treatment.</span></span>
     </div>
 
     <!-- Stats Overview -->
@@ -42,7 +42,7 @@
             </div>
             <div class="doc-stat-info">
                 <span class="doc-stat-value" id="totalChats">0</span>
-                <span class="doc-stat-label">CONSULTATIONS</span>
+                <span class="doc-stat-label"><span data-i18n="doc.consultations">CONSULTATIONS</span></span>
             </div>
         </div>
         <div class="doc-stat-card" style="animation-delay: 0.2s">
@@ -51,7 +51,7 @@
             </div>
             <div class="doc-stat-info">
                 <span class="doc-stat-value" id="totalRecords">0</span>
-                <span class="doc-stat-label">HEALTH RECORDS</span>
+                <span class="doc-stat-label"><span data-i18n="doc.health_records">HEALTH RECORDS</span></span>
             </div>
         </div>
         <div class="doc-stat-card" style="animation-delay: 0.3s">
@@ -60,7 +60,7 @@
             </div>
             <div class="doc-stat-info">
                 <span class="doc-stat-value" id="symptomsTracked">0</span>
-                <span class="doc-stat-label">SYMPTOMS TRACKED</span>
+                <span class="doc-stat-label"><span data-i18n="doc.symptoms_tracked">SYMPTOMS TRACKED</span></span>
             </div>
         </div>
         <div class="doc-stat-card" style="animation-delay: 0.4s">
@@ -69,7 +69,7 @@
             </div>
             <div class="doc-stat-info">
                 <span class="doc-stat-value" id="reportsGenerated">0</span>
-                <span class="doc-stat-label">REPORTS</span>
+                <span class="doc-stat-label"><span data-i18n="doc.reports">REPORTS</span></span>
             </div>
         </div>
     </section>
@@ -110,12 +110,12 @@
                                 <div class="doc-message-text">
                                     Hello! I'm DOC, your AI medical assistant. I can help you with:
                                     <ul>
-                                        <li>Understanding symptoms and conditions</li>
-                                        <li>General health information</li>
-                                        <li>Medication information</li>
-                                        <li>Wellness tips and advice</li>
+                                        <li><span data-i18n="doc.understanding_symptoms_and_conditions">Understanding symptoms and conditions</span></li>
+                                        <li><span data-i18n="doc.general_health_information">General health information</span></li>
+                                        <li><span data-i18n="doc.medication_information">Medication information</span></li>
+                                        <li><span data-i18n="doc.wellness_tips_and_advice">Wellness tips and advice</span></li>
                                     </ul>
-                                    <strong>Remember:</strong> I provide information only. For medical emergencies, call 911 or visit an emergency room.
+                                    <strong><span data-i18n="doc.remember">Remember:</span></strong> I provide information only. For medical emergencies, call 911 or visit an emergency room.
                                     <br><br>
                                     How can I help you today?
                                 </div>
@@ -150,7 +150,7 @@
 
                 <!-- Quick Topics Sidebar -->
                 <div class="doc-sidebar">
-                    <h4>Quick Topics</h4>
+                    <h4><span data-i18n="doc.quick_topics">Quick Topics</span></h4>
                     <div class="doc-quick-topics">
                         <button class="doc-topic-btn" onclick="askTopic('headache')">
                             <i data-lucide="brain"></i>
@@ -178,11 +178,11 @@
                         </button>
                     </div>
 
-                    <h4>AI Model</h4>
+                    <h4><span data-i18n="doc.ai_model">AI Model</span></h4>
                     <select class="doc-select" id="modelSelect">
-                        <option value="llama3.2:latest">Llama 3.2 (Local)</option>
-                        <option value="mistral:latest">Mistral (Local)</option>
-                        <option value="deepseek-coder-v2:16b">DeepSeek v2 (Local)</option>
+                        <option value="llama3.2:latest"><span data-i18n="doc.llama_3_2_local">Llama 3.2 (Local)</span></option>
+                        <option value="mistral:latest"><span data-i18n="doc.mistral_local">Mistral (Local)</span></option>
+                        <option value="deepseek-coder-v2:16b"><span data-i18n="doc.deepseek_v2_local">DeepSeek v2 (Local)</span></option>
                     </select>
                 </div>
             </div>
@@ -197,36 +197,36 @@
                         Log Your Symptoms
                     </h3>
                     <div class="doc-form-group">
-                        <label>What symptoms are you experiencing?</label>
+                        <label><span data-i18n="doc.what_symptoms_are_you_experiencing">What symptoms are you experiencing?</span></label>
                         <textarea class="doc-textarea" id="symptomInput" placeholder="Describe your symptoms in detail..." rows="4"></textarea>
                     </div>
                     <div class="doc-form-row">
                         <div class="doc-form-group">
-                            <label>Severity (1-10)</label>
+                            <label><span data-i18n="doc.severity_1_10">Severity (1-10)</span></label>
                             <input type="range" class="doc-range" id="severityRange" min="1" max="10" value="5">
                             <span class="doc-range-value" id="severityValue">5</span>
                         </div>
                         <div class="doc-form-group">
-                            <label>Duration</label>
+                            <label><span data-i18n="doc.duration">Duration</span></label>
                             <select class="doc-select" id="durationSelect">
-                                <option value="hours">A few hours</option>
-                                <option value="day">About a day</option>
-                                <option value="days">Several days</option>
-                                <option value="week">About a week</option>
-                                <option value="weeks">Weeks or more</option>
+                                <option value="hours"><span data-i18n="doc.a_few_hours">A few hours</span></option>
+                                <option value="day"><span data-i18n="doc.about_a_day">About a day</span></option>
+                                <option value="days"><span data-i18n="doc.several_days">Several days</span></option>
+                                <option value="week"><span data-i18n="doc.about_a_week">About a week</span></option>
+                                <option value="weeks"><span data-i18n="doc.weeks_or_more">Weeks or more</span></option>
                             </select>
                         </div>
                     </div>
                     <div class="doc-form-group">
-                        <label>Body Area</label>
+                        <label><span data-i18n="doc.body_area">Body Area</span></label>
                         <div class="doc-body-areas">
-                            <button class="doc-area-btn" onclick="toggleArea(this, 'head')">Head</button>
-                            <button class="doc-area-btn" onclick="toggleArea(this, 'chest')">Chest</button>
-                            <button class="doc-area-btn" onclick="toggleArea(this, 'stomach')">Stomach</button>
-                            <button class="doc-area-btn" onclick="toggleArea(this, 'back')">Back</button>
-                            <button class="doc-area-btn" onclick="toggleArea(this, 'limbs')">Arms/Legs</button>
-                            <button class="doc-area-btn" onclick="toggleArea(this, 'skin')">Skin</button>
-                            <button class="doc-area-btn" onclick="toggleArea(this, 'general')">General</button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'head')"><span data-i18n="doc.head">Head</span></button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'chest')"><span data-i18n="doc.chest">Chest</span></button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'stomach')"><span data-i18n="doc.stomach">Stomach</span></button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'back')"><span data-i18n="doc.back">Back</span></button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'limbs')"><span data-i18n="doc.arms_legs">Arms/Legs</span></button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'skin')"><span data-i18n="doc.skin">Skin</span></button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'general')"><span data-i18n="doc.general">General</span></button>
                         </div>
                     </div>
                     <button class="doc-btn doc-btn-primary doc-btn-large" onclick="analyzeSymptoms()">
@@ -243,7 +243,7 @@
                     <div class="doc-symptom-list" id="symptomHistory">
                         <div class="doc-empty-state">
                             <i data-lucide="clipboard"></i>
-                            <p>No symptoms logged yet</p>
+                            <p><span data-i18n="doc.no_symptoms_logged_yet">No symptoms logged yet</span></p>
                         </div>
                     </div>
                 </div>
@@ -266,7 +266,7 @@
                 <div class="doc-records-grid" id="recordsGrid">
                     <div class="doc-empty-state">
                         <i data-lucide="folder-heart"></i>
-                        <p>No health records yet</p>
+                        <p><span data-i18n="doc.no_health_records_yet">No health records yet</span></p>
                         <button class="doc-btn doc-btn-primary" onclick="showAddRecordModal()">
                             <i data-lucide="plus"></i>
                             Add Your First Record
@@ -288,8 +288,8 @@
                 <div class="doc-reports-list" id="reportsList">
                     <div class="doc-empty-state">
                         <i data-lucide="file-bar-chart"></i>
-                        <p>No reports generated yet</p>
-                        <p class="doc-empty-hint">Generate a health summary based on your symptoms and records</p>
+                        <p><span data-i18n="doc.no_reports_generated_yet">No reports generated yet</span></p>
+                        <p class="doc-empty-hint"><span data-i18n="doc.generate_a_health_summary_based_on_your_symptoms_a">Generate a health summary based on your symptoms and records</span></p>
                     </div>
                 </div>
             </div>

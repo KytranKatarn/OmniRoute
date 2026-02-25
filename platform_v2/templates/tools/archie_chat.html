@@ -2833,23 +2833,23 @@ body.font-large .messages-container{font-size:1.05rem}
 <div class="command-interface">
     <!-- Left Sidebar -->
     <aside class="sidebar">
-        <button class="sidebar-close" onclick="toggleSidebar()" title="Close">&times;</button>
+        <button class="sidebar-close" onclick="toggleSidebar()" title="Close"><span data-i18n="archie_chat.times">&times;</span></button>
         <div class="sidebar-header">
             <div class="archie-branding">
                 <div class="archie-avatar">🤖</div>
                 <div class="archie-info">
                     <h1>A.R.C.H.I.E.</h1>
-                    <span class="subtitle">Command Interface v2.0</span>
+                    <span class="subtitle"><span data-i18n="archie_chat.command_interface_v2_0">Command Interface v2.0</span></span>
                 </div>
             </div>
             <div class="status-badge">
                 <span class="status-dot"></span>
-                <span>Online & Ready</span>
+                <span><span data-i18n="archie_chat.online_ready">Online & Ready</span></span>
             </div>
         </div>
 
         <div class="status-metrics">
-            <h3>System Status</h3>
+            <h3><span data-i18n="archie_chat.system_status">System Status</span></h3>
             <div class="metric-row">
                 <span class="metric-label">
                     <i data-lucide="zap"></i>
@@ -2883,7 +2883,7 @@ body.font-large .messages-container{font-size:1.05rem}
         </div>
 
         <div class="quick-actions">
-            <h3>Quick Actions</h3>
+            <h3><span data-i18n="archie_chat.quick_actions">Quick Actions</span></h3>
             <div class="action-grid">
                 <button class="action-btn" onclick="sendQuickCommand('What is the system status?')">
                     <i data-lucide="activity"></i>
@@ -2905,13 +2905,13 @@ body.font-large .messages-container{font-size:1.05rem}
         </div>
 
         <div class="recent-commands">
-            <h3>Recent Commands</h3>
+            <h3><span data-i18n="archie_chat.recent_commands">Recent Commands</span></h3>
             <div id="recentCommandsList">
                 {% for conv in recent_conversations[:5] %}
                 <div class="command-item" onclick="sendQuickCommand('{{ conv.message|e }}')">
                     <div class="command-text">{{ conv.message[:40] }}{% if conv.message|length > 40 %}...{% endif %}</div>
                     <div class="command-meta">
-                        <span class="command-intent">conversation</span>
+                        <span class="command-intent"><span data-i18n="archie_chat.conversation">conversation</span></span>
                     </div>
                 </div>
                 {% endfor %}
@@ -2926,9 +2926,9 @@ body.font-large .messages-container{font-size:1.05rem}
                 <button class="search-clear" id="search-clear" onclick="clearSearch()">&#10005;</button>
             </div>
             <div class="search-filters" id="search-filters">
-                <button class="search-chip active" data-range="0" onclick="setSearchRange(this, 0)">All Time</button>
-                <button class="search-chip" data-range="7" onclick="setSearchRange(this, 7)">This Week</button>
-                <button class="search-chip" data-range="30" onclick="setSearchRange(this, 30)">This Month</button>
+                <button class="search-chip active" data-range="0" onclick="setSearchRange(this, 0)"><span data-i18n="archie_chat.all_time">All Time</span></button>
+                <button class="search-chip" data-range="7" onclick="setSearchRange(this, 7)"><span data-i18n="archie_chat.this_week">This Week</span></button>
+                <button class="search-chip" data-range="30" onclick="setSearchRange(this, 30)"><span data-i18n="archie_chat.this_month">This Month</span></button>
             </div>
             <div class="search-results" id="search-results"></div>
         </div>
@@ -2936,24 +2936,24 @@ body.font-large .messages-container{font-size:1.05rem}
         <!-- Analytics Panel -->
         <div class="analytics-panel">
             <div class="analytics-toggle" onclick="toggleAnalytics()">
-                <span>Analytics</span>
+                <span><span data-i18n="archie_chat.analytics">Analytics</span></span>
                 <span id="an-arrow">&#9654;</span>
             </div>
             <div class="analytics-body" id="analytics-body">
                 <div id="an-conversation-metrics"></div>
                 <canvas id="an-trend-chart" class="an-chart"></canvas>
-                <div class="an-section-title">Model Usage</div>
+                <div class="an-section-title"><span data-i18n="archie_chat.model_usage">Model Usage</span></div>
                 <div id="an-model-usage"></div>
-                <div class="an-section-title">Voice</div>
+                <div class="an-section-title"><span data-i18n="archie_chat.voice">Voice</span></div>
                 <div id="an-voice-stats"></div>
-                <button class="an-export-btn" onclick="exportAnalyticsCSV()">Export CSV</button>
+                <button class="an-export-btn" onclick="exportAnalyticsCSV()"><span data-i18n="archie_chat.export_csv">Export CSV</span></button>
             </div>
         </div>
 
         <!-- Memory Panel -->
         <div class="memory-panel">
             <div class="memory-toggle" onclick="toggleMemory()">
-                <span>Memory</span>
+                <span><span data-i18n="archie_chat.memory">Memory</span></span>
                 <span id="mem-arrow">&#9654;</span>
             </div>
             <div class="memory-body" id="memory-body">
@@ -2965,31 +2965,31 @@ body.font-large .messages-container{font-size:1.05rem}
         <!-- Settings Panel -->
         <div class="settings-panel">
             <div class="settings-toggle" onclick="toggleSettings()">
-                <span>Settings</span>
+                <span><span data-i18n="archie_chat.settings">Settings</span></span>
                 <span id="set-arrow">&#9654;</span>
             </div>
             <div class="settings-body" id="settings-body">
                 <div class="set-row">
-                    <label>Dark Theme</label>
+                    <label><span data-i18n="archie_chat.dark_theme">Dark Theme</span></label>
                     <label class="set-toggle"><input type="checkbox" id="set-theme" onchange="updateSetting('theme', this.checked ? 'dark' : 'light')"><span class="slider"></span></label>
                 </div>
                 <div class="set-row">
-                    <label>Voice Auto-Speak</label>
+                    <label><span data-i18n="archie_chat.voice_auto_speak">Voice Auto-Speak</span></label>
                     <label class="set-toggle"><input type="checkbox" id="set-voice" onchange="updateSetting('voiceAutoSpeak', this.checked)"><span class="slider"></span></label>
                 </div>
                 <div class="set-row">
-                    <label>Notification Sound</label>
+                    <label><span data-i18n="archie_chat.notification_sound">Notification Sound</span></label>
                     <label class="set-toggle"><input type="checkbox" id="set-notif-sound" onchange="updateSetting('notifSound', this.checked)"><span class="slider"></span></label>
                 </div>
                 <div class="set-row">
-                    <label>Default Mode</label>
+                    <label><span data-i18n="archie_chat.default_mode">Default Mode</span></label>
                     <select class="set-select" id="set-mode" onchange="updateSetting('defaultMode', this.value)">
-                        <option value="solo">Solo</option>
-                        <option value="side-by-side">Side-by-Side</option>
-                        <option value="collab">Collaborate</option>
+                        <option value="solo"><span data-i18n="archie_chat.solo">Solo</span></option>
+                        <option value="side-by-side"><span data-i18n="archie_chat.side_by_side">Side-by-Side</span></option>
+                        <option value="collab"><span data-i18n="archie_chat.collaborate">Collaborate</span></option>
                     </select>
                 </div>
-                <button class="set-more" onclick="openSettingsModal()">More Settings...</button>
+                <button class="set-more" onclick="openSettingsModal()"><span data-i18n="archie_chat.more_settings">More Settings...</span></button>
             </div>
         </div>
     </aside>
@@ -2997,44 +2997,44 @@ body.font-large .messages-container{font-size:1.05rem}
     <!-- Settings Modal -->
     <div class="settings-modal-overlay" id="settings-modal-overlay">
         <div class="settings-modal">
-            <h3>Chat Settings</h3>
+            <h3><span data-i18n="archie_chat.chat_settings">Chat Settings</span></h3>
             <div class="set-section">
-                <div class="set-section-title">Appearance</div>
+                <div class="set-section-title"><span data-i18n="archie_chat.appearance">Appearance</span></div>
                 <div class="set-row">
-                    <label>Font Size</label>
+                    <label><span data-i18n="archie_chat.font_size">Font Size</span></label>
                     <select class="set-select" id="set-font" onchange="updateSetting('fontSize', this.value)">
-                        <option value="small">Small</option>
-                        <option value="medium">Medium</option>
-                        <option value="large">Large</option>
+                        <option value="small"><span data-i18n="archie_chat.small">Small</span></option>
+                        <option value="medium"><span data-i18n="archie_chat.medium">Medium</span></option>
+                        <option value="large"><span data-i18n="archie_chat.large">Large</span></option>
                     </select>
                 </div>
                 <div class="set-row">
-                    <label>Auto-open Thinking Panel</label>
+                    <label><span data-i18n="archie_chat.auto_open_thinking_panel">Auto-open Thinking Panel</span></label>
                     <label class="set-toggle"><input type="checkbox" id="set-thinking" onchange="updateSetting('thinkingAutoOpen', this.checked)"><span class="slider"></span></label>
                 </div>
             </div>
             <div class="set-section">
-                <div class="set-section-title">Notifications</div>
+                <div class="set-section-title"><span data-i18n="archie_chat.notifications">Notifications</span></div>
                 <div class="set-row">
-                    <label>Briefing Delivery</label>
+                    <label><span data-i18n="archie_chat.briefing_delivery">Briefing Delivery</span></label>
                     <select class="set-select" id="set-briefing" onchange="updateSetting('briefingDelivery', this.value)">
-                        <option value="chat">Chat Only</option>
-                        <option value="chat+telegram">Chat + Telegram</option>
+                        <option value="chat"><span data-i18n="archie_chat.chat_only">Chat Only</span></option>
+                        <option value="chat+telegram"><span data-i18n="archie_chat.chat_telegram">Chat + Telegram</span></option>
                     </select>
                 </div>
                 <div class="set-row">
-                    <label>Poll Interval</label>
+                    <label><span data-i18n="archie_chat.poll_interval">Poll Interval</span></label>
                     <select class="set-select" id="set-poll" onchange="updateSetting('notifPollInterval', parseInt(this.value))">
-                        <option value="15">15 seconds</option>
-                        <option value="30">30 seconds</option>
-                        <option value="60">60 seconds</option>
+                        <option value="15"><span data-i18n="archie_chat.15_seconds">15 seconds</span></option>
+                        <option value="30"><span data-i18n="archie_chat.30_seconds">30 seconds</span></option>
+                        <option value="60"><span data-i18n="archie_chat.60_seconds">60 seconds</span></option>
                     </select>
                 </div>
             </div>
             <div class="set-section">
-                <div class="set-section-title">Chat</div>
+                <div class="set-section-title"><span data-i18n="archie_chat.chat">Chat</span></div>
                 <div class="set-row">
-                    <label>Max Memories Injected</label>
+                    <label><span data-i18n="archie_chat.max_memories_injected">Max Memories Injected</span></label>
                     <select class="set-select" id="set-memory-inject" onchange="updateSetting('maxMemoryInject', parseInt(this.value))">
                         <option value="5">5</option>
                         <option value="10">10</option>
@@ -3044,14 +3044,14 @@ body.font-large .messages-container{font-size:1.05rem}
                 </div>
             </div>
             <div class="set-section">
-                <div class="set-section-title">Shortcuts</div>
+                <div class="set-section-title"><span data-i18n="archie_chat.shortcuts">Shortcuts</span></div>
                 <div class="set-row">
-                    <label>Keyboard Shortcuts</label>
+                    <label><span data-i18n="archie_chat.keyboard_shortcuts">Keyboard Shortcuts</span></label>
                     <input type="checkbox" id="set-shortcuts" onchange="updateSetting('shortcutsEnabled', this.checked)">
                 </div>
             </div>
             <div class="set-actions">
-                <button onclick="closeSettingsModal()">Close</button>
+                <button onclick="closeSettingsModal()"><span data-i18n="archie_chat.close">Close</span></button>
             </div>
         </div>
     </div>
@@ -3064,13 +3064,13 @@ body.font-large .messages-container{font-size:1.05rem}
             <div class="status-left">
                 <div class="workflow-indicator">
                     <i data-lucide="layers"></i>
-                    <span>Active Workflows:</span>
+                    <span><span data-i18n="archie_chat.active_workflows">Active Workflows:</span></span>
                     <strong id="activeWorkflows">0</strong>
                 </div>
                 <div class="workflow-indicator" id="escalationStatus" style="display: none;">
                     <i data-lucide="arrow-up-circle"></i>
-                    <span>Escalation:</span>
-                    <strong>Pending</strong>
+                    <span><span data-i18n="archie_chat.escalation">Escalation:</span></span>
+                    <strong><span data-i18n="archie_chat.pending">Pending</span></strong>
                 </div>
                 <div class="mode-tabs">
                     <button class="chat-mode-btn active" data-mode="solo" onclick="switchChatMode('solo')">
@@ -3131,13 +3131,13 @@ body.font-large .messages-container{font-size:1.05rem}
             <div class="welcome-message" id="welcomeMessage">
                 <div class="welcome-icon">🤖</div>
                 <h2>Welcome, {{ current_user.username }}</h2>
-                <p>I'm A.R.C.H.I.E., your unified command interface. I can help you with coding tasks, manage your team, run workflows, and more. Just tell me what you need.</p>
+                <p><span data-i18n="archie_chat.i_m_a_r_c_h_i_e_your_unified_command_interface_i_c">I'm A.R.C.H.I.E., your unified command interface. I can help you with coding tasks, manage your team, run workflows, and more. Just tell me what you need.</span></p>
                 <div class="welcome-capabilities">
-                    <span class="capability-tag"><i data-lucide="code-2"></i> Code Tasks</span>
-                    <span class="capability-tag"><i data-lucide="users"></i> Team Management</span>
-                    <span class="capability-tag"><i data-lucide="git-branch"></i> Workflows</span>
-                    <span class="capability-tag"><i data-lucide="brain"></i> Knowledge</span>
-                    <span class="capability-tag"><i data-lucide="sparkles"></i> Claude Escalation</span>
+                    <span class="capability-tag"><i data-lucide="code-2"></i><span data-i18n="archie_chat.code_tasks"> Code Tasks</span></span>
+                    <span class="capability-tag"><i data-lucide="users"></i><span data-i18n="archie_chat.team_management"> Team Management</span></span>
+                    <span class="capability-tag"><i data-lucide="git-branch"></i><span data-i18n="archie_chat.workflows"> Workflows</span></span>
+                    <span class="capability-tag"><i data-lucide="brain"></i><span data-i18n="archie_chat.knowledge"> Knowledge</span></span>
+                    <span class="capability-tag"><i data-lucide="sparkles"></i><span data-i18n="archie_chat.claude_escalation"> Claude Escalation</span></span>
                 </div>
             </div>
 
@@ -3183,7 +3183,7 @@ body.font-large .messages-container{font-size:1.05rem}
                     ></textarea>
                     <div id="voice-status">
                         <div id="voice-waveform"></div>
-                        <span id="voice-status-text">Listening...</span>
+                        <span id="voice-status-text"><span data-i18n="archie_chat.listening">Listening...</span></span>
                     </div>
                 </div>
                 <button type="button" id="voice-input-btn" onclick="toggleVoiceInput()" title="Start voice input">
@@ -3202,11 +3202,11 @@ body.font-large .messages-container{font-size:1.05rem}
                 <div class="panel-header">
                     <div class="panel-title">
                         <i data-lucide="bot"></i>
-                        <span>A.R.C.H.I.E. Chat</span>
+                        <span><span data-i18n="archie_chat.a_r_c_h_i_e_chat">A.R.C.H.I.E. Chat</span></span>
                     </div>
                     <div class="panel-actions">
-                        <button class="panel-action-btn" onclick="syncContextToClaude()">Sync Context</button>
-                        <button class="panel-action-btn" onclick="clearSideChat()">Clear</button>
+                        <button class="panel-action-btn" onclick="syncContextToClaude()"><span data-i18n="archie_chat.sync_context">Sync Context</span></button>
+                        <button class="panel-action-btn" onclick="clearSideChat()"><span data-i18n="archie_chat.clear">Clear</span></button>
                     </div>
                 </div>
                 <div class="messages-container" id="archie-side-messages"></div>
@@ -3216,19 +3216,19 @@ body.font-large .messages-container{font-size:1.05rem}
                 <div class="panel-header">
                     <div class="panel-title">
                         <i data-lucide="terminal"></i>
-                        <span>Claude Terminal</span>
+                        <span><span data-i18n="archie_chat.claude_terminal">Claude Terminal</span></span>
                         <span id="claude-cli-status"></span>
                     </div>
                     <div class="panel-actions">
-                        <button class="panel-action-btn" onclick="reconnectClaudeTerminal()">Reconnect</button>
-                        <button class="panel-action-btn" onclick="openClaudeTerminal()">Pop Out</button>
+                        <button class="panel-action-btn" onclick="reconnectClaudeTerminal()"><span data-i18n="archie_chat.reconnect">Reconnect</span></button>
+                        <button class="panel-action-btn" onclick="openClaudeTerminal()"><span data-i18n="archie_chat.pop_out">Pop Out</span></button>
                     </div>
                 </div>
                 <iframe id="claude-terminal-iframe" title="Claude Terminal"></iframe>
                 <div class="terminal-offline" id="claude-terminal-offline" style="display: none;">
                     <i data-lucide="wifi-off"></i>
-                    <span>Terminal offline</span>
-                    <button class="panel-action-btn" onclick="reconnectClaudeTerminal()">Reconnect</button>
+                    <span><span data-i18n="archie_chat.terminal_offline">Terminal offline</span></span>
+                    <button class="panel-action-btn" onclick="reconnectClaudeTerminal()"><span data-i18n="archie_chat.reconnect_2">Reconnect</span></button>
                 </div>
             </div>
         </div>
@@ -3238,11 +3238,11 @@ body.font-large .messages-container{font-size:1.05rem}
             <!-- History Sidebar -->
             <div id="collab-history-sidebar" class="collapsed">
                 <div class="history-header">
-                    <h3>Session History</h3>
+                    <h3><span data-i18n="archie_chat.session_history">Session History</span></h3>
                     <div class="filter-pills">
-                        <button class="filter-pill active" data-filter="all" onclick="setHistoryFilter('all')">All</button>
-                        <button class="filter-pill" data-filter="active" onclick="setHistoryFilter('active')">Active</button>
-                        <button class="filter-pill" data-filter="completed" onclick="setHistoryFilter('completed')">Completed</button>
+                        <button class="filter-pill active" data-filter="all" onclick="setHistoryFilter('all')"><span data-i18n="archie_chat.all">All</span></button>
+                        <button class="filter-pill" data-filter="active" onclick="setHistoryFilter('active')"><span data-i18n="archie_chat.active">Active</span></button>
+                        <button class="filter-pill" data-filter="completed" onclick="setHistoryFilter('completed')"><span data-i18n="archie_chat.completed">Completed</span></button>
                     </div>
                     <input type="text" class="history-search" id="history-search-input"
                            placeholder="Search sessions..." oninput="loadCollabHistory()">
@@ -3253,91 +3253,91 @@ body.font-large .messages-container{font-size:1.05rem}
             <!-- Start View -->
             <div id="collab-start-view">
                 <div class="collab-header">
-                    <h2>AI Collaboration</h2>
-                    <p>ARCHIE and Claude work together on your topic</p>
+                    <h2><span data-i18n="archie_chat.ai_collaboration">AI Collaboration</span></h2>
+                    <p><span data-i18n="archie_chat.archie_and_claude_work_together_on_your_topic">ARCHIE and Claude work together on your topic</span></p>
                 </div>
 
                 <div class="collab-config">
                     <div>
-                        <label>Topic</label>
+                        <label><span data-i18n="archie_chat.topic">Topic</span></label>
                         <textarea id="collab-topic" placeholder="What should ARCHIE and Claude discuss or work on?"></textarea>
                     </div>
 
                     <div class="collab-row">
                         <div>
-                            <label>Max Turns</label>
+                            <label><span data-i18n="archie_chat.max_turns">Max Turns</span></label>
                             <input type="number" id="collab-max-turns" value="10" min="2" max="30">
                         </div>
                         <div>
-                            <label>Mode</label>
+                            <label><span data-i18n="archie_chat.mode">Mode</span></label>
                             <div class="collab-mode-toggle">
-                                <button id="collab-mode-discuss" class="active" onclick="setCollabMode('discuss')">Discussion</button>
-                                <button id="collab-mode-joint" onclick="setCollabMode('joint')">Joint Work</button>
+                                <button id="collab-mode-discuss" class="active" onclick="setCollabMode('discuss')"><span data-i18n="archie_chat.discussion">Discussion</span></button>
+                                <button id="collab-mode-joint" onclick="setCollabMode('joint')"><span data-i18n="archie_chat.joint_work">Joint Work</span></button>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div>
-                    <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--archie-text-muted); margin-bottom: 8px; display: block;">Templates</label>
+                    <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--archie-text-muted); margin-bottom: 8px; display: block;"><span data-i18n="archie_chat.templates">Templates</span></label>
                     <div id="collab-templates"></div>
                 </div>
 
-                <button id="btn-start-collab" onclick="startCollaboration()">Start Collaboration</button>
+                <button id="btn-start-collab" onclick="startCollaboration()"><span data-i18n="archie_chat.start_collaboration">Start Collaboration</span></button>
 
                 <div class="learning-stats">
                     <div class="learning-stat">
                         <div class="value" id="learning-total">0</div>
-                        <div class="label">Total Learnings</div>
+                        <div class="label"><span data-i18n="archie_chat.total_learnings">Total Learnings</span></div>
                     </div>
                     <div class="learning-stat">
                         <div class="value" id="learning-week">0</div>
-                        <div class="label">This Week</div>
+                        <div class="label"><span data-i18n="archie_chat.this_week_2">This Week</span></div>
                     </div>
                     <div class="learning-stat">
-                        <div class="value" id="learning-topics">None yet</div>
-                        <div class="label">Top Topics</div>
+                        <div class="value" id="learning-topics"><span data-i18n="archie_chat.none_yet">None yet</span></div>
+                        <div class="label"><span data-i18n="archie_chat.top_topics">Top Topics</span></div>
                     </div>
                 </div>
             </div>
 
             <!-- Active View -->
             <div id="collab-active-view">
-                <div id="collab-readonly-banner">Viewing past session (read-only)</div>
+                <div id="collab-readonly-banner"><span data-i18n="archie_chat.viewing_past_session_read_only">Viewing past session (read-only)</span></div>
                 <div class="collab-toolbar">
                     <div class="collab-toolbar-left">
                         <button class="collab-btn" id="btn-history-toggle" onclick="toggleCollabHistory()">
                             <i data-lucide="clock" style="width:14px;height:14px;vertical-align:middle;"></i> History
                         </button>
-                        <h3 id="collab-active-title">Collaboration in Progress</h3>
+                        <h3 id="collab-active-title"><span data-i18n="archie_chat.collaboration_in_progress">Collaboration in Progress</span></h3>
                         <div class="collab-status-bar">
                             <span class="status-dot collab-status-dot active"></span>
-                            <span class="collab-status-text">Active</span>
-                            <span id="turn-counter">Turn 0/10</span>
+                            <span class="collab-status-text"><span data-i18n="archie_chat.active_2">Active</span></span>
+                            <span id="turn-counter"><span data-i18n="archie_chat.turn_0_10">Turn 0/10</span></span>
                         </div>
                     </div>
                     <div class="collab-toolbar-right">
-                        <button class="collab-btn" id="btn-pause" onclick="pauseCollaboration()">Pause</button>
-                        <button class="collab-btn" id="btn-resume" onclick="resumeCollaboration()" style="display:none;">Resume</button>
-                        <button class="collab-btn" id="btn-interject" onclick="showInterjectionModal()">Interject</button>
-                        <button class="collab-btn danger" id="btn-stop" onclick="stopCollaboration()">Stop</button>
-                        <button class="collab-btn" id="btn-toggle-products" onclick="toggleWorkProducts()" style="display:none;">Work Products</button>
-                        <button class="collab-btn" onclick="newCollaboration()">New</button>
+                        <button class="collab-btn" id="btn-pause" onclick="pauseCollaboration()"><span data-i18n="archie_chat.pause">Pause</span></button>
+                        <button class="collab-btn" id="btn-resume" onclick="resumeCollaboration()" style="display:none;"><span data-i18n="archie_chat.resume">Resume</span></button>
+                        <button class="collab-btn" id="btn-interject" onclick="showInterjectionModal()"><span data-i18n="archie_chat.interject">Interject</span></button>
+                        <button class="collab-btn danger" id="btn-stop" onclick="stopCollaboration()"><span data-i18n="archie_chat.stop">Stop</span></button>
+                        <button class="collab-btn" id="btn-toggle-products" onclick="toggleWorkProducts()" style="display:none;"><span data-i18n="archie_chat.work_products">Work Products</span></button>
+                        <button class="collab-btn" onclick="newCollaboration()"><span data-i18n="archie_chat.new">New</span></button>
                     </div>
                 </div>
 
                 <div id="collab-messages"></div>
 
                 <div id="collab-export-btns">
-                    <button class="collab-btn" onclick="exportCollabMarkdown()">Export Markdown</button>
-                    <button class="collab-btn" onclick="copyCollabToClipboard()">Copy to Clipboard</button>
+                    <button class="collab-btn" onclick="exportCollabMarkdown()"><span data-i18n="archie_chat.export_markdown">Export Markdown</span></button>
+                    <button class="collab-btn" onclick="copyCollabToClipboard()"><span data-i18n="archie_chat.copy_to_clipboard">Copy to Clipboard</span></button>
                 </div>
             </div>
 
             <!-- Work Products Panel -->
             <div id="work-products-panel">
                 <div class="wp-header">
-                    <h3>Work Products</h3>
+                    <h3><span data-i18n="archie_chat.work_products_2">Work Products</span></h3>
                     <span class="wp-badge" id="wp-count">0</span>
                 </div>
                 <div id="work-products-list"></div>
@@ -3347,11 +3347,11 @@ body.font-large .messages-container{font-size:1.05rem}
         <!-- Interjection Modal -->
         <div id="interjection-modal">
             <div class="interjection-content">
-                <h3>Add to Conversation</h3>
+                <h3><span data-i18n="archie_chat.add_to_conversation">Add to Conversation</span></h3>
                 <textarea id="interjection-text" placeholder="Type your message to inject into the collaboration..."></textarea>
                 <div class="modal-actions">
-                    <button class="cancel" onclick="hideInterjectionModal()">Cancel</button>
-                    <button class="submit" onclick="submitInterjection()">Send</button>
+                    <button class="cancel" onclick="hideInterjectionModal()"><span data-i18n="archie_chat.cancel">Cancel</span></button>
+                    <button class="submit" onclick="submitInterjection()"><span data-i18n="archie_chat.send">Send</span></button>
                 </div>
             </div>
         </div>
@@ -3359,60 +3359,60 @@ body.font-large .messages-container{font-size:1.05rem}
         <!-- Voice Sidebar -->
         <div id="voice-sidebar">
             <div class="voice-sidebar-header">
-                <h3>Voice Settings</h3>
+                <h3><span data-i18n="archie_chat.voice_settings">Voice Settings</span></h3>
                 <button class="voice-sidebar-close" onclick="toggleVoiceSidebar()">
                     <i data-lucide="x"></i>
                 </button>
             </div>
 
             <div class="voice-sidebar-section">
-                <h4>Quick Config</h4>
+                <h4><span data-i18n="archie_chat.quick_config">Quick Config</span></h4>
                 <div class="voice-config-row">
-                    <label>Voice Output</label>
+                    <label><span data-i18n="archie_chat.voice_output">Voice Output</span></label>
                     <button class="voice-toggle-switch" id="vs-voice-toggle" onclick="toggleVoiceFromSidebar()"></button>
                 </div>
                 <div class="voice-config-row">
-                    <label>Auto-play</label>
+                    <label><span data-i18n="archie_chat.auto_play">Auto-play</span></label>
                     <button class="voice-toggle-switch" id="vs-autoplay-toggle" onclick="toggleAutoplay()"></button>
                 </div>
                 <div class="voice-volume-row">
-                    <label>Volume</label>
+                    <label><span data-i18n="archie_chat.volume">Volume</span></label>
                     <input type="range" class="voice-volume-slider" id="vs-volume" min="0" max="1" step="0.1" value="0.8" oninput="updateVoiceVolume(this.value)">
                 </div>
                 <div class="voice-config-row">
-                    <label>Engine</label>
+                    <label><span data-i18n="archie_chat.engine">Engine</span></label>
                     <span class="voice-engine-badge" id="vs-engine">—</span>
                 </div>
             </div>
 
             <div class="voice-sidebar-section">
-                <h4>Status</h4>
+                <h4><span data-i18n="archie_chat.status">Status</span></h4>
                 <div class="voice-status-row">
-                    <span class="label">TTS Engine</span>
+                    <span class="label"><span data-i18n="archie_chat.tts_engine">TTS Engine</span></span>
                     <span class="value" id="vs-health"><span class="voice-health-dot"></span>—</span>
                 </div>
                 <div class="voice-status-row">
-                    <span class="label">Cached Words</span>
+                    <span class="label"><span data-i18n="archie_chat.cached_words">Cached Words</span></span>
                     <span class="value" id="vs-cached">—</span>
                 </div>
                 <div class="voice-status-row">
-                    <span class="label">Hit Rate</span>
+                    <span class="label"><span data-i18n="archie_chat.hit_rate">Hit Rate</span></span>
                     <span class="value" id="vs-hit-rate">—</span>
                 </div>
                 <div class="voice-status-row">
-                    <span class="label">Avg Latency</span>
+                    <span class="label"><span data-i18n="archie_chat.avg_latency">Avg Latency</span></span>
                     <span class="value" id="vs-latency">—</span>
                 </div>
                 <div class="voice-status-row">
-                    <span class="label">Voice Profile</span>
+                    <span class="label"><span data-i18n="archie_chat.voice_profile">Voice Profile</span></span>
                     <span class="value" id="vs-profile">—</span>
                 </div>
             </div>
 
             <div class="voice-sidebar-section">
-                <h4>Recent Activity</h4>
+                <h4><span data-i18n="archie_chat.recent_activity">Recent Activity</span></h4>
                 <div id="vs-recent-list">
-                    <div style="color: var(--archie-text-muted); font-size: 0.82rem;">No recent activity</div>
+                    <div style="color: var(--archie-text-muted); font-size: 0.82rem;"><span data-i18n="archie_chat.no_recent_activity">No recent activity</span></div>
                 </div>
             </div>
         </div>
@@ -3421,8 +3421,8 @@ body.font-large .messages-container{font-size:1.05rem}
     <div id="shortcuts-modal">
         <div class="shortcuts-content">
             <div class="shortcuts-header">
-                <h3>Keyboard Shortcuts</h3>
-                <button onclick="document.getElementById('shortcuts-modal').classList.remove('open')">&times;</button>
+                <h3><span data-i18n="archie_chat.keyboard_shortcuts_2">Keyboard Shortcuts</span></h3>
+                <button onclick="document.getElementById('shortcuts-modal').classList.remove('open')"><span data-i18n="archie_chat.times_2">&times;</span></button>
             </div>
             <div id="shortcuts-list"></div>
         </div>

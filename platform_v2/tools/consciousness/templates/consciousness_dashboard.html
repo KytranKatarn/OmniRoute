@@ -861,7 +861,7 @@
                         Knowledge Brain Map
                     </div>
                     <div class="cs-card-body" id="brainMapContainer">
-                        <div class="cs-loading">Loading brain map...</div>
+                        <div class="cs-loading"><span data-i18n="consciousness.loading_brain_map">Loading brain map...</span></div>
                     </div>
                 </div>
                 <div class="cs-card">
@@ -882,10 +882,10 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-knowledge">
           <div class="cs-subtabs">
-            <button class="cs-subtab active" onclick="switchKnowledgeSubtab('browser')">Browser</button>
-            <button class="cs-subtab" onclick="switchKnowledgeSubtab('processing')">Processing</button>
-            <button class="cs-subtab" onclick="switchKnowledgeSubtab('categories')">Categories</button>
-            <button class="cs-subtab" onclick="switchKnowledgeSubtab('embeddings')">Embeddings</button>
+            <button class="cs-subtab active" onclick="switchKnowledgeSubtab('browser')"><span data-i18n="consciousness.browser">Browser</span></button>
+            <button class="cs-subtab" onclick="switchKnowledgeSubtab('processing')"><span data-i18n="consciousness.processing">Processing</span></button>
+            <button class="cs-subtab" onclick="switchKnowledgeSubtab('categories')"><span data-i18n="consciousness.categories">Categories</span></button>
+            <button class="cs-subtab" onclick="switchKnowledgeSubtab('embeddings')"><span data-i18n="consciousness.embeddings">Embeddings</span></button>
           </div>
 
           <div class="cs-subpanel active" id="kb-browser">
@@ -895,17 +895,17 @@
                      oninput="debounceReload('knowledge', loadKnowledgeBrowser)">
               <select id="kbFilterType" onchange="_cache.knowledge=false; loadKnowledgeBrowser()"
                       style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
-                <option value="">All Types</option>
-                <option value="vault_note">Vault Notes</option>
-                <option value="conversation_memory">Conversations</option>
-                <option value="github_file">GitHub Files</option>
-                <option value="code_snippet">Code Snippets</option>
-                <option value="improvement">Improvements</option>
-                <option value="mistake_learned">Mistakes Learned</option>
-                <option value="upgrade_suggestion">Upgrade Suggestions</option>
+                <option value=""><span data-i18n="consciousness.all_types">All Types</span></option>
+                <option value="vault_note"><span data-i18n="consciousness.vault_notes">Vault Notes</span></option>
+                <option value="conversation_memory"><span data-i18n="consciousness.conversations">Conversations</span></option>
+                <option value="github_file"><span data-i18n="consciousness.github_files">GitHub Files</span></option>
+                <option value="code_snippet"><span data-i18n="consciousness.code_snippets">Code Snippets</span></option>
+                <option value="improvement"><span data-i18n="consciousness.improvements">Improvements</span></option>
+                <option value="mistake_learned"><span data-i18n="consciousness.mistakes_learned">Mistakes Learned</span></option>
+                <option value="upgrade_suggestion"><span data-i18n="consciousness.upgrade_suggestions">Upgrade Suggestions</span></option>
               </select>
             </div>
-            <div id="kbBrowserTable"><div class="cs-loading">Loading...</div></div>
+            <div id="kbBrowserTable"><div class="cs-loading"><span data-i18n="consciousness.loading">Loading...</span></div></div>
           </div>
 
           <div class="cs-subpanel" id="kb-processing">
@@ -913,12 +913,12 @@
               <div class="cs-stat purple">
                 <div class="cs-stat-icon"><i data-lucide="clock"></i></div>
                 <div class="cs-stat-value" id="procQueueCount">--</div>
-                <div class="cs-stat-label">Queue Size</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.queue_size">Queue Size</span></div>
               </div>
               <div class="cs-stat blue">
                 <div class="cs-stat-icon"><i data-lucide="check-circle"></i></div>
                 <div class="cs-stat-value" id="procCompleted">--</div>
-                <div class="cs-stat-label">Processed</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.processed">Processed</span></div>
               </div>
             </div>
             <!-- Station Agent Status (populated from Bridge Command) -->
@@ -927,14 +927,14 @@
             <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
               <div style="display:flex; gap:8px; align-items:center;">
                 <select id="procCategory" style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
-                  <option value="conversations">Conversations</option>
-                  <option value="github">GitHub Files</option>
-                  <option value="claude_hooks">Claude Hooks</option>
+                  <option value="conversations"><span data-i18n="consciousness.conversations_2">Conversations</span></option>
+                  <option value="github"><span data-i18n="consciousness.github_files_2">GitHub Files</span></option>
+                  <option value="claude_hooks"><span data-i18n="consciousness.claude_hooks">Claude Hooks</span></option>
                 </select>
                 <select id="procBatchSize" style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
-                  <option value="10">10 items</option>
-                  <option value="25">25 items</option>
-                  <option value="50">50 items</option>
+                  <option value="10"><span data-i18n="consciousness.10_items">10 items</span></option>
+                  <option value="25"><span data-i18n="consciousness.25_items">25 items</span></option>
+                  <option value="50"><span data-i18n="consciousness.50_items">50 items</span></option>
                 </select>
               </div>
               <button id="btnStartAnalysis" onclick="startAnalysis()"
@@ -947,11 +947,11 @@
               </button>
             </div>
             <div id="procResult" style="margin-bottom:16px;"></div>
-            <div id="procStatus"><div class="cs-loading">Loading processing status...</div></div>
+            <div id="procStatus"><div class="cs-loading"><span data-i18n="consciousness.loading_processing_status">Loading processing status...</span></div></div>
           </div>
 
           <div class="cs-subpanel" id="kb-categories">
-            <div id="categoryGrid"><div class="cs-loading">Loading categories...</div></div>
+            <div id="categoryGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_categories">Loading categories...</span></div></div>
           </div>
 
           <div class="cs-subpanel" id="kb-embeddings">
@@ -959,37 +959,37 @@
               <div class="cs-stat green">
                 <div class="cs-stat-icon"><i data-lucide="database"></i></div>
                 <div class="cs-stat-value" id="embedCoverage">--</div>
-                <div class="cs-stat-label">Embedding Coverage</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.embedding_coverage">Embedding Coverage</span></div>
               </div>
               <div class="cs-stat purple">
                 <div class="cs-stat-icon"><i data-lucide="layers"></i></div>
                 <div class="cs-stat-value" id="embedTotal">--</div>
-                <div class="cs-stat-label">Total Entries</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.total_entries">Total Entries</span></div>
               </div>
             </div>
-            <div id="embedStatus"><div class="cs-loading">Loading embedding status...</div></div>
+            <div id="embedStatus"><div class="cs-loading"><span data-i18n="consciousness.loading_embedding_status">Loading embedding status...</span></div></div>
           </div>
         </div>
 
         <div class="cs-panel" id="panel-team">
           <div class="cs-subtabs">
-            <button class="cs-subtab active" onclick="switchTeamSubtab('roster')">Roster</button>
-            <button class="cs-subtab" onclick="switchTeamSubtab('voice')">Voice Profiles</button>
-            <button class="cs-subtab" onclick="switchTeamSubtab('emotions')">Emotional State</button>
+            <button class="cs-subtab active" onclick="switchTeamSubtab('roster')"><span data-i18n="consciousness.roster">Roster</span></button>
+            <button class="cs-subtab" onclick="switchTeamSubtab('voice')"><span data-i18n="consciousness.voice_profiles">Voice Profiles</span></button>
+            <button class="cs-subtab" onclick="switchTeamSubtab('emotions')"><span data-i18n="consciousness.emotional_state">Emotional State</span></button>
           </div>
           <div class="cs-subpanel active" id="team-roster">
             <div class="cs-agent-grid" id="agentRoster">
-              <div class="cs-loading">Loading agents...</div>
+              <div class="cs-loading"><span data-i18n="consciousness.loading_agents">Loading agents...</span></div>
             </div>
           </div>
           <div class="cs-subpanel" id="team-voice">
-            <div id="voiceProfileGrid"><div class="cs-loading">Loading voice profiles...</div></div>
+            <div id="voiceProfileGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_voice_profiles">Loading voice profiles...</span></div></div>
           </div>
           <div class="cs-subpanel" id="team-emotions">
             <div style="display:flex; gap:12px; margin-bottom:16px; align-items:center;">
-              <span style="font-size:0.82rem; color:rgba(255,255,255,0.5);">Current Mood:</span>
+              <span style="font-size:0.82rem; color:rgba(255,255,255,0.5);"><span data-i18n="consciousness.current_mood">Current Mood:</span></span>
               <span id="currentMoodBadge" class="cs-badge purple">--</span>
-              <span style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-left:auto;">Last 30 days</span>
+              <span style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-left:auto;"><span data-i18n="consciousness.last_30_days">Last 30 days</span></span>
             </div>
             <div style="position:relative; height:280px;">
               <canvas id="emotionalDetailChart"></canvas>
@@ -1002,40 +1002,40 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-insights">
           <div class="cs-subtabs">
-            <button class="cs-subtab active" onclick="switchInsightsSubtab('analytics')">Analytics</button>
-            <button class="cs-subtab" onclick="switchInsightsSubtab('sessions')">Sessions</button>
-            <button class="cs-subtab" onclick="switchInsightsSubtab('improvements')">Improvements</button>
+            <button class="cs-subtab active" onclick="switchInsightsSubtab('analytics')"><span data-i18n="consciousness.analytics">Analytics</span></button>
+            <button class="cs-subtab" onclick="switchInsightsSubtab('sessions')"><span data-i18n="consciousness.sessions">Sessions</span></button>
+            <button class="cs-subtab" onclick="switchInsightsSubtab('improvements')"><span data-i18n="consciousness.improvements_2">Improvements</span></button>
           </div>
           <div class="cs-subpanel active" id="insights-analytics">
             <div class="cs-stats" style="margin-bottom:20px;">
               <div class="cs-stat purple">
                 <div class="cs-stat-icon"><i data-lucide="zap"></i></div>
                 <div class="cs-stat-value" id="insightsBridgeTotal">--</div>
-                <div class="cs-stat-label">Bridge Calls (7d)</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.bridge_calls_7d">Bridge Calls (7d)</span></div>
               </div>
               <div class="cs-stat blue">
                 <div class="cs-stat-icon"><i data-lucide="clock"></i></div>
                 <div class="cs-stat-value" id="insightsAvgTime">--</div>
-                <div class="cs-stat-label">Avg Response (ms)</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.avg_response_ms">Avg Response (ms)</span></div>
               </div>
               <div class="cs-stat green">
                 <div class="cs-stat-icon"><i data-lucide="hash"></i></div>
                 <div class="cs-stat-value" id="insightsTokens">--</div>
-                <div class="cs-stat-label">Total Tokens (7d)</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.total_tokens_7d">Total Tokens (7d)</span></div>
               </div>
               <div class="cs-stat amber">
                 <div class="cs-stat-icon"><i data-lucide="book-plus"></i></div>
                 <div class="cs-stat-value" id="insightsGrowth">--</div>
-                <div class="cs-stat-label">New Knowledge (7d)</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.new_knowledge_7d">New Knowledge (7d)</span></div>
               </div>
             </div>
-            <div id="analyticsDetail"><div class="cs-empty">Detailed analytics coming soon</div></div>
+            <div id="analyticsDetail"><div class="cs-empty"><span data-i18n="consciousness.detailed_analytics_coming_soon">Detailed analytics coming soon</span></div></div>
           </div>
           <div class="cs-subpanel" id="insights-sessions">
-            <div id="sessionsList"><div class="cs-loading">Loading sessions...</div></div>
+            <div id="sessionsList"><div class="cs-loading"><span data-i18n="consciousness.loading_sessions">Loading sessions...</span></div></div>
           </div>
           <div class="cs-subpanel" id="insights-improvements">
-            <div id="improvementsList"><div class="cs-loading">Loading improvements...</div></div>
+            <div id="improvementsList"><div class="cs-loading"><span data-i18n="consciousness.loading_improvements">Loading improvements...</span></div></div>
           </div>
         </div>
 
@@ -1044,10 +1044,10 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel" id="panel-languages">
           <div class="cs-subtabs">
-            <button class="cs-subtab active" onclick="switchLangSubtab('dashboard')">Dashboard</button>
-            <button class="cs-subtab" onclick="switchLangSubtab('browser')">Browser</button>
-            <button class="cs-subtab" onclick="switchLangSubtab('review')">Review</button>
-            <button class="cs-subtab" onclick="switchLangSubtab('glossary')">Glossary</button>
+            <button class="cs-subtab active" onclick="switchLangSubtab('dashboard')"><span data-i18n="consciousness.dashboard">Dashboard</span></button>
+            <button class="cs-subtab" onclick="switchLangSubtab('browser')"><span data-i18n="consciousness.browser_2">Browser</span></button>
+            <button class="cs-subtab" onclick="switchLangSubtab('review')"><span data-i18n="consciousness.review">Review</span></button>
+            <button class="cs-subtab" onclick="switchLangSubtab('glossary')"><span data-i18n="consciousness.glossary">Glossary</span></button>
           </div>
           <div class="cs-subpanel active" id="lang-dashboard">
             <!-- Stat Cards -->
@@ -1055,29 +1055,29 @@
               <div class="cs-stat purple">
                 <div class="cs-stat-icon"><i data-lucide="languages"></i></div>
                 <div class="cs-stat-value" id="langTotalKeys">--</div>
-                <div class="cs-stat-label">Total Keys</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.total_keys">Total Keys</span></div>
               </div>
               <div class="cs-stat green">
                 <div class="cs-stat-icon"><i data-lucide="check-circle"></i></div>
                 <div class="cs-stat-value" id="langApproved">--</div>
-                <div class="cs-stat-label">Approved</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.approved">Approved</span></div>
               </div>
               <div class="cs-stat blue">
                 <div class="cs-stat-icon"><i data-lucide="globe"></i></div>
                 <div class="cs-stat-value" id="langLanguages">8</div>
-                <div class="cs-stat-label">Languages</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.languages">Languages</span></div>
               </div>
               <div class="cs-stat amber">
                 <div class="cs-stat-icon"><i data-lucide="alert-circle"></i></div>
                 <div class="cs-stat-value" id="langPending">--</div>
-                <div class="cs-stat-label">Pending Review</div>
+                <div class="cs-stat-label"><span data-i18n="consciousness.pending_review">Pending Review</span></div>
               </div>
             </div>
 
             <!-- Scan & Generate Actions -->
             <div class="cs-card" style="margin-bottom:20px;">
               <div class="cs-card-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-                <span>Scan &amp; Generate</span>
+                <span><span data-i18n="consciousness.scan_amp_generate">Scan &amp; Generate</span></span>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                   <button class="cs-btn" onclick="langAuditTemplates()" id="langAuditBtn"
                           style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(251,146,60,0.15); color:#fb923c; border:1px solid rgba(251,146,60,0.3); cursor:pointer;">
@@ -1099,7 +1099,7 @@
             <!-- Template Audit Results (hidden until audit runs) -->
             <div class="cs-card" id="langAuditCard" style="margin-bottom:20px; display:none;">
               <div class="cs-card-header" style="display:flex; align-items:center; justify-content:space-between;">
-                <span>Template Audit</span>
+                <span><span data-i18n="consciousness.template_audit">Template Audit</span></span>
                 <span id="langAuditSummary" style="font-size:0.78rem; color:rgba(255,255,255,0.5);"></span>
               </div>
               <div class="cs-card-body" id="langAuditResults"></div>
@@ -1116,14 +1116,14 @@
 
             <!-- Per-Language Coverage Grid -->
             <div class="cs-card" style="margin-bottom:20px;">
-              <div class="cs-card-header">Language Coverage</div>
-              <div class="cs-card-body" id="langCoverageByLang"><div class="cs-loading">Loading...</div></div>
+              <div class="cs-card-header"><span data-i18n="consciousness.language_coverage">Language Coverage</span></div>
+              <div class="cs-card-body" id="langCoverageByLang"><div class="cs-loading"><span data-i18n="consciousness.loading_2">Loading...</span></div></div>
             </div>
 
             <!-- Module Coverage Grid -->
             <div class="cs-card">
-              <div class="cs-card-header">Module Coverage</div>
-              <div class="cs-card-body" id="langCoverageGrid"><div class="cs-loading">Loading coverage...</div></div>
+              <div class="cs-card-header"><span data-i18n="consciousness.module_coverage">Module Coverage</span></div>
+              <div class="cs-card-body" id="langCoverageGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_coverage">Loading coverage...</span></div></div>
             </div>
           </div>
           <div class="cs-subpanel" id="lang-browser">
@@ -1133,34 +1133,34 @@
                      oninput="debounceReload('langBrowser', loadLangBrowser)">
               <select id="langFilterLang" onchange="_cache.langBrowser=false; loadLangBrowser()"
                       style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
-                <option value="fr">French</option>
-                <option value="es">Spanish</option>
-                <option value="pt">Portuguese</option>
-                <option value="de">German</option>
-                <option value="zh">Chinese</option>
-                <option value="ar">Arabic</option>
-                <option value="he">Hebrew</option>
+                <option value="fr"><span data-i18n="consciousness.french">French</span></option>
+                <option value="es"><span data-i18n="consciousness.spanish">Spanish</span></option>
+                <option value="pt"><span data-i18n="consciousness.portuguese">Portuguese</span></option>
+                <option value="de"><span data-i18n="consciousness.german">German</span></option>
+                <option value="zh"><span data-i18n="consciousness.chinese">Chinese</span></option>
+                <option value="ar"><span data-i18n="consciousness.arabic">Arabic</span></option>
+                <option value="he"><span data-i18n="consciousness.hebrew">Hebrew</span></option>
               </select>
             </div>
-            <div id="langBrowserTable"><div class="cs-loading">Loading...</div></div>
+            <div id="langBrowserTable"><div class="cs-loading"><span data-i18n="consciousness.loading_3">Loading...</span></div></div>
           </div>
           <div class="cs-subpanel" id="lang-review">
             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
               <select id="langReviewLang" onchange="loadLangReview()"
                       style="padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;">
-                <option value="fr">French</option>
-                <option value="es">Spanish</option>
-                <option value="pt">Portuguese</option>
-                <option value="de">German</option>
-                <option value="zh">Chinese</option>
-                <option value="ar">Arabic</option>
-                <option value="he">Hebrew</option>
+                <option value="fr"><span data-i18n="consciousness.french_2">French</span></option>
+                <option value="es"><span data-i18n="consciousness.spanish_2">Spanish</span></option>
+                <option value="pt"><span data-i18n="consciousness.portuguese_2">Portuguese</span></option>
+                <option value="de"><span data-i18n="consciousness.german_2">German</span></option>
+                <option value="zh"><span data-i18n="consciousness.chinese_2">Chinese</span></option>
+                <option value="ar"><span data-i18n="consciousness.arabic_2">Arabic</span></option>
+                <option value="he"><span data-i18n="consciousness.hebrew_2">Hebrew</span></option>
               </select>
             </div>
-            <div id="langReviewList"><div class="cs-loading">Loading pending reviews...</div></div>
+            <div id="langReviewList"><div class="cs-loading"><span data-i18n="consciousness.loading_pending_reviews">Loading pending reviews...</span></div></div>
           </div>
           <div class="cs-subpanel" id="lang-glossary">
-            <div id="langGlossaryList"><div class="cs-loading">Loading glossary...</div></div>
+            <div id="langGlossaryList"><div class="cs-loading"><span data-i18n="consciousness.loading_glossary">Loading glossary...</span></div></div>
           </div>
         </div>
 
@@ -1173,29 +1173,29 @@
             <div class="cs-stat purple">
               <div class="cs-stat-icon"><i data-lucide="git-branch"></i></div>
               <div class="cs-stat-value" id="ghRepoCount">--</div>
-              <div class="cs-stat-label">Repositories</div>
+              <div class="cs-stat-label"><span data-i18n="consciousness.repositories">Repositories</span></div>
             </div>
             <div class="cs-stat blue">
               <div class="cs-stat-icon"><i data-lucide="file-code"></i></div>
               <div class="cs-stat-value" id="ghFileCount">--</div>
-              <div class="cs-stat-label">Files Indexed</div>
+              <div class="cs-stat-label"><span data-i18n="consciousness.files_indexed">Files Indexed</span></div>
             </div>
             <div class="cs-stat green">
               <div class="cs-stat-icon"><i data-lucide="database"></i></div>
               <div class="cs-stat-value" id="ghEmbedPct">--</div>
-              <div class="cs-stat-label">Embedded</div>
+              <div class="cs-stat-label"><span data-i18n="consciousness.embedded">Embedded</span></div>
             </div>
             <div class="cs-stat amber">
               <div class="cs-stat-icon"><i data-lucide="search"></i></div>
               <div class="cs-stat-value" id="ghSearchable">--</div>
-              <div class="cs-stat-label">Searchable</div>
+              <div class="cs-stat-label"><span data-i18n="consciousness.searchable">Searchable</span></div>
             </div>
           </div>
           <!-- LCARS Operations Terminal -->
           <div class="cs-ops-terminal" id="ghOpsTerminal">
             <div class="cs-ops-header">
               <div class="cs-ops-elbow"></div>
-              <div class="cs-ops-title">GITHUB OPERATIONS</div>
+              <div class="cs-ops-title"><span data-i18n="consciousness.github_operations">GITHUB OPERATIONS</span></div>
               <div class="cs-ops-status" id="ghOpsOnline">
                 <span class="cs-ops-dot"></span> ONLINE
               </div>
@@ -1213,11 +1213,11 @@
           </div>
 
           <div class="cs-subtabs">
-            <button class="cs-subtab active" onclick="switchGithubSubtab('repos')">Repos</button>
-            <button class="cs-subtab" onclick="switchGithubSubtab('search')">Search</button>
+            <button class="cs-subtab active" onclick="switchGithubSubtab('repos')"><span data-i18n="consciousness.repos">Repos</span></button>
+            <button class="cs-subtab" onclick="switchGithubSubtab('search')"><span data-i18n="consciousness.search">Search</span></button>
           </div>
           <div class="cs-subpanel active" id="gh-repos">
-            <div id="ghRepoGrid"><div class="cs-loading">Loading repositories...</div></div>
+            <div id="ghRepoGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_repositories">Loading repositories...</span></div></div>
           </div>
           <div class="cs-subpanel" id="gh-search">
             <div style="margin-bottom:16px;">
@@ -1225,7 +1225,7 @@
                      style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:6px; color:#fff; font-size:0.85rem;"
                      onkeydown="if(event.key==='Enter')searchGithub()">
             </div>
-            <div id="ghSearchResults"><div class="cs-empty">Enter a query to search indexed code</div></div>
+            <div id="ghSearchResults"><div class="cs-empty"><span data-i18n="consciousness.enter_a_query_to_search_indexed_code">Enter a query to search indexed code</span></div></div>
           </div>
         </div>
 
@@ -1237,28 +1237,28 @@
             <div class="cs-stat green" id="intDevhq">
               <div class="cs-stat-icon"><i data-lucide="folder-kanban"></i></div>
               <div class="cs-stat-value" id="intDevhqStatus">--</div>
-              <div class="cs-stat-label">Dev HQ</div>
+              <div class="cs-stat-label"><span data-i18n="consciousness.dev_hq">Dev HQ</span></div>
             </div>
             <div class="cs-stat blue" id="intBridge">
               <div class="cs-stat-icon"><i data-lucide="radio-tower"></i></div>
               <div class="cs-stat-value" id="intBridgeStatus">--</div>
-              <div class="cs-stat-label">Bridge</div>
+              <div class="cs-stat-label"><span data-i18n="consciousness.bridge">Bridge</span></div>
             </div>
             <div class="cs-stat purple" id="intOllama">
               <div class="cs-stat-icon"><i data-lucide="cpu"></i></div>
               <div class="cs-stat-value" id="intOllamaStatus">--</div>
-              <div class="cs-stat-label">Ollama</div>
+              <div class="cs-stat-label"><span data-i18n="consciousness.ollama">Ollama</span></div>
             </div>
             <div class="cs-stat amber" id="intGithub">
               <div class="cs-stat-icon"><i data-lucide="github"></i></div>
               <div class="cs-stat-value" id="intGithubStatus">--</div>
-              <div class="cs-stat-label">GitHub</div>
+              <div class="cs-stat-label"><span data-i18n="consciousness.github">GitHub</span></div>
             </div>
           </div>
 
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
             <div class="cs-card">
-              <div class="cs-card-header">Translation Pipeline</div>
+              <div class="cs-card-header"><span data-i18n="consciousness.translation_pipeline">Translation Pipeline</span></div>
               <div class="cs-card-body">
                 <p style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-bottom:12px;">
                   Test that translations route through Bridge (ADR-013)
@@ -1271,9 +1271,9 @@
               </div>
             </div>
             <div class="cs-card">
-              <div class="cs-card-header">Dev HQ Activity</div>
+              <div class="cs-card-header"><span data-i18n="consciousness.dev_hq_activity">Dev HQ Activity</span></div>
               <div class="cs-card-body" id="intDevhqActivity">
-                <div class="cs-loading">Loading...</div>
+                <div class="cs-loading"><span data-i18n="consciousness.loading_4">Loading...</span></div>
               </div>
             </div>
           </div>
@@ -1286,7 +1286,7 @@
         <div class="cs-modal">
             <div class="cs-modal-header">
                 <span id="agentModalTitle" data-i18n="consciousness.team.agent_profile">Agent Profile</span>
-                <button class="cs-modal-close" onclick="closeAgentModal()">&times;</button>
+                <button class="cs-modal-close" onclick="closeAgentModal()"><span data-i18n="consciousness.times">&times;</span></button>
             </div>
             <div class="cs-modal-body" id="agentModalBody"></div>
         </div>
@@ -1296,33 +1296,33 @@
     <div class="cs-modal-overlay" id="addRepoOverlay">
         <div class="cs-modal" style="max-width:500px;">
             <div class="cs-modal-header">
-                <span>Add GitHub Repository</span>
-                <button class="cs-modal-close" onclick="closeAddRepoModal()">&times;</button>
+                <span><span data-i18n="consciousness.add_github_repository">Add GitHub Repository</span></span>
+                <button class="cs-modal-close" onclick="closeAddRepoModal()"><span data-i18n="consciousness.times_2">&times;</span></button>
             </div>
             <div class="cs-modal-body">
                 <p style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-bottom:16px;">
                     Enter a GitHub repository URL to index its code and documentation into ARCHIE's knowledge base.
                 </p>
                 <div style="margin-bottom:12px;">
-                    <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;">Repository URL</label>
+                    <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;"><span data-i18n="consciousness.repository_url">Repository URL</span></label>
                     <input type="text" id="addRepoUrl" placeholder="https://github.com/owner/repo"
                            style="width:100%; padding:10px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.9rem; box-sizing:border-box;">
                 </div>
                 <div style="display:flex; gap:12px; margin-bottom:16px;">
                     <div style="flex:1;">
-                        <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;">Type (optional)</label>
+                        <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;"><span data-i18n="consciousness.type_optional">Type (optional)</span></label>
                         <select id="addRepoType" style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.85rem;">
-                            <option value="">Auto-detect</option>
-                            <option value="ai-agents">AI Agents</option>
-                            <option value="claude-skills">Claude Skills</option>
-                            <option value="ai-tools">AI Tools</option>
-                            <option value="python">Python</option>
-                            <option value="skills-library">Skills Library</option>
-                            <option value="reference">Reference</option>
+                            <option value=""><span data-i18n="consciousness.auto_detect">Auto-detect</span></option>
+                            <option value="ai-agents"><span data-i18n="consciousness.ai_agents">AI Agents</span></option>
+                            <option value="claude-skills"><span data-i18n="consciousness.claude_skills">Claude Skills</span></option>
+                            <option value="ai-tools"><span data-i18n="consciousness.ai_tools">AI Tools</span></option>
+                            <option value="python"><span data-i18n="consciousness.python">Python</span></option>
+                            <option value="skills-library"><span data-i18n="consciousness.skills_library">Skills Library</span></option>
+                            <option value="reference"><span data-i18n="consciousness.reference">Reference</span></option>
                         </select>
                     </div>
                     <div style="flex:1;">
-                        <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;">Max Files</label>
+                        <label style="font-size:0.78rem; color:rgba(255,255,255,0.5); display:block; margin-bottom:4px;"><span data-i18n="consciousness.max_files">Max Files</span></label>
                         <input type="number" id="addRepoMax" placeholder="2000" value="2000"
                                style="width:100%; padding:8px 12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; font-size:0.85rem; box-sizing:border-box;">
                     </div>
@@ -1340,8 +1340,8 @@
     <div class="cs-modal-overlay" id="verifyOverlay">
         <div class="cs-modal" style="max-width:600px;">
             <div class="cs-modal-header">
-                <span>GitHub Verification Report</span>
-                <button class="cs-modal-close" onclick="closeVerifyModal()">&times;</button>
+                <span><span data-i18n="consciousness.github_verification_report">GitHub Verification Report</span></span>
+                <button class="cs-modal-close" onclick="closeVerifyModal()"><span data-i18n="consciousness.times_3">&times;</span></button>
             </div>
             <div class="cs-modal-body" id="verifyModalBody">
             </div>

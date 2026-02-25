@@ -46,8 +46,8 @@
                     <i data-lucide="clapperboard"></i>
                 </div>
                 <div class="brand-text">
-                    <h1>MEDIA HUB</h1>
-                    <span class="brand-subtitle">Unified Streaming Command</span>
+                    <h1><span data-i18n="media_hub.media_hub">MEDIA HUB</span></h1>
+                    <span class="brand-subtitle"><span data-i18n="media_hub.unified_streaming_command">Unified Streaming Command</span></span>
                 </div>
             </div>
 
@@ -63,7 +63,7 @@
             <!-- Install App Button (shown when PWA install available) -->
             <button class="install-app-btn" id="installAppBtn" style="display: none;" onclick="installPWA()">
                 <i data-lucide="download"></i>
-                <span>Install App</span>
+                <span><span data-i18n="media_hub.install_app">Install App</span></span>
             </button>
 
             <div class="header-status">
@@ -71,7 +71,7 @@
                     <span class="orb-ring"></span>
                     <span class="orb-core"></span>
                 </div>
-                <span class="status-label" id="statusLabel">Initializing...</span>
+                <span class="status-label" id="statusLabel"><span data-i18n="media_hub.initializing">Initializing...</span></span>
             </div>
         </div>
     </header>
@@ -81,40 +81,40 @@
         <div class="nav-tabs">
             <button class="nav-tab active" data-tab="dashboard">
                 <i data-lucide="layout-dashboard"></i>
-                <span>Dashboard</span>
-                <kbd class="nav-hotkey">Alt+1</kbd>
+                <span><span data-i18n="media_hub.dashboard">Dashboard</span></span>
+                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_1">Alt+1</span></kbd>
             </button>
             <button class="nav-tab" data-tab="movies">
                 <i data-lucide="film"></i>
-                <span>Movies</span>
+                <span><span data-i18n="media_hub.movies">Movies</span></span>
                 <span class="nav-count" id="movieCount">--</span>
-                <kbd class="nav-hotkey">Alt+2</kbd>
+                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_2">Alt+2</span></kbd>
             </button>
             <button class="nav-tab" data-tab="shows">
                 <i data-lucide="tv"></i>
-                <span>TV Shows</span>
+                <span><span data-i18n="media_hub.tv_shows">TV Shows</span></span>
                 <span class="nav-count" id="showCount">--</span>
-                <kbd class="nav-hotkey">Alt+3</kbd>
+                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_3">Alt+3</span></kbd>
             </button>
             <button class="nav-tab" data-tab="requests">
                 <i data-lucide="inbox"></i>
-                <span>Requests</span>
+                <span><span data-i18n="media_hub.requests">Requests</span></span>
                 <span class="nav-badge" id="requestBadge" style="display:none">0</span>
-                <kbd class="nav-hotkey">Alt+4</kbd>
+                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_4">Alt+4</span></kbd>
             </button>
             <button class="nav-tab" data-tab="calendar">
                 <i data-lucide="calendar-days"></i>
-                <span>Calendar</span>
-                <kbd class="nav-hotkey">Alt+5</kbd>
+                <span><span data-i18n="media_hub.calendar">Calendar</span></span>
+                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_5">Alt+5</span></kbd>
             </button>
             <button class="nav-tab" data-tab="stats">
                 <i data-lucide="bar-chart-3"></i>
-                <span>Stats</span>
-                <kbd class="nav-hotkey">Alt+6</kbd>
+                <span><span data-i18n="media_hub.stats">Stats</span></span>
+                <kbd class="nav-hotkey"><span data-i18n="media_hub.alt_6">Alt+6</span></kbd>
             </button>
             <button class="nav-tab" data-tab="settings">
                 <i data-lucide="settings-2"></i>
-                <span>Settings</span>
+                <span><span data-i18n="media_hub.settings">Settings</span></span>
             </button>
         </div>
     </nav>
@@ -128,29 +128,29 @@
                 <div class="stat-card">
                     <div class="stat-icon"><i data-lucide="film"></i></div>
                     <div class="stat-value" id="statMovies">--</div>
-                    <div class="stat-label">Movies</div>
+                    <div class="stat-label"><span data-i18n="media_hub.movies_2">Movies</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i data-lucide="tv"></i></div>
                     <div class="stat-value" id="statShows">--</div>
-                    <div class="stat-label">TV Shows</div>
+                    <div class="stat-label"><span data-i18n="media_hub.tv_shows_2">TV Shows</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i data-lucide="play-circle"></i></div>
                     <div class="stat-value" id="statEpisodes">--</div>
-                    <div class="stat-label">Episodes</div>
+                    <div class="stat-label"><span data-i18n="media_hub.episodes">Episodes</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i data-lucide="hard-drive"></i></div>
                     <div class="stat-value" id="statStorage">--</div>
-                    <div class="stat-label">Storage</div>
+                    <div class="stat-label"><span data-i18n="media_hub.storage">Storage</span></div>
                 </div>
             </div>
 
             <!-- Continue Watching -->
             <section class="content-section" id="continueWatchingSection" style="display:none">
                 <div class="section-header">
-                    <h2><i data-lucide="play"></i> Continue Watching</h2>
+                    <h2><i data-lucide="play"></i><span data-i18n="media_hub.continue_watching"> Continue Watching</span></h2>
                     <button class="btn-ghost" onclick="loadContinueWatching()">
                         <i data-lucide="refresh-cw"></i>
                     </button>
@@ -163,7 +163,7 @@
             <!-- Watch History -->
             <section class="content-section" id="watchHistorySection" style="display:none">
                 <div class="section-header">
-                    <h2><i data-lucide="history"></i> Recently Watched</h2>
+                    <h2><i data-lucide="history"></i><span data-i18n="media_hub.recently_watched"> Recently Watched</span></h2>
                     <button class="btn-ghost" onclick="loadWatchHistory()">
                         <i data-lucide="refresh-cw"></i>
                     </button>
@@ -176,7 +176,7 @@
             <!-- Recent Additions -->
             <section class="content-section">
                 <div class="section-header">
-                    <h2><i data-lucide="sparkles"></i> Recently Added</h2>
+                    <h2><i data-lucide="sparkles"></i><span data-i18n="media_hub.recently_added"> Recently Added</span></h2>
                     <button class="btn-ghost" onclick="loadRecentAdditions()">
                         <i data-lucide="refresh-cw"></i>
                     </button>
@@ -184,7 +184,7 @@
                 <div class="poster-carousel" id="recentAdditions">
                     <div class="carousel-loading">
                         <div class="loading-pulse"></div>
-                        <span>Loading library...</span>
+                        <span><span data-i18n="media_hub.loading_library">Loading library...</span></span>
                     </div>
                 </div>
             </section>
@@ -192,10 +192,10 @@
             <!-- Trending (TMDB) -->
             <section class="content-section" id="trendingSection" style="display:none">
                 <div class="section-header">
-                    <h2><i data-lucide="trending-up"></i> Trending This Week</h2>
+                    <h2><i data-lucide="trending-up"></i><span data-i18n="media_hub.trending_this_week"> Trending This Week</span></h2>
                     <div class="trending-tabs">
-                        <button class="trending-tab active" data-type="all">All</button>
-                        <button class="trending-tab" data-type="movie">Movies</button>
+                        <button class="trending-tab active" data-type="all"><span data-i18n="media_hub.all">All</span></button>
+                        <button class="trending-tab" data-type="movie"><span data-i18n="media_hub.movies_3">Movies</span></button>
                         <button class="trending-tab" data-type="tv">TV</button>
                     </div>
                 </div>
@@ -213,7 +213,7 @@
                 <!-- Downloads Panel -->
                 <section class="panel">
                     <div class="panel-header">
-                        <h3><i data-lucide="download"></i> Downloads</h3>
+                        <h3><i data-lucide="download"></i><span data-i18n="media_hub.downloads"> Downloads</span></h3>
                         <div class="panel-actions">
                             <button class="btn-icon" id="pauseAllDownloads" title="Pause All" onclick="controlDownloads('pause')">
                                 <i data-lucide="pause"></i>
@@ -229,7 +229,7 @@
                     <div class="panel-content" id="downloadsPanel">
                         <div class="empty-state">
                             <i data-lucide="check-circle"></i>
-                            <span>No active downloads</span>
+                            <span><span data-i18n="media_hub.no_active_downloads">No active downloads</span></span>
                         </div>
                     </div>
                 </section>
@@ -237,13 +237,13 @@
                 <!-- Upcoming Panel -->
                 <section class="panel">
                     <div class="panel-header">
-                        <h3><i data-lucide="calendar-clock"></i> Airing Today</h3>
-                        <a href="#" class="btn-ghost" onclick="switchTab('calendar'); return false;">View All</a>
+                        <h3><i data-lucide="calendar-clock"></i><span data-i18n="media_hub.airing_today"> Airing Today</span></h3>
+                        <a href="#" class="btn-ghost" onclick="switchTab('calendar'); return false;"><span data-i18n="media_hub.view_all">View All</span></a>
                     </div>
                     <div class="panel-content" id="airingTodayPanel">
                         <div class="empty-state">
                             <i data-lucide="tv-2"></i>
-                            <span>No episodes today</span>
+                            <span><span data-i18n="media_hub.no_episodes_today">No episodes today</span></span>
                         </div>
                     </div>
                 </section>
@@ -255,10 +255,10 @@
             <div class="library-controls">
                 <div class="filter-group">
                     <select id="movieSort" class="control-select">
-                        <option value="added">Recently Added</option>
-                        <option value="title">Title A-Z</option>
-                        <option value="year">Year</option>
-                        <option value="rating">Rating</option>
+                        <option value="added"><span data-i18n="media_hub.recently_added_2">Recently Added</span></option>
+                        <option value="title"><span data-i18n="media_hub.title_a_z">Title A-Z</span></option>
+                        <option value="year"><span data-i18n="media_hub.year">Year</span></option>
+                        <option value="rating"><span data-i18n="media_hub.rating">Rating</span></option>
                     </select>
                 </div>
                 <div class="view-toggle">
@@ -267,17 +267,17 @@
                 </div>
             </div>
             <div class="genre-filters" id="movieGenreFilters">
-                <button class="filter-chip active" data-genre="all">All</button>
+                <button class="filter-chip active" data-genre="all"><span data-i18n="media_hub.all_2">All</span></button>
                 <!-- Genre chips populated by JS -->
             </div>
             <div class="media-grid" id="moviesGrid">
                 <div class="grid-loading">
                     <div class="loading-pulse"></div>
-                    <span>Loading movies...</span>
+                    <span><span data-i18n="media_hub.loading_movies">Loading movies...</span></span>
                 </div>
             </div>
             <div class="load-more" id="loadMoreMovies" style="display:none">
-                <button class="btn-outline" onclick="loadMoreMovies()">Load More</button>
+                <button class="btn-outline" onclick="loadMoreMovies()"><span data-i18n="media_hub.load_more">Load More</span></button>
             </div>
         </section>
 
@@ -286,10 +286,10 @@
             <div class="library-controls">
                 <div class="filter-group">
                     <select id="showSort" class="control-select">
-                        <option value="added">Recently Added</option>
-                        <option value="title">Title A-Z</option>
-                        <option value="year">Year</option>
-                        <option value="rating">Rating</option>
+                        <option value="added"><span data-i18n="media_hub.recently_added_3">Recently Added</span></option>
+                        <option value="title"><span data-i18n="media_hub.title_a_z_2">Title A-Z</span></option>
+                        <option value="year"><span data-i18n="media_hub.year_2">Year</span></option>
+                        <option value="rating"><span data-i18n="media_hub.rating_2">Rating</span></option>
                     </select>
                 </div>
                 <div class="view-toggle">
@@ -298,17 +298,17 @@
                 </div>
             </div>
             <div class="genre-filters" id="showGenreFilters">
-                <button class="filter-chip active" data-genre="all">All</button>
+                <button class="filter-chip active" data-genre="all"><span data-i18n="media_hub.all_3">All</span></button>
                 <!-- Genre chips populated by JS -->
             </div>
             <div class="media-grid" id="showsGrid">
                 <div class="grid-loading">
                     <div class="loading-pulse"></div>
-                    <span>Loading TV shows...</span>
+                    <span><span data-i18n="media_hub.loading_tv_shows">Loading TV shows...</span></span>
                 </div>
             </div>
             <div class="load-more" id="loadMoreShows" style="display:none">
-                <button class="btn-outline" onclick="loadMoreShows()">Load More</button>
+                <button class="btn-outline" onclick="loadMoreShows()"><span data-i18n="media_hub.load_more_2">Load More</span></button>
             </div>
         </section>
 
@@ -316,14 +316,14 @@
         <section id="tab-requests" class="tab-panel">
             <div class="library-controls">
                 <div class="filter-group" id="requestsFilterGroup">
-                    <button class="filter-chip active" data-status="active" onclick="filterRequests('active')">Active</button>
-                    <button class="filter-chip" data-status="pending" onclick="filterRequests('pending')">Pending</button>
-                    <button class="filter-chip" data-status="approved" onclick="filterRequests('approved')">Approved</button>
-                    <button class="filter-chip" data-status="available" onclick="filterRequests('available')">Completed</button>
-                    <button class="filter-chip" data-status="all" onclick="filterRequests('all')">All</button>
+                    <button class="filter-chip active" data-status="active" onclick="filterRequests('active')"><span data-i18n="media_hub.active">Active</span></button>
+                    <button class="filter-chip" data-status="pending" onclick="filterRequests('pending')"><span data-i18n="media_hub.pending">Pending</span></button>
+                    <button class="filter-chip" data-status="approved" onclick="filterRequests('approved')"><span data-i18n="media_hub.approved">Approved</span></button>
+                    <button class="filter-chip" data-status="available" onclick="filterRequests('available')"><span data-i18n="media_hub.completed">Completed</span></button>
+                    <button class="filter-chip" data-status="all" onclick="filterRequests('all')"><span data-i18n="media_hub.all_4">All</span></button>
                 </div>
                 <div class="limit-group">
-                    <span class="limit-label">Show:</span>
+                    <span class="limit-label"><span data-i18n="media_hub.show">Show:</span></span>
                     <button class="limit-btn active" onclick="setRequestsLimit(10)">10</button>
                     <button class="limit-btn" onclick="setRequestsLimit(20)">20</button>
                     <button class="limit-btn" onclick="setRequestsLimit(50)">50</button>
@@ -333,8 +333,8 @@
             <div class="requests-list" id="requestsList">
                 <div class="empty-state">
                     <i data-lucide="inbox"></i>
-                    <span>No media requests</span>
-                    <p>Search for movies or shows to request them</p>
+                    <span><span data-i18n="media_hub.no_media_requests">No media requests</span></span>
+                    <p><span data-i18n="media_hub.search_for_movies_or_shows_to_request_them">Search for movies or shows to request them</span></p>
                 </div>
             </div>
         </section>
@@ -342,7 +342,7 @@
         <!-- Calendar Tab -->
         <section id="tab-calendar" class="tab-panel">
             <div class="calendar-header">
-                <h2><i data-lucide="calendar-days"></i> Upcoming Episodes</h2>
+                <h2><i data-lucide="calendar-days"></i><span data-i18n="media_hub.upcoming_episodes"> Upcoming Episodes</span></h2>
                 <div class="calendar-controls">
                     <!-- View Toggle -->
                     <div class="calendar-view-toggle">
@@ -356,9 +356,9 @@
                     <!-- Navigation -->
                     <div class="calendar-nav">
                         <button class="btn-icon" onclick="changeCalendarPeriod(-1)"><i data-lucide="chevron-left"></i></button>
-                        <span id="calendarRange">This Week</span>
+                        <span id="calendarRange"><span data-i18n="media_hub.this_week">This Week</span></span>
                         <button class="btn-icon" onclick="changeCalendarPeriod(1)"><i data-lucide="chevron-right"></i></button>
-                        <button class="btn-ghost btn-sm" onclick="goToToday()">Today</button>
+                        <button class="btn-ghost btn-sm" onclick="goToToday()"><span data-i18n="media_hub.today">Today</span></button>
                     </div>
                 </div>
             </div>
@@ -368,20 +368,20 @@
                     <div class="calendar-grid" id="calendarGrid">
                         <div class="calendar-loading">
                             <div class="loading-pulse"></div>
-                            <span>Loading calendar...</span>
+                            <span><span data-i18n="media_hub.loading_calendar">Loading calendar...</span></span>
                         </div>
                     </div>
                 </div>
                 <!-- Month view -->
                 <div class="calendar-month-view hidden" id="calendarMonthView">
                     <div class="month-header">
-                        <div class="month-day-name">Sun</div>
-                        <div class="month-day-name">Mon</div>
-                        <div class="month-day-name">Tue</div>
-                        <div class="month-day-name">Wed</div>
-                        <div class="month-day-name">Thu</div>
-                        <div class="month-day-name">Fri</div>
-                        <div class="month-day-name">Sat</div>
+                        <div class="month-day-name"><span data-i18n="media_hub.sun">Sun</span></div>
+                        <div class="month-day-name"><span data-i18n="media_hub.mon">Mon</span></div>
+                        <div class="month-day-name"><span data-i18n="media_hub.tue">Tue</span></div>
+                        <div class="month-day-name"><span data-i18n="media_hub.wed">Wed</span></div>
+                        <div class="month-day-name"><span data-i18n="media_hub.thu">Thu</span></div>
+                        <div class="month-day-name"><span data-i18n="media_hub.fri">Fri</span></div>
+                        <div class="month-day-name"><span data-i18n="media_hub.sat">Sat</span></div>
                     </div>
                     <div class="month-grid" id="monthGrid"></div>
                 </div>
@@ -391,7 +391,7 @@
         <!-- Stats Tab -->
         <section id="tab-stats" class="tab-panel">
             <div class="section-header">
-                <h2><i data-lucide="bar-chart-3"></i> Library Statistics</h2>
+                <h2><i data-lucide="bar-chart-3"></i><span data-i18n="media_hub.library_statistics"> Library Statistics</span></h2>
                 <button class="btn-ghost" onclick="loadStatistics(true)">
                     <i data-lucide="refresh-cw"></i>
                 </button>
@@ -403,28 +403,28 @@
                         <div class="overview-icon movies"><i data-lucide="film"></i></div>
                         <div class="overview-details">
                             <span class="overview-value" id="statsTotalMovies">--</span>
-                            <span class="overview-label">Movies</span>
+                            <span class="overview-label"><span data-i18n="media_hub.movies_4">Movies</span></span>
                         </div>
                     </div>
                     <div class="stats-overview-card">
                         <div class="overview-icon shows"><i data-lucide="tv"></i></div>
                         <div class="overview-details">
                             <span class="overview-value" id="statsTotalShows">--</span>
-                            <span class="overview-label">TV Shows</span>
+                            <span class="overview-label"><span data-i18n="media_hub.tv_shows_3">TV Shows</span></span>
                         </div>
                     </div>
                     <div class="stats-overview-card">
                         <div class="overview-icon episodes"><i data-lucide="play-circle"></i></div>
                         <div class="overview-details">
                             <span class="overview-value" id="statsTotalEpisodes">--</span>
-                            <span class="overview-label">Episodes</span>
+                            <span class="overview-label"><span data-i18n="media_hub.episodes_2">Episodes</span></span>
                         </div>
                     </div>
                     <div class="stats-overview-card">
                         <div class="overview-icon storage"><i data-lucide="hard-drive"></i></div>
                         <div class="overview-details">
                             <span class="overview-value" id="statsTotalStorage">--</span>
-                            <span class="overview-label">Total Storage</span>
+                            <span class="overview-label"><span data-i18n="media_hub.total_storage">Total Storage</span></span>
                         </div>
                     </div>
                 </div>
@@ -433,49 +433,49 @@
                 <div class="stats-charts-grid">
                     <!-- Quality Breakdown -->
                     <div class="stats-chart-card">
-                        <h3><i data-lucide="monitor"></i> Video Quality</h3>
+                        <h3><i data-lucide="monitor"></i><span data-i18n="media_hub.video_quality"> Video Quality</span></h3>
                         <div class="quality-breakdown" id="qualityBreakdown">
-                            <div class="breakdown-placeholder">Loading...</div>
+                            <div class="breakdown-placeholder"><span data-i18n="media_hub.loading">Loading...</span></div>
                         </div>
                     </div>
 
                     <!-- Audio/Video Features -->
                     <div class="stats-chart-card">
-                        <h3><i data-lucide="sparkles"></i> Premium Features</h3>
+                        <h3><i data-lucide="sparkles"></i><span data-i18n="media_hub.premium_features"> Premium Features</span></h3>
                         <div class="features-grid" id="featuresGrid">
-                            <div class="breakdown-placeholder">Loading...</div>
+                            <div class="breakdown-placeholder"><span data-i18n="media_hub.loading_2">Loading...</span></div>
                         </div>
                     </div>
 
                     <!-- Storage by Type -->
                     <div class="stats-chart-card">
-                        <h3><i data-lucide="pie-chart"></i> Storage Breakdown</h3>
+                        <h3><i data-lucide="pie-chart"></i><span data-i18n="media_hub.storage_breakdown"> Storage Breakdown</span></h3>
                         <div class="storage-breakdown" id="storageBreakdown">
-                            <div class="breakdown-placeholder">Loading...</div>
+                            <div class="breakdown-placeholder"><span data-i18n="media_hub.loading_3">Loading...</span></div>
                         </div>
                     </div>
 
                     <!-- Genre Distribution -->
                     <div class="stats-chart-card">
-                        <h3><i data-lucide="tags"></i> Top Genres</h3>
+                        <h3><i data-lucide="tags"></i><span data-i18n="media_hub.top_genres"> Top Genres</span></h3>
                         <div class="genres-breakdown" id="genresBreakdown">
-                            <div class="breakdown-placeholder">Loading...</div>
+                            <div class="breakdown-placeholder"><span data-i18n="media_hub.loading_4">Loading...</span></div>
                         </div>
                     </div>
 
                     <!-- Recently Added -->
                     <div class="stats-chart-card full-width">
-                        <h3><i data-lucide="calendar-plus"></i> Recently Added (Last 7 Days)</h3>
+                        <h3><i data-lucide="calendar-plus"></i><span data-i18n="media_hub.recently_added_last_7_days"> Recently Added (Last 7 Days)</span></h3>
                         <div class="recent-additions" id="recentAdditions">
-                            <div class="breakdown-placeholder">Loading...</div>
+                            <div class="breakdown-placeholder"><span data-i18n="media_hub.loading_5">Loading...</span></div>
                         </div>
                     </div>
 
                     <!-- Top Rated -->
                     <div class="stats-chart-card full-width">
-                        <h3><i data-lucide="star"></i> Highest Rated in Library</h3>
+                        <h3><i data-lucide="star"></i><span data-i18n="media_hub.highest_rated_in_library"> Highest Rated in Library</span></h3>
                         <div class="top-rated-grid" id="topRatedGrid">
-                            <div class="breakdown-placeholder">Loading...</div>
+                            <div class="breakdown-placeholder"><span data-i18n="media_hub.loading_6">Loading...</span></div>
                         </div>
                     </div>
                 </div>
@@ -487,8 +487,8 @@
             <div class="settings-layout">
                 <!-- Services Configuration -->
                 <div class="settings-section">
-                    <h2><i data-lucide="server"></i> Connected Services</h2>
-                    <p class="section-desc">Configure your media server and related services.</p>
+                    <h2><i data-lucide="server"></i><span data-i18n="media_hub.connected_services"> Connected Services</span></h2>
+                    <p class="section-desc"><span data-i18n="media_hub.configure_your_media_server_and_related_services">Configure your media server and related services.</span></p>
 
                     <div class="services-grid" id="servicesGrid">
                         <!-- Services loaded dynamically -->
@@ -508,17 +508,17 @@
 
                 <!-- About Section -->
                 <div class="settings-section">
-                    <h2><i data-lucide="info"></i> About Media Hub</h2>
+                    <h2><i data-lucide="info"></i><span data-i18n="media_hub.about_media_hub"> About Media Hub</span></h2>
                     <div class="about-info">
-                        <p>Unified interface for your media server ecosystem.</p>
+                        <p><span data-i18n="media_hub.unified_interface_for_your_media_server_ecosystem">Unified interface for your media server ecosystem.</span></p>
                         <ul>
-                            <li><strong>Media Servers:</strong> Plex, Jellyfin</li>
-                            <li><strong>TV Management:</strong> Sonarr</li>
-                            <li><strong>Movie Management:</strong> Radarr</li>
-                            <li><strong>Request System:</strong> Overseerr, Jellyseerr</li>
-                            <li><strong>Downloader:</strong> SABnzbd</li>
+                            <li><strong><span data-i18n="media_hub.media_servers">Media Servers:</span></strong><span data-i18n="media_hub.plex_jellyfin"> Plex, Jellyfin</span></li>
+                            <li><strong><span data-i18n="media_hub.tv_management">TV Management:</span></strong><span data-i18n="media_hub.sonarr"> Sonarr</span></li>
+                            <li><strong><span data-i18n="media_hub.movie_management">Movie Management:</span></strong><span data-i18n="media_hub.radarr"> Radarr</span></li>
+                            <li><strong><span data-i18n="media_hub.request_system">Request System:</span></strong><span data-i18n="media_hub.overseerr_jellyseerr"> Overseerr, Jellyseerr</span></li>
+                            <li><strong><span data-i18n="media_hub.downloader">Downloader:</span></strong><span data-i18n="media_hub.sabnzbd"> SABnzbd</span></li>
                         </ul>
-                        <p class="version-text">Version 1.0.0 | A.R.C.H.I.E. Platform</p>
+                        <p class="version-text"><span data-i18n="media_hub.version_1_0_0_a_r_c_h_i_e_platform">Version 1.0.0 | A.R.C.H.I.E. Platform</span></p>
                     </div>
                 </div>
             </div>
@@ -544,7 +544,7 @@
     <div class="video-player-backdrop" onclick="closeVideoPlayer()"></div>
     <div class="video-player-container">
         <div class="video-player-header">
-            <div class="video-player-title" id="videoPlayerTitle">Now Playing</div>
+            <div class="video-player-title" id="videoPlayerTitle"><span data-i18n="media_hub.now_playing">Now Playing</span></div>
             <button class="video-player-close" onclick="closeVideoPlayer()">
                 <i data-lucide="x"></i>
             </button>
@@ -555,7 +555,7 @@
             </video>
             <div class="video-loading" id="videoLoading">
                 <div class="video-spinner"></div>
-                <span>Loading stream...</span>
+                <span><span data-i18n="media_hub.loading_stream">Loading stream...</span></span>
             </div>
         </div>
         <div class="video-player-controls">
@@ -570,7 +570,7 @@
     <div class="modal-backdrop" onclick="closeServiceModal()"></div>
     <div class="modal-content">
         <div class="modal-header">
-            <h3><i data-lucide="server"></i> <span id="serviceModalTitle">Add Service</span></h3>
+            <h3><i data-lucide="server"></i> <span id="serviceModalTitle"><span data-i18n="media_hub.add_service">Add Service</span></span></h3>
             <button class="modal-close" onclick="closeServiceModal()">
                 <i data-lucide="x"></i>
             </button>
@@ -578,47 +578,47 @@
         <form id="serviceForm" onsubmit="saveService(event)">
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="serviceType">Service Type</label>
+                    <label for="serviceType"><span data-i18n="media_hub.service_type">Service Type</span></label>
                     <select id="serviceType" name="service_type" required>
-                        <option value="">Select service...</option>
-                        <option value="plex">Plex</option>
-                        <option value="jellyfin">Jellyfin</option>
-                        <option value="sonarr">Sonarr</option>
-                        <option value="radarr">Radarr</option>
-                        <option value="prowlarr">Prowlarr</option>
-                        <option value="overseerr">Overseerr</option>
-                        <option value="jellyseerr">Jellyseerr</option>
-                        <option value="sabnzbd">SABnzbd</option>
+                        <option value=""><span data-i18n="media_hub.select_service">Select service...</span></option>
+                        <option value="plex"><span data-i18n="media_hub.plex">Plex</span></option>
+                        <option value="jellyfin"><span data-i18n="media_hub.jellyfin">Jellyfin</span></option>
+                        <option value="sonarr"><span data-i18n="media_hub.sonarr_2">Sonarr</span></option>
+                        <option value="radarr"><span data-i18n="media_hub.radarr_2">Radarr</span></option>
+                        <option value="prowlarr"><span data-i18n="media_hub.prowlarr">Prowlarr</span></option>
+                        <option value="overseerr"><span data-i18n="media_hub.overseerr">Overseerr</span></option>
+                        <option value="jellyseerr"><span data-i18n="media_hub.jellyseerr">Jellyseerr</span></option>
+                        <option value="sabnzbd"><span data-i18n="media_hub.sabnzbd_2">SABnzbd</span></option>
                     </select>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="serviceHost">Host</label>
+                        <label for="serviceHost"><span data-i18n="media_hub.host">Host</span></label>
                         <input type="text" id="serviceHost" name="host" value="192.168.1.200" required>
                     </div>
                     <div class="form-group">
-                        <label for="servicePort">Port</label>
+                        <label for="servicePort"><span data-i18n="media_hub.port">Port</span></label>
                         <input type="number" id="servicePort" name="port" required>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="serviceApiKey">API Key / Token</label>
+                    <label for="serviceApiKey"><span data-i18n="media_hub.api_key_token">API Key / Token</span></label>
                     <input type="password" id="serviceApiKey" name="api_key" placeholder="Enter API key...">
-                    <small class="form-hint">Leave blank to keep existing key</small>
+                    <small class="form-hint"><span data-i18n="media_hub.leave_blank_to_keep_existing_key">Leave blank to keep existing key</span></small>
                 </div>
                 <div class="form-group form-check">
                     <input type="checkbox" id="serviceSsl" name="use_ssl">
-                    <label for="serviceSsl">Use SSL (HTTPS)</label>
+                    <label for="serviceSsl"><span data-i18n="media_hub.use_ssl_https">Use SSL (HTTPS)</span></label>
                 </div>
                 <div class="form-group form-check">
                     <input type="checkbox" id="serviceEnabled" name="is_enabled" checked>
-                    <label for="serviceEnabled">Enabled</label>
+                    <label for="serviceEnabled"><span data-i18n="media_hub.enabled">Enabled</span></label>
                 </div>
                 <input type="hidden" id="serviceId" name="service_id">
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn-ghost" onclick="closeServiceModal()">Cancel</button>
-                <button type="submit" class="btn-primary">Save Service</button>
+                <button type="button" class="btn-ghost" onclick="closeServiceModal()"><span data-i18n="media_hub.cancel">Cancel</span></button>
+                <button type="submit" class="btn-primary"><span data-i18n="media_hub.save_service">Save Service</span></button>
             </div>
         </form>
     </div>

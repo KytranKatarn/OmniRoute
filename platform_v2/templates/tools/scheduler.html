@@ -16,7 +16,7 @@
             <h2 class="mb-1">
                 <i class="bi bi-calendar3 me-2"></i>Scheduler
             </h2>
-            <p class="text-muted mb-0">Calendar, subscriptions, and task scheduling</p>
+            <p class="text-muted mb-0"><span data-i18n="scheduler.calendar_subscriptions_and_task_scheduling">Calendar, subscriptions, and task scheduling</span></p>
         </div>
         <div class="d-flex gap-2 align-items-center">
             <button class="btn btn-primary" onclick="showCreateEventModal()">
@@ -33,7 +33,7 @@
                 <div class="card-body text-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="text-white-50 mb-1 small">Today</h6>
+                            <h6 class="text-white-50 mb-1 small"><span data-i18n="scheduler.today">Today</span></h6>
                             <h4 class="mb-0">{{ stats.today or 0 }}</h4>
                         </div>
                         <i class="bi bi-calendar-day fs-4 text-white-50"></i>
@@ -46,7 +46,7 @@
                 <div class="card-body text-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="text-white-50 mb-1 small">This Week</h6>
+                            <h6 class="text-white-50 mb-1 small"><span data-i18n="scheduler.this_week">This Week</span></h6>
                             <h4 class="mb-0">{{ stats.upcoming_week or 0 }}</h4>
                         </div>
                         <i class="bi bi-calendar-week fs-4 text-white-50"></i>
@@ -59,7 +59,7 @@
                 <div class="card-body text-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="text-white-50 mb-1 small">Subscriptions</h6>
+                            <h6 class="text-white-50 mb-1 small"><span data-i18n="scheduler.subscriptions">Subscriptions</span></h6>
                             <h4 class="mb-0">{{ stats.active_subscriptions or 0 }}</h4>
                         </div>
                         <i class="bi bi-repeat fs-4 text-white-50"></i>
@@ -72,7 +72,7 @@
                 <div class="card-body text-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="text-white-50 mb-1 small">Renewing Soon</h6>
+                            <h6 class="text-white-50 mb-1 small"><span data-i18n="scheduler.renewing_soon">Renewing Soon</span></h6>
                             <h4 class="mb-0">{{ stats.renewing_soon or 0 }}</h4>
                         </div>
                         <i class="bi bi-exclamation-triangle fs-4 text-white-50"></i>
@@ -85,7 +85,7 @@
                 <div class="card-body text-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="text-white-50 mb-1 small">Reminders</h6>
+                            <h6 class="text-white-50 mb-1 small"><span data-i18n="scheduler.reminders">Reminders</span></h6>
                             <h4 class="mb-0">{{ stats.pending_reminders or 0 }}</h4>
                         </div>
                         <i class="bi bi-bell fs-4 text-white-50"></i>
@@ -98,7 +98,7 @@
                 <div class="card-body text-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="text-white-50 mb-1 small">Monthly Rev</h6>
+                            <h6 class="text-white-50 mb-1 small"><span data-i18n="scheduler.monthly_rev">Monthly Rev</span></h6>
                             <h4 class="mb-0">${{ "%.0f"|format(stats.monthly_revenue or 0) }}</h4>
                         </div>
                         <i class="bi bi-currency-dollar fs-4 text-white-50"></i>
@@ -150,13 +150,13 @@
         <div class="tab-pane fade" id="subscriptions" role="tabpanel">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Subscription Schedules</h5>
+                    <h5 class="mb-0"><span data-i18n="scheduler.subscription_schedules">Subscription Schedules</span></h5>
                     <div>
                         <select class="form-select form-select-sm d-inline-block w-auto me-2" id="filterSubStatus">
-                            <option value="">All Status</option>
-                            <option value="active" selected>Active</option>
-                            <option value="paused">Paused</option>
-                            <option value="cancelled">Cancelled</option>
+                            <option value=""><span data-i18n="scheduler.all_status">All Status</span></option>
+                            <option value="active" selected><span data-i18n="scheduler.active">Active</span></option>
+                            <option value="paused"><span data-i18n="scheduler.paused">Paused</span></option>
+                            <option value="cancelled"><span data-i18n="scheduler.cancelled">Cancelled</span></option>
                         </select>
                         <button class="btn btn-sm btn-success" onclick="showCreateSubscriptionModal()">
                             <i class="bi bi-plus-lg me-1"></i>Add
@@ -168,13 +168,13 @@
                         <table class="table table-hover mb-0">
                             <thead class="bg-light">
                                 <tr>
-                                    <th class="border-0 ps-4">Customer</th>
-                                    <th class="border-0">Plan</th>
-                                    <th class="border-0">Billing</th>
-                                    <th class="border-0 text-end">Amount</th>
-                                    <th class="border-0">Next Billing</th>
-                                    <th class="border-0">Status</th>
-                                    <th class="border-0 text-end pe-4">Actions</th>
+                                    <th class="border-0 ps-4"><span data-i18n="scheduler.customer">Customer</span></th>
+                                    <th class="border-0"><span data-i18n="scheduler.plan">Plan</span></th>
+                                    <th class="border-0"><span data-i18n="scheduler.billing">Billing</span></th>
+                                    <th class="border-0 text-end"><span data-i18n="scheduler.amount">Amount</span></th>
+                                    <th class="border-0"><span data-i18n="scheduler.next_billing">Next Billing</span></th>
+                                    <th class="border-0"><span data-i18n="scheduler.status">Status</span></th>
+                                    <th class="border-0 text-end pe-4"><span data-i18n="scheduler.actions">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="subscriptionsTableBody">
@@ -247,7 +247,7 @@
                 <div class="col-lg-8">
                     <div class="card border-0 shadow-sm">
                         <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Pending Reminders</h5>
+                            <h5 class="mb-0"><span data-i18n="scheduler.pending_reminders">Pending Reminders</span></h5>
                             <button class="btn btn-sm btn-primary" onclick="showCreateReminderModal()">
                                 <i class="bi bi-plus-lg me-1"></i>Add Reminder
                             </button>
@@ -275,10 +275,10 @@
                                             <i class="bi bi-clock"></i>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
-                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 15)">15 minutes</a></li>
-                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 30)">30 minutes</a></li>
-                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 60)">1 hour</a></li>
-                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 1440)">Tomorrow</a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 15)"><span data-i18n="scheduler.15_minutes">15 minutes</span></a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 30)"><span data-i18n="scheduler.30_minutes">30 minutes</span></a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 60)"><span data-i18n="scheduler.1_hour">1 hour</span></a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 1440)"><span data-i18n="scheduler.tomorrow">Tomorrow</span></a></li>
                                         </ul>
                                     </div>
                                 </div>
@@ -295,20 +295,20 @@
                 <div class="col-lg-4">
                     <div class="card border-0 shadow-sm">
                         <div class="card-header bg-white">
-                            <h5 class="mb-0">Quick Add Reminder</h5>
+                            <h5 class="mb-0"><span data-i18n="scheduler.quick_add_reminder">Quick Add Reminder</span></h5>
                         </div>
                         <div class="card-body">
                             <form id="quickReminderForm">
                                 <div class="mb-3">
-                                    <label class="form-label">Title</label>
+                                    <label class="form-label"><span data-i18n="scheduler.title">Title</span></label>
                                     <input type="text" class="form-control" id="quickReminderTitle" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Message</label>
+                                    <label class="form-label"><span data-i18n="scheduler.message">Message</span></label>
                                     <textarea class="form-control" id="quickReminderMessage" rows="2"></textarea>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Remind At</label>
+                                    <label class="form-label"><span data-i18n="scheduler.remind_at">Remind At</span></label>
                                     <input type="datetime-local" class="form-control" id="quickReminderTime" required>
                                 </div>
                                 <button type="submit" class="btn btn-primary w-100">
@@ -325,7 +325,7 @@
         <div class="tab-pane fade" id="tasks" role="tabpanel">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Scheduled Tasks</h5>
+                    <h5 class="mb-0"><span data-i18n="scheduler.scheduled_tasks">Scheduled Tasks</span></h5>
                     <button class="btn btn-sm btn-primary" onclick="showCreateTaskModal()">
                         <i class="bi bi-plus-lg me-1"></i>Add Task
                     </button>
@@ -335,12 +335,12 @@
                         <table class="table table-hover mb-0">
                             <thead class="bg-light">
                                 <tr>
-                                    <th class="border-0 ps-4">Task</th>
-                                    <th class="border-0">Type</th>
-                                    <th class="border-0">Scheduled For</th>
-                                    <th class="border-0">Priority</th>
-                                    <th class="border-0">Status</th>
-                                    <th class="border-0 text-end pe-4">Actions</th>
+                                    <th class="border-0 ps-4"><span data-i18n="scheduler.task">Task</span></th>
+                                    <th class="border-0"><span data-i18n="scheduler.type">Type</span></th>
+                                    <th class="border-0"><span data-i18n="scheduler.scheduled_for">Scheduled For</span></th>
+                                    <th class="border-0"><span data-i18n="scheduler.priority">Priority</span></th>
+                                    <th class="border-0"><span data-i18n="scheduler.status_2">Status</span></th>
+                                    <th class="border-0 text-end pe-4"><span data-i18n="scheduler.actions_2">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="tasksTableBody">
@@ -368,59 +368,59 @@
                 <form id="eventForm">
                     <input type="hidden" id="eventId">
                     <div class="mb-3">
-                        <label class="form-label">Title *</label>
+                        <label class="form-label"><span data-i18n="scheduler.title_2">Title *</span></label>
                         <input type="text" class="form-control" id="eventTitle" required>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Start *</label>
+                            <label class="form-label"><span data-i18n="scheduler.start">Start *</span></label>
                             <input type="datetime-local" class="form-control" id="eventStart" required>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">End</label>
+                            <label class="form-label"><span data-i18n="scheduler.end">End</span></label>
                             <input type="datetime-local" class="form-control" id="eventEnd">
                         </div>
                     </div>
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="eventAllDay">
-                            <label class="form-check-label" for="eventAllDay">All Day</label>
+                            <label class="form-check-label" for="eventAllDay"><span data-i18n="scheduler.all_day">All Day</span></label>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label">Type</label>
+                            <label class="form-label"><span data-i18n="scheduler.type_2">Type</span></label>
                             <select class="form-select" id="eventType">
-                                <option value="general">General</option>
-                                <option value="meeting">Meeting</option>
-                                <option value="call">Call</option>
-                                <option value="reminder">Reminder</option>
-                                <option value="task">Task</option>
+                                <option value="general"><span data-i18n="scheduler.general">General</span></option>
+                                <option value="meeting"><span data-i18n="scheduler.meeting">Meeting</span></option>
+                                <option value="call"><span data-i18n="scheduler.call">Call</span></option>
+                                <option value="reminder"><span data-i18n="scheduler.reminder">Reminder</span></option>
+                                <option value="task"><span data-i18n="scheduler.task_2">Task</span></option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Color</label>
+                            <label class="form-label"><span data-i18n="scheduler.color">Color</span></label>
                             <input type="color" class="form-control form-control-color w-100" id="eventColor" value="#3b82f6">
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Customer</label>
+                        <label class="form-label"><span data-i18n="scheduler.customer_2">Customer</span></label>
                         <select class="form-select" id="eventCustomer">
-                            <option value="">Select customer (optional)</option>
+                            <option value=""><span data-i18n="scheduler.select_customer_optional">Select customer (optional)</span></option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Location</label>
+                        <label class="form-label"><span data-i18n="scheduler.location">Location</span></label>
                         <input type="text" class="form-control" id="eventLocation" placeholder="Address or video link">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Description</label>
+                        <label class="form-label"><span data-i18n="scheduler.description">Description</span></label>
                         <textarea class="form-control" id="eventDescription" rows="3"></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="scheduler.cancel">Cancel</span></button>
                 <button type="button" class="btn btn-primary" onclick="saveEvent()">
                     <i class="bi bi-check-lg me-1"></i>Save Event
                 </button>
@@ -440,7 +440,7 @@
             <div class="modal-body" id="viewEventContent">
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="scheduler.close">Close</span></button>
                 <button type="button" class="btn btn-outline-primary" id="btnEditEvent">
                     <i class="bi bi-pencil me-1"></i>Edit
                 </button>
@@ -460,43 +460,43 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-warning">
-                <h5 class="modal-title"><i class="bi bi-bell me-2"></i>New Reminder</h5>
+                <h5 class="modal-title"><i class="bi bi-bell me-2"></i><span data-i18n="scheduler.new_reminder">New Reminder</span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="reminderForm">
                     <div class="mb-3">
-                        <label class="form-label">Title *</label>
+                        <label class="form-label"><span data-i18n="scheduler.title_3">Title *</span></label>
                         <input type="text" class="form-control" id="reminderTitle" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Message</label>
+                        <label class="form-label"><span data-i18n="scheduler.message_2">Message</span></label>
                         <textarea class="form-control" id="reminderMessage" rows="3"></textarea>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Remind At *</label>
+                        <label class="form-label"><span data-i18n="scheduler.remind_at_2">Remind At *</span></label>
                         <input type="datetime-local" class="form-control" id="reminderTime" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Type</label>
+                        <label class="form-label"><span data-i18n="scheduler.type_3">Type</span></label>
                         <select class="form-select" id="reminderType">
-                            <option value="general">General</option>
-                            <option value="follow_up">Follow Up</option>
-                            <option value="payment">Payment</option>
-                            <option value="renewal">Renewal</option>
-                            <option value="appointment">Appointment</option>
+                            <option value="general"><span data-i18n="scheduler.general_2">General</span></option>
+                            <option value="follow_up"><span data-i18n="scheduler.follow_up">Follow Up</span></option>
+                            <option value="payment"><span data-i18n="scheduler.payment">Payment</span></option>
+                            <option value="renewal"><span data-i18n="scheduler.renewal">Renewal</span></option>
+                            <option value="appointment"><span data-i18n="scheduler.appointment">Appointment</span></option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Customer</label>
+                        <label class="form-label"><span data-i18n="scheduler.customer_3">Customer</span></label>
                         <select class="form-select" id="reminderCustomer">
-                            <option value="">Select customer (optional)</option>
+                            <option value=""><span data-i18n="scheduler.select_customer_optional_2">Select customer (optional)</span></option>
                         </select>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="scheduler.cancel_2">Cancel</span></button>
                 <button type="button" class="btn btn-warning" onclick="saveReminder()">
                     <i class="bi bi-bell me-1"></i>Create Reminder
                 </button>

@@ -20,7 +20,7 @@
                 CALL CENTER
                 {% if is_admin %}<span class="cc-admin-badge">ADMIN</span>{% endif %}
             </h1>
-            <p class="cc-subtitle">AI-Powered Voice Communications Hub</p>
+            <p class="cc-subtitle"><span data-i18n="call_center.ai_powered_voice_communications_hub">AI-Powered Voice Communications Hub</span></p>
         </header>
 
         <!-- Stats Grid -->
@@ -28,28 +28,28 @@
             <div class="cc-stat-card" style="animation-delay: 0.1s">
                 <div class="cc-stat-icon"><i data-lucide="phone-incoming"></i></div>
                 <div class="cc-stat-value">{{ call_stats.total_calls or 0 }}</div>
-                <div class="cc-stat-label">TOTAL CALLS</div>
-                <div class="cc-stat-period">30 days</div>
+                <div class="cc-stat-label"><span data-i18n="call_center.total_calls">TOTAL CALLS</span></div>
+                <div class="cc-stat-period"><span data-i18n="call_center.30_days">30 days</span></div>
             </div>
             <div class="cc-stat-card" style="animation-delay: 0.2s">
                 <div class="cc-stat-icon cc-stat-icon--success"><i data-lucide="check-circle"></i></div>
                 <div class="cc-stat-value">{{ call_stats.completed or 0 }}</div>
-                <div class="cc-stat-label">COMPLETED</div>
+                <div class="cc-stat-label"><span data-i18n="call_center.completed">COMPLETED</span></div>
             </div>
             <div class="cc-stat-card" style="animation-delay: 0.3s">
                 <div class="cc-stat-icon cc-stat-icon--warning"><i data-lucide="alert-triangle"></i></div>
                 <div class="cc-stat-value">{{ call_stats.escalated or 0 }}</div>
-                <div class="cc-stat-label">ESCALATED</div>
+                <div class="cc-stat-label"><span data-i18n="call_center.escalated">ESCALATED</span></div>
             </div>
             <div class="cc-stat-card" style="animation-delay: 0.4s">
                 <div class="cc-stat-icon cc-stat-icon--info"><i data-lucide="star"></i></div>
                 <div class="cc-stat-value">{{ "%.1f"|format(call_stats.avg_satisfaction or 0) }}</div>
-                <div class="cc-stat-label">AVG RATING</div>
+                <div class="cc-stat-label"><span data-i18n="call_center.avg_rating">AVG RATING</span></div>
             </div>
             <div class="cc-stat-card" style="animation-delay: 0.5s">
                 <div class="cc-stat-icon cc-stat-icon--danger"><i data-lucide="clock"></i></div>
                 <div class="cc-stat-value">{{ escalations|length }}</div>
-                <div class="cc-stat-label">PENDING</div>
+                <div class="cc-stat-label"><span data-i18n="call_center.pending">PENDING</span></div>
             </div>
         </div>
 
@@ -57,19 +57,19 @@
         <div class="cc-tabs">
             <button class="cc-tab active" data-tab="numbers">
                 <i data-lucide="smartphone"></i>
-                <span>Phone Numbers</span>
+                <span><span data-i18n="call_center.phone_numbers">Phone Numbers</span></span>
             </button>
             <button class="cc-tab" data-tab="calls">
                 <i data-lucide="phone"></i>
-                <span>Recent Calls</span>
+                <span><span data-i18n="call_center.recent_calls">Recent Calls</span></span>
             </button>
             <button class="cc-tab" data-tab="escalations">
                 <i data-lucide="alert-circle"></i>
-                <span>Escalations</span>
+                <span><span data-i18n="call_center.escalations">Escalations</span></span>
             </button>
             <button class="cc-tab" data-tab="integrations">
                 <i data-lucide="plug"></i>
-                <span>Providers</span>
+                <span><span data-i18n="call_center.providers">Providers</span></span>
             </button>
         </div>
 
@@ -117,8 +117,8 @@
             {% else %}
             <div class="cc-empty-state">
                 <div class="cc-empty-icon"><i data-lucide="phone-off"></i></div>
-                <h3>No Phone Numbers</h3>
-                <p>Connect a provider and add your first phone number</p>
+                <h3><span data-i18n="call_center.no_phone_numbers">No Phone Numbers</span></h3>
+                <p><span data-i18n="call_center.connect_a_provider_and_add_your_first_phone_number">Connect a provider and add your first phone number</span></p>
                 <button class="cc-btn cc-btn--primary" onclick="openAddNumberModal()">
                     <i data-lucide="plus"></i>
                     Add Phone Number
@@ -135,10 +135,10 @@
                     Recent Calls
                 </h2>
                 <div class="cc-filter-group">
-                    <button class="cc-filter-btn active" onclick="filterCalls('all')">All</button>
-                    <button class="cc-filter-btn" onclick="filterCalls('active')">Active</button>
-                    <button class="cc-filter-btn" onclick="filterCalls('completed')">Completed</button>
-                    <button class="cc-filter-btn" onclick="filterCalls('escalated')">Escalated</button>
+                    <button class="cc-filter-btn active" onclick="filterCalls('all')"><span data-i18n="call_center.all">All</span></button>
+                    <button class="cc-filter-btn" onclick="filterCalls('active')"><span data-i18n="call_center.active">Active</span></button>
+                    <button class="cc-filter-btn" onclick="filterCalls('completed')"><span data-i18n="call_center.completed_2">Completed</span></button>
+                    <button class="cc-filter-btn" onclick="filterCalls('escalated')"><span data-i18n="call_center.escalated_2">Escalated</span></button>
                     <button class="cc-btn cc-btn--outline" onclick="refreshCalls()">
                         <i data-lucide="refresh-cw"></i>
                     </button>
@@ -149,11 +149,11 @@
                 <table class="cc-table">
                     <thead>
                         <tr>
-                            <th>From</th>
+                            <th><span data-i18n="call_center.from">From</span></th>
                             <th>To</th>
-                            <th>Duration</th>
-                            <th>Status</th>
-                            <th>Time</th>
+                            <th><span data-i18n="call_center.duration">Duration</span></th>
+                            <th><span data-i18n="call_center.status">Status</span></th>
+                            <th><span data-i18n="call_center.time">Time</span></th>
                         </tr>
                     </thead>
                     <tbody id="callsTableBody">
@@ -167,7 +167,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="5" class="cc-table-empty">No calls recorded yet</td>
+                            <td colspan="5" class="cc-table-empty"><span data-i18n="call_center.no_calls_recorded_yet">No calls recorded yet</span></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -183,9 +183,9 @@
                     Escalations
                 </h2>
                 <div class="cc-filter-group">
-                    <button class="cc-filter-btn active" onclick="filterEscalations('pending')">Pending</button>
-                    <button class="cc-filter-btn" onclick="filterEscalations('resolved')">Resolved</button>
-                    <button class="cc-filter-btn" onclick="filterEscalations('all')">All</button>
+                    <button class="cc-filter-btn active" onclick="filterEscalations('pending')"><span data-i18n="call_center.pending_2">Pending</span></button>
+                    <button class="cc-filter-btn" onclick="filterEscalations('resolved')"><span data-i18n="call_center.resolved">Resolved</span></button>
+                    <button class="cc-filter-btn" onclick="filterEscalations('all')"><span data-i18n="call_center.all_2">All</span></button>
                     <button class="cc-btn cc-btn--outline" onclick="refreshEscalations()">
                         <i data-lucide="refresh-cw"></i>
                     </button>
@@ -213,8 +213,8 @@
                 {% else %}
                 <div class="cc-empty-state cc-empty-state--small">
                     <div class="cc-empty-icon"><i data-lucide="thumbs-up"></i></div>
-                    <h3>All Clear</h3>
-                    <p>No pending escalations</p>
+                    <h3><span data-i18n="call_center.all_clear">All Clear</span></h3>
+                    <p><span data-i18n="call_center.no_pending_escalations">No pending escalations</span></p>
                 </div>
                 {% endfor %}
             </div>
@@ -228,7 +228,7 @@
                     Telephony Providers
                 </h2>
             </div>
-            <p class="cc-panel-desc">Connect your telephony provider to enable phone features</p>
+            <p class="cc-panel-desc"><span data-i18n="call_center.connect_your_telephony_provider_to_enable_phone_fe">Connect your telephony provider to enable phone features</span></p>
 
             <div class="cc-integrations-grid">
                 <div class="cc-integration-card {% if integrations.get('twilio') %}cc-integration-card--connected{% endif %}"
@@ -237,12 +237,12 @@
                         <i data-lucide="phone"></i>
                     </div>
                     <div class="cc-integration-info">
-                        <div class="cc-integration-name">Twilio</div>
+                        <div class="cc-integration-name"><span data-i18n="call_center.twilio">Twilio</span></div>
                         <div class="cc-integration-status">
                             {% if integrations.get('twilio') %}
-                            <span class="cc-status cc-status--active">Connected</span>
+                            <span class="cc-status cc-status--active"><span data-i18n="call_center.connected">Connected</span></span>
                             {% else %}
-                            <span class="cc-status cc-status--inactive">Not connected</span>
+                            <span class="cc-status cc-status--inactive"><span data-i18n="call_center.not_connected">Not connected</span></span>
                             {% endif %}
                         </div>
                     </div>
@@ -255,12 +255,12 @@
                         <i data-lucide="phone-forwarded"></i>
                     </div>
                     <div class="cc-integration-info">
-                        <div class="cc-integration-name">Telnyx</div>
+                        <div class="cc-integration-name"><span data-i18n="call_center.telnyx">Telnyx</span></div>
                         <div class="cc-integration-status">
                             {% if integrations.get('telnyx') %}
-                            <span class="cc-status cc-status--active">Connected</span>
+                            <span class="cc-status cc-status--active"><span data-i18n="call_center.connected_2">Connected</span></span>
                             {% else %}
-                            <span class="cc-status cc-status--inactive">Not connected</span>
+                            <span class="cc-status cc-status--inactive"><span data-i18n="call_center.not_connected_2">Not connected</span></span>
                             {% endif %}
                         </div>
                     </div>
@@ -275,18 +275,18 @@
 <div class="cc-modal-overlay" id="addNumberModal">
     <div class="cc-modal">
         <div class="cc-modal-header">
-            <h2>Add Phone Number</h2>
+            <h2><span data-i18n="call_center.add_phone_number">Add Phone Number</span></h2>
             <button class="cc-modal-close" onclick="closeModal('addNumberModal')">
                 <i data-lucide="x"></i>
             </button>
         </div>
         <form id="addNumberForm" onsubmit="addPhoneNumber(event)">
             <div class="cc-form-group">
-                <label class="cc-label">Phone Number *</label>
+                <label class="cc-label"><span data-i18n="call_center.phone_number">Phone Number *</span></label>
                 <input type="text" class="cc-input" name="phone_number" required placeholder="+1 555 123 4567">
             </div>
             <div class="cc-form-group">
-                <label class="cc-label">Friendly Name</label>
+                <label class="cc-label"><span data-i18n="call_center.friendly_name">Friendly Name</span></label>
                 <input type="text" class="cc-input" name="friendly_name" placeholder="Main Support Line">
             </div>
             <div class="cc-form-group cc-form-group--checkbox">
@@ -297,8 +297,8 @@
                 </label>
             </div>
             <div class="cc-modal-actions">
-                <button type="button" class="cc-btn cc-btn--outline" onclick="closeModal('addNumberModal')">Cancel</button>
-                <button type="submit" class="cc-btn cc-btn--primary">Add Number</button>
+                <button type="button" class="cc-btn cc-btn--outline" onclick="closeModal('addNumberModal')"><span data-i18n="call_center.cancel">Cancel</span></button>
+                <button type="submit" class="cc-btn cc-btn--primary"><span data-i18n="call_center.add_number">Add Number</span></button>
             </div>
         </form>
     </div>
@@ -308,7 +308,7 @@
 <div class="cc-modal-overlay" id="providerModal">
     <div class="cc-modal">
         <div class="cc-modal-header">
-            <h2 id="providerTitle">Connect Provider</h2>
+            <h2 id="providerTitle"><span data-i18n="call_center.connect_provider">Connect Provider</span></h2>
             <button class="cc-modal-close" onclick="closeModal('providerModal')">
                 <i data-lucide="x"></i>
             </button>
@@ -316,16 +316,16 @@
         <form id="providerForm" onsubmit="saveProvider(event)">
             <input type="hidden" name="service" id="providerService">
             <div class="cc-form-group">
-                <label class="cc-label">Account SID / API Key</label>
+                <label class="cc-label"><span data-i18n="call_center.account_sid_api_key">Account SID / API Key</span></label>
                 <input type="text" class="cc-input" name="account_sid" placeholder="Enter your account SID">
             </div>
             <div class="cc-form-group">
-                <label class="cc-label">Auth Token / API Secret</label>
+                <label class="cc-label"><span data-i18n="call_center.auth_token_api_secret">Auth Token / API Secret</span></label>
                 <input type="password" class="cc-input" name="auth_token" placeholder="Enter your auth token">
             </div>
             <div class="cc-modal-actions">
-                <button type="button" class="cc-btn cc-btn--outline" onclick="closeModal('providerModal')">Cancel</button>
-                <button type="submit" class="cc-btn cc-btn--primary">Connect</button>
+                <button type="button" class="cc-btn cc-btn--outline" onclick="closeModal('providerModal')"><span data-i18n="call_center.cancel_2">Cancel</span></button>
+                <button type="submit" class="cc-btn cc-btn--primary"><span data-i18n="call_center.connect">Connect</span></button>
             </div>
         </form>
     </div>
@@ -335,7 +335,7 @@
 <div class="cc-modal-overlay" id="resolveModal">
     <div class="cc-modal">
         <div class="cc-modal-header">
-            <h2>Resolve Escalation</h2>
+            <h2><span data-i18n="call_center.resolve_escalation">Resolve Escalation</span></h2>
             <button class="cc-modal-close" onclick="closeModal('resolveModal')">
                 <i data-lucide="x"></i>
             </button>
@@ -343,7 +343,7 @@
         <form id="resolveForm" onsubmit="submitResolve(event)">
             <input type="hidden" name="escalation_id" id="resolveEscalationId">
             <div class="cc-form-group">
-                <label class="cc-label">Resolution Notes</label>
+                <label class="cc-label"><span data-i18n="call_center.resolution_notes">Resolution Notes</span></label>
                 <textarea class="cc-textarea" name="resolution_notes" rows="4" placeholder="How was this resolved?"></textarea>
             </div>
             <div class="cc-form-group cc-form-group--checkbox">
@@ -354,8 +354,8 @@
                 </label>
             </div>
             <div class="cc-modal-actions">
-                <button type="button" class="cc-btn cc-btn--outline" onclick="closeModal('resolveModal')">Cancel</button>
-                <button type="submit" class="cc-btn cc-btn--success">Mark Resolved</button>
+                <button type="button" class="cc-btn cc-btn--outline" onclick="closeModal('resolveModal')"><span data-i18n="call_center.cancel_3">Cancel</span></button>
+                <button type="submit" class="cc-btn cc-btn--success"><span data-i18n="call_center.mark_resolved">Mark Resolved</span></button>
             </div>
         </form>
     </div>
@@ -365,7 +365,7 @@
 <div class="cc-modal-overlay" id="callDetailModal">
     <div class="cc-modal cc-modal--large">
         <div class="cc-modal-header">
-            <h2>Call Details</h2>
+            <h2><span data-i18n="call_center.call_details">Call Details</span></h2>
             <button class="cc-modal-close" onclick="closeModal('callDetailModal')">
                 <i data-lucide="x"></i>
             </button>

@@ -20,7 +20,7 @@
                 <i data-lucide="gamepad-2"></i>
                 GAME STUDIO
             </h1>
-            <p class="gs-subtitle">Build games with AI-powered tools</p>
+            <p class="gs-subtitle"><span data-i18n="game_studio.build_games_with_ai_powered_tools">Build games with AI-powered tools</span></p>
         </div>
         <div class="gs-actions">
             <button class="gs-btn gs-btn-secondary" onclick="showImportModal()">
@@ -42,7 +42,7 @@
             </div>
             <div class="gs-stat-info">
                 <span class="gs-stat-value" id="totalGames">0</span>
-                <span class="gs-stat-label">TOTAL GAMES</span>
+                <span class="gs-stat-label"><span data-i18n="game_studio.total_games">TOTAL GAMES</span></span>
             </div>
         </div>
         <div class="gs-stat-card" style="animation-delay: 0.2s">
@@ -51,7 +51,7 @@
             </div>
             <div class="gs-stat-info">
                 <span class="gs-stat-value" id="inDevelopment">0</span>
-                <span class="gs-stat-label">IN DEVELOPMENT</span>
+                <span class="gs-stat-label"><span data-i18n="game_studio.in_development">IN DEVELOPMENT</span></span>
             </div>
         </div>
         <div class="gs-stat-card" style="animation-delay: 0.3s">
@@ -60,7 +60,7 @@
             </div>
             <div class="gs-stat-info">
                 <span class="gs-stat-value" id="publishedGames">0</span>
-                <span class="gs-stat-label">PUBLISHED</span>
+                <span class="gs-stat-label"><span data-i18n="game_studio.published">PUBLISHED</span></span>
             </div>
         </div>
         <div class="gs-stat-card" style="animation-delay: 0.4s">
@@ -69,7 +69,7 @@
             </div>
             <div class="gs-stat-info">
                 <span class="gs-stat-value" id="totalAssets">0</span>
-                <span class="gs-stat-label">ASSETS</span>
+                <span class="gs-stat-label"><span data-i18n="game_studio.assets">ASSETS</span></span>
             </div>
         </div>
     </section>
@@ -109,17 +109,17 @@
                 </div>
                 <div class="gs-filters">
                     <select class="gs-select" id="engineFilter" onchange="filterGames()">
-                        <option value="">All Engines</option>
-                        <option value="2d">2D Engine</option>
-                        <option value="3d">3D Engine</option>
-                        <option value="visual-novel">Visual Novel</option>
-                        <option value="rpg">RPG Maker</option>
+                        <option value=""><span data-i18n="game_studio.all_engines">All Engines</span></option>
+                        <option value="2d"><span data-i18n="game_studio.2d_engine">2D Engine</span></option>
+                        <option value="3d"><span data-i18n="game_studio.3d_engine">3D Engine</span></option>
+                        <option value="visual-novel"><span data-i18n="game_studio.visual_novel">Visual Novel</span></option>
+                        <option value="rpg"><span data-i18n="game_studio.rpg_maker">RPG Maker</span></option>
                     </select>
                     <select class="gs-select" id="statusFilter" onchange="filterGames()">
-                        <option value="">All Status</option>
-                        <option value="development">In Development</option>
-                        <option value="testing">Testing</option>
-                        <option value="published">Published</option>
+                        <option value=""><span data-i18n="game_studio.all_status">All Status</span></option>
+                        <option value="development"><span data-i18n="game_studio.in_development_2">In Development</span></option>
+                        <option value="testing"><span data-i18n="game_studio.testing">Testing</span></option>
+                        <option value="published"><span data-i18n="game_studio.published_2">Published</span></option>
                     </select>
                 </div>
             </div>
@@ -129,8 +129,8 @@
                     <div class="gs-empty-icon">
                         <i data-lucide="gamepad-2"></i>
                     </div>
-                    <h3>No Games Yet</h3>
-                    <p>Create your first game project</p>
+                    <h3><span data-i18n="game_studio.no_games_yet">No Games Yet</span></h3>
+                    <p><span data-i18n="game_studio.create_your_first_game_project">Create your first game project</span></p>
                     <button class="gs-btn gs-btn-primary" onclick="showNewGameModal()">
                         <i data-lucide="plus"></i>
                         New Game
@@ -146,31 +146,31 @@
                     <div class="gs-panel">
                         <div class="gs-panel-header">
                             <i data-lucide="layers"></i>
-                            <span>Layers</span>
+                            <span><span data-i18n="game_studio.layers">Layers</span></span>
                         </div>
                         <div class="gs-panel-content" id="layersList">
                             <div class="gs-layer-item">
                                 <i data-lucide="eye"></i>
-                                <span>Background</span>
+                                <span><span data-i18n="game_studio.background">Background</span></span>
                                 <i data-lucide="lock"></i>
                             </div>
                             <div class="gs-layer-item active">
                                 <i data-lucide="eye"></i>
-                                <span>Game Objects</span>
+                                <span><span data-i18n="game_studio.game_objects">Game Objects</span></span>
                             </div>
                             <div class="gs-layer-item">
                                 <i data-lucide="eye"></i>
-                                <span>UI Layer</span>
+                                <span><span data-i18n="game_studio.ui_layer">UI Layer</span></span>
                             </div>
                         </div>
                     </div>
                     <div class="gs-panel">
                         <div class="gs-panel-header">
                             <i data-lucide="box"></i>
-                            <span>Objects</span>
+                            <span><span data-i18n="game_studio.objects">Objects</span></span>
                         </div>
                         <div class="gs-panel-content" id="objectsList">
-                            <p class="gs-hint">Select a project to view objects</p>
+                            <p class="gs-hint"><span data-i18n="game_studio.select_a_project_to_view_objects">Select a project to view objects</span></p>
                         </div>
                     </div>
                 </div>
@@ -201,7 +201,7 @@
                         <div class="gs-canvas-grid"></div>
                         <div class="gs-canvas-placeholder">
                             <i data-lucide="layout-grid"></i>
-                            <p>Select a project to edit scenes</p>
+                            <p><span data-i18n="game_studio.select_a_project_to_edit_scenes">Select a project to edit scenes</span></p>
                         </div>
                     </div>
                 </div>
@@ -210,10 +210,10 @@
                     <div class="gs-panel">
                         <div class="gs-panel-header">
                             <i data-lucide="sliders-horizontal"></i>
-                            <span>Properties</span>
+                            <span><span data-i18n="game_studio.properties">Properties</span></span>
                         </div>
                         <div class="gs-panel-content" id="propertiesPanel">
-                            <p class="gs-hint">Select an object to edit properties</p>
+                            <p class="gs-hint"><span data-i18n="game_studio.select_an_object_to_edit_properties">Select an object to edit properties</span></p>
                         </div>
                     </div>
                 </div>
@@ -229,12 +229,12 @@
                 </div>
                 <div class="gs-filters">
                     <select class="gs-select" id="assetTypeFilter">
-                        <option value="">All Types</option>
-                        <option value="sprite">Sprites</option>
-                        <option value="sound">Sounds</option>
-                        <option value="music">Music</option>
-                        <option value="model">3D Models</option>
-                        <option value="script">Scripts</option>
+                        <option value=""><span data-i18n="game_studio.all_types">All Types</span></option>
+                        <option value="sprite"><span data-i18n="game_studio.sprites">Sprites</span></option>
+                        <option value="sound"><span data-i18n="game_studio.sounds">Sounds</span></option>
+                        <option value="music"><span data-i18n="game_studio.music">Music</span></option>
+                        <option value="model"><span data-i18n="game_studio.3d_models">3D Models</span></option>
+                        <option value="script"><span data-i18n="game_studio.scripts">Scripts</span></option>
                     </select>
                     <button class="gs-btn gs-btn-primary" onclick="showUploadAssetModal()">
                         <i data-lucide="upload"></i>
@@ -248,8 +248,8 @@
                     <div class="gs-empty-icon">
                         <i data-lucide="shapes"></i>
                     </div>
-                    <h3>No Assets Yet</h3>
-                    <p>Upload sprites, sounds, and more</p>
+                    <h3><span data-i18n="game_studio.no_assets_yet">No Assets Yet</span></h3>
+                    <p><span data-i18n="game_studio.upload_sprites_sounds_and_more">Upload sprites, sounds, and more</span></p>
                     <button class="gs-btn gs-btn-primary" onclick="showUploadAssetModal()">
                         <i data-lucide="upload"></i>
                         Upload Assets
@@ -267,13 +267,13 @@
                             <div class="gs-ai-avatar">
                                 <i data-lucide="bot"></i>
                             </div>
-                            <h3>Game Development Assistant</h3>
-                            <p>I can help you with game logic, AI behavior, level design, and more!</p>
+                            <h3><span data-i18n="game_studio.game_development_assistant">Game Development Assistant</span></h3>
+                            <p><span data-i18n="game_studio.i_can_help_you_with_game_logic_ai_behavior_level_d">I can help you with game logic, AI behavior, level design, and more!</span></p>
                             <div class="gs-quick-prompts">
-                                <button onclick="sendQuickPrompt('Create enemy AI behavior')">Enemy AI</button>
-                                <button onclick="sendQuickPrompt('Design a level layout')">Level Design</button>
-                                <button onclick="sendQuickPrompt('Add player movement script')">Movement</button>
-                                <button onclick="sendQuickPrompt('Create inventory system')">Inventory</button>
+                                <button onclick="sendQuickPrompt('Create enemy AI behavior')"><span data-i18n="game_studio.enemy_ai">Enemy AI</span></button>
+                                <button onclick="sendQuickPrompt('Design a level layout')"><span data-i18n="game_studio.level_design">Level Design</span></button>
+                                <button onclick="sendQuickPrompt('Add player movement script')"><span data-i18n="game_studio.movement">Movement</span></button>
+                                <button onclick="sendQuickPrompt('Create inventory system')"><span data-i18n="game_studio.inventory">Inventory</span></button>
                             </div>
                         </div>
                     </div>
@@ -288,19 +288,19 @@
                     <div class="gs-panel">
                         <div class="gs-panel-header">
                             <i data-lucide="history"></i>
-                            <span>Recent Chats</span>
+                            <span><span data-i18n="game_studio.recent_chats">Recent Chats</span></span>
                         </div>
                         <div class="gs-panel-content" id="chatHistory">
-                            <p class="gs-hint">No chat history yet</p>
+                            <p class="gs-hint"><span data-i18n="game_studio.no_chat_history_yet">No chat history yet</span></p>
                         </div>
                     </div>
                     <div class="gs-panel">
                         <div class="gs-panel-header">
                             <i data-lucide="code-2"></i>
-                            <span>Generated Code</span>
+                            <span><span data-i18n="game_studio.generated_code">Generated Code</span></span>
                         </div>
                         <div class="gs-panel-content" id="generatedCode">
-                            <p class="gs-hint">Code snippets will appear here</p>
+                            <p class="gs-hint"><span data-i18n="game_studio.code_snippets_will_appear_here">Code snippets will appear here</span></p>
                         </div>
                     </div>
                 </div>
@@ -311,52 +311,52 @@
         <div class="gs-tab-panel" id="settings-panel">
             <div class="gs-settings-layout">
                 <div class="gs-settings-section">
-                    <h3><i data-lucide="monitor"></i> Display Settings</h3>
+                    <h3><i data-lucide="monitor"></i><span data-i18n="game_studio.display_settings"> Display Settings</span></h3>
                     <div class="gs-setting-row">
-                        <label>Default Resolution</label>
+                        <label><span data-i18n="game_studio.default_resolution">Default Resolution</span></label>
                         <select class="gs-select">
-                            <option>1920x1080 (Full HD)</option>
-                            <option>1280x720 (HD)</option>
-                            <option>800x600 (Retro)</option>
-                            <option>Custom</option>
+                            <option><span data-i18n="game_studio.1920x1080_full_hd">1920x1080 (Full HD)</span></option>
+                            <option><span data-i18n="game_studio.1280x720_hd">1280x720 (HD)</span></option>
+                            <option><span data-i18n="game_studio.800x600_retro">800x600 (Retro)</span></option>
+                            <option><span data-i18n="game_studio.custom">Custom</span></option>
                         </select>
                     </div>
                     <div class="gs-setting-row">
-                        <label>Target FPS</label>
+                        <label><span data-i18n="game_studio.target_fps">Target FPS</span></label>
                         <select class="gs-select">
-                            <option>60 FPS</option>
-                            <option>30 FPS</option>
-                            <option>Unlimited</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="gs-settings-section">
-                    <h3><i data-lucide="cpu"></i> Engine Settings</h3>
-                    <div class="gs-setting-row">
-                        <label>Physics Engine</label>
-                        <select class="gs-select">
-                            <option>Box2D (2D)</option>
-                            <option>Matter.js</option>
-                            <option>Cannon.js (3D)</option>
-                        </select>
-                    </div>
-                    <div class="gs-setting-row">
-                        <label>Render Engine</label>
-                        <select class="gs-select">
-                            <option>PixiJS</option>
-                            <option>Three.js</option>
-                            <option>Phaser</option>
+                            <option><span data-i18n="game_studio.60_fps">60 FPS</span></option>
+                            <option><span data-i18n="game_studio.30_fps">30 FPS</span></option>
+                            <option><span data-i18n="game_studio.unlimited">Unlimited</span></option>
                         </select>
                     </div>
                 </div>
                 <div class="gs-settings-section">
-                    <h3><i data-lucide="download"></i> Export Settings</h3>
+                    <h3><i data-lucide="cpu"></i><span data-i18n="game_studio.engine_settings"> Engine Settings</span></h3>
                     <div class="gs-setting-row">
-                        <label>Export Format</label>
+                        <label><span data-i18n="game_studio.physics_engine">Physics Engine</span></label>
                         <select class="gs-select">
-                            <option>Web (HTML5)</option>
-                            <option>Desktop (Electron)</option>
-                            <option>Mobile (Cordova)</option>
+                            <option><span data-i18n="game_studio.box2d_2d">Box2D (2D)</span></option>
+                            <option><span data-i18n="game_studio.matter_js">Matter.js</span></option>
+                            <option><span data-i18n="game_studio.cannon_js_3d">Cannon.js (3D)</span></option>
+                        </select>
+                    </div>
+                    <div class="gs-setting-row">
+                        <label><span data-i18n="game_studio.render_engine">Render Engine</span></label>
+                        <select class="gs-select">
+                            <option><span data-i18n="game_studio.pixijs">PixiJS</span></option>
+                            <option><span data-i18n="game_studio.three_js">Three.js</span></option>
+                            <option><span data-i18n="game_studio.phaser">Phaser</span></option>
+                        </select>
+                    </div>
+                </div>
+                <div class="gs-settings-section">
+                    <h3><i data-lucide="download"></i><span data-i18n="game_studio.export_settings"> Export Settings</span></h3>
+                    <div class="gs-setting-row">
+                        <label><span data-i18n="game_studio.export_format">Export Format</span></label>
+                        <select class="gs-select">
+                            <option><span data-i18n="game_studio.web_html5">Web (HTML5)</span></option>
+                            <option><span data-i18n="game_studio.desktop_electron">Desktop (Electron)</span></option>
+                            <option><span data-i18n="game_studio.mobile_cordova">Mobile (Cordova)</span></option>
                         </select>
                     </div>
                     <div class="gs-export-actions">
@@ -379,50 +379,50 @@
 <div class="gs-modal" id="newGameModal">
     <div class="gs-modal-content">
         <div class="gs-modal-header">
-            <h2><i data-lucide="plus"></i> Create New Game</h2>
+            <h2><i data-lucide="plus"></i><span data-i18n="game_studio.create_new_game"> Create New Game</span></h2>
             <button class="gs-modal-close" onclick="closeModal('newGameModal')">
                 <i data-lucide="x"></i>
             </button>
         </div>
         <div class="gs-modal-body">
             <div class="gs-form-group">
-                <label>Game Title</label>
+                <label><span data-i18n="game_studio.game_title">Game Title</span></label>
                 <input type="text" id="newGameTitle" placeholder="My Awesome Game">
             </div>
             <div class="gs-form-group">
-                <label>Engine Type</label>
+                <label><span data-i18n="game_studio.engine_type">Engine Type</span></label>
                 <select id="newGameEngine" class="gs-select">
-                    <option value="2d">2D Platformer</option>
-                    <option value="3d">3D Adventure</option>
-                    <option value="visual-novel">Visual Novel</option>
-                    <option value="rpg">RPG</option>
-                    <option value="puzzle">Puzzle</option>
+                    <option value="2d"><span data-i18n="game_studio.2d_platformer">2D Platformer</span></option>
+                    <option value="3d"><span data-i18n="game_studio.3d_adventure">3D Adventure</span></option>
+                    <option value="visual-novel"><span data-i18n="game_studio.visual_novel_2">Visual Novel</span></option>
+                    <option value="rpg"><span data-i18n="game_studio.rpg">RPG</span></option>
+                    <option value="puzzle"><span data-i18n="game_studio.puzzle">Puzzle</span></option>
                 </select>
             </div>
             <div class="gs-form-group">
-                <label>Template</label>
+                <label><span data-i18n="game_studio.template">Template</span></label>
                 <div class="gs-template-grid">
                     <div class="gs-template-card active" data-template="blank">
                         <i data-lucide="file"></i>
-                        <span>Blank</span>
+                        <span><span data-i18n="game_studio.blank">Blank</span></span>
                     </div>
                     <div class="gs-template-card" data-template="platformer">
                         <i data-lucide="joystick"></i>
-                        <span>Platformer</span>
+                        <span><span data-i18n="game_studio.platformer">Platformer</span></span>
                     </div>
                     <div class="gs-template-card" data-template="shooter">
                         <i data-lucide="crosshair"></i>
-                        <span>Shooter</span>
+                        <span><span data-i18n="game_studio.shooter">Shooter</span></span>
                     </div>
                     <div class="gs-template-card" data-template="rpg">
                         <i data-lucide="sword"></i>
-                        <span>RPG</span>
+                        <span><span data-i18n="game_studio.rpg_2">RPG</span></span>
                     </div>
                 </div>
             </div>
         </div>
         <div class="gs-modal-footer">
-            <button class="gs-btn gs-btn-secondary" onclick="closeModal('newGameModal')">Cancel</button>
+            <button class="gs-btn gs-btn-secondary" onclick="closeModal('newGameModal')"><span data-i18n="game_studio.cancel">Cancel</span></button>
             <button class="gs-btn gs-btn-primary" onclick="createNewGame()">
                 <i data-lucide="plus"></i>
                 Create Game
@@ -435,7 +435,7 @@
 <div class="gs-modal" id="uploadAssetModal">
     <div class="gs-modal-content">
         <div class="gs-modal-header">
-            <h2><i data-lucide="upload"></i> Upload Assets</h2>
+            <h2><i data-lucide="upload"></i><span data-i18n="game_studio.upload_assets"> Upload Assets</span></h2>
             <button class="gs-modal-close" onclick="closeModal('uploadAssetModal')">
                 <i data-lucide="x"></i>
             </button>
@@ -443,14 +443,14 @@
         <div class="gs-modal-body">
             <div class="gs-upload-zone" id="uploadZone">
                 <i data-lucide="cloud-upload"></i>
-                <p>Drag & drop files here or click to browse</p>
-                <span>Supports: PNG, JPG, SVG, MP3, WAV, OGG, GLTF, FBX</span>
+                <p><span data-i18n="game_studio.drag_drop_files_here_or_click_to_browse">Drag & drop files here or click to browse</span></p>
+                <span><span data-i18n="game_studio.supports_png_jpg_svg_mp3_wav_ogg_gltf_fbx">Supports: PNG, JPG, SVG, MP3, WAV, OGG, GLTF, FBX</span></span>
                 <input type="file" id="assetFileInput" multiple hidden>
             </div>
             <div class="gs-upload-list" id="uploadList"></div>
         </div>
         <div class="gs-modal-footer">
-            <button class="gs-btn gs-btn-secondary" onclick="closeModal('uploadAssetModal')">Cancel</button>
+            <button class="gs-btn gs-btn-secondary" onclick="closeModal('uploadAssetModal')"><span data-i18n="game_studio.cancel_2">Cancel</span></button>
             <button class="gs-btn gs-btn-primary" onclick="uploadAssets()">
                 <i data-lucide="upload"></i>
                 Upload

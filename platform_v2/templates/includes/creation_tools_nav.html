@@ -50,35 +50,21 @@
         </a>
         {% endif %}
         <div class="nav-divider"></div>
-        <a href="{{ url_for('figma.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'figma' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Figma Integration">
-            <i data-lucide="figma"></i>
-            <span>Figma</span>
-        </a>
-        <a href="{{ url_for('project_builder.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'project_builder' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Project Builder">
-            <i data-lucide="building-2"></i>
-            <span>Projects</span>
-        </a>
-        <a href="{{ url_for('game_studio.index') }}"
+        <a href="/tools/game-studio"
            class="nav-module-btn {% if request.endpoint and 'game_studio' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
            title="Game Studio">
             <i data-lucide="gamepad-2"></i>
             <span>Games</span>
         </a>
-        <a href="{{ url_for('media_studio.index') }}"
+        <a href="/tools/media-studio"
            class="nav-module-btn {% if request.endpoint and 'media_studio' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
            title="Media Studio">
             <i data-lucide="palette"></i>
             <span>Media</span>
         </a>
-        <a href="{{ url_for('content_studio.index') if 'content_studio' in url_for.__globals__['current_app'].blueprints else '#' }}"
+        <a href="/tools/content-studio"
            class="nav-module-btn {% if request.endpoint and 'content_studio' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
            title="Content Studio">

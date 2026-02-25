@@ -168,21 +168,21 @@
     <div class="tm-inner">
         <div class="tm-header">
             <div>
-                <h1>Team Management</h1>
-                <div class="sub">Agent roster, station dispatch, and performance monitoring</div>
+                <h1><span data-i18n="team_management.team_management">Team Management</span></h1>
+                <div class="sub"><span data-i18n="team_management.agent_roster_station_dispatch_and_performance_moni">Agent roster, station dispatch, and performance monitoring</span></div>
             </div>
-            <div class="tm-live"><span class="dot"></span> Live — <span id="tmLastUpdate">--</span></div>
+            <div class="tm-live"><span class="dot"></span><span data-i18n="team_management.live"> Live — </span><span id="tmLastUpdate">--</span></div>
         </div>
 
         <div class="tm-tabs" role="tablist">
-            <button class="tm-tab active" onclick="tmTab('mission',this)" role="tab">Mission Control</button>
-            <button class="tm-tab" onclick="tmTab('roster',this)" role="tab">Agent Roster</button>
-            <button class="tm-tab" onclick="tmTab('stations',this)" role="tab">Stations</button>
-            <button class="tm-tab" onclick="tmTab('queue',this)" role="tab">Work Queue</button>
-            <button class="tm-tab" onclick="tmTab('hr',this)" role="tab">HR Dashboard</button>
-            <button class="tm-tab" onclick="tmTab('iaae',this)" role="tab">IAAE Governance</button>
-            <button class="tm-tab" onclick="tmTab('perf',this)" role="tab">Performance</button>
-            <button class="tm-tab" onclick="tmTab('multiagent',this)" role="tab">Multi-Agent Log</button>
+            <button class="tm-tab active" onclick="tmTab('mission',this)" role="tab"><span data-i18n="team_management.mission_control">Mission Control</span></button>
+            <button class="tm-tab" onclick="tmTab('roster',this)" role="tab"><span data-i18n="team_management.agent_roster">Agent Roster</span></button>
+            <button class="tm-tab" onclick="tmTab('stations',this)" role="tab"><span data-i18n="team_management.stations">Stations</span></button>
+            <button class="tm-tab" onclick="tmTab('queue',this)" role="tab"><span data-i18n="team_management.work_queue">Work Queue</span></button>
+            <button class="tm-tab" onclick="tmTab('hr',this)" role="tab"><span data-i18n="team_management.hr_dashboard">HR Dashboard</span></button>
+            <button class="tm-tab" onclick="tmTab('iaae',this)" role="tab"><span data-i18n="team_management.iaae_governance">IAAE Governance</span></button>
+            <button class="tm-tab" onclick="tmTab('perf',this)" role="tab"><span data-i18n="team_management.performance">Performance</span></button>
+            <button class="tm-tab" onclick="tmTab('multiagent',this)" role="tab"><span data-i18n="team_management.multi_agent_log">Multi-Agent Log</span></button>
         </div>
 
         <!-- Tab 0: Mission Control -->
@@ -197,14 +197,14 @@
         <!-- Tab 1: Agent Roster -->
         <div id="pane-roster" class="tm-pane">
             <div id="rosterGrid" class="tm-grid">
-                <div class="tm-empty">Loading agents...</div>
+                <div class="tm-empty"><span data-i18n="team_management.loading_agents">Loading agents...</span></div>
             </div>
         </div>
 
         <!-- Tab 2: Stations -->
         <div id="pane-stations" class="tm-pane">
             <div id="stationGrid" class="tm-grid">
-                <div class="tm-empty">Loading stations...</div>
+                <div class="tm-empty"><span data-i18n="team_management.loading_stations">Loading stations...</span></div>
             </div>
         </div>
 
@@ -213,10 +213,10 @@
             <div class="tm-table-wrap">
                 <table class="tm-table">
                     <thead>
-                        <tr><th>Agent</th><th>Module</th><th>Capability</th><th>Model</th><th>Duration</th><th>Status</th><th>Time</th></tr>
+                        <tr><th><span data-i18n="team_management.agent">Agent</span></th><th><span data-i18n="team_management.module">Module</span></th><th><span data-i18n="team_management.capability">Capability</span></th><th><span data-i18n="team_management.model">Model</span></th><th><span data-i18n="team_management.duration">Duration</span></th><th><span data-i18n="team_management.status">Status</span></th><th><span data-i18n="team_management.time">Time</span></th></tr>
                     </thead>
                     <tbody id="queueBody">
-                        <tr><td colspan="7" class="tm-empty">Loading work queue...</td></tr>
+                        <tr><td colspan="7" class="tm-empty"><span data-i18n="team_management.loading_work_queue">Loading work queue...</span></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -225,7 +225,7 @@
         <!-- Tab 4: HR Dashboard -->
         <div id="pane-hr" class="tm-pane">
             <div id="hrGrid" class="tm-grid">
-                <div class="tm-empty">Loading HR data...</div>
+                <div class="tm-empty"><span data-i18n="team_management.loading_hr_data">Loading HR data...</span></div>
             </div>
         </div>
 
@@ -233,24 +233,24 @@
         <div id="pane-iaae" class="tm-pane">
             <div class="tm-grid" style="margin-bottom:1.5rem;">
                 <div class="tm-card tm-card-top" id="iaaeCompliance">
-                    <h3>Compliance Score</h3>
+                    <h3><span data-i18n="team_management.compliance_score">Compliance Score</span></h3>
                     <div class="val" id="iaaeScore">--</div>
                     <div class="tm-gov-bar"><div class="tm-gov-fill" id="iaaeBar" style="width:0;background:var(--archie-green);"></div></div>
                 </div>
                 <div class="tm-card tm-card-top">
-                    <h3>Governance Events (24h)</h3>
+                    <h3><span data-i18n="team_management.governance_events_24h">Governance Events (24h)</span></h3>
                     <div class="val" id="iaaeEvents">--</div>
-                    <div class="lbl">Total logged events</div>
+                    <div class="lbl"><span data-i18n="team_management.total_logged_events">Total logged events</span></div>
                 </div>
                 <div class="tm-card tm-card-top">
-                    <h3>Ethics Violations</h3>
+                    <h3><span data-i18n="team_management.ethics_violations">Ethics Violations</span></h3>
                     <div class="val" id="iaaeViolations" style="color:var(--archie-red);">--</div>
-                    <div class="lbl">Active violations</div>
+                    <div class="lbl"><span data-i18n="team_management.active_violations">Active violations</span></div>
                 </div>
             </div>
-            <h3 style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:var(--archie-cyan);margin-bottom:0.75rem;">Agent Welfare</h3>
+            <h3 style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:var(--archie-cyan);margin-bottom:0.75rem;"><span data-i18n="team_management.agent_welfare">Agent Welfare</span></h3>
             <div id="welfareList" class="tm-card" style="padding:0.5rem 1rem;">
-                <div class="tm-empty">Loading welfare data...</div>
+                <div class="tm-empty"><span data-i18n="team_management.loading_welfare_data">Loading welfare data...</span></div>
             </div>
         </div>
 
@@ -258,16 +258,16 @@
         <div id="pane-perf" class="tm-pane">
             <div class="tm-grid" style="grid-template-columns:repeat(auto-fill,minmax(420px,1fr));">
                 <div class="tm-chart-wrap">
-                    <h3>Tasks per Agent</h3>
+                    <h3><span data-i18n="team_management.tasks_per_agent">Tasks per Agent</span></h3>
                     <canvas id="chartTasks" height="220"></canvas>
                 </div>
                 <div class="tm-chart-wrap">
-                    <h3>Avg Duration (ms)</h3>
+                    <h3><span data-i18n="team_management.avg_duration_ms">Avg Duration (ms)</span></h3>
                     <canvas id="chartDuration" height="220"></canvas>
                 </div>
             </div>
             <div class="tm-chart-wrap" style="max-width:900px;">
-                <h3>Error Rate by Agent</h3>
+                <h3><span data-i18n="team_management.error_rate_by_agent">Error Rate by Agent</span></h3>
                 <canvas id="chartErrors" height="200"></canvas>
             </div>
         </div>
@@ -277,7 +277,7 @@
             <div class="ma-split">
                 <div class="ma-list" id="ma-session-list"></div>
                 <div class="ma-detail" id="ma-session-detail">
-                    <div class="ma-empty">Select a session to view details</div>
+                    <div class="ma-empty"><span data-i18n="team_management.select_a_session_to_view_details">Select a session to view details</span></div>
                 </div>
             </div>
         </div>

@@ -20,11 +20,11 @@
                 <i data-lucide="pickaxe"></i>
                 ARCHIE POOL
             </h1>
-            <p class="pool-subtitle">Ravencoin (RVN) Mining Pool - KawPow Algorithm</p>
+            <p class="pool-subtitle"><span data-i18n="archie_pool.ravencoin_rvn_mining_pool_kawpow_algorithm">Ravencoin (RVN) Mining Pool - KawPow Algorithm</span></p>
         </div>
         <div class="pool-status">
             <span class="status-indicator status-online" id="poolStatusIndicator"></span>
-            <span id="poolStatusText">Pool Online</span>
+            <span id="poolStatusText"><span data-i18n="archie_pool.pool_online">Pool Online</span></span>
         </div>
     </header>
 
@@ -32,22 +32,22 @@
     <div class="pool-connection-banner">
         <div class="connection-info">
             <div class="connection-item">
-                <span class="connection-label">STRATUM URL</span>
+                <span class="connection-label"><span data-i18n="archie_pool.stratum_url">STRATUM URL</span></span>
                 <code class="connection-value" id="stratumUrl">stratum+tcp://pool.kytranempowerment.com:3333</code>
                 <button class="copy-btn" onclick="copyToClipboard('stratum+tcp://pool.kytranempowerment.com:3333')" title="Copy">
                     <i data-lucide="copy"></i>
                 </button>
             </div>
             <div class="connection-item">
-                <span class="connection-label">ALGORITHM</span>
+                <span class="connection-label"><span data-i18n="archie_pool.algorithm">ALGORITHM</span></span>
                 <code class="connection-value">KawPow</code>
             </div>
             <div class="connection-item">
-                <span class="connection-label">POOL FEE</span>
+                <span class="connection-label"><span data-i18n="archie_pool.pool_fee">POOL FEE</span></span>
                 <code class="connection-value">1.0%</code>
             </div>
             <div class="connection-item">
-                <span class="connection-label">MIN PAYOUT</span>
+                <span class="connection-label"><span data-i18n="archie_pool.min_payout">MIN PAYOUT</span></span>
                 <code class="connection-value">10 RVN</code>
             </div>
         </div>
@@ -61,8 +61,8 @@
             </div>
             <div class="pool-stat-info">
                 <span class="pool-stat-value" id="currentHashrate">0.00</span>
-                <span class="pool-stat-unit">MH/s</span>
-                <span class="pool-stat-label">CURRENT HASHRATE</span>
+                <span class="pool-stat-unit"><span data-i18n="archie_pool.mh_s">MH/s</span></span>
+                <span class="pool-stat-label"><span data-i18n="archie_pool.current_hashrate">CURRENT HASHRATE</span></span>
             </div>
             <div class="pool-stat-trend positive" id="hashrateTrend">
                 <i data-lucide="trending-up"></i>
@@ -75,8 +75,8 @@
             </div>
             <div class="pool-stat-info">
                 <span class="pool-stat-value" id="earnings24h">0.00</span>
-                <span class="pool-stat-unit">RVN</span>
-                <span class="pool-stat-label">24H EARNINGS</span>
+                <span class="pool-stat-unit"><span data-i18n="archie_pool.rvn">RVN</span></span>
+                <span class="pool-stat-label"><span data-i18n="archie_pool.24h_earnings">24H EARNINGS</span></span>
             </div>
             <div class="pool-stat-trend positive" id="earningsTrend">
                 <i data-lucide="trending-up"></i>
@@ -89,8 +89,8 @@
             </div>
             <div class="pool-stat-info">
                 <span class="pool-stat-value" id="pendingPayout">0.00</span>
-                <span class="pool-stat-unit">RVN</span>
-                <span class="pool-stat-label">PENDING PAYOUT</span>
+                <span class="pool-stat-unit"><span data-i18n="archie_pool.rvn_2">RVN</span></span>
+                <span class="pool-stat-label"><span data-i18n="archie_pool.pending_payout">PENDING PAYOUT</span></span>
             </div>
             <div class="pool-stat-progress">
                 <div class="progress-bar">
@@ -106,11 +106,11 @@
             <div class="pool-stat-info">
                 <span class="pool-stat-value" id="workersOnline">0</span>
                 <span class="pool-stat-unit">/ <span id="workersTotal">0</span></span>
-                <span class="pool-stat-label">WORKERS ONLINE</span>
+                <span class="pool-stat-label"><span data-i18n="archie_pool.workers_online">WORKERS ONLINE</span></span>
             </div>
             <div class="pool-stat-indicator" id="workerHealth">
                 <span class="health-dot"></span>
-                <span>All Healthy</span>
+                <span><span data-i18n="archie_pool.all_healthy">All Healthy</span></span>
             </div>
         </div>
     </section>
@@ -157,11 +157,11 @@
                         <div class="chart-placeholder">
                             <div class="chart-line"></div>
                             <div class="chart-grid">
-                                <span>100 MH/s</span>
-                                <span>75 MH/s</span>
-                                <span>50 MH/s</span>
-                                <span>25 MH/s</span>
-                                <span>0 MH/s</span>
+                                <span><span data-i18n="archie_pool.100_mh_s">100 MH/s</span></span>
+                                <span><span data-i18n="archie_pool.75_mh_s">75 MH/s</span></span>
+                                <span><span data-i18n="archie_pool.50_mh_s">50 MH/s</span></span>
+                                <span><span data-i18n="archie_pool.25_mh_s">25 MH/s</span></span>
+                                <span><span data-i18n="archie_pool.0_mh_s">0 MH/s</span></span>
                             </div>
                             <div class="chart-data-points" id="hashrateDataPoints">
                                 <!-- Data points rendered here -->
@@ -184,36 +184,36 @@
                     </div>
                     <div class="pool-stats-grid">
                         <div class="pool-mini-stat">
-                            <span class="mini-stat-label">Pool Hashrate</span>
-                            <span class="mini-stat-value" id="poolHashrate">0.00 GH/s</span>
+                            <span class="mini-stat-label"><span data-i18n="archie_pool.pool_hashrate">Pool Hashrate</span></span>
+                            <span class="mini-stat-value" id="poolHashrate"><span data-i18n="archie_pool.0_00_gh_s">0.00 GH/s</span></span>
                         </div>
                         <div class="pool-mini-stat">
-                            <span class="mini-stat-label">Active Miners</span>
+                            <span class="mini-stat-label"><span data-i18n="archie_pool.active_miners">Active Miners</span></span>
                             <span class="mini-stat-value" id="activeMiners">0</span>
                         </div>
                         <div class="pool-mini-stat">
-                            <span class="mini-stat-label">Blocks Found (24h)</span>
+                            <span class="mini-stat-label"><span data-i18n="archie_pool.blocks_found_24h">Blocks Found (24h)</span></span>
                             <span class="mini-stat-value" id="blocksFound">0</span>
                         </div>
                         <div class="pool-mini-stat">
-                            <span class="mini-stat-label">Network Difficulty</span>
+                            <span class="mini-stat-label"><span data-i18n="archie_pool.network_difficulty">Network Difficulty</span></span>
                             <span class="mini-stat-value" id="networkDifficulty">0.00</span>
                         </div>
                         <div class="pool-mini-stat">
-                            <span class="mini-stat-label">Network Hashrate</span>
-                            <span class="mini-stat-value" id="networkHashrate">0.00 TH/s</span>
+                            <span class="mini-stat-label"><span data-i18n="archie_pool.network_hashrate">Network Hashrate</span></span>
+                            <span class="mini-stat-value" id="networkHashrate"><span data-i18n="archie_pool.0_00_th_s">0.00 TH/s</span></span>
                         </div>
                         <div class="pool-mini-stat">
-                            <span class="mini-stat-label">Block Height</span>
+                            <span class="mini-stat-label"><span data-i18n="archie_pool.block_height">Block Height</span></span>
                             <span class="mini-stat-value" id="blockHeight">0</span>
                         </div>
                         <div class="pool-mini-stat">
-                            <span class="mini-stat-label">RVN Price (USD)</span>
+                            <span class="mini-stat-label"><span data-i18n="archie_pool.rvn_price_usd">RVN Price (USD)</span></span>
                             <span class="mini-stat-value" id="rvnPrice">$0.000</span>
                         </div>
                         <div class="pool-mini-stat">
-                            <span class="mini-stat-label">Est. Daily Earnings</span>
-                            <span class="mini-stat-value" id="estDailyEarnings">0.00 RVN</span>
+                            <span class="mini-stat-label"><span data-i18n="archie_pool.est_daily_earnings">Est. Daily Earnings</span></span>
+                            <span class="mini-stat-value" id="estDailyEarnings"><span data-i18n="archie_pool.0_00_rvn">0.00 RVN</span></span>
                         </div>
                     </div>
                 </div>
@@ -226,27 +226,27 @@
                             Recent Shares
                         </h3>
                         <span class="share-counter">
-                            <span id="validShares">0</span> valid / <span id="invalidShares">0</span> invalid
+                            <span id="validShares">0</span><span data-i18n="archie_pool.valid"> valid / </span><span id="invalidShares">0</span> invalid
                         </span>
                     </div>
                     <div class="shares-feed" id="sharesFeed">
                         <div class="share-item valid">
                             <i data-lucide="check"></i>
-                            <span class="share-worker">Worker_01</span>
-                            <span class="share-diff">Diff: 32</span>
-                            <span class="share-time">Just now</span>
+                            <span class="share-worker"><span data-i18n="archie_pool.worker_01">Worker_01</span></span>
+                            <span class="share-diff"><span data-i18n="archie_pool.diff_32">Diff: 32</span></span>
+                            <span class="share-time"><span data-i18n="archie_pool.just_now">Just now</span></span>
                         </div>
                         <div class="share-item valid">
                             <i data-lucide="check"></i>
-                            <span class="share-worker">Worker_02</span>
-                            <span class="share-diff">Diff: 32</span>
-                            <span class="share-time">2s ago</span>
+                            <span class="share-worker"><span data-i18n="archie_pool.worker_02">Worker_02</span></span>
+                            <span class="share-diff"><span data-i18n="archie_pool.diff_32_2">Diff: 32</span></span>
+                            <span class="share-time"><span data-i18n="archie_pool.2s_ago">2s ago</span></span>
                         </div>
                         <div class="share-item valid">
                             <i data-lucide="check"></i>
-                            <span class="share-worker">Worker_01</span>
-                            <span class="share-diff">Diff: 32</span>
-                            <span class="share-time">5s ago</span>
+                            <span class="share-worker"><span data-i18n="archie_pool.worker_01_2">Worker_01</span></span>
+                            <span class="share-diff"><span data-i18n="archie_pool.diff_32_3">Diff: 32</span></span>
+                            <span class="share-time"><span data-i18n="archie_pool.5s_ago">5s ago</span></span>
                         </div>
                     </div>
                 </div>
@@ -266,8 +266,8 @@
                                 <span class="block-hash">0x8a7f...3c2d</span>
                             </div>
                             <div class="block-reward">
-                                <span class="reward-amount">2500 RVN</span>
-                                <span class="block-time">2 hours ago</span>
+                                <span class="reward-amount"><span data-i18n="archie_pool.2500_rvn">2500 RVN</span></span>
+                                <span class="block-time"><span data-i18n="archie_pool.2_hours_ago">2 hours ago</span></span>
                             </div>
                         </div>
                         <div class="block-item">
@@ -276,8 +276,8 @@
                                 <span class="block-hash">0x3f2a...9e1b</span>
                             </div>
                             <div class="block-reward">
-                                <span class="reward-amount">2500 RVN</span>
-                                <span class="block-time">5 hours ago</span>
+                                <span class="reward-amount"><span data-i18n="archie_pool.2500_rvn_2">2500 RVN</span></span>
+                                <span class="block-time"><span data-i18n="archie_pool.5_hours_ago">5 hours ago</span></span>
                             </div>
                         </div>
                     </div>
@@ -306,9 +306,9 @@
                             <input type="text" placeholder="Search workers..." id="workerSearch" onkeyup="filterWorkers()">
                         </div>
                         <select class="pool-select" id="workerFilter" onchange="filterWorkers()">
-                            <option value="all">All Workers</option>
-                            <option value="online">Online</option>
-                            <option value="offline">Offline</option>
+                            <option value="all"><span data-i18n="archie_pool.all_workers">All Workers</span></option>
+                            <option value="online"><span data-i18n="archie_pool.online">Online</span></option>
+                            <option value="offline"><span data-i18n="archie_pool.offline">Offline</span></option>
                         </select>
                     </div>
                 </div>
@@ -318,12 +318,12 @@
                     <table class="pool-table" id="workersTable">
                         <thead>
                             <tr>
-                                <th>Status</th>
-                                <th>Worker Name</th>
-                                <th>Hashrate</th>
-                                <th>Shares (Valid/Invalid)</th>
-                                <th>Last Seen</th>
-                                <th>Actions</th>
+                                <th><span data-i18n="archie_pool.status">Status</span></th>
+                                <th><span data-i18n="archie_pool.worker_name">Worker Name</span></th>
+                                <th><span data-i18n="archie_pool.hashrate">Hashrate</span></th>
+                                <th><span data-i18n="archie_pool.shares_valid_invalid">Shares (Valid/Invalid)</span></th>
+                                <th><span data-i18n="archie_pool.last_seen">Last Seen</span></th>
+                                <th><span data-i18n="archie_pool.actions">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody id="workersTableBody">
@@ -336,17 +336,17 @@
                                 </td>
                                 <td class="worker-name">
                                     <i data-lucide="server"></i>
-                                    <span>RIG_3080_01</span>
+                                    <span><span data-i18n="archie_pool.rig_3080_01">RIG_3080_01</span></span>
                                 </td>
                                 <td class="worker-hashrate">
                                     <span class="hashrate-value">32.5</span>
-                                    <span class="hashrate-unit">MH/s</span>
+                                    <span class="hashrate-unit"><span data-i18n="archie_pool.mh_s_2">MH/s</span></span>
                                 </td>
                                 <td class="worker-shares">
                                     <span class="shares-valid">12,458</span> /
                                     <span class="shares-invalid">3</span>
                                 </td>
-                                <td class="worker-lastseen">Just now</td>
+                                <td class="worker-lastseen"><span data-i18n="archie_pool.just_now_2">Just now</span></td>
                                 <td class="worker-actions">
                                     <button class="action-btn" onclick="showWorkerDetails('RIG_3080_01')" title="Details">
                                         <i data-lucide="eye"></i>
@@ -368,17 +368,17 @@
                                 </td>
                                 <td class="worker-name">
                                     <i data-lucide="server"></i>
-                                    <span>RIG_3070_02</span>
+                                    <span><span data-i18n="archie_pool.rig_3070_02">RIG_3070_02</span></span>
                                 </td>
                                 <td class="worker-hashrate">
                                     <span class="hashrate-value">28.2</span>
-                                    <span class="hashrate-unit">MH/s</span>
+                                    <span class="hashrate-unit"><span data-i18n="archie_pool.mh_s_3">MH/s</span></span>
                                 </td>
                                 <td class="worker-shares">
                                     <span class="shares-valid">9,847</span> /
                                     <span class="shares-invalid">1</span>
                                 </td>
-                                <td class="worker-lastseen">5s ago</td>
+                                <td class="worker-lastseen"><span data-i18n="archie_pool.5s_ago_2">5s ago</span></td>
                                 <td class="worker-actions">
                                     <button class="action-btn" onclick="showWorkerDetails('RIG_3070_02')" title="Details">
                                         <i data-lucide="eye"></i>
@@ -400,17 +400,17 @@
                                 </td>
                                 <td class="worker-name">
                                     <i data-lucide="server"></i>
-                                    <span>RIG_1660S_03</span>
+                                    <span><span data-i18n="archie_pool.rig_1660s_03">RIG_1660S_03</span></span>
                                 </td>
                                 <td class="worker-hashrate">
                                     <span class="hashrate-value">0.0</span>
-                                    <span class="hashrate-unit">MH/s</span>
+                                    <span class="hashrate-unit"><span data-i18n="archie_pool.mh_s_4">MH/s</span></span>
                                 </td>
                                 <td class="worker-shares">
                                     <span class="shares-valid">3,291</span> /
                                     <span class="shares-invalid">0</span>
                                 </td>
-                                <td class="worker-lastseen">2h ago</td>
+                                <td class="worker-lastseen"><span data-i18n="archie_pool.2h_ago">2h ago</span></td>
                                 <td class="worker-actions">
                                     <button class="action-btn" onclick="showWorkerDetails('RIG_1660S_03')" title="Details">
                                         <i data-lucide="eye"></i>
@@ -437,21 +437,21 @@
                     </div>
                     <div class="miner-configs">
                         <div class="config-section">
-                            <h4>NBMiner (Recommended)</h4>
+                            <h4><span data-i18n="archie_pool.nbminer_recommended">NBMiner (Recommended)</span></h4>
                             <code class="config-command">nbminer -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME</code>
                             <button class="copy-btn" onclick="copyConfig('nbminer')" title="Copy">
                                 <i data-lucide="copy"></i>
                             </button>
                         </div>
                         <div class="config-section">
-                            <h4>T-Rex Miner</h4>
+                            <h4><span data-i18n="archie_pool.t_rex_miner">T-Rex Miner</span></h4>
                             <code class="config-command">t-rex -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME -p x</code>
                             <button class="copy-btn" onclick="copyConfig('trex')" title="Copy">
                                 <i data-lucide="copy"></i>
                             </button>
                         </div>
                         <div class="config-section">
-                            <h4>Gminer</h4>
+                            <h4><span data-i18n="archie_pool.gminer">Gminer</span></h4>
                             <code class="config-command">miner --algo kawpow --server stratum+tcp://pool.kytranempowerment.com:3333 --user YOUR_RVN_ADDRESS.WORKER_NAME</code>
                             <button class="copy-btn" onclick="copyConfig('gminer')" title="Copy">
                                 <i data-lucide="copy"></i>
@@ -472,8 +472,8 @@
                             <i data-lucide="clock"></i>
                         </div>
                         <div class="payout-info">
-                            <span class="payout-amount" id="summaryPending">0.00 RVN</span>
-                            <span class="payout-label">Pending Balance</span>
+                            <span class="payout-amount" id="summaryPending"><span data-i18n="archie_pool.0_00_rvn_2">0.00 RVN</span></span>
+                            <span class="payout-label"><span data-i18n="archie_pool.pending_balance">Pending Balance</span></span>
                         </div>
                     </div>
                     <div class="pool-card payout-summary-card">
@@ -481,8 +481,8 @@
                             <i data-lucide="check-circle"></i>
                         </div>
                         <div class="payout-info">
-                            <span class="payout-amount" id="summaryPaid">0.00 RVN</span>
-                            <span class="payout-label">Total Paid</span>
+                            <span class="payout-amount" id="summaryPaid"><span data-i18n="archie_pool.0_00_rvn_3">0.00 RVN</span></span>
+                            <span class="payout-label"><span data-i18n="archie_pool.total_paid">Total Paid</span></span>
                         </div>
                     </div>
                     <div class="pool-card payout-summary-card">
@@ -491,7 +491,7 @@
                         </div>
                         <div class="payout-info">
                             <span class="payout-amount" id="nextPayout">--</span>
-                            <span class="payout-label">Next Payout</span>
+                            <span class="payout-label"><span data-i18n="archie_pool.next_payout">Next Payout</span></span>
                         </div>
                     </div>
                 </div>
@@ -507,12 +507,12 @@
                     <div class="pending-payouts" id="pendingPayouts">
                         <div class="pending-payout-item">
                             <div class="pending-info">
-                                <span class="pending-address">RVNaddress...xyz123</span>
-                                <span class="pending-amount">125.50 RVN</span>
+                                <span class="pending-address"><span data-i18n="archie_pool.rvnaddress_xyz123">RVNaddress...xyz123</span></span>
+                                <span class="pending-amount"><span data-i18n="archie_pool.125_50_rvn">125.50 RVN</span></span>
                             </div>
                             <div class="pending-status">
-                                <span class="status-badge pending">Processing</span>
-                                <span class="pending-eta">ETA: ~30 min</span>
+                                <span class="status-badge pending"><span data-i18n="archie_pool.processing">Processing</span></span>
+                                <span class="pending-eta"><span data-i18n="archie_pool.eta_30_min">ETA: ~30 min</span></span>
                             </div>
                         </div>
                     </div>
@@ -533,45 +533,45 @@
                     <table class="pool-table" id="payoutHistoryTable">
                         <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>Amount</th>
-                                <th>TX Hash</th>
-                                <th>Status</th>
+                                <th><span data-i18n="archie_pool.date">Date</span></th>
+                                <th><span data-i18n="archie_pool.amount">Amount</span></th>
+                                <th><span data-i18n="archie_pool.tx_hash">TX Hash</span></th>
+                                <th><span data-i18n="archie_pool.status_2">Status</span></th>
                             </tr>
                         </thead>
                         <tbody id="payoutHistoryBody">
                             <tr>
                                 <td>2026-01-17 14:32</td>
-                                <td class="payout-amount">250.00 RVN</td>
+                                <td class="payout-amount"><span data-i18n="archie_pool.250_00_rvn">250.00 RVN</span></td>
                                 <td class="tx-hash">
                                     <a href="#" target="_blank">8a7f2c1d...3e9b</a>
                                     <button class="copy-btn-small" onclick="copyToClipboard('8a7f2c1d...3e9b')">
                                         <i data-lucide="copy"></i>
                                     </button>
                                 </td>
-                                <td><span class="status-badge confirmed">Confirmed</span></td>
+                                <td><span class="status-badge confirmed"><span data-i18n="archie_pool.confirmed">Confirmed</span></span></td>
                             </tr>
                             <tr>
                                 <td>2026-01-15 09:15</td>
-                                <td class="payout-amount">187.25 RVN</td>
+                                <td class="payout-amount"><span data-i18n="archie_pool.187_25_rvn">187.25 RVN</span></td>
                                 <td class="tx-hash">
                                     <a href="#" target="_blank">3f2a9e1b...7c4d</a>
                                     <button class="copy-btn-small" onclick="copyToClipboard('3f2a9e1b...7c4d')">
                                         <i data-lucide="copy"></i>
                                     </button>
                                 </td>
-                                <td><span class="status-badge confirmed">Confirmed</span></td>
+                                <td><span class="status-badge confirmed"><span data-i18n="archie_pool.confirmed_2">Confirmed</span></span></td>
                             </tr>
                             <tr>
                                 <td>2026-01-12 22:47</td>
-                                <td class="payout-amount">312.75 RVN</td>
+                                <td class="payout-amount"><span data-i18n="archie_pool.312_75_rvn">312.75 RVN</span></td>
                                 <td class="tx-hash">
                                     <a href="#" target="_blank">c5d8f4a2...1b6e</a>
                                     <button class="copy-btn-small" onclick="copyToClipboard('c5d8f4a2...1b6e')">
                                         <i data-lucide="copy"></i>
                                     </button>
                                 </td>
-                                <td><span class="status-badge confirmed">Confirmed</span></td>
+                                <td><span class="status-badge confirmed"><span data-i18n="archie_pool.confirmed_3">Confirmed</span></span></td>
                             </tr>
                         </tbody>
                     </table>
@@ -592,7 +592,7 @@
                     </div>
                     <div class="settings-form">
                         <div class="form-group">
-                            <label for="payoutAddress">RVN Payout Address</label>
+                            <label for="payoutAddress"><span data-i18n="archie_pool.rvn_payout_address">RVN Payout Address</span></label>
                             <div class="input-with-action">
                                 <input type="text" id="payoutAddress" class="pool-input"
                                        placeholder="Enter your Ravencoin wallet address"
@@ -602,24 +602,24 @@
                                     Verify
                                 </button>
                             </div>
-                            <span class="input-hint">Your RVN address starting with 'R'</span>
+                            <span class="input-hint"><span data-i18n="archie_pool.your_rvn_address_starting_with_r">Your RVN address starting with 'R'</span></span>
                         </div>
                         <div class="form-group">
-                            <label for="payoutThreshold">Minimum Payout Threshold</label>
+                            <label for="payoutThreshold"><span data-i18n="archie_pool.minimum_payout_threshold">Minimum Payout Threshold</span></label>
                             <div class="input-with-unit">
                                 <input type="number" id="payoutThreshold" class="pool-input"
                                        min="10" max="10000" step="1" value="50">
-                                <span class="input-unit">RVN</span>
+                                <span class="input-unit"><span data-i18n="archie_pool.rvn_3">RVN</span></span>
                             </div>
-                            <span class="input-hint">Minimum: 10 RVN | Maximum: 10,000 RVN</span>
+                            <span class="input-hint"><span data-i18n="archie_pool.minimum_10_rvn_maximum_10_000_rvn">Minimum: 10 RVN | Maximum: 10,000 RVN</span></span>
                         </div>
                         <div class="form-group">
-                            <label for="payoutFrequency">Payout Frequency</label>
+                            <label for="payoutFrequency"><span data-i18n="archie_pool.payout_frequency">Payout Frequency</span></label>
                             <select id="payoutFrequency" class="pool-select">
-                                <option value="auto">Automatic (when threshold reached)</option>
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="manual">Manual Request Only</option>
+                                <option value="auto"><span data-i18n="archie_pool.automatic_when_threshold_reached">Automatic (when threshold reached)</span></option>
+                                <option value="daily"><span data-i18n="archie_pool.daily">Daily</span></option>
+                                <option value="weekly"><span data-i18n="archie_pool.weekly">Weekly</span></option>
+                                <option value="manual"><span data-i18n="archie_pool.manual_request_only">Manual Request Only</span></option>
                             </select>
                         </div>
                     </div>
@@ -635,15 +635,15 @@
                     </div>
                     <div class="settings-form">
                         <div class="form-group">
-                            <label for="notifyEmail">Email Notifications</label>
+                            <label for="notifyEmail"><span data-i18n="archie_pool.email_notifications">Email Notifications</span></label>
                             <input type="email" id="notifyEmail" class="pool-input"
                                    placeholder="your@email.com">
                         </div>
                         <div class="toggle-group">
                             <div class="toggle-item">
                                 <div class="toggle-info">
-                                    <span class="toggle-label">Worker Offline Alert</span>
-                                    <span class="toggle-desc">Get notified when a worker goes offline</span>
+                                    <span class="toggle-label"><span data-i18n="archie_pool.worker_offline_alert">Worker Offline Alert</span></span>
+                                    <span class="toggle-desc"><span data-i18n="archie_pool.get_notified_when_a_worker_goes_offline">Get notified when a worker goes offline</span></span>
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="alertWorkerOffline" checked>
@@ -652,8 +652,8 @@
                             </div>
                             <div class="toggle-item">
                                 <div class="toggle-info">
-                                    <span class="toggle-label">Payout Notifications</span>
-                                    <span class="toggle-desc">Get notified when payouts are processed</span>
+                                    <span class="toggle-label"><span data-i18n="archie_pool.payout_notifications">Payout Notifications</span></span>
+                                    <span class="toggle-desc"><span data-i18n="archie_pool.get_notified_when_payouts_are_processed">Get notified when payouts are processed</span></span>
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="alertPayout" checked>
@@ -662,8 +662,8 @@
                             </div>
                             <div class="toggle-item">
                                 <div class="toggle-info">
-                                    <span class="toggle-label">Block Found Alert</span>
-                                    <span class="toggle-desc">Get notified when the pool finds a block</span>
+                                    <span class="toggle-label"><span data-i18n="archie_pool.block_found_alert">Block Found Alert</span></span>
+                                    <span class="toggle-desc"><span data-i18n="archie_pool.get_notified_when_the_pool_finds_a_block">Get notified when the pool finds a block</span></span>
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="alertBlockFound">
@@ -672,8 +672,8 @@
                             </div>
                             <div class="toggle-item">
                                 <div class="toggle-info">
-                                    <span class="toggle-label">Daily Summary</span>
-                                    <span class="toggle-desc">Receive daily mining statistics</span>
+                                    <span class="toggle-label"><span data-i18n="archie_pool.daily_summary">Daily Summary</span></span>
+                                    <span class="toggle-desc"><span data-i18n="archie_pool.receive_daily_mining_statistics">Receive daily mining statistics</span></span>
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="alertDailySummary">
@@ -694,7 +694,7 @@
                     </div>
                     <div class="settings-form">
                         <div class="form-group">
-                            <label>API Key</label>
+                            <label><span data-i18n="archie_pool.api_key">API Key</span></label>
                             <div class="api-key-display">
                                 <code class="api-key" id="apiKey">••••••••••••••••••••••••••••••••</code>
                                 <button class="pool-btn pool-btn-icon" onclick="toggleApiKey()" title="Show/Hide">
@@ -707,7 +707,7 @@
                                     <i data-lucide="refresh-cw"></i>
                                 </button>
                             </div>
-                            <span class="input-hint">Use this key to access pool statistics via API</span>
+                            <span class="input-hint"><span data-i18n="archie_pool.use_this_key_to_access_pool_statistics_via_api">Use this key to access pool statistics via API</span></span>
                         </div>
                     </div>
                 </div>
@@ -738,23 +738,23 @@
         </div>
         <div class="pool-modal-body">
             <div class="form-group">
-                <label for="newWorkerName">Worker Name</label>
+                <label for="newWorkerName"><span data-i18n="archie_pool.worker_name_2">Worker Name</span></label>
                 <input type="text" id="newWorkerName" class="pool-input"
                        placeholder="e.g., RIG_3080_01" maxlength="32">
-                <span class="input-hint">Alphanumeric characters and underscores only</span>
+                <span class="input-hint"><span data-i18n="archie_pool.alphanumeric_characters_and_underscores_only">Alphanumeric characters and underscores only</span></span>
             </div>
             <div class="form-group">
-                <label for="workerPassword">Worker Password (Optional)</label>
+                <label for="workerPassword"><span data-i18n="archie_pool.worker_password_optional">Worker Password (Optional)</span></label>
                 <input type="password" id="workerPassword" class="pool-input"
                        placeholder="Leave empty for no password">
             </div>
             <div class="connection-preview">
-                <label>Connection String</label>
+                <label><span data-i18n="archie_pool.connection_string">Connection String</span></label>
                 <code id="workerConnectionString">YOUR_RVN_ADDRESS.WORKER_NAME</code>
             </div>
         </div>
         <div class="pool-modal-footer">
-            <button class="pool-btn pool-btn-secondary" onclick="closeModal('addWorkerModal')">Cancel</button>
+            <button class="pool-btn pool-btn-secondary" onclick="closeModal('addWorkerModal')"><span data-i18n="archie_pool.cancel">Cancel</span></button>
             <button class="pool-btn pool-btn-primary" onclick="addWorker()">
                 <i data-lucide="plus"></i>
                 Add Worker

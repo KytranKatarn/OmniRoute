@@ -1271,14 +1271,14 @@ body.light-mode .sm-badge--published {
                     <i data-lucide="share-2"></i>
                 </div>
                 <div>
-                    <h1>SOCIAL MEDIA COMMAND CENTER</h1>
-                    <p>Manage all your social platforms from one place</p>
+                    <h1><span data-i18n="social_media.social_media_command_center">SOCIAL MEDIA COMMAND CENTER</span></h1>
+                    <p><span data-i18n="social_media.manage_all_your_social_platforms_from_one_place">Manage all your social platforms from one place</span></p>
                 </div>
             </div>
             <div class="sm-header-actions">
                 <button class="sm-btn sm-btn--primary" onclick="openComposer()">
                     <i data-lucide="plus"></i>
-                    <span>New Post</span>
+                    <span><span data-i18n="social_media.new_post">New Post</span></span>
                 </button>
                 <button class="sm-btn sm-btn--icon" onclick="refreshData()" title="Refresh">
                     <i data-lucide="refresh-cw"></i>
@@ -1290,7 +1290,7 @@ body.light-mode .sm-badge--published {
         <div class="sm-stats">
             <div class="sm-stat-card">
                 <div class="sm-stat-info">
-                    <span class="sm-stat-label">Connected Accounts</span>
+                    <span class="sm-stat-label"><span data-i18n="social_media.connected_accounts">Connected Accounts</span></span>
                     <span class="sm-stat-value" id="stat-accounts">{{ stats.get('active_accounts', 0) }}/{{ stats.get('total_accounts', 7) }}</span>
                 </div>
                 <div class="sm-stat-icon sm-stat-icon--accounts">
@@ -1299,7 +1299,7 @@ body.light-mode .sm-badge--published {
             </div>
             <div class="sm-stat-card">
                 <div class="sm-stat-info">
-                    <span class="sm-stat-label">Scheduled Posts</span>
+                    <span class="sm-stat-label"><span data-i18n="social_media.scheduled_posts">Scheduled Posts</span></span>
                     <span class="sm-stat-value" id="stat-scheduled">{{ stats.get('scheduled', 0) }}</span>
                 </div>
                 <div class="sm-stat-icon sm-stat-icon--scheduled">
@@ -1308,7 +1308,7 @@ body.light-mode .sm-badge--published {
             </div>
             <div class="sm-stat-card">
                 <div class="sm-stat-info">
-                    <span class="sm-stat-label">Published This Week</span>
+                    <span class="sm-stat-label"><span data-i18n="social_media.published_this_week">Published This Week</span></span>
                     <span class="sm-stat-value" id="stat-published">{{ stats.get('published_week', 0) }}</span>
                 </div>
                 <div class="sm-stat-icon sm-stat-icon--published">
@@ -1317,7 +1317,7 @@ body.light-mode .sm-badge--published {
             </div>
             <div class="sm-stat-card">
                 <div class="sm-stat-info">
-                    <span class="sm-stat-label">Total Engagement</span>
+                    <span class="sm-stat-label"><span data-i18n="social_media.total_engagement">Total Engagement</span></span>
                     <span class="sm-stat-value" id="stat-engagement">{{ "{:,}".format(stats.get('total_likes', 0) + stats.get('total_comments', 0)) }}</span>
                 </div>
                 <div class="sm-stat-icon sm-stat-icon--engagement">
@@ -1330,27 +1330,27 @@ body.light-mode .sm-badge--published {
         <div class="sm-tabs" id="socialTabs">
             <button class="sm-tab active" data-tab="dashboard">
                 <i data-lucide="layout-dashboard"></i>
-                <span>Dashboard</span>
+                <span><span data-i18n="social_media.dashboard">Dashboard</span></span>
             </button>
             <button class="sm-tab" data-tab="calendar">
                 <i data-lucide="calendar"></i>
-                <span>Calendar</span>
+                <span><span data-i18n="social_media.calendar">Calendar</span></span>
             </button>
             <button class="sm-tab" data-tab="posts">
                 <i data-lucide="edit-3"></i>
-                <span>Posts</span>
+                <span><span data-i18n="social_media.posts">Posts</span></span>
             </button>
             <button class="sm-tab" data-tab="accounts">
                 <i data-lucide="users"></i>
-                <span>Accounts</span>
+                <span><span data-i18n="social_media.accounts">Accounts</span></span>
             </button>
             <button class="sm-tab" data-tab="templates">
                 <i data-lucide="file-text"></i>
-                <span>Templates</span>
+                <span><span data-i18n="social_media.templates">Templates</span></span>
             </button>
             <button class="sm-tab" data-tab="analytics">
                 <i data-lucide="bar-chart-3"></i>
-                <span>Analytics</span>
+                <span><span data-i18n="social_media.analytics">Analytics</span></span>
             </button>
         </div>
 
@@ -1396,14 +1396,14 @@ body.light-mode .sm-badge--published {
                             <i data-lucide="clock"></i>
                             Upcoming Posts
                         </span>
-                        <a href="#" class="sm-panel-link" onclick="switchToTab('posts')">View All</a>
+                        <a href="#" class="sm-panel-link" onclick="switchToTab('posts')"><span data-i18n="social_media.view_all">View All</span></a>
                     </div>
                     <div class="sm-panel-body sm-scrollable">
                         {% if scheduled_posts %}
                             {% for post in scheduled_posts[:5] %}
                             <div class="sm-post-card">
                                 <div class="sm-post-header">
-                                    <span class="sm-badge sm-badge--scheduled">Scheduled</span>
+                                    <span class="sm-badge sm-badge--scheduled"><span data-i18n="social_media.scheduled">Scheduled</span></span>
                                     <span class="sm-post-time">
                                         {{ post.scheduled_at.strftime('%b %d, %H:%M') if post.scheduled_at else 'Not set' }}
                                     </span>
@@ -1425,8 +1425,8 @@ body.light-mode .sm-badge--published {
                             <div class="sm-empty-icon">
                                 <i data-lucide="calendar-plus"></i>
                             </div>
-                            <p class="sm-empty-text">No scheduled posts</p>
-                            <button class="sm-btn sm-btn--primary" onclick="openComposer()">Create Post</button>
+                            <p class="sm-empty-text"><span data-i18n="social_media.no_scheduled_posts">No scheduled posts</span></p>
+                            <button class="sm-btn sm-btn--primary" onclick="openComposer()"><span data-i18n="social_media.create_post">Create Post</span></button>
                         </div>
                         {% endif %}
                     </div>
@@ -1439,14 +1439,14 @@ body.light-mode .sm-badge--published {
                             <i data-lucide="history"></i>
                             Recent Posts
                         </span>
-                        <a href="#" class="sm-panel-link" onclick="switchToTab('posts')">View All</a>
+                        <a href="#" class="sm-panel-link" onclick="switchToTab('posts')"><span data-i18n="social_media.view_all_2">View All</span></a>
                     </div>
                     <div class="sm-panel-body sm-scrollable">
                         {% if recent_posts %}
                             {% for post in recent_posts[:5] %}
                             <div class="sm-post-card">
                                 <div class="sm-post-header">
-                                    <span class="sm-badge sm-badge--published">Published</span>
+                                    <span class="sm-badge sm-badge--published"><span data-i18n="social_media.published">Published</span></span>
                                     <span class="sm-post-time">
                                         {{ post.published_at.strftime('%b %d') if post.published_at else 'Unknown' }}
                                     </span>
@@ -1469,7 +1469,7 @@ body.light-mode .sm-badge--published {
                             <div class="sm-empty-icon">
                                 <i data-lucide="share-2"></i>
                             </div>
-                            <p class="sm-empty-text">No published posts yet</p>
+                            <p class="sm-empty-text"><span data-i18n="social_media.no_published_posts_yet">No published posts yet</span></p>
                         </div>
                         {% endif %}
                     </div>
@@ -1483,7 +1483,7 @@ body.light-mode .sm-badge--published {
                         <i data-lucide="wand-2"></i>
                         Quick Templates
                     </span>
-                    <a href="#" class="sm-panel-link" onclick="switchToTab('templates')">View All</a>
+                    <a href="#" class="sm-panel-link" onclick="switchToTab('templates')"><span data-i18n="social_media.view_all_3">View All</span></a>
                 </div>
                 <div class="sm-panel-body">
                     <div class="sm-grid sm-grid--4col">
@@ -1507,7 +1507,7 @@ body.light-mode .sm-badge--published {
                         </div>
                         {% else %}
                         <div style="grid-column: span 4;" class="sm-empty">
-                            <p class="sm-empty-text">No templates yet. Create your first template!</p>
+                            <p class="sm-empty-text"><span data-i18n="social_media.no_templates_yet_create_your_first_template">No templates yet. Create your first template!</span></p>
                         </div>
                         {% endfor %}
                     </div>
@@ -1554,7 +1554,7 @@ body.light-mode .sm-badge--published {
                         </div>
 
                         <div class="sm-form-group">
-                            <label class="sm-label">Select Platforms</label>
+                            <label class="sm-label"><span data-i18n="social_media.select_platforms">Select Platforms</span></label>
                             <div class="sm-platform-toggles" id="platform-selector">
                                 {% for key, platform in platforms.items() %}
                                 <label class="sm-platform-toggle" data-platform="{{ key }}">
@@ -1567,7 +1567,7 @@ body.light-mode .sm-badge--published {
                         </div>
 
                         <div class="sm-form-group">
-                            <label class="sm-label">Schedule (optional)</label>
+                            <label class="sm-label"><span data-i18n="social_media.schedule_optional">Schedule (optional)</span></label>
                             <input type="datetime-local" class="sm-input" id="postSchedule">
                         </div>
 
@@ -1596,10 +1596,10 @@ body.light-mode .sm-badge--published {
                             All Posts
                         </span>
                         <div class="sm-filter-group">
-                            <button class="sm-filter-btn active" onclick="filterPosts('')">All</button>
-                            <button class="sm-filter-btn" onclick="filterPosts('draft')">Drafts</button>
-                            <button class="sm-filter-btn" onclick="filterPosts('scheduled')">Scheduled</button>
-                            <button class="sm-filter-btn" onclick="filterPosts('published')">Published</button>
+                            <button class="sm-filter-btn active" onclick="filterPosts('')"><span data-i18n="social_media.all">All</span></button>
+                            <button class="sm-filter-btn" onclick="filterPosts('draft')"><span data-i18n="social_media.drafts">Drafts</span></button>
+                            <button class="sm-filter-btn" onclick="filterPosts('scheduled')"><span data-i18n="social_media.scheduled_2">Scheduled</span></button>
+                            <button class="sm-filter-btn" onclick="filterPosts('published')"><span data-i18n="social_media.published_2">Published</span></button>
                         </div>
                     </div>
                     <div class="sm-panel-body sm-scrollable" id="posts-list" style="max-height: 500px;">
@@ -1607,7 +1607,7 @@ body.light-mode .sm-badge--published {
                             <div class="sm-empty-icon">
                                 <i data-lucide="loader"></i>
                             </div>
-                            <p class="sm-empty-text">Loading posts...</p>
+                            <p class="sm-empty-text"><span data-i18n="social_media.loading_posts">Loading posts...</span></p>
                         </div>
                     </div>
                 </div>
@@ -1638,8 +1638,8 @@ body.light-mode .sm-badge--published {
                         </button>
                     </div>
                     {% else %}
-                    <div class="sm-account-status" style="color: var(--archie-text-tertiary);">Not connected</div>
-                    <div class="sm-account-username">&nbsp;</div>
+                    <div class="sm-account-status" style="color: var(--archie-text-tertiary);"><span data-i18n="social_media.not_connected">Not connected</span></div>
+                    <div class="sm-account-username"><span data-i18n="social_media.nbsp">&nbsp;</span></div>
                     <div class="sm-account-actions">
                         <button class="sm-btn sm-btn--primary" onclick="connectAccount('{{ key }}')">
                             <i data-lucide="plug"></i>
@@ -1663,28 +1663,28 @@ body.light-mode .sm-badge--published {
                     </h3>
                     <form id="templateForm">
                         <div class="sm-form-group">
-                            <label class="sm-label">Template Name</label>
+                            <label class="sm-label"><span data-i18n="social_media.template_name">Template Name</span></label>
                             <input type="text" class="sm-input" id="templateName" placeholder="e.g., Product Launch">
                         </div>
                         <div class="sm-form-group">
-                            <label class="sm-label">Description</label>
+                            <label class="sm-label"><span data-i18n="social_media.description">Description</span></label>
                             <input type="text" class="sm-input" id="templateDesc" placeholder="Brief description">
                         </div>
                         <div class="sm-form-group">
-                            <label class="sm-label">Content Template</label>
+                            <label class="sm-label"><span data-i18n="social_media.content_template">Content Template</span></label>
                             <textarea class="sm-textarea" id="templateContent" rows="4" placeholder="Use {{variable}} for dynamic content"></textarea>
                             <small style="font-size: 0.7rem; color: var(--archie-text-tertiary);">
                                 Variables: {% raw %}{{product_name}}, {{description}}, {{link}}, {{brand}}{% endraw %}
                             </small>
                         </div>
                         <div class="sm-form-group">
-                            <label class="sm-label">Category</label>
+                            <label class="sm-label"><span data-i18n="social_media.category">Category</span></label>
                             <select class="sm-select" id="templateCategory">
-                                <option value="Marketing">Marketing</option>
-                                <option value="Educational">Educational</option>
-                                <option value="Engagement">Engagement</option>
-                                <option value="Brand">Brand</option>
-                                <option value="Announcement">Announcement</option>
+                                <option value="Marketing"><span data-i18n="social_media.marketing">Marketing</span></option>
+                                <option value="Educational"><span data-i18n="social_media.educational">Educational</span></option>
+                                <option value="Engagement"><span data-i18n="social_media.engagement">Engagement</span></option>
+                                <option value="Brand"><span data-i18n="social_media.brand">Brand</span></option>
+                                <option value="Announcement"><span data-i18n="social_media.announcement">Announcement</span></option>
                             </select>
                         </div>
                         <button type="button" class="sm-btn sm-btn--primary" style="width: 100%;" onclick="createTemplate()">
@@ -1727,7 +1727,7 @@ body.light-mode .sm-badge--published {
                                 <div class="sm-empty-icon">
                                     <i data-lucide="file-text"></i>
                                 </div>
-                                <p class="sm-empty-text">No templates yet. Create your first one!</p>
+                                <p class="sm-empty-text"><span data-i18n="social_media.no_templates_yet_create_your_first_one">No templates yet. Create your first one!</span></p>
                             </div>
                             {% endfor %}
                         </div>
@@ -1744,9 +1744,9 @@ body.light-mode .sm-badge--published {
                     Analytics Overview
                 </h3>
                 <div class="sm-period-selector">
-                    <button class="sm-period-btn active" onclick="loadAnalytics('7d')">7 Days</button>
-                    <button class="sm-period-btn" onclick="loadAnalytics('30d')">30 Days</button>
-                    <button class="sm-period-btn" onclick="loadAnalytics('90d')">90 Days</button>
+                    <button class="sm-period-btn active" onclick="loadAnalytics('7d')"><span data-i18n="social_media.7_days">7 Days</span></button>
+                    <button class="sm-period-btn" onclick="loadAnalytics('30d')"><span data-i18n="social_media.30_days">30 Days</span></button>
+                    <button class="sm-period-btn" onclick="loadAnalytics('90d')"><span data-i18n="social_media.90_days">90 Days</span></button>
                 </div>
             </div>
             <div class="sm-grid sm-grid--4col" id="analytics-content">
@@ -1755,28 +1755,28 @@ body.light-mode .sm-badge--published {
                         <i data-lucide="eye"></i>
                     </div>
                     <div class="sm-analytics-value" id="analytics-views">0</div>
-                    <div class="sm-analytics-label">Total Views</div>
+                    <div class="sm-analytics-label"><span data-i18n="social_media.total_views">Total Views</span></div>
                 </div>
                 <div class="sm-analytics-card">
                     <div class="sm-analytics-icon" style="color: #F87171;">
                         <i data-lucide="heart"></i>
                     </div>
                     <div class="sm-analytics-value" id="analytics-likes">0</div>
-                    <div class="sm-analytics-label">Total Likes</div>
+                    <div class="sm-analytics-label"><span data-i18n="social_media.total_likes">Total Likes</span></div>
                 </div>
                 <div class="sm-analytics-card">
                     <div class="sm-analytics-icon" style="color: #818CF8;">
                         <i data-lucide="message-circle"></i>
                     </div>
                     <div class="sm-analytics-value" id="analytics-comments">0</div>
-                    <div class="sm-analytics-label">Total Comments</div>
+                    <div class="sm-analytics-label"><span data-i18n="social_media.total_comments">Total Comments</span></div>
                 </div>
                 <div class="sm-analytics-card">
                     <div class="sm-analytics-icon" style="color: #34D399;">
                         <i data-lucide="share-2"></i>
                     </div>
                     <div class="sm-analytics-value" id="analytics-shares">0</div>
-                    <div class="sm-analytics-label">Total Shares</div>
+                    <div class="sm-analytics-label"><span data-i18n="social_media.total_shares">Total Shares</span></div>
                 </div>
             </div>
         </div>

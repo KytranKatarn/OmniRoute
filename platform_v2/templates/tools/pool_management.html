@@ -699,7 +699,7 @@
             </h1>
             <div class="live-indicator">
                 <span class="live-dot"></span>
-                <span id="lastUpdate">Connecting...</span>
+                <span id="lastUpdate"><span data-i18n="pool_management.connecting">Connecting...</span></span>
             </div>
         </div>
 
@@ -707,7 +707,7 @@
             <!-- Sidebar Navigation -->
             <nav class="sidebar">
                 <div class="sidebar-section">
-                    <div class="sidebar-title">Overview</div>
+                    <div class="sidebar-title"><span data-i18n="pool_management.overview">Overview</span></div>
                     <div class="nav-item active" data-tab="dashboard">
                         <i data-lucide="layout-dashboard"></i>
                         Dashboard
@@ -720,7 +720,7 @@
                 </div>
 
                 <div class="sidebar-section">
-                    <div class="sidebar-title">Operations</div>
+                    <div class="sidebar-title"><span data-i18n="pool_management.operations">Operations</span></div>
                     <div class="nav-item" data-tab="blocks">
                         <i data-lucide="box"></i>
                         Blocks
@@ -737,7 +737,7 @@
                 </div>
 
                 <div class="sidebar-section">
-                    <div class="sidebar-title">Insights</div>
+                    <div class="sidebar-title"><span data-i18n="pool_management.insights">Insights</span></div>
                     <div class="nav-item" data-tab="analytics">
                         <i data-lucide="bar-chart-3"></i>
                         Analytics
@@ -745,7 +745,7 @@
                 </div>
 
                 <div class="sidebar-section">
-                    <div class="sidebar-title">System</div>
+                    <div class="sidebar-title"><span data-i18n="pool_management.system">System</span></div>
                     <div class="nav-item" data-tab="services">
                         <i data-lucide="server"></i>
                         Services
@@ -763,26 +763,26 @@
                 <div id="dashboard" class="tab-content active">
                     <div class="stats-grid">
                         <div class="stat-card accent-red">
-                            <div class="label">Pool Hashrate</div>
+                            <div class="label"><span data-i18n="pool_management.pool_hashrate">Pool Hashrate</span></div>
                             <div class="value" id="poolHashrate">--</div>
                             <div class="change positive" id="hashrateChange">
                                 <i data-lucide="trending-up"></i> +0%
                             </div>
                         </div>
                         <div class="stat-card accent-cyan">
-                            <div class="label">Active Miners</div>
+                            <div class="label"><span data-i18n="pool_management.active_miners">Active Miners</span></div>
                             <div class="value" id="activeMiners">--</div>
                             <div class="change positive" id="minersChange">
                                 <i data-lucide="trending-up"></i> +0
                             </div>
                         </div>
                         <div class="stat-card accent-green">
-                            <div class="label">Blocks (24h)</div>
+                            <div class="label"><span data-i18n="pool_management.blocks_24h">Blocks (24h)</span></div>
                             <div class="value" id="blocksFound">--</div>
-                            <div class="change" id="blocksEff">Efficiency: --%</div>
+                            <div class="change" id="blocksEff"><span data-i18n="pool_management.efficiency">Efficiency: --%</span></div>
                         </div>
                         <div class="stat-card accent-orange">
-                            <div class="label">Pool Luck</div>
+                            <div class="label"><span data-i18n="pool_management.pool_luck">Pool Luck</span></div>
                             <div class="value" id="poolLuck">--%</div>
                             <div class="change" id="luckStatus">--</div>
                         </div>
@@ -791,25 +791,25 @@
                     <div class="quick-actions">
                         <div class="action-card" onclick="triggerPayouts()">
                             <i data-lucide="send"></i>
-                            <span>Process Payouts</span>
+                            <span><span data-i18n="pool_management.process_payouts">Process Payouts</span></span>
                         </div>
                         <div class="action-card" onclick="showTab('conversions')">
                             <i data-lucide="repeat"></i>
-                            <span>Conversion Queue</span>
+                            <span><span data-i18n="pool_management.conversion_queue">Conversion Queue</span></span>
                         </div>
                         <div class="action-card" onclick="restartService('stratum')">
                             <i data-lucide="refresh-cw"></i>
-                            <span>Restart Stratum</span>
+                            <span><span data-i18n="pool_management.restart_stratum">Restart Stratum</span></span>
                         </div>
                         <div class="action-card" onclick="showTab('settings')">
                             <i data-lucide="sliders"></i>
-                            <span>Pool Settings</span>
+                            <span><span data-i18n="pool_management.pool_settings">Pool Settings</span></span>
                         </div>
                     </div>
 
                     <div class="chart-container">
                         <div class="chart-header">
-                            <h3><i data-lucide="activity"></i> Pool Hashrate</h3>
+                            <h3><i data-lucide="activity"></i><span data-i18n="pool_management.pool_hashrate_2"> Pool Hashrate</span></h3>
                             <div class="chart-tabs">
                                 <span class="chart-tab active" data-range="24h">24H</span>
                                 <span class="chart-tab" data-range="7d">7D</span>
@@ -821,18 +821,18 @@
 
                     <div class="data-section">
                         <div class="section-header">
-                            <h3><i data-lucide="box"></i> Recent Blocks</h3>
-                            <button class="btn btn-secondary btn-sm" onclick="showTab('blocks')">View All</button>
+                            <h3><i data-lucide="box"></i><span data-i18n="pool_management.recent_blocks"> Recent Blocks</span></h3>
+                            <button class="btn btn-secondary btn-sm" onclick="showTab('blocks')"><span data-i18n="pool_management.view_all">View All</span></button>
                         </div>
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Height</th>
-                                    <th>Hash</th>
-                                    <th>Finder</th>
-                                    <th>Reward</th>
-                                    <th>Status</th>
-                                    <th>Time</th>
+                                    <th><span data-i18n="pool_management.height">Height</span></th>
+                                    <th><span data-i18n="pool_management.hash">Hash</span></th>
+                                    <th><span data-i18n="pool_management.finder">Finder</span></th>
+                                    <th><span data-i18n="pool_management.reward">Reward</span></th>
+                                    <th><span data-i18n="pool_management.status">Status</span></th>
+                                    <th><span data-i18n="pool_management.time">Time</span></th>
                                 </tr>
                             </thead>
                             <tbody id="recentBlocksTable">
@@ -846,7 +846,7 @@
                 <div id="miners" class="tab-content">
                     <div class="data-section">
                         <div class="section-header">
-                            <h3><i data-lucide="users"></i> Active Miners</h3>
+                            <h3><i data-lucide="users"></i><span data-i18n="pool_management.active_miners_2"> Active Miners</span></h3>
                             <div class="section-actions">
                                 <input type="text" class="search-box" id="minerSearch" placeholder="Search wallet...">
                                 <button class="btn btn-secondary btn-sm" onclick="refreshMiners()">
@@ -857,13 +857,13 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Wallet</th>
-                                    <th>Hashrate</th>
-                                    <th>Workers</th>
-                                    <th>Shares</th>
-                                    <th>Pending</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
+                                    <th><span data-i18n="pool_management.wallet">Wallet</span></th>
+                                    <th><span data-i18n="pool_management.hashrate">Hashrate</span></th>
+                                    <th><span data-i18n="pool_management.workers">Workers</span></th>
+                                    <th><span data-i18n="pool_management.shares">Shares</span></th>
+                                    <th><span data-i18n="pool_management.pending">Pending</span></th>
+                                    <th><span data-i18n="pool_management.status_2">Status</span></th>
+                                    <th><span data-i18n="pool_management.actions">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="minersTable">
@@ -877,46 +877,46 @@
                 <div id="blocks" class="tab-content">
                     <div class="stats-grid">
                         <div class="stat-card accent-green">
-                            <div class="label">Confirmed</div>
+                            <div class="label"><span data-i18n="pool_management.confirmed">Confirmed</span></div>
                             <div class="value" id="confirmedBlocks">--</div>
                         </div>
                         <div class="stat-card accent-orange">
-                            <div class="label">Pending</div>
+                            <div class="label"><span data-i18n="pool_management.pending_2">Pending</span></div>
                             <div class="value" id="pendingBlocks">--</div>
                         </div>
                         <div class="stat-card accent-red">
-                            <div class="label">Orphaned</div>
+                            <div class="label"><span data-i18n="pool_management.orphaned">Orphaned</span></div>
                             <div class="value" id="orphanedBlocks">--</div>
                         </div>
                         <div class="stat-card accent-cyan">
-                            <div class="label">Total Rewards</div>
+                            <div class="label"><span data-i18n="pool_management.total_rewards">Total Rewards</span></div>
                             <div class="value" id="totalRewards">--</div>
                         </div>
                     </div>
 
                     <div class="data-section">
                         <div class="section-header">
-                            <h3><i data-lucide="box"></i> Block Explorer</h3>
+                            <h3><i data-lucide="box"></i><span data-i18n="pool_management.block_explorer"> Block Explorer</span></h3>
                             <div class="section-actions">
                                 <select class="search-box" id="blockFilter" style="width: 150px;">
-                                    <option value="all">All Blocks</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="confirmed">Confirmed</option>
-                                    <option value="orphaned">Orphaned</option>
+                                    <option value="all"><span data-i18n="pool_management.all_blocks">All Blocks</span></option>
+                                    <option value="pending"><span data-i18n="pool_management.pending_3">Pending</span></option>
+                                    <option value="confirmed"><span data-i18n="pool_management.confirmed_2">Confirmed</span></option>
+                                    <option value="orphaned"><span data-i18n="pool_management.orphaned_2">Orphaned</span></option>
                                 </select>
                             </div>
                         </div>
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Height</th>
-                                    <th>Hash</th>
-                                    <th>Finder</th>
-                                    <th>Difficulty</th>
-                                    <th>Reward</th>
-                                    <th>Confirmations</th>
-                                    <th>Status</th>
-                                    <th>Time</th>
+                                    <th><span data-i18n="pool_management.height_2">Height</span></th>
+                                    <th><span data-i18n="pool_management.hash_2">Hash</span></th>
+                                    <th><span data-i18n="pool_management.finder_2">Finder</span></th>
+                                    <th><span data-i18n="pool_management.difficulty">Difficulty</span></th>
+                                    <th><span data-i18n="pool_management.reward_2">Reward</span></th>
+                                    <th><span data-i18n="pool_management.confirmations">Confirmations</span></th>
+                                    <th><span data-i18n="pool_management.status_3">Status</span></th>
+                                    <th><span data-i18n="pool_management.time_2">Time</span></th>
                                 </tr>
                             </thead>
                             <tbody id="blocksTable">
@@ -930,19 +930,19 @@
                 <div id="payouts" class="tab-content">
                     <div class="stats-grid">
                         <div class="stat-card accent-orange">
-                            <div class="label">Pending Payouts</div>
+                            <div class="label"><span data-i18n="pool_management.pending_payouts">Pending Payouts</span></div>
                             <div class="value" id="pendingPayoutCount">--</div>
                         </div>
                         <div class="stat-card accent-cyan">
-                            <div class="label">Total Pending</div>
+                            <div class="label"><span data-i18n="pool_management.total_pending">Total Pending</span></div>
                             <div class="value" id="pendingPayoutAmount">--</div>
                         </div>
                         <div class="stat-card accent-green">
-                            <div class="label">Paid Today</div>
+                            <div class="label"><span data-i18n="pool_management.paid_today">Paid Today</span></div>
                             <div class="value" id="paidToday">--</div>
                         </div>
                         <div class="stat-card accent-red">
-                            <div class="label">Failed</div>
+                            <div class="label"><span data-i18n="pool_management.failed">Failed</span></div>
                             <div class="value" id="failedPayouts">--</div>
                         </div>
                     </div>
@@ -950,36 +950,36 @@
                     <div class="quick-actions">
                         <div class="action-card" onclick="triggerPayouts()">
                             <i data-lucide="send"></i>
-                            <span>Process All Payouts</span>
+                            <span><span data-i18n="pool_management.process_all_payouts">Process All Payouts</span></span>
                         </div>
                         <div class="action-card" onclick="retryFailedPayouts()">
                             <i data-lucide="refresh-cw"></i>
-                            <span>Retry Failed</span>
+                            <span><span data-i18n="pool_management.retry_failed">Retry Failed</span></span>
                         </div>
                     </div>
 
                     <div class="data-section">
                         <div class="section-header">
-                            <h3><i data-lucide="wallet"></i> Payout Queue</h3>
+                            <h3><i data-lucide="wallet"></i><span data-i18n="pool_management.payout_queue"> Payout Queue</span></h3>
                             <div class="section-actions">
                                 <select class="search-box" id="payoutFilter" style="width: 150px;">
-                                    <option value="pending">Pending</option>
-                                    <option value="processing">Processing</option>
-                                    <option value="completed">Completed</option>
-                                    <option value="failed">Failed</option>
+                                    <option value="pending"><span data-i18n="pool_management.pending_4">Pending</span></option>
+                                    <option value="processing"><span data-i18n="pool_management.processing">Processing</span></option>
+                                    <option value="completed"><span data-i18n="pool_management.completed">Completed</span></option>
+                                    <option value="failed"><span data-i18n="pool_management.failed_2">Failed</span></option>
                                 </select>
                             </div>
                         </div>
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Wallet</th>
-                                    <th>Amount</th>
-                                    <th>Currency</th>
-                                    <th>TX ID</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
+                                    <th><span data-i18n="pool_management.wallet_2">Wallet</span></th>
+                                    <th><span data-i18n="pool_management.amount">Amount</span></th>
+                                    <th><span data-i18n="pool_management.currency">Currency</span></th>
+                                    <th><span data-i18n="pool_management.tx_id">TX ID</span></th>
+                                    <th><span data-i18n="pool_management.status_4">Status</span></th>
+                                    <th><span data-i18n="pool_management.created">Created</span></th>
+                                    <th><span data-i18n="pool_management.actions_2">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="payoutsTable">
@@ -993,26 +993,26 @@
                 <div id="conversions" class="tab-content">
                     <div class="stats-grid">
                         <div class="stat-card accent-cyan">
-                            <div class="label">RVN Price</div>
+                            <div class="label"><span data-i18n="pool_management.rvn_price">RVN Price</span></div>
                             <div class="value" id="rvnPrice">$--</div>
                         </div>
                         <div class="stat-card accent-orange">
-                            <div class="label">Queue Size</div>
+                            <div class="label"><span data-i18n="pool_management.queue_size">Queue Size</span></div>
                             <div class="value" id="conversionQueue">--</div>
                         </div>
                         <div class="stat-card accent-green">
-                            <div class="label">Converted Today</div>
+                            <div class="label"><span data-i18n="pool_management.converted_today">Converted Today</span></div>
                             <div class="value" id="convertedToday">--</div>
                         </div>
                         <div class="stat-card accent-red">
-                            <div class="label">Conversion Fee</div>
+                            <div class="label"><span data-i18n="pool_management.conversion_fee">Conversion Fee</span></div>
                             <div class="value" id="conversionFee">--%</div>
                         </div>
                     </div>
 
                     <div class="data-section">
                         <div class="section-header">
-                            <h3><i data-lucide="repeat"></i> Conversion Queue</h3>
+                            <h3><i data-lucide="repeat"></i><span data-i18n="pool_management.conversion_queue_2"> Conversion Queue</span></h3>
                             <button class="btn btn-primary btn-sm" onclick="processConversions()">
                                 <i data-lucide="play"></i> Process Queue
                             </button>
@@ -1020,13 +1020,13 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Wallet</th>
-                                    <th>RVN Amount</th>
-                                    <th>Target</th>
-                                    <th>Est. Output</th>
-                                    <th>Status</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
+                                    <th><span data-i18n="pool_management.wallet_3">Wallet</span></th>
+                                    <th><span data-i18n="pool_management.rvn_amount">RVN Amount</span></th>
+                                    <th><span data-i18n="pool_management.target">Target</span></th>
+                                    <th><span data-i18n="pool_management.est_output">Est. Output</span></th>
+                                    <th><span data-i18n="pool_management.status_5">Status</span></th>
+                                    <th><span data-i18n="pool_management.created_2">Created</span></th>
+                                    <th><span data-i18n="pool_management.actions_3">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="conversionsTable">
@@ -1040,7 +1040,7 @@
                 <div id="analytics" class="tab-content">
                     <div class="chart-container">
                         <div class="chart-header">
-                            <h3><i data-lucide="trending-up"></i> Revenue Analytics</h3>
+                            <h3><i data-lucide="trending-up"></i><span data-i18n="pool_management.revenue_analytics"> Revenue Analytics</span></h3>
                             <div class="chart-tabs">
                                 <span class="chart-tab active" data-range="7d">7D</span>
                                 <span class="chart-tab" data-range="30d">30D</span>
@@ -1052,26 +1052,26 @@
 
                     <div class="chart-container">
                         <div class="chart-header">
-                            <h3><i data-lucide="users"></i> Miner Growth</h3>
+                            <h3><i data-lucide="users"></i><span data-i18n="pool_management.miner_growth"> Miner Growth</span></h3>
                         </div>
                         <canvas id="minersChart"></canvas>
                     </div>
 
                     <div class="stats-grid">
                         <div class="stat-card accent-green">
-                            <div class="label">Total Revenue (30d)</div>
+                            <div class="label"><span data-i18n="pool_management.total_revenue_30d">Total Revenue (30d)</span></div>
                             <div class="value" id="totalRevenue">--</div>
                         </div>
                         <div class="stat-card accent-cyan">
-                            <div class="label">Pool Fee Earned</div>
+                            <div class="label"><span data-i18n="pool_management.pool_fee_earned">Pool Fee Earned</span></div>
                             <div class="value" id="feeEarned">--</div>
                         </div>
                         <div class="stat-card accent-orange">
-                            <div class="label">Avg Hashrate (30d)</div>
+                            <div class="label"><span data-i18n="pool_management.avg_hashrate_30d">Avg Hashrate (30d)</span></div>
                             <div class="value" id="avgHashrate">--</div>
                         </div>
                         <div class="stat-card accent-red">
-                            <div class="label">Avg Miners (30d)</div>
+                            <div class="label"><span data-i18n="pool_management.avg_miners_30d">Avg Miners (30d)</span></div>
                             <div class="value" id="avgMiners">--</div>
                         </div>
                     </div>
@@ -1086,8 +1086,8 @@
                                     <i data-lucide="server"></i>
                                 </div>
                                 <div class="service-details">
-                                    <h4>Loading services...</h4>
-                                    <p>Please wait</p>
+                                    <h4><span data-i18n="pool_management.loading_services">Loading services...</span></h4>
+                                    <p><span data-i18n="pool_management.please_wait">Please wait</span></p>
                                 </div>
                             </div>
                         </div>
@@ -1098,57 +1098,57 @@
                 <div id="settings" class="tab-content">
                     <div class="settings-grid">
                         <div class="settings-card">
-                            <h4><i data-lucide="percent"></i> Pool Fees</h4>
+                            <h4><i data-lucide="percent"></i><span data-i18n="pool_management.pool_fees"> Pool Fees</span></h4>
                             <div class="form-group">
-                                <label>Pool Fee (%)</label>
+                                <label><span data-i18n="pool_management.pool_fee">Pool Fee (%)</span></label>
                                 <input type="number" id="poolFee" step="0.1" min="0" max="10" value="1.0">
                             </div>
                             <div class="form-group">
-                                <label>Conversion Fee (%)</label>
+                                <label><span data-i18n="pool_management.conversion_fee_2">Conversion Fee (%)</span></label>
                                 <input type="number" id="settingConversionFee" step="0.1" min="0" max="10" value="2.0">
                             </div>
                         </div>
 
                         <div class="settings-card">
-                            <h4><i data-lucide="wallet"></i> Payout Settings</h4>
+                            <h4><i data-lucide="wallet"></i><span data-i18n="pool_management.payout_settings"> Payout Settings</span></h4>
                             <div class="form-group">
-                                <label>Minimum Payout (RVN)</label>
+                                <label><span data-i18n="pool_management.minimum_payout_rvn">Minimum Payout (RVN)</span></label>
                                 <input type="number" id="minPayout" step="1" min="1" value="10">
                             </div>
                             <div class="form-group">
-                                <label>PPLNS Window (blocks)</label>
+                                <label><span data-i18n="pool_management.pplns_window_blocks">PPLNS Window (blocks)</span></label>
                                 <input type="number" id="pplnsWindow" step="1" min="1" value="100">
                             </div>
                             <div class="form-group">
-                                <label>Payout Interval</label>
+                                <label><span data-i18n="pool_management.payout_interval">Payout Interval</span></label>
                                 <select id="payoutInterval">
-                                    <option value="hourly">Hourly</option>
-                                    <option value="daily">Daily</option>
-                                    <option value="manual">Manual Only</option>
+                                    <option value="hourly"><span data-i18n="pool_management.hourly">Hourly</span></option>
+                                    <option value="daily"><span data-i18n="pool_management.daily">Daily</span></option>
+                                    <option value="manual"><span data-i18n="pool_management.manual_only">Manual Only</span></option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="settings-card">
-                            <h4><i data-lucide="bell"></i> Notifications</h4>
+                            <h4><i data-lucide="bell"></i><span data-i18n="pool_management.notifications"> Notifications</span></h4>
                             <div class="form-group">
-                                <label>Telegram Bot Token</label>
+                                <label><span data-i18n="pool_management.telegram_bot_token">Telegram Bot Token</span></label>
                                 <input type="text" id="telegramToken" placeholder="bot123456:ABC...">
                             </div>
                             <div class="form-group">
-                                <label>Telegram Chat ID</label>
+                                <label><span data-i18n="pool_management.telegram_chat_id">Telegram Chat ID</span></label>
                                 <input type="text" id="telegramChatId" placeholder="-1001234567890">
                             </div>
                         </div>
 
                         <div class="settings-card">
-                            <h4><i data-lucide="key"></i> Exchange API</h4>
+                            <h4><i data-lucide="key"></i><span data-i18n="pool_management.exchange_api"> Exchange API</span></h4>
                             <div class="form-group">
-                                <label>Changelly API Key</label>
+                                <label><span data-i18n="pool_management.changelly_api_key">Changelly API Key</span></label>
                                 <input type="password" id="changellyApiKey" placeholder="API key...">
                             </div>
                             <div class="form-group">
-                                <label>Changelly Secret</label>
+                                <label><span data-i18n="pool_management.changelly_secret">Changelly Secret</span></label>
                                 <input type="password" id="changellySecret" placeholder="API secret...">
                             </div>
                         </div>
@@ -1174,15 +1174,15 @@
     <div class="modal-overlay" id="minerModal">
         <div class="modal">
             <div class="modal-header">
-                <h3>Miner Details</h3>
-                <button class="modal-close" onclick="closeModal('minerModal')">&times;</button>
+                <h3><span data-i18n="pool_management.miner_details">Miner Details</span></h3>
+                <button class="modal-close" onclick="closeModal('minerModal')"><span data-i18n="pool_management.times">&times;</span></button>
             </div>
             <div class="modal-body" id="minerModalBody">
                 <!-- Dynamic content -->
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('minerModal')">Close</button>
-                <button class="btn btn-danger" id="banMinerBtn">Ban Miner</button>
+                <button class="btn btn-secondary" onclick="closeModal('minerModal')"><span data-i18n="pool_management.close">Close</span></button>
+                <button class="btn btn-danger" id="banMinerBtn"><span data-i18n="pool_management.ban_miner">Ban Miner</span></button>
             </div>
         </div>
     </div>
@@ -1191,15 +1191,15 @@
     <div class="modal-overlay" id="confirmModal">
         <div class="modal">
             <div class="modal-header">
-                <h3 id="confirmTitle">Confirm Action</h3>
-                <button class="modal-close" onclick="closeModal('confirmModal')">&times;</button>
+                <h3 id="confirmTitle"><span data-i18n="pool_management.confirm_action">Confirm Action</span></h3>
+                <button class="modal-close" onclick="closeModal('confirmModal')"><span data-i18n="pool_management.times_2">&times;</span></button>
             </div>
             <div class="modal-body">
-                <p id="confirmMessage">Are you sure you want to proceed?</p>
+                <p id="confirmMessage"><span data-i18n="pool_management.are_you_sure_you_want_to_proceed">Are you sure you want to proceed?</span></p>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('confirmModal')">Cancel</button>
-                <button class="btn btn-danger" id="confirmBtn">Confirm</button>
+                <button class="btn btn-secondary" onclick="closeModal('confirmModal')"><span data-i18n="pool_management.cancel">Cancel</span></button>
+                <button class="btn btn-danger" id="confirmBtn"><span data-i18n="pool_management.confirm">Confirm</span></button>
             </div>
         </div>
     </div>

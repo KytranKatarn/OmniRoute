@@ -1823,57 +1823,57 @@
 
     <div class="account-center-content">
         <div class="account-center-header">
-            <h1>ACCOUNT CENTER</h1>
+            <h1><span data-i18n="account_center.account_center">ACCOUNT CENTER</span></h1>
         </div>
 
         <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-6);">
             <!-- Stats Overview -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-label">TOTAL USERS</div>
+                    <div class="stat-label"><span data-i18n="account_center.total_users">TOTAL USERS</span></div>
                     <div class="stat-value" id="stat-total">{{ stats.total_users }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">ADMINS</div>
+                    <div class="stat-label"><span data-i18n="account_center.admins">ADMINS</span></div>
                     <div class="stat-value" id="stat-admins" style="color: var(--archie-red);">{{ stats.admins }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">PREMIUM</div>
+                    <div class="stat-label"><span data-i18n="account_center.premium">PREMIUM</span></div>
                     <div class="stat-value" id="stat-premium" style="color: var(--archie-orange);">{{ stats.premium }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">FREE</div>
+                    <div class="stat-label"><span data-i18n="account_center.free">FREE</span></div>
                     <div class="stat-value" id="stat-free" style="color: var(--archie-text-secondary);">{{ stats.free }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">ACTIVE TODAY</div>
+                    <div class="stat-label"><span data-i18n="account_center.active_today">ACTIVE TODAY</span></div>
                     <div class="stat-value" id="stat-active" style="color: var(--archie-cyan);">{{ stats.active_today }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">SESSIONS</div>
+                    <div class="stat-label"><span data-i18n="account_center.sessions">SESSIONS</span></div>
                     <div class="stat-value" id="stat-sessions" style="color: var(--archie-green);">{{ stats.active_sessions }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">API KEYS</div>
+                    <div class="stat-label"><span data-i18n="account_center.api_keys">API KEYS</span></div>
                     <div class="stat-value" id="stat-apikeys" style="color: var(--archie-purple);">{{ stats.api_keys }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">ORGS</div>
+                    <div class="stat-label"><span data-i18n="account_center.orgs">ORGS</span></div>
                     <div class="stat-value" id="stat-orgs" style="color: var(--archie-accent);">{{ stats.organizations }}</div>
                 </div>
             </div>
 
             <!-- Tabs -->
             <div class="tab-nav" style="margin-bottom: var(--archie-space-6);">
-                <button class="tab-btn active" data-tab="list">USERS</button>
-                <button class="tab-btn" data-tab="permissions">PERMISSIONS</button>
-                <button class="tab-btn" data-tab="subscriptions">SUBSCRIPTIONS</button>
-                <button class="tab-btn" data-tab="security">SECURITY</button>
-                <button class="tab-btn" data-tab="sessions">SESSIONS</button>
-                <button class="tab-btn" data-tab="api-keys">API KEYS</button>
-                <button class="tab-btn" data-tab="bulk">BULK OPS</button>
-                <button class="tab-btn" data-tab="activity">ACTIVITY</button>
-                <button class="tab-btn" data-tab="organizations">ORGS</button>
+                <button class="tab-btn active" data-tab="list"><span data-i18n="account_center.users">USERS</span></button>
+                <button class="tab-btn" data-tab="permissions"><span data-i18n="account_center.permissions">PERMISSIONS</span></button>
+                <button class="tab-btn" data-tab="subscriptions"><span data-i18n="account_center.subscriptions">SUBSCRIPTIONS</span></button>
+                <button class="tab-btn" data-tab="security"><span data-i18n="account_center.security">SECURITY</span></button>
+                <button class="tab-btn" data-tab="sessions"><span data-i18n="account_center.sessions_2">SESSIONS</span></button>
+                <button class="tab-btn" data-tab="api-keys"><span data-i18n="account_center.api_keys_2">API KEYS</span></button>
+                <button class="tab-btn" data-tab="bulk"><span data-i18n="account_center.bulk_ops">BULK OPS</span></button>
+                <button class="tab-btn" data-tab="activity"><span data-i18n="account_center.activity">ACTIVITY</span></button>
+                <button class="tab-btn" data-tab="organizations"><span data-i18n="account_center.orgs_2">ORGS</span></button>
             </div>
 
             <!-- LIST Tab -->
@@ -1881,46 +1881,46 @@
                 <div class="action-bar">
                     <div class="filters">
                         <select id="filter-role" class="form-select">
-                            <option value="">All Roles</option>
-                            <option value="user">User</option>
-                            <option value="premium">Premium</option>
-                            <option value="admin">Admin</option>
-                            <option value="super_admin">Super Admin</option>
+                            <option value=""><span data-i18n="account_center.all_roles">All Roles</span></option>
+                            <option value="user"><span data-i18n="account_center.user">User</span></option>
+                            <option value="premium"><span data-i18n="account_center.premium_2">Premium</span></option>
+                            <option value="admin"><span data-i18n="account_center.admin">Admin</span></option>
+                            <option value="super_admin"><span data-i18n="account_center.super_admin">Super Admin</span></option>
                         </select>
                         <select id="filter-tier" class="form-select">
-                            <option value="">All Tiers</option>
-                            <option value="free">Free</option>
-                            <option value="pro">Pro</option>
-                            <option value="business">Business</option>
-                            <option value="enterprise">Enterprise</option>
-                            <option value="kytran">Kytran Staff</option>
-                            <option value="vip">VIP</option>
+                            <option value=""><span data-i18n="account_center.all_tiers">All Tiers</span></option>
+                            <option value="free"><span data-i18n="account_center.free_2">Free</span></option>
+                            <option value="pro"><span data-i18n="account_center.pro">Pro</span></option>
+                            <option value="business"><span data-i18n="account_center.business">Business</span></option>
+                            <option value="enterprise"><span data-i18n="account_center.enterprise">Enterprise</span></option>
+                            <option value="kytran"><span data-i18n="account_center.kytran_staff">Kytran Staff</span></option>
+                            <option value="vip"><span data-i18n="account_center.vip">VIP</span></option>
                         </select>
                         <input type="text" id="search-users" class="form-input" placeholder="Search users...">
                     </div>
-                    <button class="btn btn-primary" onclick="showAddUserModal()">+ ADD USER</button>
+                    <button class="btn btn-primary" onclick="showAddUserModal()"><span data-i18n="account_center.add_user">+ ADD USER</span></button>
                 </div>
 
                 <div class="table-responsive">
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Username</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Tier</th>
-                            <th>Status</th>
-                            <th class="hide-fold">Sessions</th>
-                            <th class="hide-fold">Keys</th>
-                            <th class="hide-mobile">Last Login</th>
-                            <th>Actions</th>
+                            <th><span data-i18n="account_center.username">Username</span></th>
+                            <th><span data-i18n="account_center.email">Email</span></th>
+                            <th><span data-i18n="account_center.role">Role</span></th>
+                            <th><span data-i18n="account_center.tier">Tier</span></th>
+                            <th><span data-i18n="account_center.status">Status</span></th>
+                            <th class="hide-fold"><span data-i18n="account_center.sessions_3">Sessions</span></th>
+                            <th class="hide-fold"><span data-i18n="account_center.keys">Keys</span></th>
+                            <th class="hide-mobile"><span data-i18n="account_center.last_login">Last Login</span></th>
+                            <th><span data-i18n="account_center.actions">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody id="users-table-body">
                         <tr>
                             <td colspan="9" class="loading">
                                 <div class="loading-spinner"></div>
-                                <p>Loading users...</p>
+                                <p><span data-i18n="account_center.loading_users">Loading users...</span></p>
                             </td>
                         </tr>
                     </tbody>
@@ -1930,18 +1930,18 @@
                 <!-- Pagination -->
                 <div class="pagination-controls" id="users-pagination">
                     <div class="page-size-selector">
-                        <span>Show</span>
+                        <span><span data-i18n="account_center.show">Show</span></span>
                         <select id="users-page-size" onchange="changePageSize(this.value)">
                             <option value="5">5</option>
                             <option value="10" selected>10</option>
                             <option value="20">20</option>
                         </select>
-                        <span>per page</span>
+                        <span><span data-i18n="account_center.per_page">per page</span></span>
                     </div>
                     <div class="page-nav">
-                        <button class="btn btn-sm" onclick="changePage(-1)" id="prev-page-btn" disabled>Previous</button>
-                        <span class="page-info" id="pagination-info">Showing 1–10 of 0</span>
-                        <button class="btn btn-sm" onclick="changePage(1)" id="next-page-btn" disabled>Next</button>
+                        <button class="btn btn-sm" onclick="changePage(-1)" id="prev-page-btn" disabled><span data-i18n="account_center.previous">Previous</span></button>
+                        <span class="page-info" id="pagination-info"><span data-i18n="account_center.showing_1_10_of_0">Showing 1–10 of 0</span></span>
+                        <button class="btn btn-sm" onclick="changePage(1)" id="next-page-btn" disabled><span data-i18n="account_center.next">Next</span></button>
                     </div>
                 </div>
             </div>
@@ -1952,18 +1952,18 @@
                 <div class="roles-overview" id="roles-overview">
                     <div class="loading">
                         <div class="loading-spinner"></div>
-                        <p>Loading roles...</p>
+                        <p><span data-i18n="account_center.loading_roles">Loading roles...</span></p>
                     </div>
                 </div>
 
                 <!-- Permission Matrix -->
                 <div class="card">
-                    <div class="card-header">Permission Matrix</div>
+                    <div class="card-header"><span data-i18n="account_center.permission_matrix">Permission Matrix</span></div>
                     <div class="card-body">
                         <div class="perm-matrix-controls">
                             <input type="text" class="perm-search" id="perm-search" placeholder="Search permissions..." oninput="filterPermissions()">
-                            <button class="perm-filter-btn active" data-filter="all" onclick="setPermFilter('all')">All</button>
-                            <button class="perm-filter-btn" data-filter="differences" onclick="setPermFilter('differences')">Differences Only</button>
+                            <button class="perm-filter-btn active" data-filter="all" onclick="setPermFilter('all')"><span data-i18n="account_center.all">All</span></button>
+                            <button class="perm-filter-btn" data-filter="differences" onclick="setPermFilter('differences')"><span data-i18n="account_center.differences_only">Differences Only</span></button>
                         </div>
                         <div class="perm-matrix-wrap">
                             <table class="perm-matrix-table" id="perm-matrix-table">
@@ -1971,14 +1971,14 @@
                                 <tbody id="perm-matrix-body">
                                     <tr><td colspan="6" style="text-align:center; padding: var(--archie-space-8);">
                                         <div class="loading-spinner"></div>
-                                        <p style="color: var(--archie-text-tertiary); margin-top: var(--archie-space-2);">Loading permissions...</p>
+                                        <p style="color: var(--archie-text-tertiary); margin-top: var(--archie-space-2);"><span data-i18n="account_center.loading_permissions">Loading permissions...</span></p>
                                     </td></tr>
                                 </tbody>
                             </table>
                         </div>
                         <div class="perm-matrix-summary">
-                            <div class="legend-item"><span class="perm-check">&#10003;</span> Granted</div>
-                            <div class="legend-item"><span class="perm-x">&mdash;</span> Not granted</div>
+                            <div class="legend-item"><span class="perm-check">&#10003;</span><span data-i18n="account_center.granted"> Granted</span></div>
+                            <div class="legend-item"><span class="perm-x"><span data-i18n="account_center.mdash">&mdash;</span></span><span data-i18n="account_center.not_granted"> Not granted</span></div>
                             <div style="margin-left: auto;" id="perm-count-label"></div>
                         </div>
                     </div>
@@ -1990,13 +1990,13 @@
                 <div class="tiers-grid" id="tiers-grid">
                     <div class="loading">
                         <div class="loading-spinner"></div>
-                        <p>Loading tiers...</p>
+                        <p><span data-i18n="account_center.loading_tiers">Loading tiers...</span></p>
                     </div>
                 </div>
 
                 <!-- Tier Comparison Table -->
                 <div class="card" style="margin-top: var(--archie-space-6);">
-                    <div class="card-header">Tier Comparison</div>
+                    <div class="card-header"><span data-i18n="account_center.tier_comparison">Tier Comparison</span></div>
                     <div class="card-body">
                         <div class="perm-matrix-wrap">
                             <table class="perm-matrix-table" id="tier-comparison-table">
@@ -2012,35 +2012,35 @@
                 </div>
 
                 <div class="card" style="margin-top: var(--archie-space-6);">
-                    <div class="card-header">Subscription Management</div>
+                    <div class="card-header"><span data-i18n="account_center.subscription_management">Subscription Management</span></div>
                     <div class="card-body">
                         <table class="sub-mgmt-user-table">
                             <thead>
                                 <tr>
-                                    <th>Username</th>
-                                    <th>Tier</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
+                                    <th><span data-i18n="account_center.username_2">Username</span></th>
+                                    <th><span data-i18n="account_center.tier_2">Tier</span></th>
+                                    <th><span data-i18n="account_center.status_2">Status</span></th>
+                                    <th><span data-i18n="account_center.actions_2">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="sub-mgmt-user-tbody">
-                                <tr><td colspan="4" style="text-align: center; padding: var(--archie-space-4); color: var(--archie-text-secondary);">Loading...</td></tr>
+                                <tr><td colspan="4" style="text-align: center; padding: var(--archie-space-4); color: var(--archie-text-secondary);"><span data-i18n="account_center.loading">Loading...</span></td></tr>
                             </tbody>
                         </table>
                         <div class="pagination-controls" id="sub-mgmt-pagination">
                             <div class="page-size-selector">
-                                <span>Show</span>
+                                <span><span data-i18n="account_center.show_2">Show</span></span>
                                 <select id="sub-mgmt-page-size" onchange="changeSubMgmtPageSize(this.value)">
                                     <option value="5" selected>5</option>
                                     <option value="10">10</option>
                                     <option value="20">20</option>
                                 </select>
-                                <span>per page</span>
+                                <span><span data-i18n="account_center.per_page_2">per page</span></span>
                             </div>
                             <div class="page-nav">
-                                <button class="btn btn-sm" onclick="changeSubMgmtPage(-1)" id="sub-mgmt-prev-btn" disabled>Previous</button>
-                                <span class="page-info" id="sub-mgmt-pagination-info">Showing 1–5 of 0</span>
-                                <button class="btn btn-sm" onclick="changeSubMgmtPage(1)" id="sub-mgmt-next-btn" disabled>Next</button>
+                                <button class="btn btn-sm" onclick="changeSubMgmtPage(-1)" id="sub-mgmt-prev-btn" disabled><span data-i18n="account_center.previous_2">Previous</span></button>
+                                <span class="page-info" id="sub-mgmt-pagination-info"><span data-i18n="account_center.showing_1_5_of_0">Showing 1–5 of 0</span></span>
+                                <button class="btn btn-sm" onclick="changeSubMgmtPage(1)" id="sub-mgmt-next-btn" disabled><span data-i18n="account_center.next_2">Next</span></button>
                             </div>
                         </div>
                     </div>
@@ -2056,64 +2056,64 @@
                             <div class="security-card-icon danger">
                                 <i data-lucide="shield-alert"></i>
                             </div>
-                            <div class="security-card-title">Failed Logins (24h)</div>
+                            <div class="security-card-title"><span data-i18n="account_center.failed_logins_24h">Failed Logins (24h)</span></div>
                         </div>
                         <div class="security-card-value" id="failed-login-count">0</div>
-                        <div class="security-card-label">failed attempts in the last 24 hours</div>
+                        <div class="security-card-label"><span data-i18n="account_center.failed_attempts_in_the_last_24_hours">failed attempts in the last 24 hours</span></div>
                     </div>
                     <div class="security-card card-warning">
                         <div class="security-card-header">
                             <div class="security-card-icon warning">
                                 <i data-lucide="lock"></i>
                             </div>
-                            <div class="security-card-title">Locked Accounts</div>
+                            <div class="security-card-title"><span data-i18n="account_center.locked_accounts">Locked Accounts</span></div>
                         </div>
                         <div class="security-card-value" id="locked-account-count">0</div>
-                        <div class="security-card-label">accounts currently locked out</div>
+                        <div class="security-card-label"><span data-i18n="account_center.accounts_currently_locked_out">accounts currently locked out</span></div>
                     </div>
                     <div class="security-card card-success">
                         <div class="security-card-header">
                             <div class="security-card-icon success">
                                 <i data-lucide="shield-check"></i>
                             </div>
-                            <div class="security-card-title">2FA Enabled</div>
+                            <div class="security-card-title"><span data-i18n="account_center.2fa_enabled">2FA Enabled</span></div>
                         </div>
                         <div class="security-card-value" id="totp-enabled-count">0</div>
-                        <div class="security-card-label">users with two-factor authentication</div>
+                        <div class="security-card-label"><span data-i18n="account_center.users_with_two_factor_authentication">users with two-factor authentication</span></div>
                     </div>
                 </div>
 
                 <!-- Password & Lockout Policy -->
                 <div class="card" style="margin-bottom: var(--archie-space-6);">
-                    <div class="card-header">Password &amp; Lockout Policy</div>
+                    <div class="card-header"><span data-i18n="account_center.password_amp_lockout_policy">Password &amp; Lockout Policy</span></div>
                     <div class="card-body">
                         <div class="security-policy-grid">
                             <div class="policy-item">
                                 <div class="policy-icon"><i data-lucide="ruler"></i></div>
                                 <div>
                                     <div class="policy-value">8+</div>
-                                    <div class="policy-label">Minimum length</div>
+                                    <div class="policy-label"><span data-i18n="account_center.minimum_length">Minimum length</span></div>
                                 </div>
                             </div>
                             <div class="policy-item">
                                 <div class="policy-icon"><i data-lucide="case-sensitive"></i></div>
                                 <div>
-                                    <div class="policy-value">Aa1!</div>
-                                    <div class="policy-label">Complexity recommended</div>
+                                    <div class="policy-value"><span data-i18n="account_center.aa1">Aa1!</span></div>
+                                    <div class="policy-label"><span data-i18n="account_center.complexity_recommended">Complexity recommended</span></div>
                                 </div>
                             </div>
                             <div class="policy-item">
                                 <div class="policy-icon"><i data-lucide="ban"></i></div>
                                 <div>
                                     <div class="policy-value">5</div>
-                                    <div class="policy-label">Attempts before lockout</div>
+                                    <div class="policy-label"><span data-i18n="account_center.attempts_before_lockout">Attempts before lockout</span></div>
                                 </div>
                             </div>
                             <div class="policy-item">
                                 <div class="policy-icon"><i data-lucide="timer"></i></div>
                                 <div>
-                                    <div class="policy-value">30 min</div>
-                                    <div class="policy-label">Lockout duration</div>
+                                    <div class="policy-value"><span data-i18n="account_center.30_min">30 min</span></div>
+                                    <div class="policy-label"><span data-i18n="account_center.lockout_duration">Lockout duration</span></div>
                                 </div>
                             </div>
                         </div>
@@ -2122,39 +2122,39 @@
 
                 <!-- Recent Failed Logins -->
                 <div class="card" style="margin-bottom: var(--archie-space-6);">
-                    <div class="card-header">Recent Failed Login Attempts</div>
+                    <div class="card-header"><span data-i18n="account_center.recent_failed_login_attempts">Recent Failed Login Attempts</span></div>
                     <div class="card-body">
                         <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Username</th>
-                                    <th>IP Address</th>
-                                    <th class="hide-mobile">Reason</th>
-                                    <th>Time</th>
+                                    <th><span data-i18n="account_center.username_3">Username</span></th>
+                                    <th><span data-i18n="account_center.ip_address">IP Address</span></th>
+                                    <th class="hide-mobile"><span data-i18n="account_center.reason">Reason</span></th>
+                                    <th><span data-i18n="account_center.time">Time</span></th>
                                 </tr>
                             </thead>
                             <tbody id="failed-logins-table">
                                 <tr>
-                                    <td colspan="4" style="text-align: center; padding: var(--archie-space-6); color: var(--archie-text-secondary);">Loading...</td>
+                                    <td colspan="4" style="text-align: center; padding: var(--archie-space-6); color: var(--archie-text-secondary);"><span data-i18n="account_center.loading_2">Loading...</span></td>
                                 </tr>
                             </tbody>
                         </table>
                         </div>
                         <div class="pagination-controls" id="failed-logins-pagination">
                             <div class="page-size-selector">
-                                <span>Show</span>
+                                <span><span data-i18n="account_center.show_3">Show</span></span>
                                 <select id="failed-logins-page-size" onchange="changeFailedLoginsPageSize(this.value)">
                                     <option value="5">5</option>
                                     <option value="10" selected>10</option>
                                     <option value="20">20</option>
                                 </select>
-                                <span>per page</span>
+                                <span><span data-i18n="account_center.per_page_3">per page</span></span>
                             </div>
                             <div class="page-nav">
-                                <button class="btn btn-sm" onclick="changeFailedLoginsPage(-1)" id="fl-prev-btn" disabled>Previous</button>
-                                <span class="page-info" id="fl-pagination-info">Showing 1–10 of 0</span>
-                                <button class="btn btn-sm" onclick="changeFailedLoginsPage(1)" id="fl-next-btn" disabled>Next</button>
+                                <button class="btn btn-sm" onclick="changeFailedLoginsPage(-1)" id="fl-prev-btn" disabled><span data-i18n="account_center.previous_3">Previous</span></button>
+                                <span class="page-info" id="fl-pagination-info"><span data-i18n="account_center.showing_1_10_of_0_2">Showing 1–10 of 0</span></span>
+                                <button class="btn btn-sm" onclick="changeFailedLoginsPage(1)" id="fl-next-btn" disabled><span data-i18n="account_center.next_3">Next</span></button>
                             </div>
                         </div>
                     </div>
@@ -2162,48 +2162,48 @@
 
                 <!-- 2FA Management -->
                 <div class="card">
-                    <div class="card-header">Two-Factor Authentication</div>
+                    <div class="card-header"><span data-i18n="account_center.two_factor_authentication">Two-Factor Authentication</span></div>
                     <div class="card-body">
                         <div style="display: flex; align-items: center; gap: var(--archie-space-3); margin-bottom: var(--archie-space-4); padding: var(--archie-space-3) var(--archie-space-4); background: var(--archie-bg-surface); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md);">
                             <i data-lucide="info" style="width: 18px; height: 18px; color: var(--archie-accent); flex-shrink: 0;"></i>
                             <span style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">
-                                <strong style="color: var(--archie-text-primary);">Enable</strong> generates a TOTP secret the user must add to their authenticator app.
-                                <strong style="color: var(--archie-text-primary);">Disable</strong> removes 2FA and requires re-enrollment.
-                                <strong style="color: var(--archie-text-primary);">Reset</strong> clears a failed TOTP and generates a new secret.
+                                <strong style="color: var(--archie-text-primary);"><span data-i18n="account_center.enable">Enable</span></strong> generates a TOTP secret the user must add to their authenticator app.
+                                <strong style="color: var(--archie-text-primary);"><span data-i18n="account_center.disable">Disable</span></strong> removes 2FA and requires re-enrollment.
+                                <strong style="color: var(--archie-text-primary);"><span data-i18n="account_center.reset">Reset</span></strong> clears a failed TOTP and generates a new secret.
                             </span>
                         </div>
                         <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Username</th>
-                                    <th class="hide-fold">Email</th>
-                                    <th>2FA Status</th>
-                                    <th class="hide-mobile">Enabled Since</th>
-                                    <th>Actions</th>
+                                    <th><span data-i18n="account_center.username_4">Username</span></th>
+                                    <th class="hide-fold"><span data-i18n="account_center.email_2">Email</span></th>
+                                    <th><span data-i18n="account_center.2fa_status">2FA Status</span></th>
+                                    <th class="hide-mobile"><span data-i18n="account_center.enabled_since">Enabled Since</span></th>
+                                    <th><span data-i18n="account_center.actions_3">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="totp-users-table">
                                 <tr>
-                                    <td colspan="5" style="text-align: center; padding: var(--archie-space-6); color: var(--archie-text-secondary);">Loading...</td>
+                                    <td colspan="5" style="text-align: center; padding: var(--archie-space-6); color: var(--archie-text-secondary);"><span data-i18n="account_center.loading_3">Loading...</span></td>
                                 </tr>
                             </tbody>
                         </table>
                         </div>
                         <div class="pagination-controls" id="totp-pagination">
                             <div class="page-size-selector">
-                                <span>Show</span>
+                                <span><span data-i18n="account_center.show_4">Show</span></span>
                                 <select id="totp-page-size" onchange="changeTotpPageSize(this.value)">
                                     <option value="5">5</option>
                                     <option value="10" selected>10</option>
                                     <option value="20">20</option>
                                 </select>
-                                <span>per page</span>
+                                <span><span data-i18n="account_center.per_page_4">per page</span></span>
                             </div>
                             <div class="page-nav">
-                                <button class="btn btn-sm" onclick="changeTotpPage(-1)" id="totp-prev-btn" disabled>Previous</button>
-                                <span class="page-info" id="totp-pagination-info">Showing 1–10 of 0</span>
-                                <button class="btn btn-sm" onclick="changeTotpPage(1)" id="totp-next-btn" disabled>Next</button>
+                                <button class="btn btn-sm" onclick="changeTotpPage(-1)" id="totp-prev-btn" disabled><span data-i18n="account_center.previous_4">Previous</span></button>
+                                <span class="page-info" id="totp-pagination-info"><span data-i18n="account_center.showing_1_10_of_0_3">Showing 1–10 of 0</span></span>
+                                <button class="btn btn-sm" onclick="changeTotpPage(1)" id="totp-next-btn" disabled><span data-i18n="account_center.next_4">Next</span></button>
                             </div>
                         </div>
                     </div>
@@ -2215,7 +2215,7 @@
                 <div class="action-bar">
                     <div class="filters">
                         <select id="filter-session-user" class="form-select">
-                            <option value="">All Users</option>
+                            <option value=""><span data-i18n="account_center.all_users">All Users</span></option>
                         </select>
                         <input type="text" id="search-sessions" class="form-input" placeholder="Search by IP...">
                         <div id="sessions-refresh-indicator" class="sessions-refresh-indicator" style="display: none;">
@@ -2226,30 +2226,30 @@
                             <span class="refresh-label">15s</span>
                         </div>
                     </div>
-                    <button class="btn btn-danger" onclick="revokeAllSessions()">Revoke All Expired</button>
+                    <button class="btn btn-danger" onclick="revokeAllSessions()"><span data-i18n="account_center.revoke_all_expired">Revoke All Expired</span></button>
                 </div>
 
                 <div class="card">
-                    <div class="card-header">Active Sessions</div>
+                    <div class="card-header"><span data-i18n="account_center.active_sessions">Active Sessions</span></div>
                     <div class="card-body">
                         <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>User</th>
-                                    <th>IP Address</th>
-                                    <th class="hide-fold">Device</th>
-                                    <th class="hide-mobile">Created</th>
-                                    <th class="hide-fold">Last Activity</th>
-                                    <th class="hide-mobile">Expires</th>
-                                    <th>Actions</th>
+                                    <th><span data-i18n="account_center.user_2">User</span></th>
+                                    <th><span data-i18n="account_center.ip_address_2">IP Address</span></th>
+                                    <th class="hide-fold"><span data-i18n="account_center.device">Device</span></th>
+                                    <th class="hide-mobile"><span data-i18n="account_center.created">Created</span></th>
+                                    <th class="hide-fold"><span data-i18n="account_center.last_activity">Last Activity</span></th>
+                                    <th class="hide-mobile"><span data-i18n="account_center.expires">Expires</span></th>
+                                    <th><span data-i18n="account_center.actions_4">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="sessions-table-body">
                                 <tr>
                                     <td colspan="7" class="loading">
                                         <div class="loading-spinner"></div>
-                                        <p>Loading sessions...</p>
+                                        <p><span data-i18n="account_center.loading_sessions">Loading sessions...</span></p>
                                     </td>
                                 </tr>
                             </tbody>
@@ -2257,18 +2257,18 @@
                         </div>
                         <div class="pagination-controls" id="sessions-pagination">
                             <div class="page-size-selector">
-                                <span>Show</span>
+                                <span><span data-i18n="account_center.show_5">Show</span></span>
                                 <select id="sessions-page-size" onchange="changeSessionsPageSize(this.value)">
                                     <option value="5">5</option>
                                     <option value="10" selected>10</option>
                                     <option value="20">20</option>
                                 </select>
-                                <span>per page</span>
+                                <span><span data-i18n="account_center.per_page_5">per page</span></span>
                             </div>
                             <div class="page-nav">
-                                <button class="btn btn-sm" onclick="changeSessionsPage(-1)" id="sessions-prev-btn" disabled>Previous</button>
-                                <span class="page-info" id="sessions-pagination-info">Showing 1–10 of 0</span>
-                                <button class="btn btn-sm" onclick="changeSessionsPage(1)" id="sessions-next-btn" disabled>Next</button>
+                                <button class="btn btn-sm" onclick="changeSessionsPage(-1)" id="sessions-prev-btn" disabled><span data-i18n="account_center.previous_5">Previous</span></button>
+                                <span class="page-info" id="sessions-pagination-info"><span data-i18n="account_center.showing_1_10_of_0_4">Showing 1–10 of 0</span></span>
+                                <button class="btn btn-sm" onclick="changeSessionsPage(1)" id="sessions-next-btn" disabled><span data-i18n="account_center.next_5">Next</span></button>
                             </div>
                         </div>
                     </div>
@@ -2280,40 +2280,40 @@
                 <div class="action-bar">
                     <div class="filters">
                         <select id="filter-apikey-user" class="form-select">
-                            <option value="">All Users</option>
+                            <option value=""><span data-i18n="account_center.all_users_2">All Users</span></option>
                         </select>
                         <select id="filter-apikey-status" class="form-select">
-                            <option value="">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="expired">Expired</option>
+                            <option value=""><span data-i18n="account_center.all_status">All Status</span></option>
+                            <option value="active"><span data-i18n="account_center.active">Active</span></option>
+                            <option value="inactive"><span data-i18n="account_center.inactive">Inactive</span></option>
+                            <option value="expired"><span data-i18n="account_center.expired">Expired</span></option>
                         </select>
                     </div>
-                    <button class="btn btn-primary" onclick="showCreateApiKeyModal()">+ GENERATE KEY</button>
+                    <button class="btn btn-primary" onclick="showCreateApiKeyModal()"><span data-i18n="account_center.generate_key">+ GENERATE KEY</span></button>
                 </div>
 
                 <div class="card">
-                    <div class="card-header">API Keys</div>
+                    <div class="card-header"><span data-i18n="account_center.api_keys_3">API Keys</span></div>
                     <div class="card-body">
                         <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>User</th>
-                                    <th>Name</th>
-                                    <th class="hide-fold">Key Prefix</th>
-                                    <th class="hide-mobile">Permissions</th>
-                                    <th class="hide-fold">Last Used</th>
-                                    <th class="hide-mobile">Expires</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
+                                    <th><span data-i18n="account_center.user_3">User</span></th>
+                                    <th><span data-i18n="account_center.name">Name</span></th>
+                                    <th class="hide-fold"><span data-i18n="account_center.key_prefix">Key Prefix</span></th>
+                                    <th class="hide-mobile"><span data-i18n="account_center.permissions_2">Permissions</span></th>
+                                    <th class="hide-fold"><span data-i18n="account_center.last_used">Last Used</span></th>
+                                    <th class="hide-mobile"><span data-i18n="account_center.expires_2">Expires</span></th>
+                                    <th><span data-i18n="account_center.status_3">Status</span></th>
+                                    <th><span data-i18n="account_center.actions_5">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="apikeys-table-body">
                                 <tr>
                                     <td colspan="8" class="loading">
                                         <div class="loading-spinner"></div>
-                                        <p>Loading API keys...</p>
+                                        <p><span data-i18n="account_center.loading_api_keys">Loading API keys...</span></p>
                                     </td>
                                 </tr>
                             </tbody>
@@ -2321,18 +2321,18 @@
                         </div>
                         <div class="pagination-controls" id="apikeys-pagination">
                             <div class="page-size-selector">
-                                <span>Show</span>
+                                <span><span data-i18n="account_center.show_6">Show</span></span>
                                 <select id="apikeys-page-size" onchange="changeApiKeysPageSize(this.value)">
                                     <option value="5">5</option>
                                     <option value="10" selected>10</option>
                                     <option value="20">20</option>
                                 </select>
-                                <span>per page</span>
+                                <span><span data-i18n="account_center.per_page_6">per page</span></span>
                             </div>
                             <div class="page-nav">
-                                <button class="btn btn-sm" onclick="changeApiKeysPage(-1)" id="apikeys-prev-btn" disabled>Previous</button>
-                                <span class="page-info" id="apikeys-pagination-info">Showing 1–10 of 0</span>
-                                <button class="btn btn-sm" onclick="changeApiKeysPage(1)" id="apikeys-next-btn" disabled>Next</button>
+                                <button class="btn btn-sm" onclick="changeApiKeysPage(-1)" id="apikeys-prev-btn" disabled><span data-i18n="account_center.previous_6">Previous</span></button>
+                                <span class="page-info" id="apikeys-pagination-info"><span data-i18n="account_center.showing_1_10_of_0_5">Showing 1–10 of 0</span></span>
+                                <button class="btn btn-sm" onclick="changeApiKeysPage(1)" id="apikeys-next-btn" disabled><span data-i18n="account_center.next_6">Next</span></button>
                             </div>
                         </div>
                     </div>
@@ -2342,35 +2342,35 @@
             <!-- BULK OPS Tab -->
             <div class="tab-content" id="tab-bulk">
                 <div class="card" style="margin-bottom: var(--archie-space-6);">
-                    <div class="card-header">Export Users</div>
+                    <div class="card-header"><span data-i18n="account_center.export_users">Export Users</span></div>
                     <div class="card-body">
-                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">Export user data for backup or analysis.</p>
+                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);"><span data-i18n="account_center.export_user_data_for_backup_or_analysis">Export user data for backup or analysis.</span></p>
                         <div style="display: flex; gap: var(--archie-space-4); flex-wrap: wrap;">
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label">Format</label>
+                                <label class="form-label"><span data-i18n="account_center.format">Format</span></label>
                                 <select id="export-format" class="form-select">
-                                    <option value="csv">CSV</option>
-                                    <option value="json">JSON</option>
+                                    <option value="csv"><span data-i18n="account_center.csv">CSV</span></option>
+                                    <option value="json"><span data-i18n="account_center.json">JSON</span></option>
                                 </select>
                             </div>
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label">Include</label>
+                                <label class="form-label"><span data-i18n="account_center.include">Include</span></label>
                                 <select id="export-scope" class="form-select">
-                                    <option value="all">All Users</option>
-                                    <option value="active">Active Only</option>
-                                    <option value="admins">Admins Only</option>
-                                    <option value="premium">Premium Only</option>
+                                    <option value="all"><span data-i18n="account_center.all_users_3">All Users</span></option>
+                                    <option value="active"><span data-i18n="account_center.active_only">Active Only</span></option>
+                                    <option value="admins"><span data-i18n="account_center.admins_only">Admins Only</span></option>
+                                    <option value="premium"><span data-i18n="account_center.premium_only">Premium Only</span></option>
                                 </select>
                             </div>
                             <div class="form-group" style="margin: 0; display: flex; align-items: flex-end;">
-                                <button class="btn btn-primary" onclick="exportUsers()">Export</button>
+                                <button class="btn btn-primary" onclick="exportUsers()"><span data-i18n="account_center.export">Export</span></button>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-bottom: var(--archie-space-6);">
-                    <div class="card-header">Import Users</div>
+                    <div class="card-header"><span data-i18n="account_center.import_users">Import Users</span></div>
                     <div class="card-body">
                         <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
                             Import users from a CSV file. Required columns: username, email, password. Optional: role, subscription_tier
@@ -2378,77 +2378,77 @@
                         <div class="file-upload-zone" id="import-dropzone" onclick="document.getElementById('import-file').click()">
                             <input type="file" id="import-file" accept=".csv" onchange="handleImportFile(event)">
                             <div style="font-size: 2rem; margin-bottom: var(--archie-space-2);">+</div>
-                            <div>Drop CSV file here or click to browse</div>
+                            <div><span data-i18n="account_center.drop_csv_file_here_or_click_to_browse">Drop CSV file here or click to browse</span></div>
                             <div style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary); margin-top: var(--archie-space-2);">
                                 Max 1000 users per import
                             </div>
                         </div>
                         <div id="import-preview" style="display: none; margin-top: var(--archie-space-4);">
-                            <div class="card-header">Preview (<span id="import-count">0</span> users)</div>
+                            <div class="card-header"><span data-i18n="account_center.preview">Preview (</span><span id="import-count">0</span><span data-i18n="account_center.users_2"> users)</span></div>
                             <table class="data-table" style="margin-bottom: var(--archie-space-4);">
                                 <thead>
                                     <tr>
-                                        <th>Username</th>
-                                        <th>Email</th>
-                                        <th>Role</th>
-                                        <th>Tier</th>
+                                        <th><span data-i18n="account_center.username_5">Username</span></th>
+                                        <th><span data-i18n="account_center.email_3">Email</span></th>
+                                        <th><span data-i18n="account_center.role_2">Role</span></th>
+                                        <th><span data-i18n="account_center.tier_3">Tier</span></th>
                                     </tr>
                                 </thead>
                                 <tbody id="import-preview-table"></tbody>
                             </table>
                             <div style="display: flex; gap: var(--archie-space-2);">
-                                <button class="btn btn-primary" onclick="executeImport()">Import Users</button>
-                                <button class="btn btn-ghost" onclick="cancelImport()">Cancel</button>
+                                <button class="btn btn-primary" onclick="executeImport()"><span data-i18n="account_center.import_users_2">Import Users</span></button>
+                                <button class="btn btn-ghost" onclick="cancelImport()"><span data-i18n="account_center.cancel">Cancel</span></button>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-bottom: var(--archie-space-6);">
-                    <div class="card-header">Bulk Update</div>
+                    <div class="card-header"><span data-i18n="account_center.bulk_update">Bulk Update</span></div>
                     <div class="card-body">
-                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">Apply changes to multiple users at once.</p>
+                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);"><span data-i18n="account_center.apply_changes_to_multiple_users_at_once">Apply changes to multiple users at once.</span></p>
                         <div style="display: flex; gap: var(--archie-space-4); flex-wrap: wrap; margin-bottom: var(--archie-space-4);">
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label">Target Users</label>
+                                <label class="form-label"><span data-i18n="account_center.target_users">Target Users</span></label>
                                 <select id="bulk-target" class="form-select">
-                                    <option value="free">All Free Users</option>
-                                    <option value="inactive">Inactive Users</option>
-                                    <option value="selected">Selected Users</option>
+                                    <option value="free"><span data-i18n="account_center.all_free_users">All Free Users</span></option>
+                                    <option value="inactive"><span data-i18n="account_center.inactive_users">Inactive Users</span></option>
+                                    <option value="selected"><span data-i18n="account_center.selected_users">Selected Users</span></option>
                                 </select>
                             </div>
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label">Action</label>
+                                <label class="form-label"><span data-i18n="account_center.action">Action</span></label>
                                 <select id="bulk-action" class="form-select">
-                                    <option value="upgrade">Upgrade Tier</option>
-                                    <option value="downgrade">Downgrade Tier</option>
-                                    <option value="deactivate">Deactivate</option>
-                                    <option value="reactivate">Reactivate</option>
+                                    <option value="upgrade"><span data-i18n="account_center.upgrade_tier">Upgrade Tier</span></option>
+                                    <option value="downgrade"><span data-i18n="account_center.downgrade_tier">Downgrade Tier</span></option>
+                                    <option value="deactivate"><span data-i18n="account_center.deactivate">Deactivate</span></option>
+                                    <option value="reactivate"><span data-i18n="account_center.reactivate">Reactivate</span></option>
                                 </select>
                             </div>
                             <div class="form-group" style="margin: 0;" id="bulk-tier-group">
-                                <label class="form-label">New Tier</label>
+                                <label class="form-label"><span data-i18n="account_center.new_tier">New Tier</span></label>
                                 <select id="bulk-tier" class="form-select">
-                                    <option value="free">Free</option>
-                                    <option value="pro">Pro</option>
-                                    <option value="business">Business</option>
-                                    <option value="enterprise">Enterprise</option>
-                                    <option value="kytran">Kytran Staff</option>
-                                    <option value="vip">VIP</option>
+                                    <option value="free"><span data-i18n="account_center.free_3">Free</span></option>
+                                    <option value="pro"><span data-i18n="account_center.pro_2">Pro</span></option>
+                                    <option value="business"><span data-i18n="account_center.business_2">Business</span></option>
+                                    <option value="enterprise"><span data-i18n="account_center.enterprise_2">Enterprise</span></option>
+                                    <option value="kytran"><span data-i18n="account_center.kytran_staff_2">Kytran Staff</span></option>
+                                    <option value="vip"><span data-i18n="account_center.vip_2">VIP</span></option>
                                 </select>
                             </div>
                         </div>
-                        <button class="btn btn-primary" onclick="previewBulkUpdate()">Preview Changes</button>
+                        <button class="btn btn-primary" onclick="previewBulkUpdate()"><span data-i18n="account_center.preview_changes">Preview Changes</span></button>
                     </div>
                 </div>
 
                 <div class="card" id="bulk-preview-card" style="display: none;">
-                    <div class="card-header">Preview Changes</div>
+                    <div class="card-header"><span data-i18n="account_center.preview_changes_2">Preview Changes</span></div>
                     <div class="card-body">
                         <div id="bulk-preview-content"></div>
                         <div style="margin-top: var(--archie-space-4); display: flex; gap: var(--archie-space-2);">
-                            <button class="btn btn-danger" onclick="executeBulkUpdate()">Apply Changes</button>
-                            <button class="btn btn-ghost" onclick="cancelBulkPreview()">Cancel</button>
+                            <button class="btn btn-danger" onclick="executeBulkUpdate()"><span data-i18n="account_center.apply_changes">Apply Changes</span></button>
+                            <button class="btn btn-ghost" onclick="cancelBulkPreview()"><span data-i18n="account_center.cancel_2">Cancel</span></button>
                         </div>
                     </div>
                 </div>
@@ -2459,14 +2459,14 @@
                 <div class="action-bar">
                     <div class="filters">
                         <select id="filter-activity-module" class="form-select">
-                            <option value="">All Modules</option>
+                            <option value=""><span data-i18n="account_center.all_modules">All Modules</span></option>
                         </select>
                         <select id="filter-activity-action" class="form-select">
-                            <option value="">All Actions</option>
-                            <option value="login_success">Login Success</option>
-                            <option value="login_failed">Login Failed</option>
-                            <option value="user_created">User Created</option>
-                            <option value="user_updated">User Updated</option>
+                            <option value=""><span data-i18n="account_center.all_actions">All Actions</span></option>
+                            <option value="login_success"><span data-i18n="account_center.login_success">Login Success</span></option>
+                            <option value="login_failed"><span data-i18n="account_center.login_failed">Login Failed</span></option>
+                            <option value="user_created"><span data-i18n="account_center.user_created">User Created</span></option>
+                            <option value="user_updated"><span data-i18n="account_center.user_updated">User Updated</span></option>
                         </select>
                         <div id="activity-refresh-indicator" class="sessions-refresh-indicator" style="display: none;">
                             <svg class="refresh-ring" viewBox="0 0 20 20" width="20" height="20">
@@ -2476,11 +2476,11 @@
                             <span class="activity-refresh-label refresh-label">15s</span>
                         </div>
                     </div>
-                    <button class="btn" onclick="loadActivity()">Refresh</button>
+                    <button class="btn" onclick="loadActivity()"><span data-i18n="account_center.refresh">Refresh</span></button>
                 </div>
 
                 <div class="card">
-                    <div class="card-header">Activity Summary (Last 24h)</div>
+                    <div class="card-header"><span data-i18n="account_center.activity_summary_last_24h">Activity Summary (Last 24h)</span></div>
                     <div class="card-body" style="height: 200px;">
                         <canvas id="activity-chart"></canvas>
                     </div>
@@ -2488,42 +2488,42 @@
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-4);">
                     <div class="card">
-                        <div class="card-header">Top Actions (24h)</div>
+                        <div class="card-header"><span data-i18n="account_center.top_actions_24h">Top Actions (24h)</span></div>
                         <div class="card-body" id="activity-top-actions">
-                            <div style="color: var(--archie-text-secondary); text-align: center; padding: var(--archie-space-4);">Loading...</div>
+                            <div style="color: var(--archie-text-secondary); text-align: center; padding: var(--archie-space-4);"><span data-i18n="account_center.loading_4">Loading...</span></div>
                         </div>
                     </div>
                     <div class="card">
-                        <div class="card-header">Most Active Users (24h)</div>
+                        <div class="card-header"><span data-i18n="account_center.most_active_users_24h">Most Active Users (24h)</span></div>
                         <div class="card-body" id="activity-top-users">
-                            <div style="color: var(--archie-text-secondary); text-align: center; padding: var(--archie-space-4);">Loading...</div>
+                            <div style="color: var(--archie-text-secondary); text-align: center; padding: var(--archie-space-4);"><span data-i18n="account_center.loading_5">Loading...</span></div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card">
-                    <div class="card-header">Recent Activity</div>
+                    <div class="card-header"><span data-i18n="account_center.recent_activity">Recent Activity</span></div>
                     <div class="card-body">
                         <div class="activity-list" id="activity-list">
                             <div class="loading">
                                 <div class="loading-spinner"></div>
-                                <p>Loading activity...</p>
+                                <p><span data-i18n="account_center.loading_activity">Loading activity...</span></p>
                             </div>
                         </div>
                         <div class="pagination-controls" id="activity-pagination">
                             <div class="page-size-selector">
-                                <span>Show</span>
+                                <span><span data-i18n="account_center.show_7">Show</span></span>
                                 <select id="activity-page-size" onchange="changeActivityPageSize(this.value)">
                                     <option value="5">5</option>
                                     <option value="10" selected>10</option>
                                     <option value="20">20</option>
                                 </select>
-                                <span>per page</span>
+                                <span><span data-i18n="account_center.per_page_7">per page</span></span>
                             </div>
                             <div class="page-nav">
-                                <button class="btn btn-sm" onclick="changeActivityPage(-1)" id="activity-prev-btn" disabled>Previous</button>
-                                <span class="page-info" id="activity-pagination-info">Showing 1–10 of 0</span>
-                                <button class="btn btn-sm" onclick="changeActivityPage(1)" id="activity-next-btn" disabled>Next</button>
+                                <button class="btn btn-sm" onclick="changeActivityPage(-1)" id="activity-prev-btn" disabled><span data-i18n="account_center.previous_7">Previous</span></button>
+                                <span class="page-info" id="activity-pagination-info"><span data-i18n="account_center.showing_1_10_of_0_6">Showing 1–10 of 0</span></span>
+                                <button class="btn btn-sm" onclick="changeActivityPage(1)" id="activity-next-btn" disabled><span data-i18n="account_center.next_7">Next</span></button>
                             </div>
                         </div>
                     </div>
@@ -2535,19 +2535,19 @@
                 <!-- SaaS Sub-Stats -->
                 <div class="stats-grid" style="margin-bottom: var(--archie-space-5);">
                     <div class="stat-card">
-                        <div class="stat-label">TOTAL ORGS</div>
+                        <div class="stat-label"><span data-i18n="account_center.total_orgs">TOTAL ORGS</span></div>
                         <div class="stat-value" id="saas-stat-orgs">-</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">DOMAINS</div>
+                        <div class="stat-label"><span data-i18n="account_center.domains">DOMAINS</span></div>
                         <div class="stat-value" id="saas-stat-domains" style="color: var(--archie-cyan);">-</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">MODULES</div>
+                        <div class="stat-label"><span data-i18n="account_center.modules">MODULES</span></div>
                         <div class="stat-value" id="saas-stat-modules" style="color: var(--archie-orange);">-</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">PUBLIC IP</div>
+                        <div class="stat-label"><span data-i18n="account_center.public_ip">PUBLIC IP</span></div>
                         <div class="stat-value" id="saas-stat-ip" style="color: var(--archie-green); font-size: var(--archie-text-lg);">-</div>
                     </div>
                 </div>
@@ -2586,7 +2586,7 @@
                     <div id="saas-orgs-grid" class="saas-org-grid" style="display:none;"></div>
                     <div id="saas-orgs-empty" class="saas-empty-state" style="display:none;">
                         <i data-lucide="building-2" style="width:48px;height:48px"></i>
-                        <p>No organizations yet. Create your first one.</p>
+                        <p><span data-i18n="account_center.no_organizations_yet_create_your_first_one">No organizations yet. Create your first one.</span></p>
                     </div>
                 </div>
 
@@ -2609,12 +2609,12 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Domain</th>
-                                    <th>Organization</th>
-                                    <th>Target</th>
-                                    <th>DNS</th>
-                                    <th>SSL</th>
-                                    <th>Actions</th>
+                                    <th><span data-i18n="account_center.domain">Domain</span></th>
+                                    <th><span data-i18n="account_center.organization">Organization</span></th>
+                                    <th><span data-i18n="account_center.target">Target</span></th>
+                                    <th><span data-i18n="account_center.dns">DNS</span></th>
+                                    <th><span data-i18n="account_center.ssl">SSL</span></th>
+                                    <th><span data-i18n="account_center.actions_6">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="saas-domains-tbody"></tbody>
@@ -2622,15 +2622,15 @@
                     </div>
                     <div id="saas-domains-empty" class="saas-empty-state" style="display:none;">
                         <i data-lucide="globe" style="width:48px;height:48px"></i>
-                        <p>No domains configured yet.</p>
+                        <p><span data-i18n="account_center.no_domains_configured_yet">No domains configured yet.</span></p>
                     </div>
                 </div>
 
                 <!-- Sub: Network -->
                 <div class="saas-sub-content" id="saas-network">
                     <div class="saas-ip-display" id="saas-ip-display">
-                        <div class="saas-ip-display-label">Current Public IP</div>
-                        <div class="saas-ip-display-value" id="saas-network-public-ip">Loading...</div>
+                        <div class="saas-ip-display-label"><span data-i18n="account_center.current_public_ip">Current Public IP</span></div>
+                        <div class="saas-ip-display-value" id="saas-network-public-ip"><span data-i18n="account_center.loading_6">Loading...</span></div>
                         <div class="saas-ip-display-changed" id="saas-ip-changed-notice" style="display:none;">
                             IP address has changed since last check
                         </div>
@@ -2646,12 +2646,12 @@
                         </div>
                         <div class="saas-port-grid" id="saas-port-grid">
                             <div class="saas-port-card">
-                                <div class="saas-port-card-port">Port 80</div>
-                                <div class="saas-port-card-status saas-port-unknown" id="saas-port-80-status">Not checked</div>
+                                <div class="saas-port-card-port"><span data-i18n="account_center.port_80">Port 80</span></div>
+                                <div class="saas-port-card-status saas-port-unknown" id="saas-port-80-status"><span data-i18n="account_center.not_checked">Not checked</span></div>
                             </div>
                             <div class="saas-port-card">
-                                <div class="saas-port-card-port">Port 443</div>
-                                <div class="saas-port-card-status saas-port-unknown" id="saas-port-443-status">Not checked</div>
+                                <div class="saas-port-card-port"><span data-i18n="account_center.port_443">Port 443</span></div>
+                                <div class="saas-port-card-status saas-port-unknown" id="saas-port-443-status"><span data-i18n="account_center.not_checked_2">Not checked</span></div>
                             </div>
                         </div>
                     </div>
@@ -2664,12 +2664,12 @@
                             <table class="data-table">
                                 <thead>
                                     <tr>
-                                        <th>Timestamp</th>
-                                        <th>IP Address</th>
+                                        <th><span data-i18n="account_center.timestamp">Timestamp</span></th>
+                                        <th><span data-i18n="account_center.ip_address_3">IP Address</span></th>
                                     </tr>
                                 </thead>
                                 <tbody id="saas-ip-history-tbody">
-                                    <tr><td colspan="2" style="text-align:center; color: var(--archie-text-muted);">Loading...</td></tr>
+                                    <tr><td colspan="2" style="text-align:center; color: var(--archie-text-muted);"><span data-i18n="account_center.loading_7">Loading...</span></td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -2681,20 +2681,20 @@
                         </div>
                         <div class="saas-server-info-grid">
                             <div class="saas-server-info-item">
-                                <div class="saas-server-info-label">LAN IP</div>
+                                <div class="saas-server-info-label"><span data-i18n="account_center.lan_ip">LAN IP</span></div>
                                 <div class="saas-server-info-value">192.168.1.200</div>
                             </div>
                             <div class="saas-server-info-item">
-                                <div class="saas-server-info-label">Gateway</div>
+                                <div class="saas-server-info-label"><span data-i18n="account_center.gateway">Gateway</span></div>
                                 <div class="saas-server-info-value">192.168.1.254</div>
                             </div>
                             <div class="saas-server-info-item">
-                                <div class="saas-server-info-label">Platform Port</div>
+                                <div class="saas-server-info-label"><span data-i18n="account_center.platform_port">Platform Port</span></div>
                                 <div class="saas-server-info-value">3000</div>
                             </div>
                             <div class="saas-server-info-item">
-                                <div class="saas-server-info-label">Platform URL</div>
-                                <div class="saas-server-info-value">http://192.168.1.200:3000</div>
+                                <div class="saas-server-info-label"><span data-i18n="account_center.platform_url">Platform URL</span></div>
+                                <div class="saas-server-info-value"><span data-i18n="account_center.http_192_168_1_200_3000">http://192.168.1.200:3000</span></div>
                             </div>
                         </div>
                     </div>
@@ -2708,7 +2708,7 @@
 <div class="saas-detail-panel-overlay" id="saas-detail-overlay" onclick="saasCloseDetailPanel()"></div>
 <div class="saas-detail-panel" id="saas-detail-panel">
     <div class="saas-detail-panel-header">
-        <h2 id="saas-detail-org-name">Organization</h2>
+        <h2 id="saas-detail-org-name"><span data-i18n="account_center.organization_2">Organization</span></h2>
         <button class="btn btn-ghost btn-sm" onclick="saasCloseDetailPanel()">
             <i data-lucide="x" style="width:18px;height:18px"></i>
         </button>
@@ -2765,22 +2765,22 @@
         </div>
         <div class="modal-body">
             <div class="form-group">
-                <label class="form-label">Organization Name</label>
+                <label class="form-label"><span data-i18n="account_center.organization_name">Organization Name</span></label>
                 <input type="text" class="form-input" id="saas-new-org-name" placeholder="e.g., Acme Corp">
             </div>
             <div class="form-group">
-                <label class="form-label">Owner</label>
+                <label class="form-label"><span data-i18n="account_center.owner">Owner</span></label>
                 <select class="form-select" id="saas-new-org-owner">
-                    <option value="">Select owner...</option>
+                    <option value=""><span data-i18n="account_center.select_owner">Select owner...</span></option>
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label">Initial Modules</label>
+                <label class="form-label"><span data-i18n="account_center.initial_modules">Initial Modules</span></label>
                 <div id="saas-new-org-modules" class="saas-module-check-list"></div>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="saasCloseNewOrgModal()">Cancel</button>
+            <button class="btn btn-ghost" onclick="saasCloseNewOrgModal()"><span data-i18n="account_center.cancel_3">Cancel</span></button>
             <button class="btn btn-primary" onclick="saasCreateOrg()" id="saas-btn-create-org">
                 <i data-lucide="plus" style="width:16px;height:16px"></i>
                 Create Organization
@@ -2803,24 +2803,24 @@
         </div>
         <div class="modal-body">
             <div class="form-group">
-                <label class="form-label">Organization</label>
+                <label class="form-label"><span data-i18n="account_center.organization_3">Organization</span></label>
                 <select class="form-select" id="saas-domain-org-select">
-                    <option value="">Select organization...</option>
+                    <option value=""><span data-i18n="account_center.select_organization">Select organization...</span></option>
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label">Domain</label>
+                <label class="form-label"><span data-i18n="account_center.domain_2">Domain</span></label>
                 <input type="text" class="form-input" id="saas-domain-name" placeholder="e.g., app.example.com">
             </div>
             <div class="form-group">
-                <label class="form-label">Target Module</label>
+                <label class="form-label"><span data-i18n="account_center.target_module">Target Module</span></label>
                 <select class="form-select" id="saas-domain-target-module">
-                    <option value="">Select module...</option>
+                    <option value=""><span data-i18n="account_center.select_module">Select module...</span></option>
                 </select>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="saasCloseAddDomainModal()">Cancel</button>
+            <button class="btn btn-ghost" onclick="saasCloseAddDomainModal()"><span data-i18n="account_center.cancel_4">Cancel</span></button>
             <button class="btn btn-primary" onclick="saasAddDomain()" id="saas-btn-add-domain">
                 <i data-lucide="plus" style="width:16px;height:16px"></i>
                 Add Domain
@@ -2833,47 +2833,47 @@
 <div class="modal-overlay" id="user-modal">
     <div class="modal">
         <div class="modal-header">
-            <h3 id="modal-title">Add User</h3>
-            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <h3 id="modal-title"><span data-i18n="account_center.add_user_2">Add User</span></h3>
+            <button class="modal-close" onclick="closeModal()"><span data-i18n="account_center.times">&times;</span></button>
         </div>
         <div class="modal-body">
             <form id="user-form" onsubmit="saveUser(event)">
                 <input type="hidden" id="user-id">
                 <div class="form-group">
-                    <label class="form-label">Username *</label>
+                    <label class="form-label"><span data-i18n="account_center.username_6">Username *</span></label>
                     <input type="text" id="user-username" class="form-input" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Email</label>
+                    <label class="form-label"><span data-i18n="account_center.email_4">Email</span></label>
                     <input type="email" id="user-email" class="form-input">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Password <span id="password-hint">(required)</span></label>
+                    <label class="form-label"><span data-i18n="account_center.password">Password </span><span id="password-hint"><span data-i18n="account_center.required">(required)</span></span></label>
                     <input type="password" id="user-password" class="form-input">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Role</label>
+                    <label class="form-label"><span data-i18n="account_center.role_3">Role</span></label>
                     <select id="user-role" class="form-select">
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
+                        <option value="user"><span data-i18n="account_center.user_4">User</span></option>
+                        <option value="admin"><span data-i18n="account_center.admin_2">Admin</span></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Subscription Tier</label>
+                    <label class="form-label"><span data-i18n="account_center.subscription_tier">Subscription Tier</span></label>
                     <select id="user-tier" class="form-select">
-                        <option value="free">Free</option>
-                        <option value="pro">Pro</option>
-                        <option value="business">Business</option>
-                        <option value="enterprise">Enterprise</option>
-                        <option value="kytran">Kytran Staff</option>
-                        <option value="vip">VIP</option>
+                        <option value="free"><span data-i18n="account_center.free_4">Free</span></option>
+                        <option value="pro"><span data-i18n="account_center.pro_3">Pro</span></option>
+                        <option value="business"><span data-i18n="account_center.business_3">Business</span></option>
+                        <option value="enterprise"><span data-i18n="account_center.enterprise_3">Enterprise</span></option>
+                        <option value="kytran"><span data-i18n="account_center.kytran_staff_3">Kytran Staff</span></option>
+                        <option value="vip"><span data-i18n="account_center.vip_3">VIP</span></option>
                     </select>
                 </div>
             </form>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-            <button type="submit" form="user-form" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-ghost" onclick="closeModal()"><span data-i18n="account_center.cancel_5">Cancel</span></button>
+            <button type="submit" form="user-form" class="btn btn-primary"><span data-i18n="account_center.save">Save</span></button>
         </div>
     </div>
 </div>
@@ -2882,8 +2882,8 @@
 <div class="modal-overlay" id="details-modal">
     <div class="modal modal-lg" style="max-width: 720px;">
         <div class="modal-header">
-            <h3 id="profile-modal-title">User Profile</h3>
-            <button class="modal-close" onclick="closeDetailsModal()">&times;</button>
+            <h3 id="profile-modal-title"><span data-i18n="account_center.user_profile">User Profile</span></h3>
+            <button class="modal-close" onclick="closeDetailsModal()"><span data-i18n="account_center.times_2">&times;</span></button>
         </div>
         <div class="modal-body" id="user-details-content" style="max-height: 75vh; overflow-y: auto;">
             <div class="loading">
@@ -2897,27 +2897,27 @@
 <div class="modal-overlay" id="apikey-modal">
     <div class="modal">
         <div class="modal-header">
-            <h3>Generate API Key</h3>
-            <button class="modal-close" onclick="closeApiKeyModal()">&times;</button>
+            <h3><span data-i18n="account_center.generate_api_key">Generate API Key</span></h3>
+            <button class="modal-close" onclick="closeApiKeyModal()"><span data-i18n="account_center.times_3">&times;</span></button>
         </div>
         <div class="modal-body">
             <form id="apikey-form" onsubmit="createApiKey(event)">
                 <div class="form-group">
-                    <label class="form-label">User *</label>
+                    <label class="form-label"><span data-i18n="account_center.user_5">User *</span></label>
                     <select id="apikey-user" class="form-select" required>
-                        <option value="">Select User</option>
+                        <option value=""><span data-i18n="account_center.select_user">Select User</span></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Key Name *</label>
+                    <label class="form-label"><span data-i18n="account_center.key_name">Key Name *</span></label>
                     <input type="text" id="apikey-name" class="form-input" placeholder="e.g., Production API Key" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Description</label>
+                    <label class="form-label"><span data-i18n="account_center.description">Description</span></label>
                     <textarea id="apikey-description" class="form-input" rows="2" placeholder="What is this key used for?"></textarea>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Permissions</label>
+                    <label class="form-label"><span data-i18n="account_center.permissions_3">Permissions</span></label>
                     <div style="display: flex; gap: var(--archie-space-4); flex-wrap: wrap;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                             <input type="checkbox" name="apikey-perm" value="read" checked> Read
@@ -2931,23 +2931,23 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Expires In</label>
+                    <label class="form-label"><span data-i18n="account_center.expires_in">Expires In</span></label>
                     <select id="apikey-expiry" class="form-select">
-                        <option value="">Never</option>
-                        <option value="30">30 Days</option>
-                        <option value="90">90 Days</option>
-                        <option value="365">1 Year</option>
+                        <option value=""><span data-i18n="account_center.never">Never</span></option>
+                        <option value="30"><span data-i18n="account_center.30_days">30 Days</span></option>
+                        <option value="90"><span data-i18n="account_center.90_days">90 Days</span></option>
+                        <option value="365"><span data-i18n="account_center.1_year">1 Year</span></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Rate Limit (per hour)</label>
+                    <label class="form-label"><span data-i18n="account_center.rate_limit_per_hour">Rate Limit (per hour)</span></label>
                     <input type="number" id="apikey-ratelimit" class="form-input" value="1000" min="10" max="100000">
                 </div>
             </form>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" onclick="closeApiKeyModal()">Cancel</button>
-            <button type="submit" form="apikey-form" class="btn btn-primary">Generate Key</button>
+            <button type="button" class="btn btn-ghost" onclick="closeApiKeyModal()"><span data-i18n="account_center.cancel_6">Cancel</span></button>
+            <button type="submit" form="apikey-form" class="btn btn-primary"><span data-i18n="account_center.generate_key_2">Generate Key</span></button>
         </div>
     </div>
 </div>
@@ -2956,23 +2956,23 @@
 <div class="modal-overlay" id="apikey-created-modal">
     <div class="modal">
         <div class="modal-header">
-            <h3 style="color: var(--archie-green);">API Key Generated</h3>
-            <button class="modal-close" onclick="closeApiKeyCreatedModal()">&times;</button>
+            <h3 style="color: var(--archie-green);"><span data-i18n="account_center.api_key_generated">API Key Generated</span></h3>
+            <button class="modal-close" onclick="closeApiKeyCreatedModal()"><span data-i18n="account_center.times_4">&times;</span></button>
         </div>
         <div class="modal-body">
             <p style="color: var(--archie-orange); margin-bottom: var(--archie-space-4); font-weight: bold;">
                 Save this key now. It will not be shown again.
             </p>
             <div class="form-group">
-                <label class="form-label">API Key</label>
+                <label class="form-label"><span data-i18n="account_center.api_key">API Key</span></label>
                 <div style="display: flex; gap: var(--archie-space-2);">
                     <input type="text" id="generated-key" class="form-input" readonly style="font-family: monospace;">
-                    <button class="btn" onclick="copyApiKey()">Copy</button>
+                    <button class="btn" onclick="copyApiKey()"><span data-i18n="account_center.copy">Copy</span></button>
                 </div>
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-primary" onclick="closeApiKeyCreatedModal()">Done</button>
+            <button type="button" class="btn btn-primary" onclick="closeApiKeyCreatedModal()"><span data-i18n="account_center.done">Done</span></button>
         </div>
     </div>
 </div>
@@ -2981,8 +2981,8 @@
 <div class="modal-overlay" id="sub-mgmt-modal-overlay">
     <div class="modal" style="max-width: 700px;">
         <div class="modal-header">
-            <h3 class="modal-title" id="sub-mgmt-modal-title">Manage Subscription</h3>
-            <button class="modal-close" onclick="closeSubMgmtModal()">&times;</button>
+            <h3 class="modal-title" id="sub-mgmt-modal-title"><span data-i18n="account_center.manage_subscription">Manage Subscription</span></h3>
+            <button class="modal-close" onclick="closeSubMgmtModal()"><span data-i18n="account_center.times_5">&times;</span></button>
         </div>
         <div class="modal-body" id="subscription-management"></div>
     </div>

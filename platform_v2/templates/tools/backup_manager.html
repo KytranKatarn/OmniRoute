@@ -958,8 +958,8 @@
     <div class="backup-manager-content">
         <!-- Page Header -->
         <div class="backup-manager-header">
-            <h1>BACKUP MANAGER</h1>
-            <p>System backups, restore, version control</p>
+            <h1><span data-i18n="backup_manager.backup_manager">BACKUP MANAGER</span></h1>
+            <p><span data-i18n="backup_manager.system_backups_restore_version_control">System backups, restore, version control</span></p>
         </div>
 
         <div class="toast-container" id="toastContainer"></div>
@@ -968,101 +968,101 @@
             <!-- Stats -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <h3>Total Backups</h3>
+                    <h3><span data-i18n="backup_manager.total_backups">Total Backups</span></h3>
                     <div class="value" id="stat-total">0</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Current Build</h3>
+                    <h3><span data-i18n="backup_manager.current_build">Current Build</span></h3>
                     <div class="value" id="stat-build">#-</div>
-                    <div class="sub" id="stat-build-status">READY</div>
+                    <div class="sub" id="stat-build-status"><span data-i18n="backup_manager.ready">READY</span></div>
                 </div>
                 <div class="stat-card">
-                    <h3>Total Size</h3>
-                    <div class="value" id="stat-size">0 MB</div>
+                    <h3><span data-i18n="backup_manager.total_size">Total Size</span></h3>
+                    <div class="value" id="stat-size"><span data-i18n="backup_manager.0_mb">0 MB</span></div>
                 </div>
                 <div class="stat-card">
-                    <h3>Deployments</h3>
+                    <h3><span data-i18n="backup_manager.deployments">Deployments</span></h3>
                     <div class="value" id="stat-deployments">0</div>
                 </div>
                 <div class="stat-card">
-                    <h3>Latest Backup</h3>
+                    <h3><span data-i18n="backup_manager.latest_backup">Latest Backup</span></h3>
                     <div class="value" id="stat-latest" style="font-size: 0.9rem;">-</div>
                 </div>
             </div>
 
             <!-- Lock Status Warning -->
             <div id="lockWarning" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: var(--archie-radius-lg); padding: var(--archie-space-3) var(--archie-space-4); margin-bottom: var(--archie-space-4); color: #ef4444;">
-                <span style="font-weight: bold;">⚠ Backup in Progress:</span> <span id="lockDetails"></span>
+                <span style="font-weight: bold;"><span data-i18n="backup_manager.backup_in_progress">⚠ Backup in Progress:</span></span> <span id="lockDetails"></span>
             </div>
 
             <!-- Tab Navigation -->
             <div class="tab-nav">
-                <button class="tab-btn active" onclick="switchTab('backups')">BACKUPS</button>
-                <button class="tab-btn" onclick="switchTab('cloud')">CLOUD</button>
-                <button class="tab-btn" onclick="switchTab('external')">EXTERNAL</button>
-                <button class="tab-btn" onclick="switchTab('deployments')">DEPLOYMENT</button>
-                <button class="tab-btn" onclick="switchTab('modules')">MODULES</button>
-                <button class="tab-btn" onclick="switchTab('hooks')">HOOKS</button>
-                <button class="tab-btn" onclick="switchTab('retention')">RETENTION</button>
-                <button class="tab-btn" onclick="switchTab('packages')">PACKAGES</button>
+                <button class="tab-btn active" onclick="switchTab('backups')"><span data-i18n="backup_manager.backups">BACKUPS</span></button>
+                <button class="tab-btn" onclick="switchTab('cloud')"><span data-i18n="backup_manager.cloud">CLOUD</span></button>
+                <button class="tab-btn" onclick="switchTab('external')"><span data-i18n="backup_manager.external">EXTERNAL</span></button>
+                <button class="tab-btn" onclick="switchTab('deployments')"><span data-i18n="backup_manager.deployment">DEPLOYMENT</span></button>
+                <button class="tab-btn" onclick="switchTab('modules')"><span data-i18n="backup_manager.modules">MODULES</span></button>
+                <button class="tab-btn" onclick="switchTab('hooks')"><span data-i18n="backup_manager.hooks">HOOKS</span></button>
+                <button class="tab-btn" onclick="switchTab('retention')"><span data-i18n="backup_manager.retention">RETENTION</span></button>
+                <button class="tab-btn" onclick="switchTab('packages')"><span data-i18n="backup_manager.packages">PACKAGES</span></button>
             </div>
 
             <!-- BACKUPS TAB -->
             <div class="tab-content active" id="tab-backups">
                 <!-- Quick Backup -->
                 <div class="quick-backup">
-                    <h3>Quick Backup</h3>
+                    <h3><span data-i18n="backup_manager.quick_backup">Quick Backup</span></h3>
                     <div class="backup-buttons">
                         <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')">
                             <div class="icon">&#x1F535;</div>
                             FULL BACKUP
-                            <div class="size">All components (~100-200 MB)</div>
+                            <div class="size"><span data-i18n="backup_manager.all_components_100_200_mb">All components (~100-200 MB)</span></div>
                         </button>
                         <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')">
                             <div class="icon">&#x1F7E2;</div>
                             CRITICAL ONLY
-                            <div class="size">Essential only (~30-50 MB)</div>
+                            <div class="size"><span data-i18n="backup_manager.essential_only_30_50_mb">Essential only (~30-50 MB)</span></div>
                         </button>
                         <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')">
                             <div class="icon">&#x1F7E1;</div>
                             DATABASE ONLY
-                            <div class="size">Database dump (~5-20 MB)</div>
+                            <div class="size"><span data-i18n="backup_manager.database_dump_5_20_mb">Database dump (~5-20 MB)</span></div>
                         </button>
                     </div>
                     <div class="input-row">
                         <input type="text" id="backupDescription" placeholder="Backup description (optional)">
-                        <button class="btn" onclick="loadBackups()">Refresh</button>
+                        <button class="btn" onclick="loadBackups()"><span data-i18n="backup_manager.refresh">Refresh</span></button>
                     </div>
                 </div>
 
                 <!-- Backup List -->
                 <div id="backupsList" class="backup-list">
-                    <div class="loading"><div class="spinner"></div><p>Loading backups...</p></div>
+                    <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_backups">Loading backups...</span></p></div>
                 </div>
             </div>
 
             <!-- CLOUD BACKUP TAB -->
             <div class="tab-content" id="tab-cloud">
                 <div style="margin-bottom: var(--archie-space-5);">
-                    <h3 class="section-header" style="color: #60a5fa;">Google Drive Cloud Backup</h3>
-                    <p class="section-description">Encrypted cloud backup storage using Google Drive with AES-256-GCM encryption.</p>
+                    <h3 class="section-header" style="color: #60a5fa;"><span data-i18n="backup_manager.google_drive_cloud_backup">Google Drive Cloud Backup</span></h3>
+                    <p class="section-description"><span data-i18n="backup_manager.encrypted_cloud_backup_storage_using_google_drive">Encrypted cloud backup storage using Google Drive with AES-256-GCM encryption.</span></p>
                 </div>
 
                 <!-- Cloud Setup / Status Panel -->
                 <div class="cloud-setup-panel" id="cloudSetupPanel">
-                    <div class="loading"><div class="spinner"></div><p>Checking cloud status...</p></div>
+                    <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.checking_cloud_status">Checking cloud status...</span></p></div>
                 </div>
 
                 <!-- Passphrase Section -->
                 <div id="cloudPassphraseSection" style="display:none; margin-bottom: var(--archie-space-5);">
                     <div class="retention-info" style="border-color: #60a5fa;">
-                        <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);">Encryption Passphrase</h4>
+                        <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.encryption_passphrase">Encryption Passphrase</span></h4>
                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary); margin-bottom: var(--archie-space-2);">
                             Required for uploading and downloading cloud backups. AES-256-GCM encryption.
                         </p>
                         <div class="cloud-passphrase-input">
                             <input type="password" id="cloudPassphrase" placeholder="Enter encryption passphrase" autocomplete="off">
-                            <button class="btn btn-blue" onclick="verifyCloudPassphrase()">Verify</button>
+                            <button class="btn btn-blue" onclick="verifyCloudPassphrase()"><span data-i18n="backup_manager.verify">Verify</span></button>
                         </div>
                         <div id="cloudPassphraseStatus" style="font-size: var(--archie-text-sm); margin-top: var(--archie-space-1);"></div>
                     </div>
@@ -1071,7 +1071,7 @@
                 <!-- Storage Quota -->
                 <div id="cloudQuotaSection" style="display:none; margin-bottom: var(--archie-space-5);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--archie-space-2);">
-                        <span style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">Storage Usage</span>
+                        <span style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.storage_usage">Storage Usage</span></span>
                         <span id="cloudQuotaText" style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);"></span>
                     </div>
                     <div class="cloud-quota-bar">
@@ -1081,9 +1081,9 @@
 
                 <!-- Cloud Backups List -->
                 <div id="cloudBackupsSection" style="display:none;">
-                    <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);">Cloud Backups</h4>
+                    <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.cloud_backups">Cloud Backups</span></h4>
                     <div id="cloudBackupsList" class="backup-list">
-                        <div class="loading"><div class="spinner"></div><p>Loading cloud backups...</p></div>
+                        <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_cloud_backups">Loading cloud backups...</span></p></div>
                     </div>
                 </div>
             </div>
@@ -1091,55 +1091,55 @@
             <!-- EXTERNAL STORAGE TAB -->
             <div class="tab-content" id="tab-external">
                 <div style="margin-bottom: var(--archie-space-5);">
-                    <h3 class="section-header" style="color: #22d3ee;">External Storage</h3>
-                    <p class="section-description">USB/external drive backup storage for physical disaster recovery.</p>
+                    <h3 class="section-header" style="color: #22d3ee;"><span data-i18n="backup_manager.external_storage">External Storage</span></h3>
+                    <p class="section-description"><span data-i18n="backup_manager.usb_external_drive_backup_storage_for_physical_dis">USB/external drive backup storage for physical disaster recovery.</span></p>
                 </div>
 
                 <!-- External Storage Status -->
                 <div id="externalStatus" class="quick-backup" style="border-color: #22d3ee; background: rgba(34, 211, 238, 0.05);">
-                    <div class="loading"><div class="spinner"></div><p>Checking external storage...</p></div>
+                    <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.checking_external_storage">Checking external storage...</span></p></div>
                 </div>
 
                 <!-- External Backups List -->
-                <h4 style="color: #22d3ee; margin: var(--archie-space-5) 0 var(--archie-space-3);">Backups on External Storage</h4>
+                <h4 style="color: #22d3ee; margin: var(--archie-space-5) 0 var(--archie-space-3);"><span data-i18n="backup_manager.backups_on_external_storage">Backups on External Storage</span></h4>
                 <div id="externalBackupsList" class="backup-list">
-                    <div class="loading"><div class="spinner"></div><p>Loading external backups...</p></div>
+                    <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_external_backups">Loading external backups...</span></p></div>
                 </div>
             </div>
 
             <!-- HOOKS TAB -->
             <div class="tab-content" id="tab-hooks">
                 <div style="margin-bottom: var(--archie-space-5);">
-                    <h3 class="section-header" style="color: #a855f7;">Backup Hooks</h3>
-                    <p class="section-description">Pre and post backup scripts that run automatically during backup operations.</p>
+                    <h3 class="section-header" style="color: #a855f7;"><span data-i18n="backup_manager.backup_hooks">Backup Hooks</span></h3>
+                    <p class="section-description"><span data-i18n="backup_manager.pre_and_post_backup_scripts_that_run_automatically">Pre and post backup scripts that run automatically during backup operations.</span></p>
                 </div>
 
                 <div class="hooks-grid">
                     <!-- Pre Hooks -->
                     <div class="retention-info" style="border-color: #22c55e;">
-                        <h4 style="color: #22c55e; margin-bottom: var(--archie-space-3);">Pre-Backup Hooks</h4>
+                        <h4 style="color: #22c55e; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.pre_backup_hooks">Pre-Backup Hooks</span></h4>
                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
                             Run before backup starts. If any hook fails, the backup is aborted.
                         </p>
                         <div id="preHooksList" style="min-height: 60px;">
-                            <div class="loading">Loading...</div>
+                            <div class="loading"><span data-i18n="backup_manager.loading">Loading...</span></div>
                         </div>
                     </div>
 
                     <!-- Post Hooks -->
                     <div class="retention-info" style="border-color: #fb923c;">
-                        <h4 style="color: #fb923c; margin-bottom: var(--archie-space-3);">Post-Backup Hooks</h4>
+                        <h4 style="color: #fb923c; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.post_backup_hooks">Post-Backup Hooks</span></h4>
                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
                             Run after backup completes. Failures are logged but don't fail the backup.
                         </p>
                         <div id="postHooksList" style="min-height: 60px;">
-                            <div class="loading">Loading...</div>
+                            <div class="loading"><span data-i18n="backup_manager.loading_2">Loading...</span></div>
                         </div>
                     </div>
                 </div>
 
                 <div style="margin-top: var(--archie-space-5); padding: var(--archie-space-4); background: rgba(0,0,0,0.2); border-radius: var(--archie-radius-lg);">
-                    <h4 style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-2);">Hook Environment Variables</h4>
+                    <h4 style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-2);"><span data-i18n="backup_manager.hook_environment_variables">Hook Environment Variables</span></h4>
                     <div style="font-family: var(--archie-font-mono); font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">
                         <code>ARCHIE_BACKUP_NAME</code> - Name of the backup<br>
                         <code>ARCHIE_BACKUP_DIR</code> - Backup directory path<br>
@@ -1149,16 +1149,16 @@
 
                 <!-- Webhooks Section -->
                 <div style="margin-top: var(--archie-space-6);">
-                    <h3 class="section-header" style="color: #f97316;">Webhooks</h3>
-                    <p class="section-description">HTTP endpoints notified on backup events.</p>
+                    <h3 class="section-header" style="color: #f97316;"><span data-i18n="backup_manager.webhooks">Webhooks</span></h3>
+                    <p class="section-description"><span data-i18n="backup_manager.http_endpoints_notified_on_backup_events">HTTP endpoints notified on backup events.</span></p>
 
                     <div class="retention-info">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--archie-space-4);">
-                            <h4 style="color: #f97316;">Configured Webhooks</h4>
-                            <button class="btn" onclick="showAddWebhookModal()">Add Webhook</button>
+                            <h4 style="color: #f97316;"><span data-i18n="backup_manager.configured_webhooks">Configured Webhooks</span></h4>
+                            <button class="btn" onclick="showAddWebhookModal()"><span data-i18n="backup_manager.add_webhook">Add Webhook</span></button>
                         </div>
                         <div id="webhooksList">
-                            <div class="loading">Loading webhooks...</div>
+                            <div class="loading"><span data-i18n="backup_manager.loading_webhooks">Loading webhooks...</span></div>
                         </div>
                     </div>
                 </div>
@@ -1167,35 +1167,35 @@
             <!-- DEPLOYMENT BACKUPS TAB -->
             <div class="tab-content" id="tab-deployments">
                 <div style="margin-bottom: var(--archie-space-5);">
-                    <h3 class="section-header">Deployment Backups</h3>
-                    <p class="section-description">Backups automatically created before deploying proposals from Improvements Lab.</p>
+                    <h3 class="section-header"><span data-i18n="backup_manager.deployment_backups">Deployment Backups</span></h3>
+                    <p class="section-description"><span data-i18n="backup_manager.backups_automatically_created_before_deploying_pro">Backups automatically created before deploying proposals from Improvements Lab.</span></p>
                 </div>
                 <div id="deploymentBackupsList">
-                    <div class="loading"><div class="spinner"></div><p>Loading deployment backups...</p></div>
+                    <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_deployment_backups">Loading deployment backups...</span></p></div>
                 </div>
             </div>
 
             <!-- MODULE BACKUPS TAB -->
             <div class="tab-content" id="tab-modules">
                 <div style="margin-bottom: var(--archie-space-3);">
-                    <h3 class="section-header" style="color: #a855f7;">Module Backups</h3>
-                    <p class="section-description">Select modules to backup. Last backup date shown per module.</p>
+                    <h3 class="section-header" style="color: #a855f7;"><span data-i18n="backup_manager.module_backups">Module Backups</span></h3>
+                    <p class="section-description"><span data-i18n="backup_manager.select_modules_to_backup_last_backup_date_shown_pe">Select modules to backup. Last backup date shown per module.</span></p>
                 </div>
 
                 <div class="module-toolbar">
                     <div class="toolbar-left">
-                        <button class="btn btn-purple" onclick="selectAllModules()">All</button>
-                        <button class="btn btn-purple" onclick="deselectAllModules()">None</button>
-                        <span class="stat"><strong id="selectedModuleCount">0</strong> selected</span>
-                        <span class="stat"><span class="size-val" id="moduleEstimatedSize">0 KB</span></span>
+                        <button class="btn btn-purple" onclick="selectAllModules()"><span data-i18n="backup_manager.all">All</span></button>
+                        <button class="btn btn-purple" onclick="deselectAllModules()"><span data-i18n="backup_manager.none">None</span></button>
+                        <span class="stat"><strong id="selectedModuleCount">0</strong><span data-i18n="backup_manager.selected"> selected</span></span>
+                        <span class="stat"><span class="size-val" id="moduleEstimatedSize"><span data-i18n="backup_manager.0_kb">0 KB</span></span></span>
                     </div>
                     <div class="toolbar-right">
-                        <button class="btn btn-purple" onclick="createModuleBackup()">Backup Selected</button>
+                        <button class="btn btn-purple" onclick="createModuleBackup()"><span data-i18n="backup_manager.backup_selected">Backup Selected</span></button>
                     </div>
                 </div>
 
                 <div id="moduleGrid" class="module-list">
-                    <div class="loading"><div class="spinner"></div><p>Loading modules...</p></div>
+                    <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_modules">Loading modules...</span></p></div>
                 </div>
 
                 <div class="input-row" style="margin-top: var(--archie-space-3);">
@@ -1206,41 +1206,41 @@
             <!-- RETENTION TAB -->
             <div class="tab-content" id="tab-retention">
                 <div class="retention-info">
-                    <h4>Retention Policy (GFS - Grandfather-Father-Son)</h4>
+                    <h4><span data-i18n="backup_manager.retention_policy_gfs_grandfather_father_son">Retention Policy (GFS - Grandfather-Father-Son)</span></h4>
                     <div class="retention-grid">
                         <div class="retention-card">
                             <div class="number">7</div>
-                            <div class="label">Daily Backups</div>
+                            <div class="label"><span data-i18n="backup_manager.daily_backups">Daily Backups</span></div>
                         </div>
                         <div class="retention-card">
                             <div class="number">4</div>
-                            <div class="label">Weekly Backups</div>
+                            <div class="label"><span data-i18n="backup_manager.weekly_backups">Weekly Backups</span></div>
                         </div>
                         <div class="retention-card">
                             <div class="number">6</div>
-                            <div class="label">Monthly Backups</div>
+                            <div class="label"><span data-i18n="backup_manager.monthly_backups">Monthly Backups</span></div>
                         </div>
                     </div>
                 </div>
 
                 <div style="margin-bottom: var(--archie-space-5);">
-                    <h4 class="section-header">Retention Status</h4>
+                    <h4 class="section-header"><span data-i18n="backup_manager.retention_status">Retention Status</span></h4>
                     <div id="retentionStatus">
-                        <div class="loading"><div class="spinner"></div><p>Loading retention status...</p></div>
+                        <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_retention_status">Loading retention status...</span></p></div>
                     </div>
                 </div>
 
                 <div style="display: flex; gap: var(--archie-space-2);">
-                    <button class="btn" onclick="checkRetention()">Check Retention</button>
-                    <button class="btn btn-orange" onclick="cleanupBackups(true)">Preview Cleanup</button>
-                    <button class="btn btn-red" onclick="cleanupBackups(false)">Run Cleanup</button>
+                    <button class="btn" onclick="checkRetention()"><span data-i18n="backup_manager.check_retention">Check Retention</span></button>
+                    <button class="btn btn-orange" onclick="cleanupBackups(true)"><span data-i18n="backup_manager.preview_cleanup">Preview Cleanup</span></button>
+                    <button class="btn btn-red" onclick="cleanupBackups(false)"><span data-i18n="backup_manager.run_cleanup">Run Cleanup</span></button>
                 </div>
             </div>
 
             <!-- DEPLOYMENT PACKAGES TAB -->
             <div class="tab-content" id="tab-packages">
                 <div style="margin-bottom: var(--archie-space-5);">
-                    <h3 class="section-header" style="color: #22d3ee;">Deployment Packages</h3>
+                    <h3 class="section-header" style="color: #22d3ee;"><span data-i18n="backup_manager.deployment_packages">Deployment Packages</span></h3>
                     <p class="section-description">
                         Create self-contained deployment packages for migrating A.R.C.H.I.E. to new machines.
                         Each package includes all code, database, and a deploy.sh script for one-command installation.
@@ -1249,35 +1249,35 @@
 
                 <!-- Create Package Section -->
                 <div class="quick-backup" style="border-color: #22d3ee; background: rgba(34, 211, 238, 0.05);">
-                    <h3 style="color: #22d3ee;">Create Deployment Package</h3>
+                    <h3 style="color: #22d3ee;"><span data-i18n="backup_manager.create_deployment_package">Create Deployment Package</span></h3>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-4); margin-bottom: var(--archie-space-4);">
                         <div>
-                            <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">Version Tag</label>
+                            <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.version_tag">Version Tag</span></label>
                             <input type="text" id="packageVersion" placeholder="e.g., v5.33.0" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
                         </div>
                         <div>
-                            <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">Target Platform</label>
+                            <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.target_platform">Target Platform</span></label>
                             <select id="packagePlatform" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
-                                <option value="linux">Linux (Ubuntu/Debian)</option>
-                                <option value="docker">Docker Only</option>
-                                <option value="all">All Platforms</option>
+                                <option value="linux"><span data-i18n="backup_manager.linux_ubuntu_debian">Linux (Ubuntu/Debian)</span></option>
+                                <option value="docker"><span data-i18n="backup_manager.docker_only">Docker Only</span></option>
+                                <option value="all"><span data-i18n="backup_manager.all_platforms">All Platforms</span></option>
                             </select>
                         </div>
                     </div>
                     <div style="margin-bottom: var(--archie-space-4);">
-                        <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">Description</label>
+                        <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.description">Description</span></label>
                         <input type="text" id="packageDescription" placeholder="e.g., Production release with Phase 31 features" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
                     </div>
                     <div style="display: flex; gap: var(--archie-space-2);">
-                        <button class="btn btn-cyan" onclick="createDeploymentPackage()">Create Package</button>
-                        <button class="btn" onclick="loadDeploymentPackages()">Refresh</button>
+                        <button class="btn btn-cyan" onclick="createDeploymentPackage()"><span data-i18n="backup_manager.create_package">Create Package</span></button>
+                        <button class="btn" onclick="loadDeploymentPackages()"><span data-i18n="backup_manager.refresh_2">Refresh</span></button>
                     </div>
                 </div>
 
                 <!-- Packages List -->
-                <h4 style="color: #22d3ee; margin-bottom: var(--archie-space-4);">Available Packages</h4>
+                <h4 style="color: #22d3ee; margin-bottom: var(--archie-space-4);"><span data-i18n="backup_manager.available_packages">Available Packages</span></h4>
                 <div id="packagesList">
-                    <div class="loading"><div class="spinner"></div><p>Loading packages...</p></div>
+                    <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_packages">Loading packages...</span></p></div>
                 </div>
             </div>
         </div>
@@ -1288,15 +1288,15 @@
 <div class="modal-overlay" id="restore-preview-modal" style="display: none;">
     <div class="modal" style="max-width: 600px;">
         <div class="modal-header">
-            <h3 id="restore-preview-title">Restore Preview</h3>
-            <button class="modal-close" onclick="closeRestorePreviewModal()">&times;</button>
+            <h3 id="restore-preview-title"><span data-i18n="backup_manager.restore_preview">Restore Preview</span></h3>
+            <button class="modal-close" onclick="closeRestorePreviewModal()"><span data-i18n="backup_manager.times">&times;</span></button>
         </div>
         <div class="modal-body" id="restore-preview-body">
             <!-- Content populated by JavaScript -->
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" onclick="closeRestorePreviewModal()">Cancel</button>
-            <button type="button" class="btn btn-primary" id="restore-preview-proceed">Proceed to Restore</button>
+            <button type="button" class="btn btn-ghost" onclick="closeRestorePreviewModal()"><span data-i18n="backup_manager.cancel">Cancel</span></button>
+            <button type="button" class="btn btn-primary" id="restore-preview-proceed"><span data-i18n="backup_manager.proceed_to_restore">Proceed to Restore</span></button>
         </div>
     </div>
 </div>
@@ -1305,8 +1305,8 @@
 <div class="modal-overlay" id="selective-restore-modal" style="display: none;">
     <div class="modal" style="max-width: 500px;">
         <div class="modal-header">
-            <h3>Select Components to Restore</h3>
-            <button class="modal-close" onclick="closeSelectiveRestoreModal()">&times;</button>
+            <h3><span data-i18n="backup_manager.select_components_to_restore">Select Components to Restore</span></h3>
+            <button class="modal-close" onclick="closeSelectiveRestoreModal()"><span data-i18n="backup_manager.times_2">&times;</span></button>
         </div>
         <div class="modal-body">
             <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
@@ -1318,13 +1318,13 @@
             <div style="margin-top: var(--archie-space-4); padding-top: var(--archie-space-3); border-top: 1px solid var(--archie-border-default);">
                 <label style="display: flex; align-items: center; gap: var(--archie-space-2); cursor: pointer; color: var(--archie-text-secondary);">
                     <input type="checkbox" id="select-all-components" onchange="toggleAllComponents(this.checked)">
-                    <span>Select All</span>
+                    <span><span data-i18n="backup_manager.select_all">Select All</span></span>
                 </label>
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" onclick="closeSelectiveRestoreModal()">Cancel</button>
-            <button type="button" class="btn btn-danger" id="selective-restore-confirm">Restore Selected</button>
+            <button type="button" class="btn btn-ghost" onclick="closeSelectiveRestoreModal()"><span data-i18n="backup_manager.cancel_2">Cancel</span></button>
+            <button type="button" class="btn btn-danger" id="selective-restore-confirm"><span data-i18n="backup_manager.restore_selected">Restore Selected</span></button>
         </div>
     </div>
 </div>
@@ -1333,8 +1333,8 @@
 <div class="modal-overlay" id="confirm-restore-modal" style="display: none;">
     <div class="modal" style="max-width: 450px;">
         <div class="modal-header">
-            <h3 style="color: #ef4444;">⚠️ Confirm Restore</h3>
-            <button class="modal-close" onclick="closeConfirmRestoreModal()">&times;</button>
+            <h3 style="color: #ef4444;"><span data-i18n="backup_manager.confirm_restore">⚠️ Confirm Restore</span></h3>
+            <button class="modal-close" onclick="closeConfirmRestoreModal()"><span data-i18n="backup_manager.times_3">&times;</span></button>
         </div>
         <div class="modal-body">
             <p style="color: var(--archie-text-primary); margin-bottom: var(--archie-space-3);" id="confirm-restore-message">
@@ -1345,8 +1345,8 @@
             </p>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" onclick="closeConfirmRestoreModal()">Cancel</button>
-            <button type="button" class="btn btn-danger" id="confirm-restore-btn">Yes, Restore Now</button>
+            <button type="button" class="btn btn-ghost" onclick="closeConfirmRestoreModal()"><span data-i18n="backup_manager.cancel_3">Cancel</span></button>
+            <button type="button" class="btn btn-danger" id="confirm-restore-btn"><span data-i18n="backup_manager.yes_restore_now">Yes, Restore Now</span></button>
         </div>
     </div>
 </div>

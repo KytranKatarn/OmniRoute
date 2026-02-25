@@ -20,7 +20,7 @@
                 <i data-lucide="file-text"></i>
                 CONTENT STUDIO
             </h1>
-            <p class="cs-subtitle">AI-powered writing for books, articles & copy</p>
+            <p class="cs-subtitle"><span data-i18n="content_studio.ai_powered_writing_for_books_articles_copy">AI-powered writing for books, articles & copy</span></p>
         </div>
         <div class="cs-actions">
             <button class="cs-btn cs-btn-secondary" onclick="showImportModal()">
@@ -42,7 +42,7 @@
             </div>
             <div class="cs-stat-info">
                 <span class="cs-stat-value" id="totalDocs">0</span>
-                <span class="cs-stat-label">DOCUMENTS</span>
+                <span class="cs-stat-label"><span data-i18n="content_studio.documents">DOCUMENTS</span></span>
             </div>
         </div>
         <div class="cs-stat-card" style="animation-delay: 0.2s">
@@ -51,7 +51,7 @@
             </div>
             <div class="cs-stat-info">
                 <span class="cs-stat-value" id="totalWords">0</span>
-                <span class="cs-stat-label">WORDS</span>
+                <span class="cs-stat-label"><span data-i18n="content_studio.words">WORDS</span></span>
             </div>
         </div>
         <div class="cs-stat-card" style="animation-delay: 0.3s">
@@ -60,7 +60,7 @@
             </div>
             <div class="cs-stat-info">
                 <span class="cs-stat-value" id="publishedDocs">0</span>
-                <span class="cs-stat-label">PUBLISHED</span>
+                <span class="cs-stat-label"><span data-i18n="content_studio.published">PUBLISHED</span></span>
             </div>
         </div>
         <div class="cs-stat-card" style="animation-delay: 0.4s">
@@ -69,7 +69,7 @@
             </div>
             <div class="cs-stat-info">
                 <span class="cs-stat-value" id="totalTemplates">12</span>
-                <span class="cs-stat-label">TEMPLATES</span>
+                <span class="cs-stat-label"><span data-i18n="content_studio.templates">TEMPLATES</span></span>
             </div>
         </div>
     </section>
@@ -109,18 +109,18 @@
                 </div>
                 <div class="cs-filters">
                     <select class="cs-select" id="typeFilter" onchange="filterDocs()">
-                        <option value="">All Types</option>
-                        <option value="book">Books</option>
-                        <option value="article">Articles</option>
-                        <option value="blog">Blog Posts</option>
-                        <option value="copy">Marketing Copy</option>
-                        <option value="script">Scripts</option>
+                        <option value=""><span data-i18n="content_studio.all_types">All Types</span></option>
+                        <option value="book"><span data-i18n="content_studio.books">Books</span></option>
+                        <option value="article"><span data-i18n="content_studio.articles">Articles</span></option>
+                        <option value="blog"><span data-i18n="content_studio.blog_posts">Blog Posts</span></option>
+                        <option value="copy"><span data-i18n="content_studio.marketing_copy">Marketing Copy</span></option>
+                        <option value="script"><span data-i18n="content_studio.scripts">Scripts</span></option>
                     </select>
                     <select class="cs-select" id="statusFilter" onchange="filterDocs()">
-                        <option value="">All Status</option>
-                        <option value="draft">Draft</option>
-                        <option value="review">In Review</option>
-                        <option value="published">Published</option>
+                        <option value=""><span data-i18n="content_studio.all_status">All Status</span></option>
+                        <option value="draft"><span data-i18n="content_studio.draft">Draft</span></option>
+                        <option value="review"><span data-i18n="content_studio.in_review">In Review</span></option>
+                        <option value="published"><span data-i18n="content_studio.published_2">Published</span></option>
                     </select>
                 </div>
             </div>
@@ -130,8 +130,8 @@
                     <div class="cs-empty-icon">
                         <i data-lucide="file-text"></i>
                     </div>
-                    <h3>No Documents Yet</h3>
-                    <p>Create your first document or use a template</p>
+                    <h3><span data-i18n="content_studio.no_documents_yet">No Documents Yet</span></h3>
+                    <p><span data-i18n="content_studio.create_your_first_document_or_use_a_template">Create your first document or use a template</span></p>
                     <div class="cs-empty-actions">
                         <button class="cs-btn cs-btn-secondary" onclick="switchTab('templates')">
                             <i data-lucide="layout-template"></i>
@@ -153,30 +153,30 @@
                     <div class="cs-panel">
                         <div class="cs-panel-header">
                             <i data-lucide="list"></i>
-                            <span>Outline</span>
+                            <span><span data-i18n="content_studio.outline">Outline</span></span>
                         </div>
                         <div class="cs-panel-content" id="outlineList">
-                            <p class="cs-hint">Select a document to view outline</p>
+                            <p class="cs-hint"><span data-i18n="content_studio.select_a_document_to_view_outline">Select a document to view outline</span></p>
                         </div>
                     </div>
                     <div class="cs-panel">
                         <div class="cs-panel-header">
                             <i data-lucide="bar-chart-3"></i>
-                            <span>Stats</span>
+                            <span><span data-i18n="content_studio.stats">Stats</span></span>
                         </div>
                         <div class="cs-panel-content">
                             <div class="cs-doc-stats">
                                 <div class="cs-doc-stat">
                                     <span class="cs-doc-stat-value" id="editorWords">0</span>
-                                    <span class="cs-doc-stat-label">Words</span>
+                                    <span class="cs-doc-stat-label"><span data-i18n="content_studio.words_2">Words</span></span>
                                 </div>
                                 <div class="cs-doc-stat">
                                     <span class="cs-doc-stat-value" id="editorChars">0</span>
-                                    <span class="cs-doc-stat-label">Characters</span>
+                                    <span class="cs-doc-stat-label"><span data-i18n="content_studio.characters">Characters</span></span>
                                 </div>
                                 <div class="cs-doc-stat">
                                     <span class="cs-doc-stat-value" id="editorReadTime">0m</span>
-                                    <span class="cs-doc-stat-label">Read Time</span>
+                                    <span class="cs-doc-stat-label"><span data-i18n="content_studio.read_time">Read Time</span></span>
                                 </div>
                             </div>
                         </div>
@@ -227,7 +227,7 @@
                     <div class="cs-editor-area">
                         <input type="text" class="cs-editor-title" id="editorTitle" placeholder="Document Title" onkeyup="updateStats()">
                         <div class="cs-editor-content" id="editorContent" contenteditable="true" onkeyup="updateStats()">
-                            <p>Start writing your content here...</p>
+                            <p><span data-i18n="content_studio.start_writing_your_content_here">Start writing your content here...</span></p>
                         </div>
                     </div>
                 </div>
@@ -236,12 +236,12 @@
                     <div class="cs-panel">
                         <div class="cs-panel-header">
                             <i data-lucide="sparkles"></i>
-                            <span>AI Suggestions</span>
+                            <span><span data-i18n="content_studio.ai_suggestions">AI Suggestions</span></span>
                         </div>
                         <div class="cs-panel-content" id="aiSuggestions">
                             <div class="cs-ai-hint">
                                 <i data-lucide="lightbulb"></i>
-                                <p>Select text and click "AI Assist" for suggestions</p>
+                                <p><span data-i18n="content_studio.select_text_and_click_ai_assist_for_suggestions">Select text and click "AI Assist" for suggestions</span></p>
                             </div>
                         </div>
                     </div>
@@ -253,47 +253,47 @@
         <div class="cs-tab-panel" id="ai-writer-panel">
             <div class="cs-ai-layout">
                 <div class="cs-ai-input-section">
-                    <h3><i data-lucide="wand-2"></i> Generate Content</h3>
+                    <h3><i data-lucide="wand-2"></i><span data-i18n="content_studio.generate_content"> Generate Content</span></h3>
                     <div class="cs-form-group">
-                        <label>Content Type</label>
+                        <label><span data-i18n="content_studio.content_type">Content Type</span></label>
                         <select class="cs-select" id="aiContentType">
-                            <option value="blog">Blog Post</option>
-                            <option value="article">Article</option>
-                            <option value="book-chapter">Book Chapter</option>
-                            <option value="product-desc">Product Description</option>
-                            <option value="email">Email Copy</option>
-                            <option value="social">Social Media Post</option>
-                            <option value="ad">Advertisement</option>
+                            <option value="blog"><span data-i18n="content_studio.blog_post">Blog Post</span></option>
+                            <option value="article"><span data-i18n="content_studio.article">Article</span></option>
+                            <option value="book-chapter"><span data-i18n="content_studio.book_chapter">Book Chapter</span></option>
+                            <option value="product-desc"><span data-i18n="content_studio.product_description">Product Description</span></option>
+                            <option value="email"><span data-i18n="content_studio.email_copy">Email Copy</span></option>
+                            <option value="social"><span data-i18n="content_studio.social_media_post">Social Media Post</span></option>
+                            <option value="ad"><span data-i18n="content_studio.advertisement">Advertisement</span></option>
                         </select>
                     </div>
                     <div class="cs-form-group">
-                        <label>Topic / Brief</label>
+                        <label><span data-i18n="content_studio.topic_brief">Topic / Brief</span></label>
                         <textarea class="cs-textarea" id="aiTopic" placeholder="Describe what you want to write about..."></textarea>
                     </div>
                     <div class="cs-form-row">
                         <div class="cs-form-group">
-                            <label>Tone</label>
+                            <label><span data-i18n="content_studio.tone">Tone</span></label>
                             <select class="cs-select" id="aiTone">
-                                <option value="professional">Professional</option>
-                                <option value="casual">Casual</option>
-                                <option value="formal">Formal</option>
-                                <option value="friendly">Friendly</option>
-                                <option value="persuasive">Persuasive</option>
-                                <option value="informative">Informative</option>
+                                <option value="professional"><span data-i18n="content_studio.professional">Professional</span></option>
+                                <option value="casual"><span data-i18n="content_studio.casual">Casual</span></option>
+                                <option value="formal"><span data-i18n="content_studio.formal">Formal</span></option>
+                                <option value="friendly"><span data-i18n="content_studio.friendly">Friendly</span></option>
+                                <option value="persuasive"><span data-i18n="content_studio.persuasive">Persuasive</span></option>
+                                <option value="informative"><span data-i18n="content_studio.informative">Informative</span></option>
                             </select>
                         </div>
                         <div class="cs-form-group">
-                            <label>Length</label>
+                            <label><span data-i18n="content_studio.length">Length</span></label>
                             <select class="cs-select" id="aiLength">
-                                <option value="short">Short (~300 words)</option>
-                                <option value="medium">Medium (~600 words)</option>
-                                <option value="long">Long (~1000 words)</option>
-                                <option value="extended">Extended (~2000 words)</option>
+                                <option value="short"><span data-i18n="content_studio.short_300_words">Short (~300 words)</span></option>
+                                <option value="medium"><span data-i18n="content_studio.medium_600_words">Medium (~600 words)</span></option>
+                                <option value="long"><span data-i18n="content_studio.long_1000_words">Long (~1000 words)</span></option>
+                                <option value="extended"><span data-i18n="content_studio.extended_2000_words">Extended (~2000 words)</span></option>
                             </select>
                         </div>
                     </div>
                     <div class="cs-form-group">
-                        <label>Keywords (optional)</label>
+                        <label><span data-i18n="content_studio.keywords_optional">Keywords (optional)</span></label>
                         <input type="text" class="cs-input" id="aiKeywords" placeholder="keyword1, keyword2, keyword3">
                     </div>
                     <button class="cs-btn cs-btn-primary cs-btn-generate" onclick="generateContent()">
@@ -303,7 +303,7 @@
                 </div>
                 <div class="cs-ai-output-section">
                     <div class="cs-ai-output-header">
-                        <h3><i data-lucide="file-text"></i> Generated Content</h3>
+                        <h3><i data-lucide="file-text"></i><span data-i18n="content_studio.generated_content"> Generated Content</span></h3>
                         <div class="cs-ai-output-actions">
                             <button class="cs-btn cs-btn-secondary" onclick="copyGenerated()">
                                 <i data-lucide="copy"></i>
@@ -318,7 +318,7 @@
                     <div class="cs-ai-output" id="aiOutput">
                         <div class="cs-ai-placeholder">
                             <i data-lucide="pen-tool"></i>
-                            <p>Generated content will appear here</p>
+                            <p><span data-i18n="content_studio.generated_content_will_appear_here">Generated content will appear here</span></p>
                         </div>
                     </div>
                 </div>
@@ -328,8 +328,8 @@
         <!-- Templates Tab -->
         <div class="cs-tab-panel" id="templates-panel">
             <div class="cs-templates-header">
-                <h3>Content Templates</h3>
-                <p>Start with a professionally crafted template</p>
+                <h3><span data-i18n="content_studio.content_templates">Content Templates</span></h3>
+                <p><span data-i18n="content_studio.start_with_a_professionally_crafted_template">Start with a professionally crafted template</span></p>
             </div>
             <div class="cs-templates-grid" id="templatesGrid">
                 <!-- Templates will be loaded here -->
@@ -340,44 +340,44 @@
         <div class="cs-tab-panel" id="export-panel">
             <div class="cs-export-layout">
                 <div class="cs-export-options">
-                    <h3><i data-lucide="settings"></i> Export Settings</h3>
+                    <h3><i data-lucide="settings"></i><span data-i18n="content_studio.export_settings"> Export Settings</span></h3>
                     <div class="cs-form-group">
-                        <label>Document to Export</label>
+                        <label><span data-i18n="content_studio.document_to_export">Document to Export</span></label>
                         <select class="cs-select" id="exportDoc">
-                            <option value="">Select a document...</option>
+                            <option value=""><span data-i18n="content_studio.select_a_document">Select a document...</span></option>
                         </select>
                     </div>
                     <div class="cs-form-group">
-                        <label>Export Format</label>
+                        <label><span data-i18n="content_studio.export_format">Export Format</span></label>
                         <div class="cs-export-formats">
                             <div class="cs-format-card active" data-format="pdf">
                                 <i data-lucide="file-text"></i>
-                                <span>PDF</span>
+                                <span><span data-i18n="content_studio.pdf">PDF</span></span>
                             </div>
                             <div class="cs-format-card" data-format="docx">
                                 <i data-lucide="file"></i>
-                                <span>DOCX</span>
+                                <span><span data-i18n="content_studio.docx">DOCX</span></span>
                             </div>
                             <div class="cs-format-card" data-format="md">
                                 <i data-lucide="hash"></i>
-                                <span>Markdown</span>
+                                <span><span data-i18n="content_studio.markdown">Markdown</span></span>
                             </div>
                             <div class="cs-format-card" data-format="html">
                                 <i data-lucide="code"></i>
-                                <span>HTML</span>
+                                <span><span data-i18n="content_studio.html">HTML</span></span>
                             </div>
                             <div class="cs-format-card" data-format="epub">
                                 <i data-lucide="book"></i>
-                                <span>EPUB</span>
+                                <span><span data-i18n="content_studio.epub">EPUB</span></span>
                             </div>
                         </div>
                     </div>
                     <div class="cs-form-group">
-                        <label>Page Size</label>
+                        <label><span data-i18n="content_studio.page_size">Page Size</span></label>
                         <select class="cs-select" id="exportPageSize">
-                            <option value="letter">Letter (8.5" x 11")</option>
-                            <option value="a4">A4 (210mm x 297mm)</option>
-                            <option value="a5">A5 (148mm x 210mm)</option>
+                            <option value="letter"><span data-i18n="content_studio.letter_8_5_x_11">Letter (8.5" x 11")</span></option>
+                            <option value="a4"><span data-i18n="content_studio.a4_210mm_x_297mm">A4 (210mm x 297mm)</span></option>
+                            <option value="a5"><span data-i18n="content_studio.a5_148mm_x_210mm">A5 (148mm x 210mm)</span></option>
                         </select>
                     </div>
                     <button class="cs-btn cs-btn-primary" onclick="exportDocument()">
@@ -386,9 +386,9 @@
                     </button>
                 </div>
                 <div class="cs-export-preview">
-                    <h3><i data-lucide="eye"></i> Preview</h3>
+                    <h3><i data-lucide="eye"></i><span data-i18n="content_studio.preview"> Preview</span></h3>
                     <div class="cs-preview-area" id="exportPreview">
-                        <p class="cs-hint">Select a document to preview</p>
+                        <p class="cs-hint"><span data-i18n="content_studio.select_a_document_to_preview">Select a document to preview</span></p>
                     </div>
                 </div>
             </div>
@@ -400,34 +400,34 @@
 <div class="cs-modal" id="newDocModal">
     <div class="cs-modal-content">
         <div class="cs-modal-header">
-            <h2><i data-lucide="plus"></i> Create New Document</h2>
+            <h2><i data-lucide="plus"></i><span data-i18n="content_studio.create_new_document"> Create New Document</span></h2>
             <button class="cs-modal-close" onclick="closeModal('newDocModal')">
                 <i data-lucide="x"></i>
             </button>
         </div>
         <div class="cs-modal-body">
             <div class="cs-form-group">
-                <label>Document Title</label>
+                <label><span data-i18n="content_studio.document_title">Document Title</span></label>
                 <input type="text" id="newDocTitle" placeholder="Untitled Document">
             </div>
             <div class="cs-form-group">
-                <label>Document Type</label>
+                <label><span data-i18n="content_studio.document_type">Document Type</span></label>
                 <select id="newDocType" class="cs-select">
-                    <option value="article">Article</option>
-                    <option value="blog">Blog Post</option>
-                    <option value="book">Book / Chapter</option>
-                    <option value="copy">Marketing Copy</option>
-                    <option value="script">Script</option>
-                    <option value="other">Other</option>
+                    <option value="article"><span data-i18n="content_studio.article_2">Article</span></option>
+                    <option value="blog"><span data-i18n="content_studio.blog_post_2">Blog Post</span></option>
+                    <option value="book"><span data-i18n="content_studio.book_chapter_2">Book / Chapter</span></option>
+                    <option value="copy"><span data-i18n="content_studio.marketing_copy_2">Marketing Copy</span></option>
+                    <option value="script"><span data-i18n="content_studio.script">Script</span></option>
+                    <option value="other"><span data-i18n="content_studio.other">Other</span></option>
                 </select>
             </div>
             <div class="cs-form-group">
-                <label>Description (optional)</label>
+                <label><span data-i18n="content_studio.description_optional">Description (optional)</span></label>
                 <textarea id="newDocDesc" class="cs-textarea" placeholder="Brief description of this document..."></textarea>
             </div>
         </div>
         <div class="cs-modal-footer">
-            <button class="cs-btn cs-btn-secondary" onclick="closeModal('newDocModal')">Cancel</button>
+            <button class="cs-btn cs-btn-secondary" onclick="closeModal('newDocModal')"><span data-i18n="content_studio.cancel">Cancel</span></button>
             <button class="cs-btn cs-btn-primary" onclick="createNewDoc()">
                 <i data-lucide="plus"></i>
                 Create Document

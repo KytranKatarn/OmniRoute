@@ -19,7 +19,7 @@
                 <i data-lucide="users"></i>
                 CUSTOMER RELATIONS
             </h1>
-            <p class="crm-subtitle">Intelligent Customer Management System</p>
+            <p class="crm-subtitle"><span data-i18n="crm.intelligent_customer_management_system">Intelligent Customer Management System</span></p>
             <div class="crm-header-actions">
                 <button class="crm-btn crm-btn--outline" onclick="showImportModal()">
                     <i data-lucide="upload"></i>
@@ -41,22 +41,22 @@
             <div class="crm-stat-card" style="animation-delay: 0.1s">
                 <div class="crm-stat-icon"><i data-lucide="users"></i></div>
                 <div class="crm-stat-value" id="stat-total">{{ stats.total_customers|default(0) }}</div>
-                <div class="crm-stat-label">TOTAL CUSTOMERS</div>
+                <div class="crm-stat-label"><span data-i18n="crm.total_customers">TOTAL CUSTOMERS</span></div>
             </div>
             <div class="crm-stat-card" style="animation-delay: 0.2s">
                 <div class="crm-stat-icon crm-stat-icon--success"><i data-lucide="crown"></i></div>
                 <div class="crm-stat-value" id="stat-subscribers">{{ stats.active_subscribers|default(0) }}</div>
-                <div class="crm-stat-label">SUBSCRIBERS</div>
+                <div class="crm-stat-label"><span data-i18n="crm.subscribers">SUBSCRIBERS</span></div>
             </div>
             <div class="crm-stat-card" style="animation-delay: 0.3s">
                 <div class="crm-stat-icon crm-stat-icon--info"><i data-lucide="user-plus"></i></div>
                 <div class="crm-stat-value" id="stat-new">{{ stats.new_this_month|default(0) }}</div>
-                <div class="crm-stat-label">NEW THIS MONTH</div>
+                <div class="crm-stat-label"><span data-i18n="crm.new_this_month">NEW THIS MONTH</span></div>
             </div>
             <div class="crm-stat-card" style="animation-delay: 0.4s">
                 <div class="crm-stat-icon crm-stat-icon--warning"><i data-lucide="dollar-sign"></i></div>
                 <div class="crm-stat-value" id="stat-ltv">${{ "%.0f"|format(stats.total_lifetime_value|default(0)|float) }}</div>
-                <div class="crm-stat-label">LIFETIME VALUE</div>
+                <div class="crm-stat-label"><span data-i18n="crm.lifetime_value">LIFETIME VALUE</span></div>
             </div>
         </div>
 
@@ -68,19 +68,19 @@
         <div class="crm-tabs">
             <button class="crm-tab active" data-tab="customers">
                 <i data-lucide="users"></i>
-                <span>Customers</span>
+                <span><span data-i18n="crm.customers">Customers</span></span>
             </button>
             <button class="crm-tab" data-tab="segments">
                 <i data-lucide="layers"></i>
-                <span>Segments</span>
+                <span><span data-i18n="crm.segments">Segments</span></span>
             </button>
             <button class="crm-tab" data-tab="interactions">
                 <i data-lucide="activity"></i>
-                <span>Activity</span>
+                <span><span data-i18n="crm.activity">Activity</span></span>
             </button>
             <button class="crm-tab" data-tab="analytics">
                 <i data-lucide="bar-chart-2"></i>
-                <span>Analytics</span>
+                <span><span data-i18n="crm.analytics">Analytics</span></span>
             </button>
         </div>
 
@@ -99,17 +99,17 @@
                                    placeholder="Search customers..." oninput="searchCustomers()">
                         </div>
                         <select class="crm-select" id="source-filter" onchange="filterCustomers()">
-                            <option value="">All Sources</option>
-                            <option value="manual">Manual</option>
-                            <option value="store">Store</option>
-                            <option value="call_center">Call Center</option>
-                            <option value="import">Import</option>
+                            <option value=""><span data-i18n="crm.all_sources">All Sources</span></option>
+                            <option value="manual"><span data-i18n="crm.manual">Manual</span></option>
+                            <option value="store"><span data-i18n="crm.store">Store</span></option>
+                            <option value="call_center"><span data-i18n="crm.call_center">Call Center</span></option>
+                            <option value="import"><span data-i18n="crm.import">Import</span></option>
                         </select>
                         <select class="crm-select" id="subscription-filter" onchange="filterCustomers()">
-                            <option value="">All Subscriptions</option>
-                            <option value="active">Active</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="none">No Subscription</option>
+                            <option value=""><span data-i18n="crm.all_subscriptions">All Subscriptions</span></option>
+                            <option value="active"><span data-i18n="crm.active">Active</span></option>
+                            <option value="cancelled"><span data-i18n="crm.cancelled">Cancelled</span></option>
+                            <option value="none"><span data-i18n="crm.no_subscription">No Subscription</span></option>
                         </select>
                     </div>
                 </div>
@@ -118,13 +118,13 @@
                     <table class="crm-table">
                         <thead>
                             <tr>
-                                <th>Customer</th>
-                                <th>Company</th>
-                                <th>Source</th>
-                                <th>Subscription</th>
-                                <th>Orders</th>
-                                <th>Lifetime Value</th>
-                                <th>Actions</th>
+                                <th><span data-i18n="crm.customer">Customer</span></th>
+                                <th><span data-i18n="crm.company">Company</span></th>
+                                <th><span data-i18n="crm.source">Source</span></th>
+                                <th><span data-i18n="crm.subscription">Subscription</span></th>
+                                <th><span data-i18n="crm.orders">Orders</span></th>
+                                <th><span data-i18n="crm.lifetime_value_2">Lifetime Value</span></th>
+                                <th><span data-i18n="crm.actions">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody id="customers-tbody">
@@ -147,9 +147,9 @@
                                     {% if customer.subscription_status == 'active' %}
                                     <span class="crm-badge crm-badge--success">{{ customer.subscription_tier or 'Active' }}</span>
                                     {% elif customer.subscription_status == 'cancelled' %}
-                                    <span class="crm-badge crm-badge--danger">Cancelled</span>
+                                    <span class="crm-badge crm-badge--danger"><span data-i18n="crm.cancelled_2">Cancelled</span></span>
                                     {% else %}
-                                    <span class="crm-badge crm-badge--muted">None</span>
+                                    <span class="crm-badge crm-badge--muted"><span data-i18n="crm.none">None</span></span>
                                     {% endif %}
                                 </td>
                                 <td>{{ customer.total_orders }}</td>
@@ -170,7 +170,7 @@
                                 <td colspan="7" class="crm-table-empty">
                                     <div class="crm-empty-state crm-empty-state--inline">
                                         <i data-lucide="users"></i>
-                                        <p>No customers yet. Add your first customer to get started!</p>
+                                        <p><span data-i18n="crm.no_customers_yet_add_your_first_customer_to_get_st">No customers yet. Add your first customer to get started!</span></p>
                                     </div>
                                 </td>
                             </tr>
@@ -201,20 +201,20 @@
                     <div class="crm-segment-header">
                         <h3 class="crm-segment-name">{{ segment.name }}</h3>
                         {% if segment.is_dynamic %}
-                        <span class="crm-badge crm-badge--info">Dynamic</span>
+                        <span class="crm-badge crm-badge--info"><span data-i18n="crm.dynamic">Dynamic</span></span>
                         {% endif %}
                     </div>
                     <p class="crm-segment-desc">{{ segment.description or 'No description' }}</p>
                     <div class="crm-segment-count">
                         <span class="crm-segment-value">{{ segment.customer_count }}</span>
-                        <span class="crm-segment-label">customers</span>
+                        <span class="crm-segment-label"><span data-i18n="crm.customers_2">customers</span></span>
                     </div>
                 </div>
                 {% else %}
                 <div class="crm-empty-state" style="grid-column: 1/-1;">
                     <div class="crm-empty-icon"><i data-lucide="layers"></i></div>
-                    <h3>No Segments</h3>
-                    <p>Create segments to organize your customers</p>
+                    <h3><span data-i18n="crm.no_segments">No Segments</span></h3>
+                    <p><span data-i18n="crm.create_segments_to_organize_your_customers">Create segments to organize your customers</span></p>
                     <button class="crm-btn crm-btn--primary" onclick="showCreateSegmentModal()">
                         <i data-lucide="plus"></i>
                         Create Segment
@@ -256,7 +256,7 @@
                     {% else %}
                     <div class="crm-empty-state crm-empty-state--small">
                         <i data-lucide="activity"></i>
-                        <p>No recent activity recorded</p>
+                        <p><span data-i18n="crm.no_recent_activity_recorded">No recent activity recorded</span></p>
                     </div>
                     {% endfor %}
                 </div>
@@ -304,19 +304,19 @@
                     <div class="crm-quick-stats">
                         <div class="crm-quick-stat">
                             <div class="crm-quick-stat-value" style="color: var(--archie-pink);">{{ stats.total_customers }}</div>
-                            <div class="crm-quick-stat-label">Total Customers</div>
+                            <div class="crm-quick-stat-label"><span data-i18n="crm.total_customers_2">Total Customers</span></div>
                         </div>
                         <div class="crm-quick-stat">
                             <div class="crm-quick-stat-value" style="color: var(--archie-success);">{{ stats.active_subscribers }}</div>
-                            <div class="crm-quick-stat-label">Active Subscribers</div>
+                            <div class="crm-quick-stat-label"><span data-i18n="crm.active_subscribers">Active Subscribers</span></div>
                         </div>
                         <div class="crm-quick-stat">
                             <div class="crm-quick-stat-value" style="color: var(--archie-warning);">{{ stats.new_this_month }}</div>
-                            <div class="crm-quick-stat-label">New This Month</div>
+                            <div class="crm-quick-stat-label"><span data-i18n="crm.new_this_month_2">New This Month</span></div>
                         </div>
                         <div class="crm-quick-stat">
                             <div class="crm-quick-stat-value" style="color: var(--archie-info);">${{ "%.0f"|format(stats.avg_lifetime_value|default(0)|float) }}</div>
-                            <div class="crm-quick-stat-label">Avg. Lifetime Value</div>
+                            <div class="crm-quick-stat-label"><span data-i18n="crm.avg_lifetime_value">Avg. Lifetime Value</span></div>
                         </div>
                     </div>
                 </div>
@@ -329,7 +329,7 @@
 <div class="crm-modal-overlay" id="add-customer-modal">
     <div class="crm-modal">
         <div class="crm-modal-header">
-            <h2 id="customer-modal-title">Add Customer</h2>
+            <h2 id="customer-modal-title"><span data-i18n="crm.add_customer">Add Customer</span></h2>
             <button class="crm-modal-close" onclick="closeModal('add-customer-modal')">
                 <i data-lucide="x"></i>
             </button>
@@ -338,45 +338,45 @@
             <input type="hidden" id="customer-id">
             <div class="crm-form-row">
                 <div class="crm-form-group">
-                    <label class="crm-label">Email *</label>
+                    <label class="crm-label"><span data-i18n="crm.email">Email *</span></label>
                     <input type="email" class="crm-input" id="customer-email" required>
                 </div>
                 <div class="crm-form-group">
-                    <label class="crm-label">Phone</label>
+                    <label class="crm-label"><span data-i18n="crm.phone">Phone</span></label>
                     <input type="tel" class="crm-input" id="customer-phone">
                 </div>
             </div>
             <div class="crm-form-row">
                 <div class="crm-form-group">
-                    <label class="crm-label">First Name</label>
+                    <label class="crm-label"><span data-i18n="crm.first_name">First Name</span></label>
                     <input type="text" class="crm-input" id="customer-first-name">
                 </div>
                 <div class="crm-form-group">
-                    <label class="crm-label">Last Name</label>
+                    <label class="crm-label"><span data-i18n="crm.last_name">Last Name</span></label>
                     <input type="text" class="crm-input" id="customer-last-name">
                 </div>
             </div>
             <div class="crm-form-group">
-                <label class="crm-label">Company</label>
+                <label class="crm-label"><span data-i18n="crm.company_2">Company</span></label>
                 <input type="text" class="crm-input" id="customer-company">
             </div>
             <div class="crm-form-row">
                 <div class="crm-form-group">
-                    <label class="crm-label">City</label>
+                    <label class="crm-label"><span data-i18n="crm.city">City</span></label>
                     <input type="text" class="crm-input" id="customer-city">
                 </div>
                 <div class="crm-form-group">
-                    <label class="crm-label">Country</label>
+                    <label class="crm-label"><span data-i18n="crm.country">Country</span></label>
                     <input type="text" class="crm-input" id="customer-country" value="Canada">
                 </div>
             </div>
             <div class="crm-form-group">
-                <label class="crm-label">Notes</label>
+                <label class="crm-label"><span data-i18n="crm.notes">Notes</span></label>
                 <textarea class="crm-textarea" id="customer-notes" rows="3"></textarea>
             </div>
             <div class="crm-modal-actions">
-                <button type="button" class="crm-btn crm-btn--outline" onclick="closeModal('add-customer-modal')">Cancel</button>
-                <button type="submit" class="crm-btn crm-btn--primary">Save Customer</button>
+                <button type="button" class="crm-btn crm-btn--outline" onclick="closeModal('add-customer-modal')"><span data-i18n="crm.cancel">Cancel</span></button>
+                <button type="submit" class="crm-btn crm-btn--primary"><span data-i18n="crm.save_customer">Save Customer</span></button>
             </div>
         </form>
     </div>
@@ -386,13 +386,13 @@
 <div class="crm-modal-overlay" id="view-customer-modal">
     <div class="crm-modal crm-modal--large">
         <div class="crm-modal-header">
-            <h2 id="view-customer-title">Customer Details</h2>
+            <h2 id="view-customer-title"><span data-i18n="crm.customer_details">Customer Details</span></h2>
             <button class="crm-modal-close" onclick="closeModal('view-customer-modal')">
                 <i data-lucide="x"></i>
             </button>
         </div>
         <div id="view-customer-body" class="crm-customer-detail">
-            <div class="crm-loading">Loading customer details...</div>
+            <div class="crm-loading"><span data-i18n="crm.loading_customer_details">Loading customer details...</span></div>
         </div>
     </div>
 </div>
@@ -401,20 +401,20 @@
 <div class="crm-modal-overlay" id="import-modal">
     <div class="crm-modal crm-modal--sm">
         <div class="crm-modal-header">
-            <h2>Import Customers</h2>
+            <h2><span data-i18n="crm.import_customers">Import Customers</span></h2>
             <button class="crm-modal-close" onclick="closeModal('import-modal')">
                 <i data-lucide="x"></i>
             </button>
         </div>
         <form id="import-form" onsubmit="importCustomers(event)">
-            <p class="crm-modal-desc">Upload a CSV file with customer data. Required: email. Optional: first_name, last_name, phone, company, city.</p>
+            <p class="crm-modal-desc"><span data-i18n="crm.upload_a_csv_file_with_customer_data_required_emai">Upload a CSV file with customer data. Required: email. Optional: first_name, last_name, phone, company, city.</span></p>
             <div class="crm-form-group">
-                <label class="crm-label">CSV File</label>
+                <label class="crm-label"><span data-i18n="crm.csv_file">CSV File</span></label>
                 <input type="file" class="crm-input" id="import-file" accept=".csv" required>
             </div>
             <div class="crm-modal-actions">
-                <button type="button" class="crm-btn crm-btn--outline" onclick="closeModal('import-modal')">Cancel</button>
-                <button type="submit" class="crm-btn crm-btn--primary">Import</button>
+                <button type="button" class="crm-btn crm-btn--outline" onclick="closeModal('import-modal')"><span data-i18n="crm.cancel_2">Cancel</span></button>
+                <button type="submit" class="crm-btn crm-btn--primary"><span data-i18n="crm.import_2">Import</span></button>
             </div>
         </form>
     </div>
@@ -424,36 +424,36 @@
 <div class="crm-modal-overlay" id="segment-modal">
     <div class="crm-modal crm-modal--sm">
         <div class="crm-modal-header">
-            <h2>Create Segment</h2>
+            <h2><span data-i18n="crm.create_segment">Create Segment</span></h2>
             <button class="crm-modal-close" onclick="closeModal('segment-modal')">
                 <i data-lucide="x"></i>
             </button>
         </div>
         <form id="segment-form" onsubmit="saveSegment(event)">
             <div class="crm-form-group">
-                <label class="crm-label">Segment Name *</label>
+                <label class="crm-label"><span data-i18n="crm.segment_name">Segment Name *</span></label>
                 <input type="text" class="crm-input" id="segment-name" required>
             </div>
             <div class="crm-form-group">
-                <label class="crm-label">Description</label>
+                <label class="crm-label"><span data-i18n="crm.description">Description</span></label>
                 <textarea class="crm-textarea" id="segment-description" rows="2"></textarea>
             </div>
             <div class="crm-form-group">
-                <label class="crm-label">Filter Type</label>
+                <label class="crm-label"><span data-i18n="crm.filter_type">Filter Type</span></label>
                 <select class="crm-select" id="segment-filter-type">
-                    <option value="subscription_status">Subscription Status</option>
-                    <option value="source">Source</option>
-                    <option value="lifetime_value_gt">Lifetime Value Greater Than</option>
-                    <option value="total_orders">Total Orders</option>
+                    <option value="subscription_status"><span data-i18n="crm.subscription_status">Subscription Status</span></option>
+                    <option value="source"><span data-i18n="crm.source_2">Source</span></option>
+                    <option value="lifetime_value_gt"><span data-i18n="crm.lifetime_value_greater_than">Lifetime Value Greater Than</span></option>
+                    <option value="total_orders"><span data-i18n="crm.total_orders">Total Orders</span></option>
                 </select>
             </div>
             <div class="crm-form-group">
-                <label class="crm-label">Filter Value</label>
+                <label class="crm-label"><span data-i18n="crm.filter_value">Filter Value</span></label>
                 <input type="text" class="crm-input" id="segment-filter-value" placeholder="e.g., active, store, 500">
             </div>
             <div class="crm-modal-actions">
-                <button type="button" class="crm-btn crm-btn--outline" onclick="closeModal('segment-modal')">Cancel</button>
-                <button type="submit" class="crm-btn crm-btn--primary">Create Segment</button>
+                <button type="button" class="crm-btn crm-btn--outline" onclick="closeModal('segment-modal')"><span data-i18n="crm.cancel_3">Cancel</span></button>
+                <button type="submit" class="crm-btn crm-btn--primary"><span data-i18n="crm.create_segment_2">Create Segment</span></button>
             </div>
         </form>
     </div>

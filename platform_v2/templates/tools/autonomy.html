@@ -93,62 +93,62 @@
     <div class="container">
         <div class="page-header">
             <div>
-                <h1>Autonomy — Agent Loop</h1>
-                <div class="subtitle">Proactive queue processing, approval management, and autonomous operations</div>
+                <h1><span data-i18n="autonomy.autonomy_agent_loop">Autonomy — Agent Loop</span></h1>
+                <div class="subtitle"><span data-i18n="autonomy.proactive_queue_processing_approval_management_and">Proactive queue processing, approval management, and autonomous operations</span></div>
             </div>
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <div id="loopStatus" class="status-badge stopped">
                     <span class="dot"></span>
-                    <span class="label">Stopped</span>
+                    <span class="label"><span data-i18n="autonomy.stopped">Stopped</span></span>
                 </div>
-                <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()">Start Loop</button>
+                <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()"><span data-i18n="autonomy.start_loop">Start Loop</span></button>
             </div>
         </div>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('overview', this)">Overview</button>
-            <button class="tab" onclick="switchTab('approvals', this)">Approvals <span id="approvalBadge" style="background:rgba(255,170,0,0.2);color:#FFAA00;padding:0.1rem 0.4rem;border-radius:8px;font-size:0.7rem;margin-left:0.25rem;display:none;">0</span></button>
-            <button class="tab" onclick="switchTab('history', this)">History</button>
-            <button class="tab" onclick="switchTab('config', this)">Config</button>
+            <button class="tab active" onclick="switchTab('overview', this)"><span data-i18n="autonomy.overview">Overview</span></button>
+            <button class="tab" onclick="switchTab('approvals', this)"><span data-i18n="autonomy.approvals">Approvals </span><span id="approvalBadge" style="background:rgba(255,170,0,0.2);color:#FFAA00;padding:0.1rem 0.4rem;border-radius:8px;font-size:0.7rem;margin-left:0.25rem;display:none;">0</span></button>
+            <button class="tab" onclick="switchTab('history', this)"><span data-i18n="autonomy.history">History</span></button>
+            <button class="tab" onclick="switchTab('config', this)"><span data-i18n="autonomy.config">Config</span></button>
         </div>
 
         <!-- Overview Tab -->
         <div id="tab-overview" class="tab-content active">
             <div class="card-grid">
                 <div class="card">
-                    <div class="card-header"><span class="card-title">Active Jobs</span></div>
+                    <div class="card-header"><span class="card-title"><span data-i18n="autonomy.active_jobs">Active Jobs</span></span></div>
                     <div class="card-value" id="activeJobCount">0</div>
-                    <div class="card-label">Scheduled jobs running</div>
+                    <div class="card-label"><span data-i18n="autonomy.scheduled_jobs_running">Scheduled jobs running</span></div>
                 </div>
                 <div class="card">
-                    <div class="card-header"><span class="card-title">Processed (24h)</span></div>
+                    <div class="card-header"><span class="card-title"><span data-i18n="autonomy.processed_24h">Processed (24h)</span></span></div>
                     <div class="card-value" id="processedCount" style="color: #00ff41;">0</div>
-                    <div class="card-label">Items processed successfully</div>
+                    <div class="card-label"><span data-i18n="autonomy.items_processed_successfully">Items processed successfully</span></div>
                 </div>
                 <div class="card">
-                    <div class="card-header"><span class="card-title">Failed (24h)</span></div>
+                    <div class="card-header"><span class="card-title"><span data-i18n="autonomy.failed_24h">Failed (24h)</span></span></div>
                     <div class="card-value" id="failedCount" style="color: #ff4136;">0</div>
-                    <div class="card-label">Items that failed processing</div>
+                    <div class="card-label"><span data-i18n="autonomy.items_that_failed_processing">Items that failed processing</span></div>
                 </div>
                 <div class="card">
-                    <div class="card-header"><span class="card-title">Pending Approvals</span></div>
+                    <div class="card-header"><span class="card-title"><span data-i18n="autonomy.pending_approvals">Pending Approvals</span></span></div>
                     <div class="card-value" id="pendingCount" style="color: #FFAA00;">0</div>
-                    <div class="card-label">Actions awaiting human review</div>
+                    <div class="card-label"><span data-i18n="autonomy.actions_awaiting_human_review">Actions awaiting human review</span></div>
                 </div>
             </div>
 
-            <h3 style="color:#c9d1d9; margin-bottom:1rem; font-size:0.95rem;">Job Status</h3>
+            <h3 style="color:#c9d1d9; margin-bottom:1rem; font-size:0.95rem;"><span data-i18n="autonomy.job_status">Job Status</span></h3>
             <div id="jobCards" style="display:grid; gap:0.75rem; margin-bottom:2rem;">
-                <div class="empty-state">Loading job data...</div>
+                <div class="empty-state"><span data-i18n="autonomy.loading_job_data">Loading job data...</span></div>
             </div>
 
-            <h3 style="color:#c9d1d9; margin-bottom:1rem; font-size:0.95rem;">Recent Activity</h3>
+            <h3 style="color:#c9d1d9; margin-bottom:1rem; font-size:0.95rem;"><span data-i18n="autonomy.recent_activity">Recent Activity</span></h3>
             <table class="data-table">
                 <thead>
-                    <tr><th>Job</th><th>Status</th><th>Processed</th><th>Failed</th><th>Duration</th><th>Time</th></tr>
+                    <tr><th><span data-i18n="autonomy.job">Job</span></th><th><span data-i18n="autonomy.status">Status</span></th><th><span data-i18n="autonomy.processed">Processed</span></th><th><span data-i18n="autonomy.failed">Failed</span></th><th><span data-i18n="autonomy.duration">Duration</span></th><th><span data-i18n="autonomy.time">Time</span></th></tr>
                 </thead>
                 <tbody id="recentLogs">
-                    <tr><td colspan="6" style="text-align:center; color:#8b949e;">Loading...</td></tr>
+                    <tr><td colspan="6" style="text-align:center; color:#8b949e;"><span data-i18n="autonomy.loading">Loading...</span></td></tr>
                 </tbody>
             </table>
         </div>
@@ -157,14 +157,14 @@
         <div id="tab-approvals" class="tab-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
                 <div class="btn-group">
-                    <button class="btn btn-sm btn-warning" onclick="loadApprovals('pending')">Pending</button>
-                    <button class="btn btn-sm btn-success" onclick="loadApprovals('approved')">Approved</button>
-                    <button class="btn btn-sm btn-danger" onclick="loadApprovals('rejected')">Rejected</button>
-                    <button class="btn btn-sm" onclick="loadApprovals('all')">All</button>
+                    <button class="btn btn-sm btn-warning" onclick="loadApprovals('pending')"><span data-i18n="autonomy.pending">Pending</span></button>
+                    <button class="btn btn-sm btn-success" onclick="loadApprovals('approved')"><span data-i18n="autonomy.approved">Approved</span></button>
+                    <button class="btn btn-sm btn-danger" onclick="loadApprovals('rejected')"><span data-i18n="autonomy.rejected">Rejected</span></button>
+                    <button class="btn btn-sm" onclick="loadApprovals('all')"><span data-i18n="autonomy.all">All</span></button>
                 </div>
             </div>
             <div id="approvalsList">
-                <div class="empty-state"><div class="icon">&#x2713;</div>No pending approvals</div>
+                <div class="empty-state"><div class="icon">&#x2713;</div><span data-i18n="autonomy.no_pending_approvals">No pending approvals</span></div>
             </div>
         </div>
 
@@ -172,11 +172,11 @@
         <div id="tab-history" class="tab-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
                 <div class="btn-group">
-                    <button class="btn btn-sm" onclick="loadHistory(null)">All Jobs</button>
-                    <button class="btn btn-sm" onclick="loadHistory('email_queue')">Email</button>
-                    <button class="btn btn-sm" onclick="loadHistory('scheduled_tasks')">Tasks</button>
-                    <button class="btn btn-sm" onclick="loadHistory('reminders')">Reminders</button>
-                    <button class="btn btn-sm" onclick="loadHistory('approvals')">Approvals</button>
+                    <button class="btn btn-sm" onclick="loadHistory(null)"><span data-i18n="autonomy.all_jobs">All Jobs</span></button>
+                    <button class="btn btn-sm" onclick="loadHistory('email_queue')"><span data-i18n="autonomy.email">Email</span></button>
+                    <button class="btn btn-sm" onclick="loadHistory('scheduled_tasks')"><span data-i18n="autonomy.tasks">Tasks</span></button>
+                    <button class="btn btn-sm" onclick="loadHistory('reminders')"><span data-i18n="autonomy.reminders">Reminders</span></button>
+                    <button class="btn btn-sm" onclick="loadHistory('approvals')"><span data-i18n="autonomy.approvals_2">Approvals</span></button>
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-sm" onclick="loadHistory(currentHistoryJob, 6)">6h</button>
@@ -186,10 +186,10 @@
             </div>
             <table class="data-table">
                 <thead>
-                    <tr><th>Job</th><th>Status</th><th>Processed</th><th>Failed</th><th>Duration</th><th>Error</th><th>Time</th></tr>
+                    <tr><th><span data-i18n="autonomy.job_2">Job</span></th><th><span data-i18n="autonomy.status_2">Status</span></th><th><span data-i18n="autonomy.processed_2">Processed</span></th><th><span data-i18n="autonomy.failed_2">Failed</span></th><th><span data-i18n="autonomy.duration_2">Duration</span></th><th><span data-i18n="autonomy.error">Error</span></th><th><span data-i18n="autonomy.time_2">Time</span></th></tr>
                 </thead>
                 <tbody id="historyLogs">
-                    <tr><td colspan="7" style="text-align:center; color:#8b949e;">Select a filter to load history</td></tr>
+                    <tr><td colspan="7" style="text-align:center; color:#8b949e;"><span data-i18n="autonomy.select_a_filter_to_load_history">Select a filter to load history</span></td></tr>
                 </tbody>
             </table>
         </div>
@@ -197,7 +197,7 @@
         <!-- Config Tab -->
         <div id="tab-config" class="tab-content">
             <div id="configList">
-                <div class="empty-state">Loading configuration...</div>
+                <div class="empty-state"><span data-i18n="autonomy.loading_configuration">Loading configuration...</span></div>
             </div>
         </div>
     </div>

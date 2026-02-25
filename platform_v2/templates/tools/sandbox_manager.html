@@ -605,8 +605,8 @@
     <div class="category-header" style="color: #00FFFF;">
         <i data-lucide="test-tube-2" style="width: 32px; height: 32px;"></i>
         <div class="category-header-text">
-            <h1>SANDBOX MANAGER</h1>
-            <p>Safe deployments, test results, visual access</p>
+            <h1><span data-i18n="sandbox_manager.sandbox_manager">SANDBOX MANAGER</span></h1>
+            <p><span data-i18n="sandbox_manager.safe_deployments_test_results_visual_access">Safe deployments, test results, visual access</span></p>
         </div>
     </div>
 
@@ -615,10 +615,10 @@
     <div class="container">
         <!-- Tab Navigation -->
         <div class="tab-nav">
-            <button class="tab-btn active" onclick="switchTab('environments')">&#x1F4E6; Environments</button>
-            <button class="tab-btn" onclick="switchTab('test-results')">&#x2705; Test Results</button>
-            <button class="tab-btn" onclick="switchTab('deployments')">&#x1F680; Deployments</button>
-            <button class="tab-btn" onclick="switchTab('config')">&#x2699;&#xFE0F; Configuration</button>
+            <button class="tab-btn active" onclick="switchTab('environments')"><span data-i18n="sandbox_manager.x1f4e6_environments">&#x1F4E6; Environments</span></button>
+            <button class="tab-btn" onclick="switchTab('test-results')"><span data-i18n="sandbox_manager.x2705_test_results">&#x2705; Test Results</span></button>
+            <button class="tab-btn" onclick="switchTab('deployments')"><span data-i18n="sandbox_manager.x1f680_deployments">&#x1F680; Deployments</span></button>
+            <button class="tab-btn" onclick="switchTab('config')"><span data-i18n="sandbox_manager.x2699_xfe0f_configuration">&#x2699;&#xFE0F; Configuration</span></button>
         </div>
 
         <!-- ENVIRONMENTS TAB -->
@@ -626,54 +626,54 @@
             <!-- Stats -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <h3>Total Environments</h3>
+                    <h3><span data-i18n="sandbox_manager.total_environments">Total Environments</span></h3>
                     <div class="value" id="stat-total">0</div>
                 </div>
                 <div class="stat-card active">
-                    <h3>Active</h3>
+                    <h3><span data-i18n="sandbox_manager.active">Active</span></h3>
                     <div class="value" id="stat-active">0</div>
                 </div>
                 <div class="stat-card testing">
-                    <h3>Testing</h3>
+                    <h3><span data-i18n="sandbox_manager.testing">Testing</span></h3>
                     <div class="value" id="stat-testing">0</div>
                 </div>
                 <div class="stat-card schema">
-                    <h3>Schema Type</h3>
+                    <h3><span data-i18n="sandbox_manager.schema_type">Schema Type</span></h3>
                     <div class="value" id="stat-schema">0</div>
                 </div>
                 <div class="stat-card docker">
-                    <h3>Docker Type</h3>
+                    <h3><span data-i18n="sandbox_manager.docker_type">Docker Type</span></h3>
                     <div class="value" id="stat-docker">0</div>
                 </div>
             </div>
 
-            <div class="section-title">&#x1F3D7;&#xFE0F; Module Environments</div>
+            <div class="section-title"><span data-i18n="sandbox_manager.x1f3d7_xfe0f_module_environments">&#x1F3D7;&#xFE0F; Module Environments</span></div>
             <div class="environments-grid" id="environmentsGrid">
                 <div class="loading-overlay">
                     <div class="spinner"></div>
-                    <p style="margin-top: 15px;">Loading environments...</p>
+                    <p style="margin-top: 15px;"><span data-i18n="sandbox_manager.loading_environments">Loading environments...</span></p>
                 </div>
             </div>
         </div>
 
         <!-- TEST RESULTS TAB -->
         <div class="tab-content" id="tab-test-results">
-            <div class="section-title">&#x1F4CA; Recent Test Results</div>
+            <div class="section-title"><span data-i18n="sandbox_manager.x1f4ca_recent_test_results">&#x1F4CA; Recent Test Results</span></div>
             <table class="results-table" id="resultsTable">
                 <thead>
                     <tr>
-                        <th>Module</th>
-                        <th>Test Suite</th>
-                        <th>Status</th>
-                        <th>Passed</th>
-                        <th>Failed</th>
-                        <th>Duration</th>
-                        <th>Run At</th>
+                        <th><span data-i18n="sandbox_manager.module">Module</span></th>
+                        <th><span data-i18n="sandbox_manager.test_suite">Test Suite</span></th>
+                        <th><span data-i18n="sandbox_manager.status">Status</span></th>
+                        <th><span data-i18n="sandbox_manager.passed">Passed</span></th>
+                        <th><span data-i18n="sandbox_manager.failed">Failed</span></th>
+                        <th><span data-i18n="sandbox_manager.duration">Duration</span></th>
+                        <th><span data-i18n="sandbox_manager.run_at">Run At</span></th>
                     </tr>
                 </thead>
                 <tbody id="resultsBody">
                     <tr>
-                        <td colspan="7" class="empty-state">Loading test results...</td>
+                        <td colspan="7" class="empty-state"><span data-i18n="sandbox_manager.loading_test_results">Loading test results...</span></td>
                     </tr>
                 </tbody>
             </table>
@@ -681,42 +681,42 @@
 
         <!-- DEPLOYMENTS TAB -->
         <div class="tab-content" id="tab-deployments">
-            <div class="section-title">&#x1F680; Recent Deployments</div>
+            <div class="section-title"><span data-i18n="sandbox_manager.x1f680_recent_deployments">&#x1F680; Recent Deployments</span></div>
             <div id="deploymentsContainer">
                 <div class="loading-overlay">
                     <div class="spinner"></div>
-                    <p style="margin-top: 15px;">Loading deployments...</p>
+                    <p style="margin-top: 15px;"><span data-i18n="sandbox_manager.loading_deployments">Loading deployments...</span></p>
                 </div>
             </div>
         </div>
 
         <!-- CONFIGURATION TAB -->
         <div class="tab-content" id="tab-config">
-            <div class="section-title">&#x2699;&#xFE0F; Sandbox Configuration</div>
+            <div class="section-title"><span data-i18n="sandbox_manager.x2699_xfe0f_sandbox_configuration">&#x2699;&#xFE0F; Sandbox Configuration</span></div>
             <div class="config-grid">
                 <div class="config-card">
-                    <h4>General Settings</h4>
+                    <h4><span data-i18n="sandbox_manager.general_settings">General Settings</span></h4>
                     <div class="config-item">
-                        <label>Default Sandbox Type</label>
+                        <label><span data-i18n="sandbox_manager.default_sandbox_type">Default Sandbox Type</span></label>
                         <select id="config-default-type">
-                            <option value="schema">Schema (Lightweight DB Isolation)</option>
-                            <option value="docker">Docker (Full Container Isolation)</option>
+                            <option value="schema"><span data-i18n="sandbox_manager.schema_lightweight_db_isolation">Schema (Lightweight DB Isolation)</span></option>
+                            <option value="docker"><span data-i18n="sandbox_manager.docker_full_container_isolation">Docker (Full Container Isolation)</span></option>
                         </select>
                     </div>
                     <div class="config-item">
-                        <label>Max Concurrent Sandboxes</label>
+                        <label><span data-i18n="sandbox_manager.max_concurrent_sandboxes">Max Concurrent Sandboxes</span></label>
                         <input type="number" id="config-max-concurrent" value="5" min="1" max="10">
                     </div>
                     <div class="config-item">
-                        <label>Auto-Cleanup Hours (0 = disabled)</label>
+                        <label><span data-i18n="sandbox_manager.auto_cleanup_hours_0_disabled">Auto-Cleanup Hours (0 = disabled)</span></label>
                         <input type="number" id="config-cleanup-hours" value="24" min="0">
                     </div>
                 </div>
 
                 <div class="config-card">
-                    <h4>Test Settings</h4>
+                    <h4><span data-i18n="sandbox_manager.test_settings">Test Settings</span></h4>
                     <div class="config-item">
-                        <label>Test Timeout (seconds)</label>
+                        <label><span data-i18n="sandbox_manager.test_timeout_seconds">Test Timeout (seconds)</span></label>
                         <input type="number" id="config-test-timeout" value="300" min="60">
                     </div>
                     <div class="config-item">
@@ -734,16 +734,16 @@
                 </div>
 
                 <div class="config-card">
-                    <h4>Environment Types</h4>
+                    <h4><span data-i18n="sandbox_manager.environment_types">Environment Types</span></h4>
                     <div style="color: #888; font-size: 0.85rem; line-height: 1.6;">
-                        <p><strong style="color: #00FFFF;">Schema:</strong> Uses PostgreSQL schema isolation. Fast to create (&lt;1s), shares same DB. Best for most tests.</p>
+                        <p><strong style="color: #00FFFF;"><span data-i18n="sandbox_manager.schema">Schema:</span></strong><span data-i18n="sandbox_manager.uses_postgresql_schema_isolation_fast_to_create_lt"> Uses PostgreSQL schema isolation. Fast to create (&lt;1s), shares same DB. Best for most tests.</span></p>
                         <br>
-                        <p><strong style="color: #9B59B6;">Docker:</strong> Full container isolation. Takes longer to create but provides complete isolation. Use for high-risk changes.</p>
+                        <p><strong style="color: #9B59B6;"><span data-i18n="sandbox_manager.docker">Docker:</span></strong><span data-i18n="sandbox_manager.full_container_isolation_takes_longer_to_create_bu"> Full container isolation. Takes longer to create but provides complete isolation. Use for high-risk changes.</span></p>
                     </div>
                 </div>
             </div>
             <div style="margin-top: 20px;">
-                <button class="btn" onclick="saveConfig()">Save Configuration</button>
+                <button class="btn" onclick="saveConfig()"><span data-i18n="sandbox_manager.save_configuration">Save Configuration</span></button>
             </div>
         </div>
     </div>
@@ -752,8 +752,8 @@
     <div class="modal-overlay" id="detailsModal">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title" id="detailsTitle">Environment Details</h3>
-                <button class="modal-close" onclick="hideModal('detailsModal')">&times;</button>
+                <h3 class="modal-title" id="detailsTitle"><span data-i18n="sandbox_manager.environment_details">Environment Details</span></h3>
+                <button class="modal-close" onclick="hideModal('detailsModal')"><span data-i18n="sandbox_manager.times">&times;</span></button>
             </div>
             <div id="detailsContent">
                 <!-- Populated by JavaScript -->

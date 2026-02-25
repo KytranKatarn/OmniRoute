@@ -487,28 +487,28 @@
         <div class="stats-bar">
             <div class="stat-card">
                 <p class="stat-value">{{ stores|length }}</p>
-                <p class="stat-label">Total Stores</p>
+                <p class="stat-label"><span data-i18n="store_builder.total_stores">Total Stores</span></p>
             </div>
             <div class="stat-card">
                 <p class="stat-value">{{ order_stats.pending or 0 }}</p>
-                <p class="stat-label">Pending Orders</p>
+                <p class="stat-label"><span data-i18n="store_builder.pending_orders">Pending Orders</span></p>
             </div>
             <div class="stat-card">
                 <p class="stat-value">${{ "%.2f"|format(order_stats.revenue or 0) }}</p>
-                <p class="stat-label">30-Day Revenue</p>
+                <p class="stat-label"><span data-i18n="store_builder.30_day_revenue">30-Day Revenue</span></p>
             </div>
             <div class="stat-card">
                 <p class="stat-value">{{ integrations|length }}/3</p>
-                <p class="stat-label">Payments Connected</p>
+                <p class="stat-label"><span data-i18n="store_builder.payments_connected">Payments Connected</span></p>
             </div>
         </div>
     </div>
 
     <!-- Tabs -->
     <div class="store-tabs">
-        <button class="tab-btn active" data-tab="stores">My Stores</button>
-        <button class="tab-btn" data-tab="orders">Recent Orders</button>
-        <button class="tab-btn" data-tab="integrations">Payments</button>
+        <button class="tab-btn active" data-tab="stores"><span data-i18n="store_builder.my_stores">My Stores</span></button>
+        <button class="tab-btn" data-tab="orders"><span data-i18n="store_builder.recent_orders">Recent Orders</span></button>
+        <button class="tab-btn" data-tab="integrations"><span data-i18n="store_builder.payments">Payments</span></button>
     </div>
 
     <!-- Stores Tab -->
@@ -527,15 +527,15 @@
                 <div class="store-stats">
                     <div class="store-stat">
                         <div class="store-stat-value">{{ store.product_count or 0 }}</div>
-                        <div class="store-stat-label">Products</div>
+                        <div class="store-stat-label"><span data-i18n="store_builder.products">Products</span></div>
                     </div>
                     <div class="store-stat">
                         <div class="store-stat-value">{{ store.order_count or 0 }}</div>
-                        <div class="store-stat-label">Orders</div>
+                        <div class="store-stat-label"><span data-i18n="store_builder.orders">Orders</span></div>
                     </div>
                     <div class="store-stat">
                         <div class="store-stat-value">${{ "%.0f"|format(store.revenue or 0) }}</div>
-                        <div class="store-stat-label">Revenue</div>
+                        <div class="store-stat-label"><span data-i18n="store_builder.revenue">Revenue</span></div>
                     </div>
                 </div>
 
@@ -556,8 +556,8 @@
         {% else %}
         <div class="empty-state">
             <div class="empty-icon">&#128722;</div>
-            <h2 class="empty-title">No stores yet</h2>
-            <p class="empty-text">Create your first e-commerce store and start selling</p>
+            <h2 class="empty-title"><span data-i18n="store_builder.no_stores_yet">No stores yet</span></h2>
+            <p class="empty-text"><span data-i18n="store_builder.create_your_first_e_commerce_store_and_start_selli">Create your first e-commerce store and start selling</span></p>
             <button class="btn-primary" onclick="openNewStoreModal()">
                 Create Store
             </button>
@@ -568,15 +568,15 @@
     <!-- Orders Tab -->
     <div class="tab-content" id="tab-orders" style="display: none;">
         <div class="orders-panel">
-            <h3 style="margin: 0 0 15px 0;">Recent Orders</h3>
+            <h3 style="margin: 0 0 15px 0;"><span data-i18n="store_builder.recent_orders_2">Recent Orders</span></h3>
             <table class="orders-table">
                 <thead>
                     <tr>
-                        <th>Order #</th>
-                        <th>Customer</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th>Date</th>
+                        <th><span data-i18n="store_builder.order">Order #</span></th>
+                        <th><span data-i18n="store_builder.customer">Customer</span></th>
+                        <th><span data-i18n="store_builder.total">Total</span></th>
+                        <th><span data-i18n="store_builder.status">Status</span></th>
+                        <th><span data-i18n="store_builder.date">Date</span></th>
                     </tr>
                 </thead>
                 <tbody id="ordersTableBody">
@@ -593,15 +593,15 @@
     <!-- Integrations Tab -->
     <div class="tab-content" id="tab-integrations" style="display: none;">
         <div class="integrations-panel">
-            <h3 style="margin: 0;">Payment Providers</h3>
-            <p style="color: #6b7280; margin: 5px 0 0 0;">Connect your payment accounts to accept payments</p>
+            <h3 style="margin: 0;"><span data-i18n="store_builder.payment_providers">Payment Providers</span></h3>
+            <p style="color: #6b7280; margin: 5px 0 0 0;"><span data-i18n="store_builder.connect_your_payment_accounts_to_accept_payments">Connect your payment accounts to accept payments</span></p>
 
             <div class="integrations-grid">
                 <div class="integration-card {% if integrations.get('stripe') %}connected{% endif %}"
                      onclick="managePaymentIntegration('stripe')">
                     <div class="integration-icon">&#128179;</div>
                     <div>
-                        <div class="integration-name">Stripe</div>
+                        <div class="integration-name"><span data-i18n="store_builder.stripe">Stripe</span></div>
                         <div class="integration-status {% if integrations.get('stripe') %}connected{% endif %}">
                             {% if integrations.get('stripe') %}Connected{% else %}Not connected{% endif %}
                         </div>
@@ -612,7 +612,7 @@
                      onclick="managePaymentIntegration('paypal')">
                     <div class="integration-icon">&#128176;</div>
                     <div>
-                        <div class="integration-name">PayPal</div>
+                        <div class="integration-name"><span data-i18n="store_builder.paypal">PayPal</span></div>
                         <div class="integration-status {% if integrations.get('paypal') %}connected{% endif %}">
                             {% if integrations.get('paypal') %}Connected{% else %}Not connected{% endif %}
                         </div>
@@ -623,7 +623,7 @@
                      onclick="managePaymentIntegration('printful')">
                     <div class="integration-icon">&#128085;</div>
                     <div>
-                        <div class="integration-name">Printful</div>
+                        <div class="integration-name"><span data-i18n="store_builder.printful">Printful</span></div>
                         <div class="integration-status {% if integrations.get('printful') %}connected{% endif %}">
                             {% if integrations.get('printful') %}Connected{% else %}Not connected{% endif %}
                         </div>
@@ -638,22 +638,22 @@
 <div class="modal-overlay" id="newStoreModal">
     <div class="modal">
         <div class="modal-header">
-            <h2 class="modal-title">Create New Store</h2>
-            <button class="modal-close" onclick="closeModal('newStoreModal')">&times;</button>
+            <h2 class="modal-title"><span data-i18n="store_builder.create_new_store">Create New Store</span></h2>
+            <button class="modal-close" onclick="closeModal('newStoreModal')"><span data-i18n="store_builder.times">&times;</span></button>
         </div>
         <form id="newStoreForm" onsubmit="createStore(event)">
             <div class="form-group">
-                <label class="form-label">Store Name *</label>
+                <label class="form-label"><span data-i18n="store_builder.store_name">Store Name *</span></label>
                 <input type="text" class="form-input" name="name" required
                        placeholder="My Awesome Store">
             </div>
             <div class="form-group">
-                <label class="form-label">Description</label>
+                <label class="form-label"><span data-i18n="store_builder.description">Description</span></label>
                 <textarea class="form-textarea" name="description"
                           placeholder="Brief description of your store"></textarea>
             </div>
             <div class="form-group">
-                <label class="form-label">Contact Email</label>
+                <label class="form-label"><span data-i18n="store_builder.contact_email">Contact Email</span></label>
                 <input type="email" class="form-input" name="contact_email"
                        placeholder="store@example.com">
             </div>
@@ -668,18 +668,18 @@
 <div class="modal-overlay" id="paymentModal">
     <div class="modal">
         <div class="modal-header">
-            <h2 class="modal-title" id="paymentTitle">Connect Payment Provider</h2>
-            <button class="modal-close" onclick="closeModal('paymentModal')">&times;</button>
+            <h2 class="modal-title" id="paymentTitle"><span data-i18n="store_builder.connect_payment_provider">Connect Payment Provider</span></h2>
+            <button class="modal-close" onclick="closeModal('paymentModal')"><span data-i18n="store_builder.times_2">&times;</span></button>
         </div>
         <form id="paymentForm" onsubmit="savePaymentIntegration(event)">
             <input type="hidden" name="service" id="paymentService">
             <div class="form-group">
-                <label class="form-label">API Key / Secret</label>
+                <label class="form-label"><span data-i18n="store_builder.api_key_secret">API Key / Secret</span></label>
                 <input type="password" class="form-input" name="api_key"
                        placeholder="Enter your API key">
             </div>
             <div class="form-group" id="webhookField">
-                <label class="form-label">Webhook Secret (optional)</label>
+                <label class="form-label"><span data-i18n="store_builder.webhook_secret_optional">Webhook Secret (optional)</span></label>
                 <input type="password" class="form-input" name="webhook_secret"
                        placeholder="Webhook signing secret">
             </div>

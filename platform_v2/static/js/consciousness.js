@@ -125,21 +125,14 @@ function loadTabData(tab) {
 /* ── Dashboard Tab ─────────────────────────────────── */
 
 function loadDashboard() {
+  // Neural Core visualization
+  loadNeuralCore();
+
   api("/api/dashboard/summary").then(function (data) {
     if (!data.success) return;
 
     // Header stats
     updateHeaderStats(data);
-
-    // Stat cards
-    setHtml("statKnowledgeTotal", data.knowledge.total);
-    setHtml("statEmbedPct", data.knowledge.embed_pct + "%");
-    setHtml("statCategories", data.knowledge.categories);
-    setHtml("statAgentTotal", data.agents.total);
-    setHtml("statAgentActive", data.agents.active);
-    setHtml("statProjectsActive", data.projects.active);
-    setHtml("statTasksInProgress", data.projects.tasks_in_progress);
-    setHtml("statStationsActive", data.stations_active);
 
     // Activity feed
     var actEl = document.getElementById("dashboardActivity");
@@ -190,12 +183,178 @@ function loadDashboard() {
   }).catch(function (err) {
     console.error("loadDashboard error:", err);
   });
+}
 
-  // Load Brain Map
-  loadBrainMap();
+/* ── Neural Core Visualization ──────────────────── */
 
-  // Load Emotional Timeline
-  loadEmotionalTimeline();
+var _ncMoodColors = {
+  focused:    "#8b5cf6",
+  curious:    "#06b6d4",
+  happy:      "#22c55e",
+  processing: "#f59e0b",
+  empathetic: "#ec4899",
+  neutral:    "#8b5cf6",
+  confident:  "#3b82f6"
+};
+
+function loadNeuralCore() {
+  // Fetch dashboard summary for knowledge counts
+  api("/api/dashboard/summary").then(function(data) {
+    if (!data.success) return;
+    var kb = data.knowledge || {};
+    var agents = data.agents || {};
+
+    // Stats HUD
+    setHtml("ncTotalKnowledge", (kb.total_entries || kb.total || 0).toLocaleString());
+    setHtml("ncActiveAgents", (agents.active || 0) + "/" + (agents.total || 0));
+
+    // Inner ring node counts
+    setHtml("ncConvCount", _shortNum(kb.conversations || 0));
+    setHtml("ncCodeCount", _shortNum((kb.github_files || 0) + (kb.code_snippets || 0)));
+    setHtml("ncVaultCount", _shortNum(kb.vault_notes || 0));
+    setHtml("ncRepoCount", kb.repos || 0);
+    setHtml("ncLearnedCount", _shortNum((kb.mistakes || 0) + (kb.improvements || 0)));
+    setHtml("ncSessionCount", _shortNum(kb.sessions || 0));
+  }).catch(function(err) {
+    console.error("Neural core data error:", err);
+  });
+
+  // Fetch GitHub stats for embed coverage
+  api("/github/stats").then(function(data) {
+    if (data.success) {
+      setHtml("ncGitHubFiles", (data.total_files || 0).toLocaleString());
+      setHtml("ncEmbedPct", (data.embed_pct || 0) + "%");
+    }
+  }).catch(function() {});
+
+  // Fetch emotional state for mood-reactive core
+  api("/emotional-state").then(function(data) {
+    var mood = (data.mood || "focused").toLowerCase();
+    setHtml("ncCoreMood", mood);
+
+    var coreEl = document.getElementById("ncCoreNode");
+    if (coreEl) {
+      var color = _ncMoodColors[mood] || "#8b5cf6";
+      coreEl.style.borderColor = color;
+      coreEl.style.background = "radial-gradient(circle, " + color + "40 0%, " + color + "0d 70%, transparent 100%)";
+      var nameEl = coreEl.querySelector(".nc-core-name");
+      if (nameEl) nameEl.style.color = color;
+    }
+  }).catch(function() {});
+
+  // Init particles
+  _initParticles();
+  // Draw pathways
+  _drawPathways();
+}
+
+function _shortNum(n) {
+  if (n >= 10000) return (n / 1000).toFixed(1) + "K";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return n.toString();
+}
+
+/* ── Circuit Pathways (SVG) ─────────────────────── */
+
+function _drawPathways() {
+  var svg = document.getElementById("ncPathways");
+  if (!svg) return;
+
+  // Center point of the SVG viewBox (700x595)
+  var cx = 350, cy = 297;
+  // Inner ring node positions (6 nodes at 60deg intervals, radius 140)
+  var r = 140;
+  var nodes = [];
+  for (var i = 0; i < 6; i++) {
+    var angle = (i * 60 - 90) * Math.PI / 180;
+    nodes.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+  }
+
+  // Build SVG path elements (all computed from hardcoded math, no user input)
+  var frag = document.createDocumentFragment();
+
+  // Connect each node to center with curved paths
+  nodes.forEach(function(n) {
+    var ctrl1x = cx + (n.x - cx) * 0.3;
+    var ctrl1y = cy + (n.y - cy) * 0.1;
+    var ctrl2x = cx + (n.x - cx) * 0.7;
+    var ctrl2y = cy + (n.y - cy) * 0.9;
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("class", "nc-pathway");
+    path.setAttribute("d", "M" + cx + "," + cy +
+      " C" + ctrl1x + "," + ctrl1y + " " + ctrl2x + "," + ctrl2y +
+      " " + n.x + "," + n.y);
+    frag.appendChild(path);
+  });
+
+  // Connect adjacent nodes
+  for (var j = 0; j < nodes.length; j++) {
+    var n1 = nodes[j];
+    var n2 = nodes[(j + 1) % nodes.length];
+    var midX = (n1.x + n2.x) / 2 + (cx - (n1.x + n2.x) / 2) * 0.15;
+    var midY = (n1.y + n2.y) / 2 + (cy - (n1.y + n2.y) / 2) * 0.15;
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("class", "nc-pathway");
+    path.setAttribute("d", "M" + n1.x + "," + n1.y +
+      " Q" + midX + "," + midY + " " + n2.x + "," + n2.y);
+    frag.appendChild(path);
+  }
+
+  svg.textContent = "";
+  svg.appendChild(frag);
+}
+
+/* ── Particle System (Canvas) ───────────────────── */
+
+var _particleAnim = null;
+var _particles = [];
+
+function _initParticles() {
+  var canvas = document.getElementById("ncParticles");
+  if (!canvas) return;
+  var container = canvas.parentElement;
+  canvas.width = container.offsetWidth;
+  canvas.height = container.offsetHeight;
+
+  var ctx = canvas.getContext("2d");
+  var cx = canvas.width / 2, cy = canvas.height / 2;
+  var r = Math.min(canvas.width, canvas.height) * 0.2;
+
+  // Create particles that orbit between center and inner ring
+  _particles = [];
+  for (var i = 0; i < 15; i++) {
+    _particles.push({
+      angle: Math.random() * Math.PI * 2,
+      radius: r * 0.3 + Math.random() * r * 0.7,
+      speed: 0.002 + Math.random() * 0.004,
+      size: 2 + Math.random() * 2,
+      alpha: 0.3 + Math.random() * 0.5,
+      color: ["139,92,246", "59,130,246", "34,197,94", "6,182,212"][Math.floor(Math.random() * 4)]
+    });
+  }
+
+  if (_particleAnim) cancelAnimationFrame(_particleAnim);
+
+  // Check prefers-reduced-motion
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    _particles.forEach(function(p) {
+      p.angle += p.speed;
+      var x = cx + Math.cos(p.angle) * p.radius;
+      var y = cy + Math.sin(p.angle) * p.radius * 0.85;
+      ctx.beginPath();
+      ctx.arc(x, y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(" + p.color + "," + p.alpha + ")";
+      ctx.shadowColor = "rgba(" + p.color + ",0.4)";
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+    _particleAnim = requestAnimationFrame(animate);
+  }
+  animate();
 }
 
 /* ── Brain Map ────────────────────────────────────── */

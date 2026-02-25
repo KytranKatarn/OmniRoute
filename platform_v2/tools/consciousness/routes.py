@@ -190,6 +190,25 @@ def api_dashboard_summary():
         cur.execute("SELECT count(*) as cnt FROM bridge_stations WHERE is_active = true")
         stations = cur.fetchone()
 
+        # Knowledge breakdown by type (for Neural Core nodes)
+        cur.execute(
+            """
+            SELECT knowledge_type, count(*) as cnt
+            FROM knowledge_base
+            WHERE knowledge_type != 'archie_v1'
+            GROUP BY knowledge_type
+        """
+        )
+        kb_types = {r["knowledge_type"]: r["cnt"] for r in cur.fetchall()}
+
+        # Repo count
+        cur.execute("SELECT count(*) as cnt FROM github_repositories")
+        repo_count = cur.fetchone()["cnt"]
+
+        # Session count
+        cur.execute("SELECT count(*) as cnt FROM conversation_sessions")
+        session_count = cur.fetchone()["cnt"]
+
         # Translation stats
         cur.execute(
             """
@@ -210,9 +229,18 @@ def api_dashboard_summary():
                 "success": True,
                 "knowledge": {
                     "total": knowledge["total"],
+                    "total_entries": knowledge["total"],
                     "embedded": knowledge["embedded"],
                     "embed_pct": embed_pct,
                     "categories": knowledge["categories"],
+                    "conversations": kb_types.get("conversation_memory", 0),
+                    "github_files": kb_types.get("github_file", 0),
+                    "code_snippets": kb_types.get("code_snippet", 0),
+                    "vault_notes": kb_types.get("vault_note", 0),
+                    "mistakes": kb_types.get("mistake_learned", 0),
+                    "improvements": kb_types.get("improvement", 0) + kb_types.get("upgrade_suggestion", 0),
+                    "repos": repo_count,
+                    "sessions": session_count,
                 },
                 "agents": {
                     "total": agents["total"],

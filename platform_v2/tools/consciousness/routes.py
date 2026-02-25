@@ -171,9 +171,9 @@ def api_dashboard_summary():
              WHERE knowledge_type != 'archie_v1'
              ORDER BY created_at DESC LIMIT 5)
             UNION ALL
-            (SELECT 'bridge' as source, prompt_summary as description,
+            (SELECT 'bridge' as source, task_description as description,
                     created_at, 'radio' as icon
-             FROM bridge_interaction_log
+             FROM task_execution_log
              ORDER BY created_at DESC LIMIT 5)
             UNION ALL
             (SELECT 'project' as source, title as description,
@@ -2862,35 +2862,35 @@ def get_bridge_analytics():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Overall stats
+        # Overall stats from task_execution_log (real dispatch data)
         cur.execute(
             """
             SELECT
                 COUNT(*) as total_calls,
                 COUNT(*) FILTER (WHERE success = TRUE) as successful_calls,
-                COUNT(*) FILTER (WHERE escalated_to_claude = TRUE) as claude_escalations,
+                COUNT(*) FILTER (WHERE request_metadata->>'escalation' IS NOT NULL) as claude_escalations,
                 COALESCE(SUM(tokens_used), 0) as total_tokens,
-                COALESCE(SUM(cost_estimate), 0)::numeric::float as total_cost,
-                ROUND(AVG(execution_time_ms)::numeric, 0) as avg_execution_ms
-            FROM bridge_interaction_log
+                COALESCE(SUM(cost), 0)::numeric::float as total_cost,
+                ROUND(AVG(duration_ms)::numeric, 0) as avg_execution_ms
+            FROM task_execution_log
             WHERE created_at > NOW() - INTERVAL '30 days'
         """
         )
         stats = cur.fetchone() or {}
 
-        # Escalation patterns - what's being escalated to Claude
+        # Escalation patterns - what's being escalated to cloud
         cur.execute(
             """
             SELECT
-                COALESCE(intent_type, 'unknown') as intent_type,
-                COALESCE(module_name, 'unknown') as module_name,
+                COALESCE(task_type, 'unknown') as intent_type,
+                COALESCE(module_source, 'unknown') as module_name,
                 COUNT(*) as escalation_count,
-                ROUND(AVG(execution_time_ms)::numeric, 0) as avg_time_ms,
-                COALESCE(SUM(cost_estimate), 0)::numeric::float as total_cost
-            FROM bridge_interaction_log
-            WHERE escalated_to_claude = TRUE
+                ROUND(AVG(duration_ms)::numeric, 0) as avg_time_ms,
+                COALESCE(SUM(cost), 0)::numeric::float as total_cost
+            FROM task_execution_log
+            WHERE request_metadata->>'escalation' IS NOT NULL
               AND created_at > NOW() - INTERVAL '30 days'
-            GROUP BY intent_type, module_name
+            GROUP BY task_type, module_source
             ORDER BY escalation_count DESC
             LIMIT 10
         """
@@ -2902,16 +2902,16 @@ def get_bridge_analytics():
             """
             SELECT
                 id,
-                module_name,
-                intent_type,
+                module_source as module_name,
+                task_type as intent_type,
                 model_used,
                 tokens_used,
-                execution_time_ms,
+                duration_ms as execution_time_ms,
                 success,
-                escalated_to_claude,
-                LEFT(prompt_summary, 100) as prompt_preview,
+                (request_metadata->>'escalation' IS NOT NULL) as escalated_to_claude,
+                LEFT(task_description, 100) as prompt_preview,
                 created_at
-            FROM bridge_interaction_log
+            FROM task_execution_log
             ORDER BY created_at DESC
             LIMIT 20
         """
@@ -2924,8 +2924,8 @@ def get_bridge_analytics():
             SELECT
                 DATE(created_at) as date,
                 COUNT(*) as calls,
-                COUNT(*) FILTER (WHERE escalated_to_claude = TRUE) as escalations
-            FROM bridge_interaction_log
+                COUNT(*) FILTER (WHERE request_metadata->>'escalation' IS NOT NULL) as escalations
+            FROM task_execution_log
             WHERE created_at > NOW() - INTERVAL '7 days'
             GROUP BY DATE(created_at)
             ORDER BY date

@@ -52,10 +52,10 @@ def register_insights_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT count(*) as total,
-                       avg(execution_time_ms) as avg_time,
+                       avg(duration_ms) as avg_time,
                        sum(tokens_used) as total_tokens,
                        count(DISTINCT model_used) as models_used
-                FROM bridge_interaction_log
+                FROM task_execution_log
                 WHERE created_at > now() - interval '7 days'
             """
             )

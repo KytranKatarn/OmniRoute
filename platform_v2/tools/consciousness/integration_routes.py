@@ -105,8 +105,8 @@ def register_integration_routes(bp, admin_required):
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
                 """
-                SELECT id, model_used, tokens_used, execution_time_ms, created_at
-                FROM bridge_interaction_log ORDER BY created_at DESC LIMIT 1
+                SELECT id, model_used, tokens_used, duration_ms as execution_time_ms, created_at
+                FROM task_execution_log ORDER BY created_at DESC LIMIT 1
             """
             )
             log_entry = cur.fetchone()

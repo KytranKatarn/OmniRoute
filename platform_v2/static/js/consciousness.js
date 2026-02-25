@@ -578,11 +578,12 @@ function checkActiveJobs() {
       }
     });
 
-    /* Render translation jobs on Languages tab */
+    /* Render translation jobs on Languages tab (ops terminal + progress area) */
     var langJobs = myJobs.filter(function(j) {
       return (j.job_type || "").indexOf("translate") > -1;
     });
-    var langEl = document.getElementById("langJobProgressInner");
+    renderLangOps(null, langJobs.length ? langJobs : null);
+
     var langWrap = document.getElementById("langJobProgress");
     if (langWrap && langJobs.length) {
       langWrap.style.display = "block";
@@ -599,9 +600,8 @@ function checkActiveJobs() {
         }
       });
     } else if (langWrap && !langJobs.length) {
-      /* No translation jobs — hide progress if not currently polling */
       var anyPolling = Object.keys(_activeJobPolls).some(function(k) { return k.indexOf("lang_") === 0 && _activeJobPolls[k]; });
-      if (!anyPolling) langWrap.style.display = "none";
+      if (!anyPolling && langWrap) langWrap.style.display = "none";
     }
   }).catch(function() {
     /* Bridge unavailable — don't block */
@@ -1195,7 +1195,107 @@ window.switchLangSubtab = function(sub) {
 var _langGenQueue = [];
 var _langGenRunning = false;
 
+/* ── Languages LCARS Operations Terminal ───────────── */
+
+function renderLangOps(agentData, jobData) {
+  /* Render agents section */
+  var agentsEl = document.getElementById("langOpsAgents");
+  if (agentsEl) {
+    if (agentData && agentData.length) {
+      var html = '<div class="cs-ops-section-label">ASSIGNED AGENTS</div>';
+      agentData.forEach(function(a) {
+        html += '<div class="cs-ops-agent-row">' +
+          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
+          '<span class="cs-ops-agent-role">' + escHtml(a.role || "agent") + '</span>' +
+          '</div>';
+      });
+      setHtml(agentsEl, html);
+    } else {
+      /* Fetch from Bridge stations — show Wordsmith (translate) + analytics agents */
+      fetch("/tools/bridge/api/stations").then(function(resp) {
+        var ct = resp.headers.get("content-type") || "";
+        if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
+        return resp.json();
+      }).then(function(data) {
+        if (!data.success) return;
+        var agents = [];
+        var stations = data.stations || [];
+        /* Collect agents from ANALYTICS (consciousness home) and CREATIVE (Wordsmith) */
+        var targetStations = ["ANALYTICS", "CREATIVE"];
+        stations.forEach(function(s) {
+          if (targetStations.indexOf(s.code) === -1) return;
+          var stAgents = s.assigned_agents || [];
+          stAgents.forEach(function(a) {
+            agents.push({
+              name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
+              title: a.title || a.assignment_type || "agent",
+              station: s.code
+            });
+          });
+        });
+        if (agents.length) {
+          var html = '<div class="cs-ops-section-label">STATION CREW</div>';
+          agents.forEach(function(a) {
+            html += '<div class="cs-ops-agent-row">' +
+              '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
+              '<span class="cs-ops-agent-role">' + escHtml(a.station) + ' \u2022 ' + escHtml(a.title) + '</span>' +
+              '</div>';
+          });
+          setHtml(agentsEl, html);
+        }
+      }).catch(function() {});
+    }
+  }
+
+  /* Render jobs section */
+  var jobsEl = document.getElementById("langOpsJobs");
+  if (jobsEl) {
+    if (jobData && jobData.length) {
+      var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
+      jobData.forEach(function(j) {
+        var pct = j.progress_pct || 0;
+        var agentLabel = j.agent_name || "Queued";
+        var stationLabel = j.station_code || "";
+        if (stationLabel) agentLabel += " \u2022 " + stationLabel;
+        html += '<div class="cs-ops-job-row">' +
+          '<div class="cs-ops-job-info">' +
+            '<div class="cs-ops-job-desc">' + escHtml(j.description) + '</div>' +
+            '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
+          '</div>' +
+          '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
+          '<div class="cs-ops-job-pct">' + pct + '%</div>' +
+          '</div>';
+      });
+      setHtml(jobsEl, html);
+    } else {
+      setHtml(jobsEl, "");
+    }
+  }
+
+  /* Render command buttons (only once) */
+  var cmdsEl = document.getElementById("langOpsCommands");
+  if (cmdsEl && !cmdsEl.hasChildNodes()) {
+    var commands = [
+      { label: "AUDIT", cls: "amber", fn: "langAuditTemplates()", id: "langAuditBtn" },
+      { label: "SCAN KEYS", cls: "purple", fn: "langScanKeys()", id: "langScanBtn" },
+      { label: "GENERATE ALL", cls: "green", fn: "langGenerateAll()", id: "langGenAllBtn" },
+      { label: "FULL PASS", cls: "cyan", fn: "langFullPass()", id: "langFullPassBtn" }
+    ];
+    commands.forEach(function(c) {
+      var btn = document.createElement("button");
+      btn.className = "cs-ops-cmd " + c.cls;
+      btn.textContent = c.label;
+      btn.setAttribute("onclick", c.fn);
+      if (c.id) btn.id = c.id;
+      cmdsEl.appendChild(btn);
+    });
+  }
+}
+
 function loadLanguages() {
+  // Render ops terminal (always available, even before data loads)
+  renderLangOps();
+
   // Load dashboard stats — aggregate across all languages
   api("/api/translations/stats").then(function(data) {
     if (!data.success || !data.stats) return;
@@ -1426,9 +1526,12 @@ function _startLangJobPoll(jobId, onDone) {
 
 function _showLangJob(msg) {
   var el = document.getElementById("langActiveJob");
-  var detail = document.getElementById("langJobDetail");
-  if (el) el.style.display = "block";
-  if (detail) setHtml("langJobDetail", escHtml(msg));
+  if (el) {
+    el.style.display = "block";
+    setHtml(el, '<div class="cs-ops-section-label" style="margin-bottom:0;">' +
+      '<span class="cs-pulse-dot" style="width:6px;height:6px;border-radius:50%;background:#4ade80;animation:csPulse 1.5s infinite;display:inline-block;margin-right:6px;vertical-align:middle;"></span>' +
+      escHtml(msg) + '</div>');
+  }
 }
 
 /* ----------  Template Audit  ---------- */

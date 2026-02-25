@@ -1074,26 +1074,30 @@
               </div>
             </div>
 
-            <!-- Scan & Generate Actions -->
-            <div class="cs-card" style="margin-bottom:20px;">
-              <div class="cs-card-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-                <span><span data-i18n="consciousness.scan_amp_generate">Scan &amp; Generate</span></span>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                  <button class="cs-btn" onclick="langAuditTemplates()" id="langAuditBtn"
-                          style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(251,146,60,0.15); color:#fb923c; border:1px solid rgba(251,146,60,0.3); cursor:pointer;">
-                    <i data-lucide="search" style="width:14px; height:14px; vertical-align:-2px;"></i> Audit Templates
-                  </button>
-                  <button class="cs-btn" onclick="langScanKeys()" id="langScanBtn"
-                          style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); cursor:pointer;">
-                    <i data-lucide="scan" style="width:14px; height:14px; vertical-align:-2px;"></i> Scan for New Keys
-                  </button>
-                  <button class="cs-btn" onclick="langFullPass()" id="langFullPassBtn"
-                          style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid rgba(34,197,94,0.3); cursor:pointer;">
-                    <i data-lucide="zap" style="width:14px; height:14px; vertical-align:-2px;"></i> Full i18n Pass
-                  </button>
+            <!-- LCARS Languages Operations Terminal -->
+            <div class="cs-ops-terminal" id="langOpsTerminal">
+              <div class="cs-ops-header">
+                <div class="cs-ops-elbow"></div>
+                <div class="cs-ops-title">LANGUAGES OPERATIONS</div>
+                <div class="cs-ops-status" id="langOpsOnline">
+                  <span class="cs-ops-dot"></span> ONLINE
                 </div>
               </div>
-              <div class="cs-card-body" id="langScanStatus" style="display:none; padding:8px 0; font-size:0.82rem; color:rgba(255,255,255,0.6);"></div>
+              <div class="cs-ops-body">
+                <!-- Agents section — populated by JS -->
+                <div id="langOpsAgents"></div>
+                <!-- Active jobs — populated by JS -->
+                <div id="langOpsJobs"></div>
+                <!-- Command buttons — populated by JS -->
+                <div class="cs-ops-commands" id="langOpsCommands"></div>
+                <!-- Action result / status feedback -->
+                <div id="langActiveJob" style="display:none; margin-top:10px; font-size:0.82rem;"></div>
+                <div id="langJobDetail" style="display:none;"></div>
+                <div id="langJobProgress" style="display:none; margin-top:10px;">
+                  <div id="langJobProgressInner" style="font-size:0.82rem;"></div>
+                </div>
+                <div id="langScanStatus" style="display:none; margin-top:8px; font-size:0.82rem; color:rgba(255,255,255,0.6);"></div>
+              </div>
             </div>
 
             <!-- Template Audit Results (hidden until audit runs) -->
@@ -1103,24 +1107,6 @@
                 <span id="langAuditSummary" style="font-size:0.78rem; color:rgba(255,255,255,0.5);"></span>
               </div>
               <div class="cs-card-body" id="langAuditResults"></div>
-            </div>
-
-            <!-- Active Translation Job Status -->
-            <div class="cs-card" id="langActiveJob" style="margin-bottom:20px; display:none;">
-              <div class="cs-card-header" style="display:flex; align-items:center; gap:8px;">
-                <span class="cs-pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#4ade80;animation:csPulse 1.5s infinite;"></span>
-                Translation Status
-              </div>
-              <div class="cs-card-body" id="langJobDetail" style="font-size:0.82rem;"></div>
-            </div>
-
-            <!-- Bridge Job Progress (populated by polling) -->
-            <div class="cs-card" id="langJobProgress" style="margin-bottom:20px; display:none;">
-              <div class="cs-card-header" style="display:flex; align-items:center; gap:8px;">
-                <span class="cs-pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;animation:csPulse 1.5s infinite;"></span>
-                Bridge Job Progress
-              </div>
-              <div class="cs-card-body" id="langJobProgressInner" style="font-size:0.82rem;"></div>
             </div>
 
             <!-- Per-Language Coverage Grid -->

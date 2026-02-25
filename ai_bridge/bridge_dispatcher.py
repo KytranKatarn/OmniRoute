@@ -2330,10 +2330,12 @@ class BridgeDispatcher:
             metadata={
                 "module_id": module_id,
                 "priority": priority,
-                "home_station": home_station,
-                "dispatch_station": dispatch_station,
+                "home_station": agent.get("station_code") if agent and is_cross_station else home_station,
+                "dispatch_station": home_station if is_cross_station else dispatch_station,
                 "is_cross_station": is_cross_station,
                 "capability_station": capability_station,
+                "agent_station": agent.get("station_code") if agent else None,
+                "module_station": home_station,
             },
         )
 
@@ -2836,10 +2838,14 @@ class BridgeDispatcher:
                         break  # Just advise about first available
 
             # Enrich metadata with dispatch info
+            # agent_station = the agent's actual home station (for visual shading)
+            agent_home = agent.get("station_code") if agent else None
             enriched_meta = dict(metadata or {})
-            enriched_meta["home_station"] = home_station
-            enriched_meta["dispatch_station"] = dispatch_station
+            enriched_meta["home_station"] = agent_home or home_station
+            enriched_meta["dispatch_station"] = home_station if is_cross_station else dispatch_station
             enriched_meta["is_cross_station"] = is_cross_station
+            enriched_meta["agent_station"] = agent_home
+            enriched_meta["module_station"] = home_station
 
             cur.execute(
                 """

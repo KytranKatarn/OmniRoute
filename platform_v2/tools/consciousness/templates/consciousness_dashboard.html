@@ -1105,13 +1105,22 @@
               <div class="cs-card-body" id="langAuditResults"></div>
             </div>
 
-            <!-- Active Translation Job -->
+            <!-- Active Translation Job Status -->
             <div class="cs-card" id="langActiveJob" style="margin-bottom:20px; display:none;">
               <div class="cs-card-header" style="display:flex; align-items:center; gap:8px;">
                 <span class="cs-pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#4ade80;animation:csPulse 1.5s infinite;"></span>
-                Translation in Progress
+                Translation Status
               </div>
               <div class="cs-card-body" id="langJobDetail" style="font-size:0.82rem;"></div>
+            </div>
+
+            <!-- Bridge Job Progress (populated by polling) -->
+            <div class="cs-card" id="langJobProgress" style="margin-bottom:20px; display:none;">
+              <div class="cs-card-header" style="display:flex; align-items:center; gap:8px;">
+                <span class="cs-pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;animation:csPulse 1.5s infinite;"></span>
+                Bridge Job Progress
+              </div>
+              <div class="cs-card-body" id="langJobProgressInner" style="font-size:0.82rem;"></div>
             </div>
 
             <!-- Per-Language Coverage Grid -->

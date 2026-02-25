@@ -6869,6 +6869,231 @@ def translation_generate():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/api/translations/generate-async", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_generate_async():
+    """Launch background translation job — returns immediately with job_id.
+
+    Body options:
+        { "languages": ["fr"] }                — one language
+        { "languages": ["fr","es",...,"he"] }   — all languages
+        { "module_id": "bridge" }               — module-scoped, all 7 languages
+        { "module_id": "bridge", "languages": ["fr"] }  — module + single lang
+    """
+    import threading
+
+    try:
+        data = request.get_json() or {}
+        languages = data.get("languages") or [
+            "fr",
+            "es",
+            "pt",
+            "de",
+            "zh",
+            "ar",
+            "he",
+        ]
+        module_id = data.get("module_id")
+
+        # Validate
+        invalid = [l for l in languages if l not in SUPPORTED_LANGUAGES or l == "en"]
+        if invalid:
+            return (
+                jsonify({"success": False, "error": f"Invalid languages: {invalid}"}),
+                400,
+            )
+
+        # Build description
+        scope = f" ({module_id})" if module_id else ""
+        lang_label = languages[0].upper() if len(languages) == 1 else f"{len(languages)} languages"
+        desc = f"Translate {lang_label}{scope}"
+
+        # Count total missing keys across all requested languages
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        total_missing = 0
+        for lang in languages:
+            module_filter = ""
+            params = [lang]
+            if module_id:
+                module_filter = "AND t1.key LIKE %s"
+                params.append(f"{module_id}.%")
+            cur.execute(
+                f"""
+                SELECT count(DISTINCT t1.key) AS cnt
+                FROM translations t1
+                WHERE t1.language = 'en'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM translations t2
+                      WHERE t2.key = t1.key AND t2.language = %s
+                  )
+                  {module_filter}
+                """,
+                params,
+            )
+            total_missing += (cur.fetchone() or {}).get("cnt", 0)
+        cur.close()
+        conn.close()
+
+        if total_missing == 0:
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "No missing translations",
+                    "job_id": None,
+                    "total": 0,
+                }
+            )
+
+        # Create parent bridge job
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        job_id = dispatcher.create_job(
+            job_type="translate_languages",
+            module_source="consciousness",
+            description=desc,
+            total_steps=len(languages),
+            capability="translate",
+            metadata={
+                "languages": languages,
+                "module_id": module_id,
+                "total_keys": total_missing,
+            },
+        )
+
+        if not job_id:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "A translation job is already running",
+                        "duplicate": True,
+                    }
+                ),
+                409,
+            )
+
+        # Launch background thread
+        thread = threading.Thread(
+            target=_run_translate_bg,
+            args=(languages, module_id, job_id),
+            daemon=True,
+        )
+        thread.start()
+
+        return jsonify(
+            {
+                "success": True,
+                "job_id": job_id,
+                "total": total_missing,
+                "languages": languages,
+                "message": f"Translation job #{job_id} started — {total_missing} keys across {lang_label}",
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Async translation generate error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _run_translate_bg(languages, module_id, parent_job_id):
+    """Background worker: translate missing keys for each language sequentially.
+
+    Creates per-language sub-jobs via batch_translate() for batch-level progress,
+    while updating the parent job for language-level progress.
+    """
+    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    dispatcher = get_dispatcher()
+    completed_langs = 0
+    failed_langs = 0
+    total_inserted = 0
+    total_failed = 0
+
+    try:
+        for lang in languages:
+            lang_name = SUPPORTED_LANGUAGES.get(lang, lang)
+            logger.info(
+                f"[TranslateBG] Job #{parent_job_id}: starting {lang_name} " f"({completed_langs + 1}/{len(languages)})"
+            )
+
+            try:
+                # Fetch untranslated strings for this language
+                conn = get_db()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                module_filter = ""
+                params = [lang]
+                if module_id:
+                    module_filter = "AND t1.key LIKE %s"
+                    params.append(f"{module_id}.%")
+                cur.execute(
+                    f"""
+                    SELECT DISTINCT t1.key, t1.text AS english_text, t1.context
+                    FROM translations t1
+                    WHERE t1.language = 'en'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM translations t2
+                          WHERE t2.key = t1.key AND t2.language = %s
+                      )
+                      {module_filter}
+                    """,
+                    params,
+                )
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+
+                strings = [(r["key"], r["english_text"], r.get("context") or "") for r in rows]
+
+                if strings:
+                    results = batch_translate(strings, lang)
+                    stats = store_translations(results, lang, "qwen3-coder-cpu")
+                    total_inserted += stats.get("inserted", 0)
+                    total_failed += stats.get("failed", 0)
+                    logger.info(
+                        f"[TranslateBG] {lang_name}: {stats.get('inserted', 0)} "
+                        f"inserted, {stats.get('failed', 0)} failed"
+                    )
+                else:
+                    logger.info(f"[TranslateBG] {lang_name}: no missing keys")
+
+                completed_langs += 1
+
+            except Exception as lang_err:
+                logger.error(f"[TranslateBG] {lang_name} failed: {lang_err}")
+                failed_langs += 1
+
+            # Update parent job progress after each language
+            try:
+                dispatcher.update_job_progress(
+                    job_id=parent_job_id,
+                    completed_steps=completed_langs,
+                    failed_steps=failed_langs,
+                    metadata_update={
+                        "last_language": lang,
+                        "total_inserted": total_inserted,
+                        "total_failed": total_failed,
+                    },
+                )
+            except Exception:
+                pass
+
+    except Exception as e:
+        logger.error(f"[TranslateBG] Job #{parent_job_id} error: {e}")
+    finally:
+        try:
+            dispatcher.complete_job(parent_job_id)
+        except Exception:
+            pass
+        logger.info(
+            f"[TranslateBG] Job #{parent_job_id} finished: "
+            f"{completed_langs}/{len(languages)} languages, "
+            f"{total_inserted} inserted, {total_failed} failed"
+        )
+
+
 @consciousness_bp.route("/api/translations/review")
 @login_required
 @require_permission(Permission.ADMIN_ACCESS)

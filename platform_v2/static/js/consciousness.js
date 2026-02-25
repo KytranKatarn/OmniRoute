@@ -103,7 +103,7 @@ function loadTabData(tab) {
     case "knowledge":   loadKnowledge(); break;
     case "team":        loadTeam(); break;
     case "insights":    loadInsights(); break;
-    case "languages":   loadLanguages(); break;
+    case "languages":   loadLanguages(); checkActiveJobs(); break;
     case "github":      loadGitHub(); break;
     case "integration": loadIntegration(); break;
   }
@@ -577,6 +577,32 @@ function checkActiveJobs() {
         });
       }
     });
+
+    /* Render translation jobs on Languages tab */
+    var langJobs = myJobs.filter(function(j) {
+      return (j.job_type || "").indexOf("translate") > -1;
+    });
+    var langEl = document.getElementById("langJobProgressInner");
+    var langWrap = document.getElementById("langJobProgress");
+    if (langWrap && langJobs.length) {
+      langWrap.style.display = "block";
+      _renderBridgeJobs(langJobs, "langJobProgressInner", "lang");
+      langJobs.forEach(function(job) {
+        var pollKey = "lang_" + job.id;
+        if (!_activeJobPolls[pollKey]) {
+          _activeJobPolls[pollKey] = true;
+          _pollJobStatus(job.id, "bjob-lang-" + job.id, function() {
+            _activeJobPolls[pollKey] = false;
+            _cache.languages = false;
+            setTimeout(function() { loadLanguages(); checkActiveJobs(); }, 1500);
+          });
+        }
+      });
+    } else if (langWrap && !langJobs.length) {
+      /* No translation jobs — hide progress if not currently polling */
+      var anyPolling = Object.keys(_activeJobPolls).some(function(k) { return k.indexOf("lang_") === 0 && _activeJobPolls[k]; });
+      if (!anyPolling) langWrap.style.display = "none";
+    }
   }).catch(function() {
     /* Bridge unavailable — don't block */
     _enableProcessingBtns();
@@ -1246,12 +1272,18 @@ function loadLanguages() {
             '<span class="cs-badge ' + color + '">' + pct + '%</span> ' +
             (m.translated || 0) + '/' + (m.total || 0) +
           '</div>';
+      html += '<div style="display:flex; gap:4px;">';
       if ((m.hardcoded || 0) > 0) {
         html += '<button onclick="langTagModule(\'' + escHtml(m.id) + '\')" id="tagBtn-' + escHtml(m.id) + '"' +
           ' style="font-size:0.68rem; padding:2px 8px; border-radius:3px; background:rgba(139,92,246,0.15);' +
           ' color:#a78bfa; border:1px solid rgba(139,92,246,0.3); cursor:pointer;">Tag</button>';
       }
-      html += '</div></div>';
+      if (pct < 100) {
+        html += '<button onclick="langGenerateModule(\'' + escHtml(m.id) + '\')" id="genModBtn-' + escHtml(m.id) + '"' +
+          ' style="font-size:0.68rem; padding:2px 8px; border-radius:3px; background:rgba(34,197,94,0.15);' +
+          ' color:#4ade80; border:1px solid rgba(34,197,94,0.3); cursor:pointer;">Gen</button>';
+      }
+      html += '</div></div></div>';
     });
     html += '</div>';
     setHtml("langCoverageGrid", html);
@@ -1285,18 +1317,25 @@ window.langScanKeys = function() {
 
 window.langGenerateOne = function(langCode) {
   var btn = document.getElementById("langGenBtn-" + langCode);
-  if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
-  _showLangJob("Generating translations for " + langCode.toUpperCase() + "...");
+  if (btn) { btn.disabled = true; btn.textContent = "Queuing..."; }
+  _showLangJob("Starting translation for " + langCode.toUpperCase() + "...");
 
-  api("/api/translations/generate", { method: "POST", body: { language: langCode } }).then(function(data) {
-    var stats = data.stats || {};
-    var msg = langCode.toUpperCase() + ": " + (stats.inserted || 0) + " inserted, " +
-              (stats.updated || 0) + " updated, " + (stats.failed || 0) + " failed";
-    _showLangJob(msg);
-    if (btn) { btn.disabled = false; btn.textContent = "Done!"; btn.style.color = "#4ade80"; }
-    // Refresh coverage
-    _cache.languages = false;
-    setTimeout(function() { loadLanguages(); }, 1000);
+  api("/api/translations/generate-async", { method: "POST", body: { languages: [langCode] } }).then(function(data) {
+    if (!data.success) {
+      var msg = data.duplicate ? "Translation job already running" : (data.error || "Failed");
+      _showLangJob(msg);
+      if (btn) { btn.disabled = false; btn.textContent = "Retry"; }
+      return;
+    }
+    if (!data.job_id) {
+      _showLangJob("No missing translations for " + langCode.toUpperCase());
+      if (btn) { btn.disabled = false; btn.textContent = "Done"; btn.style.color = "#4ade80"; }
+      return;
+    }
+    _showLangJob("Job #" + data.job_id + " started — " + data.total + " keys to " + langCode.toUpperCase());
+    _startLangJobPoll(data.job_id, function() {
+      if (btn) { btn.disabled = false; btn.textContent = "Done!"; btn.style.color = "#4ade80"; }
+    });
   }).catch(function(err) {
     _showLangJob("Failed: " + err);
     if (btn) { btn.disabled = false; btn.textContent = "Retry"; btn.style.color = "#f87171"; }
@@ -1305,37 +1344,83 @@ window.langGenerateOne = function(langCode) {
 
 window.langGenerateAll = function() {
   var btn = document.getElementById("langGenAllBtn");
-  if (btn) btn.disabled = true;
-  var langs = ["fr", "es", "pt", "de", "zh", "ar", "he"];
-  _langGenQueue = langs.slice();
-  _langGenRunning = true;
-  _langGenNext();
+  if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
+  _showLangJob("Queuing all 7 languages...");
+
+  api("/api/translations/generate-async", {
+    method: "POST",
+    body: { languages: ["fr", "es", "pt", "de", "zh", "ar", "he"] }
+  }).then(function(data) {
+    if (!data.success) {
+      var msg = data.duplicate ? "Translation job already running" : (data.error || "Failed");
+      _showLangJob(msg);
+      if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+      return;
+    }
+    if (!data.job_id) {
+      _showLangJob("No missing translations found");
+      if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+      return;
+    }
+    _showLangJob("Job #" + data.job_id + " started — " + data.total + " keys across 7 languages");
+    _startLangJobPoll(data.job_id, function() {
+      if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+    });
+  }).catch(function(err) {
+    _showLangJob("Failed: " + err);
+    if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+  });
 };
 
-function _langGenNext() {
-  if (!_langGenQueue.length) {
-    _langGenRunning = false;
-    _showLangJob("All languages complete!");
-    var btn = document.getElementById("langGenAllBtn");
-    if (btn) btn.disabled = false;
+/* Generate translations for a specific module only */
+window.langGenerateModule = function(moduleId) {
+  var btn = document.getElementById("genModBtn-" + moduleId);
+  if (btn) { btn.disabled = true; btn.textContent = "..."; }
+  _showLangJob("Queuing translations for " + moduleId + "...");
+
+  api("/api/translations/generate-async", {
+    method: "POST",
+    body: { module_id: moduleId, languages: ["fr", "es", "pt", "de", "zh", "ar", "he"] }
+  }).then(function(data) {
+    if (!data.success) {
+      var msg = data.duplicate ? "Job already running" : (data.error || "Failed");
+      _showLangJob(msg);
+      if (btn) { btn.disabled = false; btn.textContent = "Gen"; }
+      return;
+    }
+    if (!data.job_id) {
+      _showLangJob(moduleId + ": fully translated!");
+      if (btn) { btn.disabled = false; btn.textContent = "Done"; btn.style.color = "#4ade80"; }
+      return;
+    }
+    _showLangJob("Job #" + data.job_id + " — " + data.total + " keys for " + moduleId);
+    _startLangJobPoll(data.job_id, function() {
+      if (btn) { btn.disabled = false; btn.textContent = "Done!"; btn.style.color = "#4ade80"; }
+    });
+  }).catch(function(err) {
+    _showLangJob("Failed: " + err);
+    if (btn) { btn.disabled = false; btn.textContent = "Gen"; btn.style.color = "#f87171"; }
+  });
+};
+
+/* Poll a translation bridge job — reuses existing _pollJobStatus + _buildJobHtml */
+function _startLangJobPoll(jobId, onDone) {
+  var el = document.getElementById("langJobProgress");
+  if (el) el.style.display = "block";
+  var pollKey = "lang_" + jobId;
+  if (_activeJobPolls[pollKey]) return;
+  _activeJobPolls[pollKey] = true;
+  _pollJobStatus(jobId, "langJobProgressInner", function(completedJob) {
+    _activeJobPolls[pollKey] = false;
+    var status = completedJob ? completedJob.status : "unknown";
+    if (status === "completed") {
+      _showLangJob("Translation complete!");
+    } else if (status === "failed") {
+      _showLangJob("Translation job failed — check Bridge Command for details");
+    }
     _cache.languages = false;
-    setTimeout(function() { loadLanguages(); }, 1000);
-    return;
-  }
-  var code = _langGenQueue.shift();
-  var remaining = _langGenQueue.length;
-  _showLangJob("Generating " + code.toUpperCase() + "... (" + (7 - remaining - 1) + "/7)");
-
-  var cardBtn = document.getElementById("langGenBtn-" + code);
-  if (cardBtn) { cardBtn.disabled = true; cardBtn.textContent = "..."; }
-
-  api("/api/translations/generate", { method: "POST", body: { language: code } }).then(function(data) {
-    var stats = data.stats || {};
-    if (cardBtn) { cardBtn.textContent = (stats.inserted || 0) + " done"; cardBtn.style.color = "#4ade80"; }
-    _langGenNext();
-  }).catch(function() {
-    if (cardBtn) { cardBtn.textContent = "Failed"; cardBtn.style.color = "#f87171"; }
-    _langGenNext();
+    setTimeout(function() { loadLanguages(); checkActiveJobs(); }, 1500);
+    if (onDone) onDone();
   });
 }
 
@@ -1419,38 +1504,29 @@ window.langFullPass = function() {
     return api("/api/translations/scan-and-seed", { method: "POST" });
   }).then(function(scanData) {
     var stats = scanData.stats || scanData;
-    _showLangJob("Full i18n Pass — Step 2/3 done: " + (stats.new_keys || 0) + " new keys seeded. Starting translations...");
+    _showLangJob("Full i18n Pass — Step 3/3: Queuing all 7 languages (background)...");
 
-    // Step 3: Generate all 7 languages sequentially
-    var langs = ["fr", "es", "pt", "de", "zh", "ar", "he"];
-    var completed = 0;
-
-    function genNext() {
-      if (!langs.length) {
-        _showLangJob("Full i18n Pass complete! " + completed + " language batches generated.");
-        if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
-        _cache.languages = false;
-        setTimeout(function() { loadLanguages(); }, 1000);
-        return;
-      }
-      var code = langs.shift();
-      completed++;
-      _showLangJob("Full i18n Pass — Step 3/3: Generating " + code.toUpperCase() + " (" + completed + "/7)...");
-
-      var cardBtn = document.getElementById("langGenBtn-" + code);
-      if (cardBtn) { cardBtn.disabled = true; cardBtn.textContent = "..."; }
-
-      api("/api/translations/generate", { method: "POST", body: { language: code } }).then(function(data) {
-        var s = data.stats || {};
-        if (cardBtn) { cardBtn.textContent = (s.inserted || 0) + " done"; cardBtn.style.color = "#4ade80"; }
-        genNext();
-      }).catch(function() {
-        if (cardBtn) { cardBtn.textContent = "Failed"; cardBtn.style.color = "#f87171"; }
-        genNext();
-      });
+    // Step 3: Launch async background job for all 7 languages
+    return api("/api/translations/generate-async", {
+      method: "POST",
+      body: { languages: ["fr", "es", "pt", "de", "zh", "ar", "he"] }
+    });
+  }).then(function(data) {
+    if (!data.success) {
+      var msg = data.duplicate ? "Translation job already running" : (data.error || "Failed");
+      _showLangJob("Full i18n Pass — " + msg);
+      if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+      return;
     }
-
-    genNext();
+    if (!data.job_id) {
+      _showLangJob("Full i18n Pass complete — no missing translations!");
+      if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+      return;
+    }
+    _showLangJob("Full i18n Pass — Job #" + data.job_id + " running (" + data.total + " keys, 7 languages)");
+    _startLangJobPoll(data.job_id, function() {
+      if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
+    });
   }).catch(function(err) {
     _showLangJob("Full i18n Pass failed: " + err);
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
@@ -1469,32 +1545,32 @@ window.langTagModule = function(moduleId) {
       _showLangJob("Tag failed: " + (data.error || "unknown"));
       return;
     }
-    _showLangJob(moduleId + ": " + data.tagged + " strings tagged, " + data.keys_seeded + " keys seeded. Generating translations...");
+    _showLangJob(moduleId + ": " + data.tagged + " tagged, " + data.keys_seeded + " seeded. Queuing translations...");
     if (btn) { btn.textContent = data.tagged + " tagged"; btn.style.color = "#4ade80"; }
 
-    // Auto-generate all languages for the newly-seeded keys
-    var langs = ["fr", "es", "pt", "de", "zh", "ar", "he"];
-    var done = 0;
-
-    function genNext() {
-      if (!langs.length) {
-        _showLangJob(moduleId + " done! " + data.tagged + " tagged, " + done + " lang batches generated.");
-        if (btn) { btn.disabled = false; }
-        _cache.languages = false;
-        setTimeout(function() { loadLanguages(); }, 1000);
-        return;
-      }
-      var code = langs.shift();
-      done++;
-      _showLangJob(moduleId + ": generating " + code.toUpperCase() + " (" + done + "/7)...");
-      api("/api/translations/generate", { method: "POST", body: { language: code } }).then(function() {
-        genNext();
-      }).catch(function() {
-        genNext();
-      });
+    // Launch async background translation for this module's keys
+    return api("/api/translations/generate-async", {
+      method: "POST",
+      body: { module_id: moduleId, languages: ["fr", "es", "pt", "de", "zh", "ar", "he"] }
+    });
+  }).then(function(data) {
+    if (!data || !data.success) {
+      var msg = (data && data.duplicate) ? "Translation job already running" : ((data && data.error) || "");
+      if (msg) _showLangJob(moduleId + ": tagged. " + msg);
+      if (btn) btn.disabled = false;
+      return;
     }
-
-    genNext();
+    if (!data.job_id) {
+      _showLangJob(moduleId + ": tagged and fully translated!");
+      if (btn) btn.disabled = false;
+      _cache.languages = false;
+      setTimeout(function() { loadLanguages(); }, 1000);
+      return;
+    }
+    _showLangJob(moduleId + ": Job #" + data.job_id + " — translating " + data.total + " keys");
+    _startLangJobPoll(data.job_id, function() {
+      if (btn) btn.disabled = false;
+    });
   }).catch(function(err) {
     _showLangJob("Tag failed: " + err);
     if (btn) { btn.textContent = "Error"; btn.style.color = "#f87171"; btn.disabled = false; }

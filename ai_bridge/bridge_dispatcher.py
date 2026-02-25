@@ -324,6 +324,139 @@ class BridgeDispatcher:
         except Exception as e:
             logger.error(f"[BridgeDispatcher] Cache refresh failed: {e}")
 
+    def _get_station_slot_occupancy(self, station_code):
+        """Count current slot occupancy at a station from active bridge_jobs.
+        Returns dict with primary/auxiliary/contractor counts and capacity config.
+        """
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, max_primary, max_auxiliary, allow_overflow
+                FROM bridge_stations WHERE station_code = %s AND is_active = true
+            """,
+                (station_code,),
+            )
+            station = cur.fetchone()
+            if not station:
+                cur.close()
+                conn.close()
+                return {
+                    "primary": 0,
+                    "auxiliary": 0,
+                    "contractor": 0,
+                    "total": 0,
+                    "max_primary": 2,
+                    "max_auxiliary": 1,
+                    "allow_overflow": True,
+                }
+
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (
+                        WHERE (metadata->>'is_cross_station') IS DISTINCT FROM 'true'
+                        AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
+                    ) AS primary_count,
+                    COUNT(*) FILTER (
+                        WHERE metadata->>'is_cross_station' = 'true'
+                        AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
+                    ) AS auxiliary_count,
+                    COUNT(*) FILTER (
+                        WHERE metadata->>'is_cloud' = 'true'
+                    ) AS contractor_count
+                FROM bridge_jobs
+                WHERE station_code = %s AND status = 'running'
+            """,
+                (station_code,),
+            )
+            counts = cur.fetchone() or {}
+            cur.close()
+            conn.close()
+
+            primary = counts.get("primary_count", 0) or 0
+            auxiliary = counts.get("auxiliary_count", 0) or 0
+            contractor = counts.get("contractor_count", 0) or 0
+            return {
+                "primary": primary,
+                "auxiliary": auxiliary,
+                "contractor": contractor,
+                "total": primary + auxiliary + contractor,
+                "max_primary": station.get("max_primary", 2),
+                "max_auxiliary": station.get("max_auxiliary", 1),
+                "allow_overflow": station.get("allow_overflow", True),
+                "station_id": station.get("id"),
+            }
+        except Exception as e:
+            logger.warning(
+                f"[CAPACITY] Error getting slot occupancy for {station_code}: {e}"
+            )
+            return {
+                "primary": 0,
+                "auxiliary": 0,
+                "contractor": 0,
+                "total": 0,
+                "max_primary": 2,
+                "max_auxiliary": 1,
+                "allow_overflow": True,
+            }
+
+    def _log_capacity_event(
+        self,
+        station_code,
+        event_type,
+        agent_id=None,
+        agent_name=None,
+        home_station_id=None,
+        job_id=None,
+        capability=None,
+        slot_number=None,
+        reason=None,
+        metadata=None,
+    ):
+        """Log a station capacity event for workload intelligence (ADR-055)."""
+        try:
+            import psycopg2.extras
+
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id FROM bridge_stations WHERE station_code = %s",
+                (station_code,),
+            )
+            row = cur.fetchone()
+            station_id = row[0] if row else None
+            cur.execute(
+                """
+                INSERT INTO station_capacity_events
+                    (station_id, event_type, agent_id, agent_name, home_station_id,
+                     job_id, capability, slot_number, reason, metadata)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                (
+                    station_id,
+                    event_type,
+                    agent_id,
+                    agent_name,
+                    home_station_id,
+                    job_id,
+                    capability,
+                    slot_number,
+                    reason,
+                    psycopg2.extras.Json(metadata or {}),
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.warning(
+                f"[CAPACITY] Error logging event {event_type} for {station_code}: {e}"
+            )
+
     def _refresh_welfare_cache(self):
         """Load agent welfare state (emotional, rest cycles, budgets) with 30s TTL.
 

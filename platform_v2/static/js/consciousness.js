@@ -861,55 +861,13 @@ function checkActiveJobs() {
 }
 
 function _renderStationStatus(allJobs, myJobs) {
-  /* Knowledge tab — stationStatusProc: keep existing box rendering */
-  var procTarget = document.getElementById("stationStatusProc");
-  if (procTarget) {
-    var busyAgents = {};
-    allJobs.forEach(function(j) {
-      if (j.agent_name && j.status === "running") {
-        busyAgents[j.agent_name] = {
-          module: j.module_source || "unknown",
-          desc: j.description || "",
-          pct: j.progress_pct || 0
-        };
-      }
-    });
-    var myCount = myJobs.length;
-    var html = '<div style="padding:10px 14px; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15); border-radius:8px; margin-bottom:12px;">';
-    html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">';
-    html += '<strong style="color:#8b5cf6; font-size:0.85rem;">Bridge Station</strong>';
-    if (myCount > 0) {
-      html += '<span class="cs-badge blue" style="font-size:0.7rem;">' + myCount + ' active job' + (myCount > 1 ? 's' : '') + '</span>';
-    } else {
-      html += '<span style="color:rgba(255,255,255,0.4); font-size:0.75rem;">No active jobs</span>';
-    }
-    html += '</div>';
-    var agentNames = Object.keys(busyAgents);
-    if (agentNames.length > 0) {
-      agentNames.forEach(function(name) {
-        var info = busyAgents[name];
-        var isMine = info.module === "consciousness";
-        var dot = isMine ? "#f59e0b" : "rgba(255,255,255,0.3)";
-        html += '<div style="display:flex; align-items:center; gap:8px; padding:3px 0; font-size:0.8rem;">';
-        html += '<span style="width:6px; height:6px; border-radius:50%; background:' + dot + '; flex-shrink:0;"></span>';
-        html += '<span style="color:rgba(255,255,255,0.8);">' + escHtml(name) + '</span>';
-        html += '<span style="color:rgba(255,255,255,0.4); font-size:0.72rem; flex:1; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">';
-        if (isMine) {
-          html += escHtml(info.desc) + ' (' + info.pct + '%)';
-        } else {
-          html += 'busy \u2014 ' + escHtml(info.module);
-        }
-        html += '</span></div>';
-      });
-    } else {
-      html += '<div style="font-size:0.78rem; color:rgba(255,255,255,0.4); padding:2px 0;">All agents idle</div>';
-    }
-    html += '</div>';
-    setHtml(procTarget, html);
-  }
+  var jobData = myJobs.length ? myJobs : null;
 
-  /* GitHub tab — update LCARS ops terminal sections */
-  renderGitHubOps(null, myJobs.length ? myJobs : null);
+  /* Knowledge tab — update LCARS ops terminal */
+  renderKnowledgeOps(null, jobData);
+
+  /* GitHub tab — update LCARS ops terminal */
+  renderGitHubOps(null, jobData);
 }
 
 function _buildJobHtml(job) {

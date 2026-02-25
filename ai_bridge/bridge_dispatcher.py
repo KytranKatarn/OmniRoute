@@ -3258,7 +3258,8 @@ class BridgeDispatcher:
                 RETURNING agent_name, module_source, description,
                           completed_steps, failed_steps, total_steps,
                           job_type,
-                          (EXTRACT(EPOCH FROM (NOW() - created_at)) * 1000)::int
+                          (EXTRACT(EPOCH FROM (NOW() - created_at)) * 1000)::int,
+                          station_code
                 """,
                 (status, job_id),
             )
@@ -3278,6 +3279,7 @@ class BridgeDispatcher:
                 t_steps = row[5] or 0
                 j_type = row[6] or ""
                 dur_ms = row[7] or 0
+                job_station = row[8] or ""
                 self._log_governance(
                     "batch_job",
                     "complete_job",
@@ -3288,6 +3290,21 @@ class BridgeDispatcher:
                     ),
                     outcome=status,
                 )
+
+                # ── Capacity event: slot freed (ADR-055) ──
+                if job_station:
+                    agent_id_for_cap = None
+                    if a_name and a_name in self._agent_cache:
+                        agent_id_for_cap = self._agent_cache[a_name].get("id")
+                    self._log_capacity_event(
+                        station_code=job_station,
+                        event_type="slot_freed",
+                        agent_id=agent_id_for_cap,
+                        agent_name=a_name,
+                        job_id=job_id,
+                        capability=j_type,
+                        reason=f"Job {status} — slot freed",
+                    )
 
                 # ── HR tracking: log to task_execution_log + update welfare ──
                 # This feeds the roster (recent tasks), agent performance stats,

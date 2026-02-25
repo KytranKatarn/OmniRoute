@@ -4,6 +4,8 @@
 
 var _cache = {};
 var _debounceTimers = {};
+var _holoSphere = null;
+var _glassNav = null;
 
 /* ── Utilities ─────────────────────────────────────── */
 
@@ -84,15 +86,15 @@ function api(path, opts) {
 /* ── Tab Switching ─────────────────────────────────── */
 
 window.switchConsciousnessTab = function (tab) {
-  document.querySelectorAll(".cs-tab").forEach(function (btn) {
-    btn.classList.toggle("active", btn.dataset.tab === tab);
-  });
+  // Update glass nav indicator
+  if (_glassNav) _glassNav.setActive(tab);
+
+  // Toggle panels
   document.querySelectorAll(".cs-panel").forEach(function (panel) {
     panel.classList.toggle("active", panel.id === "panel-" + tab);
   });
   history.replaceState(null, "", "#" + tab);
   loadTabData(tab);
-  // Check for active bridge jobs on tabs that have action buttons
   if (tab === "knowledge" || tab === "github") {
     checkActiveJobs();
   }
@@ -185,36 +187,45 @@ function loadDashboard() {
   });
 }
 
-/* ── Neural Core Visualization ──────────────────── */
-
-var _ncMoodColors = {
-  focused:    "#8b5cf6",
-  curious:    "#06b6d4",
-  happy:      "#22c55e",
-  processing: "#f59e0b",
-  empathetic: "#ec4899",
-  neutral:    "#8b5cf6",
-  confident:  "#3b82f6"
-};
+/* ── Neural Core — HoloSphere Integration ──────── */
 
 function loadNeuralCore() {
-  // Fetch dashboard summary for knowledge counts
+  var container = document.getElementById("neuralCore");
+  if (!container) return;
+
+  // Destroy previous instance if exists
+  if (_holoSphere) { _holoSphere.destroy(); _holoSphere = null; }
+
+  // Fetch data then build sphere
   api("/api/dashboard/summary").then(function(data) {
     if (!data.success) return;
     var kb = data.knowledge || {};
     var agents = data.agents || {};
 
+    // Build node array from knowledge data
+    var nodes = [
+      { id: "conversations", label: "Conv", count: kb.conversations || 0, color: "#3b82f6", tab: "knowledge" },
+      { id: "code", label: "Code", count: (kb.github_files || 0) + (kb.code_snippets || 0), color: "#22c55e", tab: "github" },
+      { id: "vault", label: "Vault", count: kb.vault_notes || 0, color: "#8b5cf6", tab: "knowledge" },
+      { id: "repos", label: "Repos", count: kb.repos || 0, color: "#f59e0b", tab: "github" },
+      { id: "learned", label: "Learn", count: (kb.mistakes || 0) + (kb.improvements || 0), color: "#06b6d4", tab: "insights" },
+      { id: "sessions", label: "Sessions", count: kb.sessions || 0, color: "#ec4899", tab: "insights" }
+    ];
+
+    _holoSphere = new HoloSphere(container, {
+      nodes: nodes,
+      mood: "focused",
+      particleCount: 120,
+      ambientDust: true,
+      ambientTarget: document.querySelector(".cs-body"),
+      onNodeClick: function(node) {
+        if (node.tab) switchConsciousnessTab(node.tab);
+      }
+    });
+
     // Stats HUD
     setHtml("ncTotalKnowledge", (kb.total_entries || kb.total || 0).toLocaleString());
     setHtml("ncActiveAgents", (agents.active || 0) + "/" + (agents.total || 0));
-
-    // Inner ring node counts
-    setHtml("ncConvCount", _shortNum(kb.conversations || 0));
-    setHtml("ncCodeCount", _shortNum((kb.github_files || 0) + (kb.code_snippets || 0)));
-    setHtml("ncVaultCount", _shortNum(kb.vault_notes || 0));
-    setHtml("ncRepoCount", kb.repos || 0);
-    setHtml("ncLearnedCount", _shortNum((kb.mistakes || 0) + (kb.improvements || 0)));
-    setHtml("ncSessionCount", _shortNum(kb.sessions || 0));
   }).catch(function(err) {
     console.error("Neural core data error:", err);
   });
@@ -227,134 +238,11 @@ function loadNeuralCore() {
     }
   }).catch(function() {});
 
-  // Fetch emotional state for mood-reactive core
+  // Fetch emotional state
   api("/emotional-state").then(function(data) {
     var mood = (data.mood || "focused").toLowerCase();
-    setHtml("ncCoreMood", mood);
-
-    var coreEl = document.getElementById("ncCoreNode");
-    if (coreEl) {
-      var color = _ncMoodColors[mood] || "#8b5cf6";
-      coreEl.style.borderColor = color;
-      coreEl.style.background = "radial-gradient(circle, " + color + "40 0%, " + color + "0d 70%, transparent 100%)";
-      var nameEl = coreEl.querySelector(".nc-core-name");
-      if (nameEl) nameEl.style.color = color;
-    }
+    if (_holoSphere) _holoSphere.setMood(mood);
   }).catch(function() {});
-
-  // Init particles
-  _initParticles();
-  // Draw pathways
-  _drawPathways();
-}
-
-function _shortNum(n) {
-  if (n >= 10000) return (n / 1000).toFixed(1) + "K";
-  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
-  return n.toString();
-}
-
-/* ── Circuit Pathways (SVG) ─────────────────────── */
-
-function _drawPathways() {
-  var svg = document.getElementById("ncPathways");
-  if (!svg) return;
-
-  // Center point of the SVG viewBox (700x595)
-  var cx = 350, cy = 297;
-  // Inner ring node positions (6 nodes at 60deg intervals, radius 140)
-  var r = 140;
-  var nodes = [];
-  for (var i = 0; i < 6; i++) {
-    var angle = (i * 60 - 90) * Math.PI / 180;
-    nodes.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
-  }
-
-  // Build SVG path elements (all computed from hardcoded math, no user input)
-  var frag = document.createDocumentFragment();
-
-  // Connect each node to center with curved paths
-  nodes.forEach(function(n) {
-    var ctrl1x = cx + (n.x - cx) * 0.3;
-    var ctrl1y = cy + (n.y - cy) * 0.1;
-    var ctrl2x = cx + (n.x - cx) * 0.7;
-    var ctrl2y = cy + (n.y - cy) * 0.9;
-    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("class", "nc-pathway");
-    path.setAttribute("d", "M" + cx + "," + cy +
-      " C" + ctrl1x + "," + ctrl1y + " " + ctrl2x + "," + ctrl2y +
-      " " + n.x + "," + n.y);
-    frag.appendChild(path);
-  });
-
-  // Connect adjacent nodes
-  for (var j = 0; j < nodes.length; j++) {
-    var n1 = nodes[j];
-    var n2 = nodes[(j + 1) % nodes.length];
-    var midX = (n1.x + n2.x) / 2 + (cx - (n1.x + n2.x) / 2) * 0.15;
-    var midY = (n1.y + n2.y) / 2 + (cy - (n1.y + n2.y) / 2) * 0.15;
-    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("class", "nc-pathway");
-    path.setAttribute("d", "M" + n1.x + "," + n1.y +
-      " Q" + midX + "," + midY + " " + n2.x + "," + n2.y);
-    frag.appendChild(path);
-  }
-
-  svg.textContent = "";
-  svg.appendChild(frag);
-}
-
-/* ── Particle System (Canvas) ───────────────────── */
-
-var _particleAnim = null;
-var _particles = [];
-
-function _initParticles() {
-  var canvas = document.getElementById("ncParticles");
-  if (!canvas) return;
-  var container = canvas.parentElement;
-  canvas.width = container.offsetWidth;
-  canvas.height = container.offsetHeight;
-
-  var ctx = canvas.getContext("2d");
-  var cx = canvas.width / 2, cy = canvas.height / 2;
-  var r = Math.min(canvas.width, canvas.height) * 0.2;
-
-  // Create particles that orbit between center and inner ring
-  _particles = [];
-  for (var i = 0; i < 15; i++) {
-    _particles.push({
-      angle: Math.random() * Math.PI * 2,
-      radius: r * 0.3 + Math.random() * r * 0.7,
-      speed: 0.002 + Math.random() * 0.004,
-      size: 2 + Math.random() * 2,
-      alpha: 0.3 + Math.random() * 0.5,
-      color: ["139,92,246", "59,130,246", "34,197,94", "6,182,212"][Math.floor(Math.random() * 4)]
-    });
-  }
-
-  if (_particleAnim) cancelAnimationFrame(_particleAnim);
-
-  // Check prefers-reduced-motion
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-  function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    _particles.forEach(function(p) {
-      p.angle += p.speed;
-      var x = cx + Math.cos(p.angle) * p.radius;
-      var y = cy + Math.sin(p.angle) * p.radius * 0.85;
-      ctx.beginPath();
-      ctx.arc(x, y, p.size, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(" + p.color + "," + p.alpha + ")";
-      ctx.shadowColor = "rgba(" + p.color + ",0.4)";
-      ctx.shadowBlur = 8;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    });
-    _particleAnim = requestAnimationFrame(animate);
-  }
-  animate();
 }
 
 /* ── Brain Map ────────────────────────────────────── */
@@ -2491,6 +2379,19 @@ document.addEventListener("DOMContentLoaded", function () {
       if (e.target === overlay) closeAgentModal();
     });
   }
+  // Initialize Glass Nav
+  var navEl = document.getElementById("csNav");
+  if (navEl) {
+    _glassNav = new GlassNav(navEl, {
+      onSwitch: function(tab) { switchConsciousnessTab(tab); }
+    });
+  }
+
+  // Resize handler for HoloSphere
+  window.addEventListener("resize", function() {
+    if (_holoSphere) _holoSphere.resize();
+  });
+
   var hash = window.location.hash.replace("#", "");
   var validTabs = ["dashboard", "knowledge", "team", "insights", "languages", "github", "integration"];
   if (hash && validTabs.indexOf(hash) !== -1) {

@@ -4,6 +4,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/holo-sphere.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/glass-nav.css') }}">
 {% endblock %}
 
 {% block title %}Consciousness - A.R.C.H.I.E.{% endblock %}
@@ -42,218 +44,6 @@
 @keyframes status-pulse {
     0%, 100% { box-shadow: 0 0 4px currentColor; }
     50%      { box-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
-}
-
-/* --- Neural Core Visualization --- */
-@keyframes orbitalDrift {
-    0%   { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-@keyframes orbitalDriftReverse {
-    0%   { transform: rotate(360deg); }
-    100% { transform: rotate(0deg); }
-}
-@keyframes particleFlow {
-    0%   { offset-distance: 0%; opacity: 0; }
-    10%  { opacity: 1; }
-    90%  { opacity: 1; }
-    100% { offset-distance: 100%; opacity: 0; }
-}
-@keyframes coreBreath {
-    0%, 100% { transform: scale(1); filter: brightness(1); }
-    50%      { transform: scale(1.04); filter: brightness(1.15); }
-}
-@keyframes nodeGlow {
-    0%, 100% { box-shadow: 0 0 8px var(--node-color); }
-    50%      { box-shadow: 0 0 20px var(--node-color), 0 0 40px var(--node-color); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .nc-orbital-ring, .nc-core, .nc-particle, .nc-pathway { animation: none !important; }
-}
-
-.nc-container {
-    position: relative;
-    width: 100%;
-    max-width: 700px;
-    margin: 0 auto 24px;
-    aspect-ratio: 1 / 0.85;
-    max-height: 500px;
-}
-
-/* Center core node */
-.nc-core {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 100px; height: 100px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(139,92,246,0.25) 0%, rgba(139,92,246,0.05) 70%, transparent 100%);
-    border: 2px solid rgba(139,92,246,0.4);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    z-index: 10;
-    animation: coreBreath 4s ease-in-out infinite;
-    cursor: default;
-    transition: border-color 0.8s, background 0.8s;
-}
-.nc-core-name {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.65rem; font-weight: 700;
-    color: #8b5cf6; letter-spacing: 2px;
-}
-.nc-core-mood {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.6rem; color: rgba(255,255,255,0.5);
-    text-transform: uppercase; letter-spacing: 1px;
-    margin-top: 2px;
-}
-.nc-core-ring {
-    position: absolute; inset: -6px;
-    border-radius: 50%;
-    border: 1px solid rgba(139,92,246,0.2);
-    animation: coreBreath 4s ease-in-out infinite reverse;
-}
-
-/* Orbital rings */
-.nc-orbital-ring {
-    position: absolute;
-    top: 50%; left: 50%;
-    border-radius: 50%;
-    border: 1px solid rgba(139,92,246,0.06);
-}
-.nc-ring-inner {
-    width: 280px; height: 280px;
-    margin-left: -140px; margin-top: -140px;
-    animation: orbitalDrift 60s linear infinite;
-}
-.nc-ring-outer {
-    width: 460px; height: 460px;
-    margin-left: -230px; margin-top: -230px;
-    animation: orbitalDrift 120s linear infinite reverse;
-    border-style: dashed;
-}
-
-/* Knowledge cluster nodes (inner ring) */
-.nc-node {
-    position: absolute;
-    width: 48px; height: 48px;
-    border-radius: 50%;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    --node-color: #8b5cf6;
-    border: 1.5px solid var(--node-color);
-    background: radial-gradient(circle, color-mix(in srgb, var(--node-color) 15%, transparent) 0%, transparent 80%);
-    animation: orbitalDriftReverse 60s linear infinite; /* counter-rotate to stay upright */
-}
-.nc-node:hover {
-    transform: scale(1.2);
-    box-shadow: 0 0 20px var(--node-color);
-    z-index: 20;
-}
-.nc-node-count {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.6rem; font-weight: 700;
-    color: var(--node-color);
-}
-.nc-node-label {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.45rem; font-weight: 500;
-    color: rgba(255,255,255,0.5);
-    text-transform: uppercase; letter-spacing: 0.5px;
-    white-space: nowrap;
-}
-
-/* Node color variants */
-.nc-node.conversations { --node-color: #3b82f6; }
-.nc-node.code          { --node-color: #22c55e; }
-.nc-node.vault         { --node-color: #8b5cf6; }
-.nc-node.repos         { --node-color: #f59e0b; }
-.nc-node.learned       { --node-color: #06b6d4; }
-.nc-node.sessions      { --node-color: #ec4899; }
-
-/* Outer ring dots */
-.nc-dot {
-    position: absolute;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    animation: orbitalDriftReverse 120s linear infinite;
-    opacity: 0.6;
-    transition: opacity 0.2s, transform 0.2s;
-}
-.nc-dot:hover { opacity: 1; transform: scale(2); }
-
-/* Circuit pathways (SVG) */
-.nc-pathways {
-    position: absolute; inset: 0;
-    pointer-events: none;
-    z-index: 5;
-}
-.nc-pathway {
-    fill: none;
-    stroke: rgba(139,92,246,0.08);
-    stroke-width: 1;
-}
-.nc-pathway.active {
-    stroke: rgba(139,92,246,0.25);
-    stroke-dasharray: 8 4;
-    stroke-dashoffset: 0;
-    animation: pathFlow 2s linear infinite;
-}
-@keyframes pathFlow {
-    to { stroke-dashoffset: -24; }
-}
-
-/* Particle canvas */
-.nc-particle-layer {
-    position: absolute; inset: 0;
-    pointer-events: none;
-    z-index: 6;
-}
-
-/* Stats HUD below visualization */
-.nc-stats-hud {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-bottom: 20px;
-}
-.nc-hud-item {
-    display: flex; flex-direction: column;
-    align-items: center; padding: 10px 8px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 8px;
-}
-.nc-hud-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.1rem; font-weight: 700;
-}
-.nc-hud-label {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.65rem; color: rgba(255,255,255,0.4);
-    text-transform: uppercase; letter-spacing: 1px;
-    margin-top: 2px;
-}
-.nc-hud-item.purple .nc-hud-value { color: #8b5cf6; }
-.nc-hud-item.blue .nc-hud-value   { color: #3b82f6; }
-.nc-hud-item.green .nc-hud-value  { color: #22c55e; }
-.nc-hud-item.amber .nc-hud-value  { color: #f59e0b; }
-
-/* Responsive */
-@media (max-width: 767px) {
-    .nc-container { max-height: 300px; }
-    .nc-ring-outer { display: none; }
-    .nc-ring-inner { width: 220px; height: 220px; margin-left: -110px; margin-top: -110px; }
-    .nc-core { width: 80px; height: 80px; }
-    .nc-node { width: 38px; height: 38px; }
-    .nc-stats-hud { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 500px) {
-    .nc-ring-inner { display: none; }
-    .nc-container { max-height: 200px; aspect-ratio: auto; height: 200px; }
 }
 
 /* --- GitHub Tab: Knowledge Intake --- */
@@ -619,63 +409,7 @@
 .cs-status-item .status-label { color: var(--archie-text-muted); }
 .cs-status-item .status-value { color: #8b5cf6; font-weight: 700; }
 
-/* --- Tab Navigation (LCARS strip) --- */
-.cs-tabs {
-    display: flex;
-    gap: 3px;
-    padding: 0 16px 10px;
-    margin-bottom: 12px;
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-.cs-tabs::-webkit-scrollbar { display: none; }
-.cs-tab {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    background: rgba(139,92,246,0.06);
-    border: none;
-    border-radius: 4px;
-    color: rgba(255,255,255,0.4);
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.15s ease;
-    position: relative;
-}
-.cs-tab:first-child { border-radius: 12px 4px 4px 12px; }
-.cs-tab:last-child { border-radius: 4px 12px 12px 4px; }
-.cs-tab i { width: 13px; height: 13px; }
-.cs-tab span { font-size: 0.72rem; }
-.cs-tab:hover {
-    color: rgba(255,255,255,0.7);
-    background: rgba(139,92,246,0.12);
-}
-.cs-tab::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 20%; right: 20%;
-    height: 2px;
-    background: transparent;
-    border-radius: 1px;
-    transition: background 0.2s, box-shadow 0.2s;
-}
-.cs-tab.active {
-    color: #fff;
-    background: #8b5cf6;
-    box-shadow: 0 0 12px rgba(139,92,246,0.2);
-}
-.cs-tab.active::after {
-    background: #8b5cf6;
-    box-shadow: 0 0 8px rgba(139,92,246,0.4);
-}
-
-/* --- Tab Panels --- */
+/* --- Tab Panels (GlassNav handles navigation styling) --- */
 .cs-panel { display: none; animation: fadeIn 0.3s ease-out; }
 .cs-panel.active { display: block; }
 
@@ -1809,8 +1543,6 @@
 
 @media (max-width: 480px) {
     .cs-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
-    .cs-tab span { display: none; }
-    .cs-tab { padding: 6px 8px; }
     .cs-agent-grid { grid-template-columns: 1fr 1fr; }
     .cs-card { padding: 12px; }
     .cs-modal { width: 95%; max-height: 85vh; border-radius: 16px; }
@@ -1872,36 +1604,39 @@
         </div>
     </div>
 
-    <!-- 7-Tab Navigation -->
-    <nav class="cs-tabs" id="csTabs">
-        <button class="cs-tab active" data-tab="dashboard" onclick="switchConsciousnessTab('dashboard')">
-            <i data-lucide="layout-dashboard"></i>
-            <span data-i18n="consciousness.tabs.dashboard">Dashboard</span>
-        </button>
-        <button class="cs-tab" data-tab="github" onclick="switchConsciousnessTab('github')">
-            <i data-lucide="github"></i>
-            <span data-i18n="consciousness.tabs.github">GitHub</span>
-        </button>
-        <button class="cs-tab" data-tab="languages" onclick="switchConsciousnessTab('languages')">
-            <i data-lucide="languages"></i>
-            <span data-i18n="consciousness.tabs.languages">Languages</span>
-        </button>
-        <button class="cs-tab" data-tab="knowledge" onclick="switchConsciousnessTab('knowledge')">
-            <i data-lucide="book-open"></i>
-            <span data-i18n="consciousness.tabs.knowledge">Knowledge</span>
-        </button>
-        <button class="cs-tab" data-tab="team" onclick="switchConsciousnessTab('team')">
-            <i data-lucide="users"></i>
-            <span data-i18n="consciousness.tabs.team">Team</span>
-        </button>
-        <button class="cs-tab" data-tab="insights" onclick="switchConsciousnessTab('insights')">
-            <i data-lucide="bar-chart-3"></i>
-            <span data-i18n="consciousness.tabs.insights">Insights</span>
-        </button>
-        <button class="cs-tab" data-tab="integration" onclick="switchConsciousnessTab('integration')">
-            <i data-lucide="plug"></i>
-            <span data-i18n="consciousness.tabs.integration">Integration</span>
-        </button>
+    <!-- 7-Tab Navigation (GlassNav) -->
+    <nav class="glass-nav" id="csNav">
+        <div class="glass-nav-track">
+            <div class="glass-nav-indicator"></div>
+            <button class="glass-nav-item active" data-tab="dashboard">
+                <i data-lucide="layout-dashboard"></i>
+                <span data-i18n="consciousness.tabs.dashboard">Dashboard</span>
+            </button>
+            <button class="glass-nav-item" data-tab="knowledge">
+                <i data-lucide="book-open"></i>
+                <span data-i18n="consciousness.tabs.knowledge">Knowledge</span>
+            </button>
+            <button class="glass-nav-item" data-tab="team">
+                <i data-lucide="users"></i>
+                <span data-i18n="consciousness.tabs.team">Team</span>
+            </button>
+            <button class="glass-nav-item" data-tab="insights">
+                <i data-lucide="bar-chart-3"></i>
+                <span data-i18n="consciousness.tabs.insights">Insights</span>
+            </button>
+            <button class="glass-nav-item" data-tab="languages">
+                <i data-lucide="languages"></i>
+                <span data-i18n="consciousness.tabs.languages">Languages</span>
+            </button>
+            <button class="glass-nav-item" data-tab="github">
+                <i data-lucide="github"></i>
+                <span data-i18n="consciousness.tabs.github">GitHub</span>
+            </button>
+            <button class="glass-nav-item" data-tab="integration">
+                <i data-lucide="plug"></i>
+                <span data-i18n="consciousness.tabs.integration">Integration</span>
+            </button>
+        </div>
     </nav>
 
     <div class="cs-body">
@@ -1911,76 +1646,26 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel active" id="panel-dashboard">
 
-            <!-- Neural Core Visualization -->
-            <div class="nc-container" id="neuralCore">
-                <!-- SVG Circuit Pathways (background) -->
-                <svg class="nc-pathways" id="ncPathways" viewBox="0 0 700 595" preserveAspectRatio="xMidYMid meet"></svg>
-
-                <!-- Particle Canvas (overlay) -->
-                <canvas class="nc-particle-layer" id="ncParticles"></canvas>
-
-                <!-- Outer Ring (recent entries) -->
-                <div class="nc-orbital-ring nc-ring-outer" id="ncOuterRing"></div>
-
-                <!-- Inner Ring (knowledge clusters) -->
-                <div class="nc-orbital-ring nc-ring-inner" id="ncInnerRing">
-                    <div class="nc-node conversations" data-tab="knowledge" style="top:-24px; left:50%; margin-left:-24px;"
-                         title="Conversations" onclick="switchConsciousnessTab('knowledge')">
-                        <span class="nc-node-count" id="ncConvCount">--</span>
-                        <span class="nc-node-label">Conv</span>
-                    </div>
-                    <div class="nc-node code" data-tab="knowledge" style="top:20%; right:-24px;"
-                         title="Code & GitHub Files" onclick="switchConsciousnessTab('github')">
-                        <span class="nc-node-count" id="ncCodeCount">--</span>
-                        <span class="nc-node-label">Code</span>
-                    </div>
-                    <div class="nc-node vault" data-tab="knowledge" style="bottom:20%; right:-24px;"
-                         title="Vault Notes" onclick="switchConsciousnessTab('knowledge')">
-                        <span class="nc-node-count" id="ncVaultCount">--</span>
-                        <span class="nc-node-label">Vault</span>
-                    </div>
-                    <div class="nc-node repos" data-tab="github" style="bottom:-24px; left:50%; margin-left:-24px;"
-                         title="GitHub Repositories" onclick="switchConsciousnessTab('github')">
-                        <span class="nc-node-count" id="ncRepoCount">--</span>
-                        <span class="nc-node-label">Repos</span>
-                    </div>
-                    <div class="nc-node learned" data-tab="insights" style="bottom:20%; left:-24px;"
-                         title="Learned & Improved" onclick="switchConsciousnessTab('insights')">
-                        <span class="nc-node-count" id="ncLearnedCount">--</span>
-                        <span class="nc-node-label">Learn</span>
-                    </div>
-                    <div class="nc-node sessions" data-tab="insights" style="top:20%; left:-24px;"
-                         title="Sessions" onclick="switchConsciousnessTab('insights')">
-                        <span class="nc-node-count" id="ncSessionCount">--</span>
-                        <span class="nc-node-label">Sessions</span>
-                    </div>
-                </div>
-
-                <!-- Center Core Node -->
-                <div class="nc-core" id="ncCoreNode">
-                    <div class="nc-core-ring"></div>
-                    <span class="nc-core-name">A.R.C.H.I.E.</span>
-                    <span class="nc-core-mood" id="ncCoreMood">focused</span>
-                </div>
-            </div>
+            <!-- Holographic Sphere (rendered by holo-sphere.js) -->
+            <div id="neuralCore"></div>
 
             <!-- Stats HUD -->
-            <div class="nc-stats-hud">
-                <div class="nc-hud-item purple">
-                    <span class="nc-hud-value" id="ncTotalKnowledge">--</span>
-                    <span class="nc-hud-label">Knowledge</span>
+            <div class="holo-hud">
+                <div class="holo-hud-item purple">
+                    <span class="holo-hud-value" id="ncTotalKnowledge">--</span>
+                    <span class="holo-hud-label">Knowledge</span>
                 </div>
-                <div class="nc-hud-item blue">
-                    <span class="nc-hud-value" id="ncGitHubFiles">--</span>
-                    <span class="nc-hud-label">GitHub Files</span>
+                <div class="holo-hud-item blue">
+                    <span class="holo-hud-value" id="ncGitHubFiles">--</span>
+                    <span class="holo-hud-label">GitHub Files</span>
                 </div>
-                <div class="nc-hud-item green">
-                    <span class="nc-hud-value" id="ncEmbedPct">--</span>
-                    <span class="nc-hud-label">Embedded</span>
+                <div class="holo-hud-item green">
+                    <span class="holo-hud-value" id="ncEmbedPct">--</span>
+                    <span class="holo-hud-label">Embedded</span>
                 </div>
-                <div class="nc-hud-item amber">
-                    <span class="nc-hud-value" id="ncActiveAgents">--</span>
-                    <span class="nc-hud-label">Agents</span>
+                <div class="holo-hud-item amber">
+                    <span class="holo-hud-value" id="ncActiveAgents">--</span>
+                    <span class="holo-hud-label">Agents</span>
                 </div>
             </div>
 
@@ -2593,6 +2278,10 @@
 
 <!-- External Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Shared Components -->
+<script src="{{ url_for('static', filename='js/holo-sphere.js') }}"></script>
+<script src="{{ url_for('static', filename='js/glass-nav.js') }}"></script>
 
 <!-- Consciousness Module JS -->
 <script src="{{ url_for('static', filename='js/consciousness.js') }}"></script>

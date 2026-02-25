@@ -723,18 +723,24 @@ def register_team_routes(bp, admin_required):
     @login_required
     @admin_required
     def emotional_state():
-        """Get current emotional state with rich data from multiple tables"""
+        """Get current emotional state from agent_emotional_state table.
+        Schema: id, agent_id, current_mood, mood_intensity, energy_level,
+        stress_level, trigger_event, timestamp, previous_mood,
+        mood_duration_minutes, metadata (JSONB)
+        """
+        conn = None
+        cur = None
         try:
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Main emotional state with extra fields
+            # Latest emotional state
             cur.execute(
                 """
-                SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
-                       relationship_strength as confidence, user_id, notes,
-                       mood_context, conversation_tone,
-                       user_happiness_detected, user_stress_detected
+                SELECT id, agent_id, current_mood, mood_intensity,
+                       energy_level, stress_level, trigger_event,
+                       timestamp, previous_mood, mood_duration_minutes,
+                       metadata
                 FROM agent_emotional_state
                 ORDER BY timestamp DESC
                 LIMIT 1
@@ -742,49 +748,19 @@ def register_team_routes(bp, admin_required):
             )
             state = cur.fetchone()
 
-            # Agent emotional state (ARCHIE's own feelings)
+            # Recent mood transitions (where mood actually changed)
             cur.execute(
                 """
-                SELECT current_mood, mood_intensity, energy_level, stress_level,
-                       trigger_event, previous_mood, mood_duration_minutes
+                SELECT current_mood, previous_mood, trigger_event,
+                       mood_duration_minutes, timestamp
                 FROM agent_emotional_state
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """
-            )
-            agent_state = cur.fetchone()
-
-            # Recent mood transitions — derived from agent_emotional_state via LAG()
-            cur.execute(
-                """
-                SELECT current_mood, previous_mood, trigger_event, mood_duration_minutes, timestamp
-                FROM (
-                    SELECT current_mood,
-                           LAG(current_mood) OVER (ORDER BY timestamp) as previous_mood,
-                           notes as trigger_event,
-                           EXTRACT(EPOCH FROM (timestamp - LAG(timestamp) OVER (ORDER BY timestamp))) / 60 as mood_duration_minutes,
-                           timestamp
-                    FROM agent_emotional_state
-                    ORDER BY timestamp DESC
-                ) sub
-                WHERE previous_mood IS NOT NULL AND current_mood != previous_mood
+                WHERE previous_mood IS NOT NULL
+                  AND current_mood != previous_mood
                 ORDER BY timestamp DESC
                 LIMIT 10
             """
             )
             mood_transitions = cur.fetchall()
-
-            # Recent emotional memories
-            cur.execute(
-                """
-                SELECT event_type, context_summary, user_emotion_detected,
-                       emotional_intensity, relationship_impact, event_timestamp
-                FROM emotional_memory
-                ORDER BY event_timestamp DESC
-                LIMIT 15
-            """
-            )
-            emotional_memories = cur.fetchall()
 
             # Mood distribution
             cur.execute(
@@ -797,86 +773,48 @@ def register_team_routes(bp, admin_required):
             )
             mood_distribution = cur.fetchall()
 
-            # Sentiment summary from mood_context JSONB
-            cur.execute(
-                """
-                SELECT
-                    mood_context->'sentiment'->>'user_emotion' as detected_emotion,
-                    COUNT(*) as count
-                FROM agent_emotional_state
-                WHERE mood_context IS NOT NULL
-                  AND mood_context->'sentiment'->>'user_emotion' IS NOT NULL
-                GROUP BY detected_emotion
-                ORDER BY count DESC
-            """
-            )
-            sentiment_summary = cur.fetchall()
-
-            # Latest sentiment details
-            cur.execute(
-                """
-                SELECT mood_context->'sentiment'->'emotional_signals' as signals,
-                       mood_context->'trust'->>'user_satisfaction' as satisfaction,
-                       mood_context->'sentiment'->'indicators' as indicators
-                FROM agent_emotional_state
-                WHERE mood_context IS NOT NULL
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """
-            )
-            latest_sentiment = cur.fetchone()
-
-            # Data freshness counts
+            # Data freshness
             cur.execute("SELECT COUNT(*) as cnt FROM agent_emotional_state")
             state_count = cur.fetchone()["cnt"]
-            cur.execute("SELECT COUNT(*) as cnt FROM emotional_memory")
-            memory_count = cur.fetchone()["cnt"]
 
-            # Relationship strength per user
-            cur.execute(
-                """
-                SELECT aes.user_id, u.username,
-                       aes.relationship_strength, aes.current_mood,
-                       aes.timestamp
-                FROM agent_emotional_state aes
-                JOIN users u ON aes.user_id = u.id
-                WHERE aes.user_id IS NOT NULL
-                AND aes.id IN (
-                    SELECT MAX(id) FROM agent_emotional_state
-                    WHERE user_id IS NOT NULL
-                    GROUP BY user_id
-                )
-                ORDER BY aes.relationship_strength DESC
-            """
-            )
-            relationships = cur.fetchall()
-            result = dict(state) if state else {"mood": "neutral", "energy": 0.5, "confidence": 0.5}
-            if agent_state:
-                result["agent_state"] = dict(agent_state)
+            # Build response
+            if state:
+                result = {
+                    "mood": state.get("current_mood", "neutral"),
+                    "energy": float(state.get("energy_level") or 0.5),
+                    "confidence": float(state.get("mood_intensity") or 0.5),
+                    "stress": float(state.get("stress_level") or 0),
+                    "trigger_event": state.get("trigger_event"),
+                    "previous_mood": state.get("previous_mood"),
+                    "timestamp": str(state["timestamp"]) if state.get("timestamp") else None,
+                    "agent_id": state.get("agent_id"),
+                    "metadata": state.get("metadata"),
+                }
+            else:
+                result = {
+                    "mood": "neutral",
+                    "energy": 0.5,
+                    "confidence": 0.5,
+                    "stress": 0,
+                }
+
             result["mood_transitions"] = [dict(t) for t in mood_transitions]
-            result["emotional_memories"] = [dict(m) for m in emotional_memories]
-            result["relationships"] = [dict(r) for r in relationships]
             result["mood_distribution"] = [dict(d) for d in mood_distribution]
-            result["sentiment_summary"] = [dict(s) for s in sentiment_summary]
-            result["latest_sentiment"] = dict(latest_sentiment) if latest_sentiment else None
             result["data_freshness"] = {
-                "latest_state": (str(state["timestamp"]) if state and state.get("timestamp") else None),
                 "total_states": state_count,
-                "total_memories": memory_count,
             }
             result["computed"] = {
-                "energy": float(state.get("energy", 0.5)) if state else 0.5,
-                "confidence": float(state.get("confidence", 0.5)) if state else 0.5,
-                "stress": (float(agent_state.get("stress_level", 0)) if agent_state else None),
-                "has_agent_data": agent_state is not None,
+                "energy": result["energy"],
+                "confidence": result["confidence"],
+                "stress": result["stress"],
+                "has_agent_data": state is not None,
             }
 
             return jsonify(result)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()

@@ -22,6 +22,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Allow touch scrolling through the sphere — only nodes are interactive */
+    touch-action: pan-y;
+    pointer-events: none;
 }
 
 /* ── Ambient Page Glow ────────────────────────────── */
@@ -55,6 +58,7 @@
     height: 70%;
     transform-style: preserve-3d;
     animation: holoSphereRotate 30s linear infinite;
+    pointer-events: none;
 }
 @keyframes holoSphereRotate {
     0%   { transform: rotateY(0deg) rotateX(8deg); }
@@ -170,6 +174,7 @@
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     cursor: pointer;
+    pointer-events: auto;
     transition: transform 0.2s, box-shadow 0.2s, opacity 0.3s;
     border: 1.5px solid var(--node-color, rgba(var(--holo-accent-rgb), 1));
     background: radial-gradient(circle, color-mix(in srgb, var(--node-color, #8b5cf6) 12%, transparent) 0%, transparent 80%);

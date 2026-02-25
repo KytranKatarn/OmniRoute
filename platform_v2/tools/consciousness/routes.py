@@ -165,18 +165,22 @@ def api_dashboard_summary():
         # Recent activity (blended feed — last 24h)
         cur.execute(
             """
-            (SELECT 'knowledge' as source, title as description,
+            (SELECT 'knowledge' as source,
+                    COALESCE(NULLIF(title, ''), 'Untitled entry') as description,
                     created_at, 'book-open' as icon
              FROM knowledge_base
              WHERE knowledge_type != 'archie_v1'
              ORDER BY created_at DESC LIMIT 5)
             UNION ALL
-            (SELECT 'bridge' as source, task_description as description,
+            (SELECT 'bridge' as source,
+                    COALESCE(NULLIF(task_description, ''),
+                             'Bridge task #' || id) as description,
                     created_at, 'radio' as icon
              FROM task_execution_log
              ORDER BY created_at DESC LIMIT 5)
             UNION ALL
-            (SELECT 'project' as source, title as description,
+            (SELECT 'project' as source,
+                    COALESCE(NULLIF(title, ''), 'Completed task') as description,
                     created_at, 'folder-kanban' as icon
              FROM unified_tasks
              WHERE status = 'completed'

@@ -181,6 +181,37 @@ function loadDashboard() {
       setHtml("dashboardIntegration", html);
     }).catch(function () {});
 
+    // Emotional state mood indicator
+    api("/emotional-state").then(function (d) {
+      var mood = (d.mood || "neutral").toLowerCase();
+      var moodColors = {
+        focused: "#8b5cf6", curious: "#06b6d4", happy: "#22c55e",
+        processing: "#f59e0b", empathetic: "#ec4899", neutral: "#8b5cf6",
+        confident: "#3b82f6", relaxed: "#22c55e"
+      };
+      var color = moodColors[mood] || "#8b5cf6";
+      var dot = document.getElementById("moodDot");
+      if (dot) { dot.style.background = color; dot.style.color = color; }
+      var val = document.getElementById("moodValue");
+      if (val) { val.textContent = mood; val.style.color = color; }
+      var mEnergy = Math.round((d.energy || 0) * 100);
+      var mStress = Math.round((d.stress || 0) * 100);
+      var mConf = Math.round((d.confidence || 0) * 100);
+      setHtml("moodEnergy", mEnergy + "%");
+      setHtml("moodStress", mStress + "%");
+      setHtml("moodConfidence", mConf + "%");
+    }).catch(function () {});
+
+    // Last updated timestamp
+    var ts = document.getElementById("dashboardTimestamp");
+    if (ts) {
+      var now = new Date();
+      var h = String(now.getHours()).padStart(2, "0");
+      var m = String(now.getMinutes()).padStart(2, "0");
+      var s = String(now.getSeconds()).padStart(2, "0");
+      ts.textContent = "Last updated " + h + ":" + m + ":" + s;
+    }
+
     refreshIcons();
   }).catch(function (err) {
     console.error("loadDashboard error:", err);

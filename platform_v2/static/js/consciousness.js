@@ -703,9 +703,9 @@ function checkActiveJobs() {
       if (procEl && procEl.innerHTML.indexOf("cs-pipeline-step") > -1 && procEl.innerHTML.indexOf("\u25B6") > -1) {
         setHtml("procResult", "");
       }
-      var ghEl = document.getElementById("ghActionResult");
+      var ghEl = document.getElementById("ghIntakeResult");
       if (ghEl && ghEl.innerHTML.indexOf("cs-pipeline-step") > -1 && ghEl.innerHTML.indexOf("\u25B6") > -1) {
-        setHtml("ghActionResult", "");
+        setHtml("ghIntakeResult", "");
       }
       /* Still render ops terminal crews (no active jobs = no cross-station assists) */
       renderGitHubOps(null, null);
@@ -1882,42 +1882,61 @@ function loadLangGlossary() {
 /* ── GitHub Tab ────────────────────────────────────── */
 
 function loadGitHub() {
-  // Render ops terminal commands (always available, even before data loads)
-  renderGitHubOps();
-
   api("/api/github/repos").then(function(data) {
     if (!data.success) return;
     var repos = data.repos || [];
-
-    // Update repo count stat
     setHtml("ghRepoCount", repos.length);
 
     if (!repos.length) {
-      setHtml("ghRepoGrid", '<div class="cs-empty">No repositories indexed</div>');
+      setHtml("ghRepoGrid",
+        '<div style="grid-column:1/-1; text-align:center; padding:40px 20px; color:rgba(255,255,255,0.3);">' +
+        '<div style="font-size:2rem; margin-bottom:8px;">&#x1f4e1;</div>' +
+        '<div style="font-family:Antonio,sans-serif; font-size:0.85rem; letter-spacing:1px; text-transform:uppercase;">No repositories indexed</div>' +
+        '<div style="font-size:0.75rem; margin-top:4px;">Paste a GitHub URL above to begin learning</div>' +
+        '</div>');
       return;
     }
+
     var html = '';
     repos.forEach(function(r) {
-      var cls = r.indexed ? 'indexed' : '';
-      var badge = r.indexed
-        ? '<span class="cs-gh-repo-badge indexed">Indexed</span>'
-        : '<span class="cs-gh-repo-badge pending">Pending</span>';
-      html += '<div class="cs-gh-repo-row ' + cls + '">' +
-        '<div class="cs-gh-repo-name" title="' + escHtml(r.repo_name) + '">' + escHtml(r.repo_name) + '</div>' +
-        '<div class="cs-gh-repo-meta">' +
-          badge +
-          '<span>' + (r.indexed_files || 0) + ' files</span>' +
-          (r.indexed_at ? '<span>' + formatAge(r.indexed_at) + '</span>' : '') +
+      var coverageCls = 'coverage-low';
+      if (r.indexed && r.indexed_files > 0) {
+        coverageCls = 'coverage-mid';
+      }
+
+      var circumference = 2 * Math.PI * 18;
+      var dashoffset = circumference; // 0% default, updated by embed stats
+
+      html += '<div class="gh-repo-card ' + coverageCls + '" data-repo-id="' + r.id + '">' +
+        '<div class="gh-repo-card-name" title="' + escHtml(r.repo_name) + '">' + escHtml(r.repo_name) + '</div>' +
+        '<div class="gh-repo-card-row">' +
+          '<svg class="gh-progress-ring" viewBox="0 0 44 44">' +
+            '<circle class="gh-progress-ring-bg" cx="22" cy="22" r="18" />' +
+            '<circle class="gh-progress-ring-fill" cx="22" cy="22" r="18"' +
+              ' stroke="#22c55e" stroke-dasharray="' + circumference + '"' +
+              ' stroke-dashoffset="' + dashoffset + '"' +
+              ' transform="rotate(-90 22 22)" data-repo="' + r.id + '" />' +
+          '</svg>' +
+          '<div style="flex:1; padding-left:12px;">' +
+            '<div style="font-family:Orbitron,sans-serif; font-size:0.9rem; font-weight:700; color:' +
+              (r.indexed ? '#22c55e' : '#f59e0b') + ';">' + (r.indexed_files || 0) + ' <span style="font-size:0.65rem; color:rgba(255,255,255,0.4);">files</span></div>' +
+            '<div style="font-size:0.7rem; color:rgba(255,255,255,0.35);">' +
+              (r.indexed ? 'Indexed ' + formatAge(r.indexed_at) : 'Pending') + '</div>' +
+          '</div>' +
         '</div>' +
-        '<div class="cs-gh-repo-actions">' +
-          '<button class="cs-gh-repo-btn reindex" onclick="reindexRepo(' + r.id + ')">Re-index</button>' +
-          '<a class="cs-gh-repo-btn link" href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank">\u2197</a>' +
+        '<div class="gh-repo-card-meta">' +
+          (r.repo_type ? '<span>' + escHtml(r.repo_type) + '</span>' : '') +
+          (r.status ? '<span>' + escHtml(r.status) + '</span>' : '') +
+        '</div>' +
+        '<div class="gh-repo-card-actions">' +
+          '<button onclick="event.stopPropagation(); reindexRepo(' + r.id + ')">Re-index</button>' +
+          '<button class="danger" onclick="event.stopPropagation(); deleteRepo(' + r.id + ', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')">Delete</button>' +
+          '<a href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank" onclick="event.stopPropagation();">Open</a>' +
         '</div>' +
       '</div>';
     });
     setHtml("ghRepoGrid", html);
-
-    // Fetch GitHub-specific embedding stats
+    refreshIcons();
     loadGitHubEmbedStats();
   }).catch(function(err) {
     console.error("loadGitHub error:", err);
@@ -2108,7 +2127,6 @@ function renderGitHubOps(agentData, jobData) {
   var cmdsEl = document.getElementById("ghOpsCommands");
   if (cmdsEl && !cmdsEl.hasChildNodes()) {
     var commands = [
-      { label: "+ ADD REPO", cls: "purple", fn: "showAddRepoModal()" },
       { label: "REINDEX ALL", cls: "amber", fn: "reindexAllRepos()", id: "btnReindexAll" },
       { label: "EMBED FILES", cls: "green", fn: "embedGitHubFiles()", id: "btnEmbedGH" },
       { label: "VERIFY", cls: "cyan", fn: "verifyGitHubData()" }
@@ -2211,96 +2229,104 @@ window.closeVerifyModal = function() {
 
 /* ── GitHub Repo Management ──────────────────────── */
 
-window.showAddRepoModal = function() {
-  var overlay = document.getElementById("addRepoOverlay");
-  if (overlay) overlay.classList.add("open");
+/* Inline Intake (replaces modal) */
+window.toggleIntakeOptions = function() {
+  var el = document.getElementById("ghIntakeOptions");
+  if (el) el.classList.toggle("open");
 };
 
-window.closeAddRepoModal = function() {
-  var overlay = document.getElementById("addRepoOverlay");
-  if (overlay) overlay.classList.remove("open");
-};
-
-window.addRepo = function() {
-  var url = document.getElementById("addRepoUrl").value.trim();
-  var type = document.getElementById("addRepoType").value.trim();
-  var maxFiles = document.getElementById("addRepoMax").value;
-
+window.ingestRepo = function() {
+  var url = (document.getElementById("ghIntakeUrl").value || "").trim();
   if (!url) return;
 
-  var btn = document.querySelector("#addRepoOverlay .btn-submit");
-  if (btn) btn.disabled = true;
-  setHtml("addRepoResult", lcarsMsg("info", "\u25CF", "Creating Bridge job\u2026 An agent will index this repo."));
+  var repoType = document.getElementById("ghIntakeType").value || "";
+  var maxFiles = parseInt(document.getElementById("ghIntakeMax").value) || 2000;
 
-  var body = { repo_url: url, priority: "high" };
-  if (maxFiles) body.max_files = parseInt(maxFiles);
+  var btn = document.getElementById("ghIntakeBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "INGESTING..."; }
+
+  var prog = document.getElementById("ghIntakeProgress");
+  if (prog) prog.classList.add("active");
+  setHtml("ghIntakeStatus", "Starting indexing...");
+  setHtml("ghIntakeResult", "");
+
+  var body = { repo_url: url, max_files: maxFiles };
+  if (repoType) body.repo_type = repoType;
 
   api("/github/index-selective", { method: "POST", body: body }).then(function(data) {
-    if (data.duplicate || data._status === 409) {
-      setHtml("addRepoResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Index job already running")));
-      if (btn) btn.disabled = false;
-      checkActiveJobs();
-      return;
+    if (data.success) {
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", "Indexing job started \u2014 " + escHtml(data.message || "processing")));
+      document.getElementById("ghIntakeUrl").value = "";
+    } else {
+      setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed to start indexing")));
     }
-    if (data.success && data.job_id) {
-      setHtml("addRepoResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 indexing " + escHtml(data.repo || url)));
-      if (btn) btn.disabled = false;
-      setTimeout(function() { closeAddRepoModal(); checkActiveJobs(); }, 1500);
-    } else if (data.success) {
-      setHtml("addRepoResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "Done")));
-      if (btn) btn.disabled = false;
+  }).catch(function(err) {
+    setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Network error")));
+  }).finally(function() {
+    if (btn) { btn.disabled = false; btn.textContent = "INGEST"; }
+    if (prog) prog.classList.remove("active");
+    _cache.github = false;
+    loadGitHub();
+  });
+};
+
+/* Delete Repo */
+window.deleteRepo = function(repoId, repoName) {
+  if (!confirm("Delete repository '" + repoName + "' and all indexed files?\n\nThis cannot be undone.")) return;
+
+  api("/github/repositories/" + repoId, { method: "DELETE" }).then(function(data) {
+    if (data.success) {
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", escHtml(repoName) + " removed"));
       _cache.github = false;
       loadGitHub();
     } else {
-      setHtml("addRepoResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed to index")));
-      if (btn) btn.disabled = false;
+      setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Delete failed")));
     }
   }).catch(function(err) {
-    setHtml("addRepoResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Request failed")));
-    if (btn) btn.disabled = false;
+    setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Delete error")));
   });
 };
 
 window.reindexRepo = function(repoId) {
-  setHtml("ghActionResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index repo\u2026"));
+  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index repo\u2026"));
   api("/github/reindex/" + repoId, { method: "POST" }).then(function(data) {
     if (data.success) {
       var msg = 'Re-indexed ' + (data.indexed || 0) + ' files from ' + escHtml(data.repo || '#' + repoId);
       if (data.job_id) msg += ' \u2014 Job #' + data.job_id;
-      setHtml("ghActionResult", lcarsMsg("ok", "\u2713", msg));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", msg));
       _cache.github = false;
       loadGitHub();
       setTimeout(checkActiveJobs, 1000);
     } else {
-      setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
+      setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
     }
   }).catch(function(err) {
-    setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
+    setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
   });
 };
 
 window.reindexAllRepos = function() {
   var btn = document.getElementById("btnReindexAll");
   _disableGitHubBtns();
-  setHtml("ghActionResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index all repos\u2026"));
+  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index all repos\u2026"));
   api("/github/reindex-all", { method: "POST" }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("ghActionResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Reindex job already running")));
+      setHtml("ghIntakeResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Reindex job already running")));
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("ghActionResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " repos queued"));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " repos queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
-      setHtml("ghActionResult", lcarsMsg("ok", "\u2713", "No repos to re-index"));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", "No repos to re-index"));
       _enableGitHubBtns();
     } else {
-      setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
+      setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
       _enableGitHubBtns();
     }
   }).catch(function(err) {
-    setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
+    setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
     _enableGitHubBtns();
   });
 };
@@ -2311,70 +2337,62 @@ window.embedGitHubFiles = function() {
   var btn = document.getElementById("btnEmbedGH");
   if (btn) btn.disabled = true;
   _disableGitHubBtns();
-  setHtml("ghActionResult", lcarsMsg("info", "\u25CF", "Assigning agent to embed files\u2026"));
+  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to embed files\u2026"));
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
     body: { batch_size: 100 }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("ghActionResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Job already running")));
+      setHtml("ghIntakeResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Job already running")));
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("ghActionResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
-      setHtml("ghActionResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All files already embedded")));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All files already embedded")));
       _enableGitHubBtns();
     } else {
-      setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
+      setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
       _enableGitHubBtns();
     }
   }).catch(function(err) {
-    setHtml("ghActionResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
+    setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
     _enableGitHubBtns();
   });
 }
 
-window.searchGithub = function() {
-  var q = document.getElementById("ghSearchInput").value;
-  if (!q) {
-    // Clear search, show repos again
-    var sr = document.getElementById("ghSearchResults");
-    var rg = document.getElementById("ghRepoGrid");
-    if (sr) sr.style.display = "none";
-    if (rg) rg.style.display = "";
-    return;
-  }
-  var sr = document.getElementById("ghSearchResults");
-  var rg = document.getElementById("ghRepoGrid");
-  if (sr) sr.style.display = "";
-  if (rg) rg.style.display = "none";
-  setHtml("ghSearchResults", '<div class="cs-loading">Searching...</div>');
-  api("/github/search-semantic", { method: "POST", body: { query: q, limit: 20 } }).then(function(data) {
-    var results = data.results || [];
-    if (!results.length) {
-      setHtml("ghSearchResults", '<div class="cs-empty">No results found</div>');
+/* Semantic Search (Discovery Console) */
+window.searchGithubSemantic = function() {
+  var query = (document.getElementById("ghDiscoveryInput").value || "").trim();
+  if (!query) return;
+
+  setHtml("ghDiscoveryResults", '<div class="cs-loading">Searching...</div>');
+
+  api("/github/search-semantic", { method: "POST", body: { query: query, limit: 20 } }).then(function(data) {
+    if (!data.success || !data.results || !data.results.length) {
+      setHtml("ghDiscoveryResults",
+        '<div style="text-align:center; padding:20px; color:rgba(255,255,255,0.3); font-size:0.8rem;">' +
+        'No matches found. Try different terms or index more repos.</div>');
       return;
     }
-    var html = '';
-    results.forEach(function(r) {
-      var fname = escHtml(r.file_name || r.file_path || "\u2014");
-      var score = r.similarity ? r.similarity.toFixed(2) : "";
-      var snippet = escHtml((r.content || "").substring(0, 120));
-      html += '<div class="cs-gh-repo-row">' +
-        '<div class="cs-gh-repo-name" title="' + fname + '">' + fname + '</div>' +
-        '<div class="cs-gh-repo-meta">' +
-          (score ? '<span style="color:#8b5cf6;">' + score + '</span>' : '') +
-        '</div>' +
-      '</div>' +
-      (snippet ? '<div style="padding:2px 12px 8px 15px; font-size:0.72rem; color:rgba(255,255,255,0.3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + snippet + '</div>' : '');
+
+    var html = '<div style="font-size:0.72rem; color:rgba(255,255,255,0.3); margin-bottom:8px;">' +
+      data.results.length + ' matches</div>';
+    data.results.forEach(function(r) {
+      var score = r.similarity ? Math.round(r.similarity * 100) + "%" : "";
+      html += '<div class="gh-discovery-result">' +
+        '<span class="gh-discovery-result-path">' + escHtml(r.file_path || r.title || "Unknown") + '</span>' +
+        (r.repo_name ? '<span class="gh-discovery-result-repo">' + escHtml(r.repo_name) + '</span>' : '') +
+        (score ? '<span class="gh-discovery-result-score">' + score + '</span>' : '') +
+        (r.snippet ? '<div class="gh-discovery-result-snippet">' + escHtml(r.snippet) + '</div>' : '') +
+        '</div>';
     });
-    setHtml("ghSearchResults", html);
-  }).catch(function() {
-    setHtml("ghSearchResults", '<div class="cs-empty">Search error</div>');
+    setHtml("ghDiscoveryResults", html);
+  }).catch(function(err) {
+    setHtml("ghDiscoveryResults", lcarsMsg("err", "\u2717", escHtml(err.message || "Search error")));
   });
 };
 
@@ -2473,13 +2491,6 @@ document.addEventListener("DOMContentLoaded", function () {
       if (e.target === overlay) closeAgentModal();
     });
   }
-  var repoOverlay = document.getElementById("addRepoOverlay");
-  if (repoOverlay) {
-    repoOverlay.addEventListener("click", function (e) {
-      if (e.target === repoOverlay) closeAddRepoModal();
-    });
-  }
-
   var hash = window.location.hash.replace("#", "");
   var validTabs = ["dashboard", "knowledge", "team", "insights", "languages", "github", "integration"];
   if (hash && validTabs.indexOf(hash) !== -1) {

@@ -1157,6 +1157,9 @@ window.switchLangSubtab = function(sub) {
   if (sub === "glossary") loadLangGlossary();
 };
 
+var _langGenQueue = [];
+var _langGenRunning = false;
+
 function loadLanguages() {
   // Load dashboard stats — aggregate across all languages
   api("/api/translations/stats").then(function(data) {
@@ -1174,6 +1177,47 @@ function loadLanguages() {
     setHtml("langApproved", totalApproved);
     setHtml("langPending", totalPending);
   }).catch(function() {});
+
+  // Per-language coverage with missing counts
+  api("/api/translations/language-coverage").then(function(data) {
+    if (!data.success) return;
+    var langs = data.languages || [];
+    var enTotal = data.en_total || 0;
+    var flags = {fr:"\ud83c\uddeb\ud83c\uddf7",es:"\ud83c\uddea\ud83c\uddf8",pt:"\ud83c\udde7\ud83c\uddf7",de:"\ud83c\udde9\ud83c\uddea",zh:"\ud83c\udde8\ud83c\uddf3",ar:"\ud83c\uddf8\ud83c\udde6",he:"\ud83c\uddee\ud83c\uddf1"};
+    var html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:12px;">';
+    langs.forEach(function(l) {
+      var pct = l.coverage_pct || 0;
+      var barColor = pct >= 100 ? "#4ade80" : pct >= 80 ? "#facc15" : "#f87171";
+      var flag = flags[l.code] || "";
+      html += '<div class="cs-card" style="padding:14px;" id="langCard-' + l.code + '">' +
+        '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">' +
+          '<span style="font-weight:600; color:#fff; font-size:0.88rem;">' + flag + ' ' + escHtml(l.name) + '</span>' +
+          '<span style="font-size:0.75rem; color:rgba(255,255,255,0.4);">' + l.code.toUpperCase() + '</span>' +
+        '</div>' +
+        '<div style="background:rgba(255,255,255,0.06); border-radius:4px; height:6px; margin-bottom:8px; overflow:hidden;">' +
+          '<div style="width:' + pct + '%; height:100%; background:' + barColor + '; border-radius:4px; transition:width 0.3s;"></div>' +
+        '</div>' +
+        '<div style="display:flex; justify-content:space-between; font-size:0.78rem; color:rgba(255,255,255,0.5);">' +
+          '<span>' + l.translated + '/' + l.total_keys + ' (' + pct + '%)</span>' +
+          '<span>' + l.approved + ' approved</span>' +
+        '</div>';
+      if (l.missing > 0) {
+        html += '<div style="margin-top:8px; display:flex; align-items:center; justify-content:space-between;">' +
+          '<span style="font-size:0.78rem; color:#f87171;">' + l.missing + ' missing</span>' +
+          '<button onclick="langGenerateOne(\'' + l.code + '\')" class="lang-gen-btn" id="langGenBtn-' + l.code + '"' +
+          ' style="font-size:0.72rem; padding:3px 10px; border-radius:4px; background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); cursor:pointer;">' +
+          'Generate</button></div>';
+      } else {
+        html += '<div style="margin-top:8px; font-size:0.78rem; color:#4ade80;">\u2713 Complete</div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+    setHtml("langCoverageByLang", html);
+    if (typeof lucide !== "undefined") lucide.createIcons();
+  }).catch(function() {
+    setHtml("langCoverageByLang", '<div class="cs-empty">Coverage data unavailable</div>');
+  });
 
   // Module coverage
   api("/api/translations/module-coverage").then(function(data) {
@@ -1198,6 +1242,92 @@ function loadLanguages() {
   }).catch(function() {
     setHtml("langCoverageGrid", '<div class="cs-empty">Coverage data unavailable</div>');
   });
+}
+
+/* ── Scan & Generate Actions ───────────────────── */
+
+window.langScanKeys = function() {
+  var btn = document.getElementById("langScanBtn");
+  var status = document.getElementById("langScanStatus");
+  if (btn) btn.disabled = true;
+  if (status) { status.style.display = "block"; setHtml("langScanStatus", "Scanning templates, modules, JS..."); }
+
+  api("/api/translations/scan-and-seed", "POST").then(function(data) {
+    var msg = "Scanned " + (data.total || 0) + " keys \u2014 " + (data.seeded || 0) + " new, " + (data.skipped || 0) + " existing.";
+    if (status) setHtml("langScanStatus", msg);
+    if (btn) btn.disabled = false;
+    if (data.seeded > 0) {
+      // Reload to reflect new keys
+      _cache.languages = false;
+      loadLanguages();
+    }
+  }).catch(function(err) {
+    if (status) setHtml("langScanStatus", "Scan failed: " + err);
+    if (btn) btn.disabled = false;
+  });
+};
+
+window.langGenerateOne = function(langCode) {
+  var btn = document.getElementById("langGenBtn-" + langCode);
+  if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+  _showLangJob("Generating translations for " + langCode.toUpperCase() + "...");
+
+  api("/api/translations/generate", "POST", { language: langCode }).then(function(data) {
+    var stats = data.stats || {};
+    var msg = langCode.toUpperCase() + ": " + (stats.inserted || 0) + " inserted, " +
+              (stats.updated || 0) + " updated, " + (stats.failed || 0) + " failed";
+    _showLangJob(msg);
+    if (btn) { btn.disabled = false; btn.textContent = "Done!"; btn.style.color = "#4ade80"; }
+    // Refresh coverage
+    _cache.languages = false;
+    setTimeout(function() { loadLanguages(); }, 1000);
+  }).catch(function(err) {
+    _showLangJob("Failed: " + err);
+    if (btn) { btn.disabled = false; btn.textContent = "Retry"; btn.style.color = "#f87171"; }
+  });
+};
+
+window.langGenerateAll = function() {
+  var btn = document.getElementById("langGenAllBtn");
+  if (btn) btn.disabled = true;
+  var langs = ["fr", "es", "pt", "de", "zh", "ar", "he"];
+  _langGenQueue = langs.slice();
+  _langGenRunning = true;
+  _langGenNext();
+};
+
+function _langGenNext() {
+  if (!_langGenQueue.length) {
+    _langGenRunning = false;
+    _showLangJob("All languages complete!");
+    var btn = document.getElementById("langGenAllBtn");
+    if (btn) btn.disabled = false;
+    _cache.languages = false;
+    setTimeout(function() { loadLanguages(); }, 1000);
+    return;
+  }
+  var code = _langGenQueue.shift();
+  var remaining = _langGenQueue.length;
+  _showLangJob("Generating " + code.toUpperCase() + "... (" + (7 - remaining - 1) + "/7)");
+
+  var cardBtn = document.getElementById("langGenBtn-" + code);
+  if (cardBtn) { cardBtn.disabled = true; cardBtn.textContent = "..."; }
+
+  api("/api/translations/generate", "POST", { language: code }).then(function(data) {
+    var stats = data.stats || {};
+    if (cardBtn) { cardBtn.textContent = (stats.inserted || 0) + " done"; cardBtn.style.color = "#4ade80"; }
+    _langGenNext();
+  }).catch(function() {
+    if (cardBtn) { cardBtn.textContent = "Failed"; cardBtn.style.color = "#f87171"; }
+    _langGenNext();
+  });
+}
+
+function _showLangJob(msg) {
+  var el = document.getElementById("langActiveJob");
+  var detail = document.getElementById("langJobDetail");
+  if (el) el.style.display = "block";
+  if (detail) setHtml("langJobDetail", escHtml(msg));
 }
 
 function loadLangBrowser() {
@@ -1445,57 +1575,86 @@ function renderGitHubOps(agentData, jobData) {
 /* ── Verify/Audit GitHub Data ────────────────────── */
 
 window.verifyGitHubData = function() {
-  setHtml("ghActionResult", '<span class="cs-loading" style="padding:0;">Verifying GitHub data integrity\u2026</span>');
+  /* Show results in modal so they don't get stomped by active job display */
+  setHtml("verifyModalBody", '<span class="cs-loading" style="padding:0;">Verifying GitHub data integrity\u2026</span>');
+  var overlay = document.getElementById("verifyOverlay");
+  if (overlay) overlay.classList.add("open");
+
   api("/github/stats").then(function(data) {
     if (!data.success) {
-      setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Verification failed") + '</span>');
+      setHtml("verifyModalBody", '<span style="color:#f87171;">\u2717 ' + escHtml(data.error || "Verification failed") + '</span>');
       return;
     }
 
     var repos = data.repos || [];
     var mismatches = data.mismatches || [];
     var needEmbed = 0;
+    var totalFiles = 0;
+    var totalEmbedded = 0;
 
-    var html = '<div style="margin-top:4px;">';
-    html += '<div style="font-size:0.75rem; font-weight:600; color:#00ffff; margin-bottom:8px; letter-spacing:0.05em;">VERIFICATION REPORT</div>';
+    var html = '';
 
+    /* Summary stats */
+    repos.forEach(function(r) {
+      totalFiles += (r.actual || 0);
+      totalEmbedded += (r.embedded || 0);
+      var unembedded = (r.actual || 0) - (r.embedded || 0);
+      if (unembedded > 0) needEmbed += unembedded;
+    });
+    var embedPct = totalFiles > 0 ? Math.round((totalEmbedded / totalFiles) * 100) : 0;
+
+    html += '<div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">';
+    html += '<div style="flex:1; min-width:100px; padding:10px 14px; background:rgba(0,255,255,0.06); border:1px solid rgba(0,255,255,0.15); border-radius:8px; text-align:center;">';
+    html += '<div style="font-size:1.4rem; font-weight:700; color:#00ffff;">' + repos.length + '</div>';
+    html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5);">Repos</div></div>';
+    html += '<div style="flex:1; min-width:100px; padding:10px 14px; background:rgba(34,197,94,0.06); border:1px solid rgba(34,197,94,0.15); border-radius:8px; text-align:center;">';
+    html += '<div style="font-size:1.4rem; font-weight:700; color:#22c55e;">' + totalFiles + '</div>';
+    html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5);">KB Files</div></div>';
+    html += '<div style="flex:1; min-width:100px; padding:10px 14px; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15); border-radius:8px; text-align:center;">';
+    html += '<div style="font-size:1.4rem; font-weight:700; color:#8b5cf6;">' + embedPct + '%</div>';
+    html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5);">Embedded</div></div>';
+    if (mismatches.length) {
+      html += '<div style="flex:1; min-width:100px; padding:10px 14px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.15); border-radius:8px; text-align:center;">';
+      html += '<div style="font-size:1.4rem; font-weight:700; color:#f59e0b;">' + mismatches.length + '</div>';
+      html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.5);">Mismatches</div></div>';
+    }
+    html += '</div>';
+
+    /* Per-repo table */
     if (repos.length) {
-      html += '<div style="display:grid; gap:4px;">';
+      html += '<div style="max-height:350px; overflow-y:auto; border:1px solid rgba(255,255,255,0.08); border-radius:8px;">';
+      html += '<div style="display:grid; grid-template-columns:1fr 60px 60px 70px; gap:0; font-size:0.72rem; color:rgba(255,255,255,0.4); padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.08); position:sticky; top:0; background:rgba(15,15,25,0.95);">';
+      html += '<span>Repository</span><span>DB</span><span>KB</span><span>Embedded</span></div>';
       repos.forEach(function(r) {
         var expected = r.expected || 0;
         var actual = r.actual || 0;
         var embedded = r.embedded || 0;
         var match = expected === actual;
-        var color = match ? "#22c55e" : "#f59e0b";
-        var icon = match ? "\u2713" : "\u26A0";
-        var unembedded = actual - embedded;
-        if (unembedded > 0) needEmbed += unembedded;
-
-        html += '<div style="display:flex; align-items:center; gap:8px; padding:4px 8px; font-size:0.78rem; border-radius:4px; background:rgba(255,255,255,0.02);">';
-        html += '<span style="color:' + color + '; flex-shrink:0;">' + icon + '</span>';
-        html += '<span style="color:rgba(255,255,255,0.8); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + escHtml(r.repo_name) + '</span>';
-        html += '<span style="color:rgba(255,255,255,0.5);">DB: ' + expected + '</span>';
-        html += '<span style="color:rgba(255,255,255,0.5);">KB: ' + actual + '</span>';
-        html += '<span style="color:' + (embedded === actual ? '#22c55e' : 'rgba(255,255,255,0.4)') + ';">' + embedded + ' emb</span>';
+        var rowBg = match ? 'transparent' : 'rgba(245,158,11,0.04)';
+        var icon = match ? '<span style="color:#22c55e;">\u2713</span>' : '<span style="color:#f59e0b;">\u26A0</span>';
+        html += '<div style="display:grid; grid-template-columns:1fr 60px 60px 70px; gap:0; font-size:0.78rem; padding:5px 10px; border-bottom:1px solid rgba(255,255,255,0.04); background:' + rowBg + ';">';
+        html += '<span style="color:rgba(255,255,255,0.8); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + icon + ' ' + escHtml(r.repo_name) + '</span>';
+        html += '<span style="color:rgba(255,255,255,0.5);">' + expected + '</span>';
+        html += '<span style="color:rgba(255,255,255,0.5);">' + actual + '</span>';
+        html += '<span style="color:' + (embedded === actual ? '#22c55e' : 'rgba(255,255,255,0.4)') + ';">' + embedded + '/' + actual + '</span>';
         html += '</div>';
       });
       html += '</div>';
     }
 
-    html += '<div style="margin-top:8px; font-size:0.75rem; color:rgba(255,255,255,0.5);">';
-    html += repos.length + ' repos verified';
-    if (mismatches.length) {
-      html += ' \u2022 <span style="color:#f59e0b;">' + mismatches.length + ' mismatch' + (mismatches.length > 1 ? 'es' : '') + '</span>';
-    }
     if (needEmbed > 0) {
-      html += ' \u2022 <span style="color:#8b5cf6;">' + needEmbed + ' files need embedding</span>';
+      html += '<div style="margin-top:12px; font-size:0.8rem; color:#8b5cf6;">' + needEmbed + ' files need embedding — use EMBED FILES to generate</div>';
     }
-    html += '</div></div>';
 
-    setHtml("ghActionResult", html);
+    setHtml("verifyModalBody", html);
   }).catch(function(err) {
-    setHtml("ghActionResult", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Verification error") + '</span>');
+    setHtml("verifyModalBody", '<span style="color:#f87171;">\u2717 ' + escHtml(err.message || "Verification error") + '</span>');
   });
+};
+
+window.closeVerifyModal = function() {
+  var overlay = document.getElementById("verifyOverlay");
+  if (overlay) overlay.classList.remove("open");
 };
 
 /* ── GitHub Repo Management ──────────────────────── */

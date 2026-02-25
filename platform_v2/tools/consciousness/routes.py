@@ -6424,6 +6424,67 @@ def translation_browser():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/api/translations/language-coverage")
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_language_coverage():
+    """Per-language coverage: total, approved, pending, missing counts."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Total English keys (the baseline)
+        cur.execute("SELECT COUNT(DISTINCT key) AS total FROM translations WHERE language = 'en'")
+        en_total = cur.fetchone()["total"]
+
+        # Per-language stats + missing count
+        cur.execute(
+            """
+            SELECT lang.code,
+                   COUNT(t.id) AS translated,
+                   COUNT(t.id) FILTER (WHERE t.status = 'approved') AS approved,
+                   COUNT(t.id) FILTER (WHERE t.status = 'pending_review') AS pending,
+                   %s - COUNT(t.id) AS missing
+            FROM (VALUES ('fr'),('es'),('pt'),('de'),('zh'),('ar'),('he'))
+                 AS lang(code)
+            LEFT JOIN translations t ON t.language = lang.code
+            GROUP BY lang.code
+            ORDER BY lang.code
+            """,
+            (en_total,),
+        )
+        languages = []
+        lang_names = {
+            "fr": "French",
+            "es": "Spanish",
+            "pt": "Portuguese",
+            "de": "German",
+            "zh": "Chinese",
+            "ar": "Arabic",
+            "he": "Hebrew",
+        }
+        for row in cur.fetchall():
+            languages.append(
+                {
+                    "code": row["code"],
+                    "name": lang_names.get(row["code"], row["code"]),
+                    "total_keys": en_total,
+                    "translated": row["translated"],
+                    "approved": row["approved"],
+                    "pending": row["pending"],
+                    "missing": max(0, row["missing"]),
+                    "coverage_pct": round(100 * row["translated"] / en_total, 1) if en_total > 0 else 0,
+                }
+            )
+
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "en_total": en_total, "languages": languages})
+    except Exception as e:
+        logger.error(f"Language coverage error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/api/translations/generate", methods=["POST"])
 @login_required
 @require_permission(Permission.ADMIN_ACCESS)

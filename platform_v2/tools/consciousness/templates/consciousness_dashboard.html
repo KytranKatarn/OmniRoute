@@ -75,63 +75,45 @@
 
 /* --- LCARS Framed Header (purple accent) --- */
 .cs-header {
-    text-align: center;
-    padding: 20px 24px;
-    border: 2px solid #8b5cf6;
-    border-radius: 12px;
-    margin: 0 16px 20px;
-    background: linear-gradient(180deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%);
-    box-shadow: 0 0 30px rgba(139, 92, 246, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    margin: 0 16px 12px;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.2);
     animation: fadeIn 0.5s ease-out;
     position: relative;
 }
-.cs-header::after {
-    content: '';
-    position: absolute;
-    bottom: -1px; left: 20%; right: 20%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #8b5cf6, transparent);
-}
+.cs-header::after { display: none; }
 .cs-header-title {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     font-family: 'Orbitron', var(--archie-font-heading, sans-serif);
-    font-size: 1.6rem;
+    font-size: 1rem;
     font-weight: 700;
     color: #8b5cf6;
-    text-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
-    letter-spacing: 3px;
+    letter-spacing: 2px;
     margin: 0;
 }
-.cs-header-title i { width: 28px; height: 28px; }
-.cs-header-subtitle {
-    font-family: var(--archie-font-mono);
-    font-size: 0.8rem;
-    color: var(--archie-text-muted, rgba(255,255,255,0.6));
-    letter-spacing: 0.15em;
-    margin-top: 4px;
-}
+.cs-header-title i { width: 20px; height: 20px; }
+.cs-header-subtitle { display: none; }
 .cs-header-status {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 20px;
-    padding: 12px 0;
-    border-top: 1px solid var(--archie-border-default, rgba(255,255,255,0.08));
+    gap: 16px;
     margin-top: 12px;
     flex-wrap: wrap;
 }
 .cs-status-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    gap: 6px;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
 }
 .cs-status-item .status-dot {
-    width: 8px; height: 8px;
+    width: 6px; height: 6px;
     border-radius: 50%;
     animation: status-pulse 2s ease-in-out infinite;
 }
@@ -590,6 +572,115 @@
 .cs-voice-engine { font-size: 0.72rem; color: #8b5cf6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
 .cs-voice-detail { font-size: 0.78rem; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
 
+/* --- LCARS Operations Terminal --- */
+.cs-ops-terminal {
+    background: rgba(139,92,246,0.04);
+    border: 1px solid rgba(139,92,246,0.2);
+    border-radius: 10px;
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+.cs-ops-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(139,92,246,0.12);
+    position: relative;
+}
+.cs-ops-elbow {
+    width: 36px; height: 30px;
+    border-top: 3px solid #8b5cf6;
+    border-left: 3px solid #8b5cf6;
+    border-top-left-radius: 14px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+.cs-ops-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem; font-weight: 700;
+    color: #8b5cf6;
+    letter-spacing: 2px; text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(139,92,246,0.3);
+}
+.cs-ops-status {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.65rem; color: rgba(255,255,255,0.5);
+    letter-spacing: 0.1em;
+}
+.cs-ops-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 4px #22c55e;
+}
+.cs-ops-body { padding: 12px 16px; }
+.cs-ops-section-label {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: rgba(255,255,255,0.35);
+    margin-bottom: 6px; margin-top: 10px;
+}
+.cs-ops-section-label:first-child { margin-top: 0; }
+.cs-ops-agent-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px; border-radius: 6px;
+    border-left: 3px solid #8b5cf6;
+    background: rgba(255,255,255,0.02);
+    margin-bottom: 4px;
+}
+.cs-ops-agent-name { font-weight: 600; font-size: 0.8rem; color: rgba(255,255,255,0.9); }
+.cs-ops-agent-role {
+    font-size: 0.55rem; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 2px 6px; border-radius: 3px;
+    background: rgba(139,92,246,0.2); color: #8b5cf6;
+    margin-left: auto;
+}
+.cs-ops-job-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 6px;
+    background: rgba(16,185,129,0.06);
+    border: 1px solid rgba(16,185,129,0.15);
+    margin-bottom: 4px;
+}
+.cs-ops-job-info { flex: 1; min-width: 0; }
+.cs-ops-job-desc {
+    font-size: 0.78rem; color: rgba(255,255,255,0.7);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cs-ops-job-agent { font-size: 0.65rem; color: #8b5cf6; margin-top: 2px; }
+.cs-ops-job-bar {
+    width: 80px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden; flex-shrink: 0;
+}
+.cs-ops-job-fill {
+    height: 100%; border-radius: 2px;
+    background: #10b981;
+    transition: width 0.3s ease;
+}
+.cs-ops-job-pct { font-size: 0.65rem; color: rgba(255,255,255,0.5); flex-shrink: 0; width: 30px; text-align: right; }
+.cs-ops-commands {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.cs-ops-cmd {
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.15s ease;
+}
+.cs-ops-cmd:hover { filter: brightness(1.2); }
+.cs-ops-cmd.purple { background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.4); color: #8b5cf6; }
+.cs-ops-cmd.amber  { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #f59e0b; }
+.cs-ops-cmd.green  { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: #22c55e; }
+.cs-ops-cmd.cyan   { background: rgba(0,255,255,0.1); border: 1px solid rgba(0,255,255,0.25); color: #00ffff; }
+.cs-ops-cmd:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
     .cs-stats { grid-template-columns: 1fr 1fr; }
@@ -600,6 +691,8 @@
     .cs-tab span { font-size: 0.75rem; }
     .cs-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .cs-voice-grid { grid-template-columns: 1fr; }
+    .cs-ops-commands { display: grid; grid-template-columns: 1fr 1fr; }
+    .cs-ops-agent-row { gap: 6px; }
 }
 
 @media (max-width: 480px) {
@@ -610,10 +703,13 @@
     .cs-agent-grid { grid-template-columns: 1fr 1fr; }
     .cs-card { padding: 12px; }
     .cs-modal { width: 95%; max-height: 85vh; }
-    .cs-header-status { flex-wrap: wrap; gap: 8px; }
-    .cs-header { margin: 0 8px 16px; padding: 16px; }
-    .cs-header-title { font-size: 1.2rem; letter-spacing: 2px; }
+    .cs-header-status { flex-wrap: wrap; gap: 6px; }
+    .cs-header { margin: 0 8px 8px; padding: 8px 12px; }
+    .cs-header-title { font-size: 0.85rem; letter-spacing: 1px; }
     .cs-body { padding: 0 8px 16px; }
+    .cs-ops-commands { grid-template-columns: 1fr; }
+    .cs-ops-elbow { width: 24px; height: 20px; }
+    .cs-ops-title { font-size: 0.65rem; letter-spacing: 1px; }
 }
 
 @media (min-width: 769px) {
@@ -656,6 +752,14 @@
             <i data-lucide="layout-dashboard"></i>
             <span data-i18n="consciousness.tabs.dashboard">Dashboard</span>
         </button>
+        <button class="cs-tab" data-tab="github" onclick="switchConsciousnessTab('github')">
+            <i data-lucide="github"></i>
+            <span data-i18n="consciousness.tabs.github">GitHub</span>
+        </button>
+        <button class="cs-tab" data-tab="languages" onclick="switchConsciousnessTab('languages')">
+            <i data-lucide="languages"></i>
+            <span data-i18n="consciousness.tabs.languages">Languages</span>
+        </button>
         <button class="cs-tab" data-tab="knowledge" onclick="switchConsciousnessTab('knowledge')">
             <i data-lucide="book-open"></i>
             <span data-i18n="consciousness.tabs.knowledge">Knowledge</span>
@@ -667,14 +771,6 @@
         <button class="cs-tab" data-tab="insights" onclick="switchConsciousnessTab('insights')">
             <i data-lucide="bar-chart-3"></i>
             <span data-i18n="consciousness.tabs.insights">Insights</span>
-        </button>
-        <button class="cs-tab" data-tab="languages" onclick="switchConsciousnessTab('languages')">
-            <i data-lucide="languages"></i>
-            <span data-i18n="consciousness.tabs.languages">Languages</span>
-        </button>
-        <button class="cs-tab" data-tab="github" onclick="switchConsciousnessTab('github')">
-            <i data-lucide="github"></i>
-            <span data-i18n="consciousness.tabs.github">GitHub</span>
         </button>
         <button class="cs-tab" data-tab="integration" onclick="switchConsciousnessTab('integration')">
             <i data-lucide="plug"></i>
@@ -954,6 +1050,7 @@
             <button class="cs-subtab" onclick="switchLangSubtab('glossary')">Glossary</button>
           </div>
           <div class="cs-subpanel active" id="lang-dashboard">
+            <!-- Stat Cards -->
             <div class="cs-stats" style="margin-bottom:20px;">
               <div class="cs-stat purple">
                 <div class="cs-stat-icon"><i data-lucide="languages"></i></div>
@@ -976,7 +1073,45 @@
                 <div class="cs-stat-label">Pending Review</div>
               </div>
             </div>
-            <div id="langCoverageGrid"><div class="cs-loading">Loading coverage...</div></div>
+
+            <!-- Scan & Generate Actions -->
+            <div class="cs-card" style="margin-bottom:20px;">
+              <div class="cs-card-header" style="display:flex; align-items:center; justify-content:space-between;">
+                <span>Scan &amp; Generate</span>
+                <div style="display:flex; gap:8px;">
+                  <button class="cs-btn" onclick="langScanKeys()" id="langScanBtn"
+                          style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); cursor:pointer;">
+                    <i data-lucide="scan" style="width:14px; height:14px; vertical-align:-2px;"></i> Scan for New Keys
+                  </button>
+                  <button class="cs-btn" onclick="langGenerateAll()" id="langGenAllBtn"
+                          style="font-size:0.78rem; padding:4px 12px; border-radius:4px; background:rgba(34,197,94,0.15); color:#4ade80; border:1px solid rgba(34,197,94,0.3); cursor:pointer;">
+                    <i data-lucide="zap" style="width:14px; height:14px; vertical-align:-2px;"></i> Generate All Missing
+                  </button>
+                </div>
+              </div>
+              <div class="cs-card-body" id="langScanStatus" style="display:none; padding:8px 0; font-size:0.82rem; color:rgba(255,255,255,0.6);"></div>
+            </div>
+
+            <!-- Active Translation Job -->
+            <div class="cs-card" id="langActiveJob" style="margin-bottom:20px; display:none;">
+              <div class="cs-card-header" style="display:flex; align-items:center; gap:8px;">
+                <span class="cs-pulse-dot" style="width:8px;height:8px;border-radius:50%;background:#4ade80;animation:csPulse 1.5s infinite;"></span>
+                Translation in Progress
+              </div>
+              <div class="cs-card-body" id="langJobDetail" style="font-size:0.82rem;"></div>
+            </div>
+
+            <!-- Per-Language Coverage Grid -->
+            <div class="cs-card" style="margin-bottom:20px;">
+              <div class="cs-card-header">Language Coverage</div>
+              <div class="cs-card-body" id="langCoverageByLang"><div class="cs-loading">Loading...</div></div>
+            </div>
+
+            <!-- Module Coverage Grid -->
+            <div class="cs-card">
+              <div class="cs-card-header">Module Coverage</div>
+              <div class="cs-card-body" id="langCoverageGrid"><div class="cs-loading">Loading coverage...</div></div>
+            </div>
           </div>
           <div class="cs-subpanel" id="lang-browser">
             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
@@ -1043,35 +1178,32 @@
               <div class="cs-stat-label">Searchable</div>
             </div>
           </div>
-          <!-- Station Agent Status (populated from Bridge Command) -->
-          <div id="stationStatus"></div>
+          <!-- LCARS Operations Terminal -->
+          <div class="cs-ops-terminal" id="ghOpsTerminal">
+            <div class="cs-ops-header">
+              <div class="cs-ops-elbow"></div>
+              <div class="cs-ops-title">GITHUB OPERATIONS</div>
+              <div class="cs-ops-status" id="ghOpsOnline">
+                <span class="cs-ops-dot"></span> ONLINE
+              </div>
+            </div>
+            <div class="cs-ops-body">
+              <!-- Agents section — populated by JS -->
+              <div id="ghOpsAgents"></div>
+              <!-- Active jobs — populated by JS -->
+              <div id="ghOpsJobs"></div>
+              <!-- Command buttons — populated by JS -->
+              <div class="cs-ops-commands" id="ghOpsCommands"></div>
+              <!-- Action result feedback -->
+              <div id="ghActionResult" style="margin-top:10px; font-size:0.82rem;"></div>
+            </div>
+          </div>
 
           <div class="cs-subtabs">
             <button class="cs-subtab active" onclick="switchGithubSubtab('repos')">Repos</button>
             <button class="cs-subtab" onclick="switchGithubSubtab('search')">Search</button>
           </div>
           <div class="cs-subpanel active" id="gh-repos">
-            <!-- Workflow hint -->
-            <div style="margin-bottom:12px; padding:10px 14px; background:rgba(139,92,246,0.06); border:1px solid rgba(139,92,246,0.15); border-radius:8px; font-size:0.78rem; color:rgba(255,255,255,0.45);">
-              <strong style="color:#8b5cf6;">Workflow:</strong>
-              Add a repo <span style="opacity:0.5;">&rarr;</span> Files get indexed <span style="opacity:0.5;">&rarr;</span> Click <em>Embed Files</em> to make them searchable <span style="opacity:0.5;">&rarr;</span> All jobs tracked in <a href="/tools/bridge" style="color:#8b5cf6;">Bridge Command</a>
-            </div>
-            <!-- Actions row -->
-            <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
-              <button onclick="showAddRepoModal()"
-                      style="padding:8px 16px; background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.4); border-radius:6px; color:#8b5cf6; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
-                <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Repository
-              </button>
-              <button id="btnReindexAll" onclick="reindexAllRepos()"
-                      style="padding:8px 16px; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); border-radius:6px; color:#f59e0b; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
-                <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Re-index All
-              </button>
-              <button id="btnEmbedGH" onclick="embedGitHubFiles()"
-                      style="padding:8px 16px; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); border-radius:6px; color:#22c55e; cursor:pointer; font-size:0.85rem; display:flex; align-items:center; gap:6px;">
-                <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Embed Files
-              </button>
-              <div id="ghActionResult" style="flex:1; font-size:0.82rem;"></div>
-            </div>
             <div id="ghRepoGrid"><div class="cs-loading">Loading repositories...</div></div>
           </div>
           <div class="cs-subpanel" id="gh-search">
@@ -1187,6 +1319,18 @@
                     Index Repository
                 </button>
                 <div id="addRepoResult" style="margin-top:12px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verify Results Modal -->
+    <div class="cs-modal-overlay" id="verifyOverlay">
+        <div class="cs-modal" style="max-width:600px;">
+            <div class="cs-modal-header">
+                <span>GitHub Verification Report</span>
+                <button class="cs-modal-close" onclick="closeVerifyModal()">&times;</button>
+            </div>
+            <div class="cs-modal-body" id="verifyModalBody">
             </div>
         </div>
     </div>

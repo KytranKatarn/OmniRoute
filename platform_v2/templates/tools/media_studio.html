@@ -20,17 +20,13 @@
                 <i data-lucide="palette"></i>
                 MEDIA STUDIO
             </h1>
-            <p class="ms-subtitle">Create images, videos & shorts with AI</p>
+            <p class="ms-subtitle">
+                Generate images, video &amp; audio via AI Bridge
+                <span class="ms-status-dot" id="statusDot" title="Checking..."></span>
+            </p>
         </div>
         <div class="ms-actions">
-            <button class="ms-btn ms-btn-secondary" onclick="showUploadModal()">
-                <i data-lucide="upload"></i>
-                Upload
-            </button>
-            <button class="ms-btn ms-btn-primary" onclick="showGenerateModal()">
-                <i data-lucide="sparkles"></i>
-                Generate
-            </button>
+            <span class="ms-provider-badge" id="providerCount">-- providers</span>
         </div>
     </header>
 
@@ -41,470 +37,245 @@
                 <i data-lucide="image"></i>
             </div>
             <div class="ms-stat-info">
-                <span class="ms-stat-value" id="totalImages">0</span>
-                <span class="ms-stat-label">IMAGES</span>
+                <span class="ms-stat-value" id="statImages">-</span>
+                <span class="ms-stat-label"><span data-i18n="media_studio.images">IMAGES</span></span>
             </div>
         </div>
         <div class="ms-stat-card" style="animation-delay: 0.2s">
-            <div class="ms-stat-icon ms-stat-icon--video">
-                <i data-lucide="video"></i>
+            <div class="ms-stat-icon ms-stat-icon--audio">
+                <i data-lucide="audio-lines"></i>
             </div>
             <div class="ms-stat-info">
-                <span class="ms-stat-value" id="totalVideos">0</span>
-                <span class="ms-stat-label">VIDEOS</span>
+                <span class="ms-stat-value" id="statAudio">-</span>
+                <span class="ms-stat-label"><span data-i18n="media_studio.audio">AUDIO</span></span>
             </div>
         </div>
         <div class="ms-stat-card" style="animation-delay: 0.3s">
-            <div class="ms-stat-icon ms-stat-icon--shorts">
-                <i data-lucide="clapperboard"></i>
+            <div class="ms-stat-icon ms-stat-icon--queue">
+                <i data-lucide="clock"></i>
             </div>
             <div class="ms-stat-info">
-                <span class="ms-stat-value" id="totalShorts">0</span>
-                <span class="ms-stat-label">SHORTS</span>
+                <span class="ms-stat-value" id="statQueued">-</span>
+                <span class="ms-stat-label"><span data-i18n="media_studio.queued">QUEUED</span></span>
             </div>
         </div>
         <div class="ms-stat-card" style="animation-delay: 0.4s">
-            <div class="ms-stat-icon ms-stat-icon--storage">
-                <i data-lucide="hard-drive"></i>
+            <div class="ms-stat-icon ms-stat-icon--cost">
+                <i data-lucide="wallet"></i>
             </div>
             <div class="ms-stat-info">
-                <span class="ms-stat-value" id="storageUsed">0 MB</span>
-                <span class="ms-stat-label">STORAGE</span>
+                <span class="ms-stat-value" id="statCost">$0.00</span>
+                <span class="ms-stat-label"><span data-i18n="media_studio.total_cost">TOTAL COST</span></span>
             </div>
         </div>
     </section>
 
     <!-- Tab Navigation -->
     <nav class="ms-tabs">
-        <button class="ms-tab active" data-tab="gallery" onclick="switchTab('gallery')">
+        <button class="ms-tab active" data-tab="create" onclick="switchTab('create')">
+            <i data-lucide="sparkles"></i>
+            Create
+        </button>
+        <button class="ms-tab" data-tab="queue" onclick="switchTab('queue')">
+            <i data-lucide="list-ordered"></i>
+            Queue
+            <span class="ms-tab-badge" id="queueBadge" style="display:none">0</span>
+        </button>
+        <button class="ms-tab" data-tab="gallery" onclick="switchTab('gallery')">
             <i data-lucide="grid-3x3"></i>
             Gallery
-        </button>
-        <button class="ms-tab" data-tab="ai-generator" onclick="switchTab('ai-generator')">
-            <i data-lucide="wand-2"></i>
-            AI Generator
-        </button>
-        <button class="ms-tab" data-tab="video-editor" onclick="switchTab('video-editor')">
-            <i data-lucide="film"></i>
-            Video Editor
-        </button>
-        <button class="ms-tab" data-tab="shorts-creator" onclick="switchTab('shorts-creator')">
-            <i data-lucide="smartphone"></i>
-            Shorts Creator
         </button>
     </nav>
 
     <!-- Tab Content -->
     <div class="ms-tab-content">
-        <!-- Gallery Tab -->
-        <div class="ms-tab-panel active" id="gallery-panel">
-            <!-- Toolbar -->
-            <div class="ms-toolbar">
-                <div class="ms-search">
-                    <i data-lucide="search"></i>
-                    <input type="text" placeholder="Search media..." id="mediaSearch" onkeyup="filterMedia()">
-                </div>
-                <div class="ms-filters">
-                    <select class="ms-select" id="typeFilter" onchange="filterMedia()">
-                        <option value="">All Types</option>
-                        <option value="image">Images</option>
-                        <option value="video">Videos</option>
-                        <option value="short">Shorts</option>
-                    </select>
-                    <div class="ms-view-toggle">
-                        <button class="ms-view-btn active" onclick="setView('grid')" title="Grid View">
-                            <i data-lucide="grid-3x3"></i>
-                        </button>
-                        <button class="ms-view-btn" onclick="setView('list')" title="List View">
-                            <i data-lucide="list"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Media Grid -->
-            <div class="ms-media-grid" id="mediaGrid">
-                <!-- Empty State -->
-                <div class="ms-empty-state" id="emptyState">
-                    <div class="ms-empty-icon">
-                        <i data-lucide="image-plus"></i>
-                    </div>
-                    <h3>No Media Yet</h3>
-                    <p>Upload files or generate content with AI</p>
-                    <div class="ms-empty-actions">
-                        <button class="ms-btn ms-btn-secondary" onclick="showUploadModal()">
-                            <i data-lucide="upload"></i>
-                            Upload
-                        </button>
-                        <button class="ms-btn ms-btn-primary" onclick="showGenerateModal()">
-                            <i data-lucide="sparkles"></i>
-                            Generate
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- AI Generator Tab -->
-        <div class="ms-tab-panel" id="ai-generator-panel">
-            <div class="ms-generator-layout">
-                <div class="ms-generator-controls">
-                    <div class="ms-generator-section">
-                        <h3>
-                            <i data-lucide="type"></i>
-                            Prompt
-                        </h3>
-                        <textarea class="ms-textarea" id="aiPrompt" placeholder="Describe the image you want to create...&#10;&#10;Example: A cyberpunk city at night with neon signs, flying cars, and rain" rows="6"></textarea>
+        <!-- CREATE TAB -->
+        <div class="ms-tab-panel active" id="create-panel">
+            <div class="ms-create-layout">
+                <div class="ms-create-controls">
+                    <!-- Type Selector -->
+                    <div class="ms-section">
+                        <h3 class="ms-section-title"><i data-lucide="layers"></i><span data-i18n="media_studio.type"> Type</span></h3>
+                        <div class="ms-type-selector" id="typeSelector">
+                            <button class="ms-type-btn active" data-type="image" onclick="selectType('image')">
+                                <i data-lucide="image"></i> Image
+                            </button>
+                            <button class="ms-type-btn" data-type="audio_tts" onclick="selectType('audio_tts')">
+                                <i data-lucide="audio-lines"></i> Audio TTS
+                            </button>
+                            <button class="ms-type-btn disabled" data-type="video" title="No providers available">
+                                <i data-lucide="video"></i> Video
+                                <span class="ms-coming-soon"><span data-i18n="media_studio.soon">Soon</span></span>
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="ms-generator-section">
-                        <h3>
-                            <i data-lucide="sliders"></i>
-                            Settings
-                        </h3>
+                    <!-- Provider Info -->
+                    <div class="ms-section" id="providerInfo">
+                        <div class="ms-provider-list" id="providerList"></div>
+                    </div>
+
+                    <!-- Prompt -->
+                    <div class="ms-section">
+                        <h3 class="ms-section-title"><i data-lucide="type"></i><span data-i18n="media_studio.prompt"> Prompt</span></h3>
+                        <textarea class="ms-textarea" id="promptInput"
+                            placeholder="Describe what you want to create..."
+                            rows="5"></textarea>
+                    </div>
+
+                    <!-- Image Parameters -->
+                    <div class="ms-section ms-params" id="imageParams">
+                        <h3 class="ms-section-title"><i data-lucide="sliders"></i><span data-i18n="media_studio.parameters"> Parameters</span></h3>
                         <div class="ms-settings-grid">
                             <div class="ms-setting">
-                                <label>Model</label>
-                                <select class="ms-select" id="aiModel">
-                                    <option value="dall-e-3">DALL-E 3 (OpenAI)</option>
-                                    <option value="stable-diffusion">Stable Diffusion</option>
-                                    <option value="midjourney">Midjourney</option>
-                                    <option value="flux">Flux</option>
+                                <label><span data-i18n="media_studio.aspect_ratio">Aspect Ratio</span></label>
+                                <select class="ms-select" id="aspectRatio">
+                                    <option value="1:1"><span data-i18n="media_studio.1_1_square">1:1 (Square)</span></option>
+                                    <option value="16:9"><span data-i18n="media_studio.16_9_landscape">16:9 (Landscape)</span></option>
+                                    <option value="9:16"><span data-i18n="media_studio.9_16_portrait">9:16 (Portrait)</span></option>
+                                    <option value="4:3"><span data-i18n="media_studio.4_3_standard">4:3 (Standard)</span></option>
                                 </select>
                             </div>
                             <div class="ms-setting">
-                                <label>Size</label>
-                                <select class="ms-select" id="imageSize">
-                                    <option value="1024x1024">1024 x 1024 (Square)</option>
-                                    <option value="1792x1024">1792 x 1024 (Landscape)</option>
-                                    <option value="1024x1792">1024 x 1792 (Portrait)</option>
-                                </select>
-                            </div>
-                            <div class="ms-setting">
-                                <label>Style</label>
+                                <label><span data-i18n="media_studio.style">Style</span></label>
                                 <select class="ms-select" id="imageStyle">
-                                    <option value="vivid">Vivid</option>
-                                    <option value="natural">Natural</option>
-                                    <option value="cinematic">Cinematic</option>
-                                    <option value="anime">Anime</option>
-                                    <option value="digital-art">Digital Art</option>
-                                </select>
-                            </div>
-                            <div class="ms-setting">
-                                <label>Quality</label>
-                                <select class="ms-select" id="imageQuality">
-                                    <option value="standard">Standard</option>
-                                    <option value="hd">HD</option>
+                                    <option value="vivid"><span data-i18n="media_studio.vivid">Vivid</span></option>
+                                    <option value="natural"><span data-i18n="media_studio.natural">Natural</span></option>
                                 </select>
                             </div>
                         </div>
                     </div>
 
-                    <button class="ms-btn ms-btn-primary ms-btn-large" onclick="generateImage()">
-                        <i data-lucide="sparkles"></i>
-                        Generate Image
-                    </button>
-                </div>
-
-                <div class="ms-generator-preview">
-                    <div class="ms-preview-container" id="previewContainer">
-                        <div class="ms-preview-placeholder">
-                            <i data-lucide="image"></i>
-                            <p>Generated image will appear here</p>
-                        </div>
-                    </div>
-                    <div class="ms-preview-actions" id="previewActions" style="display: none;">
-                        <button class="ms-btn ms-btn-secondary" onclick="downloadImage()">
-                            <i data-lucide="download"></i>
-                            Download
-                        </button>
-                        <button class="ms-btn ms-btn-secondary" onclick="saveToGallery()">
-                            <i data-lucide="save"></i>
-                            Save to Gallery
-                        </button>
-                        <button class="ms-btn ms-btn-secondary" onclick="regenerateImage()">
-                            <i data-lucide="refresh-cw"></i>
-                            Regenerate
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Prompt Suggestions -->
-            <div class="ms-suggestions">
-                <h4>Quick Prompts</h4>
-                <div class="ms-suggestions-grid">
-                    <button class="ms-suggestion" onclick="usePrompt('A serene Japanese garden with cherry blossoms')">
-                        <i data-lucide="flower-2"></i>
-                        Japanese Garden
-                    </button>
-                    <button class="ms-suggestion" onclick="usePrompt('Futuristic cyberpunk cityscape at night')">
-                        <i data-lucide="building"></i>
-                        Cyberpunk City
-                    </button>
-                    <button class="ms-suggestion" onclick="usePrompt('Abstract geometric pattern with vibrant colors')">
-                        <i data-lucide="hexagon"></i>
-                        Abstract Art
-                    </button>
-                    <button class="ms-suggestion" onclick="usePrompt('Professional product photography on white background')">
-                        <i data-lucide="box"></i>
-                        Product Shot
-                    </button>
-                    <button class="ms-suggestion" onclick="usePrompt('Portrait of a person in dramatic lighting')">
-                        <i data-lucide="user"></i>
-                        Portrait
-                    </button>
-                    <button class="ms-suggestion" onclick="usePrompt('Epic fantasy landscape with mountains and castles')">
-                        <i data-lucide="mountain"></i>
-                        Fantasy World
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Video Editor Tab -->
-        <div class="ms-tab-panel" id="video-editor-panel">
-            <div class="ms-editor-layout">
-                <div class="ms-editor-sidebar">
-                    <div class="ms-editor-section">
-                        <h3>
-                            <i data-lucide="folder"></i>
-                            Project Files
-                        </h3>
-                        <div class="ms-file-list" id="projectFiles">
-                            <div class="ms-file-empty">
-                                <p>No files in project</p>
-                                <button class="ms-btn ms-btn-small" onclick="importMedia()">
-                                    <i data-lucide="plus"></i>
-                                    Import Media
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="ms-editor-section">
-                        <h3>
-                            <i data-lucide="layers"></i>
-                            Effects
-                        </h3>
-                        <div class="ms-effects-list">
-                            <button class="ms-effect-btn" onclick="addEffect('fade')">
-                                <i data-lucide="sunrise"></i>
-                                Fade
-                            </button>
-                            <button class="ms-effect-btn" onclick="addEffect('zoom')">
-                                <i data-lucide="zoom-in"></i>
-                                Zoom
-                            </button>
-                            <button class="ms-effect-btn" onclick="addEffect('blur')">
-                                <i data-lucide="droplet"></i>
-                                Blur
-                            </button>
-                            <button class="ms-effect-btn" onclick="addEffect('text')">
-                                <i data-lucide="type"></i>
-                                Text
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="ms-editor-main">
-                    <div class="ms-video-preview">
-                        <div class="ms-video-placeholder">
-                            <i data-lucide="play-circle"></i>
-                            <p>Import media to start editing</p>
-                        </div>
-                    </div>
-                    <div class="ms-timeline">
-                        <div class="ms-timeline-header">
-                            <button class="ms-timeline-btn" onclick="playPreview()">
-                                <i data-lucide="play"></i>
-                            </button>
-                            <span class="ms-timeline-time">00:00 / 00:00</span>
-                            <div class="ms-timeline-zoom">
-                                <button class="ms-timeline-btn" onclick="zoomOut()">
-                                    <i data-lucide="minus"></i>
-                                </button>
-                                <button class="ms-timeline-btn" onclick="zoomIn()">
-                                    <i data-lucide="plus"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="ms-timeline-tracks">
-                            <div class="ms-track ms-track--video">
-                                <span class="ms-track-label">Video</span>
-                                <div class="ms-track-content"></div>
-                            </div>
-                            <div class="ms-track ms-track--audio">
-                                <span class="ms-track-label">Audio</span>
-                                <div class="ms-track-content"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="ms-editor-properties">
-                    <h3>
-                        <i data-lucide="settings"></i>
-                        Properties
-                    </h3>
-                    <p class="ms-properties-empty">Select a clip to edit properties</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Shorts Creator Tab -->
-        <div class="ms-tab-panel" id="shorts-creator-panel">
-            <div class="ms-shorts-layout">
-                <div class="ms-shorts-controls">
-                    <div class="ms-shorts-section">
-                        <h3>
-                            <i data-lucide="type"></i>
-                            Content
-                        </h3>
-                        <textarea class="ms-textarea" id="shortScript" placeholder="Enter script or talking points...&#10;&#10;AI will help you create engaging short-form content" rows="4"></textarea>
-                    </div>
-
-                    <div class="ms-shorts-section">
-                        <h3>
-                            <i data-lucide="settings"></i>
-                            Settings
-                        </h3>
+                    <!-- Audio TTS Parameters -->
+                    <div class="ms-section ms-params" id="audioParams" style="display:none">
+                        <h3 class="ms-section-title"><i data-lucide="sliders"></i><span data-i18n="media_studio.parameters_2"> Parameters</span></h3>
                         <div class="ms-settings-grid">
                             <div class="ms-setting">
-                                <label>Platform</label>
-                                <select class="ms-select" id="shortPlatform">
-                                    <option value="tiktok">TikTok</option>
-                                    <option value="youtube">YouTube Shorts</option>
-                                    <option value="instagram">Instagram Reels</option>
+                                <label><span data-i18n="media_studio.voice">Voice</span></label>
+                                <select class="ms-select" id="ttsVoice">
+                                    <option value="default"><span data-i18n="media_studio.default">Default</span></option>
                                 </select>
                             </div>
                             <div class="ms-setting">
-                                <label>Duration</label>
-                                <select class="ms-select" id="shortDuration">
-                                    <option value="15">15 seconds</option>
-                                    <option value="30">30 seconds</option>
-                                    <option value="60" selected>60 seconds</option>
-                                </select>
-                            </div>
-                            <div class="ms-setting">
-                                <label>Style</label>
-                                <select class="ms-select" id="shortStyle">
-                                    <option value="talking-head">Talking Head</option>
-                                    <option value="slideshow">Slideshow</option>
-                                    <option value="text-overlay">Text Overlay</option>
-                                    <option value="animation">Animation</option>
-                                </select>
-                            </div>
-                            <div class="ms-setting">
-                                <label>Music</label>
-                                <select class="ms-select" id="shortMusic">
-                                    <option value="none">No Music</option>
-                                    <option value="energetic">Energetic</option>
-                                    <option value="calm">Calm</option>
-                                    <option value="dramatic">Dramatic</option>
+                                <label><span data-i18n="media_studio.language">Language</span></label>
+                                <select class="ms-select" id="ttsLanguage">
+                                    <option value="en"><span data-i18n="media_studio.english">English</span></option>
+                                    <option value="fr"><span data-i18n="media_studio.french">French</span></option>
+                                    <option value="es"><span data-i18n="media_studio.spanish">Spanish</span></option>
                                 </select>
                             </div>
                         </div>
                     </div>
 
-                    <button class="ms-btn ms-btn-primary ms-btn-large" onclick="createShort()">
-                        <i data-lucide="clapperboard"></i>
-                        Create Short
+                    <!-- Generate Button -->
+                    <button class="ms-btn ms-btn-primary ms-btn-large" id="generateBtn" onclick="submitGeneration()" disabled>
+                        <i data-lucide="sparkles"></i>
+                        <span id="generateBtnText"><span data-i18n="media_studio.generate">Generate</span></span>
                     </button>
                 </div>
 
-                <div class="ms-shorts-preview">
-                    <div class="ms-phone-frame">
-                        <div class="ms-phone-screen" id="shortPreview">
-                            <div class="ms-phone-placeholder">
-                                <i data-lucide="smartphone"></i>
-                                <p>Short preview</p>
-                            </div>
+                <!-- Preview Area -->
+                <div class="ms-create-preview">
+                    <div class="ms-preview-container" id="previewContainer">
+                        <div class="ms-preview-empty" id="previewEmpty">
+                            <i data-lucide="image-plus"></i>
+                            <p><span data-i18n="media_studio.your_creation_will_appear_here">Your creation will appear here</span></p>
                         </div>
+                    </div>
+                    <div class="ms-preview-meta" id="previewMeta" style="display:none">
+                        <span class="ms-meta-item" id="metaProvider"></span>
+                        <span class="ms-meta-item" id="metaModel"></span>
+                        <span class="ms-meta-item" id="metaCost"></span>
+                        <span class="ms-meta-item" id="metaDuration"></span>
                     </div>
                 </div>
             </div>
 
-            <!-- Recent Shorts -->
-            <div class="ms-recent-shorts">
-                <h4>Recent Shorts</h4>
-                <div class="ms-shorts-empty">
-                    <p>No shorts created yet. Start by entering a script above!</p>
+            <!-- Quick Prompts -->
+            <div class="ms-suggestions">
+                <h4><span data-i18n="media_studio.quick_prompts">Quick Prompts</span></h4>
+                <div class="ms-suggestions-grid" id="suggestionsGrid">
+                    <button class="ms-suggestion" data-prompt="A golden LCARS-styled starship bridge with holographic displays">
+                        <i data-lucide="monitor"></i> Starship Bridge
+                    </button>
+                    <button class="ms-suggestion" data-prompt="Professional portrait of an AI assistant with warm lighting">
+                        <i data-lucide="user"></i> AI Portrait
+                    </button>
+                    <button class="ms-suggestion" data-prompt="Abstract geometric pattern with amber and dark blue tones">
+                        <i data-lucide="hexagon"></i> Abstract Art
+                    </button>
+                    <button class="ms-suggestion" data-prompt="Futuristic cyberpunk cityscape at night with neon signs">
+                        <i data-lucide="building"></i> Cyberpunk City
+                    </button>
+                    <button class="ms-suggestion" data-prompt="Serene Japanese garden with cherry blossoms and koi pond">
+                        <i data-lucide="flower-2"></i> Japanese Garden
+                    </button>
+                    <button class="ms-suggestion" data-prompt="Epic fantasy landscape with floating islands and waterfalls">
+                        <i data-lucide="mountain"></i> Fantasy World
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- QUEUE TAB -->
+        <div class="ms-tab-panel" id="queue-panel">
+            <div class="ms-queue-list" id="queueList">
+                <div class="ms-empty-state" id="queueEmpty">
+                    <i data-lucide="list-checks"></i>
+                    <h3><span data-i18n="media_studio.no_jobs">No Jobs</span></h3>
+                    <p><span data-i18n="media_studio.generation_requests_will_appear_here">Generation requests will appear here</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- GALLERY TAB -->
+        <div class="ms-tab-panel" id="gallery-panel">
+            <div class="ms-toolbar">
+                <div class="ms-filters">
+                    <select class="ms-select" id="galleryTypeFilter" onchange="loadGallery()">
+                        <option value=""><span data-i18n="media_studio.all_types">All Types</span></option>
+                        <option value="image"><span data-i18n="media_studio.images_2">Images</span></option>
+                        <option value="audio_tts"><span data-i18n="media_studio.audio_2">Audio</span></option>
+                    </select>
+                </div>
+            </div>
+            <div class="ms-gallery-grid" id="galleryGrid">
+                <div class="ms-empty-state" id="galleryEmpty">
+                    <i data-lucide="image-plus"></i>
+                    <h3><span data-i18n="media_studio.no_media_yet">No Media Yet</span></h3>
+                    <p><span data-i18n="media_studio.generate_content_on_the_create_tab_to_see_it_here">Generate content on the Create tab to see it here</span></p>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Upload Modal -->
-<div class="ms-modal" id="uploadModal">
-    <div class="ms-modal-content">
+<!-- Asset Detail Modal -->
+<div class="ms-modal" id="assetModal">
+    <div class="ms-modal-content ms-modal-large">
         <div class="ms-modal-header">
-            <h2>
-                <i data-lucide="upload"></i>
-                Upload Media
-            </h2>
-            <button class="ms-modal-close" onclick="closeUploadModal()">
-                <i data-lucide="x"></i>
-            </button>
+            <h2><i data-lucide="image"></i><span data-i18n="media_studio.asset_details"> Asset Details</span></h2>
+            <button class="ms-modal-close" onclick="closeAssetModal()"><i data-lucide="x"></i></button>
         </div>
-        <div class="ms-modal-body">
-            <div class="ms-upload-zone" id="uploadZone">
-                <i data-lucide="cloud-upload"></i>
-                <h3>Drop files here</h3>
-                <p>or click to browse</p>
-                <input type="file" id="fileInput" multiple accept="image/*,video/*" onchange="handleFileSelect(event)">
-            </div>
-            <div class="ms-upload-info">
-                <p>Supported formats: JPG, PNG, GIF, WEBP, MP4, MOV, WEBM</p>
-                <p>Maximum file size: 100MB</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Generate Modal -->
-<div class="ms-modal" id="generateModal">
-    <div class="ms-modal-content">
-        <div class="ms-modal-header">
-            <h2>
-                <i data-lucide="sparkles"></i>
-                Quick Generate
-            </h2>
-            <button class="ms-modal-close" onclick="closeGenerateModal()">
-                <i data-lucide="x"></i>
-            </button>
-        </div>
-        <div class="ms-modal-body">
-            <div class="ms-form-group">
-                <label>What do you want to create?</label>
-                <textarea class="ms-textarea" id="quickPrompt" placeholder="Describe your image..." rows="4"></textarea>
-            </div>
-            <div class="ms-quick-styles">
-                <button class="ms-style-btn" onclick="setQuickStyle('photo')">Photo</button>
-                <button class="ms-style-btn" onclick="setQuickStyle('illustration')">Illustration</button>
-                <button class="ms-style-btn" onclick="setQuickStyle('3d')">3D Render</button>
-                <button class="ms-style-btn" onclick="setQuickStyle('anime')">Anime</button>
-            </div>
-        </div>
+        <div class="ms-modal-body" id="assetModalBody"></div>
         <div class="ms-modal-footer">
-            <button class="ms-btn ms-btn-secondary" onclick="closeGenerateModal()">Cancel</button>
-            <button class="ms-btn ms-btn-primary" onclick="quickGenerate()">
-                <i data-lucide="sparkles"></i>
-                Generate
+            <button class="ms-btn ms-btn-secondary" id="btnSetProfile" onclick="showProfileSelector()" style="display:none">
+                <i data-lucide="user-circle"></i> Set as Profile
             </button>
+            <button class="ms-btn ms-btn-secondary ms-btn-danger" onclick="deleteCurrentAsset()">
+                <i data-lucide="trash-2"></i> Delete
+            </button>
+            <button class="ms-btn ms-btn-secondary" onclick="closeAssetModal()"><span data-i18n="media_studio.close">Close</span></button>
         </div>
     </div>
 </div>
 
 <style>
-/* ═══════════════════════════════════════════════════════════════════════════════
-   MEDIA STUDIO - NEO-COMMAND CENTER AESTHETIC (ORANGE THEME)
-   ═══════════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   MEDIA STUDIO — LCARS GOLD-STANDARD
+   ═══════════════════════════════════════════════════════════════ */
 
-/* Custom variables replaced with --archie-* design tokens */
-
-/* Container */
 .ms-container {
     min-height: 100vh;
     background: var(--archie-bg-primary);
@@ -512,20 +283,10 @@
     padding-top: 80px;
 }
 
-/* Scanline Overlay */
 .scanline-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0.03) 0px,
-        rgba(0, 0, 0, 0.03) 1px,
-        transparent 1px,
-        transparent 2px
-    );
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 2px);
     pointer-events: none;
     z-index: 1000;
 }
@@ -536,7 +297,7 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 30px;
-    animation: fadeInUp 0.5s ease-out;
+    animation: msSlideIn 0.5s ease-out;
 }
 
 .ms-title {
@@ -550,11 +311,7 @@
     text-shadow: 0 0 20px rgba(255, 170, 0, 0.5);
     margin: 0;
 }
-
-.ms-title i {
-    width: 36px;
-    height: 36px;
-}
+.ms-title i { width: 36px; height: 36px; }
 
 .ms-subtitle {
     font-family: 'JetBrains Mono', monospace;
@@ -562,11 +319,30 @@
     color: var(--archie-text-tertiary);
     margin: 8px 0 0 51px;
     letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.ms-actions {
-    display: flex;
-    gap: 12px;
+.ms-status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--archie-text-muted);
+    display: inline-block;
+    transition: background 0.3s;
+}
+.ms-status-dot.operational { background: #10B981; box-shadow: 0 0 6px #10B981; }
+.ms-status-dot.degraded { background: var(--archie-orange); box-shadow: 0 0 6px var(--archie-orange); }
+.ms-status-dot.error { background: #EF4444; box-shadow: 0 0 6px #EF4444; }
+
+.ms-provider-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--archie-text-muted);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    padding: 6px 14px;
+    border-radius: 20px;
 }
 
 /* Buttons */
@@ -584,54 +360,32 @@
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     text-transform: uppercase;
 }
-
-.ms-btn i {
-    width: 18px;
-    height: 18px;
-}
+.ms-btn i { width: 18px; height: 18px; }
 
 .ms-btn-primary {
     background: transparent;
     color: var(--archie-orange);
     border: 2px solid var(--archie-orange);
 }
-
-.ms-btn-primary:hover {
+.ms-btn-primary:hover:not(:disabled) {
     background: var(--archie-orange);
     color: #000;
     box-shadow: 0 0 20px rgba(255, 170, 0, 0.4);
 }
+.ms-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .ms-btn-secondary {
     background: transparent;
     color: var(--archie-text-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
+.ms-btn-secondary:hover { border-color: rgba(255, 255, 255, 0.4); color: var(--archie-text-secondary); }
+.ms-btn-danger:hover { border-color: #EF4444; color: #EF4444; }
+.ms-btn-large { padding: 16px 32px; font-size: 1rem; width: 100%; justify-content: center; }
+.ms-btn-small { padding: 6px 12px; font-size: 0.75rem; }
 
-.ms-btn-secondary:hover {
-    border-color: rgba(255, 255, 255, 0.4);
-    color: var(--archie-text-secondary);
-}
-
-.ms-btn-large {
-    padding: 16px 32px;
-    font-size: 1rem;
-    width: 100%;
-    justify-content: center;
-}
-
-.ms-btn-small {
-    padding: 8px 16px;
-    font-size: 0.75rem;
-}
-
-/* Stats Section */
-.ms-stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
-    margin-bottom: 30px;
-}
+/* Stats */
+.ms-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
 
 .ms-stat-card {
     background: var(--archie-bg-secondary);
@@ -642,10 +396,9 @@
     align-items: center;
     gap: 16px;
     backdrop-filter: blur(10px);
-    animation: fadeInUp 0.5s ease-out both;
+    animation: msSlideIn 0.5s ease-out both;
     transition: all 0.3s ease;
 }
-
 .ms-stat-card:hover {
     border-color: rgba(255, 170, 0, 0.5);
     box-shadow: 0 0 20px rgba(255, 170, 0, 0.15);
@@ -653,8 +406,7 @@
 }
 
 .ms-stat-icon {
-    width: 48px;
-    height: 48px;
+    width: 48px; height: 48px;
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -662,1591 +414,928 @@
     background: var(--archie-orange-alpha-10);
     color: var(--archie-orange);
 }
+.ms-stat-icon i { width: 24px; height: 24px; }
+.ms-stat-icon--audio { background: rgba(139, 92, 246, 0.1); color: #8B5CF6; }
+.ms-stat-icon--queue { background: rgba(6, 182, 212, 0.1); color: #06B6D4; }
+.ms-stat-icon--cost { background: rgba(16, 185, 129, 0.1); color: #10B981; }
 
-.ms-stat-icon i {
-    width: 24px;
-    height: 24px;
-}
+.ms-stat-info { display: flex; flex-direction: column; }
+.ms-stat-value { font-family: 'Orbitron', sans-serif; font-size: 1.75rem; font-weight: 700; color: var(--archie-text-secondary); }
+.ms-stat-label { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--archie-text-muted); letter-spacing: 1px; text-transform: uppercase; }
 
-.ms-stat-icon--video {
-    background: rgba(139, 92, 246, 0.1);
-    color: #8B5CF6;
-}
-
-.ms-stat-icon--shorts {
-    background: rgba(6, 182, 212, 0.1);
-    color: #06B6D4;
-}
-
-.ms-stat-icon--storage {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10B981;
-}
-
-.ms-stat-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.ms-stat-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--archie-text-secondary);
-}
-
-.ms-stat-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-}
-
-/* Tab Navigation */
-.ms-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid var(--archie-border-default);
-}
+/* Tabs */
+.ms-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid var(--archie-border-default); }
 
 .ms-tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: flex; align-items: center; gap: 8px;
     padding: 12px 20px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: 0.85rem; font-weight: 500;
     color: var(--archie-text-muted);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    position: relative;
-    transition: all 0.25s ease;
+    background: transparent; border: none; cursor: pointer;
+    position: relative; transition: all 0.25s ease;
 }
-
-.ms-tab i {
-    width: 18px;
-    height: 18px;
-}
-
+.ms-tab i { width: 18px; height: 18px; }
 .ms-tab::after {
     content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 2px;
+    position: absolute; bottom: -1px; left: 0; right: 0; height: 2px;
     background: var(--archie-orange);
-    transform: scaleX(0);
-    transition: transform 0.25s ease;
+    transform: scaleX(0); transition: transform 0.25s ease;
+}
+.ms-tab:hover { color: var(--archie-text-tertiary); }
+.ms-tab.active { color: var(--archie-orange); }
+.ms-tab.active::after { transform: scaleX(1); }
+.ms-tab-badge {
+    font-size: 0.65rem; background: var(--archie-orange); color: #000;
+    padding: 1px 6px; border-radius: 10px; font-weight: 700; min-width: 18px; text-align: center;
 }
 
-.ms-tab:hover {
-    color: var(--archie-text-tertiary);
-}
+.ms-tab-panel { display: none; animation: msFadeIn 0.3s ease; }
+.ms-tab-panel.active { display: block; }
 
-.ms-tab.active {
-    color: var(--archie-orange);
+/* === CREATE TAB === */
+.ms-create-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+.ms-section { margin-bottom: 20px; }
+.ms-section-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 600;
+    color: var(--archie-text-tertiary); text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
 }
+.ms-section-title i { width: 16px; height: 16px; color: var(--archie-orange); }
 
-.ms-tab.active::after {
-    transform: scaleX(1);
-}
-
-/* Tab Content */
-.ms-tab-panel {
-    display: none;
-    animation: fadeIn 0.3s ease;
-}
-
-.ms-tab-panel.active {
-    display: block;
-}
-
-/* Toolbar */
-.ms-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-    gap: 20px;
-}
-
-.ms-search {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+.ms-type-selector { display: flex; gap: 10px; }
+.ms-type-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 16px 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 500;
+    color: var(--archie-text-muted);
     background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    padding: 0 16px;
-    flex: 1;
-    max-width: 400px;
+    border: 1px solid var(--archie-border-default); border-radius: 10px;
+    cursor: pointer; transition: all 0.25s ease;
+    position: relative; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.ms-type-btn i { width: 24px; height: 24px; }
+.ms-type-btn:hover:not(.disabled) { border-color: rgba(255, 170, 0, 0.4); color: var(--archie-text-tertiary); }
+.ms-type-btn.active {
+    border-color: var(--archie-orange); color: var(--archie-orange);
+    background: var(--archie-orange-alpha-10); box-shadow: 0 0 15px rgba(255, 170, 0, 0.1);
+}
+.ms-type-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+.ms-coming-soon {
+    font-size: 0.55rem; background: rgba(255, 255, 255, 0.1);
+    padding: 1px 6px; border-radius: 4px; position: absolute; top: 6px; right: 6px;
 }
 
-.ms-search i {
-    width: 18px;
-    height: 18px;
-    color: var(--archie-text-muted);
+.ms-provider-list { display: flex; gap: 8px; flex-wrap: wrap; }
+.ms-provider-chip {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+    padding: 4px 10px; border-radius: 6px;
+    background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default);
+    color: var(--archie-text-muted); display: flex; align-items: center; gap: 5px;
 }
+.ms-provider-chip.free { border-color: rgba(16, 185, 129, 0.4); color: #10B981; }
+.ms-provider-chip.paid { border-color: rgba(239, 68, 68, 0.4); color: #EF4444; }
 
-.ms-search input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    padding: 12px 0;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
+.ms-textarea {
+    width: 100%; box-sizing: border-box;
+    background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 8px;
+    padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+    color: var(--archie-text-secondary); resize: vertical; transition: border-color 0.25s;
 }
+.ms-textarea:focus { outline: none; border-color: var(--archie-orange); box-shadow: 0 0 10px rgba(255, 170, 0, 0.1); }
+.ms-textarea::placeholder { color: var(--archie-text-muted); }
 
-.ms-search input::placeholder {
-    color: var(--archie-text-muted);
+.ms-settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ms-setting label {
+    display: block; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+    color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
 }
-
-.ms-search input:focus {
-    outline: none;
-}
-
-.ms-filters {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-
 .ms-select {
-    background: var(--archie-bg-secondary);
+    width: 100%; background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default); border-radius: 6px;
+    padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+    color: var(--archie-text-secondary); cursor: pointer;
+}
+.ms-select:focus { outline: none; border-color: var(--archie-orange); }
+
+.ms-create-preview { display: flex; flex-direction: column; gap: 12px; }
+.ms-preview-container {
+    background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 12px;
+    min-height: 400px; display: flex; align-items: center; justify-content: center;
+    overflow: hidden; position: relative;
+}
+.ms-preview-container img { max-width: 100%; max-height: 600px; object-fit: contain; border-radius: 8px; }
+.ms-preview-container audio { width: 90%; margin: 20px; }
+
+.ms-preview-empty { text-align: center; color: var(--archie-text-muted); }
+.ms-preview-empty i { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4; }
+.ms-preview-empty p { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+
+.ms-preview-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+.ms-meta-item {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--archie-text-muted);
+    background: var(--archie-bg-secondary); padding: 4px 10px; border-radius: 6px;
     border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-secondary);
-    cursor: pointer;
-    min-width: 150px;
 }
 
-.ms-select:focus {
-    outline: none;
-    border-color: var(--archie-orange);
+.ms-generating { text-align: center; color: var(--archie-orange); }
+.ms-generating i { width: 48px; height: 48px; animation: msSpin 1s linear infinite; }
+.ms-generating p { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; margin-top: 12px; }
+
+.ms-suggestions { margin-top: 10px; }
+.ms-suggestions h4 {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+    color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+}
+.ms-suggestions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.ms-suggestion {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+    color: var(--archie-text-muted); background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default); border-radius: 8px;
+    cursor: pointer; transition: all 0.2s;
+}
+.ms-suggestion i { width: 16px; height: 16px; }
+.ms-suggestion:hover { border-color: rgba(255, 170, 0, 0.3); color: var(--archie-text-tertiary); }
+
+/* === QUEUE TAB === */
+.ms-queue-list { display: flex; flex-direction: column; gap: 12px; }
+.ms-queue-item {
+    display: grid; grid-template-columns: 40px 1fr auto auto;
+    align-items: center; gap: 16px; padding: 16px 20px;
+    background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 10px;
+    transition: border-color 0.2s;
+}
+.ms-queue-item:hover { border-color: rgba(255, 255, 255, 0.15); }
+
+.ms-queue-icon {
+    width: 40px; height: 40px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--archie-orange-alpha-10); color: var(--archie-orange);
+}
+.ms-queue-icon i { width: 20px; height: 20px; }
+
+.ms-queue-info { min-width: 0; }
+.ms-queue-prompt {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--archie-text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ms-queue-detail { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--archie-text-muted); margin-top: 4px; }
+
+.ms-status {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 600;
+    padding: 4px 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+}
+.ms-status--pending { background: rgba(234, 179, 8, 0.15); color: #EAB308; border: 1px solid rgba(234, 179, 8, 0.3); }
+.ms-status--generating { background: rgba(59, 130, 246, 0.15); color: #3B82F6; border: 1px solid rgba(59, 130, 246, 0.3); animation: msPulse 2s infinite; }
+.ms-status--awaiting_approval { background: rgba(249, 115, 22, 0.15); color: #F97316; border: 1px solid rgba(249, 115, 22, 0.3); }
+.ms-status--completed { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
+.ms-status--failed { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+.ms-status--cancelled { background: rgba(107, 114, 128, 0.15); color: #6B7280; border: 1px solid rgba(107, 114, 128, 0.3); }
+.ms-status--rejected { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+.ms-queue-actions { display: flex; gap: 8px; }
+
+/* === GALLERY TAB === */
+.ms-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 20px; }
+.ms-filters { display: flex; gap: 12px; }
+
+.ms-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.ms-gallery-card {
+    background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default);
+    border-radius: 10px; overflow: hidden; cursor: pointer; transition: all 0.25s ease;
+}
+.ms-gallery-card:hover {
+    border-color: rgba(255, 170, 0, 0.4); transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
-.ms-view-toggle {
-    display: flex;
-    gap: 4px;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    padding: 4px;
+.ms-gallery-thumb {
+    width: 100%; height: 180px; background: rgba(0, 0, 0, 0.3);
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
+.ms-gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ms-gallery-thumb i { width: 40px; height: 40px; color: var(--archie-text-muted); opacity: 0.4; }
 
-.ms-view-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    color: var(--archie-text-muted);
-    cursor: pointer;
-    transition: all 0.2s ease;
+.ms-gallery-info { padding: 12px; }
+.ms-gallery-prompt {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--archie-text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px;
 }
-
-.ms-view-btn:hover {
-    color: var(--archie-text-tertiary);
-}
-
-.ms-view-btn.active {
-    background: var(--archie-orange-alpha-20);
-    color: var(--archie-orange);
-}
-
-.ms-view-btn i {
-    width: 18px;
-    height: 18px;
-}
-
-/* Media Grid */
-.ms-media-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+.ms-gallery-meta {
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--archie-text-muted);
 }
 
 /* Empty State */
-.ms-empty-state {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 80px 40px;
-    text-align: center;
-    background: var(--archie-bg-secondary);
-    border: 1px dashed var(--archie-border-default);
-    border-radius: 12px;
-}
-
-.ms-empty-icon {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: var(--archie-orange-alpha-10);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 20px;
-}
-
-.ms-empty-icon i {
-    width: 40px;
-    height: 40px;
-    color: var(--archie-orange);
-}
-
-.ms-empty-state h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.25rem;
-    color: var(--archie-text-secondary);
-    margin: 0 0 8px;
-}
-
-.ms-empty-state p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--archie-text-muted);
-    margin: 0 0 24px;
-}
-
-.ms-empty-actions {
-    display: flex;
-    gap: 12px;
-}
-
-/* Media Card */
-.ms-media-card {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.ms-media-card:hover {
-    border-color: var(--archie-orange);
-    box-shadow: 0 0 20px var(--archie-orange-alpha-20);
-    transform: translateY(-2px);
-}
-
-.ms-media-thumbnail {
-    aspect-ratio: 1;
-    background: rgba(0, 0, 0, 0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.ms-media-thumbnail img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.ms-media-info {
-    padding: 12px;
-}
-
-.ms-media-name {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.ms-media-type {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-}
-
-/* AI Generator */
-.ms-generator-layout {
-    display: grid;
-    grid-template-columns: 400px 1fr;
-    gap: 24px;
-    min-height: 500px;
-}
-
-.ms-generator-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.ms-generator-section {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 20px;
-}
-
-.ms-generator-section h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 0 16px;
-}
-
-.ms-generator-section h3 i {
-    width: 18px;
-    height: 18px;
-    color: var(--archie-orange);
-}
-
-.ms-textarea {
-    width: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-    resize: vertical;
-    line-height: 1.5;
-}
-
-.ms-textarea:focus {
-    outline: none;
-    border-color: var(--archie-orange);
-}
-
-.ms-textarea::placeholder {
-    color: var(--archie-text-muted);
-}
-
-.ms-settings-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-}
-
-.ms-setting {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.ms-setting label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.ms-generator-preview {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.ms-preview-container {
-    flex: 1;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 400px;
-    overflow: hidden;
-}
-
-.ms-preview-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    color: var(--archie-text-muted);
-}
-
-.ms-preview-placeholder i {
-    width: 48px;
-    height: 48px;
-    opacity: 0.3;
-}
-
-.ms-preview-placeholder p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-}
-
-.ms-preview-actions {
-    display: flex;
-    gap: 12px;
-}
-
-.ms-preview-actions .ms-btn {
-    flex: 1;
-    justify-content: center;
-}
-
-/* Suggestions */
-.ms-suggestions {
-    margin-top: 24px;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 20px;
-}
-
-.ms-suggestions h4 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-    margin: 0 0 16px;
-}
-
-.ms-suggestions-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 12px;
-}
-
-.ms-suggestion {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.ms-suggestion i {
-    width: 16px;
-    height: 16px;
-    color: var(--archie-orange);
-}
-
-.ms-suggestion:hover {
-    border-color: var(--archie-orange);
-    background: rgba(255, 170, 0, 0.05);
-    color: var(--archie-text-secondary);
-}
-
-/* Video Editor */
-.ms-editor-layout {
-    display: grid;
-    grid-template-columns: 200px 1fr 250px;
-    gap: 20px;
-    min-height: 600px;
-}
-
-.ms-editor-sidebar,
-.ms-editor-properties {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 16px;
-}
-
-.ms-editor-section {
-    margin-bottom: 20px;
-}
-
-.ms-editor-section h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.8rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 12px;
-}
-
-.ms-editor-section h3 i {
-    width: 16px;
-    height: 16px;
-    color: var(--archie-orange);
-}
-
-.ms-file-list {
-    min-height: 100px;
-}
-
-.ms-file-empty {
-    text-align: center;
-    padding: 20px 10px;
-}
-
-.ms-file-empty p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-    margin: 0 0 12px;
-}
-
-.ms-effects-list {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-}
-
-.ms-effect-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding: 12px 8px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.ms-effect-btn i {
-    width: 18px;
-    height: 18px;
-    color: var(--archie-orange);
-}
-
-.ms-effect-btn:hover {
-    border-color: var(--archie-orange);
-    background: rgba(255, 170, 0, 0.05);
-}
-
-.ms-editor-main {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.ms-video-preview {
-    flex: 1;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 300px;
-}
-
-.ms-video-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    color: var(--archie-text-muted);
-}
-
-.ms-video-placeholder i {
-    width: 48px;
-    height: 48px;
-    opacity: 0.3;
-}
-
-.ms-video-placeholder p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-}
-
-.ms-timeline {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    overflow: hidden;
-}
-
-.ms-timeline-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.ms-timeline-btn {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 6px;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.ms-timeline-btn:hover {
-    border-color: var(--archie-orange);
-    color: var(--archie-orange);
-}
-
-.ms-timeline-btn i {
-    width: 16px;
-    height: 16px;
-}
-
-.ms-timeline-time {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-muted);
-}
-
-.ms-timeline-zoom {
-    display: flex;
-    gap: 4px;
-    margin-left: auto;
-}
-
-.ms-timeline-tracks {
-    padding: 12px 16px;
-}
-
-.ms-track {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-}
-
-.ms-track:last-child {
-    margin-bottom: 0;
-}
-
-.ms-track-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    width: 50px;
-}
-
-.ms-track-content {
-    flex: 1;
-    height: 40px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 4px;
-    border: 1px solid var(--archie-border-default);
-}
-
-.ms-editor-properties h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.8rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 16px;
-}
-
-.ms-editor-properties h3 i {
-    width: 16px;
-    height: 16px;
-    color: var(--archie-orange);
-}
-
-.ms-properties-empty {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-muted);
-    text-align: center;
-    padding: 20px;
-}
-
-/* Shorts Creator */
-.ms-shorts-layout {
-    display: grid;
-    grid-template-columns: 1fr 300px;
-    gap: 24px;
-    margin-bottom: 24px;
-}
-
-.ms-shorts-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.ms-shorts-section {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 20px;
-}
-
-.ms-shorts-section h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 0 16px;
-}
-
-.ms-shorts-section h3 i {
-    width: 18px;
-    height: 18px;
-    color: var(--archie-orange);
-}
-
-.ms-shorts-preview {
-    display: flex;
-    justify-content: center;
-}
-
-.ms-phone-frame {
-    width: 280px;
-    background: #1a1a1a;
-    border-radius: 40px;
-    padding: 12px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-}
-
-.ms-phone-screen {
-    width: 100%;
-    aspect-ratio: 9/16;
-    background: var(--archie-bg-secondary);
-    border-radius: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-}
-
-.ms-phone-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    color: var(--archie-text-muted);
-}
-
-.ms-phone-placeholder i {
-    width: 32px;
-    height: 32px;
-    opacity: 0.3;
-}
-
-.ms-phone-placeholder p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-}
-
-.ms-recent-shorts {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 20px;
-}
-
-.ms-recent-shorts h4 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-    margin: 0 0 16px;
-}
-
-.ms-shorts-empty {
-    text-align: center;
-    padding: 30px;
-}
-
-.ms-shorts-empty p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-muted);
-}
-
-/* Modals */
+.ms-empty-state { text-align: center; padding: 60px 20px; color: var(--archie-text-muted); }
+.ms-empty-state i { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.3; }
+.ms-empty-state h3 { font-family: 'Orbitron', sans-serif; font-size: 1.1rem; color: var(--archie-text-tertiary); margin-bottom: 8px; }
+.ms-empty-state p { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+
+/* Modal */
 .ms-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.3s ease;
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7); z-index: 9000;
+    align-items: center; justify-content: center; backdrop-filter: blur(4px);
 }
-
-.ms-modal.active {
-    opacity: 1;
-    visibility: visible;
-}
-
+.ms-modal.active { display: flex; }
 .ms-modal-content {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 16px;
-    width: 100%;
-    max-width: 500px;
-    transform: translateY(20px);
-    transition: transform 0.3s ease;
+    background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default);
+    border-radius: 16px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto;
 }
-
-.ms-modal.active .ms-modal-content {
-    transform: translateY(0);
-}
-
+.ms-modal-large { max-width: 800px; }
 .ms-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 24px;
-    border-bottom: 1px solid var(--archie-border-default);
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 20px 24px; border-bottom: 1px solid var(--archie-border-default);
 }
-
 .ms-modal-header h2 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.25rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 0;
+    font-family: 'JetBrains Mono', monospace; font-size: 1rem; color: var(--archie-orange);
+    display: flex; align-items: center; gap: 10px; margin: 0;
 }
-
-.ms-modal-header h2 i {
-    width: 24px;
-    height: 24px;
-    color: var(--archie-orange);
-}
-
-.ms-modal-close {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    color: var(--archie-text-muted);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.25s ease;
-}
-
-.ms-modal-close:hover {
-    border-color: var(--archie-danger);
-    color: var(--archie-danger);
-}
-
-.ms-modal-body {
-    padding: 24px;
-}
-
-.ms-form-group {
-    margin-bottom: 20px;
-}
-
-.ms-form-group:last-child {
-    margin-bottom: 0;
-}
-
-.ms-form-group label {
-    display: block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-}
-
+.ms-modal-header h2 i { width: 20px; height: 20px; }
+.ms-modal-close { background: transparent; border: none; color: var(--archie-text-muted); cursor: pointer; padding: 4px; }
+.ms-modal-close:hover { color: var(--archie-text-secondary); }
+.ms-modal-close i { width: 20px; height: 20px; }
+.ms-modal-body { padding: 24px; }
 .ms-modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 24px;
-    border-top: 1px solid var(--archie-border-default);
+    display: flex; justify-content: flex-end; gap: 10px;
+    padding: 16px 24px; border-top: 1px solid var(--archie-border-default);
 }
 
-/* Upload Zone */
-.ms-upload-zone {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 40px;
-    border: 2px dashed var(--archie-border-default);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
+.ms-detail-image { width: 100%; max-height: 400px; object-fit: contain; border-radius: 8px; margin-bottom: 16px; }
+.ms-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ms-detail-item { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+.ms-detail-item label {
+    display: block; color: var(--archie-text-muted); font-size: 0.65rem;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
 }
+.ms-detail-item span { color: var(--archie-text-secondary); }
 
-.ms-upload-zone:hover {
-    border-color: var(--archie-orange);
-    background: rgba(255, 170, 0, 0.05);
-}
+/* Animations */
+@keyframes msSlideIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes msFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes msSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes msPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
-.ms-upload-zone i {
-    width: 48px;
-    height: 48px;
-    color: var(--archie-orange);
-    margin-bottom: 16px;
-}
-
-.ms-upload-zone h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.1rem;
-    color: var(--archie-text-secondary);
-    margin: 0 0 8px;
-}
-
-.ms-upload-zone p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-muted);
-    margin: 0;
-}
-
-.ms-upload-zone input {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-}
-
-.ms-upload-info {
-    margin-top: 16px;
-    text-align: center;
-}
-
-.ms-upload-info p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-    margin: 4px 0;
-}
-
-/* Quick Styles */
-.ms-quick-styles {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.ms-style-btn {
-    padding: 10px 20px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.ms-style-btn:hover,
-.ms-style-btn.active {
-    border-color: var(--archie-orange);
-    color: var(--archie-orange);
-    background: var(--archie-orange-alpha-10);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════
-   LIGHT MODE OVERRIDES
-   ═══════════════════════════════════════════════════════════════════════════════ */
-
-body.light-mode .ms-container {
-    background: #f8f9fa;
-}
-
-body.light-mode .ms-title {
-    color: #D97706;
-    text-shadow: none;
-}
-
-body.light-mode .ms-subtitle {
-    color: #666;
-}
-
-body.light-mode .ms-stat-card,
-body.light-mode .ms-generator-section,
-body.light-mode .ms-editor-sidebar,
-body.light-mode .ms-editor-properties,
-body.light-mode .ms-timeline,
-body.light-mode .ms-video-preview,
-body.light-mode .ms-shorts-section,
-body.light-mode .ms-recent-shorts,
-body.light-mode .ms-suggestions,
-body.light-mode .ms-preview-container {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(217, 119, 6, 0.2);
-}
-
-body.light-mode .ms-stat-value,
-body.light-mode .ms-generator-section h3,
-body.light-mode .ms-editor-section h3,
-body.light-mode .ms-editor-properties h3,
-body.light-mode .ms-shorts-section h3,
-body.light-mode .ms-suggestions h4,
-body.light-mode .ms-recent-shorts h4,
-body.light-mode .ms-empty-state h3 {
-    color: #1a1a2e;
-}
-
-body.light-mode .ms-stat-label,
-body.light-mode .ms-text-muted,
-body.light-mode .ms-empty-state p,
-body.light-mode .ms-properties-empty,
-body.light-mode .ms-shorts-empty p {
-    color: #666;
-}
-
-body.light-mode .ms-tab {
-    color: #666;
-}
-
-body.light-mode .ms-tab.active {
-    color: #D97706;
-}
-
-body.light-mode .ms-search,
-body.light-mode .ms-select,
-body.light-mode .ms-textarea {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: rgba(217, 119, 6, 0.2);
-    color: #1a1a2e;
-}
-
-body.light-mode .ms-btn-primary {
-    color: #D97706;
-    border-color: #D97706;
-}
-
-body.light-mode .ms-btn-primary:hover {
-    background: #D97706;
-    color: white;
-}
-
-body.light-mode .ms-empty-state {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(217, 119, 6, 0.2);
-}
-
-body.light-mode .ms-modal-content {
-    background: #f8f9fa;
-    border-color: rgba(217, 119, 6, 0.3);
-}
-
-body.light-mode .ms-modal-header h2,
-body.light-mode .ms-form-group label,
-body.light-mode .ms-upload-zone h3 {
-    color: #1a1a2e;
-}
-
-body.light-mode .ms-suggestion,
-body.light-mode .ms-effect-btn,
-body.light-mode .ms-style-btn {
-    color: #666;
-    border-color: rgba(217, 119, 6, 0.2);
-}
-
-body.light-mode .ms-suggestion:hover,
-body.light-mode .ms-effect-btn:hover,
-body.light-mode .ms-style-btn:hover {
-    border-color: #D97706;
-    background: rgba(217, 119, 6, 0.05);
-    color: #D97706;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════
-   RESPONSIVE DESIGN
-   ═══════════════════════════════════════════════════════════════════════════════ */
-
-@media (max-width: 1400px) {
-    .ms-editor-layout {
-        grid-template-columns: 180px 1fr 200px;
-    }
-}
-
-@media (max-width: 1200px) {
-    .ms-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .ms-generator-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .ms-editor-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .ms-editor-sidebar,
-    .ms-editor-properties {
-        display: none;
-    }
-
-    .ms-shorts-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .ms-shorts-preview {
-        order: -1;
-    }
-}
-
-@media (max-width: 992px) {
-    .ms-container {
-        padding: 20px;
-        padding-top: 80px;
-    }
-
-    .ms-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 16px;
-    }
-
-    .ms-settings-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
+/* Responsive */
 @media (max-width: 768px) {
-    .ms-stats {
-        grid-template-columns: 1fr;
-    }
-
-    .ms-title {
-        font-size: 1.5rem;
-    }
-
-    .ms-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .ms-search {
-        max-width: none;
-    }
-
-    .ms-filters {
-        flex-direction: column;
-    }
-
-    .ms-tabs {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .ms-tab {
-        white-space: nowrap;
-    }
-
-    .ms-media-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .ms-suggestions-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .ms-phone-frame {
-        width: 240px;
-    }
+    .ms-container { padding: 16px; padding-top: 70px; }
+    .ms-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .ms-title { font-size: 1.4rem; }
+    .ms-subtitle { margin-left: 0; }
+    .ms-stats { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .ms-create-layout { grid-template-columns: 1fr; }
+    .ms-settings-grid { grid-template-columns: 1fr; }
+    .ms-gallery-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .ms-queue-item { grid-template-columns: 1fr; gap: 8px; }
+    .ms-queue-icon { display: none; }
+    .ms-suggestions-grid { grid-template-columns: 1fr 1fr; }
+    .ms-detail-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
-    .ms-container {
-        padding: 15px;
-        padding-top: 70px;
-    }
-
-    .ms-title {
-        font-size: 1.25rem;
-    }
-
-    .ms-subtitle {
-        margin-left: 0;
-    }
-
-    .ms-actions {
-        flex-direction: column;
-        width: 100%;
-    }
-
-    .ms-btn {
-        justify-content: center;
-    }
-
-    .ms-media-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .ms-modal-content {
-        margin: 15px;
-        max-width: calc(100% - 30px);
-    }
+    .ms-stats { grid-template-columns: 1fr 1fr; }
+    .ms-type-selector { flex-direction: column; }
+    .ms-tabs { overflow-x: auto; }
+    .ms-suggestions-grid { grid-template-columns: 1fr; }
 }
 </style>
 
 <script>
-// Initialize Lucide icons
+/* ═══════════════════════════════════════════════════════════════
+   MEDIA STUDIO — CLIENT LOGIC
+   ═══════════════════════════════════════════════════════════════ */
+
+const MS_BASE = '/tools/media-studio';
+let msCapabilities = {};
+let msSelectedType = 'image';
+let msCurrentAssetId = null;
+let msPollInterval = null;
+
+// --- Init ---
+
 document.addEventListener('DOMContentLoaded', function() {
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-    loadMedia();
+    loadCapabilities();
+    loadStatus();
+
+    // Enable generate btn on prompt input
+    document.getElementById('promptInput').addEventListener('input', function() {
+        document.getElementById('generateBtn').disabled = !this.value.trim();
+    });
+
+    // Quick prompt buttons via delegation
+    document.getElementById('suggestionsGrid').addEventListener('click', function(e) {
+        var btn = e.target.closest('.ms-suggestion');
+        if (btn && btn.dataset.prompt) {
+            document.getElementById('promptInput').value = btn.dataset.prompt;
+            document.getElementById('generateBtn').disabled = false;
+        }
+    });
 });
 
-// Tab switching
+// --- Tabs ---
+
 function switchTab(tabId) {
-    document.querySelectorAll('.ms-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.tab === tabId);
+    document.querySelectorAll('.ms-tab').forEach(function(t) {
+        t.classList.toggle('active', t.dataset.tab === tabId);
     });
-
-    document.querySelectorAll('.ms-tab-panel').forEach(panel => {
-        panel.classList.toggle('active', panel.id === tabId + '-panel');
+    document.querySelectorAll('.ms-tab-panel').forEach(function(p) {
+        p.classList.toggle('active', p.id === tabId + '-panel');
     });
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
+    if (tabId === 'queue') loadQueue();
+    if (tabId === 'gallery') loadGallery();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-// Media management
-let mediaItems = [];
+// --- Type Selection ---
 
-function loadMedia() {
-    const stored = localStorage.getItem('archie_media');
-    mediaItems = stored ? JSON.parse(stored) : [];
-    renderMedia();
-    updateStats();
+function selectType(type) {
+    msSelectedType = type;
+    document.querySelectorAll('.ms-type-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.type === type);
+    });
+    document.getElementById('imageParams').style.display = (type === 'image') ? 'block' : 'none';
+    document.getElementById('audioParams').style.display = (type === 'audio_tts') ? 'block' : 'none';
+    updateProviderInfo();
 }
 
-function renderMedia() {
-    const grid = document.getElementById('mediaGrid');
-    const emptyState = document.getElementById('emptyState');
+// --- Capabilities & Status ---
 
-    if (mediaItems.length === 0) {
-        emptyState.style.display = 'flex';
+function loadCapabilities() {
+    fetch(MS_BASE + '/api/capabilities')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            msCapabilities = data.capabilities || {};
+            var types = { image: 'image_gen', audio_tts: 'audio_tts', video: 'video_gen' };
+            Object.keys(types).forEach(function(type) {
+                var cap = types[type];
+                var btn = document.querySelector('.ms-type-btn[data-type="' + type + '"]');
+                if (!btn) return;
+                var hasCap = msCapabilities[cap] && msCapabilities[cap].length > 0;
+                btn.classList.toggle('disabled', !hasCap);
+                if (hasCap) {
+                    btn.onclick = function() { selectType(type); };
+                    var soon = btn.querySelector('.ms-coming-soon');
+                    if (soon) soon.remove();
+                }
+            });
+            updateProviderInfo();
+
+            var total = 0;
+            Object.values(msCapabilities).forEach(function(ps) { total += ps.length; });
+            document.getElementById('providerCount').textContent = total + ' provider' + (total !== 1 ? 's' : '');
+        })
+        .catch(function(e) { console.error('Capabilities error:', e); });
+}
+
+function updateProviderInfo() {
+    var capMap = { image: 'image_gen', audio_tts: 'audio_tts', video: 'video_gen' };
+    var providers = msCapabilities[capMap[msSelectedType]] || [];
+    var list = document.getElementById('providerList');
+    while (list.firstChild) list.removeChild(list.firstChild);
+
+    if (!providers.length) {
+        var chip = document.createElement('span');
+        chip.className = 'ms-provider-chip';
+        chip.textContent = 'No providers available';
+        list.appendChild(chip);
         return;
     }
-
-    emptyState.style.display = 'none';
-
-    const filtered = filterMediaList();
-
-    let html = '';
-    filtered.forEach((item, index) => {
-        html += `
-            <div class="ms-media-card" style="animation-delay: ${0.05 * (index + 1)}s" onclick="viewMedia('${item.id}')">
-                <div class="ms-media-thumbnail">
-                    ${item.thumbnail ? `<img src="${item.thumbnail}" alt="${item.name}">` : `<i data-lucide="${getMediaIcon(item.type)}"></i>`}
-                </div>
-                <div class="ms-media-info">
-                    <div class="ms-media-name">${item.name}</div>
-                    <div class="ms-media-type">${item.type}</div>
-                </div>
-            </div>
-        `;
-    });
-
-    grid.innerHTML = html + emptyState.outerHTML;
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-function getMediaIcon(type) {
-    const icons = {
-        'image': 'image',
-        'video': 'video',
-        'short': 'smartphone'
-    };
-    return icons[type] || 'file';
-}
-
-function updateStats() {
-    const images = mediaItems.filter(m => m.type === 'image').length;
-    const videos = mediaItems.filter(m => m.type === 'video').length;
-    const shorts = mediaItems.filter(m => m.type === 'short').length;
-
-    document.getElementById('totalImages').textContent = images;
-    document.getElementById('totalVideos').textContent = videos;
-    document.getElementById('totalShorts').textContent = shorts;
-}
-
-function filterMedia() {
-    renderMedia();
-}
-
-function filterMediaList() {
-    const search = document.getElementById('mediaSearch').value.toLowerCase();
-    const type = document.getElementById('typeFilter').value;
-
-    return mediaItems.filter(m => {
-        const matchSearch = m.name.toLowerCase().includes(search);
-        const matchType = !type || m.type === type;
-        return matchSearch && matchType;
+    providers.forEach(function(p) {
+        var chip = document.createElement('span');
+        chip.className = 'ms-provider-chip ' + (p.is_free_tier ? 'free' : 'paid');
+        chip.textContent = p.display_name + (p.is_free_tier ? ' (Free)' : ' (Paid)');
+        list.appendChild(chip);
     });
 }
 
-function setView(view) {
-    document.querySelectorAll('.ms-view-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.textContent.toLowerCase().includes(view));
-    });
-
-    const grid = document.getElementById('mediaGrid');
-    if (view === 'list') {
-        grid.style.gridTemplateColumns = '1fr';
-    } else {
-        grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
-    }
+function loadStatus() {
+    fetch(MS_BASE + '/api/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var dot = document.getElementById('statusDot');
+            dot.className = 'ms-status-dot ' + (data.status || 'error');
+            dot.title = data.status === 'operational' ? 'All systems operational' : 'Some providers unavailable';
+        })
+        .catch(function() {
+            document.getElementById('statusDot').className = 'ms-status-dot error';
+        });
 }
 
-function viewMedia(id) {
-    const item = mediaItems.find(m => m.id === id);
-    if (item) {
-        showToast(`Viewing: ${item.name}`, 'info');
-    }
-}
+// --- Generation ---
 
-// Modal functions
-function showUploadModal() {
-    document.getElementById('uploadModal').classList.add('active');
-}
+function submitGeneration() {
+    var prompt = document.getElementById('promptInput').value.trim();
+    if (!prompt) return;
 
-function closeUploadModal() {
-    document.getElementById('uploadModal').classList.remove('active');
-}
+    var btn = document.getElementById('generateBtn');
+    var btnText = document.getElementById('generateBtnText');
+    btn.disabled = true;
+    btnText.textContent = 'Generating...';
 
-function showGenerateModal() {
-    document.getElementById('generateModal').classList.add('active');
-}
+    // Show spinner
+    var preview = document.getElementById('previewContainer');
+    while (preview.firstChild) preview.removeChild(preview.firstChild);
+    var spinDiv = document.createElement('div');
+    spinDiv.className = 'ms-generating';
+    var spinIcon = document.createElement('i');
+    spinIcon.setAttribute('data-lucide', 'loader-2');
+    spinDiv.appendChild(spinIcon);
+    var spinText = document.createElement('p');
+    spinText.textContent = 'Generating ' + msSelectedType + '...';
+    spinDiv.appendChild(spinText);
+    preview.appendChild(spinDiv);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 
-function closeGenerateModal() {
-    document.getElementById('generateModal').classList.remove('active');
-    document.getElementById('quickPrompt').value = '';
-}
+    document.getElementById('previewMeta').style.display = 'none';
 
-// Upload handling
-function handleFileSelect(event) {
-    const files = event.target.files;
-    for (let file of files) {
-        const item = {
-            id: 'media_' + Date.now() + Math.random().toString(36).substr(2, 9),
-            name: file.name,
-            type: file.type.startsWith('video') ? 'video' : 'image',
-            size: file.size,
-            createdAt: new Date().toISOString()
-        };
-        mediaItems.push(item);
+    var params = {};
+    if (msSelectedType === 'image') {
+        params.aspect_ratio = document.getElementById('aspectRatio').value;
+        params.style = document.getElementById('imageStyle').value;
+    } else if (msSelectedType === 'audio_tts') {
+        params.voice = document.getElementById('ttsVoice').value;
+        params.language = document.getElementById('ttsLanguage').value;
     }
 
-    localStorage.setItem('archie_media', JSON.stringify(mediaItems));
-    closeUploadModal();
-    renderMedia();
-    updateStats();
-    showToast(`${files.length} file(s) uploaded`, 'success');
-}
-
-// AI Generation
-function generateImage() {
-    const prompt = document.getElementById('aiPrompt').value.trim();
-    if (!prompt) {
-        showToast('Please enter a prompt', 'warning');
-        return;
-    }
-
-    showToast('Generating image... (Feature coming soon)', 'info');
-
-    // Simulate generation
-    const container = document.getElementById('previewContainer');
-    container.innerHTML = `
-        <div class="ms-preview-placeholder">
-            <i data-lucide="loader-2" style="animation: spin 1s linear infinite;"></i>
-            <p>Generating...</p>
-        </div>
-    `;
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-
-    setTimeout(() => {
-        container.innerHTML = `
-            <div class="ms-preview-placeholder">
-                <i data-lucide="image"></i>
-                <p>AI image generation coming soon!</p>
-            </div>
-        `;
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
+    fetch(MS_BASE + '/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: msSelectedType, prompt: prompt, params: params })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.status === 'completed') {
+            showResult(data);
+        } else if (data.status === 'awaiting_approval') {
+            showAwaitingApproval(data.queue_id);
+            startPolling(data.queue_id);
+        } else if (data.status === 'failed') {
+            showError(data.error || 'Generation failed');
         }
-    }, 2000);
-}
-
-function usePrompt(prompt) {
-    document.getElementById('aiPrompt').value = prompt;
-    switchTab('ai-generator');
-}
-
-function quickGenerate() {
-    const prompt = document.getElementById('quickPrompt').value.trim();
-    if (!prompt) {
-        showToast('Please enter a prompt', 'warning');
-        return;
-    }
-
-    closeGenerateModal();
-    document.getElementById('aiPrompt').value = prompt;
-    switchTab('ai-generator');
-    generateImage();
-}
-
-function setQuickStyle(style) {
-    document.querySelectorAll('.ms-style-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.textContent.toLowerCase() === style);
+    })
+    .catch(function(e) {
+        showError('Request failed: ' + e.message);
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btnText.textContent = 'Generate';
+        refreshStats();
     });
 }
 
-// Video Editor
-function importMedia() {
-    showToast('Video editor coming soon!', 'info');
-}
+function showResult(data) {
+    var preview = document.getElementById('previewContainer');
+    while (preview.firstChild) preview.removeChild(preview.firstChild);
 
-function addEffect(effect) {
-    showToast(`${effect} effect - Coming soon!`, 'info');
-}
+    var meta = data.metadata || {};
+    var filePath = data.file_path || '';
 
-function playPreview() {
-    showToast('Preview playback - Coming soon!', 'info');
-}
-
-function zoomIn() {
-    showToast('Timeline zoom in', 'info');
-}
-
-function zoomOut() {
-    showToast('Timeline zoom out', 'info');
-}
-
-// Shorts Creator
-function createShort() {
-    const script = document.getElementById('shortScript').value.trim();
-    if (!script) {
-        showToast('Please enter a script', 'warning');
-        return;
+    if (msSelectedType === 'image' || /\.(png|jpg|jpeg|gif|webp)$/i.test(filePath)) {
+        var img = document.createElement('img');
+        img.src = filePath;
+        img.alt = 'Generated image';
+        preview.appendChild(img);
+    } else if (msSelectedType === 'audio_tts' || /\.(wav|mp3|ogg)$/i.test(filePath)) {
+        var audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = filePath;
+        preview.appendChild(audio);
+    } else {
+        var div = document.createElement('div');
+        div.className = 'ms-preview-empty';
+        var icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'check-circle');
+        div.appendChild(icon);
+        var p = document.createElement('p');
+        p.textContent = 'Generated successfully';
+        div.appendChild(p);
+        preview.appendChild(div);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    showToast('Shorts creator coming soon!', 'info');
+    var metaEl = document.getElementById('previewMeta');
+    metaEl.style.display = 'flex';
+    document.getElementById('metaProvider').textContent = meta.provider || '-';
+    document.getElementById('metaModel').textContent = meta.model || '-';
+    document.getElementById('metaCost').textContent = meta.cost_usd !== undefined ? '$' + Number(meta.cost_usd).toFixed(4) : '-';
+    document.getElementById('metaDuration').textContent = meta.duration_ms ? meta.duration_ms + 'ms' : '-';
 }
 
-// Toast notification
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `flash ${type}`;
-    toast.innerHTML = `> ${message}`;
+function showAwaitingApproval(queueId) {
+    var preview = document.getElementById('previewContainer');
+    while (preview.firstChild) preview.removeChild(preview.firstChild);
+    var div = document.createElement('div');
+    div.className = 'ms-generating';
+    var icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'shield-alert');
+    div.appendChild(icon);
+    var p1 = document.createElement('p');
+    p1.textContent = 'Awaiting admin approval via Telegram';
+    div.appendChild(p1);
+    var p2 = document.createElement('p');
+    p2.style.fontSize = '0.7rem';
+    p2.style.opacity = '0.6';
+    p2.style.marginTop = '8px';
+    p2.textContent = 'Queue ID: ' + queueId;
+    div.appendChild(p2);
+    preview.appendChild(div);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
 
-    let container = document.querySelector('.flash-messages');
+function showError(msg) {
+    var preview = document.getElementById('previewContainer');
+    while (preview.firstChild) preview.removeChild(preview.firstChild);
+    var div = document.createElement('div');
+    div.className = 'ms-preview-empty';
+    var icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'alert-triangle');
+    div.appendChild(icon);
+    var p = document.createElement('p');
+    p.style.color = '#EF4444';
+    p.textContent = msg;
+    div.appendChild(p);
+    preview.appendChild(div);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// --- Polling ---
+
+function startPolling(queueId) {
+    stopPolling();
+    msPollInterval = setInterval(function() {
+        fetch(MS_BASE + '/api/queue/' + queueId)
+            .then(function(r) { return r.json(); })
+            .then(function(item) {
+                if (item.status === 'completed') {
+                    stopPolling();
+                    showResult({ file_path: item.result_file_path, metadata: { provider: item.provider_key, model: item.model_used } });
+                    refreshStats();
+                } else if (item.status === 'failed' || item.status === 'rejected' || item.status === 'cancelled') {
+                    stopPolling();
+                    showError(item.error_message || item.status);
+                }
+            })
+            .catch(function() { /* keep polling */ });
+    }, 3000);
+}
+
+function stopPolling() {
+    if (msPollInterval) { clearInterval(msPollInterval); msPollInterval = null; }
+}
+
+// --- Queue ---
+
+function loadQueue() {
+    fetch(MS_BASE + '/api/queue')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var list = document.getElementById('queueList');
+            var items = data.queue || [];
+            while (list.firstChild) list.removeChild(list.firstChild);
+
+            if (!items.length) {
+                var empty = document.createElement('div');
+                empty.className = 'ms-empty-state';
+                var ei = document.createElement('i');
+                ei.setAttribute('data-lucide', 'list-checks');
+                empty.appendChild(ei);
+                var eh = document.createElement('h3');
+                eh.textContent = 'No Jobs';
+                empty.appendChild(eh);
+                var ep = document.createElement('p');
+                ep.textContent = 'Generation requests will appear here';
+                empty.appendChild(ep);
+                list.appendChild(empty);
+                document.getElementById('queueBadge').style.display = 'none';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                return;
+            }
+
+            var typeIcons = { image: 'image', audio_tts: 'audio-lines', video: 'video', audio_music: 'music' };
+
+            items.forEach(function(item) {
+                var row = document.createElement('div');
+                row.className = 'ms-queue-item';
+
+                // Icon
+                var iconDiv = document.createElement('div');
+                iconDiv.className = 'ms-queue-icon';
+                var iconI = document.createElement('i');
+                iconI.setAttribute('data-lucide', typeIcons[item.request_type] || 'file');
+                iconDiv.appendChild(iconI);
+                row.appendChild(iconDiv);
+
+                // Info
+                var infoDiv = document.createElement('div');
+                infoDiv.className = 'ms-queue-info';
+                var promptDiv = document.createElement('div');
+                promptDiv.className = 'ms-queue-prompt';
+                promptDiv.textContent = (item.prompt || '').substring(0, 80);
+                infoDiv.appendChild(promptDiv);
+                var detailDiv = document.createElement('div');
+                detailDiv.className = 'ms-queue-detail';
+                var timeStr = item.created_at ? new Date(item.created_at).toLocaleString() : '';
+                detailDiv.textContent = (item.provider_key || '-') + ' \u00B7 ' + timeStr;
+                infoDiv.appendChild(detailDiv);
+                row.appendChild(infoDiv);
+
+                // Status
+                var statusSpan = document.createElement('span');
+                statusSpan.className = 'ms-status ms-status--' + item.status;
+                statusSpan.textContent = item.status.replace(/_/g, ' ');
+                row.appendChild(statusSpan);
+
+                // Actions
+                var actionsDiv = document.createElement('div');
+                actionsDiv.className = 'ms-queue-actions';
+                if (['pending', 'awaiting_approval'].indexOf(item.status) !== -1) {
+                    var cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'ms-btn ms-btn-small ms-btn-danger';
+                    cancelBtn.textContent = 'Cancel';
+                    cancelBtn.setAttribute('data-queue-id', item.id);
+                    cancelBtn.addEventListener('click', function() { cancelJob(this.getAttribute('data-queue-id')); });
+                    actionsDiv.appendChild(cancelBtn);
+                }
+                if (item.result_file_path && item.result_asset_id) {
+                    var viewBtn = document.createElement('button');
+                    viewBtn.className = 'ms-btn ms-btn-small';
+                    viewBtn.textContent = 'View';
+                    viewBtn.setAttribute('data-asset-id', item.result_asset_id);
+                    viewBtn.addEventListener('click', function() { viewAsset(this.getAttribute('data-asset-id')); });
+                    actionsDiv.appendChild(viewBtn);
+                }
+                row.appendChild(actionsDiv);
+                list.appendChild(row);
+            });
+
+            // Badge
+            var active = items.filter(function(i) {
+                return ['pending', 'generating', 'awaiting_approval'].indexOf(i.status) !== -1;
+            }).length;
+            var badge = document.getElementById('queueBadge');
+            if (active > 0) { badge.textContent = active; badge.style.display = 'inline'; }
+            else { badge.style.display = 'none'; }
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        })
+        .catch(function(e) { console.error('Queue error:', e); });
+}
+
+function cancelJob(queueId) {
+    fetch(MS_BASE + '/api/queue/' + queueId, { method: 'DELETE' })
+        .then(function() { loadQueue(); })
+        .catch(function() { showToast('Failed to cancel job', 'error'); });
+}
+
+// --- Gallery ---
+
+function loadGallery() {
+    var type = document.getElementById('galleryTypeFilter').value;
+    var url = MS_BASE + '/api/gallery' + (type ? '?type=' + type : '');
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var grid = document.getElementById('galleryGrid');
+            var items = data.assets || [];
+            while (grid.firstChild) grid.removeChild(grid.firstChild);
+
+            if (!items.length) {
+                var empty = document.createElement('div');
+                empty.className = 'ms-empty-state';
+                empty.style.gridColumn = '1 / -1';
+                var ei = document.createElement('i');
+                ei.setAttribute('data-lucide', 'image-plus');
+                empty.appendChild(ei);
+                var eh = document.createElement('h3');
+                eh.textContent = 'No Media Yet';
+                empty.appendChild(eh);
+                var ep = document.createElement('p');
+                ep.textContent = 'Generate content on the Create tab to see it here';
+                empty.appendChild(ep);
+                grid.appendChild(empty);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                return;
+            }
+
+            items.forEach(function(a) {
+                var card = document.createElement('div');
+                card.className = 'ms-gallery-card';
+                card.setAttribute('data-asset-id', a.id);
+                card.addEventListener('click', function() { viewAsset(this.getAttribute('data-asset-id')); });
+
+                var thumb = document.createElement('div');
+                thumb.className = 'ms-gallery-thumb';
+                if (a.asset_type === 'image' && a.file_path) {
+                    var img = document.createElement('img');
+                    img.src = a.file_path;
+                    img.alt = '';
+                    img.loading = 'lazy';
+                    thumb.appendChild(img);
+                } else {
+                    var ti = document.createElement('i');
+                    ti.setAttribute('data-lucide', a.asset_type === 'audio_tts' ? 'audio-lines' : 'file');
+                    thumb.appendChild(ti);
+                }
+                card.appendChild(thumb);
+
+                var info = document.createElement('div');
+                info.className = 'ms-gallery-info';
+                var promptDiv = document.createElement('div');
+                promptDiv.className = 'ms-gallery-prompt';
+                promptDiv.textContent = (a.prompt || '').substring(0, 60);
+                info.appendChild(promptDiv);
+                var metaDiv = document.createElement('div');
+                metaDiv.className = 'ms-gallery-meta';
+                var provSpan = document.createElement('span');
+                provSpan.textContent = a.provider_key;
+                metaDiv.appendChild(provSpan);
+                var dateSpan = document.createElement('span');
+                dateSpan.textContent = a.created_at ? new Date(a.created_at).toLocaleDateString() : '';
+                metaDiv.appendChild(dateSpan);
+                info.appendChild(metaDiv);
+                card.appendChild(info);
+                grid.appendChild(card);
+            });
+
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            updateGalleryStats(items);
+        })
+        .catch(function(e) { console.error('Gallery error:', e); });
+}
+
+function updateGalleryStats(assets) {
+    var images = assets.filter(function(a) { return a.asset_type === 'image'; }).length;
+    var audio = assets.filter(function(a) { return a.asset_type === 'audio_tts'; }).length;
+    var cost = assets.reduce(function(sum, a) { return sum + (a.cost_usd || 0); }, 0);
+    document.getElementById('statImages').textContent = images;
+    document.getElementById('statAudio').textContent = audio;
+    document.getElementById('statCost').textContent = '$' + cost.toFixed(2);
+}
+
+function refreshStats() {
+    Promise.all([
+        fetch(MS_BASE + '/api/gallery').then(function(r) { return r.json(); }),
+        fetch(MS_BASE + '/api/queue').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var assets = results[0].assets || [];
+        updateGalleryStats(assets);
+        var queued = (results[1].queue || []).filter(function(i) {
+            return ['pending', 'generating', 'awaiting_approval'].indexOf(i.status) !== -1;
+        }).length;
+        document.getElementById('statQueued').textContent = queued;
+    }).catch(function() { /* silent */ });
+}
+
+// --- Asset Detail ---
+
+function viewAsset(assetId) {
+    fetch(MS_BASE + '/api/gallery/' + assetId)
+        .then(function(r) {
+            if (!r.ok) throw new Error('Not found');
+            return r.json();
+        })
+        .then(function(asset) {
+            msCurrentAssetId = assetId;
+            var body = document.getElementById('assetModalBody');
+            while (body.firstChild) body.removeChild(body.firstChild);
+
+            // Image or audio preview
+            if (asset.asset_type === 'image' && asset.file_path) {
+                var img = document.createElement('img');
+                img.className = 'ms-detail-image';
+                img.src = asset.file_path;
+                body.appendChild(img);
+            }
+            if (asset.asset_type === 'audio_tts' && asset.file_path) {
+                var audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = asset.file_path;
+                audio.style.width = '100%';
+                audio.style.marginBottom = '16px';
+                body.appendChild(audio);
+            }
+
+            // Detail grid
+            var grid = document.createElement('div');
+            grid.className = 'ms-detail-grid';
+            var fields = [
+                ['Type', asset.asset_type],
+                ['Provider', asset.provider_key],
+                ['Model', asset.model_used || '-'],
+                ['Cost', '$' + Number(asset.cost_usd || 0).toFixed(4)],
+                ['Created', asset.created_at ? new Date(asset.created_at).toLocaleString() : '-'],
+                ['File Size', formatBytes(asset.file_size_bytes)]
+            ];
+            fields.forEach(function(f) {
+                var item = document.createElement('div');
+                item.className = 'ms-detail-item';
+                var lbl = document.createElement('label');
+                lbl.textContent = f[0];
+                item.appendChild(lbl);
+                var val = document.createElement('span');
+                val.textContent = f[1];
+                item.appendChild(val);
+                grid.appendChild(item);
+            });
+            body.appendChild(grid);
+
+            // Prompt
+            var promptItem = document.createElement('div');
+            promptItem.className = 'ms-detail-item';
+            promptItem.style.marginTop = '12px';
+            var promptLbl = document.createElement('label');
+            promptLbl.textContent = 'Prompt';
+            promptItem.appendChild(promptLbl);
+            var promptVal = document.createElement('span');
+            promptVal.textContent = asset.prompt;
+            promptItem.appendChild(promptVal);
+            body.appendChild(promptItem);
+
+            document.getElementById('btnSetProfile').style.display = (asset.asset_type === 'image') ? 'inline-flex' : 'none';
+            document.getElementById('assetModal').classList.add('active');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        })
+        .catch(function() { showToast('Failed to load asset', 'error'); });
+}
+
+function closeAssetModal() {
+    document.getElementById('assetModal').classList.remove('active');
+    msCurrentAssetId = null;
+}
+
+function deleteCurrentAsset() {
+    if (!msCurrentAssetId) return;
+    if (!confirm('Delete this asset?')) return;
+    fetch(MS_BASE + '/api/gallery/' + msCurrentAssetId, { method: 'DELETE' })
+        .then(function() {
+            closeAssetModal();
+            loadGallery();
+            refreshStats();
+            showToast('Asset deleted', 'success');
+        })
+        .catch(function() { showToast('Delete failed', 'error'); });
+}
+
+function showProfileSelector() {
+    var agentId = prompt('Enter agent ID to set this image as their profile picture:');
+    if (!agentId) return;
+    fetch(MS_BASE + '/api/gallery/' + msCurrentAssetId + '/set-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: parseInt(agentId) })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        showToast(data.status === 'set' ? 'Profile image updated' : (data.error || 'Failed'), data.status === 'set' ? 'success' : 'error');
+    })
+    .catch(function() { showToast('Failed to set profile', 'error'); });
+}
+
+// --- Utilities ---
+
+function formatBytes(bytes) {
+    if (!bytes) return '-';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function showToast(message, type) {
+    type = type || 'info';
+    var toast = document.createElement('div');
+    toast.className = 'flash ' + type;
+    toast.textContent = '> ' + message;
+    var container = document.querySelector('.flash-messages');
     if (!container) {
         container = document.createElement('div');
         container.className = 'flash-messages';
         document.body.appendChild(container);
     }
-
     container.appendChild(toast);
-
-    setTimeout(() => {
+    setTimeout(function() {
         toast.style.opacity = '0';
         toast.style.transition = 'opacity 0.3s';
-        setTimeout(() => toast.remove(), 300);
+        setTimeout(function() { toast.remove(); }, 300);
     }, 3000);
 }
 
-// Modal close on background click
-document.querySelectorAll('.ms-modal').forEach(modal => {
-    modal.addEventListener('click', function(e) {
-        if (e.target === this) {
-            this.classList.remove('active');
-        }
-    });
+// Modal close
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('ms-modal')) {
+        e.target.classList.remove('active');
+        msCurrentAssetId = null;
+    }
 });
-
-// Close modal on Escape
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        document.querySelectorAll('.ms-modal.active').forEach(modal => {
-            modal.classList.remove('active');
-        });
+        document.querySelectorAll('.ms-modal.active').forEach(function(m) { m.classList.remove('active'); });
+        msCurrentAssetId = null;
     }
 });
 
-// Drag and drop for upload
-const uploadZone = document.getElementById('uploadZone');
-if (uploadZone) {
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        uploadZone.addEventListener(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        uploadZone.addEventListener(eventName, () => {
-            uploadZone.style.borderColor = 'var(--archie-orange)';
-            uploadZone.style.background = 'var(--archie-orange-alpha-10)';
-        }, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        uploadZone.addEventListener(eventName, () => {
-            uploadZone.style.borderColor = '';
-            uploadZone.style.background = '';
-        }, false);
-    });
-
-    uploadZone.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        document.getElementById('fileInput').files = files;
-        handleFileSelect({ target: { files: files } });
-    }, false);
-}
+// Load initial stats
+refreshStats();
 </script>
 {% endblock %}

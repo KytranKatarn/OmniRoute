@@ -990,9 +990,9 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="media_studio",
         name="Media Studio",
-        description="Generate images & videos with AI<br>Multiple art styles • Social media formats • Batch export",
+        description="Generate images, video, and audio with AI<br>Bridge-routed provider selection • Gallery • Queue tracking",
         icon="palette",
-        category=ModuleCategory.PLACEHOLDERS_FUTURE,
+        category=ModuleCategory.MEDIA_HOME,
         route="/tools/media-studio",
         blueprint_import="tools.media_studio.routes:media_studio_bp",
         required_permissions=[],
@@ -1001,7 +1001,7 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=media_studio_health_check,
         priority=11,
-        tags=["ai", "images", "video", "shorts", "creative", "creation", "placeholder"],
+        tags=["ai", "images", "video", "audio", "creative", "generation", "media"],
     ),
     # Autonomy — Proactive Agent Loop
     ModuleDefinition(

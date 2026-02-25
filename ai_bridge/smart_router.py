@@ -170,6 +170,10 @@ CAPABILITY_ROUTING = {
     "embed": "local",            # (handled by embedding service, not router)
     "translate": "local_analysis",   # Translation via qwen3-coder-cpu
     "detect_language": "classify",   # Language detection via qwen25-classify
+    "image_generation": "minimax_cloud",  # Placeholder — actual routing via media adapters
+    "video_generation": "minimax_cloud",  # Placeholder — actual routing via media adapters
+    "audio_tts": "local",                # Local Kokoro/XTTS first
+    "audio_music": "minimax_cloud",      # Placeholder — actual routing via media adapters
 }
 
 

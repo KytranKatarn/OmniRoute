@@ -1,6 +1,5 @@
 """
-Media Studio Module (Placeholder)
-Status: Coming Soon
+Media Studio Module — Image, Video, and Audio generation via AI Bridge
 """
 
 from flask import Blueprint

@@ -61,7 +61,7 @@ def _load_all_providers() -> Dict[str, Dict]:
             """
             SELECT provider_key, display_name, base_url, default_model,
                    auth_method, auth_env_var, is_cloud_proxy, tier_position,
-                   models, rate_limits, is_active
+                   models, rate_limits, is_active, capabilities
             FROM contractor_providers
             ORDER BY tier_position
             """
@@ -86,6 +86,11 @@ def _load_all_providers() -> Dict[str, Dict]:
             if isinstance(rate_limits_raw, str):
                 rate_limits_raw = json.loads(rate_limits_raw)
             d["rate_limits"] = rate_limits_raw or {}
+
+            caps_raw = d.get("capabilities")
+            if isinstance(caps_raw, str):
+                caps_raw = json.loads(caps_raw)
+            d["capabilities"] = caps_raw or ["text_chat"]
 
             new_cache[key] = d
 
@@ -149,6 +154,55 @@ def invalidate_provider_cache():
     _model_provider_map = {}
     _provider_cache_time = 0
     logger.info("[ExternalProviders] Provider cache invalidated")
+
+
+def get_providers_with_capability(capability: str) -> List[Dict]:
+    """Return active providers that support a given capability, ordered by tier_position.
+
+    Args:
+        capability: e.g. 'image_gen', 'audio_tts', 'video_gen', 'text_chat'
+
+    Returns:
+        List of dicts: [{provider_key, display_name, capabilities, is_free_tier, tier_position, models}]
+    """
+    _load_all_providers()
+    results = []
+    for key, provider in _provider_cache.items():
+        caps = provider.get("capabilities", ["text_chat"])
+        if capability in caps and provider.get("is_active", False):
+            results.append({
+                "provider_key": key,
+                "display_name": provider.get("display_name", key),
+                "capabilities": caps,
+                "is_free_tier": provider.get("tier_position", 99) >= 8 and not provider.get("is_cloud_proxy", False),
+                "tier_position": provider.get("tier_position", 99),
+                "models": provider.get("models", []),
+                "base_url": provider.get("base_url", ""),
+            })
+    results.sort(key=lambda p: p["tier_position"])
+    return results
+
+
+def get_all_capabilities() -> Dict[str, List[Dict]]:
+    """Return a summary of which capabilities are available and how many providers support each.
+
+    Returns:
+        Dict: {capability: [{provider_key, display_name, is_free_tier}]}
+    """
+    _load_all_providers()
+    caps_map: Dict[str, List[Dict]] = {}
+    for key, provider in _provider_cache.items():
+        if not provider.get("is_active", False):
+            continue
+        for cap in provider.get("capabilities", ["text_chat"]):
+            if cap not in caps_map:
+                caps_map[cap] = []
+            caps_map[cap].append({
+                "provider_key": key,
+                "display_name": provider.get("display_name", key),
+                "is_free_tier": provider.get("tier_position", 99) >= 8 and not provider.get("is_cloud_proxy", False),
+            })
+    return caps_map
 
 
 # ============================================================================
@@ -394,6 +448,250 @@ def call_external(
             return {"success": False, "error": "archie_bridge not available for cloud proxy", "provider": provider_key}
 
     return _call_openai_compatible(provider_key, prompt, model, system_prompt, json_mode, timeout)
+
+
+# ============================================================================
+# MEDIA GENERATION — image, video, audio adapters
+# ============================================================================
+
+
+def generate_media(provider_key: str, request: dict) -> dict:
+    """Generate media (image/video/audio) via a provider adapter.
+
+    Args:
+        provider_key: e.g. 'gemini', 'openai', 'local_tts'
+        request: {type, prompt, params: {size, style, duration, voice, ...}}
+
+    Returns:
+        {success: bool, file_path: str, metadata: dict, error: str}
+    """
+    adapters = {
+        "gemini": _gemini_media_adapter,
+        "openai": _openai_image_adapter,
+        "local_tts": _local_tts_adapter,
+    }
+    adapter = adapters.get(provider_key)
+    if not adapter:
+        return {"success": False, "error": f"No media adapter for provider: {provider_key}"}
+
+    try:
+        return adapter(request)
+    except Exception as e:
+        logger.error(f"Media generation failed ({provider_key}): {e}")
+        return {"success": False, "error": str(e)}
+
+
+def _gemini_media_adapter(request: dict) -> dict:
+    """Generate images via Gemini Imagen 3 API."""
+    import base64
+    import uuid
+
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return {"success": False, "error": "GEMINI_API_KEY not configured"}
+
+    prompt = request.get("prompt", "")
+    params = request.get("params", {})
+    req_type = request.get("type", "image")
+
+    if req_type != "image":
+        return {"success": False, "error": f"Gemini adapter only supports image generation, got: {req_type}"}
+
+    # Gemini Imagen 3 via predict endpoint
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={api_key}"
+    payload = {
+        "instances": [{"prompt": prompt}],
+        "parameters": {
+            "sampleCount": 1,
+            "aspectRatio": params.get("aspect_ratio", "1:1"),
+            "safetyFilterLevel": "block_few",
+        }
+    }
+
+    start = time.time()
+    resp = requests.post(url, json=payload, timeout=60)
+    duration_ms = int((time.time() - start) * 1000)
+
+    if resp.status_code != 200:
+        return {"success": False, "error": f"Gemini API error {resp.status_code}: {resp.text[:500]}"}
+
+    data = resp.json()
+    predictions = data.get("predictions", [])
+    if not predictions:
+        return {"success": False, "error": "Gemini returned no predictions"}
+
+    img_b64 = predictions[0].get("bytesBase64Encoded", "")
+    if not img_b64:
+        return {"success": False, "error": "Gemini returned empty image data"}
+
+    img_bytes = base64.b64decode(img_b64)
+
+    # Save to disk
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    file_uuid = str(uuid.uuid4())[:12]
+    rel_dir = f"static/media/images/{date_str}"
+    abs_dir = os.path.join("/mnt/archie_brain/platform_v2", rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+
+    file_name = f"{file_uuid}.png"
+    file_path = os.path.join(abs_dir, file_name)
+    with open(file_path, "wb") as f:
+        f.write(img_bytes)
+
+    return {
+        "success": True,
+        "file_path": f"/{rel_dir}/{file_name}",
+        "metadata": {
+            "provider": "gemini",
+            "model": "imagen-3.0-generate-002",
+            "cost_usd": 0.0,
+            "mime_type": "image/png",
+            "file_size_bytes": len(img_bytes),
+            "aspect_ratio": params.get("aspect_ratio", "1:1"),
+            "duration_ms": duration_ms,
+        }
+    }
+
+
+def _openai_image_adapter(request: dict) -> dict:
+    """Generate images via OpenAI DALL-E 3 API."""
+    import base64
+    import uuid
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        return {"success": False, "error": "OPENAI_API_KEY not configured"}
+
+    prompt = request.get("prompt", "")
+    params = request.get("params", {})
+    size = params.get("size", "1024x1024")
+    quality = params.get("quality", "standard")
+    style = params.get("style", "vivid")
+
+    url = "https://api.openai.com/v1/images/generations"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {
+        "model": "dall-e-3",
+        "prompt": prompt,
+        "n": 1,
+        "size": size,
+        "quality": quality,
+        "style": style,
+        "response_format": "b64_json",
+    }
+
+    start = time.time()
+    resp = requests.post(url, json=payload, headers=headers, timeout=60)
+    duration_ms = int((time.time() - start) * 1000)
+
+    if resp.status_code != 200:
+        return {"success": False, "error": f"OpenAI API error {resp.status_code}: {resp.text[:500]}"}
+
+    data = resp.json()
+    images = data.get("data", [])
+    if not images:
+        return {"success": False, "error": "OpenAI returned no images"}
+
+    img_b64 = images[0].get("b64_json", "")
+    revised_prompt = images[0].get("revised_prompt", prompt)
+    img_bytes = base64.b64decode(img_b64)
+
+    # Cost calculation
+    cost_map = {
+        "1024x1024": {"standard": 0.04, "hd": 0.08},
+        "1024x1792": {"standard": 0.08, "hd": 0.12},
+        "1792x1024": {"standard": 0.08, "hd": 0.12},
+    }
+    cost_usd = cost_map.get(size, {}).get(quality, 0.04)
+
+    # Save to disk
+    from datetime import datetime
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    file_uuid = str(uuid.uuid4())[:12]
+    rel_dir = f"static/media/images/{date_str}"
+    abs_dir = os.path.join("/mnt/archie_brain/platform_v2", rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+
+    file_name = f"{file_uuid}.png"
+    file_path = os.path.join(abs_dir, file_name)
+    with open(file_path, "wb") as f:
+        f.write(img_bytes)
+
+    return {
+        "success": True,
+        "file_path": f"/{rel_dir}/{file_name}",
+        "metadata": {
+            "provider": "openai",
+            "model": "dall-e-3",
+            "cost_usd": cost_usd,
+            "mime_type": "image/png",
+            "file_size_bytes": len(img_bytes),
+            "size": size,
+            "quality": quality,
+            "style": style,
+            "revised_prompt": revised_prompt,
+            "duration_ms": duration_ms,
+        }
+    }
+
+
+def _local_tts_adapter(request: dict) -> dict:
+    """Generate audio via local Kokoro/XTTS engines."""
+    import uuid
+
+    prompt = request.get("prompt", "")
+    params = request.get("params", {})
+    voice = params.get("voice", "default")
+    language = params.get("language", "en")
+
+    # Call existing Voice DNA endpoint
+    tts_url = "http://localhost:3000/api/voice/generate"
+    payload = {
+        "text": prompt,
+        "speaker": voice,
+        "language": language,
+        "emotion": params.get("emotion", "neutral"),
+    }
+
+    try:
+        start = time.time()
+        resp = requests.post(tts_url, json=payload, timeout=30)
+        duration_ms = int((time.time() - start) * 1000)
+
+        if resp.status_code != 200:
+            return {"success": False, "error": f"Local TTS error {resp.status_code}: {resp.text[:200]}"}
+
+        audio_bytes = resp.content
+
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        file_uuid = str(uuid.uuid4())[:12]
+        rel_dir = f"static/media/audio/{date_str}"
+        abs_dir = os.path.join("/mnt/archie_brain/platform_v2", rel_dir)
+        os.makedirs(abs_dir, exist_ok=True)
+
+        file_name = f"{file_uuid}.wav"
+        file_path = os.path.join(abs_dir, file_name)
+        with open(file_path, "wb") as f:
+            f.write(audio_bytes)
+
+        return {
+            "success": True,
+            "file_path": f"/{rel_dir}/{file_name}",
+            "metadata": {
+                "provider": "local_tts",
+                "model": "kokoro" if language == "en" else "xtts_v2",
+                "cost_usd": 0.0,
+                "mime_type": "audio/wav",
+                "file_size_bytes": len(audio_bytes),
+                "language": language,
+                "voice": voice,
+                "duration_ms": duration_ms,
+            }
+        }
+    except requests.ConnectionError:
+        return {"success": False, "error": "Local TTS service unavailable"}
 
 
 # ============================================================================

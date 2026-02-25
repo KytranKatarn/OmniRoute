@@ -419,7 +419,7 @@ class BridgeDispatcher:
     ):
         """Log a station capacity event for workload intelligence (ADR-055)."""
         try:
-            import psycopg2.extras
+            from psycopg2.extras import Json
 
             conn = self._get_db()
             cur = conn.cursor()
@@ -429,6 +429,13 @@ class BridgeDispatcher:
             )
             row = cur.fetchone()
             station_id = row[0] if row else None
+            if station_id is None:
+                logger.warning(
+                    f"[CAPACITY] Unknown station_code '{station_code}', skipping event log"
+                )
+                cur.close()
+                conn.close()
+                return
             cur.execute(
                 """
                 INSERT INTO station_capacity_events
@@ -446,7 +453,7 @@ class BridgeDispatcher:
                     capability,
                     slot_number,
                     reason,
-                    psycopg2.extras.Json(metadata or {}),
+                    Json(metadata or {}),
                 ),
             )
             conn.commit()

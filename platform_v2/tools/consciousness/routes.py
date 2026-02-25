@@ -6263,6 +6263,179 @@ def translation_audit_templates():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/api/translations/tag-module", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def translation_tag_module():
+    """Auto-add data-i18n attributes to hardcoded text in a module's templates.
+
+    Wraps bare English text with ``<span data-i18n="key">`` and seeds English
+    translation rows so other languages can be generated afterwards.
+    """
+    data = request.get_json() or {}
+    module_id = data.get("module_id", "").strip()
+    if not module_id:
+        return jsonify({"success": False, "error": "module_id required"}), 400
+
+    SKIP_RE_OPEN = re.compile(r"<(script|style|code|pre|svg)\b", re.I)
+    SKIP_RE_CLOSE = re.compile(r"</(script|style|code|pre|svg)>", re.I)
+    TEXT_RE = re.compile(r"(>)([^<]+)(<)")
+
+    def _make_key(mod, text, used):
+        base = re.sub(r"[^a-z0-9]+", "_", text.lower().strip())[:50].strip("_")
+        if not base:
+            base = "text"
+        key = f"{mod}.{base}"
+        if key in used:
+            i = 2
+            while f"{key}_{i}" in used:
+                i += 1
+            key = f"{key}_{i}"
+        return key
+
+    def _tag_content(content, mod):
+        lines = content.split("\n")
+        result = []
+        in_skip = 0
+        keys = []
+        used = set()
+
+        # Pre-load existing keys for this module to avoid collisions
+        try:
+            conn2 = get_db()
+            cur2 = conn2.cursor()
+            cur2.execute(
+                "SELECT key FROM translations WHERE key LIKE %s AND language='en'",
+                (f"{mod}.%",),
+            )
+            for row in cur2.fetchall():
+                used.add(row[0])
+            cur2.close()
+            conn2.close()
+        except Exception:
+            pass
+
+        for line in lines:
+            in_skip += len(SKIP_RE_OPEN.findall(line))
+            closes = len(SKIP_RE_CLOSE.findall(line))
+
+            if in_skip > 0:
+                in_skip = max(0, in_skip - closes)
+                result.append(line)
+                continue
+
+            in_skip = max(0, in_skip - closes)
+
+            if "data-i18n" in line:
+                result.append(line)
+                continue
+
+            # Skip pure Jinja2 control lines
+            stripped = line.strip()
+            if stripped.startswith("{%") or stripped.startswith("{#"):
+                result.append(line)
+                continue
+
+            def _replacer(m):
+                text = m.group(2)
+                clean = text.strip()
+                if (
+                    len(clean) < 3
+                    or not re.search(r"[a-zA-Z]{2,}", clean)
+                    or "{{" in clean
+                    or "{%" in clean
+                    or clean.startswith("--")
+                    or clean.startswith("//")
+                ):
+                    return m.group(0)
+                key = _make_key(mod, clean, used)
+                used.add(key)
+                keys.append((key, clean))
+                return f'><span data-i18n="{key}">{text}</span><'
+
+            new_line = TEXT_RE.sub(_replacer, line)
+            result.append(new_line)
+
+        return "\n".join(result), keys
+
+    try:
+        platform_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        files_to_tag = []
+
+        # Shared template
+        shared = os.path.join(platform_root, "templates", "tools", module_id + ".html")
+        if os.path.isfile(shared):
+            files_to_tag.append(shared)
+
+        # Module-local templates
+        local_tpl = os.path.join(platform_root, "tools", module_id, "templates")
+        if os.path.isdir(local_tpl):
+            for root, _dirs, files in os.walk(local_tpl):
+                for fname in files:
+                    if fname.endswith(".html"):
+                        files_to_tag.append(os.path.join(root, fname))
+
+        if not files_to_tag:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"No templates found for {module_id}",
+                    }
+                ),
+                404,
+            )
+
+        total_tagged = 0
+        all_keys = []
+        files_modified = 0
+
+        for fpath in files_to_tag:
+            with open(fpath, "r", encoding="utf-8") as f:
+                content = f.read()
+            new_content, keys = _tag_content(content, module_id)
+            if keys:
+                with open(fpath, "w", encoding="utf-8") as f:
+                    f.write(new_content)
+                total_tagged += len(keys)
+                all_keys.extend(keys)
+                files_modified += 1
+
+        # Seed English translations
+        seeded = 0
+        if all_keys:
+            conn = get_db()
+            cur = conn.cursor()
+            for key, text in all_keys:
+                try:
+                    cur.execute(
+                        """INSERT INTO translations (key, language, text, source, status)
+                           VALUES (%s, 'en', %s, 'ai_generated', 'approved')
+                           ON CONFLICT (key, language) DO NOTHING""",
+                        (key, text),
+                    )
+                    if cur.rowcount > 0:
+                        seeded += 1
+                except Exception:
+                    pass
+            conn.commit()
+            cur.close()
+            conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "module": module_id,
+                "tagged": total_tagged,
+                "keys_seeded": seeded,
+                "files_modified": files_modified,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Tag module error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/api/translations/module-coverage")
 @login_required
 @require_permission(Permission.ADMIN_ACCESS)

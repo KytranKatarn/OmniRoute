@@ -10,13 +10,13 @@
             <h2 class="mb-1">
                 <i class="bi bi-gear-wide-connected me-2"></i>Automations
             </h2>
-            <p class="text-muted mb-0">Visual workflow builder powered by N8N</p>
+            <p class="text-muted mb-0"><span data-i18n="automations.visual_workflow_builder_powered_by_n8n">Visual workflow builder powered by N8N</span></p>
         </div>
         <div class="d-flex gap-2 align-items-center">
             {% if stats.n8n_connected %}
-            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>N8N Connected</span>
+            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i><span data-i18n="automations.n8n_connected">N8N Connected</span></span>
             {% else %}
-            <span class="badge bg-warning"><i class="bi bi-exclamation-triangle me-1"></i>N8N Offline</span>
+            <span class="badge bg-warning"><i class="bi bi-exclamation-triangle me-1"></i><span data-i18n="automations.n8n_offline">N8N Offline</span></span>
             {% endif %}
             <a href="{{ n8n_url }}" target="_blank" class="btn btn-primary">
                 <i class="bi bi-box-arrow-up-right me-1"></i>Open N8N Editor
@@ -32,7 +32,7 @@
                 <div class="card-body text-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="text-white-50 mb-1">Total Workflows</h6>
+                            <h6 class="text-white-50 mb-1"><span data-i18n="automations.total_workflows">Total Workflows</span></h6>
                             <h2 class="mb-0">{{ stats.total_workflows or 0 }}</h2>
                         </div>
                         <div class="bg-white bg-opacity-25 rounded-circle p-2">
@@ -47,7 +47,7 @@
                 <div class="card-body text-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="text-white-50 mb-1">Active</h6>
+                            <h6 class="text-white-50 mb-1"><span data-i18n="automations.active">Active</span></h6>
                             <h2 class="mb-0">{{ stats.active_workflows or 0 }}</h2>
                         </div>
                         <div class="bg-white bg-opacity-25 rounded-circle p-2">
@@ -62,7 +62,7 @@
                 <div class="card-body text-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="text-white-50 mb-1">Recent Executions</h6>
+                            <h6 class="text-white-50 mb-1"><span data-i18n="automations.recent_executions">Recent Executions</span></h6>
                             <h2 class="mb-0">{{ stats.recent_executions or 0 }}</h2>
                         </div>
                         <div class="bg-white bg-opacity-25 rounded-circle p-2">
@@ -77,7 +77,7 @@
                 <div class="card-body text-white">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h6 class="text-white-50 mb-1">Success Rate</h6>
+                            <h6 class="text-white-50 mb-1"><span data-i18n="automations.success_rate">Success Rate</span></h6>
                             <h2 class="mb-0">{{ stats.success_rate or 0 }}%</h2>
                         </div>
                         <div class="bg-white bg-opacity-25 rounded-circle p-2">
@@ -154,8 +154,8 @@
                     <div class="card border-0 shadow-sm">
                         <div class="card-body text-center py-5">
                             <i class="bi bi-diagram-3 fs-1 text-muted d-block mb-3"></i>
-                            <h5 class="text-muted">No Workflows Yet</h5>
-                            <p class="text-muted mb-3">Create your first workflow to automate your business processes.</p>
+                            <h5 class="text-muted"><span data-i18n="automations.no_workflows_yet">No Workflows Yet</span></h5>
+                            <p class="text-muted mb-3"><span data-i18n="automations.create_your_first_workflow_to_automate_your_busine">Create your first workflow to automate your business processes.</span></p>
                             <a href="{{ n8n_url }}/workflow/new" target="_blank" class="btn btn-primary">
                                 <i class="bi bi-plus-lg me-1"></i>Create Workflow
                             </a>
@@ -172,8 +172,8 @@
                             <div class="rounded-circle bg-primary bg-opacity-10 p-3 mb-3">
                                 <i class="bi bi-plus-lg fs-3 text-primary"></i>
                             </div>
-                            <h6 class="text-primary mb-1">Create New Workflow</h6>
-                            <small class="text-muted">Open N8N Editor</small>
+                            <h6 class="text-primary mb-1"><span data-i18n="automations.create_new_workflow">Create New Workflow</span></h6>
+                            <small class="text-muted"><span data-i18n="automations.open_n8n_editor">Open N8N Editor</span></small>
                         </div>
                     </a>
                 </div>
@@ -186,12 +186,12 @@
             <div class="row mb-4">
                 <div class="col">
                     <div class="btn-group" role="group">
-                        <button class="btn btn-outline-secondary active" onclick="filterTemplates('')">All</button>
-                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Customer')">Customer</button>
-                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Billing')">Billing</button>
-                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Orders')">Orders</button>
-                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Support')">Support</button>
-                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Calendar')">Calendar</button>
+                        <button class="btn btn-outline-secondary active" onclick="filterTemplates('')"><span data-i18n="automations.all">All</span></button>
+                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Customer')"><span data-i18n="automations.customer">Customer</span></button>
+                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Billing')"><span data-i18n="automations.billing">Billing</span></button>
+                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Orders')"><span data-i18n="automations.orders">Orders</span></button>
+                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Support')"><span data-i18n="automations.support">Support</span></button>
+                        <button class="btn btn-outline-secondary" onclick="filterTemplates('Calendar')"><span data-i18n="automations.calendar">Calendar</span></button>
                     </div>
                 </div>
             </div>
@@ -233,7 +233,7 @@
         <div class="tab-pane fade" id="executions" role="tabpanel">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Recent Executions</h5>
+                    <h5 class="mb-0"><span data-i18n="automations.recent_executions_2">Recent Executions</span></h5>
                     <button class="btn btn-sm btn-outline-secondary" onclick="loadExecutions()">
                         <i class="bi bi-arrow-clockwise me-1"></i>Refresh
                     </button>
@@ -243,11 +243,11 @@
                         <table class="table table-hover mb-0">
                             <thead class="bg-light">
                                 <tr>
-                                    <th class="border-0 ps-4">Workflow</th>
-                                    <th class="border-0">Started</th>
-                                    <th class="border-0">Duration</th>
-                                    <th class="border-0">Status</th>
-                                    <th class="border-0 text-end pe-4">Actions</th>
+                                    <th class="border-0 ps-4"><span data-i18n="automations.workflow">Workflow</span></th>
+                                    <th class="border-0"><span data-i18n="automations.started">Started</span></th>
+                                    <th class="border-0"><span data-i18n="automations.duration">Duration</span></th>
+                                    <th class="border-0"><span data-i18n="automations.status">Status</span></th>
+                                    <th class="border-0 text-end pe-4"><span data-i18n="automations.actions">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="executionsTableBody">
@@ -266,16 +266,16 @@
                                         {% elif exec.finished %}
                                         <span class="text-success"><i class="bi bi-check"></i></span>
                                         {% else %}
-                                        <span class="text-warning">Running...</span>
+                                        <span class="text-warning"><span data-i18n="automations.running">Running...</span></span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if exec.stoppedAt %}
-                                        <span class="badge bg-danger">Failed</span>
+                                        <span class="badge bg-danger"><span data-i18n="automations.failed">Failed</span></span>
                                         {% elif exec.finished %}
-                                        <span class="badge bg-success">Success</span>
+                                        <span class="badge bg-success"><span data-i18n="automations.success">Success</span></span>
                                         {% else %}
-                                        <span class="badge bg-warning text-dark">Running</span>
+                                        <span class="badge bg-warning text-dark"><span data-i18n="automations.running_2">Running</span></span>
                                         {% endif %}
                                     </td>
                                     <td class="text-end pe-4">
@@ -307,14 +307,14 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-diagram-3 me-2"></i><span id="workflowModalTitle">Workflow</span></h5>
+                <h5 class="modal-title"><i class="bi bi-diagram-3 me-2"></i><span id="workflowModalTitle"><span data-i18n="automations.workflow_2">Workflow</span></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="workflowModalContent">
                 <!-- Workflow details loaded here -->
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="automations.close">Close</span></button>
                 <a href="#" id="editWorkflowBtn" target="_blank" class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i>Edit in N8N
                 </a>

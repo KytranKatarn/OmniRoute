@@ -336,10 +336,19 @@ def estimate_batch():
 def _run_analysis_job(items_data, category, batch_id, job_id):
     """Background worker for knowledge analysis.
 
-    Runs in a separate thread so the HTTP request returns immediately.
+    Routes each item through Bridge Command's request_work() pipeline
+    so agent selection, model routing, escalation, welfare tracking,
+    and execution logging are all handled by Bridge — not direct Ollama.
     """
-    from ai_bridge.cost_controller import get_cost_controller
-    from ai_bridge.knowledge_analyzer import get_knowledge_analyzer
+    from ai_bridge.knowledge_analyzer import (
+        get_knowledge_analyzer,
+        CONVERSATION_ANALYSIS_PROMPT,
+        CODE_ANALYSIS_PROMPT,
+        _smart_truncate,
+        KnowledgeCard,
+        ExtractedRelationship,
+        AnalysisResult,
+    )
     from ai_bridge.embedding_service import generate_embedding
     from ai_bridge.knowledge_cards import save_knowledge_card
     from ai_bridge.relationship_mapper import get_relationship_mapper
@@ -348,13 +357,13 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
     dispatcher = get_dispatcher()
     analyzer = get_knowledge_analyzer()
     mapper = get_relationship_mapper()
-    controller = get_cost_controller()
 
     processed = 0
     errors = 0
     cards_created = 0
     total_input_tokens = 0
     total_output_tokens = 0
+    batch_agent = None  # Lock to same agent for entire batch
 
     try:
         for item_id, title, content, metadata in items_data:
@@ -364,23 +373,101 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                 metadata = metadata or {}
                 metadata["source_id"] = item_id
 
-                if category == "conversations":
-                    result = analyzer.analyze_conversation(content, metadata)
-                else:
-                    result = analyzer.analyze_code_file(content, title or "unknown", metadata.get("language"))
-
-                if not result.success:
+                if not content or len(content.strip()) < 100:
                     errors += 1
                     if job_id:
                         dispatcher.update_job_progress(job_id, processed, errors)
                     continue
 
-                total_input_tokens += result.input_tokens
-                total_output_tokens += result.output_tokens
+                # Build prompt (same templates the analyzer uses)
+                truncated = _smart_truncate(content, 24000)
+                if category == "conversations":
+                    prompt = CONVERSATION_ANALYSIS_PROMPT.format(
+                        content=truncated,
+                        source_type=metadata.get("source_type", "conversation_log"),
+                        project=metadata.get("project", "unknown"),
+                        date=metadata.get("date", datetime.now().isoformat()),
+                    )
+                else:
+                    prompt = CODE_ANALYSIS_PROMPT.format(
+                        content=truncated,
+                        filename=title or "unknown",
+                        language=metadata.get("language", "unknown"),
+                    )
 
+                # Dispatch through Bridge — agent selection, model routing,
+                # escalation, welfare, execution logging all handled here.
+                # prefer_agent locks to the same agent for the entire batch.
+                dispatch_result = dispatcher.request_work(
+                    capability="knowledge_analysis",
+                    prompt=prompt,
+                    module_id="consciousness",
+                    json_mode=True,
+                    timeout=300,
+                    job_id=job_id,
+                    prefer_agent=batch_agent,
+                )
+
+                # Lock to first successful agent for batch consistency
+                if dispatch_result.success and not batch_agent:
+                    batch_agent = dispatch_result.agent_name
+
+                if not dispatch_result.success:
+                    logger.warning(f"[Analysis] Bridge dispatch failed for item {item_id}: " f"{dispatch_result.error}")
+                    errors += 1
+                    if job_id:
+                        dispatcher.update_job_progress(job_id, processed, errors)
+                    continue
+
+                total_input_tokens += dispatch_result.prompt_tokens
+                total_output_tokens += dispatch_result.completion_tokens
+
+                # Parse response using analyzer's JSON parser
+                data = analyzer._parse_json_response(dispatch_result.response)
+
+                # Build AnalysisResult from parsed data
+                cards = []
+                for card_data in data.get("cards", []):
+                    cards.append(
+                        KnowledgeCard(
+                            title=card_data.get("title", "Untitled"),
+                            card_type=card_data.get("card_type", "concept"),
+                            summary=card_data.get("summary", ""),
+                            detailed=card_data.get("detailed", ""),
+                            code_examples=card_data.get("code_examples", []),
+                            topics=card_data.get("topics", []),
+                            technologies=card_data.get("technologies", []),
+                            difficulty=card_data.get("difficulty", "intermediate"),
+                            confidence=float(card_data.get("confidence", 0.7)),
+                            source_type=metadata.get("source_type", "conversation"),
+                            source_ref=str(item_id),
+                        )
+                    )
+
+                relationships = []
+                for rel_data in data.get("relationships", []):
+                    relationships.append(
+                        ExtractedRelationship(
+                            from_title=rel_data.get("from_title", ""),
+                            to_title=rel_data.get("to_title", ""),
+                            relationship_type=rel_data.get("relationship_type", "related_to"),
+                            strength=float(rel_data.get("strength", 0.5)),
+                            reasoning=rel_data.get("reasoning", ""),
+                        )
+                    )
+
+                result = AnalysisResult(
+                    success=True,
+                    cards=cards,
+                    relationships=relationships,
+                    input_tokens=dispatch_result.prompt_tokens,
+                    output_tokens=dispatch_result.completion_tokens,
+                    processing_time_ms=dispatch_result.duration_ms,
+                )
+
+                # Save cards + embeddings
                 title_to_id = {}
                 for card in result.cards:
-                    card.source_ref = str(item_id)
                     embedding = generate_embedding(f"{card.title}. {card.summary}")
                     card_id = save_knowledge_card(card, embedding, batch_id)
                     if card_id:
@@ -394,16 +481,18 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                 processed += 1
 
                 if job_id:
-                    dispatcher.update_job_progress(job_id, processed, errors, {"cards_created": cards_created})
+                    dispatcher.update_job_progress(
+                        job_id,
+                        processed,
+                        errors,
+                        {"cards_created": cards_created, "agent": dispatch_result.agent_name},
+                    )
 
             except Exception as e:
                 logger.error(f"Processing item {item_id} failed: {e}")
                 errors += 1
                 if job_id:
                     dispatcher.update_job_progress(job_id, processed, errors)
-
-        if total_input_tokens > 0:
-            controller.record_usage(total_input_tokens, total_output_tokens)
 
         _log_batch_processing(
             batch_id,
@@ -435,43 +524,11 @@ def start_processing():
     Work runs in a background thread with progress tracked in Bridge Command.
     """
     try:
-        from ai_bridge.cost_controller import get_cost_controller
-        from ai_bridge.knowledge_analyzer import get_knowledge_analyzer
         from ai_bridge.bridge_dispatcher import get_dispatcher
 
         data = request.get_json() or {}
         category = data.get("category", "conversations")
         batch_size = min(int(data.get("batch_size", 10)), 50)  # Max 50 per batch
-
-        # Warm up Ollama model to avoid cold-start crashes
-        analyzer = get_knowledge_analyzer()
-        if not analyzer.warmup():
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Analyzer model failed to warm up. Try again in a few seconds.",
-                    }
-                ),
-                503,
-            )
-
-        # Check cost limits
-        controller = get_cost_controller()
-        estimate = controller.estimate_batch(batch_size, category)
-
-        if not estimate.within_daily_limit:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Would exceed daily limit",
-                        "would_exceed_by_tokens": estimate.would_exceed_by_tokens,
-                        "would_exceed_by_usd": estimate.would_exceed_by_usd,
-                    }
-                ),
-                400,
-            )
 
         # Generate batch ID
         batch_id = str(uuid.uuid4())
@@ -511,7 +568,7 @@ def start_processing():
             module_source="consciousness",
             description=f"Analyze {len(items)} {category} entries (batch {batch_size})",
             total_steps=len(items),
-            capability="code_analysis",
+            capability="knowledge_analysis",
             metadata={"category": category, "batch_id": batch_id, "batch_size": batch_size},
         )
 

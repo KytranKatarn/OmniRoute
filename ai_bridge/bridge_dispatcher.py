@@ -99,7 +99,8 @@ CAPABILITY_STATION_MAP = {
 # If no agent at the mapped station has the skill, cross-station dispatch
 # finds an agent elsewhere who does.
 CAPABILITY_REQUIRES_SKILL = {
-    "translate",  # Needs a capable chat LLM — not a classifier or embedder
+    "translate",            # Needs a capable chat LLM — not a classifier or embedder
+    "knowledge_analysis",   # Deep JSON analysis — needs qwen3-coder-cpu or better
 }
 
 # Specialized agent selection within stations
@@ -464,7 +465,7 @@ class BridgeDispatcher:
                 f"[CAPACITY] Error logging event {event_type} for {station_code}: {e}"
             )
 
-    def _refresh_welfare_cache(self):
+    def _refresh_welfare_cache(self, skip_busy_refresh: bool = False):
         """Load agent welfare state (emotional, rest cycles, budgets) with 30s TTL.
 
         Populates self._welfare_cache keyed by agent_id with:
@@ -472,6 +473,11 @@ class BridgeDispatcher:
         - resting: bool (from agent_rest_cycles where ended_at IS NULL)
         - rest_type: str or None (type of active rest cycle)
         - budget: dict with task/token usage and limits (from agent_budgets)
+
+        Args:
+            skip_busy_refresh: If True, don't overwrite _busy_agents.
+                Used when request_work() has already set _busy_agents
+                with job_id/prefer_agent exclusions.
         """
         now = time.time()
         if (
@@ -527,10 +533,13 @@ class BridgeDispatcher:
                 }
 
             # Busy agents (running bridge_jobs)
-            cur.execute("""
-                SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'
-            """)
-            self._busy_agents = {r["agent_name"] for r in cur.fetchall()}
+            # Skip if request_work() already set _busy_agents with proper
+            # job_id exclusion and prefer_agent handling.
+            if not skip_busy_refresh:
+                cur.execute("""
+                    SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'
+                """)
+                self._busy_agents = {r["agent_name"] for r in cur.fetchall()}
 
             cur.close()
             conn.close()
@@ -693,7 +702,12 @@ class BridgeDispatcher:
                 logger.debug(f"[BridgeDispatcher] Module station cache failed: {e}")
         return self._module_station_cache.get(module_id.lower().strip())
 
-    def _select_agent(self, capability: str, station_code: str) -> Optional[Dict]:
+    def _select_agent(
+        self,
+        capability: str,
+        station_code: str,
+        skip_busy_refresh: bool = False,
+    ) -> Optional[Dict]:
         """Select the best agent for a capability within a station.
 
         Uses multi-factor scoring: skills, specialization, welfare,
@@ -701,7 +715,7 @@ class BridgeDispatcher:
         budget exhausted, critical welfare) are filtered out.
         """
         self._refresh_agent_cache()
-        self._refresh_welfare_cache()
+        self._refresh_welfare_cache(skip_busy_refresh=skip_busy_refresh)
 
         # Gather all candidates assigned to this station
         candidates = []
@@ -1945,6 +1959,7 @@ class BridgeDispatcher:
         timeout: int = 300,
         prefer_gpu: bool = True,
         job_id: Optional[int] = None,
+        prefer_agent: Optional[str] = None,
     ) -> DispatchResult:
         """
         Main entry point — request AI work by capability.
@@ -1960,6 +1975,8 @@ class BridgeDispatcher:
             json_mode: Request JSON-formatted response
             timeout: Request timeout in seconds
             prefer_gpu: Whether to prefer GPU-capable models
+            prefer_agent: Lock dispatch to this agent (for batch consistency).
+                          The agent stays assigned for all items in a batch job.
 
         Returns:
             DispatchResult with response, agent info, and metrics
@@ -1972,10 +1989,23 @@ class BridgeDispatcher:
 
             bconn = self._get_db()
             bcur = bconn.cursor(cursor_factory=RealDictCursor)
-            bcur.execute(
-                "SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'"
-            )
+            if job_id:
+                # Exclude the current batch job — the assigned agent should be
+                # available for work within its own batch, not blocked by it.
+                bcur.execute(
+                    "SELECT DISTINCT agent_name FROM bridge_jobs "
+                    "WHERE status = 'running' AND id != %s",
+                    (job_id,),
+                )
+            else:
+                bcur.execute(
+                    "SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'"
+                )
             self._busy_agents = {r["agent_name"] for r in bcur.fetchall()}
+            # Batch agent lock: always unblock the preferred agent so they
+            # handle every item in the batch, not just the first.
+            if prefer_agent:
+                self._busy_agents.discard(prefer_agent)
             bcur.close()
             bconn.close()
         except Exception as busy_err:
@@ -1989,17 +2019,22 @@ class BridgeDispatcher:
         dispatch_station = capability_station
         is_cross_station = False
 
+        # skip_busy_refresh=True: request_work() already set _busy_agents
+        # with proper job_id exclusion + prefer_agent handling above.
+        # Don't let _refresh_welfare_cache() overwrite it.
+        _sbr = bool(prefer_agent or job_id)
+
         if home_station:
-            agent = self._select_agent(capability, home_station)
+            agent = self._select_agent(capability, home_station, skip_busy_refresh=_sbr)
             if agent:
                 dispatch_station = home_station
             else:
                 # Home station can't handle — fall to capability station
-                agent = self._select_agent(capability, capability_station)
+                agent = self._select_agent(capability, capability_station, skip_busy_refresh=_sbr)
                 dispatch_station = capability_station
                 is_cross_station = home_station != capability_station
         else:
-            agent = self._select_agent(capability, capability_station)
+            agent = self._select_agent(capability, capability_station, skip_busy_refresh=_sbr)
             dispatch_station = capability_station
 
         station_code = dispatch_station

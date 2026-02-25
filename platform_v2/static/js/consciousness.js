@@ -117,10 +117,8 @@ function loadTabData(tab) {
     case "dashboard":   loadDashboard(); break;
     case "knowledge":   loadKnowledge(); break;
     case "team":        loadTeam(); break;
-    case "insights":    loadInsights(); break;
-    case "languages":   loadLanguages(); checkActiveJobs(); break;
     case "github":      loadGitHub(); break;
-    case "integration": loadIntegration(); break;
+    case "languages":   loadLanguages(); checkActiveJobs(); break;
   }
 }
 
@@ -164,23 +162,6 @@ function loadDashboard() {
     var moodBar = document.getElementById("wellnessMoodBar");
     if (moodBar) moodBar.style.width = mood + "%";
 
-    // Integration health
-    api("/api/integration/health").then(function (d) {
-      if (!d.success) return;
-      var sys = d.systems;
-      var html = Object.keys(sys).map(function (key) {
-        var s = sys[key];
-        var dot = s.status === "online" ? "online" : "offline";
-        var info = s.projects || s.stations || s.repos || "";
-        return '<div class="cs-integration-item">' +
-          '<span class="status-dot ' + dot + '"></span>' +
-          '<span class="cs-integration-name">' + escHtml(key.toUpperCase()) + '</span>' +
-          (info ? '<span class="cs-integration-count">' + info + '</span>' : '') +
-          '</div>';
-      }).join("");
-      setHtml("dashboardIntegration", html);
-    }).catch(function () {});
-
     // Emotional state mood indicator
     api("/emotional-state").then(function (d) {
       var mood = (d.mood || "neutral").toLowerCase();
@@ -213,6 +194,10 @@ function loadDashboard() {
     }
 
     refreshIcons();
+
+    // Load merged tab data (Insights analytics + Integration health)
+    loadInsights();
+    loadIntegration();
   }).catch(function (err) {
     console.error("loadDashboard error:", err);
   });
@@ -239,8 +224,8 @@ function loadNeuralCore() {
       { id: "code", label: "Code", count: (kb.github_files || 0) + (kb.code_snippets || 0), color: "#22c55e", tab: "github" },
       { id: "vault", label: "Vault", count: kb.vault_notes || 0, color: "#8b5cf6", tab: "knowledge" },
       { id: "repos", label: "Repos", count: kb.repos || 0, color: "#f59e0b", tab: "github" },
-      { id: "learned", label: "Learn", count: (kb.mistakes || 0) + (kb.improvements || 0), color: "#06b6d4", tab: "insights" },
-      { id: "sessions", label: "Sessions", count: kb.sessions || 0, color: "#ec4899", tab: "insights" }
+      { id: "learned", label: "Learn", count: (kb.mistakes || 0) + (kb.improvements || 0), color: "#06b6d4", tab: "knowledge" },
+      { id: "sessions", label: "Sessions", count: kb.sessions || 0, color: "#ec4899", tab: "knowledge" }
     ];
 
     _holoSphere = new HoloSphere(container, {
@@ -464,7 +449,7 @@ var _kbEntries = [];
 /* ── Knowledge LCARS Operations Terminal ─────────── */
 
 function renderKnowledgeOps(agentData, jobData) {
-  /* Render agents section — RESEARCH station crew */
+  /* Render agents section — ANALYTICS station crew */
   var agentsEl = document.getElementById("kbOpsAgents");
   if (agentsEl) {
     if (agentData && agentData.length) {
@@ -514,7 +499,8 @@ function renderKnowledgeOps(agentData, jobData) {
   var cmdsEl = document.getElementById("kbOpsCommands");
   if (cmdsEl && !cmdsEl.hasChildNodes()) {
     var commands = [
-      { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" }
+      { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" },
+      { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis" }
     ];
     commands.forEach(function(c) {
       var btn = document.createElement("button");
@@ -522,6 +508,7 @@ function renderKnowledgeOps(agentData, jobData) {
       btn.textContent = c.label;
       btn.setAttribute("onclick", c.fn);
       if (c.id) btn.id = c.id;
+      if (c.title) btn.title = c.title;
       cmdsEl.appendChild(btn);
     });
   }
@@ -614,30 +601,6 @@ function _renderKbPage() {
     pHtml += '<button class="cs-page-btn" onclick="_kbPage=' + pages + ';_renderKbPage()" ' + (_kbPage >= pages ? 'disabled' : '') + '>&raquo;</button>';
   }
   setHtml("kbPagination", pHtml);
-}
-
-function loadProcessingStatus() {
-  api("/api/processing/status").then(function(data) {
-    /* Backend returns { backlog: { total, ... }, services: { ... } } */
-    var queue = (data.backlog && data.backlog.total !== undefined) ? data.backlog.total : (data.queue_size !== undefined ? data.queue_size : "--");
-    var processed = data.processed !== undefined ? data.processed : "--";
-    setHtml("procQueueCount", queue);
-    setHtml("procCompleted", processed);
-    var html = '<div class="cs-card"><div class="cs-card-header">Processing Status</div><div class="cs-card-body">';
-    /* Service health indicators */
-    var svc = data.services || {};
-    var embedOk = svc.embedding && svc.embedding.healthy;
-    var analyzerOk = svc.analyzer && svc.analyzer.healthy;
-    html += '<div style="display:flex; gap:16px; margin-bottom:8px;">';
-    html += '<span style="font-size:0.78rem; color:rgba(255,255,255,0.6);"><span style="color:' + (embedOk ? '#22c55e' : '#ef4444') + ';">\u25cf</span> Embedding Service</span>';
-    html += '<span style="font-size:0.78rem; color:rgba(255,255,255,0.6);"><span style="color:' + (analyzerOk ? '#22c55e' : '#ef4444') + ';">\u25cf</span> Analyzer</span>';
-    html += '</div>';
-    if (data.cost) html += '<p style="color:rgba(255,255,255,0.5); font-size:0.78rem;">Daily cost: $' + (data.cost.daily_cost || 0).toFixed(2) + '</p>';
-    html += '</div></div>';
-    setHtml("procStatus", html);
-  }).catch(function() {
-    setHtml("procStatus", '<div class="cs-empty">Processing status unavailable</div>');
-  });
 }
 
 function loadCategories() {
@@ -803,10 +766,18 @@ function checkActiveJobs() {
       var pollKey = "kb_" + job.id;
       if (!_activeJobPolls[pollKey]) {
         _activeJobPolls[pollKey] = true;
-        _pollJobStatus(job.id, "bjob-kb-" + job.id, function() {
+        _pollJobStatus(job.id, "bjob-kb-" + job.id, function(completedJob) {
           _activeJobPolls[pollKey] = false;
-          _enableProcessingBtns();
           loadEmbeddingStatus();
+          /* Continuous loop: auto-start next batch if looping */
+          var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
+          if (jt.indexOf("analysis") > -1 && _continuousRun.analysis) {
+            _loopNext("analysis");
+          } else if (jt.indexOf("embed") > -1 && _continuousRun.embedding) {
+            _loopNext("embedding");
+          } else {
+            _enableProcessingBtns();
+          }
           checkActiveJobs();
         });
       }
@@ -818,10 +789,19 @@ function checkActiveJobs() {
       var pollKey = "gh_" + job.id;
       if (!_activeJobPolls[pollKey]) {
         _activeJobPolls[pollKey] = true;
-        _pollJobStatus(job.id, "bjob-gh-" + job.id, function() {
+        _pollJobStatus(job.id, "bjob-gh-" + job.id, function(completedJob) {
           _activeJobPolls[pollKey] = false;
           loadGitHub();
           loadGitHubEmbedStats();
+          /* Continuous loop: auto-start next batch if looping */
+          var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
+          if ((jt.indexOf("reindex") > -1 || jt.indexOf("github_index") > -1) && _continuousRun.reindex) {
+            _loopNext("reindex");
+          } else if (jt.indexOf("embed") > -1 && _continuousRun.ghEmbed) {
+            _loopNext("ghEmbed");
+          } else {
+            _enableGitHubBtns();
+          }
           checkActiveJobs();
         });
       }
@@ -841,10 +821,19 @@ function checkActiveJobs() {
         var pollKey = "lang_" + job.id;
         if (!_activeJobPolls[pollKey]) {
           _activeJobPolls[pollKey] = true;
-          _pollJobStatus(job.id, "bjob-lang-" + job.id, function() {
+          _pollJobStatus(job.id, "bjob-lang-" + job.id, function(completedJob) {
             _activeJobPolls[pollKey] = false;
             _cache.languages = false;
-            setTimeout(function() { loadLanguages(); checkActiveJobs(); }, 1500);
+            setTimeout(function() {
+              loadLanguages();
+              /* Continuous loop: auto-start next translation batch if looping */
+              var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
+              if (jt.indexOf("translate") > -1) {
+                if (_continuousRun.translate) { _loopNext("translate"); }
+                else if (_continuousRun.fullPass) { _loopNext("fullPass"); }
+              }
+              checkActiveJobs();
+            }, 1500);
           });
         }
       });
@@ -925,16 +914,12 @@ function _renderBridgeJobs(jobs, el, prefix) {
 
 function _disableProcessingBtns() {
   var a = document.getElementById("btnStartAnalysis");
-  var b = document.getElementById("btnGenerateEmbed");
   if (a) a.disabled = true;
-  if (b) b.disabled = true;
 }
 
 function _enableProcessingBtns() {
   var a = document.getElementById("btnStartAnalysis");
-  var b = document.getElementById("btnGenerateEmbed");
   if (a) a.disabled = false;
-  if (b) b.disabled = false;
 }
 
 function _disableGitHubBtns() {
@@ -966,20 +951,72 @@ function _disableGitHubBtnsByJobType(jobs) {
   if (b) b.disabled = hasEmbed;
 }
 
+/* ── Continuous Run (Loop) Mode ─────────────────────────── */
+var _continuousRun = {};       /* { analysis: true, reindex: true, ... } */
+var _continuousBatch = {};     /* { analysis: 3, ... } — batch counter */
+
+/* Map opKey → { startFn, btnId, idleLabel } */
+var _loopOps = {
+  analysis:  { start: function() { startAnalysis(); },      btnId: "btnStartAnalysis", idle: "\u221E ANALYZE" },
+  embedding: { start: function() { generateEmbeddings(); }, btnId: "btnStartAnalysis", idle: "\u221E EMBED" },
+  reindex:   { start: function() { reindexAllRepos(); },    btnId: "btnReindexAll",    idle: "\u221E REINDEX" },
+  ghEmbed:   { start: function() { embedGitHubFiles(); },   btnId: "btnEmbedGH",       idle: "\u221E EMBED" },
+  translate: { start: function() { langGenerateAll(); },    btnId: "langGenAllBtn",    idle: "\u221E TRANSLATE" },
+  fullPass:  { start: function() { langFullPass(); },       btnId: "langFullPassBtn",  idle: "\u221E FULL PASS" }
+};
+
+window.toggleLoop = function(opKey) {
+  if (_continuousRun[opKey]) {
+    /* Stop */
+    _continuousRun[opKey] = false;
+    _continuousBatch[opKey] = 0;
+    _updateLoopBtn(opKey);
+  } else {
+    /* Start — kick off first batch */
+    _continuousRun[opKey] = true;
+    _continuousBatch[opKey] = 0;
+    _updateLoopBtn(opKey);
+    var op = _loopOps[opKey];
+    if (op) op.start();
+  }
+};
+
+function _updateLoopBtn(opKey) {
+  var btn = document.getElementById("loopBtn-" + opKey);
+  if (!btn) return;
+  var op = _loopOps[opKey];
+  if (_continuousRun[opKey]) {
+    btn.textContent = "\u25A0 STOP";
+    btn.className = "cs-ops-cmd cs-loop-active";
+  } else {
+    btn.textContent = (op && op.idle) || ("\u221E " + opKey.toUpperCase());
+    btn.className = "cs-ops-cmd cs-loop-idle";
+  }
+}
+
+function _loopNext(opKey) {
+  /* Called when a job completes — start next batch if still looping */
+  if (!_continuousRun[opKey]) return;
+  _continuousBatch[opKey] = (_continuousBatch[opKey] || 0) + 1;
+  var op = _loopOps[opKey];
+  if (op) setTimeout(op.start, 2000); /* 2s pause between batches */
+}
+
+function _loopExhausted(opKey) {
+  /* Called when API says "no items left" — stop loop gracefully */
+  _continuousRun[opKey] = false;
+  _continuousBatch[opKey] = 0;
+  _updateLoopBtn(opKey);
+}
+
 window.startAnalysis = function() {
-  var btn = document.getElementById("btnStartAnalysis");
-  var btn2 = document.getElementById("btnGenerateEmbed");
   _disableProcessingBtns();
-  var cat = document.getElementById("procCategory");
-  var batch = document.getElementById("procBatchSize");
-  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for analysis\u2026"));
+  var batchNum = _continuousRun.analysis ? " [batch " + ((_continuousBatch.analysis || 0) + 1) + "]" : "";
+  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for analysis\u2026" + batchNum));
 
   api("/api/processing/start", {
     method: "POST",
-    body: {
-      category: cat ? cat.value : "conversations",
-      batch_size: batch ? parseInt(batch.value) : 10
-    }
+    body: { category: "conversations", batch_size: 10 }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
       setHtml("procResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Job already running")));
@@ -987,34 +1024,32 @@ window.startAnalysis = function() {
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " items queued"));
-      _pollJobStatus(data.job_id, "procResult", function() {
-        _enableProcessingBtns();
-        loadProcessingStatus();
-      });
+      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " items queued" + batchNum));
+      setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
-      setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "Processed " + (data.processed || 0) + " items")));
-      if (btn) btn.disabled = false;
+      setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "No items to analyze")));
+      _loopExhausted("analysis");
       _enableProcessingBtns();
-      loadProcessingStatus();
     } else {
       setHtml("procResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Processing failed")));
+      _loopExhausted("analysis");
       _enableProcessingBtns();
     }
   }).catch(function(err) {
     setHtml("procResult", lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
+    _loopExhausted("analysis");
     _enableProcessingBtns();
   });
 };
 
 window.generateEmbeddings = function() {
   _disableProcessingBtns();
-  var batch = document.getElementById("procBatchSize");
-  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for embeddings\u2026"));
+  var batchNum = _continuousRun.embedding ? " [batch " + ((_continuousBatch.embedding || 0) + 1) + "]" : "";
+  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for embeddings\u2026" + batchNum));
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
-    body: { batch_size: batch ? parseInt(batch.value) : 50 }
+    body: { batch_size: 50 }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
       setHtml("procResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Embedding job already running")));
@@ -1022,21 +1057,20 @@ window.generateEmbeddings = function() {
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
-      _pollJobStatus(data.job_id, "procResult", function() {
-        _enableProcessingBtns();
-        loadEmbeddingStatus();
-      });
+      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued" + batchNum));
+      setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
       setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All entries already embedded")));
+      _loopExhausted("embedding");
       _enableProcessingBtns();
-      loadEmbeddingStatus();
     } else {
       setHtml("procResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Embedding generation failed")));
+      _loopExhausted("embedding");
       _enableProcessingBtns();
     }
   }).catch(function(err) {
     setHtml("procResult", lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
+    _loopExhausted("embedding");
     _enableProcessingBtns();
   });
 };
@@ -1444,7 +1478,9 @@ function renderLangOps(agentData, jobData) {
       { label: "AUDIT", cls: "amber", fn: "langAuditTemplates()", id: "langAuditBtn" },
       { label: "SCAN KEYS", cls: "purple", fn: "langScanKeys()", id: "langScanBtn" },
       { label: "GENERATE ALL", cls: "green", fn: "langGenerateAll()", id: "langGenAllBtn" },
-      { label: "FULL PASS", cls: "cyan", fn: "langFullPass()", id: "langFullPassBtn" }
+      { label: "\u221E TRANSLATE", cls: "cs-loop-idle", fn: "toggleLoop('translate')", id: "loopBtn-translate" },
+      { label: "FULL PASS", cls: "cyan", fn: "langFullPass()", id: "langFullPassBtn" },
+      { label: "\u221E FULL PASS", cls: "cs-loop-idle", fn: "toggleLoop('fullPass')", id: "loopBtn-fullPass" }
     ];
     commands.forEach(function(c) {
       var btn = document.createElement("button");
@@ -1597,7 +1633,8 @@ window.langGenerateOne = function(langCode) {
 window.langGenerateAll = function() {
   var btn = document.getElementById("langGenAllBtn");
   if (btn) { btn.disabled = true; btn.style.opacity = "0.5"; }
-  _showLangJob("Queuing all 7 languages...");
+  var batchNum = _continuousRun.translate ? " [batch " + ((_continuousBatch.translate || 0) + 1) + "]" : "";
+  _showLangJob("Queuing all 7 languages..." + batchNum);
 
   api("/api/translations/generate-async", {
     method: "POST",
@@ -1611,16 +1648,18 @@ window.langGenerateAll = function() {
     }
     if (!data.job_id) {
       _showLangJob("No missing translations found");
+      _loopExhausted("translate");
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
       return;
     }
-    _showLangJob("Job #" + data.job_id + " started \u2014 " + data.total + " keys across 7 languages");
+    _showLangJob("Job #" + data.job_id + " started \u2014 " + data.total + " keys across 7 languages" + batchNum);
     checkActiveJobs();
     _startLangJobPoll(data.job_id, function() {
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
     });
   }).catch(function(err) {
     _showLangJob("Failed: " + err);
+    _loopExhausted("translate");
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   });
 };
@@ -1774,6 +1813,7 @@ window.langFullPass = function() {
     }
     if (!data.job_id) {
       _showLangJob("Full i18n Pass complete \u2014 no missing translations!");
+      _loopExhausted("fullPass");
       if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
       return;
     }
@@ -1785,6 +1825,7 @@ window.langFullPass = function() {
     });
   }).catch(function(err) {
     _showLangJob("Full i18n Pass failed: " + err);
+    _loopExhausted("fullPass");
     if (btn) { btn.disabled = false; btn.style.opacity = "1"; }
   });
 };
@@ -2166,7 +2207,9 @@ function renderGitHubOps(agentData, jobData) {
   if (cmdsEl && !cmdsEl.hasChildNodes()) {
     var commands = [
       { label: "REINDEX ALL", cls: "amber", fn: "reindexAllRepos()", id: "btnReindexAll" },
+      { label: "\u221E REINDEX", cls: "cs-loop-idle", fn: "toggleLoop('reindex')", id: "loopBtn-reindex" },
       { label: "EMBED FILES", cls: "green", fn: "embedGitHubFiles()", id: "btnEmbedGH" },
+      { label: "\u221E EMBED", cls: "cs-loop-idle", fn: "toggleLoop('ghEmbed')", id: "loopBtn-ghEmbed" },
       { label: "VERIFY", cls: "cyan", fn: "verifyGitHubData()" }
     ];
     commands.forEach(function(c) {
@@ -2346,7 +2389,8 @@ window.reindexRepo = function(repoId) {
 window.reindexAllRepos = function() {
   var btn = document.getElementById("btnReindexAll");
   _disableGitHubBtns();
-  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index all repos\u2026"));
+  var batchNum = _continuousRun.reindex ? " [batch " + ((_continuousBatch.reindex || 0) + 1) + "]" : "";
+  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index all repos\u2026" + batchNum));
   api("/github/reindex-all", { method: "POST" }).then(function(data) {
     if (data.duplicate || data._status === 409) {
       setHtml("ghIntakeResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Reindex job already running")));
@@ -2354,17 +2398,20 @@ window.reindexAllRepos = function() {
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " repos queued"));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " repos queued" + batchNum));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
       setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", "No repos to re-index"));
+      _loopExhausted("reindex");
       _enableGitHubBtns();
     } else {
       setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
+      _loopExhausted("reindex");
       _enableGitHubBtns();
     }
   }).catch(function(err) {
     setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
+    _loopExhausted("reindex");
     _enableGitHubBtns();
   });
 };
@@ -2375,7 +2422,8 @@ window.embedGitHubFiles = function() {
   var btn = document.getElementById("btnEmbedGH");
   if (btn) btn.disabled = true;
   _disableGitHubBtns();
-  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to embed files\u2026"));
+  var batchNum = _continuousRun.ghEmbed ? " [batch " + ((_continuousBatch.ghEmbed || 0) + 1) + "]" : "";
+  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to embed files\u2026" + batchNum));
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
@@ -2387,17 +2435,20 @@ window.embedGitHubFiles = function() {
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued" + batchNum));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
       setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All files already embedded")));
+      _loopExhausted("ghEmbed");
       _enableGitHubBtns();
     } else {
       setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
+      _loopExhausted("ghEmbed");
       _enableGitHubBtns();
     }
   }).catch(function(err) {
     setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
+    _loopExhausted("ghEmbed");
     _enableGitHubBtns();
   });
 }
@@ -2481,6 +2532,16 @@ function loadIntegration() {
   });
 }
 
+window.togglePipelineTest = function() {
+  var body = document.getElementById("pipelineBody");
+  var btn = document.getElementById("pipelineToggleBtn");
+  if (!body) return;
+  var open = body.style.display !== "none";
+  body.style.display = open ? "none" : "block";
+  if (btn) btn.classList.toggle("open", !open);
+  refreshIcons();
+};
+
 window.testPipeline = function() {
   var btn = document.getElementById("testPipelineBtn");
   if (btn) btn.disabled = true;
@@ -2543,7 +2604,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   var hash = window.location.hash.replace("#", "");
-  var validTabs = ["dashboard", "knowledge", "team", "insights", "languages", "github", "integration"];
+  var validTabs = ["dashboard", "knowledge", "team", "github", "languages"];
   if (hash && validTabs.indexOf(hash) !== -1) {
     switchConsciousnessTab(hash);
   } else {

@@ -184,25 +184,42 @@ body.light-mode::before {
 /* Threat Level Midnight */
 .boot-threat-flash {
     font-family: 'Antonio', sans-serif;
-    font-size: 1.4rem;
-    letter-spacing: 0.3em;
+    font-size: 1.8rem;
+    letter-spacing: 0.4em;
     text-transform: uppercase;
     color: #ff2222;
     opacity: 0;
     pointer-events: none;
-    text-shadow: 0 0 20px rgba(255,34,34,0.5);
+    text-shadow: 0 0 30px rgba(255,34,34,0.6), 0 0 60px rgba(255,34,34,0.3);
     position: absolute;
-    bottom: 20%;
+    bottom: 22%;
 }
 .boot-threat-flash.flash {
-    animation: threatFlash 0.8s ease-in-out forwards;
+    animation: threatFlash 2.5s ease-in-out forwards;
 }
 @keyframes threatFlash {
-    0% { opacity: 0; }
-    20% { opacity: 0.5; }
-    50% { opacity: 0.4; }
-    80% { opacity: 0.3; }
-    100% { opacity: 0; }
+    0% { opacity: 0; transform: scale(0.95); }
+    8% { opacity: 0.9; transform: scale(1); }
+    15% { opacity: 0.15; }
+    20% { opacity: 0.85; }
+    25% { opacity: 0.1; }
+    32% { opacity: 0.8; }
+    50% { opacity: 0.7; }
+    75% { opacity: 0.5; }
+    100% { opacity: 0; transform: scale(1.02); }
+}
+/* Screen flicker during threat flash */
+.boot-overlay.threat-flicker {
+    animation: screenFlicker 2.5s ease-in-out;
+}
+@keyframes screenFlicker {
+    0%, 100% { background: #000; }
+    8% { background: #1a0000; }
+    15% { background: #000; }
+    20% { background: #150000; }
+    25% { background: #000; }
+    32% { background: #0f0000; }
+    50% { background: #000; }
 }
 /* Progress bar */
 .boot-progress {
@@ -3171,14 +3188,15 @@ body.light-mode .module-card-accent {
         bootLogoSub.classList.add('visible');
     }, 800);
 
-    // Phase 2: Threat Level Midnight flash (1.5s)
+    // Phase 2: Threat Level Midnight flash + screen flicker (1.5s, lasts 2.5s)
     setTimeout(function() {
         if (skipped) return;
+        overlay.classList.add('threat-flicker');
         threatFlash.classList.add('flash');
     }, 1500);
 
-    // Phase 3: Terminal lines begin (2.5s) — each line appears sequentially
-    var cumulativeDelay = 2500;
+    // Phase 3: Terminal lines begin (4.5s — after threat flash finishes)
+    var cumulativeDelay = 4500;
 
     bootLines.forEach(function(line, i) {
         cumulativeDelay += line.delay;

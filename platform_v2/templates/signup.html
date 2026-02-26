@@ -6,8 +6,8 @@
 
 {% block styles %}
 /* ═══════════════════════════════════════════════════════════════════════════
-   A.R.C.H.I.E. SIGNUP — Cinematic Registration Portal
-   Matches login page aesthetic: glassmorphism + staggered boot sequence
+   A.R.C.H.I.E. SIGNUP — LCARS Design Language
+   Multi-step registration, green #00ff41 accent, ~2.5s staggered boot
    ═══════════════════════════════════════════════════════════════════════════ */
 
 body {
@@ -21,151 +21,75 @@ body {
     overflow-y: auto;
 }
 
-/* ─── Animated Background ─── */
+/* ─── Background — dark gradient with soft radial green glow ─── */
 .signup-bg {
     position: fixed;
-    inset: 0;
-    z-index: 0;
-}
-
-.signup-bg canvas {
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
-    opacity: 0.12;
+    background: linear-gradient(135deg, #0a0a1a 0%, #0f0f2a 50%, #0a0a1a 100%);
+    z-index: 0;
 }
 
 .signup-bg::after {
     content: '';
     position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(ellipse at 20% 10%, rgba(0, 255, 65, 0.07) 0%, transparent 45%),
-        radial-gradient(ellipse at 80% 90%, rgba(0, 255, 255, 0.05) 0%, transparent 45%),
-        radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,255,65,0.06) 0%, transparent 70%);
+    border-radius: 50%;
     pointer-events: none;
 }
 
-.grid-overlay {
-    position: fixed;
-    inset: 0;
-    background-image:
-        linear-gradient(var(--archie-green-alpha-10) 1px, transparent 1px),
-        linear-gradient(90deg, var(--archie-green-alpha-10) 1px, transparent 1px);
-    background-size: 40px 40px;
-    opacity: 0.2;
-    pointer-events: none;
-    z-index: 1;
-    mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 100%);
-    -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 100%);
-}
-
-/* ─── Container ─── */
+/* ─── Signup Container ─── */
 .signup-container {
     position: relative;
     z-index: 10;
     width: 100%;
-    max-width: 460px;
+    max-width: 520px;
     margin: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* ─── Card — Glassmorphism + Breathing Border ─── */
+/* ─── Signup Card — extends .lcars-panel ─── */
 .signup-card {
-    background: linear-gradient(165deg, rgba(13, 17, 23, 0.92) 0%, rgba(22, 27, 34, 0.88) 100%);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-    border: 1px solid var(--archie-green-alpha-20);
-    border-radius: 20px;
-    padding: 44px 40px;
+    max-width: 520px;
+    width: 90%;
+    margin: 0 auto;
+    border-radius: 12px;
+    border-left-width: 1px;
+    border-top: 3px solid rgba(0,255,65,0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background: rgba(15,15,30,0.7);
+    padding: 48px 40px;
     box-shadow:
         0 30px 60px rgba(0, 0, 0, 0.6),
-        0 0 80px var(--archie-green-alpha-10),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    position: relative;
-    overflow: hidden;
-    animation: cardMaterialize 1.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+        0 0 60px rgba(0,255,65,0.04);
+    animation: lcarsCardIn 0.8s ease-out both;
 }
 
-@keyframes cardMaterialize {
-    0% {
-        opacity: 0;
-        transform: translateY(60px) scale(0.92);
-        filter: blur(16px);
-        border-color: transparent;
-    }
-    40% {
-        opacity: 0.6;
-        filter: blur(6px);
-        border-color: transparent;
-    }
-    100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-        filter: blur(0);
-        border-color: var(--archie-green-alpha-20);
-    }
-}
-
-/* Breathing border glow */
+/* Override lcars-panel ::before — top accent bar instead of left */
 .signup-card::before {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    border-radius: 21px;
-    background: linear-gradient(135deg, var(--archie-green-alpha-30), transparent 40%, transparent 60%, var(--archie-cyan-alpha-20));
-    z-index: -1;
-    animation: borderBreathe 4s ease-in-out 2s infinite;
-    opacity: 0;
-}
-
-@keyframes borderBreathe {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.8; }
-}
-
-/* Bottom accent line */
-.signup-card::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 20%;
-    right: 20%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-cyan), transparent);
-    opacity: 0.4;
-}
-
-/* ─── Scanning Beam ─── */
-.scan-line {
-    position: absolute;
+    width: 100%;
+    height: 3px;
     top: 0;
     left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg,
-        transparent,
-        var(--archie-green-alpha-20) 20%,
-        var(--archie-green) 50%,
-        var(--archie-green-alpha-20) 80%,
-        transparent
-    );
-    box-shadow: 0 0 15px var(--archie-green-alpha-30), 0 0 30px var(--archie-green-alpha-10);
-    opacity: 0;
-    z-index: 20;
-    animation: scanSweep 6s cubic-bezier(0.4, 0, 0.2, 1) 5s infinite;
+    background: linear-gradient(90deg, rgba(0,255,65,0.6), rgba(0,255,65,0.2), rgba(0,255,65,0.4));
+    border-radius: 12px 12px 0 0;
 }
 
-@keyframes scanSweep {
-    0% { top: -2px; opacity: 0; }
-    5% { opacity: 0.9; }
-    95% { opacity: 0.9; }
-    100% { top: 100%; opacity: 0; }
-}
-
-/* ─── Corner Brackets ─── */
+/* ─── Corner Decorations (top-left + bottom-right only) ─── */
 .corner-decoration {
     position: absolute;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     z-index: 5;
 }
 
@@ -173,106 +97,51 @@ body {
 .corner-decoration::after {
     content: '';
     position: absolute;
-    background: var(--archie-green);
-    opacity: 0;
+    background: rgba(0,255,65,0.3);
 }
 
 .corner-decoration::before {
-    height: 1px;
-    width: 100%;
-    animation: cornerDrawH 0.8s ease-out forwards;
+    width: 24px;
+    height: 2px;
+    top: 0;
+    left: 0;
 }
 
 .corner-decoration::after {
-    width: 1px;
-    height: 100%;
-    animation: cornerDrawV 0.8s ease-out forwards;
+    width: 2px;
+    height: 24px;
+    top: 0;
+    left: 0;
 }
 
-.corner-decoration.top-left { top: 14px; left: 14px; }
-.corner-decoration.top-left::before { top: 0; left: 0; transform-origin: left; }
-.corner-decoration.top-left::after { top: 0; left: 0; transform-origin: top; }
-
-.corner-decoration.top-right { top: 14px; right: 14px; }
-.corner-decoration.top-right::before { top: 0; right: 0; transform-origin: right; }
-.corner-decoration.top-right::after { top: 0; right: 0; transform-origin: top; }
-
-.corner-decoration.bottom-left { bottom: 14px; left: 14px; }
-.corner-decoration.bottom-left::before { bottom: 0; left: 0; transform-origin: left; }
-.corner-decoration.bottom-left::after { bottom: 0; left: 0; transform-origin: bottom; }
-
-.corner-decoration.bottom-right { bottom: 14px; right: 14px; }
-.corner-decoration.bottom-right::before { bottom: 0; right: 0; transform-origin: right; }
-.corner-decoration.bottom-right::after { bottom: 0; right: 0; transform-origin: bottom; }
-
-.corner-decoration.top-left::before, .corner-decoration.top-left::after { animation-delay: 1.6s; }
-.corner-decoration.top-right::before, .corner-decoration.top-right::after { animation-delay: 1.8s; }
-.corner-decoration.bottom-left::before, .corner-decoration.bottom-left::after { animation-delay: 2.0s; }
-.corner-decoration.bottom-right::before, .corner-decoration.bottom-right::after { animation-delay: 2.2s; }
-
-@keyframes cornerDrawH {
-    from { opacity: 0; transform: scaleX(0); }
-    to { opacity: 0.6; transform: scaleX(1); }
+.top-left {
+    top: -1px;
+    left: -1px;
 }
 
-@keyframes cornerDrawV {
-    from { opacity: 0; transform: scaleY(0); }
-    to { opacity: 0.6; transform: scaleY(1); }
+.bottom-right {
+    bottom: -1px;
+    right: -1px;
+    transform: rotate(180deg);
 }
 
-/* ─── Framed Header Banner ─── */
+/* ─── Header ─── */
 .signup-header {
     text-align: center;
     margin-bottom: 32px;
-    padding: 22px 20px 18px;
-    border: 1px solid var(--archie-green-alpha-30);
-    border-radius: var(--archie-radius-xl);
-    background: linear-gradient(180deg, var(--archie-green-alpha-10) 0%, transparent 100%);
-    box-shadow: 0 0 40px var(--archie-green-alpha-10), inset 0 0 30px var(--archie-green-alpha-10);
+    padding: 20px 16px 16px;
+    border: 1px solid rgba(var(--lcars-accent-rgb), 0.15);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(var(--lcars-accent-rgb), 0.06) 0%, transparent 100%);
     position: relative;
-    overflow: hidden;
-    animation: headerReveal 1.2s cubic-bezier(0.16, 1, 0.3, 1) 1.2s both;
+    animation: lcarsCardIn 0.6s ease-out 0.3s both;
 }
 
-@keyframes headerReveal {
-    0% {
-        opacity: 0;
-        transform: translateY(-25px) scaleY(0.9);
-        border-color: transparent;
-        box-shadow: none;
-    }
-    60% {
-        border-color: var(--archie-green-alpha-20);
-        box-shadow: 0 0 20px var(--archie-green-alpha-10);
-    }
-    100% {
-        opacity: 1;
-        transform: translateY(0) scaleY(1);
-        border-color: var(--archie-green-alpha-30);
-        box-shadow: 0 0 40px var(--archie-green-alpha-10), inset 0 0 30px var(--archie-green-alpha-10);
-    }
-}
-
-/* Holographic shimmer */
-.signup-header::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-        105deg,
-        transparent 40%,
-        rgba(0, 255, 65, 0.06) 45%,
-        rgba(0, 255, 255, 0.04) 50%,
-        rgba(0, 255, 65, 0.06) 55%,
-        transparent 60%
-    );
-    animation: shimmerPass 8s ease-in-out 5s infinite;
-}
-
-@keyframes shimmerPass {
-    0% { transform: translateX(-100%); }
-    30% { transform: translateX(200%); }
-    100% { transform: translateX(200%); }
+.signup-header-indicators {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 14px;
 }
 
 .signup-logo {
@@ -282,52 +151,29 @@ body {
     letter-spacing: 0.2em;
     color: var(--archie-green);
     text-shadow:
-        0 0 20px var(--archie-green-alpha-30),
-        0 0 40px var(--archie-green-alpha-20),
+        0 0 20px rgba(0,255,65,0.3),
+        0 0 40px rgba(0,255,65,0.15),
         0 2px 4px rgba(0, 0, 0, 0.5);
-    margin-bottom: 10px;
-    animation: logoGlow 4s ease-in-out 4s infinite, logoReveal 1.4s cubic-bezier(0.16, 1, 0.3, 1) 1.6s both;
+    margin-bottom: 8px;
     position: relative;
 }
 
-@keyframes logoGlow {
-    0%, 100% {
-        text-shadow:
-            0 0 20px var(--archie-green-alpha-30),
-            0 0 40px var(--archie-green-alpha-20),
-            0 2px 4px rgba(0, 0, 0, 0.5);
-    }
-    50% {
-        text-shadow:
-            0 0 30px var(--archie-green-alpha-30),
-            0 0 60px var(--archie-green-alpha-20),
-            0 0 80px var(--archie-green-alpha-10),
-            0 2px 4px rgba(0, 0, 0, 0.5);
-    }
-}
-
-@keyframes logoReveal {
-    0% { opacity: 0; letter-spacing: 1em; filter: blur(10px); transform: scale(0.8); }
-    30% { opacity: 0.5; filter: blur(4px); }
-    100% { opacity: 1; letter-spacing: 0.2em; filter: blur(0); transform: scale(1); }
-}
-
 .signup-subtitle {
-    font-size: 0.6rem;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.7rem;
     letter-spacing: 0.3em;
     color: var(--archie-cyan);
     text-transform: uppercase;
-    opacity: 0;
-    animation: subtitleType 1s ease-out 2.4s forwards;
+    opacity: 0.7;
 }
 
-@keyframes subtitleType {
-    0% { opacity: 0; letter-spacing: 0.8em; filter: blur(3px); }
-    50% { opacity: 0.4; }
-    100% { opacity: 0.7; letter-spacing: 0.3em; filter: blur(0); }
+.signup-controls {
+    display: inline-flex;
+    gap: 6px;
+    margin-top: 12px;
 }
 
-/* Theme Toggle (inline in header) */
+/* Theme Toggle */
 .theme-toggle-signup {
     width: 30px;
     height: 30px;
@@ -340,19 +186,21 @@ body {
     color: var(--archie-text-muted);
     cursor: pointer;
     transition: all 0.3s ease;
-    margin-top: 10px;
-    opacity: 0;
-    animation: fadeIn 0.6s ease-out 2.8s forwards;
 }
 
 .theme-toggle-signup:hover {
     border-color: var(--archie-green);
     color: var(--archie-green);
-    background: var(--archie-green-alpha-10);
-    box-shadow: 0 0 12px var(--archie-green-alpha-20);
+    background: rgba(0,255,65,0.08);
+    box-shadow: 0 0 12px rgba(0,255,65,0.15);
 }
 
 /* ─── Language Dropdown ─── */
+.lang-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
 .lang-dropdown {
     position: absolute;
     top: 100%;
@@ -368,7 +216,9 @@ body {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(12px);
 }
+
 .lang-dropdown.hidden { display: none; }
+
 .lang-dropdown-item {
     display: block;
     width: 100%;
@@ -382,100 +232,230 @@ body {
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
 }
+
 .lang-dropdown-item:hover {
     background: rgba(0, 255, 65, 0.08);
     color: #fff;
 }
+
 .lang-dropdown-item.active {
     color: var(--archie-green);
     font-weight: 600;
 }
-body.light-mode .lang-dropdown {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(0, 0, 0, 0.1);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-body.light-mode .lang-dropdown-item { color: #555; }
-body.light-mode .lang-dropdown-item:hover { background: rgba(0, 122, 32, 0.06); color: #111; }
-body.light-mode .lang-dropdown-item.active { color: #007a20; }
 
-/* ─── Form — Staggered Boot Sequence ─── */
+/* ─── Signup Body ─── */
+.signup-body {
+    animation: lcarsFieldIn 0.4s ease-out 0.6s both;
+}
+
+/* ─── Step Indicator ─── */
+.step-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 28px;
+    animation: lcarsFieldIn 0.4s ease-out 0.7s both;
+}
+
+.step-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px solid rgba(var(--lcars-accent-rgb), 0.15);
+    border-radius: 16px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--archie-text-disabled);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--lcars-accent-rgb), 0.2);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.step-label {
+    transition: color 0.3s ease;
+}
+
+/* Active step */
+.step-pill.active {
+    border-color: rgba(var(--lcars-accent-rgb), 0.5);
+    color: rgba(var(--lcars-accent-rgb), 1);
+    background: rgba(var(--lcars-accent-rgb), 0.1);
+    box-shadow: 0 0 12px rgba(var(--lcars-accent-rgb), 0.15);
+}
+
+.step-pill.active .step-num {
+    background: rgba(var(--lcars-accent-rgb), 0.9);
+    border-color: rgba(var(--lcars-accent-rgb), 0.9);
+    color: #0a0a1a;
+}
+
+/* Completed step */
+.step-pill.completed {
+    border-color: rgba(var(--lcars-accent-rgb), 0.4);
+    color: rgba(var(--lcars-accent-rgb), 0.7);
+}
+
+.step-pill.completed .step-num {
+    background: rgba(var(--lcars-accent-rgb), 0.2);
+    border-color: rgba(var(--lcars-accent-rgb), 0.5);
+    color: rgba(var(--lcars-accent-rgb), 0.9);
+    font-size: 0;
+}
+
+.step-pill.completed .step-num::after {
+    content: '\2713';
+    font-size: 0.6rem;
+}
+
+/* Step Connector */
+.step-connector {
+    width: 24px;
+    height: 2px;
+    background: rgba(var(--lcars-accent-rgb), 0.12);
+    transition: background 0.3s ease;
+    flex-shrink: 0;
+}
+
+.step-connector.completed {
+    background: rgba(var(--lcars-accent-rgb), 0.5);
+}
+
+/* ─── Form ─── */
 .signup-form {
-    margin-top: 24px;
+    margin-top: 4px;
+}
+
+/* ─── Step Panels ─── */
+.step-panel {
+    display: none;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.step-panel.active {
+    display: block;
+    opacity: 1;
+    transform: translateX(0);
 }
 
 .form-group {
-    margin-bottom: 20px;
+    margin-bottom: 22px;
     position: relative;
-    opacity: 0;
-    animation: fieldMaterialize 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.form-group:nth-child(1) { animation-delay: 2.6s; }
-.form-group:nth-child(2) { animation-delay: 2.9s; }
-.form-group:nth-child(3) { animation-delay: 3.2s; }
-.form-group:nth-child(4) { animation-delay: 3.5s; }
-
-@keyframes fieldMaterialize {
-    0% {
-        opacity: 0;
-        transform: translateX(-30px);
-        filter: blur(4px);
-    }
-    50% {
-        filter: blur(1px);
-    }
-    100% {
-        opacity: 1;
-        transform: translateX(0);
-        filter: blur(0);
-    }
 }
 
 .form-label {
     display: block;
-    font-size: 0.65rem;
-    letter-spacing: 0.2em;
-    color: var(--archie-text-muted);
+    margin-bottom: 6px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
-    margin-bottom: 8px;
+    color: rgba(var(--lcars-accent-rgb), 0.6);
     transition: all 0.3s ease;
 }
 
 .form-input {
     width: 100%;
-    padding: 13px 18px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 8px;
-    color: var(--archie-text-secondary);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.95rem;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(var(--lcars-accent-rgb), 0.15);
+    border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.3);
+    border-radius: 0 8px 8px 0;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
     letter-spacing: 0.05em;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .form-input::placeholder {
-    color: var(--archie-text-disabled);
+    color: rgba(255, 255, 255, 0.2);
+    font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.5px;
     font-size: 0.85rem;
 }
 
 .form-input:focus {
-    outline: none;
-    border-color: var(--archie-green);
-    background: var(--archie-green-alpha-10);
+    border-color: rgba(var(--lcars-accent-rgb), 0.5);
+    border-left-color: rgba(var(--lcars-accent-rgb), 0.7);
     box-shadow:
-        0 0 0 3px var(--archie-green-alpha-10),
-        0 0 20px var(--archie-green-alpha-10),
-        inset 0 0 12px var(--archie-green-alpha-10);
+        0 0 12px rgba(var(--lcars-accent-rgb), 0.15),
+        inset 0 0 6px rgba(var(--lcars-accent-rgb), 0.05);
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .form-group:focus-within .form-label {
-    color: var(--archie-green);
-    text-shadow: 0 0 10px var(--archie-green-alpha-20);
+    color: rgba(var(--lcars-accent-rgb), 0.85);
 }
 
-/* ─── Password Toggle (eye icon) ─── */
+/* Focus scan bar */
+.form-group::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
+    transform: scaleX(0);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.form-group:focus-within::after {
+    transform: scaleX(1);
+}
+
+/* Form hint text */
+.form-note {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--archie-text-disabled);
+    margin-top: 6px;
+    text-transform: uppercase;
+}
+
+/* ─── Inline Validation Errors ─── */
+.field-error {
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    color: #ef4444;
+    margin-top: 4px;
+    text-transform: uppercase;
+    display: none;
+}
+
+.field-error.visible {
+    display: block;
+    animation: lcarsFieldIn 0.3s ease-out both;
+}
+
+.form-input.input-error {
+    border-color: rgba(239, 68, 68, 0.5);
+    border-left-color: rgba(239, 68, 68, 0.7);
+}
+
+/* ─── Password Toggle ─── */
 .input-wrapper {
     position: relative;
 }
@@ -505,16 +485,13 @@ body.light-mode .lang-dropdown-item.active { color: #007a20; }
     padding-right: 44px;
 }
 
-/* ─── Password Strength Indicator ─── */
-.strength-wrapper .form-input {
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.5s ease;
-}
-
+/* ─── Password Strength Bar ─── */
 .strength-bar {
-    height: 3px;
+    height: 4px;
     border-radius: 0 0 4px 4px;
     margin-top: -1px;
     overflow: hidden;
+    background: rgba(var(--lcars-accent-rgb), 0.06);
     opacity: 0;
     transition: opacity 0.3s ease;
 }
@@ -527,120 +504,89 @@ body.light-mode .lang-dropdown-item.active { color: #007a20; }
     height: 100%;
     width: 0;
     border-radius: 0 0 4px 4px;
-    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s ease;
+    background: linear-gradient(90deg, #00ff41, #39ff6e);
+    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), background 0.4s ease;
 }
 
-/* Focus scan bar */
-.form-group::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-    transform: scaleX(0);
-    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+/* ─── Step Navigation Buttons ─── */
+.step-nav {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
 }
 
-.form-group:focus-within::after {
-    transform: scaleX(1);
-}
-
-.form-note {
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    color: var(--archie-text-disabled);
-    margin-top: 6px;
-    text-transform: uppercase;
-}
-
-/* ─── Submit Button — Power-up Effect ─── */
-.signup-btn {
-    width: 100%;
-    padding: 16px 24px;
-    margin-top: 8px;
-    background: transparent;
-    border: 1px solid var(--archie-green);
-    border-radius: 8px;
-    color: var(--archie-green);
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.2em;
+.step-nav-btn {
+    flex: 1;
+    padding: 14px 24px;
+    background: rgba(var(--lcars-accent-rgb), 0.12);
+    border: 1px solid rgba(var(--lcars-accent-rgb), 0.3);
+    border-radius: 20px;
+    color: rgba(var(--lcars-accent-rgb), 0.9);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
     cursor: pointer;
     position: relative;
     overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    opacity: 0;
-    animation: btnPowerUp 1s cubic-bezier(0.16, 1, 0.3, 1) 3.8s forwards;
-}
-
-@keyframes btnPowerUp {
-    0% {
-        opacity: 0;
-        border-color: transparent;
-        transform: translateY(15px);
-        box-shadow: none;
-    }
-    40% {
-        opacity: 0.7;
-        border-color: var(--archie-border-muted);
-    }
-    70% {
-        border-color: var(--archie-green-alpha-30);
-        box-shadow: 0 0 10px var(--archie-green-alpha-10);
-    }
-    100% {
-        opacity: 1;
-        border-color: var(--archie-green);
-        transform: translateY(0);
-        box-shadow: 0 0 20px var(--archie-green-alpha-10);
-    }
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s;
+    white-space: nowrap;
 }
 
 /* Energy sweep on hover */
-.signup-btn::before {
+.step-nav-btn::before {
     content: '';
     position: absolute;
     top: 0;
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, var(--archie-green-alpha-20), transparent);
-    transition: left 0.5s ease;
+    background: linear-gradient(90deg, transparent, rgba(var(--lcars-accent-rgb), 0.15), transparent);
+    animation: lcarsSweep 3s ease-in-out infinite;
+    pointer-events: none;
 }
 
-.signup-btn:hover::before {
-    left: 100%;
+.step-nav-btn:hover {
+    background: rgba(var(--lcars-accent-rgb), 0.2);
+    border-color: rgba(var(--lcars-accent-rgb), 0.5);
+    box-shadow: 0 0 20px rgba(var(--lcars-accent-rgb), 0.2);
+    color: rgba(var(--lcars-accent-rgb), 1);
 }
 
-.signup-btn:hover {
-    color: var(--archie-bg-void);
-    background: var(--archie-green);
-    box-shadow:
-        0 0 30px var(--archie-green-alpha-30),
-        0 8px 30px var(--archie-green-alpha-20);
-    transform: translateY(-2px);
+.step-nav-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 0 8px rgba(var(--lcars-accent-rgb), 0.15);
 }
 
-.signup-btn:active {
-    transform: translateY(0);
-    box-shadow: 0 0 15px var(--archie-green-alpha-20);
+.step-nav-btn.back-btn {
+    flex: 0 0 auto;
+    padding: 14px 20px;
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(var(--lcars-accent-rgb), 0.15);
+    color: rgba(var(--lcars-accent-rgb), 0.6);
 }
 
-/* Loading state */
-.signup-btn.loading {
+.step-nav-btn.back-btn::before { display: none; }
+
+.step-nav-btn.back-btn:hover {
+    background: rgba(var(--lcars-accent-rgb), 0.08);
+    border-color: rgba(var(--lcars-accent-rgb), 0.3);
+    color: rgba(var(--lcars-accent-rgb), 0.9);
+    box-shadow: none;
+}
+
+/* Submit button — loading state */
+.step-nav-btn.loading {
     pointer-events: none;
     color: transparent;
-    background: var(--archie-green-alpha-20);
-    border-color: var(--archie-green);
+    background: rgba(var(--lcars-accent-rgb), 0.15);
+    border-color: rgba(var(--lcars-accent-rgb), 0.4);
 }
 
-.signup-btn.loading::before { display: none; }
+.step-nav-btn.loading::before { display: none; }
 
-.signup-btn.loading::after {
+.step-nav-btn.loading::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -654,16 +600,98 @@ body.light-mode .lang-dropdown-item.active { color: #007a20; }
     animation: spin 0.7s linear infinite;
 }
 
+/* ─── Step 3: Review Summary ─── */
+.review-summary {
+    padding: 16px;
+    background: rgba(var(--lcars-accent-rgb), 0.04);
+    border: 1px solid rgba(var(--lcars-accent-rgb), 0.12);
+    border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.3);
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 20px;
+}
+
+.review-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(var(--lcars-accent-rgb), 0.6);
+    margin-bottom: 12px;
+}
+
+.review-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(var(--lcars-accent-rgb), 0.06);
+}
+
+.review-row:last-child {
+    border-bottom: none;
+}
+
+.review-label {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.62rem;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--archie-text-disabled);
+    flex-shrink: 0;
+    min-width: 80px;
+}
+
+.review-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.85);
+    word-break: break-all;
+}
+
+/* ─── Approval Notice ─── */
+.approval-notice {
+    padding: 16px;
+    background: rgba(251, 191, 36, 0.06);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    border-radius: 8px;
+    font-size: 0.6rem;
+    line-height: 2;
+    color: var(--archie-orange, #fbbf24);
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+}
+
+.approval-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+}
+
+.approval-line {
+    color: rgba(251, 191, 36, 0.7);
+}
+
+.status-blink {
+    animation: statusBlink 2s ease-in-out infinite;
+}
+
+@keyframes statusBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
 /* ─── Divider ─── */
 .divider {
     display: flex;
     align-items: center;
-    margin: 20px 0;
+    margin: 24px 0;
     color: var(--archie-text-disabled);
     font-size: 0.6rem;
     letter-spacing: 0.25em;
-    opacity: 0;
-    animation: fadeIn 0.6s ease-out 4.0s forwards;
+    animation: lcarsFieldIn 0.4s ease-out 1.0s both;
 }
 
 .divider::before,
@@ -680,9 +708,8 @@ body.light-mode .lang-dropdown-item.active { color: #007a20; }
 
 /* ─── Google OAuth Button ─── */
 .oauth-section {
-    margin-top: 16px;
-    opacity: 0;
-    animation: fadeInUp 0.7s ease-out 4.2s forwards;
+    margin-top: 20px;
+    animation: lcarsFieldIn 0.4s ease-out 1.2s both;
 }
 
 .google-btn {
@@ -714,112 +741,194 @@ body.light-mode .lang-dropdown-item.active { color: #007a20; }
 .google-btn svg { width: 16px; height: 16px; }
 .google-btn:active { transform: translateY(0); }
 
-/* ─── Back Link ─── */
+/* ─── Back Section ─── */
 .back-section {
     text-align: center;
-    margin-top: 18px;
-    opacity: 0;
-    animation: fadeIn 0.6s ease-out 4.5s forwards;
+    padding: 16px;
+    background: rgba(var(--lcars-accent-rgb), 0.05);
+    border: 1px solid rgba(var(--lcars-accent-rgb), 0.08);
+    border-radius: 8px;
+    margin-top: 20px;
+    animation: lcarsFieldIn 0.4s ease-out 1.4s both;
+}
+
+.back-text {
+    font-size: 0.7rem;
+    color: var(--archie-text-disabled);
+    letter-spacing: 0.08em;
 }
 
 .back-link {
-    font-size: 0.7rem;
-    color: var(--archie-cyan);
+    color: var(--archie-green);
     text-decoration: none;
-    letter-spacing: 0.1em;
+    font-weight: 600;
+    font-size: 0.7rem;
+    margin-left: 6px;
     transition: all 0.3s;
 }
 
 .back-link:hover {
-    text-shadow: 0 0 12px var(--archie-cyan-alpha-20);
+    text-shadow: 0 0 15px rgba(0,255,65,0.25);
 }
 
-/* ─── Approval Notice ─── */
-.approval-notice {
-    margin-top: 20px;
+/* ─── System Status ─── */
+.system-status {
+    margin-top: 24px;
     padding: 16px;
-    background: rgba(251, 191, 36, 0.06);
-    border: 1px solid rgba(251, 191, 36, 0.25);
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--archie-border-muted);
     border-radius: 8px;
     font-size: 0.6rem;
     line-height: 2;
-    color: var(--archie-orange, #fbbf24);
+    color: var(--archie-text-disabled);
     letter-spacing: 0.06em;
-    opacity: 0;
-    animation: fadeInUp 0.7s ease-out 4.8s forwards;
+    animation: lcarsFieldIn 0.4s ease-out 1.6s both;
 }
 
-.approval-title {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    margin-bottom: 8px;
-}
-
-.approval-line {
-    color: rgba(251, 191, 36, 0.7);
-}
-
-.status-blink {
-    animation: statusBlink 2s ease-in-out infinite;
-}
-
-@keyframes statusBlink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+.status-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 /* ─── Light Mode Overrides ─── */
-body.light-mode .signup-bg::after {
-    background:
-        radial-gradient(ellipse at 20% 10%, rgba(0, 170, 51, 0.05) 0%, transparent 45%),
-        radial-gradient(ellipse at 80% 90%, rgba(0, 160, 160, 0.04) 0%, transparent 45%),
-        radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.6) 0%, transparent 100%);
+body.light-mode .signup-bg {
+    background: linear-gradient(135deg, #f0f2f5 0%, #e8eaf0 50%, #f0f2f5 100%);
 }
 
-body.light-mode .grid-overlay { opacity: 0.1; }
+body.light-mode .signup-bg::after {
+    background: radial-gradient(circle, rgba(0,170,51,0.04) 0%, transparent 70%);
+}
 
 body.light-mode .signup-card {
     background: rgba(255, 255, 255, 0.92);
     border-color: rgba(0, 0, 0, 0.1);
+    border-top-color: rgba(0, 170, 51, 0.35);
     box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12), 0 0 40px rgba(0, 170, 51, 0.04);
 }
 
 body.light-mode .signup-card::before {
-    background: linear-gradient(135deg, rgba(0, 170, 51, 0.15), transparent 40%, transparent 60%, rgba(0, 160, 160, 0.1));
+    background: linear-gradient(90deg, rgba(0,170,51,0.4), rgba(0,170,51,0.15), rgba(0,170,51,0.3));
+}
+
+body.light-mode .corner-decoration::before,
+body.light-mode .corner-decoration::after {
+    background: rgba(0, 0, 0, 0.12);
 }
 
 body.light-mode .signup-header {
-    border-color: rgba(0, 170, 51, 0.3);
-    background: linear-gradient(180deg, rgba(0, 170, 51, 0.06) 0%, transparent 100%);
-    box-shadow: 0 2px 16px rgba(0, 170, 51, 0.08);
+    border-color: rgba(0, 170, 51, 0.2);
+    background: linear-gradient(180deg, rgba(0, 170, 51, 0.04) 0%, transparent 100%);
 }
 
-body.light-mode .signup-logo { text-shadow: none; animation: logoReveal 1.4s cubic-bezier(0.16, 1, 0.3, 1) 1.6s both; }
-body.light-mode .scan-line { opacity: 0; animation: none; }
-body.light-mode .corner-decoration::before,
-body.light-mode .corner-decoration::after { background: rgba(0, 0, 0, 0.15); }
+body.light-mode .signup-logo {
+    text-shadow: none;
+}
 
 body.light-mode .form-input {
-    background: rgba(0, 0, 0, 0.03);
-    border-color: rgba(0, 0, 0, 0.12);
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 170, 51, 0.18);
+    border-left-color: rgba(0, 170, 51, 0.25);
+    color: #1f2937;
+}
+
+body.light-mode .form-input::placeholder {
+    color: rgba(0, 0, 0, 0.25);
 }
 
 body.light-mode .form-input:focus {
-    background: rgba(0, 170, 51, 0.04);
-    border-color: var(--archie-green);
-    box-shadow: 0 0 0 3px rgba(0, 170, 51, 0.08);
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 170, 51, 0.35);
+    border-left-color: rgba(0, 170, 51, 0.5);
+    box-shadow: 0 0 8px rgba(0, 170, 51, 0.1);
 }
 
-body.light-mode .signup-btn { color: var(--archie-green); border-color: var(--archie-green); }
-body.light-mode .signup-btn:hover { background: var(--archie-green); color: #fff; }
-body.light-mode .signup-btn.loading { background: rgba(0, 170, 51, 0.1); }
-body.light-mode .signup-btn.loading::after { border-top-color: var(--archie-green); }
+body.light-mode .form-label {
+    color: #374151;
+}
 
-body.light-mode .approval-notice {
-    background: rgba(251, 191, 36, 0.05);
-    border-color: rgba(251, 191, 36, 0.2);
+body.light-mode .step-nav-btn {
+    background: rgba(0, 170, 51, 0.08);
+    border-color: rgba(0, 170, 51, 0.25);
+    color: rgba(0, 170, 51, 0.75);
+}
+
+body.light-mode .step-nav-btn:hover {
+    background: rgba(0, 170, 51, 0.14);
+    border-color: rgba(0, 170, 51, 0.35);
+    box-shadow: none;
+    color: rgba(0, 170, 51, 0.85);
+}
+
+body.light-mode .step-nav-btn.back-btn {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: #555;
+}
+
+body.light-mode .step-nav-btn.back-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #333;
+}
+
+body.light-mode .step-nav-btn.loading {
+    background: rgba(0, 170, 51, 0.08);
+}
+
+body.light-mode .step-nav-btn.loading::after {
+    border-top-color: var(--archie-green);
+}
+
+body.light-mode .step-pill {
+    border-color: rgba(0, 170, 51, 0.15);
+    color: #999;
+}
+
+body.light-mode .step-pill.active {
+    border-color: rgba(0, 170, 51, 0.4);
+    color: rgba(0, 170, 51, 0.85);
+    background: rgba(0, 170, 51, 0.06);
+    box-shadow: none;
+}
+
+body.light-mode .step-pill.active .step-num {
+    background: rgba(0, 170, 51, 0.8);
+    border-color: rgba(0, 170, 51, 0.8);
+    color: #fff;
+}
+
+body.light-mode .step-pill.completed {
+    border-color: rgba(0, 170, 51, 0.3);
+    color: rgba(0, 170, 51, 0.6);
+}
+
+body.light-mode .step-pill.completed .step-num {
+    background: rgba(0, 170, 51, 0.12);
+    border-color: rgba(0, 170, 51, 0.35);
+    color: rgba(0, 170, 51, 0.8);
+}
+
+body.light-mode .step-connector.completed {
+    background: rgba(0, 170, 51, 0.35);
+}
+
+body.light-mode .strength-bar {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+body.light-mode .review-summary {
+    background: rgba(0, 170, 51, 0.03);
+    border-color: rgba(0, 170, 51, 0.12);
+    border-left-color: rgba(0, 170, 51, 0.25);
+}
+
+body.light-mode .review-value {
+    color: #1f2937;
+}
+
+body.light-mode .review-row {
+    border-bottom-color: rgba(0, 0, 0, 0.04);
 }
 
 body.light-mode .google-btn {
@@ -833,277 +942,512 @@ body.light-mode .google-btn:hover {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
-body.light-mode .theme-toggle-signup { border-color: rgba(0, 0, 0, 0.12); }
+body.light-mode .back-section {
+    background: rgba(0, 170, 51, 0.04);
+    border-color: rgba(0, 170, 51, 0.1);
+}
+
+body.light-mode .system-status {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .approval-notice {
+    background: rgba(251, 191, 36, 0.05);
+    border-color: rgba(251, 191, 36, 0.2);
+}
+
+body.light-mode .theme-toggle-signup {
+    border-color: rgba(0, 0, 0, 0.12);
+}
+
 body.light-mode .theme-toggle-signup:hover {
     border-color: var(--archie-green);
     color: var(--archie-green);
     background: rgba(0, 170, 51, 0.06);
+    box-shadow: none;
 }
 
-/* ─── Responsive: 5 Breakpoints ─── */
+body.light-mode .lang-dropdown {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
 
+body.light-mode .lang-dropdown-item { color: #555; }
+body.light-mode .lang-dropdown-item:hover { background: rgba(0, 122, 32, 0.06); color: #111; }
+body.light-mode .lang-dropdown-item.active { color: #007a20; }
+
+/* ─── Responsive: 5 Breakpoints ─── */
 @media (min-width: 1280px) {
-    .signup-container { max-width: 480px; }
-    .signup-card { padding: 52px 48px; }
+    .signup-container { max-width: 540px; }
+    .signup-card { padding: 56px 48px; }
 }
 
 @media (max-width: 768px) {
-    .signup-card { padding: 36px 28px; }
-    .signup-header { padding: 18px 16px 14px; }
+    .signup-card { padding: 40px 30px; }
+    .signup-header { padding: 18px 14px 14px; }
     .signup-logo { font-size: 2rem; }
 }
 
 @media (max-width: 717px) {
-    .signup-card { padding: 24px 20px; border-radius: 16px; }
+    .signup-card { padding: 24px 20px; border-radius: 10px; }
     .signup-logo { font-size: 1.8rem; letter-spacing: 0.15em; }
-    .signup-header { padding: 14px 14px 12px; margin-bottom: 20px; }
-    .signup-subtitle { font-size: 0.55rem; }
-    .theme-toggle-signup { margin-top: 8px; width: 26px; height: 26px; }
+    .signup-header { padding: 14px 12px 12px; margin-bottom: 20px; }
+    .signup-subtitle { font-size: 0.6rem; }
+    .theme-toggle-signup { width: 26px; height: 26px; }
     .form-group { margin-bottom: 14px; }
-    .form-input { padding: 11px 14px; }
-    .signup-btn { padding: 14px 20px; margin-top: 4px; }
+    .form-input { padding: 10px 14px; }
+    .step-nav-btn { padding: 12px 20px; }
+    .step-nav { margin-top: 16px; }
     .divider { margin: 14px 0; }
     .oauth-section { margin-top: 12px; }
     .google-btn { padding: 11px 16px; }
-    .back-section { margin-top: 12px; }
-    .approval-notice { margin-top: 14px; padding: 12px; }
+    .back-section { padding: 12px; margin-top: 12px; }
+    .system-status { margin-top: 14px; padding: 10px; line-height: 1.8; }
+    .step-pill { padding: 5px 10px; font-size: 0.6rem; }
+    .step-num { width: 18px; height: 18px; font-size: 0.55rem; }
+    .step-connector { width: 16px; }
+    .step-indicator { margin-bottom: 20px; }
+    .approval-notice { padding: 12px; }
 }
 
 @media (max-width: 480px) {
-    .signup-card { padding: 22px 18px; border-radius: 14px; }
+    .signup-card { padding: 28px 20px; border-radius: 10px; }
     .signup-logo { font-size: 1.6rem; letter-spacing: 0.12em; }
-    .signup-header { padding: 12px 10px 10px; margin-bottom: 18px; }
-    .form-input { padding: 11px 14px; font-size: 0.9rem; }
-    .signup-btn { padding: 13px 18px; font-size: 0.75rem; }
-    .form-group { margin-bottom: 12px; }
-    .google-btn { padding: 11px 14px; font-size: 0.75rem; }
-    .divider { margin: 16px 0; }
+    .signup-header { padding: 14px 12px 12px; margin-bottom: 22px; }
+    .form-input { padding: 10px 12px; font-size: 0.85rem; }
+    .step-nav-btn { padding: 12px 18px; font-size: 0.78rem; }
+    .corner-decoration { display: none; }
+    .system-status { display: none; }
+    .step-label { display: none; }
+    .step-pill { padding: 5px 8px; }
+    .step-connector { width: 12px; }
 }
 
 @media (max-width: 374px) {
     .signup-container { margin: 8px; }
-    .signup-card { padding: 18px 14px; border-radius: 12px; }
+    .signup-card { padding: 22px 16px; border-radius: 8px; }
     .signup-logo { font-size: 1.4rem; letter-spacing: 0.08em; }
-    .signup-subtitle { font-size: 0.5rem; letter-spacing: 0.15em; }
-    .signup-header { padding: 10px 8px 8px; margin-bottom: 14px; }
-    .form-input { padding: 10px 12px; font-size: 0.85rem; }
-    .signup-btn { padding: 12px 14px; font-size: 0.7rem; }
+    .signup-subtitle { font-size: 0.55rem; letter-spacing: 0.15em; }
+    .signup-header { padding: 12px 10px 10px; margin-bottom: 18px; }
+    .form-input { padding: 10px 10px; font-size: 0.82rem; }
+    .step-nav-btn { padding: 12px 14px; font-size: 0.72rem; }
     .corner-decoration { display: none; }
-    .scan-line { display: none; }
-    .form-group { margin-bottom: 10px; }
-    .form-note { font-size: 0.55rem; }
-    .google-btn { padding: 10px 12px; font-size: 0.7rem; }
-    .divider { margin: 12px 0; }
+    .google-btn { padding: 11px 14px; font-size: 0.75rem; }
+    .back-section { padding: 12px; }
+    .divider { margin: 16px 0; }
+    .theme-toggle-signup { width: 26px; height: 26px; }
     .approval-notice { font-size: 0.55rem; padding: 10px; }
-    .theme-toggle-signup { width: 26px; height: 26px; margin-top: 8px; }
+    .form-note { font-size: 0.55rem; }
 }
 {% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-panels.css') }}">
+
 <!-- Background -->
-<div class="signup-bg">
-    <canvas id="matrix-bg"></canvas>
-</div>
-<div class="grid-overlay"></div>
+<div class="signup-bg"></div>
 
 <!-- Signup Container -->
 <div class="signup-container">
-    <div class="signup-card">
-        <!-- Scanning Beam -->
-        <div class="scan-line"></div>
-
-        <!-- Corner Brackets -->
+    <div class="signup-card lcars-panel">
+        <!-- Corner Decorations -->
         <div class="corner-decoration top-left"></div>
-        <div class="corner-decoration top-right"></div>
-        <div class="corner-decoration bottom-left"></div>
         <div class="corner-decoration bottom-right"></div>
 
         <!-- Header -->
         <div class="signup-header">
+            <div class="signup-header-indicators">
+                <span class="lcars-dot online pulse"></span>
+                <span class="lcars-dot online pulse" style="animation-delay:0.5s"></span>
+                <span class="lcars-dot online pulse" style="animation-delay:1s"></span>
+            </div>
             <h1 class="signup-logo">A.R.C.H.I.E.</h1>
-            <p class="signup-subtitle" data-i18n="signup.heading">New User Registration</p>
-            <div style="display: inline-flex; gap: 6px; margin-top: 12px;">
-                <button class="theme-toggle-signup" id="themeToggle" title="Toggle light/dark mode" style="margin-top: 0;">
+            <p class="signup-subtitle" data-i18n="signup.heading">CREATE YOUR ACCOUNT</p>
+            <div class="signup-controls">
+                <button class="theme-toggle-signup" id="themeToggle" title="Toggle light/dark mode">
                     <i data-lucide="moon" width="14" height="14"></i>
                 </button>
-                <div style="position: relative; display: inline-block;">
-                    <button class="theme-toggle-signup" id="langToggle" title="Switch language" style="margin-top: 0; font-size: 0.6rem; font-family: 'Orbitron', monospace; font-weight: 600; letter-spacing: 0.05em; min-width: 36px;" onclick="document.getElementById('langMenu').classList.toggle('hidden');">
+                <div class="lang-wrapper">
+                    <button class="theme-toggle-signup" id="langToggle" title="Switch language" style="font-size: 0.6rem; font-family: 'Orbitron', monospace; font-weight: 600; letter-spacing: 0.05em; min-width: 36px;" onclick="document.getElementById('langMenu').classList.toggle('hidden');">
                         EN
                     </button>
                     <div class="lang-dropdown hidden" id="langMenu">
                         <button class="lang-dropdown-item active" data-lang="en">English</button>
-                        <button class="lang-dropdown-item" data-lang="fr">Français</button>
-                        <button class="lang-dropdown-item" data-lang="es">Español</button>
-                        <button class="lang-dropdown-item" data-lang="pt">Português</button>
+                        <button class="lang-dropdown-item" data-lang="fr">Fran&ccedil;ais</button>
+                        <button class="lang-dropdown-item" data-lang="es">Espa&ntilde;ol</button>
+                        <button class="lang-dropdown-item" data-lang="pt">Portugu&ecirc;s</button>
                         <button class="lang-dropdown-item" data-lang="de">Deutsch</button>
-                        <button class="lang-dropdown-item" data-lang="zh">中文</button>
-                        <button class="lang-dropdown-item" data-lang="ar">العربية</button>
-                        <button class="lang-dropdown-item" data-lang="he">עברית</button>
+                        <button class="lang-dropdown-item" data-lang="zh">&#20013;&#25991;</button>
+                        <button class="lang-dropdown-item" data-lang="ar">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+                        <button class="lang-dropdown-item" data-lang="he">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Registration Form -->
-        <form method="POST" action="/signup" class="signup-form" id="signupForm">
-            <div class="form-group">
-                <label class="form-label" for="username" data-i18n="signup.username">Username</label>
-                <input
-                    type="text"
-                    id="username"
-                    name="username"
-                    class="form-input"
-                    placeholder="Choose a username"
-                    data-i18n-placeholder="signup.choose_username"
-                    required
-                    autofocus
-                    autocomplete="username"
-                >
-                <div class="form-note" data-i18n="signup.username_hint">Alphanumeric only, no spaces</div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="email" data-i18n="signup.email">Email Address</label>
-                <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    class="form-input"
-                    placeholder="your@email.com"
-                    data-i18n-placeholder="signup.email_placeholder"
-                    required
-                    autocomplete="email"
-                >
-                <div class="form-note" data-i18n="signup.email_hint">Valid email required</div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="password" data-i18n="signup.password">Password</label>
-                <div class="input-wrapper strength-wrapper">
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        class="form-input"
-                        placeholder="Create a password"
-                        data-i18n-placeholder="signup.create_password"
-                        required
-                        minlength="8"
-                        autocomplete="new-password"
-                    >
-                    <button type="button" class="password-toggle" data-target="password" title="Show password" data-i18n-title="signup.show_password">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
+        <!-- Signup Body -->
+        <div class="signup-body">
+            <!-- Step Indicator -->
+            <div class="step-indicator">
+                <div class="step-pill active" data-step="1">
+                    <span class="step-num">1</span>
+                    <span class="step-label" data-i18n="signup.step_account">ACCOUNT</span>
                 </div>
-                <div class="strength-bar" id="strengthBar"><div class="strength-fill" id="strengthFill"></div></div>
-                <div class="form-note" id="strengthNote" data-i18n="signup.password_hint">Minimum 8 characters</div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="confirm_password" data-i18n="signup.confirm_password">Confirm Password</label>
-                <div class="input-wrapper">
-                    <input
-                        type="password"
-                        id="confirm_password"
-                        name="confirm_password"
-                        class="form-input"
-                        placeholder="Re-enter your password"
-                        data-i18n-placeholder="signup.reenter_password"
-                        required
-                        autocomplete="new-password"
-                    >
-                    <button type="button" class="password-toggle" data-target="confirm_password" title="Show password" data-i18n-title="signup.show_password">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
+                <div class="step-connector" id="connector1"></div>
+                <div class="step-pill" data-step="2">
+                    <span class="step-num">2</span>
+                    <span class="step-label" data-i18n="signup.step_security">SECURITY</span>
+                </div>
+                <div class="step-connector" id="connector2"></div>
+                <div class="step-pill" data-step="3">
+                    <span class="step-num">3</span>
+                    <span class="step-label" data-i18n="signup.step_confirm">CONFIRM</span>
                 </div>
             </div>
 
-            <button type="submit" class="signup-btn" id="signupBtn" data-i18n="signup.submit">
-                Submit Registration
-            </button>
-        </form>
+            <!-- Registration Form -->
+            <form method="POST" action="/signup" class="signup-form" id="signupForm">
+                <!-- Step 1: Account -->
+                <div class="step-panel active" data-step="1">
+                    <div class="form-group">
+                        <label class="form-label lcars-label" for="username" data-i18n="signup.username">Username</label>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            class="form-input lcars-input"
+                            placeholder="Choose a username"
+                            data-i18n-placeholder="signup.choose_username"
+                            required
+                            autofocus
+                            autocomplete="username"
+                        >
+                        <div class="form-note" data-i18n="signup.username_hint">Alphanumeric only, no spaces</div>
+                        <div class="field-error" id="usernameError"></div>
+                    </div>
 
-        <!-- OAuth Section -->
-        <div class="oauth-section">
-            <div class="divider"><span>OR</span></div>
-            <a href="{{ url_for('oauth.google_login') }}" class="google-btn">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                <span data-i18n="signup.google_signup">Sign up with Google</span>
-            </a>
+                    <div class="form-group">
+                        <label class="form-label lcars-label" for="email" data-i18n="signup.email">Email Address</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            class="form-input lcars-input"
+                            placeholder="your@email.com"
+                            data-i18n-placeholder="signup.email_placeholder"
+                            required
+                            autocomplete="email"
+                        >
+                        <div class="form-note" data-i18n="signup.email_hint">Valid email required</div>
+                        <div class="field-error" id="emailError"></div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Security -->
+                <div class="step-panel" data-step="2">
+                    <div class="form-group">
+                        <label class="form-label lcars-label" for="password" data-i18n="signup.password">Password</label>
+                        <div class="input-wrapper">
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                class="form-input lcars-input"
+                                placeholder="Create a password"
+                                data-i18n-placeholder="signup.create_password"
+                                required
+                                minlength="8"
+                                autocomplete="new-password"
+                            >
+                            <button type="button" class="password-toggle" data-target="password" title="Show password" data-i18n-title="signup.show_password">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                        <div class="strength-bar" id="strengthBar"><div class="strength-fill" id="strengthFill"></div></div>
+                        <div class="form-note" id="strengthNote" data-i18n="signup.password_hint">Minimum 8 characters</div>
+                        <div class="field-error" id="passwordError"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label lcars-label" for="confirm_password" data-i18n="signup.confirm_password">Confirm Password</label>
+                        <div class="input-wrapper">
+                            <input
+                                type="password"
+                                id="confirm_password"
+                                name="confirm_password"
+                                class="form-input lcars-input"
+                                placeholder="Re-enter your password"
+                                data-i18n-placeholder="signup.reenter_password"
+                                required
+                                autocomplete="new-password"
+                            >
+                            <button type="button" class="password-toggle" data-target="confirm_password" title="Show password" data-i18n-title="signup.show_password">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                        <div class="field-error" id="confirmError"></div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Confirm -->
+                <div class="step-panel" data-step="3">
+                    <div class="review-summary">
+                        <div class="review-title" data-i18n="signup.review_info">REVIEW YOUR INFORMATION</div>
+                        <div class="review-row">
+                            <span class="review-label" data-i18n="signup.username">Username</span>
+                            <span class="review-value" id="reviewUsername">-</span>
+                        </div>
+                        <div class="review-row">
+                            <span class="review-label" data-i18n="signup.email">Email</span>
+                            <span class="review-value" id="reviewEmail">-</span>
+                        </div>
+                        <div class="review-row">
+                            <span class="review-label" data-i18n="signup.password">Password</span>
+                            <span class="review-value" id="reviewPassword">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Approval Notice -->
+                    <div class="approval-notice">
+                        <div class="approval-title" data-i18n="signup.approval_required">Admin Approval Required</div>
+                        <div class="approval-line" data-i18n="signup.approval_line1">&gt; Your account will be created but inactive</div>
+                        <div class="approval-line" data-i18n="signup.approval_line2">&gt; An administrator must approve your access</div>
+                        <div class="approval-line" data-i18n="signup.approval_line3">&gt; You will receive email confirmation when approved</div>
+                        <div class="approval-line">&gt; Status: <span class="status-blink" data-i18n="signup.pending_review">&#9679; Pending Review</span></div>
+                    </div>
+                </div>
+
+                <!-- Step Navigation -->
+                <div class="step-nav">
+                    <button type="button" class="step-nav-btn back-btn" id="stepBackBtn" style="display:none;" data-i18n="signup.back">
+                        Back
+                    </button>
+                    <button type="button" class="step-nav-btn" id="stepNextBtn" data-i18n="signup.next">
+                        Next
+                    </button>
+                    <button type="submit" class="step-nav-btn" id="signupBtn" style="display:none;" data-i18n="signup.submit">
+                        Request Access
+                    </button>
+                </div>
+            </form>
+
+            <!-- OAuth Section -->
+            <div class="oauth-section">
+                <div class="divider"><span>OR</span></div>
+                <a href="{{ url_for('oauth.google_login') }}" class="google-btn">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    <span data-i18n="signup.google_signup">Sign up with Google</span>
+                </a>
+            </div>
+
+            <!-- Back to Login -->
+            <div class="back-section">
+                <span class="back-text" data-i18n="signup.have_account">Already have an account?</span>
+                <a href="{{ url_for('login') }}" class="back-link" data-i18n="signup.back_to_login">&larr; Back to Login</a>
+            </div>
         </div>
 
-        <!-- Back to Login -->
-        <div class="back-section">
-            <a href="{{ url_for('login') }}" class="back-link" data-i18n="signup.back_to_login">&larr; Back to Login</a>
-        </div>
-
-        <!-- Approval Notice -->
-        <div class="approval-notice">
-            <div class="approval-title" data-i18n="signup.approval_required">Admin Approval Required</div>
-            <div class="approval-line" data-i18n="signup.approval_line1">&gt; Your account will be created but inactive</div>
-            <div class="approval-line" data-i18n="signup.approval_line2">&gt; An administrator must approve your access</div>
-            <div class="approval-line" data-i18n="signup.approval_line3">&gt; You will receive email confirmation when approved</div>
-            <div class="approval-line">&gt; Status: <span class="status-blink" data-i18n="signup.pending_review">&#9679; Pending Review</span></div>
+        <!-- System Status -->
+        <div class="system-status">
+            <div class="status-line">
+                <span class="lcars-dot online pulse"></span>
+                <span data-i18n="login.system_online">SYSTEM STATUS: ONLINE</span>
+            </div>
+            <div class="status-line">
+                <span class="lcars-dot online pulse" style="animation-delay:0.3s"></span>
+                <span data-i18n="login.ai_core_active">AI CORE: ACTIVE</span>
+            </div>
+            <div class="status-line">
+                <span class="lcars-dot online pulse" style="animation-delay:0.6s"></span>
+                <span data-i18n="login.security_enabled">SECURITY PROTOCOL: ENABLED</span>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-// ─── Matrix Rain (requestAnimationFrame, theme-aware) ───
-var canvas = document.getElementById('matrix-bg');
-var ctx = canvas.getContext('2d');
-var isLightMode = document.body.classList.contains('light-mode');
+// ─── Step Navigation ───
+var currentStep = 1;
+var totalSteps = 3;
 
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener('resize', resize);
+var stepPills = document.querySelectorAll('.step-pill');
+var stepPanels = document.querySelectorAll('.step-panel');
+var stepBackBtn = document.getElementById('stepBackBtn');
+var stepNextBtn = document.getElementById('stepNextBtn');
+var signupBtn = document.getElementById('signupBtn');
+var connector1 = document.getElementById('connector1');
+var connector2 = document.getElementById('connector2');
 
-var chars = 'ARCHIE01\u30A2\u30A4\u30A6\u30A8\u30AA\u30AB\u30AD\u30AF\u30B1\u30B3\u2588\u2593\u2592\u2591<>{}[]';
-var charArray = chars.split('');
-var fontSize = 14;
-var columns = Math.floor(canvas.width / fontSize);
-var drops = [];
+function goToStep(step) {
+    // Validate before advancing
+    if (step > currentStep && !validateStep(currentStep)) return;
 
-for (var i = 0; i < columns; i++) {
-    drops[i] = Math.random() * -100;
-}
+    // Update current step
+    currentStep = step;
 
-function drawMatrix() {
-    ctx.fillStyle = isLightMode ? 'rgba(248, 249, 250, 0.04)' : 'rgba(0, 0, 0, 0.04)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.font = fontSize + 'px monospace';
-
-    for (var i = 0; i < drops.length; i++) {
-        var brightness = Math.random();
-        if (isLightMode) {
-            ctx.fillStyle = brightness > 0.8 ? '#00cc44' : brightness > 0.5 ? '#00aa33' : '#009928';
+    // Update step panels
+    stepPanels.forEach(function(panel) {
+        var panelStep = parseInt(panel.getAttribute('data-step'));
+        if (panelStep === currentStep) {
+            panel.classList.add('active');
         } else {
-            ctx.fillStyle = brightness > 0.8 ? '#00ff41' : brightness > 0.5 ? '#00cc34' : '#009924';
+            panel.classList.remove('active');
         }
+    });
 
-        var char = charArray[Math.floor(Math.random() * charArray.length)];
-        ctx.fillText(char, i * fontSize, drops[i] * fontSize);
-
-        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-            drops[i] = 0;
+    // Update step pills
+    stepPills.forEach(function(pill) {
+        var pillStep = parseInt(pill.getAttribute('data-step'));
+        pill.classList.remove('active', 'completed');
+        if (pillStep === currentStep) {
+            pill.classList.add('active');
+        } else if (pillStep < currentStep) {
+            pill.classList.add('completed');
         }
-        drops[i]++;
+    });
+
+    // Update connectors
+    connector1.classList.toggle('completed', currentStep > 1);
+    connector2.classList.toggle('completed', currentStep > 2);
+
+    // Update nav buttons
+    stepBackBtn.style.display = currentStep === 1 ? 'none' : '';
+    stepNextBtn.style.display = currentStep === totalSteps ? 'none' : '';
+    signupBtn.style.display = currentStep === totalSteps ? '' : 'none';
+
+    // Populate review on step 3
+    if (currentStep === 3) {
+        var uname = document.getElementById('username').value;
+        var em = document.getElementById('email').value;
+        var pw = document.getElementById('password').value;
+        document.getElementById('reviewUsername').textContent = uname;
+        document.getElementById('reviewEmail').textContent = em;
+        document.getElementById('reviewPassword').textContent = '\u2022'.repeat(Math.min(pw.length, 16));
     }
-    requestAnimationFrame(drawMatrix);
+
+    // Focus first input of new step
+    var activePanel = document.querySelector('.step-panel.active');
+    if (activePanel) {
+        var firstInput = activePanel.querySelector('input');
+        if (firstInput) setTimeout(function() { firstInput.focus(); }, 100);
+    }
 }
-requestAnimationFrame(drawMatrix);
+
+// ─── Step Validation ───
+function validateStep(step) {
+    clearErrors();
+
+    if (step === 1) {
+        var username = document.getElementById('username');
+        var email = document.getElementById('email');
+        var valid = true;
+
+        if (!username.value || username.value.trim().length < 3) {
+            showError('usernameError', archieI18n.t('signup.error_username_min', 'Username must be at least 3 characters'));
+            username.classList.add('input-error');
+            valid = false;
+        }
+
+        if (!email.value || !isValidEmail(email.value)) {
+            showError('emailError', archieI18n.t('signup.error_email_invalid', 'Please enter a valid email address'));
+            email.classList.add('input-error');
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    if (step === 2) {
+        var password = document.getElementById('password');
+        var confirm = document.getElementById('confirm_password');
+        var valid = true;
+
+        if (!password.value || password.value.length < 8) {
+            showError('passwordError', archieI18n.t('signup.error_password_min', 'Password must be at least 8 characters'));
+            password.classList.add('input-error');
+            valid = false;
+        }
+
+        if (password.value !== confirm.value) {
+            showError('confirmError', archieI18n.t('signup.error_passwords_mismatch', 'Passwords do not match'));
+            confirm.classList.add('input-error');
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    return true;
+}
+
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function showError(id, msg) {
+    var el = document.getElementById(id);
+    if (el) {
+        el.textContent = msg;
+        el.classList.add('visible');
+    }
+}
+
+function clearErrors() {
+    document.querySelectorAll('.field-error').forEach(function(el) {
+        el.classList.remove('visible');
+        el.textContent = '';
+    });
+    document.querySelectorAll('.input-error').forEach(function(el) {
+        el.classList.remove('input-error');
+    });
+}
+
+// Clear errors on input
+document.querySelectorAll('.form-input').forEach(function(input) {
+    input.addEventListener('input', function() {
+        this.classList.remove('input-error');
+        var errorEl = this.closest('.form-group').querySelector('.field-error');
+        if (errorEl) {
+            errorEl.classList.remove('visible');
+            errorEl.textContent = '';
+        }
+    });
+});
+
+// Button handlers
+stepNextBtn.addEventListener('click', function() {
+    if (currentStep < totalSteps) goToStep(currentStep + 1);
+});
+
+stepBackBtn.addEventListener('click', function() {
+    if (currentStep > 1) goToStep(currentStep - 1);
+});
+
+// Allow clicking step pills to navigate (only to completed/current steps)
+stepPills.forEach(function(pill) {
+    pill.addEventListener('click', function() {
+        var target = parseInt(this.getAttribute('data-step'));
+        if (target < currentStep) {
+            goToStep(target);
+        } else if (target === currentStep + 1) {
+            goToStep(target);
+        }
+    });
+});
 
 // ─── Form Submit ───
-document.getElementById('signupForm').addEventListener('submit', function() {
+document.getElementById('signupForm').addEventListener('submit', function(e) {
+    if (!validateStep(1) || !validateStep(2)) {
+        e.preventDefault();
+        return;
+    }
     var btn = document.getElementById('signupBtn');
     btn.classList.add('loading');
     btn.textContent = archieI18n.t('signup.registering', 'REGISTERING...');
@@ -1185,8 +1529,6 @@ passwordInput.addEventListener('input', function() {
         strengthBar.classList.remove('visible');
         strengthNote.textContent = archieI18n.t('signup.password_hint', 'Minimum 8 characters');
         strengthNote.style.color = '';
-        this.style.borderColor = '';
-        this.style.boxShadow = '';
         return;
     }
     var score = calcStrength(pw);
@@ -1196,34 +1538,13 @@ passwordInput.addEventListener('input', function() {
 
     strengthBar.classList.add('visible');
     strengthFill.style.width = pct + '%';
-    strengthFill.style.backgroundColor = color;
+    strengthFill.style.background = color;
     strengthNote.textContent = strengthLabels[idx];
     strengthNote.style.color = color;
-
-    // Subtle border tint based on strength
-    if (!this.matches(':focus')) {
-        this.style.borderColor = color + '60';
-        this.style.boxShadow = '0 0 8px ' + color + '15';
-    }
-});
-
-passwordInput.addEventListener('focus', function() {
-    this.style.borderColor = '';
-    this.style.boxShadow = '';
-});
-
-passwordInput.addEventListener('blur', function() {
-    if (this.value.length > 0) {
-        var score = calcStrength(this.value);
-        var color = strengthColors[Math.max(0, score - 1)];
-        this.style.borderColor = color + '60';
-        this.style.boxShadow = '0 0 8px ' + color + '15';
-    }
 });
 
 // ─── Theme Toggle ───
 var themeToggleBtn = document.getElementById('themeToggle');
-isLightMode = document.body.classList.contains('light-mode');
 
 themeToggleBtn.addEventListener('click', function() {
     if (typeof window.toggleTheme === 'function') {
@@ -1232,20 +1553,14 @@ themeToggleBtn.addEventListener('click', function() {
         document.body.classList.toggle('light-mode');
         localStorage.setItem('archie-theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
     }
-    isLightMode = document.body.classList.contains('light-mode');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-});
-
-window.addEventListener('themechange', function() {
-    isLightMode = document.body.classList.contains('light-mode');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
 });
 
 // ─── Init Lucide + Language Dropdown ───
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
-    var LANG_LABELS = { en: 'EN', fr: 'FR', es: 'ES', pt: 'PT', de: 'DE', zh: '中文', ar: 'عر' };
+    // Language dropdown handler
+    var LANG_LABELS = { en: 'EN', fr: 'FR', es: 'ES', pt: 'PT', de: 'DE', zh: '\u4e2d\u6587', ar: '\u0639\u0631' };
     var langBtn = document.getElementById('langToggle');
     var langMenu = document.getElementById('langMenu');
 
@@ -1269,6 +1584,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Close dropdown on outside click
     document.addEventListener('click', function(e) {
         if (langMenu && !langMenu.classList.contains('hidden') &&
             !langMenu.contains(e.target) && e.target !== langBtn && !langBtn.contains(e.target)) {

@@ -46,11 +46,14 @@
     50%      { box-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
 }
 
-/* --- GitHub Tab: Knowledge Intake --- */
+/* --- GitHub Tab: Knowledge Intake (LCARS) --- */
 .gh-intake {
-    background: rgba(139,92,246,0.03);
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(139,92,246,0.12);
-    border-radius: 12px;
+    border-left: 3px solid rgba(139,92,246,0.5);
+    border-radius: 2px 10px 10px 2px;
     padding: 20px;
     margin-bottom: 20px;
     position: relative;
@@ -59,9 +62,9 @@
 .gh-intake::before {
     content: '';
     position: absolute; top: 0; left: 0;
-    width: 6px; height: 100%;
-    background: #8b5cf6;
-    border-radius: 6px 0 0 6px;
+    width: 3px; height: 100%;
+    background: linear-gradient(180deg, rgba(139,92,246,0.7), rgba(139,92,246,0.2));
+    border-radius: 2px 0 0 2px;
 }
 .gh-intake-title {
     font-family: 'Antonio', sans-serif;
@@ -77,9 +80,10 @@
 .gh-intake-input {
     flex: 1; padding: 12px 16px;
     background: rgba(255,255,255,0.04);
-    border: 1.5px solid rgba(139,92,246,0.2);
-    border-radius: 8px;
-    color: #fff; font-size: 0.9rem;
+    border: 1.5px solid rgba(139,92,246,0.15);
+    border-left: 3px solid rgba(139,92,246,0.3);
+    border-radius: 2px 8px 8px 2px;
+    color: #fff; font-size: 0.85rem;
     font-family: 'IBM Plex Mono', monospace;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -91,20 +95,22 @@
 .gh-intake-input::placeholder { color: rgba(255,255,255,0.25); }
 .gh-intake-btn {
     padding: 12px 24px;
-    background: rgba(139,92,246,0.2);
-    border: 1.5px solid rgba(139,92,246,0.5);
-    border-radius: 0 20px 20px 0;
+    background: rgba(139,92,246,0.15);
+    border: 1.5px solid rgba(139,92,246,0.4);
+    border-left: 3px solid rgba(139,92,246,0.6);
+    border-radius: 2px 10px 10px 2px;
     color: #8b5cf6; font-weight: 700;
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.85rem; letter-spacing: 1px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.78rem; letter-spacing: 1px;
     text-transform: uppercase;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
     white-space: nowrap;
 }
 .gh-intake-btn:hover {
-    background: #8b5cf6;
+    background: rgba(139,92,246,0.25);
     color: #fff;
+    box-shadow: 0 0 12px rgba(139,92,246,0.2);
 }
 .gh-intake-btn:disabled {
     opacity: 0.4; cursor: not-allowed;
@@ -440,9 +446,12 @@
     margin-bottom: 24px;
 }
 .cs-stat {
-    background: var(--archie-bg-secondary, rgba(255,255,255,0.03));
-    border: 1px solid var(--archie-border-default, rgba(255,255,255,0.06));
-    border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid rgba(139,92,246,0.3);
+    border-radius: 2px 10px 10px 2px;
     padding: 20px;
     text-align: center;
     transition: border-color 0.2s, box-shadow 0.2s;
@@ -452,22 +461,35 @@
 .cs-stat::before {
     content: '';
     position: absolute;
-    top: 0; left: 0; right: 0; height: 3px;
-    border-radius: 12px 12px 0 0;
+    top: 0; left: 0; width: 3px; height: 100%;
+    border-radius: 2px 0 0 2px;
 }
-.cs-stat.purple::before { background: #8b5cf6; }
-.cs-stat.blue::before   { background: #3b82f6; }
-.cs-stat.green::before  { background: #22c55e; }
-.cs-stat.amber::before  { background: #f59e0b; }
+.cs-stat::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0; height: 3px;
+}
+.cs-stat.purple { border-left-color: rgba(139,92,246,0.5); }
+.cs-stat.purple::before { background: linear-gradient(180deg, rgba(139,92,246,0.7), rgba(139,92,246,0.2)); }
+.cs-stat.purple::after { background: linear-gradient(90deg, rgba(139,92,246,0.4), rgba(139,92,246,0.1)); }
+.cs-stat.blue { border-left-color: rgba(59,130,246,0.5); }
+.cs-stat.blue::before { background: linear-gradient(180deg, rgba(59,130,246,0.7), rgba(59,130,246,0.2)); }
+.cs-stat.blue::after { background: linear-gradient(90deg, rgba(59,130,246,0.4), rgba(59,130,246,0.1)); }
+.cs-stat.green { border-left-color: rgba(34,197,94,0.5); }
+.cs-stat.green::before { background: linear-gradient(180deg, rgba(34,197,94,0.7), rgba(34,197,94,0.2)); }
+.cs-stat.green::after { background: linear-gradient(90deg, rgba(34,197,94,0.4), rgba(34,197,94,0.1)); }
+.cs-stat.amber { border-left-color: rgba(245,158,11,0.5); }
+.cs-stat.amber::before { background: linear-gradient(180deg, rgba(245,158,11,0.7), rgba(245,158,11,0.2)); }
+.cs-stat.amber::after { background: linear-gradient(90deg, rgba(245,158,11,0.4), rgba(245,158,11,0.1)); }
 .cs-stat:hover {
-    border-color: rgba(139, 92, 246, 0.3);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border-color: rgba(139, 92, 246, 0.25);
+    box-shadow: 0 0 16px rgba(139,92,246,0.08);
 }
 .cs-stat-icon {
     width: 40px; height: 40px;
     margin: 0 auto 12px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 10px;
+    border-radius: 2px 8px 8px 2px;
     opacity: 0.8;
 }
 .cs-stat.purple .cs-stat-icon { background: rgba(139,92,246,0.1); color: #8b5cf6; }
@@ -507,8 +529,9 @@
 .cs-gh-strip {
     display: flex; align-items: center;
     background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 0 8px 8px 0;
+    border-radius: 2px 8px 8px 2px;
     overflow: hidden;
     height: 38px;
     transition: border-color 0.2s, box-shadow 0.2s;
@@ -652,7 +675,7 @@
     padding: 9px 12px;
     border-left: 3px solid rgba(139,92,246,0.3);
     background: rgba(255,255,255,0.02);
-    border-radius: 0 6px 6px 0;
+    border-radius: 2px 6px 6px 2px;
     margin-bottom: 4px;
     transition: background 0.15s, border-color 0.15s;
 }
@@ -691,8 +714,8 @@
 }
 .cs-lang-badge {
     font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em;
-    text-transform: uppercase; padding: 2px 7px; border-radius: 3px;
-    flex-shrink: 0;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 2px 4px 4px 2px;
+    flex-shrink: 0; font-family: 'Antonio', sans-serif;
 }
 .cs-lang-badge.ok { background: rgba(34,197,94,0.15); color: #22c55e; }
 .cs-lang-badge.miss { background: rgba(248,113,113,0.15); color: #f87171; }
@@ -700,10 +723,10 @@
     display: flex; gap: 4px; flex-shrink: 0;
 }
 .cs-lang-actions button {
-    padding: 3px 8px; border-radius: 4px; cursor: pointer;
+    padding: 3px 8px; border-radius: 2px 4px 4px 2px; cursor: pointer;
     font-family: 'Antonio', sans-serif;
     font-size: 0.68rem; font-weight: 600; border: none;
-    transition: filter 0.15s;
+    transition: filter 0.15s, box-shadow 0.15s;
 }
 .cs-lang-actions button:hover { filter: brightness(1.3); }
 .cs-lang-actions .gen { background: rgba(139,92,246,0.15); color: #8b5cf6; }
@@ -725,15 +748,22 @@
 
 /* --- LCARS Cards --- */
 .cs-card {
-    background: rgba(255,255,255,0.02);
+    display: flex;
+    flex-direction: column;
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(139, 92, 246, 0.12);
     border-left: 3px solid rgba(139, 92, 246, 0.4);
-    border-radius: 0 12px 12px 0;
+    border-radius: 2px 12px 12px 2px;
     padding: 0;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
     min-width: 0;
     overflow: hidden;
     position: relative;
+}
+.cs-card:hover {
+    box-shadow: 0 0 16px rgba(139, 92, 246, 0.08);
 }
 .cs-card::before {
     content: '';
@@ -750,6 +780,9 @@
     border-color: rgba(139, 92, 246, 0.25);
 }
 .cs-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-family: 'Orbitron', sans-serif;
     font-size: 0.78rem;
     font-weight: 600;
@@ -761,6 +794,26 @@
     letter-spacing: 1.2px;
     background: rgba(139, 92, 246, 0.04);
 }
+.cs-card-header::after {
+    content: '';
+    margin-left: auto;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+    animation: holoCoreBreath 4s ease-in-out infinite;
+}
+/* LCARS card footer bar */
+.cs-card::after {
+    content: '';
+    display: block;
+    height: 4px;
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.5), rgba(139, 92, 246, 0.15));
+    margin-top: auto;
+}
+.cs-card.accent-blue::after { background: linear-gradient(90deg, rgba(59,130,246,0.5), rgba(59,130,246,0.15)); }
+.cs-card.accent-green::after { background: linear-gradient(90deg, rgba(34,197,94,0.5), rgba(34,197,94,0.15)); }
+.cs-card.accent-amber::after { background: linear-gradient(90deg, rgba(245,158,11,0.5), rgba(245,158,11,0.15)); }
 .cs-card-body {
     padding: 12px 16px;
     max-height: 240px;
@@ -861,15 +914,17 @@
     letter-spacing: 0.5px;
 }
 
-/* --- Dashboard Timestamp --- */
+/* --- Dashboard Timestamp (LCARS) --- */
 .cs-dashboard-timestamp {
     text-align: center;
-    padding: 8px 0 4px;
+    padding: 12px 0 4px;
     font-family: 'Antonio', sans-serif;
     font-size: 0.65rem;
-    color: rgba(255,255,255,0.2);
+    color: rgba(139,92,246,0.25);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+    border-top: 1px solid rgba(139,92,246,0.06);
+    margin-top: 12px;
 }
 
 /* --- Dashboard Grid Responsive --- */
@@ -891,13 +946,14 @@
     .cs-mood-stats { display: none; }
     .cs-mood-indicator { max-width: none; }
 }
-/* --- Compact stat cards (System Health) --- */
+/* --- Compact stat cards (LCARS) --- */
 .cs-stats-compact .cs-stat {
     padding: 12px 14px;
 }
 .cs-stats-compact .cs-stat-icon {
     width: 30px; height: 30px;
     margin-bottom: 8px;
+    border-radius: 2px 6px 6px 2px;
 }
 .cs-stats-compact .cs-stat-icon i { width: 16px; height: 16px; }
 .cs-stats-compact .cs-stat-value {
@@ -905,25 +961,57 @@
 }
 .cs-stats-compact .cs-stat-label {
     font-size: 0.62rem;
-}
-/* --- Dashboard Section Labels --- */
-.cs-dash-section-label {
     font-family: 'Antonio', sans-serif;
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: rgba(255,255,255,0.25);
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 10px;
-    padding-left: 8px;
-    border-left: 3px solid rgba(139,92,246,0.3);
+    letter-spacing: 0.8px;
 }
-/* --- Pipeline Accordion --- */
+/* --- Dashboard Section Labels (LCARS Divider) --- */
+.cs-dash-section-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(139,92,246,0.6);
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    margin: 20px 0 12px;
+    padding: 6px 12px 6px 0;
+    border-left: 4px solid rgba(139,92,246,0.4);
+    background: linear-gradient(90deg, rgba(139,92,246,0.04) 0%, transparent 60%);
+    border-radius: 0 4px 4px 0;
+}
+.cs-dash-section-label::before {
+    content: '';
+    width: 8px; height: 3px;
+    background: rgba(139,92,246,0.4);
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.cs-dash-section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(139,92,246,0.15), transparent);
+}
+.cs-dash-section-label .cs-section-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(139,92,246,0.5);
+    box-shadow: 0 0 6px rgba(139,92,246,0.4);
+    flex-shrink: 0;
+    animation: holoCoreBreath 4s ease-in-out infinite;
+}
+/* --- Pipeline Accordion (LCARS) --- */
 .cs-pipeline-accordion {
-    margin-bottom: 20px;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 8px;
+    margin: 20px 0;
+    border: 1px solid rgba(139,92,246,0.1);
+    border-left: 3px solid rgba(139,92,246,0.3);
+    border-radius: 2px 10px 10px 2px;
     overflow: hidden;
+    background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 .cs-pipeline-toggle {
     width: 100%;
@@ -931,27 +1019,28 @@
     align-items: center;
     gap: 10px;
     padding: 10px 16px;
-    background: rgba(255,255,255,0.02);
+    background: rgba(139,92,246,0.03);
     border: none;
     cursor: pointer;
     font-family: 'Antonio', sans-serif;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 600;
-    color: rgba(255,255,255,0.4);
+    color: rgba(139,92,246,0.6);
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 2px;
     transition: background 0.2s, color 0.2s;
     text-align: left;
+    border-bottom: 1px solid rgba(139,92,246,0.06);
 }
 .cs-pipeline-toggle:hover {
     background: rgba(139,92,246,0.06);
-    color: rgba(255,255,255,0.6);
+    color: rgba(139,92,246,0.8);
 }
 .cs-pipeline-toggle-cap {
-    width: 6px;
-    height: 14px;
-    background: rgba(139,92,246,0.4);
-    border-radius: 3px;
+    width: 8px;
+    height: 3px;
+    background: rgba(139,92,246,0.5);
+    border-radius: 2px;
     flex-shrink: 0;
 }
 .cs-pipeline-toggle i {
@@ -959,6 +1048,7 @@
     width: 14px;
     height: 14px;
     transition: transform 0.2s;
+    color: rgba(139,92,246,0.4);
 }
 .cs-pipeline-toggle.open i {
     transform: rotate(180deg);
@@ -1017,7 +1107,7 @@
     text-align: right;
 }
 
-/* --- Integration Items --- */
+/* --- Integration Items (LCARS) --- */
 .cs-integration-grid {
     display: flex;
     flex-wrap: wrap;
@@ -1037,20 +1127,23 @@
 .cs-integration-name { font-size: 0.78rem; font-weight: 600; color: rgba(255,255,255,0.7); }
 .cs-integration-count { font-size: 0.72rem; color: rgba(255,255,255,0.4); }
 
-/* --- Badges --- */
+/* --- Badges (LCARS) --- */
 .cs-badge {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.72rem;
+    border-radius: 2px 6px 6px 2px;
+    font-size: 0.68rem;
     font-weight: 600;
+    font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
-.cs-badge.blue   { color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
-.cs-badge.green  { color: #4ade80; border: 1px solid rgba(74,222,128,0.3); }
-.cs-badge.amber  { color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
-.cs-badge.red    { color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
-.cs-badge.gray   { color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1); }
-.cs-badge.purple { color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); }
+.cs-badge.blue   { color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); border-left: 2px solid rgba(96,165,250,0.5); }
+.cs-badge.green  { color: #4ade80; border: 1px solid rgba(74,222,128,0.3); border-left: 2px solid rgba(74,222,128,0.5); }
+.cs-badge.amber  { color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); border-left: 2px solid rgba(251,191,36,0.5); }
+.cs-badge.red    { color: #f87171; border: 1px solid rgba(248,113,113,0.3); border-left: 2px solid rgba(248,113,113,0.5); }
+.cs-badge.gray   { color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1); border-left: 2px solid rgba(255,255,255,0.2); }
+.cs-badge.purple { color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); border-left: 2px solid rgba(167,139,250,0.5); }
 
 /* --- Loading / Empty --- */
 .cs-loading {
@@ -1066,7 +1159,7 @@
     text-align: center;
 }
 
-/* --- Agent Cards (Team tab) --- */
+/* --- Agent Cards (Team tab — LCARS) --- */
 .cs-agent-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -1074,15 +1167,28 @@
 }
 .cs-agent-card {
     background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 10px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(139,92,246,0.1);
+    border-left: 3px solid rgba(139,92,246,0.3);
+    border-radius: 2px 10px 10px 2px;
     padding: 16px;
     cursor: pointer;
     transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+.cs-agent-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, rgba(139,92,246,0.4), rgba(139,92,246,0.1));
 }
 .cs-agent-card:hover {
     border-color: rgba(139,92,246,0.3);
     background: rgba(139,92,246,0.05);
+    box-shadow: 0 0 16px rgba(139,92,246,0.08);
 }
 .cs-agent-header {
     display: flex;
@@ -1097,11 +1203,12 @@
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; color: #fff; font-size: 1rem;
     flex-shrink: 0;
+    box-shadow: 0 0 12px rgba(139,92,246,0.2);
 }
-.cs-agent-name { font-weight: 600; color: #fff; font-size: 0.9rem; }
-.cs-agent-role { font-size: 0.78rem; color: rgba(255,255,255,0.5); }
+.cs-agent-name { font-family: 'Orbitron', sans-serif; font-weight: 600; color: #fff; font-size: 0.82rem; letter-spacing: 0.5px; }
+.cs-agent-role { font-family: 'Antonio', sans-serif; font-size: 0.72rem; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.5px; }
 .cs-agent-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.cs-agent-stats { display: flex; gap: 12px; font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-bottom: 8px; }
+.cs-agent-stats { display: flex; gap: 12px; font-size: 0.72rem; color: rgba(255,255,255,0.4); margin-bottom: 8px; font-family: 'Antonio', sans-serif; letter-spacing: 0.5px; }
 .cs-agent-bars { display: flex; gap: 4px; }
 .cs-mini-bar { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
 .cs-mini-fill { height: 100%; border-radius: 2px; }
@@ -1427,19 +1534,21 @@
 .cs-search-input-wrap {
     flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px;
     padding: 8px 12px; background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid rgba(139,92,246,0.3);
+    border-radius: 2px 10px 10px 2px;
 }
 .cs-search-input-wrap input {
     flex: 1; background: none; border: none; outline: none;
-    color: #fff; font-size: 0.85rem; font-family: inherit;
+    color: #fff; font-size: 0.85rem; font-family: 'IBM Plex Mono', monospace;
 }
 .cs-search-bar select {
     padding: 8px 14px; background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.08); border-left: 2px solid rgba(139,92,246,0.3);
+    border-radius: 2px 8px 8px 2px;
     color: #fff; font-family: 'Antonio', sans-serif; font-size: 0.78rem;
     letter-spacing: 0.5px; cursor: pointer;
 }
-.cs-search-bar select:focus { border-color: rgba(139,92,246,0.4); outline: none; }
+.cs-search-bar select:focus { border-color: rgba(139,92,246,0.4); border-left-color: rgba(139,92,246,0.6); outline: none; }
 
 /* --- Type summary chips --- */
 .cs-type-chips {
@@ -1447,7 +1556,7 @@
 }
 .cs-type-chip {
     display: inline-flex; align-items: center; gap: 5px;
-    padding: 4px 10px; border-radius: 12px;
+    padding: 4px 10px; border-radius: 2px 8px 8px 2px;
     font-family: 'Antonio', sans-serif; font-size: 0.68rem;
     letter-spacing: 0.5px; text-transform: uppercase;
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
@@ -1474,14 +1583,14 @@
     gap: 8px; margin-top: 12px; padding-top: 12px;
 }
 .cs-page-btn {
-    padding: 5px 12px; border-radius: 16px;
+    padding: 5px 12px; border-radius: 2px 8px 8px 2px;
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
     color: rgba(255,255,255,0.5); cursor: pointer;
     font-family: 'Antonio', sans-serif; font-size: 0.72rem;
     letter-spacing: 0.5px; transition: all 0.2s;
 }
 .cs-page-btn:hover { border-color: rgba(139,92,246,0.3); color: #fff; }
-.cs-page-btn.active { color: #8b5cf6; border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.1); }
+.cs-page-btn.active { color: #8b5cf6; border-color: rgba(139,92,246,0.4); border-left: 2px solid rgba(139,92,246,0.6); background: rgba(139,92,246,0.1); }
 .cs-page-btn:disabled { opacity: 0.3; cursor: default; }
 .cs-page-info {
     font-family: 'Antonio', sans-serif; font-size: 0.7rem;
@@ -1493,12 +1602,13 @@
     display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;
 }
 .cs-cat-card {
-    padding: 12px 14px; border-radius: 0 10px 10px 0;
-    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+    padding: 12px 14px; border-radius: 2px 10px 10px 2px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
     border-left: 3px solid rgba(139,92,246,0.3);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
 }
-.cs-cat-card:hover { border-color: rgba(139,92,246,0.3); background: rgba(139,92,246,0.04); }
+.cs-cat-card:hover { border-color: rgba(139,92,246,0.3); background: rgba(139,92,246,0.04); box-shadow: 0 0 12px rgba(139,92,246,0.06); }
 .cs-cat-card .cat-name {
     font-family: 'Antonio', sans-serif; font-size: 0.82rem;
     color: #fff; letter-spacing: 0.3px; text-transform: uppercase;
@@ -1740,21 +1850,26 @@
 .cs-voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .cs-voice-card {
     background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 10px;
+    border-left: 3px solid rgba(139,92,246,0.3);
+    border-radius: 2px 10px 10px 2px;
     padding: 16px;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-.cs-voice-card:hover { border-color: rgba(139,92,246,0.3); }
+.cs-voice-card:hover { border-color: rgba(139,92,246,0.3); box-shadow: 0 0 12px rgba(139,92,246,0.06); }
 .cs-voice-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .cs-voice-engine { font-size: 0.72rem; color: #8b5cf6; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
 .cs-voice-detail { font-size: 0.78rem; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
 
 /* --- LCARS Operations Terminal --- */
 .cs-ops-terminal {
-    background: rgba(139,92,246,0.04);
-    border: 1px solid rgba(139,92,246,0.2);
-    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(139,92,246,0.15);
+    border-left: 3px solid rgba(139,92,246,0.4);
+    border-radius: 2px 10px 10px 2px;
     margin-bottom: 14px;
     overflow: hidden;
 }
@@ -1869,20 +1984,20 @@
 }
 .cs-ops-cmd {
     padding: 7px 14px;
-    border-radius: 6px;
+    border-radius: 2px 8px 8px 2px;
     cursor: pointer;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     font-family: 'Orbitron', sans-serif;
     font-weight: 600;
     letter-spacing: 0.05em;
     display: flex; align-items: center; gap: 6px;
     transition: all 0.15s ease;
 }
-.cs-ops-cmd:hover { filter: brightness(1.2); }
-.cs-ops-cmd.purple { background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.4); color: #8b5cf6; }
-.cs-ops-cmd.amber  { background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #f59e0b; }
-.cs-ops-cmd.green  { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: #22c55e; }
-.cs-ops-cmd.cyan   { background: rgba(0,255,255,0.1); border: 1px solid rgba(0,255,255,0.25); color: #00ffff; }
+.cs-ops-cmd:hover { filter: brightness(1.2); box-shadow: 0 0 10px rgba(139,92,246,0.15); }
+.cs-ops-cmd.purple { background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3); border-left: 3px solid rgba(139,92,246,0.6); color: #8b5cf6; }
+.cs-ops-cmd.amber  { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); border-left: 3px solid rgba(245,158,11,0.5); color: #f59e0b; }
+.cs-ops-cmd.green  { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); border-left: 3px solid rgba(34,197,94,0.5); color: #22c55e; }
+.cs-ops-cmd.cyan   { background: rgba(0,255,255,0.08); border: 1px solid rgba(0,255,255,0.2); border-left: 3px solid rgba(0,255,255,0.4); color: #00ffff; }
 .cs-ops-cmd:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
 .cs-ops-capacity-banner {
     margin-top: 8px;
@@ -1893,9 +2008,10 @@
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: #f59e0b;
-    background: rgba(245,158,11,0.08);
-    border: 1px solid rgba(245,158,11,0.2);
-    border-radius: 6px;
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.15);
+    border-left: 3px solid rgba(245,158,11,0.4);
+    border-radius: 2px 6px 6px 2px;
     text-align: center;
 }
 
@@ -2058,7 +2174,7 @@
             </div>
 
             <!-- 3. System Health -->
-            <div class="cs-dash-section-label">SYSTEM HEALTH</div>
+            <div class="cs-dash-section-label">SYSTEM HEALTH <span class="cs-section-dot"></span></div>
             <div class="holo-hud" style="margin-bottom:16px;">
                 <div class="holo-hud-item green">
                     <span class="holo-hud-value" id="intDevhqStatus">--</span>
@@ -2079,7 +2195,7 @@
             </div>
 
             <!-- 4. Operational Analytics -->
-            <div class="cs-dash-section-label">OPERATIONAL ANALYTICS &middot; 7 DAYS</div>
+            <div class="cs-dash-section-label">OPERATIONAL ANALYTICS &middot; 7 DAYS <span class="cs-section-dot"></span></div>
             <div class="holo-hud" style="margin-bottom:20px;">
                 <div class="holo-hud-item purple">
                     <span class="holo-hud-value" id="insightsBridgeTotal">--</span>

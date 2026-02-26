@@ -1088,6 +1088,25 @@ function loadTeam() {
       var stationBadge = a.station_name
         ? '<span class="cs-badge blue">' + escHtml(a.station_name) + '</span>'
         : '<span class="cs-badge gray">Unassigned</span>';
+      // Live status from Bridge dispatcher
+      var ls = a.live_status || "unknown";
+      var statusDotClass = ls === "working" ? "green" : ls === "resting" ? "amber" : "gray";
+      var statusLabel = ls === "working" ? "Working" : ls === "resting" ? "Resting" : "Idle";
+      // Prefer live wellness over static DB values
+      var w = a.wellness || {};
+      var energy = w.energy != null ? w.energy : (a.energy_level || 0);
+      var stress = w.stress != null ? w.stress : (a.stress_level || 0);
+      // Current job row
+      var jobHtml = "";
+      if (a.current_job) {
+        var pct = a.current_job.progress_pct || 0;
+        jobHtml = '<div class="cs-agent-job">' +
+          '<span class="cs-job-desc">' + escHtml(a.current_job.description || "Processing...") + '</span>' +
+          '<div class="cs-job-bar"><div class="cs-job-fill" style="width:' + pct + '%"></div></div>' +
+          '</div>';
+      }
+      // 24h dispatch count
+      var dispatches = (a.stats_24h && a.stats_24h.dispatches) || 0;
       return '<div class="cs-agent-card" onclick="showAgentProfile(' + a.id + ')">' +
         '<div class="cs-agent-header">' +
           '<div class="cs-agent-avatar">' + escHtml((a.first_name || "?")[0]) + '</div>' +
@@ -1098,15 +1117,18 @@ function loadTeam() {
         '</div>' +
         '<div class="cs-agent-meta">' +
           stationBadge +
+          '<span class="cs-status-dot ' + statusDotClass + '" title="' + statusLabel + '"></span>' +
           '<span class="cs-badge ' + moodColor + '">' + escHtml(a.current_mood || 'neutral') + '</span>' +
         '</div>' +
+        jobHtml +
         '<div class="cs-agent-stats">' +
           '<span>' + (a.skill_count || 0) + ' skills</span>' +
+          (dispatches ? '<span>' + dispatches + ' dispatches/24h</span>' : '') +
           (a.voice_engine ? '<span>' + escHtml(a.voice_engine) + '</span>' : '') +
         '</div>' +
         '<div class="cs-agent-bars">' +
-          '<div class="cs-mini-bar"><div class="cs-mini-fill green" style="width:' + Math.round((a.energy_level || 0) * 100) + '%"></div></div>' +
-          '<div class="cs-mini-bar"><div class="cs-mini-fill red" style="width:' + Math.round((a.stress_level || 0) * 100) + '%"></div></div>' +
+          '<div class="cs-mini-bar"><div class="cs-mini-fill green" style="width:' + Math.round(energy * 100) + '%"></div></div>' +
+          '<div class="cs-mini-bar"><div class="cs-mini-fill red" style="width:' + Math.round(stress * 100) + '%"></div></div>' +
         '</div>' +
         '</div>';
     }).join("");
@@ -1157,7 +1179,30 @@ window.showAgentProfile = function(agentId) {
     if (data.station) {
       html += '<div class="cs-profile-section"><h3>Station Assignment</h3>';
       html += '<p>' + escHtml(data.station.station_name) + ' (' + escHtml(data.station.station_code) + ')</p>';
-      html += '<a href="/tools/bridge#stations" class="cs-link">View in Bridge Command \u2192</a>';
+      html += '<a href="/tools/bridge#crew" class="cs-link">View in Bridge Command \u2192</a>';
+      html += '</div>';
+    }
+
+    // Operations (live Bridge data)
+    var live = data.live || {};
+    if (live.status) {
+      var lsBadge = live.status === "working" ? "working" : live.status === "resting" ? "resting" : "idle";
+      html += '<div class="cs-profile-section"><h3>Operations</h3>';
+      html += '<p><strong>Status:</strong> <span class="cs-badge ' + lsBadge + '">' + escHtml(live.status) + '</span></p>';
+      if (live.current_job) {
+        var pct = live.current_job.progress_pct || 0;
+        html += '<p><strong>Current Job:</strong> ' + escHtml(live.current_job.description || "Processing...") + '</p>';
+        html += '<div class="cs-job-bar" style="margin:6px 0;"><div class="cs-job-fill" style="width:' + pct + '%"></div></div>';
+      }
+      if (live.stats_24h) {
+        var st = live.stats_24h;
+        html += '<p><strong>24h Dispatches:</strong> ' + (st.dispatches || 0) + '</p>';
+        if (st.dispatches > 0) {
+          html += '<p><strong>Success Rate:</strong> ' + Math.round((st.success_rate || 0) * 100) + '%</p>';
+          html += '<p><strong>Avg Duration:</strong> ' + (st.avg_duration_sec || 0) + 's</p>';
+        }
+      }
+      html += '<a href="/tools/bridge#crew" class="cs-link">View Operations in Bridge Command \u2192</a>';
       html += '</div>';
     }
 

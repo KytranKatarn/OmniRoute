@@ -1216,6 +1216,23 @@
 .cs-mini-fill.green { background: #22c55e; }
 .cs-mini-fill.red   { background: #ef4444; }
 
+/* --- Live Status Dots --- */
+.cs-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+.cs-status-dot.green { background: #22c55e; box-shadow: 0 0 4px #22c55e; }
+.cs-status-dot.amber { background: #f59e0b; box-shadow: 0 0 4px #f59e0b; }
+.cs-status-dot.gray  { background: rgba(255,255,255,0.25); }
+
+/* --- Job Progress Bar --- */
+.cs-agent-job { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.78rem; color: rgba(255,255,255,0.5); }
+.cs-job-desc { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-job-bar { flex: 0 0 60px; height: 4px; background: rgba(139,92,246,0.15); border-radius: 2px; overflow: hidden; }
+.cs-job-fill { height: 100%; background: #8b5cf6; border-radius: 2px; transition: width 0.4s ease; }
+
+/* --- Status Badges --- */
+.cs-badge.working  { background: rgba(34,197,94,0.15); color: #22c55e; }
+.cs-badge.resting  { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.cs-badge.idle     { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); }
+
 /* --- Modal --- */
 /* ═══ LCARS TABLET MODAL ═══ */
 .cs-modal-overlay {

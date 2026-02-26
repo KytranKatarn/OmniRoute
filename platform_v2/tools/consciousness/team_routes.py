@@ -15,7 +15,7 @@ import traceback
 import psycopg2
 import psycopg2.extras
 from psycopg2.extras import RealDictCursor
-from flask import jsonify, render_template, request
+from flask import jsonify, request
 from flask_login import login_required
 
 logger = logging.getLogger(__name__)
@@ -33,314 +33,6 @@ def _get_db():
 
 def register_team_routes(bp, admin_required):
     """Register all team-related routes on the consciousness blueprint."""
-
-    # ==================================================================
-    # TEAM DIRECTORY
-    # ==================================================================
-
-    @bp.route("/team")
-    @login_required
-    @admin_required
-    def team_awareness():
-        """Team directory - all agents, performance, capabilities"""
-        return render_template("team_awareness.html")
-
-    # ==================================================================
-    # AGENT LISTING & DETAILS
-    # ==================================================================
-
-    @bp.route("/team/agents", methods=["GET"])
-    @login_required
-    @admin_required
-    def get_agents():
-        """Get all agents with their capabilities and metrics"""
-        try:
-            conn = _get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            # Query from agents table (the actual team members)
-            cur.execute(
-                """
-                SELECT
-                    a.id,
-                    a.name,
-                    a.first_name,
-                    a.last_name,
-                    a.title,
-                    a.department,
-                    a.worker_type,
-                    a.status,
-                    a.tier,
-                    a.model,
-                    a.total_tasks_completed as tasks_completed,
-                    a.success_rate,
-                    a.total_tokens_used as tokens_used,
-                    a.total_cost,
-                    a.last_used,
-                    at.name as agent_type
-                FROM agents a
-                LEFT JOIN agent_types at ON a.type_id = at.id
-                WHERE a.status = 'active'
-                ORDER BY a.name
-                LIMIT 50
-            """
-            )
-
-            agents = cur.fetchall()
-
-            # Convert to serializable format
-            for agent in agents:
-                if agent.get("last_used"):
-                    agent["last_used"] = agent["last_used"].isoformat()
-                # Ensure worker_type has a default
-                if not agent.get("worker_type"):
-                    agent["worker_type"] = "internal"
-                # Calculate display name
-                if agent.get("first_name") and agent.get("last_name"):
-                    agent["full_name"] = f"{agent['first_name']} {agent['last_name']}"
-                else:
-                    agent["full_name"] = agent.get("name", "Unknown")
-                # Ensure role fallback
-                agent["role"] = agent.get("title") or agent.get("agent_type") or "Agent"
-            return jsonify({"success": True, "agents": agents})
-        except Exception as e:
-            traceback.print_exc()
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-
-            cur.close()
-
-            conn.close()
-
-    @bp.route("/team/agents/<int:agent_id>", methods=["GET"])
-    @login_required
-    @admin_required
-    def get_agent_details(agent_id):
-        """Get detailed information about a specific agent"""
-        try:
-            conn = _get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            cur.execute(
-                """
-                SELECT * FROM agent_profiles WHERE id = %s
-            """,
-                (agent_id,),
-            )
-
-            agent = cur.fetchone()
-
-            if not agent:
-                return jsonify({"error": "Agent not found"}), 404
-
-            # Get recent task executions
-            cur.execute(
-                """
-                SELECT id, task_type, task_description, model_used,
-                       tokens_used, duration_ms, success, created_at
-                FROM task_execution_log
-                WHERE agent_id = %s
-                ORDER BY created_at DESC
-                LIMIT 10
-            """,
-                (agent_id,),
-            )
-
-            recent_tasks = cur.fetchall()
-            return jsonify({"agent": dict(agent), "recent_tasks": [dict(t) for t in recent_tasks]})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-        finally:
-
-            cur.close()
-
-            conn.close()
-
-    # ==================================================================
-    # PERFORMANCE
-    # ==================================================================
-
-    @bp.route("/team/agents/<int:agent_id>/performance", methods=["GET"])
-    @login_required
-    @admin_required
-    def get_agent_performance(agent_id):
-        """Get agent performance metrics"""
-        try:
-            conn = _get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            cur.execute(
-                """
-                SELECT
-                    COUNT(*) as total_tasks,
-                    COUNT(*) FILTER (WHERE success = true) as completed_tasks,
-                    COUNT(*) FILTER (WHERE success = false) as failed_tasks,
-                    AVG(duration_ms) / 1000.0 as avg_completion_seconds
-                FROM task_execution_log
-                WHERE agent_id = %s
-            """,
-                (agent_id,),
-            )
-
-            performance = cur.fetchone()
-            return jsonify(performance)
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-        finally:
-
-            cur.close()
-
-            conn.close()
-
-    @bp.route("/team/leaderboard", methods=["GET"])
-    @login_required
-    @admin_required
-    def performance_leaderboard():
-        """Get agent performance leaderboard"""
-        try:
-            conn = _get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            cur.execute(
-                """
-                SELECT
-                    ap.id,
-                    ap.first_name || ' ' || ap.last_name as full_name,
-                    ap.title,
-                    COUNT(tel.id) as total_tasks,
-                    COUNT(tel.id) FILTER (WHERE tel.success = true) as completed_tasks,
-                    ROUND(AVG(CASE WHEN tel.success THEN 1.0 ELSE 0.0 END)::numeric, 2) as success_rate
-                FROM agent_profiles ap
-                LEFT JOIN task_execution_log tel ON ap.id = tel.agent_id
-                WHERE ap.status = 'active'
-                GROUP BY ap.id, ap.first_name, ap.last_name, ap.title
-                ORDER BY success_rate DESC, completed_tasks DESC
-                LIMIT 20
-            """
-            )
-
-            leaderboard = [dict(r) for r in cur.fetchall()]
-            return jsonify({"leaderboard": leaderboard})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-        finally:
-
-            cur.close()
-
-            conn.close()
-
-    # ==================================================================
-    # TEAM AWARENESS DATA (COMPREHENSIVE)
-    # ==================================================================
-
-    @bp.route("/team-awareness-data", methods=["GET"])
-    @login_required
-    @admin_required
-    def get_team_awareness_data():
-        """Get A.R.C.H.I.E.'s team awareness - all agents and their details (ENHANCED)"""
-        print("🧠 [BACKEND] get_team_awareness_data called - COMPREHENSIVE MODE")
-
-        conn = _get_db()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        try:
-            # Get all active agents with comprehensive details
-            cur.execute(
-                """
-                SELECT
-                    a.id, a.name, a.first_name, a.last_name, a.email,
-                    a.title, a.department, a.pronouns, a.bio,
-                    a.tier, a.model, a.status,
-                    a.monthly_budget, a.total_cost, a.total_tokens_used,
-                    a.last_used, a.created_at,
-                    a.worker_type, a.requires_api_approval, a.api_provider,
-                    a.cost_tier, a.api_enabled, a.api_key_configured,
-                    at.name as agent_type, at.category as type_category
-                FROM agents a
-                LEFT JOIN agent_types at ON a.type_id = at.id
-                WHERE a.status = 'active'
-                ORDER BY a.department, a.first_name
-            """
-            )
-            agents = cur.fetchall()
-
-            # Get department summary
-            cur.execute(
-                """
-                SELECT
-                    department,
-                    COUNT(*) as agent_count,
-                    SUM(CASE WHEN worker_type = 'internal' THEN 1 ELSE 0 END) as internal_count,
-                    SUM(CASE WHEN worker_type = 'contract' THEN 1 ELSE 0 END) as contract_count,
-                    SUM(monthly_budget) as total_budget,
-                    SUM(total_cost) as total_spent
-                FROM agents
-                WHERE status = 'active'
-                GROUP BY department
-                ORDER BY agent_count DESC
-            """
-            )
-            departments = cur.fetchall()
-
-            # Get overall statistics
-            cur.execute(
-                """
-                SELECT
-                    COUNT(*) as total_agents,
-                    COUNT(DISTINCT department) as total_departments,
-                    SUM(monthly_budget) as total_budget,
-                    SUM(total_cost) as total_cost,
-                    SUM(total_tokens_used) as total_tokens,
-                    COUNT(CASE WHEN last_used >= NOW() - INTERVAL '7 days' THEN 1 END) as active_last_week,
-                    SUM(CASE WHEN worker_type = 'internal' THEN 1 ELSE 0 END) as internal_agents,
-                    SUM(CASE WHEN worker_type = 'contract' THEN 1 ELSE 0 END) as contract_agents,
-                    SUM(CASE WHEN worker_type = 'contract' AND api_enabled = TRUE THEN 1 ELSE 0 END) as contract_enabled,
-                    SUM(CASE WHEN worker_type = 'contract' AND api_enabled = FALSE THEN 1 ELSE 0 END) as contract_disabled
-                FROM agents
-                WHERE status = 'active'
-            """
-            )
-            stats = cur.fetchone()
-
-            # Convert datetime objects to ISO format BEFORE building by_department
-            for agent in agents:
-                if agent["last_used"]:
-                    agent["last_used"] = agent["last_used"].isoformat()
-                if agent["created_at"]:
-                    agent["created_at"] = agent["created_at"].isoformat()
-
-            # Organize agents by department
-            by_department = {}
-            for agent in agents:
-                dept = agent["department"] or "Unassigned"
-                if dept not in by_department:
-                    by_department[dept] = []
-                by_department[dept].append(dict(agent))
-
-            result = {
-                "success": True,
-                "team": {
-                    "agents": [dict(a) for a in agents],
-                    "by_department": by_department,
-                    "departments": [dict(d) for d in departments],
-                    "statistics": dict(stats),
-                },
-            }
-
-            print(
-                f"🧠 [BACKEND] Returning {stats['total_agents']} agents across {stats['total_departments']} departments"
-            )
-            return jsonify(result)
-
-        except Exception as e:
-            print("❌ [BACKEND] Error in get_team_awareness_data:")
-            traceback.print_exc()
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-
-            cur.close()
-
-            conn.close()
 
     @bp.route("/team-awareness", methods=["GET"])
     @login_required
@@ -480,7 +172,7 @@ def register_team_routes(bp, admin_required):
                              WHEN current_mood = 'frustrated' THEN 0.2
                              ELSE 0.5 END) as avg_mood_score,
                     AVG(mood_intensity) as avg_energy,
-                    AVG(relationship_strength) as avg_confidence,
+                    AVG(mood_intensity) as avg_confidence,
                     COUNT(*) as measurement_count,
                     MODE() WITHIN GROUP (ORDER BY current_mood) as dominant_mood
                 FROM agent_emotional_state
@@ -519,7 +211,7 @@ def register_team_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
-                       relationship_strength as confidence, user_id, notes
+                       stress_level as confidence, trigger_event as notes
                 FROM agent_emotional_state
                 ORDER BY timestamp DESC LIMIT 1
             """
@@ -595,6 +287,23 @@ def register_team_routes(bp, admin_required):
                 agent["skills"] = skills_map.get(a["id"], [])
                 agent["skill_count"] = len(agent["skills"])
                 result.append(agent)
+
+            # Merge live Bridge data (status, current job, wellness, stats)
+            try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                manifest = get_dispatcher().get_crew_manifest()
+                live_map = {m["agent_id"]: m for m in manifest}
+                for agent in result:
+                    live = live_map.get(agent["id"], {})
+                    agent["live_status"] = live.get("status", "unknown")
+                    agent["current_job"] = live.get("current_job")
+                    agent["wellness"] = live.get("wellness")
+                    agent["stats_24h"] = live.get("stats_24h")
+                    agent["learning_count"] = live.get("learning_count", 0)
+            except Exception:
+                pass  # Degrade gracefully — roster still works without live data
+
             return jsonify({"success": True, "agents": result})
         except Exception as e:
             traceback.print_exc()
@@ -693,6 +402,26 @@ def register_team_routes(bp, admin_required):
                 (agent_id,),
             )
             station = cur.fetchone()
+
+            # Merge live Bridge data
+            live = {}
+            try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                manifest = get_dispatcher().get_crew_manifest()
+                for m in manifest:
+                    if m["agent_id"] == agent_id:
+                        live = {
+                            "status": m.get("status", "unknown"),
+                            "current_job": m.get("current_job"),
+                            "wellness": m.get("wellness"),
+                            "stats_24h": m.get("stats_24h"),
+                            "learning_count": m.get("learning_count", 0),
+                        }
+                        break
+            except Exception:
+                pass
+
             return jsonify(
                 {
                     "success": True,
@@ -704,6 +433,7 @@ def register_team_routes(bp, admin_required):
                     "learning": [dict(l) for l in learning],
                     "rest_cycles": [dict(r) for r in rest],
                     "station": dict(station) if station else None,
+                    "live": live,
                 }
             )
         except Exception as e:

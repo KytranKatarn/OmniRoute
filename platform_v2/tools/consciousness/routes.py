@@ -1106,7 +1106,7 @@ def get_complete_brain_state():
         cur.execute(
             """
             SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
-                   relationship_strength as confidence, user_id, notes
+                   stress_level as confidence, trigger_event as notes
             FROM agent_emotional_state
             ORDER BY timestamp DESC LIMIT 1
         """
@@ -1716,7 +1716,7 @@ def get_activity_feed():
                     current_mood as subtype,
                     mood_intensity,
                     mood_intensity as energy,
-                    relationship_strength as confidence,
+                    stress_level as confidence,
                     timestamp as created_at,
                     'Mood: ' || current_mood || ' (Energy: ' || ROUND(mood_intensity::numeric, 2) || ')' as description
                 FROM agent_emotional_state
@@ -1884,7 +1884,7 @@ def get_activity_stats():
         cur.execute(
             """
             SELECT current_mood as mood, mood_intensity as energy,
-                   relationship_strength as confidence, timestamp
+                   stress_level as confidence, timestamp
             FROM agent_emotional_state
             ORDER BY timestamp DESC
             LIMIT 1

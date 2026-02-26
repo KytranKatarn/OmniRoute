@@ -33,14 +33,12 @@ CLAUDE_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
 
 # Ollama configuration (fallback when no Claude API key)
-# Model resolved via BridgeDispatcher for knowledge_analysis capability
+# Analysis model — dolphin3-8k (GPU) is best for knowledge extraction from
+# conversations and documents.  qwen3-coder-cpu is a coding model that produces
+# empty/truncated JSON when Ollama's format:json constraint suppresses its
+# thinking tokens.  Override via OLLAMA_ANALYSIS_MODEL env var if needed.
 def _get_analysis_model():
-    try:
-        from bridge_dispatcher import get_dispatcher
-        model = get_dispatcher().get_model_for_capability("knowledge_analysis")
-        return model or "qwen3-coder-cpu:latest"
-    except Exception:
-        return os.getenv("OLLAMA_ANALYSIS_MODEL", "qwen3-coder-cpu:latest")
+    return os.getenv("OLLAMA_ANALYSIS_MODEL", "dolphin3-8k:latest")
 
 OLLAMA_MODEL = _get_analysis_model()
 # Fast model for short entries (disabled by default — model swapping crashes on small-VRAM GPUs)
@@ -261,6 +259,12 @@ class KnowledgeAnalyzer:
             self.backend = backend
 
         logger.info(f"Knowledge analyzer using backend: {self.backend}")
+
+    def get_current_model(self) -> str:
+        """Return the model name currently used for analysis."""
+        if self.backend == "claude":
+            return CLAUDE_MODEL
+        return OLLAMA_MODEL
 
     @property
     def client(self):

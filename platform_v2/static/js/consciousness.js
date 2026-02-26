@@ -466,13 +466,16 @@ function renderKnowledgeOps(agentData, jobData) {
     }
   }
 
-  /* Render jobs section */
+  /* Render jobs section — deduplicate by job ID (like GitHub tab) */
   var jobsEl = document.getElementById("kbOpsJobs");
   if (jobsEl) {
     if (jobData && jobData.length) {
+      var seen = {};
+      var unique = jobData.filter(function(j) { if (seen[j.id]) return false; seen[j.id] = true; return true; });
       var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
-      jobData.forEach(function(j) {
+      unique.forEach(function(j) {
         var pct = j.progress_pct || 0;
+        var desc = j.description || j.job_type || "Processing";
         var agentLabel = j.agent_name || "Queued";
         var stationLabel = j.station_code || "";
         if (stationLabel) agentLabel += " \u2022 " + stationLabel;
@@ -481,7 +484,7 @@ function renderKnowledgeOps(agentData, jobData) {
         var countLabel = total > 0 ? ('<span class="cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
         html += '<div class="cs-ops-job-row">' +
           '<div class="cs-ops-job-info">' +
-            '<div class="cs-ops-job-desc">' + escHtml(j.description) + '</div>' +
+            '<div class="cs-ops-job-desc">' + escHtml(desc) + '</div>' +
             '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
           '</div>' +
           '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
@@ -756,12 +759,8 @@ function checkActiveJobs() {
       return;
     }
 
-    /* ── Knowledge tab — show active jobs in ops terminal ── */
-    var kbJobsEl = document.getElementById("kbOpsJobs");
-    if (kbJobsEl) {
-      _renderBridgeJobs(myJobs, "kbOpsJobs", "kb");
-      _disableProcessingBtns();
-    }
+    /* ── Knowledge tab — jobs already rendered by _renderStationStatus above ── */
+    _disableProcessingBtns();
     myJobs.forEach(function(job) {
       var pollKey = "kb_" + job.id;
       if (!_activeJobPolls[pollKey]) {
@@ -807,16 +806,14 @@ function checkActiveJobs() {
       }
     });
 
-    /* ── Languages tab — show translation jobs in ops terminal ── */
+    /* ── Languages tab — jobs already rendered by _renderStationStatus above ── */
     var langJobs = myJobs.filter(function(j) {
       return (j.job_type || "").indexOf("translate") > -1;
     });
-    renderLangOps(null, langJobs.length ? langJobs : null);
 
     var langWrap = document.getElementById("langJobProgress");
     if (langWrap && langJobs.length) {
       langWrap.style.display = "block";
-      _renderBridgeJobs(langJobs, "langJobProgressInner", "lang");
       langJobs.forEach(function(job) {
         var pollKey = "lang_" + job.id;
         if (!_activeJobPolls[pollKey]) {
@@ -851,17 +848,12 @@ function checkActiveJobs() {
 function _renderStationStatus(allJobs, myJobs) {
   var jobData = myJobs.length ? myJobs : null;
 
-  /* Knowledge tab — update LCARS ops terminal */
+  /* Pass ALL consciousness jobs to every tab so agents show as busy
+     regardless of which tab the job belongs to.
+     Each tab filters its own job display section. */
   renderKnowledgeOps(null, jobData);
-
-  /* GitHub tab — update LCARS ops terminal */
   renderGitHubOps(null, jobData);
-
-  /* Languages tab — update LCARS ops terminal */
-  var langJobs = (myJobs || []).filter(function(j) {
-    return (j.job_type || "").indexOf("translate") > -1;
-  });
-  renderLangOps(null, langJobs.length ? langJobs : null);
+  renderLangOps(null, jobData);
 }
 
 function _buildJobHtml(job) {
@@ -1431,7 +1423,7 @@ var _langGenRunning = false;
 /* ── Languages LCARS Operations Terminal ───────────── */
 
 function renderLangOps(agentData, jobData) {
-  /* Render agents section — ANALYTICS crew + cross-station assists */
+  /* Render agents section — pass ALL jobs for busy detection */
   var agentsEl = document.getElementById("langOpsAgents");
   if (agentsEl) {
     if (agentData && agentData.length) {
@@ -1448,13 +1440,16 @@ function renderLangOps(agentData, jobData) {
     }
   }
 
-  /* Render jobs section */
+  /* Render jobs section — show ALL active consciousness jobs, deduplicate */
   var jobsEl = document.getElementById("langOpsJobs");
   if (jobsEl) {
     if (jobData && jobData.length) {
+      var seen = {};
+      var unique = jobData.filter(function(j) { if (seen[j.id]) return false; seen[j.id] = true; return true; });
       var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
-      jobData.forEach(function(j) {
+      unique.forEach(function(j) {
         var pct = j.progress_pct || 0;
+        var desc = j.description || j.job_type || "Processing";
         var agentLabel = j.agent_name || "Queued";
         var stationLabel = j.station_code || "";
         if (stationLabel) agentLabel += " \u2022 " + stationLabel;
@@ -1463,7 +1458,7 @@ function renderLangOps(agentData, jobData) {
         var countLabel = total > 0 ? ('<span class="cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
         html += '<div class="cs-ops-job-row">' +
           '<div class="cs-ops-job-info">' +
-            '<div class="cs-ops-job-desc">' + escHtml(j.description) + '</div>' +
+            '<div class="cs-ops-job-desc">' + escHtml(desc) + '</div>' +
             '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
           '</div>' +
           '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
@@ -2042,6 +2037,9 @@ function loadGitHubEmbedStats() {
 
 /* ── Shared: Render station crew + cross-station assists ─── */
 
+/* Track station capacity — updated by _renderOpsAgents */
+var _stationAtCapacity = false;
+
 function _renderOpsAgents(elId, homeStationCode, jobData) {
   var agentsEl = document.getElementById(elId);
   if (!agentsEl) return;
@@ -2101,9 +2099,22 @@ function _renderOpsAgents(elId, homeStationCode, jobData) {
       });
     }
 
+    /* Count how many crew members are busy */
+    var busyCrew = 0;
+    crew.forEach(function(a) {
+      if (busyMap[a.agentName] || busyMap[a.name]) busyCrew++;
+    });
+
+    /* Station is at capacity when all crew busy AND auxiliary is full */
+    var wasAtCapacity = _stationAtCapacity;
+    _stationAtCapacity = (busyCrew >= crew.length && crew.length > 0) && (assists.length >= maxAux);
+    if (_stationAtCapacity !== wasAtCapacity) {
+      _applyStationCapacity(_stationAtCapacity);
+    }
+
     var html = '';
 
-    /* ── STATION CREW section ── */
+    /* STATION CREW section */
     html += '<div class="cs-ops-section-label">STATION CREW (' + crew.length + '/' + maxPrimary + ')</div>';
     if (crew.length) {
       crew.forEach(function(a) {
@@ -2118,7 +2129,7 @@ function _renderOpsAgents(elId, homeStationCode, jobData) {
       html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.3); padding:3px 8px; font-style:italic;">No primary crew assigned</div>';
     }
 
-    /* ── AUXILIARY section ── */
+    /* AUXILIARY section */
     html += '<div class="cs-ops-section-label" style="margin-top:8px;">AUXILIARY (' + assists.length + '/' + maxAux + ')</div>';
     if (assists.length) {
       assists.forEach(function(a) {
@@ -2133,7 +2144,7 @@ function _renderOpsAgents(elId, homeStationCode, jobData) {
       html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.3); padding:3px 8px; font-style:italic;">Slot available</div>';
     }
 
-    /* ── CONTRACTOR section (only if active) ── */
+    /* CONTRACTOR section (only if active) */
     if (contractors.length) {
       html += '<div class="cs-ops-section-label" style="margin-top:8px; color:#a78bfa;">CONTRACTOR (' + contractors.length + ')</div>';
       contractors.forEach(function(c) {
@@ -2146,9 +2157,49 @@ function _renderOpsAgents(elId, homeStationCode, jobData) {
       });
     }
 
-    setHtml(agentsEl, html);
+    /* Station capacity banner */
+    if (_stationAtCapacity) {
+      html += '<div class="cs-ops-capacity-banner">STATION AT CAPACITY \u2014 awaiting free slot</div>';
+    }
+
+    /* Only update DOM if content actually changed */
+    if (agentsEl.innerHTML !== html) {
+      setHtml(agentsEl, html);
+    }
   }).catch(function() {
-    setHtml(agentsEl, "");
+    if (agentsEl.innerHTML !== "") setHtml(agentsEl, "");
+  });
+}
+
+function _applyStationCapacity(atCapacity) {
+  /* Disable/enable ALL command buttons across all tabs when station is full */
+  var allBtnIds = [
+    "btnStartAnalysis", "btnEmbedKB",
+    "btnReindexAll", "btnEmbedGH",
+    "langAuditBtn", "langScanBtn", "langGenAllBtn", "langFullPassBtn"
+  ];
+  allBtnIds.forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (btn) {
+      btn.disabled = atCapacity;
+      btn.title = atCapacity ? "Station at capacity \u2014 all agents busy" : "";
+    }
+  });
+  /* Update ops terminal status indicators */
+  ["kbOpsOnline", "ghOpsOnline", "langOpsOnline"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var dot = el.querySelector(".cs-ops-dot");
+    var textNode = el.childNodes[el.childNodes.length - 1];
+    if (atCapacity) {
+      if (dot) { dot.style.background = "#f59e0b"; dot.style.boxShadow = "0 0 4px #f59e0b"; }
+      if (textNode && textNode.nodeType === 3) textNode.textContent = " AT CAPACITY";
+      el.style.color = "#f59e0b";
+    } else {
+      if (dot) { dot.style.background = ""; dot.style.boxShadow = ""; }
+      if (textNode && textNode.nodeType === 3) textNode.textContent = " ONLINE";
+      el.style.color = "";
+    }
   });
 }
 

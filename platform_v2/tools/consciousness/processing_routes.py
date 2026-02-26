@@ -336,19 +336,12 @@ def estimate_batch():
 def _run_analysis_job(items_data, category, batch_id, job_id):
     """Background worker for knowledge analysis.
 
-    Routes each item through Bridge Command's request_work() pipeline
-    so agent selection, model routing, escalation, welfare tracking,
-    and execution logging are all handled by Bridge — not direct Ollama.
+    Uses KnowledgeAnalyzer directly for LLM calls (proper model selection,
+    no format:json constraint that chokes thinking models like qwen3).
+    Bridge job lifecycle is still tracked for the 3D bridge view.
+    External calls are logged for HR/welfare tracking.
     """
-    from ai_bridge.knowledge_analyzer import (
-        get_knowledge_analyzer,
-        CONVERSATION_ANALYSIS_PROMPT,
-        CODE_ANALYSIS_PROMPT,
-        _smart_truncate,
-        KnowledgeCard,
-        ExtractedRelationship,
-        AnalysisResult,
-    )
+    from ai_bridge.knowledge_analyzer import get_knowledge_analyzer
     from ai_bridge.embedding_service import generate_embedding
     from ai_bridge.knowledge_cards import save_knowledge_card
     from ai_bridge.relationship_mapper import get_relationship_mapper
@@ -363,7 +356,6 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
     cards_created = 0
     total_input_tokens = 0
     total_output_tokens = 0
-    batch_agent = None  # Lock to same agent for entire batch
 
     try:
         for item_id, title, content, metadata in items_data:
@@ -372,6 +364,7 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                     metadata = json.loads(metadata)
                 metadata = metadata or {}
                 metadata["source_id"] = item_id
+                metadata["source_ref"] = str(item_id)
 
                 if not content or len(content.strip()) < 100:
                     errors += 1
@@ -379,95 +372,42 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                         dispatcher.update_job_progress(job_id, processed, errors)
                     continue
 
-                # Build prompt (same templates the analyzer uses)
-                truncated = _smart_truncate(content, 24000)
+                # Use analyzer directly — it picks the right model
+                # (dolphin3-8k GPU for chat, avoids format:json constraint
+                # that produces empty responses with qwen3 thinking models)
                 if category == "conversations":
-                    prompt = CONVERSATION_ANALYSIS_PROMPT.format(
-                        content=truncated,
-                        source_type=metadata.get("source_type", "conversation_log"),
-                        project=metadata.get("project", "unknown"),
-                        date=metadata.get("date", datetime.now().isoformat()),
-                    )
+                    result = analyzer.analyze_conversation(content, metadata)
                 else:
-                    prompt = CODE_ANALYSIS_PROMPT.format(
-                        content=truncated,
+                    result = analyzer.analyze_code_file(
+                        content,
                         filename=title or "unknown",
-                        language=metadata.get("language", "unknown"),
+                        language=metadata.get("language"),
                     )
 
-                # Dispatch through Bridge — agent selection, model routing,
-                # escalation, welfare, execution logging all handled here.
-                # prefer_agent locks to the same agent for the entire batch.
-                dispatch_result = dispatcher.request_work(
-                    capability="knowledge_analysis",
-                    prompt=prompt,
-                    module_id="consciousness",
-                    json_mode=True,
-                    timeout=300,
-                    job_id=job_id,
-                    prefer_agent=batch_agent,
-                )
-
-                # Lock to first successful agent for batch consistency
-                if dispatch_result.success and not batch_agent:
-                    batch_agent = dispatch_result.agent_name
-
-                if not dispatch_result.success:
-                    logger.warning(f"[Analysis] Bridge dispatch failed for item {item_id}: " f"{dispatch_result.error}")
+                if not result.success:
+                    logger.warning(f"[Analysis] Analyzer failed for item {item_id}: " f"{result.error}")
                     errors += 1
                     if job_id:
                         dispatcher.update_job_progress(job_id, processed, errors)
                     continue
 
-                total_input_tokens += dispatch_result.prompt_tokens
-                total_output_tokens += dispatch_result.completion_tokens
+                total_input_tokens += result.input_tokens
+                total_output_tokens += result.output_tokens
 
-                # Parse response using analyzer's JSON parser
-                data = analyzer._parse_json_response(dispatch_result.response)
-
-                # Build AnalysisResult from parsed data
-                cards = []
-                for card_data in data.get("cards", []):
-                    cards.append(
-                        KnowledgeCard(
-                            title=card_data.get("title", "Untitled"),
-                            card_type=card_data.get("card_type", "concept"),
-                            summary=card_data.get("summary", ""),
-                            detailed=card_data.get("detailed", ""),
-                            code_examples=card_data.get("code_examples", []),
-                            topics=card_data.get("topics", []),
-                            technologies=card_data.get("technologies", []),
-                            difficulty=card_data.get("difficulty", "intermediate"),
-                            confidence=float(card_data.get("confidence", 0.7)),
-                            source_type=metadata.get("source_type", "conversation"),
-                            source_ref=str(item_id),
-                        )
-                    )
-
-                relationships = []
-                for rel_data in data.get("relationships", []):
-                    relationships.append(
-                        ExtractedRelationship(
-                            from_title=rel_data.get("from_title", ""),
-                            to_title=rel_data.get("to_title", ""),
-                            relationship_type=rel_data.get("relationship_type", "related_to"),
-                            strength=float(rel_data.get("strength", 0.5)),
-                            reasoning=rel_data.get("reasoning", ""),
-                        )
-                    )
-
-                result = AnalysisResult(
+                # Log external call for HR/welfare tracking
+                dispatcher.log_external_call(
+                    capability="knowledge_analysis",
+                    module_id="consciousness",
+                    model_used=analyzer.get_current_model(),
+                    duration_ms=result.processing_time_ms,
                     success=True,
-                    cards=cards,
-                    relationships=relationships,
-                    input_tokens=dispatch_result.prompt_tokens,
-                    output_tokens=dispatch_result.completion_tokens,
-                    processing_time_ms=dispatch_result.duration_ms,
                 )
 
                 # Save cards + embeddings
                 title_to_id = {}
                 for card in result.cards:
+                    # Set source_ref from item_id
+                    card.source_ref = str(item_id)
                     embedding = generate_embedding(f"{card.title}. {card.summary}")
                     card_id = save_knowledge_card(card, embedding, batch_id)
                     if card_id:
@@ -485,7 +425,7 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                         job_id,
                         processed,
                         errors,
-                        {"cards_created": cards_created, "agent": dispatch_result.agent_name},
+                        {"cards_created": cards_created},
                     )
 
             except Exception as e:
@@ -513,7 +453,7 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
     finally:
         if job_id:
             dispatcher.complete_job(job_id)
-        logger.info(f"[Analysis] Job #{job_id} finished: {processed} ok, {errors} failed, {cards_created} cards")
+        logger.info(f"[Analysis] Job #{job_id} finished: " f"{processed} ok, {errors} failed, {cards_created} cards")
 
 
 @processing_bp.route("/start", methods=["POST"])
@@ -613,13 +553,18 @@ def start_processing():
 
 
 def _update_source_analysis(item_id: int, result, batch_id: str):
-    """Update source entry with analysis results"""
+    """Update source entry with analysis results.
+
+    Items with 0 cards extracted are NOT marked as fully analyzed
+    (analysis_version stays 0) so they can be retried in future batches.
+    """
     try:
         conn = get_db()
         cur = conn.cursor()
 
+        cards_count = len(result.cards)
         ai_analysis = {
-            "cards_extracted": len(result.cards),
+            "cards_extracted": cards_count,
             "relationships_extracted": len(result.relationships),
             "input_tokens": result.input_tokens,
             "output_tokens": result.output_tokens,
@@ -628,13 +573,17 @@ def _update_source_analysis(item_id: int, result, batch_id: str):
             "analyzed_at": datetime.now().isoformat(),
         }
 
+        # Only mark as fully analyzed (version=1) if cards were extracted.
+        # Items with 0 cards keep version=0 so they are retried next batch.
+        version = 1 if cards_count > 0 else 0
+
         cur.execute(
             """
             UPDATE knowledge_base
-            SET ai_analysis = %s, analysis_version = 1
+            SET ai_analysis = %s, analysis_version = %s
             WHERE id = %s
             """,
-            (json.dumps(ai_analysis), item_id),
+            (json.dumps(ai_analysis), version, item_id),
         )
         conn.commit()
     except Exception as e:

@@ -133,7 +133,7 @@ def save_knowledge_card(
             "extraction_date": datetime.now().isoformat(),
         }
 
-        # Insert into knowledge_base
+        # Insert into knowledge_base (upsert on duplicate title)
         if embedding:
             cur.execute(
                 """
@@ -142,6 +142,13 @@ def save_knowledge_card(
                      importance_score, memory_metadata, tags, embedding, embedding_generated_at,
                      ai_analysis, analysis_version)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, 1)
+                ON CONFLICT (title) WHERE title IS NOT NULL DO UPDATE SET
+                    content = EXCLUDED.content,
+                    ai_analysis = EXCLUDED.ai_analysis,
+                    embedding = EXCLUDED.embedding,
+                    embedding_generated_at = NOW(),
+                    importance_score = EXCLUDED.importance_score,
+                    updated_at = NOW()
                 RETURNING id
                 """,
                 (
@@ -164,6 +171,11 @@ def save_knowledge_card(
                     (title, content, knowledge_type, source_type, category,
                      importance_score, memory_metadata, tags, ai_analysis, analysis_version)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+                ON CONFLICT (title) WHERE title IS NOT NULL DO UPDATE SET
+                    content = EXCLUDED.content,
+                    ai_analysis = EXCLUDED.ai_analysis,
+                    importance_score = EXCLUDED.importance_score,
+                    updated_at = NOW()
                 RETURNING id
                 """,
                 (

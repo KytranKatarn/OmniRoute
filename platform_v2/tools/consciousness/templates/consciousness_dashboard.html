@@ -814,15 +814,8 @@
 .cs-mood-indicator {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    margin-bottom: 20px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(139, 92, 246, 0.1);
-    border-radius: 10px;
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
+    gap: 8px;
+    padding: 6px 0;
 }
 .cs-mood-dot {
     width: 10px; height: 10px;
@@ -897,6 +890,21 @@
     .cs-dashboard-grid-3 { grid-template-columns: 1fr; }
     .cs-mood-stats { display: none; }
     .cs-mood-indicator { max-width: none; }
+}
+/* --- Compact stat cards (System Health) --- */
+.cs-stats-compact .cs-stat {
+    padding: 12px 14px;
+}
+.cs-stats-compact .cs-stat-icon {
+    width: 30px; height: 30px;
+    margin-bottom: 8px;
+}
+.cs-stats-compact .cs-stat-icon i { width: 16px; height: 16px; }
+.cs-stats-compact .cs-stat-value {
+    font-size: 1.2rem;
+}
+.cs-stats-compact .cs-stat-label {
+    font-size: 0.62rem;
 }
 /* --- Dashboard Section Labels --- */
 .cs-dash-section-label {
@@ -1876,6 +1884,20 @@
 .cs-ops-cmd.green  { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: #22c55e; }
 .cs-ops-cmd.cyan   { background: rgba(0,255,255,0.1); border: 1px solid rgba(0,255,255,0.25); color: #00ffff; }
 .cs-ops-cmd:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+.cs-ops-capacity-banner {
+    margin-top: 8px;
+    padding: 5px 10px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #f59e0b;
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 6px;
+    text-align: center;
+}
 
 /* Loop (continuous run) button states */
 .cs-ops-cmd.cs-loop-idle {
@@ -2035,49 +2057,45 @@
                 </div>
             </div>
 
-            <!-- 3. Mood Indicator -->
-            <div class="cs-mood-indicator" id="moodIndicator">
-                <span class="cs-mood-dot" id="moodDot"></span>
-                <span class="cs-mood-label">Emotional State</span>
-                <span class="cs-mood-value" id="moodValue">--</span>
-                <div class="cs-mood-stats">
-                    <div class="cs-mood-stat">
-                        <span class="cs-mood-stat-value" id="moodEnergy" style="color:#22c55e">--</span>
-                        <span class="cs-mood-stat-label">Energy</span>
-                    </div>
-                    <div class="cs-mood-stat">
-                        <span class="cs-mood-stat-value" id="moodStress" style="color:#ef4444">--</span>
-                        <span class="cs-mood-stat-label">Stress</span>
-                    </div>
-                    <div class="cs-mood-stat">
-                        <span class="cs-mood-stat-value" id="moodConfidence" style="color:#3b82f6">--</span>
-                        <span class="cs-mood-stat-label">Intensity</span>
-                    </div>
+            <!-- 3. System Health -->
+            <div class="cs-dash-section-label">SYSTEM HEALTH</div>
+            <div class="holo-hud" style="margin-bottom:16px;">
+                <div class="holo-hud-item green">
+                    <span class="holo-hud-value" id="intDevhqStatus">--</span>
+                    <span class="holo-hud-label">Dev HQ</span>
+                </div>
+                <div class="holo-hud-item blue">
+                    <span class="holo-hud-value" id="intBridgeStatus">--</span>
+                    <span class="holo-hud-label">Bridge</span>
+                </div>
+                <div class="holo-hud-item purple">
+                    <span class="holo-hud-value" id="intOllamaStatus">--</span>
+                    <span class="holo-hud-label">Ollama</span>
+                </div>
+                <div class="holo-hud-item amber">
+                    <span class="holo-hud-value" id="intGithubStatus">--</span>
+                    <span class="holo-hud-label">GitHub</span>
                 </div>
             </div>
 
-            <!-- 4. Operational Analytics (absorbed from Insights tab) -->
+            <!-- 4. Operational Analytics -->
             <div class="cs-dash-section-label">OPERATIONAL ANALYTICS &middot; 7 DAYS</div>
-            <div class="cs-stats" style="margin-bottom:24px;">
-                <div class="cs-stat purple">
-                    <div class="cs-stat-icon"><i data-lucide="zap"></i></div>
-                    <div class="cs-stat-value" id="insightsBridgeTotal">--</div>
-                    <div class="cs-stat-label">Bridge Calls</div>
+            <div class="holo-hud" style="margin-bottom:20px;">
+                <div class="holo-hud-item purple">
+                    <span class="holo-hud-value" id="insightsBridgeTotal">--</span>
+                    <span class="holo-hud-label">Bridge Calls</span>
                 </div>
-                <div class="cs-stat blue">
-                    <div class="cs-stat-icon"><i data-lucide="clock"></i></div>
-                    <div class="cs-stat-value" id="insightsAvgTime">--</div>
-                    <div class="cs-stat-label">Avg Response (ms)</div>
+                <div class="holo-hud-item blue">
+                    <span class="holo-hud-value" id="insightsAvgTime">--</span>
+                    <span class="holo-hud-label">Avg Response</span>
                 </div>
-                <div class="cs-stat green">
-                    <div class="cs-stat-icon"><i data-lucide="hash"></i></div>
-                    <div class="cs-stat-value" id="insightsTokens">--</div>
-                    <div class="cs-stat-label">Total Tokens</div>
+                <div class="holo-hud-item green">
+                    <span class="holo-hud-value" id="insightsTokens">--</span>
+                    <span class="holo-hud-label">Total Tokens</span>
                 </div>
-                <div class="cs-stat amber">
-                    <div class="cs-stat-icon"><i data-lucide="book-plus"></i></div>
-                    <div class="cs-stat-value" id="insightsGrowth">--</div>
-                    <div class="cs-stat-label">New Knowledge</div>
+                <div class="holo-hud-item amber">
+                    <span class="holo-hud-value" id="insightsGrowth">--</span>
+                    <span class="holo-hud-label">New Knowledge</span>
                 </div>
             </div>
 
@@ -2092,6 +2110,11 @@
                 <div class="cs-card accent-green">
                     <div class="cs-card-header" data-i18n="consciousness.dashboard.fleet_wellness">Fleet Wellness</div>
                     <div class="cs-card-body no-scroll">
+                        <div class="cs-mood-indicator" id="moodIndicator" style="margin-bottom:10px;">
+                            <span class="cs-mood-dot" id="moodDot"></span>
+                            <span class="cs-mood-label">Emotional State</span>
+                            <span class="cs-mood-value" id="moodValue">--</span>
+                        </div>
                         <div class="cs-wellness-row">
                             <span data-i18n="consciousness.dashboard.energy">Energy</span>
                             <div class="cs-wellness-bar"><div class="cs-wellness-fill green" id="wellnessEnergyBar" style="width:0%"></div></div>
@@ -2117,30 +2140,7 @@
                 </div>
             </div>
 
-            <!-- 6. System Health (absorbed from Integration tab) -->
-            <div class="cs-dash-section-label">SYSTEM HEALTH</div>
-            <div class="cs-stats" style="margin-bottom:20px;">
-                <div class="cs-stat green">
-                    <div class="cs-stat-icon"><i data-lucide="folder-kanban"></i></div>
-                    <div class="cs-stat-value" id="intDevhqStatus">--</div>
-                    <div class="cs-stat-label">Dev HQ</div>
-                </div>
-                <div class="cs-stat blue">
-                    <div class="cs-stat-icon"><i data-lucide="radio-tower"></i></div>
-                    <div class="cs-stat-value" id="intBridgeStatus">--</div>
-                    <div class="cs-stat-label">Bridge</div>
-                </div>
-                <div class="cs-stat purple">
-                    <div class="cs-stat-icon"><i data-lucide="cpu"></i></div>
-                    <div class="cs-stat-value" id="intOllamaStatus">--</div>
-                    <div class="cs-stat-label">Ollama</div>
-                </div>
-                <div class="cs-stat amber">
-                    <div class="cs-stat-icon"><i data-lucide="github"></i></div>
-                    <div class="cs-stat-value" id="intGithubStatus">--</div>
-                    <div class="cs-stat-label">GitHub</div>
-                </div>
-            </div>
+            <!-- System Health moved to section 3 above -->
 
             <!-- 7. Pipeline Test (collapsible, absorbed from Integration tab) -->
             <div class="cs-pipeline-accordion">

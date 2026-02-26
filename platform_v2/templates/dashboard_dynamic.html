@@ -339,18 +339,24 @@ body.light-mode::before {
     --frame-color: #00ff41;
     --frame-rgb: 0, 255, 65;
     background: var(--archie-bg-primary, #010409);
-    border-bottom: 2px solid rgba(0, 255, 65, 0.25);
 }
 
-/* Override compact frame bar for command bar specifics */
-.command-bar-frame .lcars-frame--compact .lcars-bar {
-    height: 44px;
-    background: var(--frame-color);
+/* Top elbow: hide the default, replaced by a flipped bottom-elbow div */
+.command-bar-frame .lcars-elbow-top {
+    display: none !important;
+}
+
+/* Command bar uses same solid bar style as other frames */
+.command-bar-frame .lcars-bar {
+    /* Thin decorative strip — nav elements are in .lcars-body below */
+}
+
+.command-bar-frame .lcars-body {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 0 16px;
+    padding: 4px 16px;
     font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
 }
 
@@ -361,24 +367,6 @@ body.light-mode::before {
 
 #command-bar.scrolled {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-}
-
-/* ── Glass backing behind the bar content (dark mode) ── */
-.command-bar-frame .lcars-content {
-    background: rgba(10, 10, 26, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-radius: 0;
-}
-
-.command-bar-frame .lcars-bar {
-    background: transparent !important;
-    border-radius: 0 !important;
-}
-
-/* ── Elbow: dark bg behind the cutout ── */
-.command-bar-frame .lcars-elbow-top::after {
-    background: rgba(10, 10, 26, 0.85);
 }
 
 /* Command Bar Zones */
@@ -434,15 +422,15 @@ body.light-mode::before {
 }
 
 .cb-badge-role {
-    background: rgba(0, 255, 65, 0.15);
-    color: #00FF41;
-    border: 1px solid rgba(0, 255, 65, 0.25);
+    background: rgba(0, 255, 65, 0.1);
+    color: var(--frame-color, #00ff41);
+    border: 1px solid rgba(0, 255, 65, 0.3);
 }
 
 .cb-badge-tier {
-    background: rgba(0, 204, 255, 0.12);
-    color: #00CCFF;
-    border: 1px solid rgba(0, 204, 255, 0.2);
+    background: rgba(0, 255, 255, 0.08);
+    color: #00ffff;
+    border: 1px solid rgba(0, 255, 255, 0.25);
 }
 
 /* Quick Search */
@@ -456,9 +444,9 @@ body.light-mode::before {
     height: 30px;
     padding: 0 36px 0 32px;
     border-radius: 8px;
-    border: 1px solid rgba(0, 255, 65, 0.12);
-    background: rgba(0, 255, 65, 0.04);
-    color: #ccc;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #e0e0e0;
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
     outline: none;
@@ -466,13 +454,13 @@ body.light-mode::before {
 }
 
 .cb-search-input::placeholder {
-    color: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.35);
 }
 
 .cb-search-input:focus {
-    border-color: rgba(0, 255, 65, 0.3);
-    background: rgba(0, 255, 65, 0.06);
-    box-shadow: 0 0 12px rgba(0, 255, 65, 0.1);
+    border-color: rgba(0, 255, 65, 0.4);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 12px rgba(0, 255, 65, 0.08);
 }
 
 .cb-search-icon {
@@ -482,7 +470,7 @@ body.light-mode::before {
     transform: translateY(-50%);
     width: 14px;
     height: 14px;
-    color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.4);
     pointer-events: none;
 }
 
@@ -492,11 +480,11 @@ body.light-mode::before {
     top: 50%;
     transform: translateY(-50%);
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.3);
     background: rgba(255, 255, 255, 0.06);
     padding: 1px 6px;
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     pointer-events: none;
     font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
 }
@@ -660,9 +648,8 @@ body.light-mode .cb-search-result-icon {
 }
 
 .cb-icon-btn:hover {
-    color: #00FF41;
-    background: rgba(0, 255, 65, 0.08);
-    box-shadow: 0 0 12px rgba(0, 255, 65, 0.15);
+    color: var(--frame-color, #00ff41);
+    background: rgba(0, 255, 65, 0.1);
 }
 
 .cb-icon-btn svg {
@@ -1318,22 +1305,21 @@ body.light-mode .cb-lang-option.active {
    LIGHT MODE OVERRIDES — Command Bar Frame & HUD
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* LCARS frame light mode: glass bg becomes white */
+/* LCARS frame light mode */
 [data-theme="light"] .command-bar-frame,
 body.light-mode .command-bar-frame {
     background: #ffffff;
-    border-bottom-color: rgba(0, 128, 32, 0.15);
-}
-
-[data-theme="light"] .command-bar-frame .lcars-content,
-body.light-mode .command-bar-frame .lcars-content {
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
 }
 
 [data-theme="light"] .command-bar-frame .lcars-elbow-top::after,
 body.light-mode .command-bar-frame .lcars-elbow-top::after {
+    background: #ffffff;
+}
+
+[data-theme="light"] .command-bar-frame .lcars-elbow-bottom::after,
+body.light-mode .command-bar-frame .lcars-elbow-bottom::after,
+[data-theme="light"] .command-bar-frame .cb-top-mirror::after,
+body.light-mode .command-bar-frame .cb-top-mirror::after {
     background: #ffffff;
 }
 
@@ -1344,7 +1330,21 @@ body.light-mode #command-bar.scrolled {
 
 [data-theme="light"] .cb-username,
 body.light-mode .cb-username {
-    color: #222;
+    color: #333;
+}
+
+[data-theme="light"] .cb-badge-role,
+body.light-mode .cb-badge-role {
+    background: rgba(0, 122, 32, 0.08);
+    color: #007a20;
+    border-color: rgba(0, 122, 32, 0.2);
+}
+
+[data-theme="light"] .cb-badge-tier,
+body.light-mode .cb-badge-tier {
+    background: rgba(0, 128, 128, 0.06);
+    color: #006a6a;
+    border-color: rgba(0, 128, 128, 0.15);
 }
 
 [data-theme="light"] .cb-search-input,
@@ -2675,7 +2675,7 @@ body.light-mode .module-card-accent {
 
 {% block extra_head %}
 <!-- LCARS structural frames (elbows, sidebars, bars) -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}?v=1.3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}?v=1.4">
 <!-- Font Awesome 6 (category header icons use fas fa-* classes) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 {% endblock %}
@@ -2706,15 +2706,19 @@ body.light-mode .module-card-accent {
 
     <!-- Section 3: Command Bar — LCARS Compact Frame -->
     <div class="command-bar-frame" style="--frame-color: #00ff41; --frame-rgb: 0,255,65">
-        <div class="lcars-frame lcars-frame--compact boot-hidden">
-            <div class="lcars-sidebar">
+        <div class="lcars-frame boot-hidden" style="display: flex !important; align-items: stretch !important;">
+            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important;">
                 <div class="lcars-elbow-top"></div>
-                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
-                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
-                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+                <div class="lcars-elbow-bottom cb-top-mirror" style="display: block !important; opacity: 1 !important; max-height: none !important; overflow: visible !important; transform: scaleY(-1) !important; height: 28px !important;"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41; min-height: 12px !important; height: 12px !important;"></div>
+                <div class="lcars-seg" style="--seg-color: #00ffff; min-height: 12px !important; height: 12px !important;"></div>
+                <div class="lcars-elbow-bottom" style="display: block !important; opacity: 1 !important; max-height: none !important; overflow: visible !important;"></div>
             </div>
-            <div class="lcars-content">
-                <div class="lcars-bar" id="command-bar" role="navigation" aria-label="Dashboard command bar">
+            <div class="lcars-content" style="display: flex !important; flex-direction: column !important; flex: 1 !important;">
+                <!-- Thin 16px green bar across the top -->
+                <div class="lcars-bar" style="background: var(--frame-color) !important; height: 14px !important; min-height: 14px !important; flex-shrink: 0 !important; border-radius: 0 var(--frame-radius, 20px) var(--frame-radius, 20px) 0 !important; padding: 0 !important;"></div>
+                <!-- Nav elements in body area -->
+                <div class="lcars-body" id="command-bar" role="navigation" aria-label="Dashboard command bar" style="display: flex !important; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 16px; flex: 1 !important; font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);">
                     <!-- Left Zone: User info -->
                     <div class="cb-zone cb-zone-left">
                         <div class="cb-avatar">{{ current_user.username[0] | upper }}</div>
@@ -2760,6 +2764,9 @@ body.light-mode .module-card-accent {
                             <i data-lucide="log-out"></i>
                         </a>
                     </div>
+                </div>
+                <!-- Command Bar Footer Bar -->
+                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: 10px !important; min-height: 10px !important; flex-shrink: 0 !important; display: flex !important; opacity: 1 !important; max-height: none !important; overflow: visible !important;">
                 </div>
             </div>
         </div>
@@ -2866,7 +2873,7 @@ body.light-mode .module-card-accent {
                         <span class="hud-status-extra"><span data-i18n="hud.uptime">UPTIME</span>: <span id="hudValUptime">--h --m</span></span>
                     </div>
                 </div>
-                <div class="lcars-footer-bar">
+                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: var(--frame-footer-h) !important; display: flex !important; opacity: 1 !important;">
                     <span class="lcars-footer-stardate" id="hudStardate" data-i18n="dashboard_hud_stardate">SD 79145.7</span>
                     <span class="lcars-footer-stardate" data-i18n="dashboard_version_label">v{{ config.get('VERSION','5.32.0') }}</span>
                     <div class="lcars-footer-dots">
@@ -2933,7 +2940,7 @@ body.light-mode .module-card-accent {
                         </div>
                     </div>
                 </div>
-                <div class="lcars-footer-bar">
+                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: var(--frame-footer-h) !important; display: flex !important; opacity: 1 !important;">
                     <span class="lcars-footer-stardate" id="briefingTimestamp" data-i18n="dashboard_briefing_updated">--</span>
                     <div class="lcars-footer-dots">
                         <span class="lcars-footer-dot" style="background:#00ff41"></span>
@@ -2994,7 +3001,7 @@ body.light-mode .module-card-accent {
                         {% endfor %}
                     </div>
                 </div>
-                <div class="lcars-footer-bar">
+                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: var(--frame-footer-h) !important; display: flex !important; opacity: 1 !important;">
                     <span class="lcars-footer-stardate" id="featuredPinCount" data-i18n="dashboard_featured_pinned">PINNED</span>
                     <div class="lcars-footer-dots">
                         <span class="lcars-footer-dot" style="background:#f59e0b"></span>
@@ -3067,7 +3074,7 @@ body.light-mode .module-card-accent {
                     </div>
                 </div>
                 <!-- Footer Bar -->
-                <div class="lcars-footer-bar">
+                <div class="lcars-footer-bar" style="background: var(--frame-color) !important; height: var(--frame-footer-h) !important; display: flex !important; opacity: 1 !important;">
                     <span class="lcars-footer-stardate" data-i18n="cat.{{ cat_key }}">{{ cat_info.name | upper }}</span>
                     <div class="lcars-footer-dots">
                         <span class="lcars-footer-dot" style="background: var(--frame-color)"></span>

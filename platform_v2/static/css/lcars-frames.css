@@ -32,7 +32,7 @@
     --frame-radius: 20px;
     --frame-sidebar-w: 48px;
     --frame-bar-h: 44px;
-    --frame-footer-h: 44px;
+    --frame-footer-h: 16px;
     --frame-elbow-top-h: 52px;
     --frame-elbow-bottom-h: 36px;
     --frame-seg-h: 28px;
@@ -524,7 +524,6 @@ body.light-mode .lcars-body::-webkit-scrollbar-thumb:hover {
 [data-theme="light"] .lcars-footer-bar,
 body.light-mode .lcars-footer-bar {
     background: var(--frame-color);
-    filter: saturate(0.3) brightness(1.1);
     border: none;
 }
 

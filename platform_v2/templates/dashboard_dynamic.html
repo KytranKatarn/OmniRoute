@@ -338,6 +338,8 @@ body.light-mode::before {
     z-index: 100;
     --frame-color: #00ff41;
     --frame-rgb: 0, 255, 65;
+    background: var(--archie-bg-primary, #010409);
+    border-bottom: 2px solid rgba(0, 255, 65, 0.25);
 }
 
 /* Override compact frame bar for command bar specifics */
@@ -1317,6 +1319,12 @@ body.light-mode .cb-lang-option.active {
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* LCARS frame light mode: glass bg becomes white */
+[data-theme="light"] .command-bar-frame,
+body.light-mode .command-bar-frame {
+    background: #ffffff;
+    border-bottom-color: rgba(0, 128, 32, 0.15);
+}
+
 [data-theme="light"] .command-bar-frame .lcars-content,
 body.light-mode .command-bar-frame .lcars-content {
     background: rgba(255, 255, 255, 0.92);
@@ -1326,7 +1334,7 @@ body.light-mode .command-bar-frame .lcars-content {
 
 [data-theme="light"] .command-bar-frame .lcars-elbow-top::after,
 body.light-mode .command-bar-frame .lcars-elbow-top::after {
-    background: rgba(255, 255, 255, 0.92);
+    background: #ffffff;
 }
 
 [data-theme="light"] #command-bar.scrolled,

@@ -234,7 +234,7 @@
 /* ── 2.16 Footer Bar ─────────────────────────────────────────────────── */
 .lcars-footer-bar {
     height: var(--frame-footer-h);
-    background: rgba(var(--frame-rgb), 0.6);
+    background: var(--frame-color);
     border-radius: 0 var(--frame-radius) var(--frame-radius) 0;
     display: flex;
     align-items: center;
@@ -530,8 +530,8 @@ body.light-mode .lcars-body::-webkit-scrollbar-thumb:hover {
 
 [data-theme="light"] .lcars-footer-bar,
 body.light-mode .lcars-footer-bar {
-    background: rgba(var(--frame-rgb), 0.1);
-    border: 1px solid rgba(var(--frame-rgb), 0.2);
+    background: rgba(var(--frame-rgb), 0.15);
+    border: 1px solid rgba(var(--frame-rgb), 0.3);
 }
 
 [data-theme="light"] .lcars-footer-stardate,

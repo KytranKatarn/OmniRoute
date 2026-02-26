@@ -77,88 +77,60 @@ body.light-mode::before {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   MATRIX RAIN CANVAS
-   ───────────────────────────────────────────────────────────────────────────── */
-#matrix-rain {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-    opacity: 0.15;
-    pointer-events: none;
-}
-
-/* Light mode: hide matrix rain */
-[data-theme="light"] #matrix-rain,
-body.light-mode #matrix-rain {
-    display: none;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
    DASHBOARD MAIN CONTENT WRAPPER
    ───────────────────────────────────────────────────────────────────────────── */
 .dashboard-content {
     position: relative;
     z-index: 2;
     min-height: 100vh;
-    opacity: 0;
-    transition: opacity 0.6s var(--archie-ease-out);
-}
-
-.dashboard-content.visible {
-    opacity: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   BOOT SEQUENCE OVERLAY
+   BOOT SEQUENCE OVERLAY — LCARS Frame-Build
    ───────────────────────────────────────────────────────────────────────────── */
 .boot-overlay {
     position: fixed;
     inset: 0;
-    z-index: 10000;
-    background: #000000;
+    background: #000;
+    z-index: 9999;
     display: flex;
-    flex-direction: column;
-    justify-content: center;
     align-items: center;
-    font-family: 'Antonio', sans-serif;
-    overflow: hidden;
+    justify-content: center;
+    transition: opacity 0.3s ease;
 }
-
-.boot-overlay.phase-split .boot-top-half,
-.boot-overlay.phase-split .boot-bottom-half {
+.boot-overlay.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+.boot-scanline {
     position: absolute;
-    left: 0;
-    right: 0;
-    background: #000000;
-    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,65,0.4), transparent);
+    animation: bootScanline 2s linear infinite;
 }
-
-.boot-overlay.phase-split .boot-top-half {
-    top: 0;
-    height: 50%;
-    transform: translateY(0);
+@keyframes bootScanline {
+    0% { top: -2px; }
+    100% { top: 100%; }
 }
-
-.boot-overlay.phase-split .boot-bottom-half {
-    bottom: 0;
-    height: 50%;
-    transform: translateY(0);
+.boot-threat-flash {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #ff2222;
+    opacity: 0;
+    pointer-events: none;
+    text-shadow: 0 0 20px rgba(255,34,34,0.5);
 }
-
-.boot-overlay.phase-split.reveal .boot-top-half {
-    transform: translateY(-100%);
+.boot-threat-flash.flash {
+    animation: threatFlash 0.6s ease-in-out forwards;
 }
-
-.boot-overlay.phase-split.reveal .boot-bottom-half {
-    transform: translateY(100%);
-}
-
-.boot-overlay.hidden {
-    display: none;
+@keyframes threatFlash {
+    0% { opacity: 0; }
+    30% { opacity: 0.4; }
+    70% { opacity: 0.35; }
+    100% { opacity: 0; }
 }
 
 /* ─── Shutdown Overlay ─── */
@@ -193,12 +165,6 @@ body.light-mode #matrix-rain {
 }
 .shutdown-line.visible {
     opacity: 1;
-}
-.shutdown-line .label {
-    color: #00FF41;
-}
-.shutdown-line .dim {
-    color: #006618;
 }
 .shutdown-line.archie-msg {
     color: #00CCFF;
@@ -240,359 +206,57 @@ body.light-mode #matrix-rain {
     100% { top: 100%; opacity: 0; }
 }
 
-/* Boot Terminal Area — monospace green-on-dark */
-.boot-terminal {
-    width: 90%;
-    max-width: 700px;
-    padding: 2rem;
-    position: relative;
-    text-shadow: 0 0 6px rgba(0, 255, 65, 0.2);
-}
-
-.boot-line {
-    font-family: 'Antonio', sans-serif;
-    font-size: 14px;
-    line-height: 1.8;
-    color: #00FF41;
-    white-space: pre;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
-}
-
-.boot-line.visible {
-    opacity: 1;
-}
-
-.boot-line .label {
-    color: #00FF41;
-}
-
-.boot-line .dots {
-    color: #006618;
-}
-
-.boot-line .progress-track {
-    color: #003d0f;
-}
-
-.boot-line .progress-fill {
-    color: #00FF41;
-    display: inline;
-}
-
-.boot-line .status {
-    font-weight: 600;
-}
-
-.boot-line .status.connected { color: #00FF41; }
-.boot-line .status.online    { color: #00FFFF; }
-.boot-line .status.loaded    { color: #39ff6e; }
-.boot-line .status.secure    { color: #00FF41; }
-.boot-line .status.active    { color: #ffaa00; }
-.boot-line .status.aware     { color: #8b5cf6; }
-
-/* Cursor blink */
-.boot-cursor {
-    display: inline-block;
-    width: 10px;
-    height: 18px;
-    background: #00FF41;
-    vertical-align: middle;
-    animation: cursorBlink 0.6s step-end infinite;
-    box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
-}
-
-@keyframes cursorBlink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
-}
-
-/* Phase 1: Typing effect cursor */
-.boot-typing-line {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #00FF41;
-    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
-    margin-bottom: 1.5rem;
-    min-height: 1.5em;
-}
-
-/* Phase 3: Threat level */
-.boot-threat {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 18px;
-    font-weight: 700;
-    color: #ffaa00;
-    text-align: center;
-    opacity: 0;
-    text-shadow: 0 0 15px rgba(255, 170, 0, 0.6);
-    letter-spacing: 3px;
-    margin-top: 1.5rem;
-}
-
-.boot-threat.flash {
-    opacity: 1;
-    animation: threatFlash 0.5s ease-in-out;
-}
-
-/* "MIDNIGHT" scary styling */
-.midnight-text {
-    color: #ff1a1a;
-    font-size: 1.4em;
-    font-weight: 900;
-    font-style: italic;
-    letter-spacing: 6px;
-    text-shadow:
-        0 0 10px rgba(255, 0, 0, 0.9),
-        0 0 30px rgba(255, 0, 0, 0.6),
-        0 0 60px rgba(255, 0, 0, 0.3),
-        0 2px 4px rgba(0, 0, 0, 0.8);
-    position: relative;
-    display: inline-block;
-}
-
-.boot-threat.flash .midnight-text {
-    animation: midnightFlicker 2s ease-in-out 0.5s infinite;
-}
-
-@keyframes midnightFlicker {
-    0%   { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
-    5%   { opacity: 0.4; text-shadow: none; }
-    7%   { opacity: 1; text-shadow: 0 0 20px rgba(255,0,0,1), 0 0 40px rgba(255,0,0,0.7); }
-    10%  { opacity: 0.7; text-shadow: 0 0 5px rgba(255,0,0,0.5); }
-    13%  { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
-    50%  { opacity: 1; }
-    52%  { opacity: 0.3; text-shadow: none; }
-    54%  { opacity: 1; text-shadow: 0 0 15px rgba(255,0,0,0.8), 0 0 50px rgba(255,0,0,0.4); }
-    100% { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
-}
-
-@keyframes threatFlash {
-    0%   { opacity: 0; transform: scale(0.95); }
-    30%  { opacity: 1; transform: scale(1.02); }
-    60%  { opacity: 0.5; }
-    100% { opacity: 1; transform: scale(1); }
-}
-
-/* Screen flicker effect */
-@keyframes screenFlicker {
-    0%   { opacity: 1; }
-    5%   { opacity: 0.3; }
-    10%  { opacity: 1; }
-    15%  { opacity: 0.6; }
-    20%  { opacity: 1; }
-    100% { opacity: 1; }
-}
-
-.boot-overlay.flicker {
-    animation: screenFlicker 0.4s linear;
-}
-
-/* Screen shake */
-@keyframes screenShake {
-    0%, 100% { transform: translate(0, 0); }
-    10%  { transform: translate(-3px, 1px); }
-    20%  { transform: translate(2px, -2px); }
-    30%  { transform: translate(-1px, 3px); }
-    40%  { transform: translate(3px, -1px); }
-    50%  { transform: translate(-2px, 2px); }
-    60%  { transform: translate(1px, -3px); }
-    70%  { transform: translate(-3px, 1px); }
-    80%  { transform: translate(2px, 2px); }
-    90%  { transform: translate(-1px, -1px); }
-}
-
-.boot-overlay.shake {
-    animation: screenShake 0.3s ease-in-out;
-}
-
-/* Phase 4: ARCHIE Logo */
-.boot-logo-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    pointer-events: none;
-}
-
-.boot-logo-container.visible {
-    opacity: 1;
-}
-
-.boot-logo-text {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 4rem;
-    font-weight: 900;
-    color: #00FF41;
-    text-shadow:
-        0 0 20px rgba(0, 255, 65, 0.8),
-        0 0 40px rgba(0, 255, 65, 0.5),
-        0 0 80px rgba(0, 255, 65, 0.3);
-    letter-spacing: 12px;
-    animation: logoMaterialize 0.5s ease-out;
-    position: relative;
-    z-index: 2;
-}
-
-@keyframes logoMaterialize {
-    0% {
-        opacity: 0;
-        transform: scale(0.8);
-        filter: blur(10px);
-        letter-spacing: 30px;
-    }
-    60% {
-        opacity: 1;
-        transform: scale(1.02);
-        filter: blur(0);
-    }
-    100% {
-        transform: scale(1);
-        letter-spacing: 12px;
-    }
-}
-
-.boot-logo-ring {
-    position: absolute;
-    width: 300px;
-    height: 300px;
-    border: 2px solid rgba(0, 255, 65, 0.4);
-    border-radius: 50%;
-    animation: ringExpand 1s ease-out forwards;
-    z-index: 1;
-}
-
-@keyframes ringExpand {
-    0% {
-        width: 0;
-        height: 0;
-        opacity: 1;
-        border-width: 3px;
-    }
-    100% {
-        width: 500px;
-        height: 500px;
-        opacity: 0;
-        border-width: 1px;
-    }
-}
-
-.boot-logo-ring:nth-child(2) {
-    animation-delay: 0.15s;
-    border-color: rgba(0, 255, 65, 0.3);
-}
-
-.boot-logo-ring:nth-child(3) {
-    animation-delay: 0.3s;
-    border-color: rgba(0, 255, 65, 0.2);
-}
-
-.boot-system-online {
-    font-family: 'Antonio', sans-serif;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #00FFFF;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    margin-top: 1.5rem;
-    text-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
-    animation: systemOnlinePulse 1s ease-in-out infinite alternate;
-    position: relative;
-    z-index: 2;
-}
-
-@keyframes systemOnlinePulse {
-    0% { opacity: 0.7; }
-    100% { opacity: 1; }
-}
-
-/* Skip Button */
-.boot-skip-btn {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    z-index: 10001;
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: rgba(0, 255, 65, 0.4);
-    background: transparent;
-    border: 1px solid rgba(0, 255, 65, 0.2);
-    border-radius: 20px;
-    padding: 8px 18px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.boot-skip-btn.visible {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.boot-skip-btn:hover {
-    color: rgba(0, 255, 65, 0.8);
-    border-color: rgba(0, 255, 65, 0.5);
-    background: rgba(0, 255, 65, 0.05);
-    box-shadow: 0 0 12px rgba(0, 255, 65, 0.1);
-}
-
-/* Scanline overlay during boot for extra CRT feel */
-.boot-scanlines {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0, 255, 65, 0.015) 2px,
-        rgba(0, 255, 65, 0.015) 4px
-    );
-    z-index: 3;
-}
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   DASHBOARD SECTION PLACEHOLDERS
+   COMMAND BAR — LCARS Compact Frame (sticky top)
+   Uses lcars-frames.css structural classes + local content overrides
    ───────────────────────────────────────────────────────────────────────────── */
-/* ─────────────────────────────────────────────────────────────────────────────
-   COMMAND BAR — Fixed 48px top bar
-   ───────────────────────────────────────────────────────────────────────────── */
-.command-bar {
-    position: fixed;
+
+/* ── Outer wrapper: sticky positioning ── */
+.command-bar-frame {
+    position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
-    height: 48px;
     z-index: 100;
+    --frame-color: #00ff41;
+    --frame-rgb: 0, 255, 65;
+}
+
+/* Override compact frame bar for command bar specifics */
+.command-bar-frame .lcars-frame--compact .lcars-bar {
+    height: 44px;
+    background: var(--frame-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 0 16px;
-    background: rgba(10, 10, 26, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-left: 4px solid rgba(0, 255, 65, 0.3);
-    border-bottom: 1px solid rgba(0, 255, 65, 0.1);
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 255, 65, 0.03);
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
     font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
 }
 
-.command-bar.scrolled {
-    border-bottom-color: rgba(0, 255, 65, 0.15);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 255, 65, 0.05);
+/* The command-bar ID is preserved for JS scroll detection */
+#command-bar {
+    /* Reset — actual styling comes from .lcars-bar */
+}
+
+#command-bar.scrolled {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Glass backing behind the bar content (dark mode) ── */
+.command-bar-frame .lcars-content {
+    background: rgba(10, 10, 26, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 0;
+}
+
+.command-bar-frame .lcars-bar {
+    background: transparent !important;
+    border-radius: 0 !important;
+}
+
+/* ── Elbow: dark bg behind the cutout ── */
+.command-bar-frame .lcars-elbow-top::after {
+    background: rgba(10, 10, 26, 0.85);
 }
 
 /* Command Bar Zones */
@@ -726,8 +390,8 @@ body.light-mode #matrix-rain {
     background: rgba(15, 15, 30, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(0, 255, 65, 0.12);
-    border-left: 3px solid rgba(0, 255, 65, 0.3);
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-left: 3px solid rgba(0, 255, 65, 0.4);
     border-radius: 0 12px 12px 0;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 65, 0.06);
     z-index: 200;
@@ -815,7 +479,7 @@ body.light-mode #matrix-rain {
     letter-spacing: 0.08em;
 }
 
-/* Light mode */
+/* Light mode search popover */
 [data-theme="light"] .cb-search-popover,
 body.light-mode .cb-search-popover {
     background: rgba(255, 255, 255, 0.95);
@@ -924,8 +588,8 @@ body.light-mode .cb-search-result-icon {
     background: rgba(15, 15, 30, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(0, 255, 65, 0.12);
-    border-left: 3px solid rgba(0, 255, 65, 0.3);
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-left: 3px solid rgba(0, 255, 65, 0.4);
     border-radius: 0 12px 12px 0;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 255, 65, 0.06);
     z-index: 300;
@@ -1072,7 +736,7 @@ body.light-mode .cb-search-result-icon {
     letter-spacing: 1px;
 }
 
-/* Light mode */
+/* Light mode notifications popover */
 [data-theme="light"] .cb-notif-popover,
 body.light-mode .cb-notif-popover {
     background: rgba(255, 255, 255, 0.95);
@@ -1283,13 +947,14 @@ body.light-mode .cb-notif-modal-meta-item strong { color: rgba(0,0,0,0.55); }
 /* Language dropdown menu */
 .cb-lang-menu {
     position: fixed;
-    top: 44px;
+    top: 56px;
     right: 24px;
     background: rgba(20, 20, 30, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-left: 3px solid rgba(0, 255, 65, 0.4);
+    border-radius: 0 12px 12px 0;
     padding: 6px 0;
     min-width: 140px;
     z-index: 200;
@@ -1320,7 +985,9 @@ body.light-mode .cb-notif-modal-meta-item strong { color: rgba(0,0,0,0.55); }
 body.light-mode .cb-lang-menu {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(0, 0, 0, 0.1);
+    border-left-color: rgba(0, 0, 0, 0.1);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
 }
 [data-theme="light"] .cb-lang-option,
 body.light-mode .cb-lang-option {
@@ -1337,23 +1004,30 @@ body.light-mode .cb-lang-option.active {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   HUD VITALS STRIP — 6 stat pods
+   HUD VITALS — LCARS Full Frame (cyan)
+   Uses lcars-frames.css structural classes + local content overrides
    ───────────────────────────────────────────────────────────────────────────── */
-.hud-vitals-strip {
+
+/* ── Outer wrapper ── */
+.hud-frame {
     position: relative;
     z-index: 10;
-    display: flex;
-    gap: 10px;
+    margin-top: 12px;
     padding: 0 var(--archie-spacing-xl, 24px);
-    margin-top: 60px;
-    overflow: hidden;
-    background: rgba(10, 10, 26, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-left: 3px solid rgba(0, 255, 65, 0.2);
-    border-bottom: 1px solid rgba(0, 255, 65, 0.06);
+    --frame-color: #00ffff;
+    --frame-rgb: 0, 255, 255;
 }
 
+/* ── Body layout: horizontal pods row ── */
+.hud-frame .lcars-body {
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* ── Pod cards inside frame ── */
 .hud-pod {
     flex: 1 1 0;
     min-width: 0;
@@ -1366,13 +1040,13 @@ body.light-mode .cb-lang-option.active {
     background: rgba(0, 0, 0, 0.35);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 255, 65, 0.15);
+    border: 1px solid rgba(0, 255, 255, 0.15);
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .hud-pod:hover {
-    border-color: rgba(0, 255, 65, 0.3);
-    box-shadow: 0 0 15px rgba(0, 255, 65, 0.06);
+    border-color: rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.06);
 }
 
 .hud-pod-label {
@@ -1447,15 +1121,17 @@ body.light-mode .cb-lang-option.active {
     stroke-width: 5;
     stroke-linecap: round;
     transition: stroke-dashoffset 1s ease, stroke 0.3s ease;
-    filter: drop-shadow(0 0 4px rgba(0, 255, 65, 0.4));
+    filter: drop-shadow(0 0 4px rgba(0, 255, 255, 0.4));
 }
 
 .hud-ring-fg.warning {
     stroke: #ffaa00;
+    filter: drop-shadow(0 0 4px rgba(255, 170, 0, 0.4));
 }
 
 .hud-ring-fg.critical {
     stroke: #ff3b3b;
+    filter: drop-shadow(0 0 4px rgba(255, 59, 59, 0.4));
 }
 
 .hud-ring-center {
@@ -1486,11 +1162,6 @@ body.light-mode .cb-lang-option.active {
     animation: none;
 }
 
-@keyframes aiPulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(0, 255, 65, 0.6); }
-    50% { box-shadow: 0 0 16px rgba(0, 255, 65, 0.9), 0 0 30px rgba(0, 255, 65, 0.3); }
-}
-
 /* A.R.C.H.I.E. status */
 .hud-archie-dot {
     width: 10px;
@@ -1504,10 +1175,6 @@ body.light-mode .cb-lang-option.active {
     background: #ff3b3b;
     box-shadow: 0 0 8px rgba(255, 59, 59, 0.6);
     animation: none;
-}
-@keyframes archiePulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(139, 92, 246, 0.6); }
-    50% { box-shadow: 0 0 16px rgba(139, 92, 246, 0.9), 0 0 30px rgba(139, 92, 246, 0.3); }
 }
 
 /* LCARS-style pulsing glows for status dots */
@@ -1539,20 +1206,25 @@ body.light-mode .cb-lang-option.active {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   LIGHT MODE OVERRIDES — Command Bar & HUD
+   LIGHT MODE OVERRIDES — Command Bar Frame & HUD
    ───────────────────────────────────────────────────────────────────────────── */
-[data-theme="light"] .command-bar,
-body.light-mode .command-bar {
-    background: rgba(255, 255, 255, 0.9);
-    border-left-color: rgba(0, 0, 0, 0.08);
-    border-bottom-color: rgba(0, 0, 0, 0.1);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+
+/* LCARS frame light mode: glass bg becomes white */
+[data-theme="light"] .command-bar-frame .lcars-content,
+body.light-mode .command-bar-frame .lcars-content {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
-[data-theme="light"] .command-bar.scrolled,
-body.light-mode .command-bar.scrolled {
-    border-bottom-color: rgba(0, 0, 0, 0.15);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+[data-theme="light"] .command-bar-frame .lcars-elbow-top::after,
+body.light-mode .command-bar-frame .lcars-elbow-top::after {
+    background: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme="light"] #command-bar.scrolled,
+body.light-mode #command-bar.scrolled {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .cb-username,
@@ -1603,6 +1275,7 @@ body.light-mode .cb-icon-btn:hover {
     box-shadow: none;
 }
 
+/* ── HUD Frame Light Mode ── */
 [data-theme="light"] .hud-pod,
 body.light-mode .hud-pod {
     background: rgba(255, 255, 255, 0.6);
@@ -1612,13 +1285,6 @@ body.light-mode .hud-pod {
 [data-theme="light"] .hud-pod-label,
 body.light-mode .hud-pod-label {
     color: #555;
-}
-
-[data-theme="light"] .hud-vitals-strip,
-body.light-mode .hud-vitals-strip {
-    background: rgba(255, 255, 255, 0.7);
-    border-left-color: rgba(0, 0, 0, 0.06);
-    border-bottom-color: rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .hud-pod-value,
@@ -1663,17 +1329,6 @@ body.light-mode .hud-dual-divider {
     background: rgba(0, 0, 0, 0.1);
 }
 
-.mission-briefing {
-    position: relative;
-    z-index: 10;
-    padding: 0 var(--archie-spacing-xl);
-}
-
-.featured-modules {
-    position: relative;
-    z-index: 10;
-    padding: 0 var(--archie-spacing-xl);
-}
 
 .category-grid {
     position: relative;
@@ -1732,37 +1387,17 @@ body.light-mode .footer-version {
 /* ─────────────────────────────────────────────────────────────────────────────
    DASHBOARD-SPECIFIC ANIMATIONS
    ───────────────────────────────────────────────────────────────────────────── */
-@keyframes glow {
-    0%, 100% {
-        filter: drop-shadow(0 0 2px var(--archie-green)) drop-shadow(0 0 8px rgba(0, 255, 65, 0.3));
-    }
-    50% {
-        filter: drop-shadow(0 0 8px var(--archie-green)) drop-shadow(0 0 20px rgba(0, 255, 65, 0.5));
-    }
-}
 
-@keyframes borderGlow {
-    0%, 100% {
-        box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.1), inset 0 0 30px rgba(0, 255, 65, 0.02);
+/* lcarsCardIn — slide-up entry for notification modal (was in lcars-panels.css) */
+@keyframes lcarsCardIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
     }
-    50% {
-        box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.3), inset 0 0 30px rgba(0, 255, 65, 0.05);
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
-}
-
-@keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-}
-
-@keyframes slideDown {
-    0% { transform: translateY(-20px); opacity: 0; }
-    100% { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes fadeIn {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1777,9 +1412,12 @@ body.light-mode .footer-version {
     .cb-username, .cb-badge {
         display: none;
     }
-    .hud-vitals-strip {
+    .hud-frame {
         padding: 0 12px;
+    }
+    .hud-frame .lcars-body {
         gap: 8px;
+        padding: 10px 12px;
     }
     .hud-pod {
         padding: 8px 6px;
@@ -1797,10 +1435,11 @@ body.light-mode .footer-version {
     }
 }
 
-/* ─── Command Bar + HUD responsive: 374px (mobile) ─── */
+/* ─── Command Bar + HUD responsive: 480px (mobile) ─── */
 @media (max-width: 480px) {
-    .command-bar {
+    .command-bar-frame .lcars-bar {
         padding: 0 8px;
+        gap: 8px;
     }
     .cb-zone-center {
         flex: 1 1 0;
@@ -1819,12 +1458,15 @@ body.light-mode .footer-version {
         right: 8px;
         max-height: 50vh;
     }
-    .hud-vitals-strip {
+    .hud-frame {
+        padding: 0 8px;
+        margin-top: 8px;
+    }
+    .hud-frame .lcars-body {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
-        padding: 0 12px;
-        margin-top: 56px;
+        padding: 8px 10px;
         overflow-x: visible;
     }
     .hud-pod {
@@ -1833,219 +1475,115 @@ body.light-mode .footer-version {
 }
 
 @media (max-width: 768px) {
-    .boot-logo-text {
-        font-size: 2.5rem;
-        letter-spacing: 6px;
-    }
-
-    .boot-system-online {
-        font-size: 0.75rem;
-        letter-spacing: 4px;
-    }
-
-    .boot-terminal {
-        padding: 1rem;
-    }
-
-    .boot-line {
-        font-size: 11px;
-    }
-
-    .boot-typing-line {
-        font-size: 13px;
-    }
-
-    .boot-threat {
-        font-size: 14px;
-        letter-spacing: 2px;
-    }
-
-    .boot-skip-btn {
-        bottom: 1rem;
-        right: 1rem;
-    }
-
-    .mission-briefing,
-    .featured-modules,
+    .featured-frame,
     .category-grid {
         padding: 0 var(--archie-spacing-md);
     }
 }
 
-@media (max-width: 480px) {
-    .boot-logo-text {
-        font-size: 1.8rem;
-        letter-spacing: 4px;
-    }
-
-    .boot-line {
-        font-size: 10px;
-    }
-}
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   MISSION BRIEFING — 3 LCARS-framed info cards
-   Task 5
+   MISSION BRIEFING — LCARS Full Frame (green) with 3-column grid
+   Task 6 — Uses lcars-frames.css structural classes + local content overrides
    ───────────────────────────────────────────────────────────────────────────── */
-.mission-briefing-row {
-    display: flex;
-    gap: 16px;
-    margin-top: 24px;
-    flex-wrap: wrap;
-}
 
-.briefing-card {
-    flex: 1;
-    min-width: 280px;
+/* ── Outer wrapper ── */
+.briefing-frame {
     position: relative;
-    background: rgba(10, 10, 26, 0.6);
-    backdrop-filter: blur(12px) saturate(1.4);
-    -webkit-backdrop-filter: blur(12px) saturate(1.4);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-left: 3px solid var(--card-accent);
-    border-radius: 2px 12px 12px 2px;
+    z-index: 10;
+    margin-top: 24px;
+    padding: 0 var(--archie-spacing-xl, 24px);
+    --frame-color: #00ff41;
+    --frame-rgb: 0, 255, 65;
+}
+
+/* ── Body layout: 3-column grid ── */
+.briefing-frame .lcars-body {
+    padding: 16px;
+}
+
+.briefing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+}
+
+/* ── Column containers ── */
+.briefing-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     overflow: hidden;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* Left edge gradient overlay (matches lcars-panel::before) */
-.briefing-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 3px;
-    height: 100%;
-    background: linear-gradient(
-        180deg,
-        rgba(var(--card-accent-rgb), 0.6) 0%,
-        rgba(var(--card-accent-rgb), 0.15) 50%,
-        rgba(var(--card-accent-rgb), 0.6) 100%
-    );
-    pointer-events: none;
-    z-index: 1;
-}
-
-.briefing-card:hover {
-    border-color: rgba(var(--card-accent-rgb), 0.35);
-    box-shadow: 0 0 20px rgba(var(--card-accent-rgb), 0.1),
-                0 0 40px rgba(var(--card-accent-rgb), 0.05);
-}
-
-.briefing-card-header {
+/* ── Column header — thin accent strip ── */
+.briefing-col-header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
-    border-bottom: 1px solid rgba(var(--card-accent-rgb), 0.25);
-    background: rgba(var(--card-accent-rgb), 0.05);
-    position: relative;
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 3px;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 4px solid var(--col-accent, #00ff41);
+    background: rgba(255, 255, 255, 0.02);
+    margin-bottom: 8px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 2px;
     text-transform: uppercase;
-    color: var(--card-accent);
+    color: var(--col-accent, #00ff41);
 }
 
-/* LCARS cap bar — small colored block on header left */
-.briefing-cap {
+.briefing-col-header::after {
+    content: '';
     display: inline-block;
     width: 6px;
-    height: 18px;
-    background: var(--card-accent);
-    border-radius: 1px 3px 3px 1px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--col-accent, #00ff41);
+    box-shadow: 0 0 6px var(--col-accent, #00ff41);
+    margin-left: auto;
     flex-shrink: 0;
-    opacity: 0.8;
+    animation: lcarsFramePulse 3s ease-in-out infinite;
 }
 
-.briefing-card-header i[data-lucide] {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-}
-
-.briefing-card-body {
-    padding: 14px 16px;
-    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
-    min-height: 120px;
-    max-height: 220px;
-    overflow-y: auto;
-}
-/* Scrollbar with accent tint */
-.briefing-card-body::-webkit-scrollbar {
-    width: 4px;
-}
-.briefing-card-body::-webkit-scrollbar-track {
-    background: transparent;
-}
-.briefing-card-body::-webkit-scrollbar-thumb {
-    background: rgba(var(--card-accent-rgb), 0.25);
-    border-radius: 2px;
-}
-.briefing-card-body::-webkit-scrollbar-thumb:hover {
-    background: rgba(var(--card-accent-rgb), 0.45);
-}
-
-/* Card accent colors */
-.briefing-card--activity {
-    --card-accent: #00ff41;
-    --card-accent-rgb: 0, 255, 65;
-}
-.briefing-card--alerts {
-    --card-accent: #f59e0b;
-    --card-accent-rgb: 245, 158, 11;
-}
-.briefing-card--ai {
-    --card-accent: #00ffff;
-    --card-accent-rgb: 0, 255, 255;
-}
-
-/* Activity list */
+/* ── Activity list ── */
 .briefing-activity-list {
     list-style: none;
     padding: 0;
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 255, 65, 0.25) transparent;
 }
+
+.briefing-activity-list::-webkit-scrollbar { width: 4px; }
+.briefing-activity-list::-webkit-scrollbar-track { background: transparent; }
+.briefing-activity-list::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.25); border-radius: 2px; }
+.briefing-activity-list::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 65, 0.45); }
 
 .briefing-activity-item {
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
-    gap: 12px;
-    padding: 6px 0;
+    gap: 8px;
+    padding: 5px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     border-left: 2px solid transparent;
     padding-left: 6px;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
     transition: border-left-color 0.2s ease;
 }
 
 .briefing-activity-item:hover {
-    border-left-color: rgba(var(--card-accent-rgb), 0.4);
+    border-left-color: rgba(0, 255, 65, 0.4);
 }
 
 .briefing-activity-item:last-child {
     border-bottom: none;
-}
-
-.briefing-activity-text {
-    flex: 1;
-    min-width: 0;
-    color: rgba(255, 255, 255, 0.7);
-    line-height: 1.4;
-    word-break: break-word;
-}
-
-.briefing-activity-time {
-    flex-shrink: 0;
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.35);
-    letter-spacing: 0.5px;
 }
 
 .briefing-activity-icon {
@@ -2061,20 +1599,41 @@ body.light-mode .footer-version {
 .briefing-activity-item[data-source="governance"] .briefing-activity-icon { color: var(--archie-success, #5bf5a0); }
 .briefing-activity-item[data-source="knowledge"] .briefing-activity-icon { color: var(--archie-warning, #f5c85b); }
 
+.briefing-activity-text {
+    flex: 1;
+    min-width: 0;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.briefing-activity-time {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.5px;
+    font-family: 'Antonio', sans-serif;
+}
+
+/* ── Muted placeholder text ── */
 .briefing-muted {
     color: rgba(255, 255, 255, 0.3);
     font-style: italic;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 11px;
 }
 
-/* Alerts card */
+/* ── Alerts ── */
 .briefing-alert-nominal {
     display: flex;
     align-items: center;
     gap: 8px;
     color: #00FF41;
-    font-weight: 600;
-    letter-spacing: 1px;
+    font-family: 'Antonio', sans-serif;
+    font-weight: 500;
+    letter-spacing: 1.5px;
     padding: 8px 0;
+    font-size: 0.8rem;
 }
 
 .briefing-alert-nominal i[data-lucide] {
@@ -2086,10 +1645,12 @@ body.light-mode .footer-version {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 6px 0;
+    padding: 5px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     border-left: 2px solid transparent;
     padding-left: 6px;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 11px;
 }
 
 .briefing-alert-item:last-child {
@@ -2141,9 +1702,10 @@ body.light-mode .footer-version {
     flex-shrink: 0;
     align-self: flex-start;
     margin-top: 1px;
+    font-family: 'Antonio', sans-serif;
 }
 
-/* AI Insights card */
+/* ── AI Insights ── */
 .briefing-ai-stats {
     display: flex;
     flex-direction: column;
@@ -2160,9 +1722,9 @@ body.light-mode .footer-version {
 .briefing-ai-big-number {
     font-size: 28px;
     font-weight: 700;
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    color: var(--card-accent);
-    text-shadow: 0 0 12px rgba(var(--card-accent-rgb), 0.4);
+    font-family: 'Orbitron', sans-serif;
+    color: #00ffff;
+    text-shadow: 0 0 12px rgba(0, 255, 255, 0.4);
     line-height: 1;
     min-width: 56px;
     text-align: center;
@@ -2170,8 +1732,9 @@ body.light-mode .footer-version {
 
 .briefing-ai-stat-label {
     font-size: 11px;
+    font-family: 'Antonio', sans-serif;
     color: rgba(255, 255, 255, 0.5);
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
 }
 
@@ -2200,56 +1763,30 @@ body.light-mode .footer-version {
 
 .briefing-ai-status-text {
     font-size: 11px;
+    font-family: 'Antonio', sans-serif;
     color: rgba(255, 255, 255, 0.5);
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
     text-transform: uppercase;
 }
 
 /* ─── Light Mode: Mission Briefing ─── */
-[data-theme="light"] .briefing-card,
-body.light-mode .briefing-card {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: rgba(0, 0, 0, 0.08);
-    border-left-color: var(--card-accent);
+[data-theme="light"] .briefing-frame,
+body.light-mode .briefing-frame {
+    --frame-color: #00aa2a;
+    --frame-rgb: 0, 170, 42;
+}
+
+[data-theme="light"] .briefing-col-header,
+body.light-mode .briefing-col-header {
+    background: rgba(0, 0, 0, 0.02);
+    border-top-color: var(--col-accent);
+}
+
+[data-theme="light"] .briefing-col-header::after,
+body.light-mode .briefing-col-header::after {
     box-shadow: none;
-}
-
-[data-theme="light"] .briefing-card::before,
-body.light-mode .briefing-card::before {
-    background: linear-gradient(
-        180deg,
-        rgba(var(--card-accent-rgb), 0.35) 0%,
-        rgba(var(--card-accent-rgb), 0.1) 50%,
-        rgba(var(--card-accent-rgb), 0.35) 100%
-    );
-}
-
-[data-theme="light"] .briefing-card:hover,
-body.light-mode .briefing-card:hover {
-    box-shadow: none;
-    border-color: rgba(0, 0, 0, 0.12);
-    border-left-color: var(--card-accent);
-}
-
-[data-theme="light"] .briefing-card-header,
-body.light-mode .briefing-card-header {
-    background: rgba(var(--card-accent-rgb), 0.06);
-    border-bottom-color: rgba(var(--card-accent-rgb), 0.15);
-}
-
-[data-theme="light"] .briefing-cap,
-body.light-mode .briefing-cap {
-    opacity: 0.6;
-}
-
-[data-theme="light"] .briefing-card-body,
-body.light-mode .briefing-card-body {
-    color: #333;
-}
-
-[data-theme="light"] .briefing-card-body::-webkit-scrollbar-thumb,
-body.light-mode .briefing-card-body::-webkit-scrollbar-thumb {
-    background: rgba(var(--card-accent-rgb), 0.15);
+    animation: none;
+    opacity: 0.5;
 }
 
 [data-theme="light"] .briefing-activity-text,
@@ -2276,12 +1813,13 @@ body.light-mode .briefing-alert-item {
 
 [data-theme="light"] .briefing-activity-item:hover,
 body.light-mode .briefing-activity-item:hover {
-    border-left-color: rgba(var(--card-accent-rgb), 0.3);
+    border-left-color: rgba(0, 170, 42, 0.3);
 }
 
 [data-theme="light"] .briefing-ai-big-number,
 body.light-mode .briefing-ai-big-number {
     text-shadow: none;
+    color: #0088aa;
 }
 
 [data-theme="light"] .briefing-ai-stat-label,
@@ -2304,80 +1842,52 @@ body.light-mode .briefing-ai-status-row {
     border-top-color: rgba(0, 0, 0, 0.08);
 }
 
+/* ─── Mission Briefing Responsive: 3-col → 2-col at 1024px ─── */
+@media (max-width: 1024px) {
+    .briefing-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .briefing-frame {
+        padding: 0 12px;
+    }
+}
+
+/* ─── Mission Briefing Responsive: 2-col → 1-col at 768px ─── */
+@media (max-width: 768px) {
+    .briefing-grid {
+        grid-template-columns: 1fr;
+    }
+    .briefing-frame {
+        padding: 0 8px;
+        margin-top: 16px;
+    }
+}
+
 /* ─── Reduced Motion: Mission Briefing ─── */
 @media (prefers-reduced-motion: reduce) {
-    .briefing-card-header .lcars-dot.pulse {
+    .briefing-col-header::after {
         animation: none;
     }
 }
 
-/* ─── Mission Briefing Responsive: 717px ─── */
-@media (max-width: 717px) {
-    .mission-briefing-row {
-        gap: 12px;
-    }
-    .briefing-card {
-        min-width: 200px;
-    }
-    .briefing-card-body {
-        min-height: 100px;
-        padding: 10px 12px;
-    }
-}
-
-/* ─── Mission Briefing Responsive: 480px (mobile stacked) ─── */
-@media (max-width: 480px) {
-    .mission-briefing-row {
-        flex-direction: column;
-        gap: 12px;
-    }
-    .briefing-card {
-        min-width: 0;
-    }
-    .briefing-card-body {
-        min-height: auto;
-    }
-}
-
 /* ─────────────────────────────────────────────────────────────────────────────
-   FEATURED MODULES — Priority Stations
-   Task 5
+   FEATURED MODULES — Priority Stations (LCARS Amber Frame)
+   Task 7
    ───────────────────────────────────────────────────────────────────────────── */
-.section-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 32px 0 20px;
-    padding: 0 4px;
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--archie-text-secondary);
-}
-.section-header::before {
-    content: '';
-    display: inline-block;
-    width: 6px;
-    height: 18px;
-    background: rgba(0, 255, 65, 0.7);
-    border-radius: 1px;
-    flex-shrink: 0;
+
+/* ── Outer wrapper ── */
+.featured-frame {
+    position: relative;
+    z-index: 10;
+    margin-top: 24px;
+    padding: 0 var(--archie-spacing-xl, 24px);
+    --frame-color: #f59e0b;
+    --frame-rgb: 245, 158, 11;
 }
 
-.section-header::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(0, 255, 65, 0.3), transparent);
-}
-
-.section-header i[data-lucide] {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-    color: rgba(0, 255, 65, 0.7);
+/* ── Body layout: flex row of glass tiles ── */
+.featured-frame .lcars-body {
+    padding: 16px;
 }
 
 .featured-cards-row {
@@ -2386,14 +1896,15 @@ body.light-mode .briefing-ai-status-row {
     flex-wrap: wrap;
 }
 
+/* ── Glass tile card ── */
 .featured-card {
     display: flex;
     flex-direction: column;
     padding: 24px;
-    background: rgba(10, 10, 26, 0.5);
-    backdrop-filter: blur(12px) saturate(1.4);
-    -webkit-backdrop-filter: blur(12px) saturate(1.4);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(10, 10, 26, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(245, 158, 11, 0.15);
     border-radius: 2px 12px 12px 2px;
     text-decoration: none;
     color: inherit;
@@ -2403,23 +1914,25 @@ body.light-mode .briefing-ai-status-row {
     flex: 1;
     min-width: 280px;
 }
+
+/* Left accent bar per category */
 .featured-card::before {
     content: '';
     position: absolute;
     top: 0; bottom: 0; left: 0;
     width: 3px;
     background: linear-gradient(180deg,
-        var(--feat-accent) 0%,
+        var(--feat-accent, #f59e0b) 0%,
         rgba(255,255,255,0.05) 50%,
-        var(--feat-accent) 100%);
+        var(--feat-accent, #f59e0b) 100%);
     border-radius: 2px 0 0 2px;
     pointer-events: none;
 }
 
 .featured-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 0 20px rgba(0, 255, 65, 0.12);
-    border-color: var(--feat-accent);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.5);
     text-decoration: none;
     color: inherit;
 }
@@ -2455,7 +1968,7 @@ body.light-mode .briefing-ai-status-row {
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.05);
     margin-bottom: 16px;
-    color: var(--feat-accent, rgba(0, 255, 65, 0.7));
+    color: var(--feat-accent, rgba(245, 158, 11, 0.7));
 }
 
 .featured-card-icon i[data-lucide] {
@@ -2465,7 +1978,7 @@ body.light-mode .briefing-ai-status-row {
 
 .featured-card-name {
     font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -2474,8 +1987,8 @@ body.light-mode .briefing-ai-status-row {
 }
 
 .featured-card-desc {
-    font-family: var(--archie-font-mono, 'IBM Plex Mono', monospace);
-    font-size: 12px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.78rem;
     color: rgba(255, 255, 255, 0.55);
     line-height: 1.6;
     flex: 1;
@@ -2518,6 +2031,7 @@ body.light-mode .briefing-ai-status-row {
     background: #ff3b3b;
     box-shadow: 0 0 6px rgba(255, 59, 59, 0.6);
 }
+
 .featured-status-dot.warning {
     background: #f59e0b;
     box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
@@ -2558,25 +2072,17 @@ body.light-mode .briefing-ai-status-row {
 }
 
 /* ─── Light Mode: Featured Modules ─── */
-[data-theme="light"] .section-header,
-body.light-mode .section-header {
-    color: #444;
-}
-
-[data-theme="light"] .section-header::after,
-body.light-mode .section-header::after {
-    background: linear-gradient(90deg, rgba(0, 100, 40, 0.2), transparent);
-}
-
-[data-theme="light"] .section-header i[data-lucide],
-body.light-mode .section-header i[data-lucide] {
-    color: rgba(0, 100, 40, 0.6);
+[data-theme="light"] .featured-frame,
+body.light-mode .featured-frame {
+    --frame-color: #d97706;
+    --frame-rgb: 217, 119, 6;
 }
 
 [data-theme="light"] .featured-card,
 body.light-mode .featured-card {
     background: rgba(255, 255, 255, 0.8);
     border-color: rgba(0, 0, 0, 0.1);
+    backdrop-filter: none;
 }
 
 [data-theme="light"] .featured-card:hover,
@@ -2645,118 +2151,87 @@ body.light-mode .featured-pin-btn.pinned {
         flex: none;
         min-height: 160px;
     }
-    .section-header {
-        margin: 24px 0 16px;
-        font-size: 0.75rem;
-        letter-spacing: 3px;
+    .featured-frame {
+        padding: 0 var(--archie-spacing-md, 12px);
     }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CATEGORY GRID — Collapsible panels with module cards
-   Task 6 of Dashboard Rebuild
+   CATEGORY GRID — LCARS Framed Category Panels with Module Cards
+   Task 8 of Dashboard Rebuild — Full LCARS OKUDAGRAM frames per category
    ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ─── Category accent colors ─── */
-.category-admin_operations { --cat-accent: #cc6600; }
-.category-ai_command { --cat-accent: #cc6600; }
-.category-development_tools { --cat-accent: #00808f; }
-.category-saas_services { --cat-accent: #7c3aed; }
-.category-project_knowledge { --cat-accent: #00aa33; }
-.category-media_home { --cat-accent: #db2777; }
-.category-placeholders_future { --cat-accent: #8b949e; }
 
 /* ─── Category Grid Container ─── */
 .category-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
     margin-top: 16px;
 }
 
-/* ─── Category Header (LCARS framed) ─── */
-.cat-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 20px;
+/* ─── Per-Category LCARS Frame Color Classes ─── */
+.category-frame--admin_operations  { --frame-color: #ef4444; --frame-rgb: 239,68,68; --cat-accent: #ef4444; }
+.category-frame--ai_command        { --frame-color: #00ffff; --frame-rgb: 0,255,255; --cat-accent: #00ffff; }
+.category-frame--development_tools { --frame-color: #8b5cf6; --frame-rgb: 139,92,246; --cat-accent: #8b5cf6; }
+.category-frame--saas_services     { --frame-color: #f59e0b; --frame-rgb: 245,158,11; --cat-accent: #f59e0b; }
+.category-frame--project_knowledge { --frame-color: #00ff41; --frame-rgb: 0,255,65; --cat-accent: #00ff41; }
+.category-frame--media_home        { --frame-color: #0ea5e9; --frame-rgb: 14,165,233; --cat-accent: #0ea5e9; }
+.category-frame--placeholders_future { --frame-color: #ffaa00; --frame-rgb: 255,170,0; --cat-accent: #ffaa00; }
+
+/* ─── Category Header Bar Content ─── */
+.category-frame .lcars-bar {
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 2px 12px 12px 2px;
-    background: rgba(10, 10, 26, 0.4);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    margin-bottom: 12px;
-    transition: all 0.2s ease;
-    position: relative;
+    user-select: none;
 }
-/* Left gradient bar in category color */
-.cat-header::before {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0; left: 0;
-    width: 4px;
-    background: linear-gradient(180deg,
-        var(--cat-accent) 0%,
-        rgba(255,255,255,0.05) 50%,
-        var(--cat-accent) 100%);
-    border-radius: 2px 0 0 2px;
-    pointer-events: none;
+.category-frame .lcars-bar:hover {
+    filter: brightness(1.1);
 }
-.cat-header:hover {
-    background: rgba(0, 0, 0, 0.5);
-    border-color: var(--cat-accent);
+.category-frame .lcars-bar i {
+    color: var(--archie-bg-primary, #010409);
+    font-size: 0.9rem;
+    flex-shrink: 0;
 }
-.cat-header-icon {
-    color: var(--cat-accent);
-    font-size: 1.1rem;
-}
-.cat-header-title {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--archie-text-secondary);
-    flex: 1;
+.category-frame .lcars-bar i[data-lucide] {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
 }
 .cat-module-count {
-    background: var(--cat-accent);
-    color: #000;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 10px;
-}
-.cat-admin-badge {
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--archie-bg-primary, #010409);
+    font-family: 'Orbitron', sans-serif;
     font-size: 0.6rem;
     font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.cat-admin-badge {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 700;
     letter-spacing: 2px;
-    color: var(--cat-accent);
-    border: 1px solid var(--cat-accent);
+    color: var(--archie-bg-primary, #010409);
+    border: 1px solid rgba(0, 0, 0, 0.3);
     padding: 1px 6px;
     border-radius: 4px;
+    flex-shrink: 0;
 }
 .cat-chevron {
-    color: var(--archie-text-secondary);
+    color: var(--archie-bg-primary, #010409);
     transition: transform 0.3s ease;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+    flex-shrink: 0;
 }
-.category-panel.collapsed .cat-chevron {
+.category-frame.lcars-frame--collapsed .cat-chevron {
     transform: rotate(-90deg);
 }
 
 /* ─── Module Cards Grid ─── */
-.cat-cards {
+.module-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    padding-bottom: 24px;
-    max-height: 2000px;
-    overflow: hidden;
-    transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
-}
-.category-panel.collapsed .cat-cards {
-    max-height: 0;
-    opacity: 0;
-    padding-bottom: 0;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
 }
 
 /* ─── Module Card ─── */
@@ -2769,37 +2244,33 @@ body.light-mode .featured-pin-btn.pinned {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 2px 8px 8px 2px;
+    border-radius: 4px;
     text-decoration: none;
     color: var(--archie-text-secondary);
     transition: all 0.2s ease;
     position: relative;
+    overflow: hidden;
 }
-.module-card::before {
-    content: '';
+/* Top accent bar in category color */
+.module-card-accent {
     position: absolute;
-    top: 4px; bottom: 4px; left: 0;
-    width: 2px;
-    background: var(--cat-accent);
-    border-radius: 1px;
-    opacity: 0.4;
-    transition: opacity 0.2s;
-}
-.module-card:hover::before {
-    opacity: 1;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--frame-color);
+    border-radius: 4px 4px 0 0;
 }
 .module-card:hover {
-    border-color: var(--cat-accent);
+    border-color: var(--frame-color);
     background: rgba(0, 0, 0, 0.5);
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 20px rgba(var(--frame-rgb), 0.15), 0 0 0 1px rgba(var(--frame-rgb), 0.3);
 }
 .module-card.coming-soon {
     opacity: 0.4;
     pointer-events: none;
 }
 .module-card-icon {
-    color: var(--cat-accent);
+    color: var(--frame-color);
     font-size: 1rem;
     width: 24px;
     text-align: center;
@@ -2813,7 +2284,7 @@ body.light-mode .featured-pin-btn.pinned {
     height: 18px;
 }
 .module-card-name {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-family: 'Orbitron', sans-serif;
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 1px;
@@ -2842,7 +2313,7 @@ body.light-mode .featured-pin-btn.pinned {
 }
 .module-badge {
     position: absolute;
-    top: 6px;
+    top: 10px;
     right: 8px;
     font-family: 'Antonio', sans-serif;
     font-size: 0.5rem;
@@ -2869,7 +2340,7 @@ body.light-mode .featured-pin-btn.pinned {
     animation: cardMaterialize 0.4s ease forwards;
 }
 
-/* Pin star on category grid module cards */
+/* ─── Pin star on category grid module cards ─── */
 .module-pin-btn {
     position: absolute;
     top: 50%;
@@ -2918,22 +2389,44 @@ body.light-mode .module-pin-btn.pinned {
 
 /* ─── Category Grid Responsive ─── */
 @media (max-width: 1280px) {
-    .cat-cards { grid-template-columns: repeat(3, 1fr); }
+    .module-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 717px) {
-    .cat-cards { grid-template-columns: repeat(2, 1fr); }
+    .module-grid { grid-template-columns: repeat(2, 1fr); }
+    .category-grid { gap: 16px; }
 }
 @media (max-width: 480px) {
-    .cat-cards { grid-template-columns: 1fr; }
+    .module-grid { grid-template-columns: 1fr; }
+    .category-grid { gap: 12px; }
 }
 
 /* ─── Category Grid Light Mode ─── */
-[data-theme="light"] .cat-header,
-body.light-mode .cat-header {
-    background: rgba(0, 0, 0, 0.02);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    border-color: rgba(0, 0, 0, 0.08);
+[data-theme="light"] .category-frame .lcars-bar,
+body.light-mode .category-frame .lcars-bar {
+    background: rgba(var(--frame-rgb), 0.12);
+    border: 1px solid rgba(var(--frame-rgb), 0.3);
+}
+[data-theme="light"] .category-frame .lcars-bar-title,
+body.light-mode .category-frame .lcars-bar-title {
+    color: var(--frame-color);
+}
+[data-theme="light"] .category-frame .cat-module-count,
+body.light-mode .category-frame .cat-module-count {
+    background: rgba(var(--frame-rgb), 0.15);
+    color: var(--frame-color);
+}
+[data-theme="light"] .category-frame .cat-admin-badge,
+body.light-mode .category-frame .cat-admin-badge {
+    color: var(--frame-color);
+    border-color: rgba(var(--frame-rgb), 0.4);
+}
+[data-theme="light"] .category-frame .cat-chevron,
+body.light-mode .category-frame .cat-chevron {
+    color: var(--frame-color);
+}
+[data-theme="light"] .category-frame .lcars-bar i,
+body.light-mode .category-frame .lcars-bar i {
+    color: var(--frame-color);
 }
 [data-theme="light"] .module-card,
 body.light-mode .module-card {
@@ -2943,9 +2436,13 @@ body.light-mode .module-card {
     border-color: rgba(0, 0, 0, 0.08);
     color: #333;
 }
-[data-theme="light"] .module-card::before,
-body.light-mode .module-card::before {
-    opacity: 0.3;
+[data-theme="light"] .module-card:hover,
+body.light-mode .module-card:hover {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .module-card-accent,
+body.light-mode .module-card-accent {
+    opacity: 0.5;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2958,7 +2455,7 @@ body.light-mode .module-card::before {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.cat-header-title {
+.category-frame .lcars-bar-title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2975,27 +2472,16 @@ body.light-mode .module-card::before {
     min-width: 0;
     flex: 1;
 }
-.briefing-card-header span {
+.briefing-col-header span {
     word-break: break-word;
-    text-align: center;
-}
-.section-header span {
-    white-space: nowrap;
-    flex-shrink: 0;
 }
 
 /* ─── RTL: direction flips ─── */
 [dir="rtl"] .featured-card {
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    border-right: 3px solid var(--feat-accent, rgba(0, 255, 65, 0.3));
+    border-left: 1px solid rgba(245, 158, 11, 0.15);
+    border-right: 3px solid var(--feat-accent, rgba(245, 158, 11, 0.3));
 }
-[dir="rtl"] .section-header::after {
-    background: linear-gradient(270deg, rgba(0, 255, 65, 0.3), transparent);
-}
-[dir="rtl"] .cat-header::before {
-    background: linear-gradient(270deg, transparent, var(--cat-accent), transparent);
-}
-[dir="rtl"] .category-panel.collapsed .cat-chevron {
+[dir="rtl"] .category-frame.lcars-frame--collapsed .cat-chevron {
     transform: rotate(90deg);
 }
 [dir="rtl"] .module-badge {
@@ -3010,8 +2496,8 @@ body.light-mode .module-card::before {
     right: auto;
     left: 12px;
 }
-[dir="rtl"] .briefing-card-header::before {
-    background: linear-gradient(270deg, transparent, var(--card-accent), transparent);
+[dir="rtl"] .briefing-col-header {
+    direction: rtl;
 }
 [dir="rtl"] .footer-conn-dot {
     margin-right: 0;
@@ -3025,15 +2511,15 @@ body.light-mode .module-card::before {
 [dir="rtl"][data-theme="light"] .featured-card,
 [dir="rtl"] body.light-mode .featured-card {
     border-left: 1px solid rgba(0, 0, 0, 0.08);
-    border-right: 3px solid var(--feat-accent, rgba(0, 255, 65, 0.3));
+    border-right: 3px solid var(--feat-accent, rgba(217, 119, 6, 0.3));
 }
 
 /* ─── Non-Latin scripts: reduce letter-spacing ─── */
 [dir="rtl"] .featured-card-name,
-[dir="rtl"] .cat-header-title,
+[dir="rtl"] .category-frame .lcars-bar-title,
 [dir="rtl"] .module-card-name,
-[dir="rtl"] .section-header,
-[dir="rtl"] .briefing-card-header,
+[dir="rtl"] .lcars-bar-title,
+[dir="rtl"] .briefing-col-header,
 [dir="rtl"] .hud-pod-label,
 [dir="rtl"] .featured-card-status,
 [dir="rtl"] .cat-admin-badge,
@@ -3041,19 +2527,19 @@ body.light-mode .module-card::before {
     letter-spacing: 0.5px;
 }
 [lang="zh"] .featured-card-name,
-[lang="zh"] .cat-header-title,
+[lang="zh"] .category-frame .lcars-bar-title,
 [lang="zh"] .module-card-name,
-[lang="zh"] .section-header,
-[lang="zh"] .briefing-card-header,
+[lang="zh"] .lcars-bar-title,
+[lang="zh"] .briefing-col-header,
 [lang="zh"] .hud-pod-label {
     letter-spacing: 1px;
 }
 
 /* ─── Long-text languages (DE, FR, PT, ES): tighter letter-spacing on headers ─── */
-[lang="de"] .section-header,
-[lang="de"] .cat-header-title,
+[lang="de"] .lcars-bar-title,
+[lang="de"] .category-frame .lcars-bar-title,
 [lang="de"] .featured-card-name,
-[lang="de"] .briefing-card-header {
+[lang="de"] .briefing-col-header {
     letter-spacing: 2px;
 }
 [lang="de"] .module-card-name {
@@ -3062,8 +2548,8 @@ body.light-mode .module-card::before {
 {% endblock %}
 
 {% block extra_head %}
-<!-- LCARS shared panels (animations, inputs, buttons) -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-panels.css') }}">
+<!-- LCARS structural frames (elbows, sidebars, bars) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 <!-- Font Awesome 6 (category header icons use fas fa-* classes) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 {% endblock %}
@@ -3072,45 +2558,14 @@ body.light-mode .module-card::before {
 <!-- Sandbox Mode Banner (if in sandbox mode) -->
 {% include 'sandbox_banner.html' %}
 
-<!-- Matrix Rain Canvas -->
-<canvas id="matrix-rain"></canvas>
-
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     BOOT SEQUENCE OVERLAY
-     6 phases, ~4s total, skippable
+     BOOT OVERLAY — LCARS Frame-Build Sequence
+     Scanline + Threat Level Midnight flash, then frames construct themselves
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="boot-overlay" id="bootOverlay">
-    <div class="boot-scanlines"></div>
-
-    <!-- Terminal output area -->
-    <div class="boot-terminal" id="bootTerminal">
-        <!-- Phase 0: Cursor blink -->
-        <div class="boot-line" id="bootCursor" style="opacity:1;"><span class="boot-cursor"></span></div>
-
-        <!-- Phase 1: Typing line -->
-        <div class="boot-typing-line" id="bootTyping"></div>
-
-        <!-- Phase 2: Subsystem checks (built by JS) -->
-        <div id="bootChecks"></div>
-
-        <!-- Phase 3: Threat level -->
-        <div class="boot-threat" id="bootThreat">&#9888; <span id="bootThreatLabel">THREAT LEVEL:</span> <span class="midnight-text" id="bootMidnight">MIDNIGHT</span></div>
-    </div>
-
-    <!-- Phase 4: Logo -->
-    <div class="boot-logo-container" id="bootLogo">
-        <div class="boot-logo-ring"></div>
-        <div class="boot-logo-ring"></div>
-        <div class="boot-logo-ring"></div>
-        <div class="boot-logo-text">A.R.C.H.I.E.</div>
-        <div class="boot-system-online" data-i18n="boot.system_online">SYSTEM ONLINE</div>
-    </div>
-
-    <!-- Phase 5: Split halves (created by JS for the reveal animation) -->
+    <div class="boot-scanline"></div>
+    <div class="boot-threat-flash" id="bootThreatFlash" data-i18n="boot_threat_level">THREAT LEVEL MIDNIGHT</div>
 </div>
-
-<!-- Skip button (outside overlay so it stays on top) -->
-<button class="boot-skip-btn" id="bootSkipBtn" onclick="window.skipBoot()"><span data-i18n="boot.skip">SKIP</span> &#9656;</button>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      DASHBOARD CONTENT
@@ -3118,288 +2573,411 @@ body.light-mode .module-card::before {
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="dashboard-content" id="dashboardContent">
 
-    <!-- Section 3: Command Bar -->
-    <div id="command-bar" class="command-bar" role="navigation" aria-label="Dashboard command bar">
-        <!-- Left Zone: User info -->
-        <div class="cb-zone cb-zone-left">
-            <div class="cb-avatar">{{ current_user.username[0] | upper }}</div>
-            <span class="cb-username">{{ current_user.username }}</span>
-            <span class="cb-badge cb-badge-role">{{ dashboard_data.user_role }}</span>
-            <span class="cb-badge cb-badge-tier">{{ dashboard_data.subscription_tier }}</span>
-        </div>
-        <!-- Center Zone: Search -->
-        <div class="cb-zone cb-zone-center">
-            <div class="cb-search">
-                <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search..." data-i18n-placeholder="cmd.search_placeholder" autocomplete="off" />
-                <span class="cb-search-hint">Ctrl+K</span>
-                <div class="cb-search-popover" id="cbSearchPopover"></div>
+    <!-- Section 3: Command Bar — LCARS Compact Frame -->
+    <div class="command-bar-frame" style="--frame-color: #00ff41; --frame-rgb: 0,255,65">
+        <div class="lcars-frame lcars-frame--compact boot-hidden">
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
             </div>
-        </div>
-        <!-- Right Zone: Actions -->
-        <div class="cb-zone cb-zone-right">
-            <!-- Notifications -->
-            <div style="position:relative;">
-                <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
-                    <i data-lucide="bell"></i>
-                    <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
-                </button>
-                <div class="cb-notif-overlay" id="cbNotifOverlay"></div>
-                <div class="cb-notif-popover" id="cbNotifPopover">
-                    <div class="cb-notif-header">
-                        <span class="cb-notif-title" data-i18n="js.notif.title">Notifications</span>
-                        <button class="cb-notif-mark-all" id="cbNotifMarkAll" data-i18n="js.notif.mark_all_read">Mark all read</button>
+            <div class="lcars-content">
+                <div class="lcars-bar" id="command-bar" role="navigation" aria-label="Dashboard command bar">
+                    <!-- Left Zone: User info -->
+                    <div class="cb-zone cb-zone-left">
+                        <div class="cb-avatar">{{ current_user.username[0] | upper }}</div>
+                        <span class="cb-username">{{ current_user.username }}</span>
+                        <span class="cb-badge cb-badge-role">{{ dashboard_data.user_role }}</span>
+                        <span class="cb-badge cb-badge-tier">{{ dashboard_data.subscription_tier }}</span>
                     </div>
-                    <div class="cb-notif-list" id="cbNotifList">
-                        <div class="cb-notif-empty" data-i18n="js.notif.loading">Loading...</div>
+                    <!-- Center Zone: Search -->
+                    <div class="cb-zone cb-zone-center">
+                        <div class="cb-search">
+                            <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search..." data-i18n-placeholder="cmd.search_placeholder" autocomplete="off" />
+                            <span class="cb-search-hint">Ctrl+K</span>
+                            <div class="cb-search-popover" id="cbSearchPopover"></div>
+                        </div>
+                    </div>
+                    <!-- Right Zone: Actions -->
+                    <div class="cb-zone cb-zone-right">
+                        <!-- Notifications -->
+                        <div style="position:relative;">
+                            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
+                                <i data-lucide="bell"></i>
+                                <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
+                            </button>
+                        </div>
+                        <!-- Theme toggle -->
+                        <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
+                            <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
+                            <i data-lucide="moon" id="cbThemeIconMoon"></i>
+                        </button>
+                        <!-- Language -->
+                        <button class="cb-icon-btn" id="cbLangBtn" title="Language" data-i18n-title="js.nav.language" aria-label="Change language" onclick="toggleLangMenu(this);">
+                            <i data-lucide="languages"></i>
+                        </button>
+                        {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
+                        <!-- Dev HQ -->
+                        <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" data-i18n-title="js.nav.dev_hq" aria-label="Dev HQ">
+                            <i data-lucide="compass"></i>
+                        </a>
+                        {% endif %}
+                        <!-- Logout -->
+                        <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout" id="cbLogoutBtn" onclick="event.preventDefault(); startShutdownSequence();">
+                            <i data-lucide="log-out"></i>
+                        </a>
                     </div>
                 </div>
             </div>
-            <!-- Notification Detail Modal -->
-            <div class="cb-notif-modal-overlay" id="cbNotifModal">
-                <div class="cb-notif-modal">
-                    <div class="cb-notif-modal-header">
-                        <div class="cb-notif-modal-dot" id="cbNotifModalDot"></div>
-                        <span class="cb-notif-modal-title" id="cbNotifModalTitle"></span>
-                        <button class="cb-notif-modal-close" id="cbNotifModalClose" aria-label="Close">&times;</button>
-                    </div>
-                    <div class="cb-notif-modal-body">
-                        <div class="cb-notif-modal-message" id="cbNotifModalMsg"></div>
-                        <div class="cb-notif-modal-meta" id="cbNotifModalMeta"></div>
-                    </div>
-                    <div class="cb-notif-modal-footer" id="cbNotifModalFooter"></div>
+        </div>
+        <!-- Popovers & modals — outside frame for proper overlay z-index -->
+        <div class="cb-notif-overlay" id="cbNotifOverlay"></div>
+        <div class="cb-notif-popover" id="cbNotifPopover">
+            <div class="cb-notif-header">
+                <span class="cb-notif-title" data-i18n="js.notif.title">Notifications</span>
+                <button class="cb-notif-mark-all" id="cbNotifMarkAll" data-i18n="js.notif.mark_all_read">Mark all read</button>
+            </div>
+            <div class="cb-notif-list" id="cbNotifList">
+                <div class="cb-notif-empty" data-i18n="js.notif.loading">Loading...</div>
+            </div>
+        </div>
+        <!-- Notification Detail Modal -->
+        <div class="cb-notif-modal-overlay" id="cbNotifModal">
+            <div class="cb-notif-modal">
+                <div class="cb-notif-modal-header">
+                    <div class="cb-notif-modal-dot" id="cbNotifModalDot"></div>
+                    <span class="cb-notif-modal-title" id="cbNotifModalTitle"></span>
+                    <button class="cb-notif-modal-close" id="cbNotifModalClose" aria-label="Close">&times;</button>
                 </div>
+                <div class="cb-notif-modal-body">
+                    <div class="cb-notif-modal-message" id="cbNotifModalMsg"></div>
+                    <div class="cb-notif-modal-meta" id="cbNotifModalMeta"></div>
+                </div>
+                <div class="cb-notif-modal-footer" id="cbNotifModalFooter"></div>
             </div>
-            <!-- Theme toggle -->
-            <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
-                <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
-                <i data-lucide="moon" id="cbThemeIconMoon"></i>
-            </button>
-            <!-- Language -->
-            <button class="cb-icon-btn" id="cbLangBtn" title="Language" data-i18n-title="js.nav.language" aria-label="Change language" onclick="toggleLangMenu(this);">
-                <i data-lucide="languages"></i>
-            </button>
-            <div class="cb-lang-menu hidden" id="cbLangMenu">
-                <button class="cb-lang-option active" data-lang="en">English</button>
-                <button class="cb-lang-option" data-lang="fr">Français (QC)</button>
-                <button class="cb-lang-option" data-lang="es">Español</button>
-                <button class="cb-lang-option" data-lang="pt">Português</button>
-                <button class="cb-lang-option" data-lang="de">Deutsch</button>
-                <button class="cb-lang-option" data-lang="zh">中文</button>
-                <button class="cb-lang-option" data-lang="ar">العربية</button>
-                <button class="cb-lang-option" data-lang="he">עברית</button>
-            </div>
-            {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
-            <!-- Dev HQ -->
-            <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" data-i18n-title="js.nav.dev_hq" aria-label="Dev HQ">
-                <i data-lucide="compass"></i>
-            </a>
-            {% endif %}
-            <!-- Logout -->
-            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout" id="cbLogoutBtn" onclick="event.preventDefault(); startShutdownSequence();">
-                <i data-lucide="log-out"></i>
-            </a>
+        </div>
+        <!-- Language menu -->
+        <div class="cb-lang-menu hidden" id="cbLangMenu">
+            <button class="cb-lang-option active" data-lang="en">English</button>
+            <button class="cb-lang-option" data-lang="fr">Français (QC)</button>
+            <button class="cb-lang-option" data-lang="es">Español</button>
+            <button class="cb-lang-option" data-lang="pt">Português</button>
+            <button class="cb-lang-option" data-lang="de">Deutsch</button>
+            <button class="cb-lang-option" data-lang="zh">中文</button>
+            <button class="cb-lang-option" data-lang="ar">العربية</button>
+            <button class="cb-lang-option" data-lang="he">עברית</button>
         </div>
     </div>
 
-    <!-- Section 3: HUD Vitals -->
-    <div id="hud-vitals" class="hud-vitals-strip" role="status" aria-label="System vitals">
-        <!-- Pod 1: SYSTEM health -->
-        <div class="hud-pod" id="hudPodSystem">
-            <span class="hud-pod-label" data-i18n="hud.system">SYSTEM</span>
-            <div class="hud-ring-wrap">
-                <svg viewBox="0 0 60 60">
-                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                    <circle class="hud-ring-fg" id="hudRingSystem" cx="30" cy="30" r="25"
-                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                </svg>
-                <div class="hud-ring-center" id="hudValSystem">--%</div>
+    <!-- Section 3: HUD Vitals — LCARS Full Frame (cyan) -->
+    <div class="hud-frame" style="--frame-color: #00ffff; --frame-rgb: 0,255,255">
+        <div class="lcars-frame boot-hidden">
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg-light" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg-light" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg" style="--seg-color: #0ea5e9"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-elbow-bottom"></div>
             </div>
-        </div>
-        <!-- Pod 2: CPU -->
-        <div class="hud-pod" id="hudPodCpu">
-            <span class="hud-pod-label" data-i18n="hud.cpu">CPU</span>
-            <div class="hud-ring-wrap">
-                <svg viewBox="0 0 60 60">
-                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                    <circle class="hud-ring-fg" id="hudRingCpu" cx="30" cy="30" r="25"
-                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                </svg>
-                <div class="hud-ring-center" id="hudValCpu">--%</div>
-            </div>
-        </div>
-        <!-- Pod 3: MEMORY -->
-        <div class="hud-pod" id="hudPodMem">
-            <span class="hud-pod-label" data-i18n="hud.memory">MEMORY</span>
-            <div class="hud-ring-wrap">
-                <svg viewBox="0 0 60 60">
-                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                    <circle class="hud-ring-fg" id="hudRingMem" cx="30" cy="30" r="25"
-                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                </svg>
-                <div class="hud-ring-center" id="hudValMem">--%</div>
-            </div>
-            <span class="hud-pod-sub" id="hudMemDetail">--/-- GB</span>
-        </div>
-        <!-- Pod 4: AI STATUS + AGENTS (stacked) -->
-        <div class="hud-pod hud-pod-dual" id="hudPodAiAgents">
-            <div class="hud-dual-top">
-                <span class="hud-pod-label" data-i18n="hud.ai_status">AI STATUS</span>
-                <div class="hud-dual-row">
-                    <div class="hud-ai-dot" id="hudAiDot"></div>
-                    <span class="hud-pod-value" id="hudValAi" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
+            <div class="lcars-content">
+                <div class="lcars-bar">
+                    <span class="lcars-bar-title" data-i18n="dashboard_hud_title">SYSTEM STATUS</span>
+                    <div class="lcars-bar-spacer"></div>
+                    <div class="lcars-pips">
+                        <span class="lcars-pip" style="width:20px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:35px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:14px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                    <span class="lcars-bar-status" id="hudUptime" data-i18n-title="dashboard_hud_uptime">--</span>
                 </div>
-            </div>
-            <div class="hud-dual-divider"></div>
-            <div class="hud-dual-bottom">
-                <span class="hud-pod-label" data-i18n="hud.agents">AGENTS</span>
-                <div class="hud-dual-row">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    <span class="hud-pod-value" id="hudValAgents" style="font-size:13px;">0</span>
-                </div>
-            </div>
-        </div>
-        <!-- Pod 5: A.R.C.H.I.E. + UPTIME (stacked) -->
-        <div class="hud-pod hud-pod-dual" id="hudPodArchieUptime">
-            <div class="hud-dual-top">
-                <span class="hud-pod-label" data-i18n="hud.archie">A.R.C.H.I.E.</span>
-                <div class="hud-dual-row">
-                    <div class="hud-archie-dot online" id="hudArchieDot"></div>
-                    <span class="hud-pod-value" id="hudValArchie" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
-                </div>
-            </div>
-            <div class="hud-dual-divider"></div>
-            <div class="hud-dual-bottom">
-                <span class="hud-pod-label" data-i18n="hud.uptime">UPTIME</span>
-                <span class="hud-pod-value" id="hudValUptime" style="font-size:13px;">--h --m</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Section 5: Mission Briefing -->
-    <div id="mission-briefing" class="mission-briefing">
-        <div class="mission-briefing-row">
-            <!-- Card 1: Recent Activity -->
-            <div class="briefing-card briefing-card--activity">
-                <div class="briefing-card-header">
-                    <span class="briefing-cap"></span>
-                    <i data-lucide="activity"></i>
-                    <span data-i18n="section.recent_activity">Recent Activity</span>
-                    <span class="lcars-dot online pulse" style="margin-left:auto"></span>
-                </div>
-                <div class="briefing-card-body" id="briefingActivity">
-                    <span class="briefing-muted" data-i18n="js.briefing.loading_activity">Loading activity...</span>
-                </div>
-            </div>
-            <!-- Card 2: System Alerts -->
-            <div class="briefing-card briefing-card--alerts">
-                <div class="briefing-card-header">
-                    <span class="briefing-cap"></span>
-                    <i data-lucide="alert-triangle"></i>
-                    <span data-i18n="section.system_alerts">System Alerts</span>
-                    <span class="lcars-dot online pulse" style="margin-left:auto"></span>
-                </div>
-                <div class="briefing-card-body" id="briefingAlerts">
-                    <span class="briefing-muted" data-i18n="js.briefing.checking_alerts">Checking alerts...</span>
-                </div>
-            </div>
-            <!-- Card 3: AI Insights -->
-            <div class="briefing-card briefing-card--ai">
-                <div class="briefing-card-header">
-                    <span class="briefing-cap"></span>
-                    <i data-lucide="brain"></i>
-                    <span data-i18n="section.ai_insights">AI Insights</span>
-                    <span class="lcars-dot online pulse" style="margin-left:auto"></span>
-                </div>
-                <div class="briefing-card-body" id="briefingAi">
-                    <span class="briefing-muted" data-i18n="js.briefing.loading_insights">Loading insights...</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Section 6: Featured Modules — Priority Stations -->
-    <div id="featured-modules" class="featured-modules">
-        <div class="section-header">
-            <i data-lucide="star"></i>
-            <span data-i18n="section.priority_stations">Priority Stations</span>
-        </div>
-        <div class="featured-cards-row" id="featuredCardsRow">
-            {% for module in dashboard_data.featured_modules %}
-            <a href="{{ module.route }}" class="featured-card" data-module-id="{{ module.id }}" data-category="{{ module.category }}">
-                <!-- Pin/unpin toggle -->
-                <button class="featured-pin-btn pinned" data-pin-id="{{ module.id }}" title="Unpin module" onclick="event.preventDefault(); event.stopPropagation(); togglePin(this, '{{ module.id }}');">
-                    <i data-lucide="star"></i>
-                </button>
-                <!-- Module icon -->
-                <div class="featured-card-icon">
-                    <i data-lucide="{{ module.icon }}"></i>
-                </div>
-                <!-- Module name -->
-                <div class="featured-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
-                <!-- Module description (strip HTML tags for clean display) -->
-                <div class="featured-card-desc" data-i18n="module.{{ module.id }}.desc">{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags }}</div>
-                <!-- Footer: status indicator -->
-                <div class="featured-card-footer">
-                    <div class="featured-card-status">
-                        <span class="featured-status-dot" id="featStatus-{{ module.id }}"></span>
-                        <span class="featured-status-text" id="featStatusText-{{ module.id }}">CHECKING...</span>
+                <div class="lcars-body" id="hud-vitals" role="status" aria-label="System vitals">
+                    <!-- Pod 1: SYSTEM health -->
+                    <div class="hud-pod" id="hudPodSystem">
+                        <span class="hud-pod-label" data-i18n="hud.system">SYSTEM</span>
+                        <div class="hud-ring-wrap">
+                            <svg viewBox="0 0 60 60">
+                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                                <circle class="hud-ring-fg" id="hudRingSystem" cx="30" cy="30" r="25"
+                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                            </svg>
+                            <div class="hud-ring-center" id="hudValSystem">--%</div>
+                        </div>
+                    </div>
+                    <!-- Pod 2: CPU -->
+                    <div class="hud-pod" id="hudPodCpu">
+                        <span class="hud-pod-label" data-i18n="hud.cpu">CPU</span>
+                        <div class="hud-ring-wrap">
+                            <svg viewBox="0 0 60 60">
+                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                                <circle class="hud-ring-fg" id="hudRingCpu" cx="30" cy="30" r="25"
+                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                            </svg>
+                            <div class="hud-ring-center" id="hudValCpu">--%</div>
+                        </div>
+                    </div>
+                    <!-- Pod 3: MEMORY -->
+                    <div class="hud-pod" id="hudPodMem">
+                        <span class="hud-pod-label" data-i18n="hud.memory">MEMORY</span>
+                        <div class="hud-ring-wrap">
+                            <svg viewBox="0 0 60 60">
+                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                                <circle class="hud-ring-fg" id="hudRingMem" cx="30" cy="30" r="25"
+                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                            </svg>
+                            <div class="hud-ring-center" id="hudValMem">--%</div>
+                        </div>
+                        <span class="hud-pod-sub" id="hudMemDetail">--/-- GB</span>
+                    </div>
+                    <!-- Pod 4: AI STATUS + AGENTS (stacked) -->
+                    <div class="hud-pod hud-pod-dual" id="hudPodAiAgents">
+                        <div class="hud-dual-top">
+                            <span class="hud-pod-label" data-i18n="hud.ai_status">AI STATUS</span>
+                            <div class="hud-dual-row">
+                                <div class="hud-ai-dot" id="hudAiDot"></div>
+                                <span class="hud-pod-value" id="hudValAi" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
+                            </div>
+                        </div>
+                        <div class="hud-dual-divider"></div>
+                        <div class="hud-dual-bottom">
+                            <span class="hud-pod-label" data-i18n="hud.agents">AGENTS</span>
+                            <div class="hud-dual-row">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                <span class="hud-pod-value" id="hudValAgents" style="font-size:13px;">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Pod 5: A.R.C.H.I.E. + UPTIME (stacked) -->
+                    <div class="hud-pod hud-pod-dual" id="hudPodArchieUptime">
+                        <div class="hud-dual-top">
+                            <span class="hud-pod-label" data-i18n="hud.archie">A.R.C.H.I.E.</span>
+                            <div class="hud-dual-row">
+                                <div class="hud-archie-dot online" id="hudArchieDot"></div>
+                                <span class="hud-pod-value" id="hudValArchie" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
+                            </div>
+                        </div>
+                        <div class="hud-dual-divider"></div>
+                        <div class="hud-dual-bottom">
+                            <span class="hud-pod-label" data-i18n="hud.uptime">UPTIME</span>
+                            <span class="hud-pod-value" id="hudValUptime" style="font-size:13px;">--h --m</span>
+                        </div>
                     </div>
                 </div>
-            </a>
-            {% endfor %}
+                <div class="lcars-footer-bar">
+                    <span class="lcars-footer-stardate" id="hudStardate" data-i18n="dashboard_hud_stardate">SD 79145.7</span>
+                    <span class="lcars-footer-stardate" data-i18n="dashboard_version_label">v{{ config.get('VERSION','5.32.0') }}</span>
+                    <div class="lcars-footer-dots">
+                        <span class="lcars-footer-dot" style="background:#00ffff"></span>
+                        <span class="lcars-footer-dot" style="background:#00ff41"></span>
+                        <span class="lcars-footer-dot" style="background:#0ea5e9"></span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Section 7: Category Grid with Collapsible Panels -->
+    <!-- Section 5: Mission Briefing — LCARS Full Frame (green) -->
+    <div id="mission-briefing" class="briefing-frame" style="--frame-color: #00ff41; --frame-rgb: 0,255,65">
+        <div class="lcars-frame boot-hidden">
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+                <div class="lcars-seg-light" style="--light-color: #00ffff"></div>
+                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg" style="--seg-color: #8b5cf6"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-elbow-bottom"></div>
+            </div>
+            <div class="lcars-content">
+                <div class="lcars-bar">
+                    <span class="lcars-bar-title" data-i18n="dashboard_briefing_title">MISSION BRIEFING</span>
+                    <div class="lcars-bar-spacer"></div>
+                    <div class="lcars-pips">
+                        <span class="lcars-pip" style="width:20px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:35px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:14px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                </div>
+                <div class="lcars-body">
+                    <div class="briefing-grid">
+                        <!-- Column 1: Activity Feed -->
+                        <div class="briefing-col">
+                            <div class="briefing-col-header" style="--col-accent: #00ff41">
+                                <span data-i18n="dashboard_activity_title">RECENT ACTIVITY</span>
+                            </div>
+                            <div id="briefingActivity">
+                                <span class="briefing-muted" data-i18n="js.briefing.loading_activity">Loading activity...</span>
+                            </div>
+                        </div>
+                        <!-- Column 2: System Alerts -->
+                        <div class="briefing-col">
+                            <div class="briefing-col-header" style="--col-accent: #f59e0b">
+                                <span data-i18n="dashboard_alerts_title">SYSTEM ALERTS</span>
+                            </div>
+                            <div id="briefingAlerts">
+                                <span class="briefing-muted" data-i18n="js.briefing.checking_alerts">Checking alerts...</span>
+                            </div>
+                        </div>
+                        <!-- Column 3: AI Insights -->
+                        <div class="briefing-col">
+                            <div class="briefing-col-header" style="--col-accent: #00ffff">
+                                <span data-i18n="dashboard_ai_title">AI INSIGHTS</span>
+                            </div>
+                            <div id="briefingAi">
+                                <span class="briefing-muted" data-i18n="js.briefing.loading_insights">Loading insights...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="lcars-footer-bar">
+                    <span class="lcars-footer-stardate" id="briefingTimestamp" data-i18n="dashboard_briefing_updated">--</span>
+                    <div class="lcars-footer-dots">
+                        <span class="lcars-footer-dot" style="background:#00ff41"></span>
+                        <span class="lcars-footer-dot" style="background:#f59e0b"></span>
+                        <span class="lcars-footer-dot" style="background:#00ffff"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 6: Featured Modules — Priority Stations (LCARS Amber Frame) -->
+    <div id="featured-modules" class="featured-frame" style="--frame-color: #f59e0b; --frame-rgb: 245,158,11">
+        <div class="lcars-frame boot-hidden">
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-seg" style="--seg-color: #8b5cf6"></div>
+                <div class="lcars-elbow-bottom"></div>
+            </div>
+            <div class="lcars-content">
+                <div class="lcars-bar">
+                    <span class="lcars-bar-title" data-i18n="dashboard_featured_title">PRIORITY STATIONS</span>
+                    <div class="lcars-bar-spacer"></div>
+                    <div class="lcars-pips">
+                        <span class="lcars-pip" style="width:20px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:14px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:35px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                </div>
+                <div class="lcars-body">
+                    <div class="featured-cards-row" id="featuredCardsRow">
+                        {% for module in dashboard_data.featured_modules %}
+                        <a href="{{ module.route }}" class="featured-card" data-module-id="{{ module.id }}" data-category="{{ module.category }}">
+                            <!-- Pin/unpin toggle -->
+                            <button class="featured-pin-btn pinned" data-pin-id="{{ module.id }}" title="Unpin module" onclick="event.preventDefault(); event.stopPropagation(); togglePin(this, '{{ module.id }}');">
+                                <i data-lucide="star"></i>
+                            </button>
+                            <!-- Module icon -->
+                            <div class="featured-card-icon">
+                                <i data-lucide="{{ module.icon }}"></i>
+                            </div>
+                            <!-- Module name -->
+                            <div class="featured-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
+                            <!-- Module description (strip HTML tags for clean display) -->
+                            <div class="featured-card-desc" data-i18n="module.{{ module.id }}.desc">{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags }}</div>
+                            <!-- Footer: status indicator -->
+                            <div class="featured-card-footer">
+                                <div class="featured-card-status">
+                                    <span class="featured-status-dot" id="featStatus-{{ module.id }}"></span>
+                                    <span class="featured-status-text" id="featStatusText-{{ module.id }}">CHECKING...</span>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="lcars-footer-bar">
+                    <span class="lcars-footer-stardate" id="featuredPinCount" data-i18n="dashboard_featured_pinned">PINNED</span>
+                    <div class="lcars-footer-dots">
+                        <span class="lcars-footer-dot" style="background:#f59e0b"></span>
+                        <span class="lcars-footer-dot" style="background:#00ff41"></span>
+                        <span class="lcars-footer-dot" style="background:#8b5cf6"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 7: Category Grid — LCARS Framed Panels -->
     <div id="category-grid" class="category-grid">
         {% for cat_key, cat_info in dashboard_data.categories.items() %}
         {% if cat_key in dashboard_data.modules_by_category %}
-        <div class="category-panel category-{{ cat_key }}" data-category="{{ cat_key }}">
-
-            <!-- LCARS Framed Category Header -->
-            <div class="cat-header" onclick="toggleCategory('{{ cat_key }}')" role="button" tabindex="0" aria-expanded="true" aria-controls="cat-{{ cat_key }}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategory('{{ cat_key }}');}">
-                <div class="cat-header-icon">
+        <div class="category-frame lcars-frame boot-hidden category-frame--{{ cat_key }}"
+             data-category="{{ cat_key }}">
+            <!-- LCARS Left Sidebar -->
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: var(--frame-color)"></div>
+                <div class="lcars-seg" style="--seg-color: rgba(var(--frame-rgb), 0.6)"></div>
+                <div class="lcars-seg" style="--seg-color: rgba(var(--frame-rgb), 0.3)"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-elbow-bottom"></div>
+            </div>
+            <!-- LCARS Content Column -->
+            <div class="lcars-content">
+                <!-- Header Bar (clickable to collapse/expand) -->
+                <div class="lcars-bar" onclick="toggleCategory('{{ cat_key }}')" role="button" tabindex="0" aria-expanded="true" aria-controls="cat-{{ cat_key }}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategory('{{ cat_key }}');}">
                     <i class="{{ cat_info.icon }}"></i>
+                    <span class="lcars-bar-title" data-i18n="cat.{{ cat_key }}">{{ cat_info.name }}</span>
+                    {% if cat_info.get('admin_only') %}
+                    <span class="cat-admin-badge">ADMIN</span>
+                    {% endif %}
+                    <div class="lcars-bar-spacer"></div>
+                    <span class="cat-module-count">{{ dashboard_data.modules_by_category[cat_key] | length }}</span>
+                    <span class="cat-chevron">&#9660;</span>
                 </div>
-                <span class="cat-header-title" data-i18n="cat.{{ cat_key }}">{{ cat_info.name }}</span>
-                {% if cat_info.get('admin_only') %}
-                <span class="cat-admin-badge">ADMIN</span>
-                {% endif %}
-                <span class="cat-module-count">{{ dashboard_data.modules_by_category[cat_key] | length }}</span>
-                <span class="cat-chevron">&#9660;</span>
-            </div>
-
-            <!-- Module Cards Grid -->
-            <div class="cat-cards" id="cat-{{ cat_key }}">
-                {% for module in dashboard_data.modules_by_category[cat_key] %}
-                <a href="{{ module.route }}" class="module-card{% if module.coming_soon %} coming-soon{% endif %}"
-                   data-module-id="{{ module.id }}"
-                   data-module-name="{{ module.name }}"
-                   data-module-icon="{{ module.icon }}"
-                   data-module-desc="{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags | truncate(120) }}"
-                   data-module-category="{{ cat_key }}"
-                   {% if module.coming_soon %}onclick="return false;"{% endif %}>
-                    <div class="module-card-icon">
-                        <i data-lucide="{{ module.icon }}"></i>
+                <!-- Body: Module Cards Grid -->
+                <div class="lcars-body" id="cat-{{ cat_key }}">
+                    <div class="module-grid">
+                        {% for module in dashboard_data.modules_by_category[cat_key] %}
+                        <a href="{{ module.route }}" class="module-card{% if module.coming_soon %} coming-soon{% endif %}"
+                           data-module-id="{{ module.id }}"
+                           data-module-name="{{ module.name }}"
+                           data-module-icon="{{ module.icon }}"
+                           data-module-desc="{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags | truncate(120) }}"
+                           data-module-category="{{ cat_key }}"
+                           {% if module.coming_soon %}onclick="return false;"{% endif %}>
+                            <div class="module-card-accent"></div>
+                            <div class="module-card-icon">
+                                <i data-lucide="{{ module.icon }}"></i>
+                            </div>
+                            <div class="module-card-info">
+                                <div class="module-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
+                                <div class="module-card-status" data-status-for="{{ module.id }}">
+                                    <span class="status-dot checking"></span>
+                                    <span class="status-text">CHECKING...</span>
+                                </div>
+                            </div>
+                            {% if module.beta %}<span class="module-badge beta">BETA</span>{% endif %}
+                            {% if module.coming_soon %}<span class="module-badge soon">COMING SOON</span>{% endif %}
+                            <button class="module-pin-btn" data-pin-id="{{ module.id }}" title="Pin to Priority Stations"
+                                    onclick="event.preventDefault(); event.stopPropagation(); toggleGridPin(this, '{{ module.id }}');">
+                                <i data-lucide="star"></i>
+                            </button>
+                        </a>
+                        {% endfor %}
                     </div>
-                    <div class="module-card-info">
-                        <div class="module-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
-                        <div class="module-card-status" data-status-for="{{ module.id }}">
-                            <span class="status-dot checking"></span>
-                            <span class="status-text">CHECKING...</span>
-                        </div>
+                </div>
+                <!-- Footer Bar -->
+                <div class="lcars-footer-bar">
+                    <span class="lcars-footer-stardate" data-i18n="cat.{{ cat_key }}">{{ cat_info.name | upper }}</span>
+                    <div class="lcars-footer-dots">
+                        <span class="lcars-footer-dot" style="background: var(--frame-color)"></span>
+                        <span class="lcars-footer-dot" style="background: rgba(var(--frame-rgb), 0.5)"></span>
+                        <span class="lcars-footer-dot" style="background: rgba(var(--frame-rgb), 0.3)"></span>
                     </div>
-                    {% if module.beta %}<span class="module-badge beta">BETA</span>{% endif %}
-                    {% if module.coming_soon %}<span class="module-badge soon">COMING SOON</span>{% endif %}
-                    <button class="module-pin-btn" data-pin-id="{{ module.id }}" title="Pin to Priority Stations"
-                            onclick="event.preventDefault(); event.stopPropagation(); toggleGridPin(this, '{{ module.id }}');">
-                        <i data-lucide="star"></i>
-                    </button>
-                </a>
-                {% endfor %}
+                </div>
             </div>
-
         </div>
         {% endif %}
         {% endfor %}
@@ -3426,375 +3004,63 @@ body.light-mode .module-card::before {
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════════
-// MATRIX RAIN — Katakana + Binary + "ARCHIE"
-// Slower interval (33ms), green on transparent, JetBrains Mono 14px
+// LCARS FRAME-BUILD BOOT SEQUENCE
+// Black overlay + scanline + "THREAT LEVEL MIDNIGHT" flash, then frames
+// construct themselves sequentially. Click/key to skip. sessionStorage bypass.
 // ═══════════════════════════════════════════════════════════════════════════════
-(function initMatrixRain() {
-    var canvas = document.getElementById('matrix-rain');
-    if (!canvas) return;
-    var ctx = canvas.getContext('2d');
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    var FONT_SIZE = 14;
-    var columns = Math.floor(canvas.width / FONT_SIZE);
-    var drops = [];
-    for (var c = 0; c < columns; c++) drops[c] = 1;
-
-    // Character ranges
-    var katakanaStart = 0x30A0;
-    var katakanaEnd = 0x30FF;
-    var archieStr = 'ARCHIE';
-
-    function getRandomChar() {
-        var roll = Math.random();
-        if (roll < 0.6) {
-            // Katakana
-            return String.fromCharCode(katakanaStart + Math.floor(Math.random() * (katakanaEnd - katakanaStart)));
-        } else if (roll < 0.9) {
-            // Binary
-            return Math.random() > 0.5 ? '1' : '0';
-        } else {
-            // ARCHIE characters
-            return archieStr[Math.floor(Math.random() * archieStr.length)];
-        }
-    }
-
-    function draw() {
-        // Fade with semi-transparent black
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.fillStyle = '#00FF41';
-        ctx.font = FONT_SIZE + 'px "JetBrains Mono", monospace';
-
-        for (var i = 0; i < drops.length; i++) {
-            var ch = getRandomChar();
-            var x = i * FONT_SIZE;
-            var y = drops[i] * FONT_SIZE;
-
-            ctx.fillText(ch, x, y);
-
-            // Reset drop to top randomly
-            if (y > canvas.height && Math.random() > 0.975) {
-                drops[i] = 0;
-            }
-            drops[i]++;
-        }
-    }
-
-    // 33ms interval = ~30fps (slower, more cinematic)
-    var matrixInterval = setInterval(draw, 33);
-
-    // Expose for external control
-    window.matrixRainInterval = matrixInterval;
-    window.restartMatrixRain = function() {
-        clearInterval(matrixInterval);
-        matrixInterval = setInterval(draw, 33);
-        window.matrixRainInterval = matrixInterval;
-    };
-})();
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// BOOT SEQUENCE — 6 Phases, ~4s
-// ═══════════════════════════════════════════════════════════════════════════════
-(function runBootSequence() {
-    'use strict';
-
-    var SKIP_KEY = 'archie-boot-skip';
-    var overlay = document.getElementById('bootOverlay');
-    var skipBtn = document.getElementById('bootSkipBtn');
-    var dashContent = document.getElementById('dashboardContent');
-
-    // If previously skipped, show dashboard immediately
-    if (sessionStorage.getItem(SKIP_KEY) === 'true') {
-        if (overlay) overlay.classList.add('hidden');
-        if (skipBtn) skipBtn.style.display = 'none';
-        if (dashContent) {
-            dashContent.classList.add('visible');
-        }
+(function initFrameBoot() {
+    if (sessionStorage.getItem('archie-booted')) {
+        // Skip boot — show everything immediately
+        document.getElementById('bootOverlay')?.remove();
+        document.querySelectorAll('.boot-hidden').forEach(function(f) { f.classList.remove('boot-hidden'); });
         return;
     }
 
-    var aborted = false;
-    var bootTimeouts = [];
+    var overlay = document.getElementById('bootOverlay');
+    var threatFlash = document.getElementById('bootThreatFlash');
+    var frames = document.querySelectorAll('.lcars-frame');
 
-    function schedule(fn, delay) {
-        var id = setTimeout(fn, delay);
-        bootTimeouts.push(id);
-        return id;
-    }
+    // All frames start hidden (should already have boot-hidden class from HTML)
+    frames.forEach(function(f) { f.classList.add('boot-hidden'); });
 
-    // Skip handler
-    window.skipBoot = function() {
-        if (aborted) return;
-        aborted = true;
-        sessionStorage.setItem(SKIP_KEY, 'true');
-        // Clear all pending timeouts
-        bootTimeouts.forEach(clearTimeout);
-        // Immediately reveal dashboard
-        finishBoot();
-    };
+    // Phase 1: Darkness + Threat Level Midnight flash (0-500ms)
+    setTimeout(function() {
+        threatFlash.classList.add('flash');
+    }, 100);
 
-    function finishBoot() {
-        if (skipBtn) skipBtn.style.display = 'none';
+    // Phase 2-5: Build frames sequentially with accelerating timing
+    var frameDelays = [500, 1200, 2000, 2800]; // first 4 frames get individual timing
+    var cascadeStart = 2800; // remaining frames cascade rapidly
 
-        // Split overlay and reveal
-        overlay.classList.add('phase-split');
-
-        // Create split halves for the horizontal split animation
-        var topHalf = document.createElement('div');
-        topHalf.className = 'boot-top-half';
-        var bottomHalf = document.createElement('div');
-        bottomHalf.className = 'boot-bottom-half';
-        overlay.appendChild(topHalf);
-        overlay.appendChild(bottomHalf);
-
-        // Hide terminal and logo
-        var terminal = document.getElementById('bootTerminal');
-        var logo = document.getElementById('bootLogo');
-        if (terminal) terminal.style.display = 'none';
-        if (logo) logo.style.display = 'none';
-
-        // Trigger split reveal
-        requestAnimationFrame(function() {
-            overlay.classList.add('reveal');
-        });
-
-        // Show dashboard content
-        if (dashContent) {
-            dashContent.classList.add('visible');
-        }
-
-        // Remove overlay after animation
+    frames.forEach(function(frame, i) {
+        var delay = i < 4 ? frameDelays[i] : cascadeStart + (i - 4) * 200;
         setTimeout(function() {
-            overlay.classList.add('hidden');
-        }, 600);
+            frame.classList.remove('boot-hidden');
+            frame.classList.add('frame-build');
+        }, delay);
+    });
+
+    // Phase 6: System online — remove overlay after all frames built
+    var totalTime = cascadeStart + Math.max(0, frames.length - 4) * 200 + 400;
+    setTimeout(function() {
+        overlay.classList.add('fade-out');
+        sessionStorage.setItem('archie-booted', '1');
+        setTimeout(function() { overlay.remove(); }, 300);
+    }, totalTime);
+
+    // Skip on click or keypress
+    function skipBoot() {
+        frames.forEach(function(f) {
+            f.classList.remove('boot-hidden');
+            f.classList.remove('frame-build');
+        });
+        overlay.remove();
+        sessionStorage.setItem('archie-booted', '1');
+        document.removeEventListener('click', skipBoot);
+        document.removeEventListener('keydown', skipBoot);
     }
-
-    // ── Phase 0 (0-300ms): Pure black + cursor blink ──
-    // Cursor element is already visible in the HTML
-
-    // ── Show skip button at 500ms ──
-    schedule(function() {
-        if (!aborted && skipBtn) skipBtn.classList.add('visible');
-    }, 500);
-
-    // ── Phase 1 (300-1000ms): Type initialization message ──
-    var typingEl = document.getElementById('bootTyping');
-    var cursorEl = document.getElementById('bootCursor');
-    var initMessage = archieI18n.t('js.boot.initializing', '> INITIALIZING A.R.C.H.I.E. CORE...');
-
-    schedule(function() {
-        if (aborted) return;
-        // Hide initial cursor, start typing
-        if (cursorEl) cursorEl.style.opacity = '0';
-
-        var charIdx = 0;
-        function typeChar() {
-            if (aborted || charIdx >= initMessage.length) {
-                // Show blinking cursor at end of typed text
-                if (!aborted && typingEl) {
-                    var endCursor = document.createElement('span');
-                    endCursor.className = 'boot-cursor';
-                    typingEl.appendChild(endCursor);
-                }
-                return;
-            }
-            if (typingEl) {
-                typingEl.textContent = initMessage.substring(0, charIdx + 1);
-            }
-            charIdx++;
-            schedule(typeChar, 18 + Math.random() * 12);
-        }
-        typeChar();
-
-        // Screen flicker during typing
-        schedule(function() {
-            if (!aborted) overlay.classList.add('flicker');
-            schedule(function() {
-                if (!aborted) overlay.classList.remove('flicker');
-            }, 400);
-        }, 300);
-    }, 300);
-
-    // ── Phase 2 (1000-2500ms): Subsystem checks ──
-    var checksContainer = document.getElementById('bootChecks');
-    var moduleCount = '{{ dashboard_data.accessible_count }}';
-    var subsystems = [
-        { label: archieI18n.t('js.boot.database', 'DATABASE'),      dots: 10, status: archieI18n.t('js.boot.connected', 'CONNECTED'), cls: 'connected', delay: 0 },
-        { label: archieI18n.t('js.boot.ai_bridge', 'AI BRIDGE'),     dots: 9,  status: archieI18n.t('js.boot.online', 'ONLINE'),    cls: 'online',    delay: 220 },
-        { label: archieI18n.t('js.boot.modules', 'MODULES'),       dots: 9,  status: moduleCount + ' ' + archieI18n.t('js.boot.loaded', 'LOADED'), cls: 'loaded', delay: 440 },
-        { label: archieI18n.t('js.boot.network', 'NETWORK'),       dots: 9,  status: archieI18n.t('js.boot.secure', 'SECURE'),    cls: 'secure',    delay: 660 },
-        { label: archieI18n.t('js.boot.agents', 'AGENTS'),        dots: 10, status: archieI18n.t('js.boot.active', 'ACTIVE'),    cls: 'active',    delay: 880 },
-        { label: archieI18n.t('js.boot.consciousness', 'CONSCIOUSNESS'), dots: 7,  status: archieI18n.t('js.boot.aware', 'AWARE'),     cls: 'aware',     delay: 1100 }
-    ];
-
-    // Build the subsystem check lines at phase 2 start
-    schedule(function() {
-        if (aborted) return;
-
-        // Remove typing cursor
-        if (typingEl) {
-            var existingCursor = typingEl.querySelector('.boot-cursor');
-            if (existingCursor) existingCursor.remove();
-        }
-
-        subsystems.forEach(function(sys) {
-            schedule(function() {
-                if (aborted) return;
-
-                // Build line using DOM methods (no innerHTML for security)
-                var line = document.createElement('div');
-                line.className = 'boot-line';
-
-                // Label span
-                var labelSpan = document.createElement('span');
-                labelSpan.className = 'label';
-                labelSpan.textContent = sys.label;
-                line.appendChild(labelSpan);
-
-                // Dots span
-                var dotsSpan = document.createElement('span');
-                dotsSpan.className = 'dots';
-                var dotStr = ' ';
-                for (var d = 0; d < sys.dots; d++) dotStr += '.';
-                dotStr += ' ';
-                dotsSpan.textContent = dotStr;
-                line.appendChild(dotsSpan);
-
-                // Opening bracket
-                line.appendChild(document.createTextNode('['));
-
-                // Progress fill (starts empty)
-                var fillSpan = document.createElement('span');
-                fillSpan.className = 'progress-fill';
-                fillSpan.textContent = '';
-                line.appendChild(fillSpan);
-
-                // Progress track (starts full with light blocks)
-                var trackSpan = document.createElement('span');
-                trackSpan.className = 'progress-track';
-                var emptyBlocks = '';
-                for (var e = 0; e < 12; e++) emptyBlocks += '\u2591';
-                trackSpan.textContent = emptyBlocks;
-                line.appendChild(trackSpan);
-
-                // Closing bracket + space
-                line.appendChild(document.createTextNode('] '));
-
-                // Status span (hidden initially)
-                var statusSpan = document.createElement('span');
-                statusSpan.className = 'status ' + sys.cls;
-                statusSpan.style.opacity = '0';
-                statusSpan.textContent = sys.status;
-                line.appendChild(statusSpan);
-
-                checksContainer.appendChild(line);
-
-                // Animate line in
-                requestAnimationFrame(function() {
-                    line.classList.add('visible');
-                });
-
-                // Animate progress bar fill over ~300ms
-                var fillStep = 0;
-                var fillTotal = 12;
-                var fillTimer = setInterval(function() {
-                    if (aborted) { clearInterval(fillTimer); return; }
-                    fillStep++;
-                    var fullBlocks = '';
-                    for (var f = 0; f < fillStep; f++) fullBlocks += '\u2588';
-                    fillSpan.textContent = fullBlocks;
-
-                    var remainBlocks = '';
-                    for (var r = 0; r < Math.max(0, fillTotal - fillStep); r++) remainBlocks += '\u2591';
-                    trackSpan.textContent = remainBlocks;
-
-                    if (fillStep >= fillTotal) {
-                        clearInterval(fillTimer);
-                        statusSpan.style.opacity = '1';
-                    }
-                }, 25);
-
-            }, 1000 + sys.delay);
-        });
-    }, 0);
-
-    // ── Phase 3 (2500-3000ms): Threat level flash + screen shake ──
-    schedule(function() {
-        if (aborted) return;
-        // Translate threat text before reveal
-        var threatLabel = document.getElementById('bootThreatLabel');
-        var midnightText = document.getElementById('bootMidnight');
-        if (threatLabel) threatLabel.textContent = archieI18n.t('boot.threat_level', 'THREAT LEVEL:');
-        if (midnightText) midnightText.textContent = archieI18n.t('boot.midnight', 'MIDNIGHT');
-        var threat = document.getElementById('bootThreat');
-        if (threat) threat.classList.add('flash');
-        overlay.classList.add('shake');
-        schedule(function() {
-            if (!aborted) overlay.classList.remove('shake');
-        }, 300);
-    }, 2500);
-
-    // ── Phase 4 (5000ms): Logo materializes (2s pause after threat) ──
-    schedule(function() {
-        if (aborted) return;
-        // Fade out terminal
-        var terminal = document.getElementById('bootTerminal');
-        if (terminal) {
-            terminal.style.transition = 'opacity 0.3s ease';
-            terminal.style.opacity = '0';
-        }
-
-        schedule(function() {
-            if (aborted) return;
-            var logo = document.getElementById('bootLogo');
-            if (logo) logo.classList.add('visible');
-        }, 200);
-    }, 5000);
-
-    // ── Phase 5: Split reveal (2.8s pause on logo) ──
-    schedule(function() {
-        if (aborted) return;
-        finishBoot();
-    }, 7800);
-
-})();
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// THEME INTEGRATION
-// Handle matrix rain visibility on theme change
-// ═══════════════════════════════════════════════════════════════════════════════
-(function() {
-    // Watch for theme changes via MutationObserver on html data-theme attribute
-    var htmlEl = document.documentElement;
-    var observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.attributeName === 'data-theme') {
-                var theme = htmlEl.getAttribute('data-theme');
-                var canvas = document.getElementById('matrix-rain');
-                if (canvas) {
-                    canvas.style.display = (theme === 'light') ? 'none' : '';
-                }
-            }
-        });
-    });
-    observer.observe(htmlEl, { attributes: true, attributeFilter: ['data-theme'] });
-
-    // Also handle the legacy body.light-mode class approach
-    var bodyObserver = new MutationObserver(function() {
-        var canvas = document.getElementById('matrix-rain');
-        if (canvas) {
-            canvas.style.display = document.body.classList.contains('light-mode') ? 'none' : '';
-        }
-    });
-    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    document.addEventListener('click', skipBoot);
+    document.addEventListener('keydown', skipBoot);
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4481,22 +3747,8 @@ window.timeAgo = function timeAgo(isoString) {
         setInterval(fetchNotifCount, 60000);
     }
 
-    // Start polling once dashboard content becomes visible
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent && dashContent.classList.contains('visible')) {
-        startHUDPolling();
-    } else {
-        // Watch for the boot sequence to finish
-        var pollObserver = new MutationObserver(function(mutations) {
-            if (dashContent.classList.contains('visible')) {
-                pollObserver.disconnect();
-                startHUDPolling();
-            }
-        });
-        if (dashContent) {
-            pollObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
-        }
-    }
+    // Start polling immediately (boot sequence handles frame visibility separately)
+    startHUDPolling();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4774,27 +4026,24 @@ window.timeAgo = function timeAgo(isoString) {
             window.renderAiInsights(window._archieAiStatusData);
         }
 
+        // Update footer timestamp
+        var tsEl = document.getElementById('briefingTimestamp');
+        if (tsEl) {
+            var now = new Date();
+            var hh = String(now.getHours()).padStart(2, '0');
+            var mm = String(now.getMinutes()).padStart(2, '0');
+            var ss = String(now.getSeconds()).padStart(2, '0');
+            tsEl.textContent = 'UPDATED ' + hh + ':' + mm + ':' + ss;
+        }
+
         // Re-render Lucide icons for newly added content
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
     }
 
-    // Wait for dashboard to be visible before fetching
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent && dashContent.classList.contains('visible')) {
-        startBriefingFetch();
-    } else {
-        var briefingObserver = new MutationObserver(function() {
-            if (dashContent && dashContent.classList.contains('visible')) {
-                briefingObserver.disconnect();
-                startBriefingFetch();
-            }
-        });
-        if (dashContent) {
-            briefingObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
-        }
-    }
+    // Start fetching immediately (boot sequence handles frame visibility separately)
+    startBriefingFetch();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4978,40 +4227,28 @@ window.timeAgo = function timeAgo(isoString) {
         rebuildFeaturedCards();
     }
 
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent && dashContent.classList.contains('visible')) {
-        startFeaturedModules();
-    } else {
-        var featObserver = new MutationObserver(function() {
-            if (dashContent && dashContent.classList.contains('visible')) {
-                featObserver.disconnect();
-                startFeaturedModules();
-            }
-        });
-        if (dashContent) {
-            featObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
-        }
-    }
+    // Start immediately (boot sequence handles frame visibility separately)
+    startFeaturedModules();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CATEGORY GRID — Collapse/Expand, Health Status, Staggered Entry
-// Task 6 of Dashboard Rebuild
+// CATEGORY GRID — LCARS Frame Collapse/Expand, Health Status, Staggered Entry
+// Task 8 of Dashboard Rebuild — Full LCARS OKUDAGRAM frames per category
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── Toggle category collapse/expand ──
+// ── Toggle category collapse/expand (uses lcars-frame--collapsed) ──
 function toggleCategory(catKey) {
     'use strict';
     var STORAGE_KEY = 'archie-dashboard-collapsed';
-    var panel = document.querySelector('.category-panel[data-category="' + catKey + '"]');
-    if (!panel) return;
+    var frame = document.querySelector('.category-frame[data-category="' + catKey + '"]');
+    if (!frame) return;
 
-    panel.classList.toggle('collapsed');
+    frame.classList.toggle('lcars-frame--collapsed');
 
-    // Update aria-expanded on the header
-    var header = panel.querySelector('.cat-header');
-    if (header) {
-        header.setAttribute('aria-expanded', !panel.classList.contains('collapsed'));
+    // Update aria-expanded on the header bar
+    var bar = frame.querySelector('.lcars-bar');
+    if (bar) {
+        bar.setAttribute('aria-expanded', !frame.classList.contains('lcars-frame--collapsed'));
     }
 
     // Save state to localStorage
@@ -5021,7 +4258,7 @@ function toggleCategory(catKey) {
     } catch(e) { collapsed = []; }
 
     var idx = collapsed.indexOf(catKey);
-    if (panel.classList.contains('collapsed')) {
+    if (frame.classList.contains('lcars-frame--collapsed')) {
         if (idx === -1) collapsed.push(catKey);
     } else {
         if (idx !== -1) collapsed.splice(idx, 1);
@@ -5042,11 +4279,11 @@ function toggleCategory(catKey) {
         } catch(e) { collapsed = []; }
 
         collapsed.forEach(function(catKey) {
-            var panel = document.querySelector('.category-panel[data-category="' + catKey + '"]');
-            if (panel) {
-                panel.classList.add('collapsed');
-                var header = panel.querySelector('.cat-header');
-                if (header) header.setAttribute('aria-expanded', 'false');
+            var frame = document.querySelector('.category-frame[data-category="' + catKey + '"]');
+            if (frame) {
+                frame.classList.add('lcars-frame--collapsed');
+                var bar = frame.querySelector('.lcars-bar');
+                if (bar) bar.setAttribute('aria-expanded', 'false');
             }
         });
     }
@@ -5126,20 +4363,8 @@ function toggleCategory(catKey) {
         setTimeout(fetchCategoryHealth, 500);
     }
 
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent && dashContent.classList.contains('visible')) {
-        startCategoryGrid();
-    } else {
-        var catObserver = new MutationObserver(function() {
-            if (dashContent && dashContent.classList.contains('visible')) {
-                catObserver.disconnect();
-                startCategoryGrid();
-            }
-        });
-        if (dashContent) {
-            catObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
-        }
-    }
+    // Start immediately (boot sequence handles frame visibility separately)
+    startCategoryGrid();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5179,20 +4404,6 @@ setInterval(updateRefreshCounter, 1000);
     // Render Lucide icons once DOM is fully ready
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
-    }
-    // Also re-render when dashboard becomes visible (after boot sequence)
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent) {
-        var iconObserver = new MutationObserver(function() {
-            if (dashContent.classList.contains('visible')) {
-                iconObserver.disconnect();
-                if (typeof lucide !== 'undefined') {
-                    // Small delay to let DOM settle after class change
-                    setTimeout(function() { lucide.createIcons(); }, 100);
-                }
-            }
-        });
-        iconObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
     }
 })();
 

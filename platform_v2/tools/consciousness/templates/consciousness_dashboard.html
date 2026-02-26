@@ -6,6 +6,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/holo-sphere.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/glass-nav.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 {% endblock %}
 
 {% block title %}Consciousness - A.R.C.H.I.E.{% endblock %}
@@ -2150,132 +2151,245 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel active" id="panel-dashboard">
 
-            <!-- 1. Identity: Holographic Sphere (rendered by holo-sphere.js) -->
-            <div id="neuralCore"></div>
-
-            <!-- 2. Stats HUD -->
-            <div class="holo-hud">
-                <div class="holo-hud-item purple">
-                    <span class="holo-hud-value" id="ncTotalKnowledge">--</span>
-                    <span class="holo-hud-label">Knowledge</span>
-                </div>
-                <div class="holo-hud-item blue">
-                    <span class="holo-hud-value" id="ncGitHubFiles">--</span>
-                    <span class="holo-hud-label">GitHub Files</span>
-                </div>
-                <div class="holo-hud-item green">
-                    <span class="holo-hud-value" id="ncEmbedPct">--</span>
-                    <span class="holo-hud-label">Embedded</span>
-                </div>
-                <div class="holo-hud-item amber">
-                    <span class="holo-hud-value" id="ncActiveAgents">--</span>
-                    <span class="holo-hud-label">Agents</span>
-                </div>
-            </div>
-
-            <!-- 3. System Health -->
-            <div class="cs-dash-section-label">SYSTEM HEALTH <span class="cs-section-dot"></span></div>
-            <div class="holo-hud" style="margin-bottom:16px;">
-                <div class="holo-hud-item green">
-                    <span class="holo-hud-value" id="intDevhqStatus">--</span>
-                    <span class="holo-hud-label">Dev HQ</span>
-                </div>
-                <div class="holo-hud-item blue">
-                    <span class="holo-hud-value" id="intBridgeStatus">--</span>
-                    <span class="holo-hud-label">Bridge</span>
-                </div>
-                <div class="holo-hud-item purple">
-                    <span class="holo-hud-value" id="intOllamaStatus">--</span>
-                    <span class="holo-hud-label">Ollama</span>
-                </div>
-                <div class="holo-hud-item amber">
-                    <span class="holo-hud-value" id="intGithubStatus">--</span>
-                    <span class="holo-hud-label">GitHub</span>
-                </div>
-            </div>
-
-            <!-- 4. Operational Analytics -->
-            <div class="cs-dash-section-label">OPERATIONAL ANALYTICS &middot; 7 DAYS <span class="cs-section-dot"></span></div>
-            <div class="holo-hud" style="margin-bottom:20px;">
-                <div class="holo-hud-item purple">
-                    <span class="holo-hud-value" id="insightsBridgeTotal">--</span>
-                    <span class="holo-hud-label">Bridge Calls</span>
-                </div>
-                <div class="holo-hud-item blue">
-                    <span class="holo-hud-value" id="insightsAvgTime">--</span>
-                    <span class="holo-hud-label">Avg Response</span>
-                </div>
-                <div class="holo-hud-item green">
-                    <span class="holo-hud-value" id="insightsTokens">--</span>
-                    <span class="holo-hud-label">Total Tokens</span>
-                </div>
-                <div class="holo-hud-item amber">
-                    <span class="holo-hud-value" id="insightsGrowth">--</span>
-                    <span class="holo-hud-label">New Knowledge</span>
-                </div>
-            </div>
-
-            <!-- 5. Activity / Wellness / Dev HQ Grid (3-col) -->
-            <div class="cs-dashboard-grid-3">
-                <div class="cs-card">
-                    <div class="cs-card-header" data-i18n="consciousness.dashboard.recent_activity">Recent Activity</div>
-                    <div class="cs-card-body" id="dashboardActivity">
-                        <div class="cs-loading" data-i18n="common.loading">Loading...</div>
+            <!-- 1. NEURAL CORE — LCARS Frame (purple) -->
+            <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #a78bfa !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg-light" style="width: 10px !important; height: 10px !important; border-radius: 50% !important; margin: 2px auto !important; background: #8b5cf6 !important; box-shadow: 0 0 8px #8b5cf6 !important; animation: lcarsFramePulse 3s ease-in-out infinite !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
                     </div>
-                </div>
-                <div class="cs-card accent-green">
-                    <div class="cs-card-header" data-i18n="consciousness.dashboard.fleet_wellness">Fleet Wellness</div>
-                    <div class="cs-card-body no-scroll">
-                        <div class="cs-mood-indicator" id="moodIndicator" style="margin-bottom:10px;">
-                            <span class="cs-mood-dot" id="moodDot"></span>
-                            <span class="cs-mood-label">Emotional State</span>
-                            <span class="cs-mood-value" id="moodValue">--</span>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NEURAL CORE</span>
+                            <div style="flex:1"></div>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
                         </div>
-                        <div class="cs-wellness-row">
-                            <span data-i18n="consciousness.dashboard.energy">Energy</span>
-                            <div class="cs-wellness-bar"><div class="cs-wellness-fill green" id="wellnessEnergyBar" style="width:0%"></div></div>
-                            <span id="wellnessEnergy">--</span>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 16px !important;">
+                            <!-- Holographic Sphere (rendered by holo-sphere.js) -->
+                            <div id="neuralCore"></div>
+                            <!-- Stats HUD -->
+                            <div class="holo-hud">
+                                <div class="holo-hud-item purple">
+                                    <span class="holo-hud-value" id="ncTotalKnowledge">--</span>
+                                    <span class="holo-hud-label">Knowledge</span>
+                                </div>
+                                <div class="holo-hud-item blue">
+                                    <span class="holo-hud-value" id="ncGitHubFiles">--</span>
+                                    <span class="holo-hud-label">GitHub Files</span>
+                                </div>
+                                <div class="holo-hud-item green">
+                                    <span class="holo-hud-value" id="ncEmbedPct">--</span>
+                                    <span class="holo-hud-label">Embedded</span>
+                                </div>
+                                <div class="holo-hud-item amber">
+                                    <span class="holo-hud-value" id="ncActiveAgents">--</span>
+                                    <span class="holo-hud-label">Agents</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="cs-wellness-row">
-                            <span data-i18n="consciousness.dashboard.stress">Stress</span>
-                            <div class="cs-wellness-bar"><div class="cs-wellness-fill red" id="wellnessStressBar" style="width:0%"></div></div>
-                            <span id="wellnessStress">--</span>
-                        </div>
-                        <div class="cs-wellness-row">
-                            <span data-i18n="consciousness.dashboard.mood">Mood</span>
-                            <div class="cs-wellness-bar"><div class="cs-wellness-fill purple" id="wellnessMoodBar" style="width:0%"></div></div>
-                            <span id="wellnessMood">--</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="cs-card accent-blue">
-                    <div class="cs-card-header">Dev HQ Activity</div>
-                    <div class="cs-card-body" id="intDevhqActivity">
-                        <div class="cs-loading" data-i18n="common.loading">Loading...</div>
+                        <div class="lcars-footer-bar" style="background: #8b5cf6 !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- System Health moved to section 3 above -->
-
-            <!-- 7. Pipeline Test (collapsible, absorbed from Integration tab) -->
-            <div class="cs-pipeline-accordion">
-                <button class="cs-pipeline-toggle" onclick="togglePipelineTest()" id="pipelineToggleBtn">
-                    <span class="cs-pipeline-toggle-cap"></span>
-                    ADR-013 PIPELINE TEST
-                    <i data-lucide="chevron-down" id="pipelineToggleIcon"></i>
-                </button>
-                <div class="cs-pipeline-body" id="pipelineBody" style="display:none;">
-                    <p style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-bottom:12px; padding:0 16px;">
-                        Verify translations route through Bridge (ADR-013 compliance)
-                    </p>
-                    <div style="padding:0 16px 12px;">
-                        <button id="testPipelineBtn" onclick="testPipeline()"
-                                class="cs-ops-cmd purple" style="font-size:0.8rem;">
-                            Test Pipeline
-                        </button>
+            <!-- 3. SYSTEM HEALTH — LCARS Frame (green) -->
+            <div style="--frame-color: #22c55e; --frame-rgb: 34,197,94; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #22c55e !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(34,197,94,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #22c55e !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
                     </div>
-                    <div id="pipelineResult" style="padding:0 16px 12px;"></div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #22c55e !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">SYSTEM HEALTH</span>
+                            <div style="flex:1"></div>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 16px !important;">
+                            <div class="holo-hud" style="margin-bottom:0;">
+                                <div class="holo-hud-item green">
+                                    <span class="holo-hud-value" id="intDevhqStatus">--</span>
+                                    <span class="holo-hud-label">Dev HQ</span>
+                                </div>
+                                <div class="holo-hud-item blue">
+                                    <span class="holo-hud-value" id="intBridgeStatus">--</span>
+                                    <span class="holo-hud-label">Bridge</span>
+                                </div>
+                                <div class="holo-hud-item purple">
+                                    <span class="holo-hud-value" id="intOllamaStatus">--</span>
+                                    <span class="holo-hud-label">Ollama</span>
+                                </div>
+                                <div class="holo-hud-item amber">
+                                    <span class="holo-hud-value" id="intGithubStatus">--</span>
+                                    <span class="holo-hud-label">GitHub</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="lcars-footer-bar" style="background: #22c55e !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. OPERATIONAL ANALYTICS — LCARS Frame (blue) -->
+            <div style="--frame-color: #3b82f6; --frame-rgb: 59,130,246; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #3b82f6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg-light" style="width: 10px !important; height: 10px !important; border-radius: 50% !important; margin: 2px auto !important; background: #00ffff !important; box-shadow: 0 0 8px #00ffff !important; animation: lcarsFramePulse 3s ease-in-out infinite !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(59,130,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #3b82f6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #3b82f6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">OPERATIONAL ANALYTICS &middot; 7 DAYS</span>
+                            <div style="flex:1"></div>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 16px !important;">
+                            <div class="holo-hud" style="margin-bottom:0;">
+                                <div class="holo-hud-item purple">
+                                    <span class="holo-hud-value" id="insightsBridgeTotal">--</span>
+                                    <span class="holo-hud-label">Bridge Calls</span>
+                                </div>
+                                <div class="holo-hud-item blue">
+                                    <span class="holo-hud-value" id="insightsAvgTime">--</span>
+                                    <span class="holo-hud-label">Avg Response</span>
+                                </div>
+                                <div class="holo-hud-item green">
+                                    <span class="holo-hud-value" id="insightsTokens">--</span>
+                                    <span class="holo-hud-label">Total Tokens</span>
+                                </div>
+                                <div class="holo-hud-item amber">
+                                    <span class="holo-hud-value" id="insightsGrowth">--</span>
+                                    <span class="holo-hud-label">New Knowledge</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="lcars-footer-bar" style="background: #3b82f6 !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. FLEET STATUS — LCARS Frame (amber) -->
+            <div style="--frame-color: #f59e0b; --frame-rgb: 245,158,11; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #f59e0b !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #f59e0b !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #22c55e !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg-light" style="width: 10px !important; height: 10px !important; border-radius: 50% !important; margin: 2px auto !important; background: #f59e0b !important; box-shadow: 0 0 8px #f59e0b !important; animation: lcarsFramePulse 3s ease-in-out infinite !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(245,158,11,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #f59e0b !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #f59e0b !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">FLEET STATUS</span>
+                            <div style="flex:1"></div>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 16px !important;">
+                            <div class="cs-dashboard-grid-3">
+                                <div class="cs-card">
+                                    <div class="cs-card-header" data-i18n="consciousness.dashboard.recent_activity">Recent Activity</div>
+                                    <div class="cs-card-body" id="dashboardActivity">
+                                        <div class="cs-loading" data-i18n="common.loading">Loading...</div>
+                                    </div>
+                                </div>
+                                <div class="cs-card accent-green">
+                                    <div class="cs-card-header" data-i18n="consciousness.dashboard.fleet_wellness">Fleet Wellness</div>
+                                    <div class="cs-card-body no-scroll">
+                                        <div class="cs-mood-indicator" id="moodIndicator" style="margin-bottom:10px;">
+                                            <span class="cs-mood-dot" id="moodDot"></span>
+                                            <span class="cs-mood-label">Emotional State</span>
+                                            <span class="cs-mood-value" id="moodValue">--</span>
+                                        </div>
+                                        <div class="cs-wellness-row">
+                                            <span data-i18n="consciousness.dashboard.energy">Energy</span>
+                                            <div class="cs-wellness-bar"><div class="cs-wellness-fill green" id="wellnessEnergyBar" style="width:0%"></div></div>
+                                            <span id="wellnessEnergy">--</span>
+                                        </div>
+                                        <div class="cs-wellness-row">
+                                            <span data-i18n="consciousness.dashboard.stress">Stress</span>
+                                            <div class="cs-wellness-bar"><div class="cs-wellness-fill red" id="wellnessStressBar" style="width:0%"></div></div>
+                                            <span id="wellnessStress">--</span>
+                                        </div>
+                                        <div class="cs-wellness-row">
+                                            <span data-i18n="consciousness.dashboard.mood">Mood</span>
+                                            <div class="cs-wellness-bar"><div class="cs-wellness-fill purple" id="wellnessMoodBar" style="width:0%"></div></div>
+                                            <span id="wellnessMood">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="cs-card accent-blue">
+                                    <div class="cs-card-header">Dev HQ Activity</div>
+                                    <div class="cs-card-body" id="intDevhqActivity">
+                                        <div class="cs-loading" data-i18n="common.loading">Loading...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="lcars-footer-bar" style="background: #f59e0b !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. PIPELINE TEST — LCARS Frame (cyan) -->
+            <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
+                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
+                        <div class="lcars-elbow-top" style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
+                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                    </div>
+                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
+                        <div class="lcars-bar" style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">ADR-013 PIPELINE TEST</span>
+                            <div style="flex:1"></div>
+                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+                            </div>
+                        </div>
+                        <div class="lcars-body" style="flex: 1 !important; padding: 16px !important;">
+                            <p style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-bottom:12px;">
+                                Verify translations route through Bridge (ADR-013 compliance)
+                            </p>
+                            <div style="margin-bottom:12px;">
+                                <button id="testPipelineBtn" onclick="testPipeline()"
+                                        class="cs-ops-cmd purple" style="font-size:0.8rem;">
+                                    Test Pipeline
+                                </button>
+                            </div>
+                            <div id="pipelineResult"></div>
+                        </div>
+                        <div class="lcars-footer-bar" style="background: #00ffff !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    </div>
                 </div>
             </div>
 

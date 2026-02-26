@@ -94,9 +94,10 @@ body.light-mode::before {
     background: #000;
     z-index: 9999;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.6s ease;
 }
 .boot-overlay.fade-out {
     opacity: 0;
@@ -107,12 +108,80 @@ body.light-mode::before {
     left: 0; right: 0;
     height: 2px;
     background: linear-gradient(90deg, transparent, rgba(0,255,65,0.4), transparent);
-    animation: bootScanline 2s linear infinite;
+    animation: bootScanline 2.5s linear infinite;
 }
 @keyframes bootScanline {
     0% { top: -2px; }
     100% { top: 100%; }
 }
+/* Boot terminal text area */
+.boot-terminal {
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: rgba(0,255,65,0.7);
+    text-align: left;
+    width: 500px;
+    max-width: 90vw;
+    line-height: 1.6;
+    position: relative;
+}
+.boot-line {
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.boot-line.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+.boot-line.success { color: #00ff41; }
+.boot-line.info { color: #00ffff; }
+.boot-line.warn { color: #f59e0b; }
+.boot-line.system {
+    color: rgba(0,255,65,0.4);
+    font-size: 0.7rem;
+}
+.boot-line .ok {
+    color: #00ff41;
+    float: right;
+    font-weight: 700;
+}
+.boot-line .fail {
+    color: #ff2222;
+    float: right;
+    font-weight: 700;
+}
+/* ARCHIE logo reveal */
+.boot-logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #00ff41;
+    letter-spacing: 0.25em;
+    text-shadow: 0 0 30px rgba(0,255,65,0.5), 0 0 60px rgba(0,255,65,0.2);
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+    margin-bottom: 24px;
+}
+.boot-logo.visible {
+    opacity: 1;
+    transform: scale(1);
+}
+.boot-logo-sub {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.5em;
+    color: rgba(0,255,65,0.5);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    margin-top: 4px;
+}
+.boot-logo-sub.visible { opacity: 1; }
+/* Threat Level Midnight */
 .boot-threat-flash {
     font-family: 'Antonio', sans-serif;
     font-size: 1.4rem;
@@ -122,16 +191,50 @@ body.light-mode::before {
     opacity: 0;
     pointer-events: none;
     text-shadow: 0 0 20px rgba(255,34,34,0.5);
+    position: absolute;
+    bottom: 20%;
 }
 .boot-threat-flash.flash {
-    animation: threatFlash 0.6s ease-in-out forwards;
+    animation: threatFlash 0.8s ease-in-out forwards;
 }
 @keyframes threatFlash {
     0% { opacity: 0; }
-    30% { opacity: 0.4; }
-    70% { opacity: 0.35; }
+    20% { opacity: 0.5; }
+    50% { opacity: 0.4; }
+    80% { opacity: 0.3; }
     100% { opacity: 0; }
 }
+/* Progress bar */
+.boot-progress {
+    width: 500px;
+    max-width: 90vw;
+    height: 3px;
+    background: rgba(0,255,65,0.1);
+    border-radius: 2px;
+    margin-top: 20px;
+    overflow: hidden;
+}
+.boot-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00ff41, #00ffff);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+    box-shadow: 0 0 8px rgba(0,255,65,0.4);
+}
+/* Skip hint */
+.boot-skip {
+    position: absolute;
+    bottom: 32px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: rgba(0,255,65,0.25);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+.boot-skip.visible { opacity: 1; }
 
 /* ─── Shutdown Overlay ─── */
 .shutdown-overlay {
@@ -2564,7 +2667,12 @@ body.light-mode .module-card-accent {
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="boot-overlay" id="bootOverlay">
     <div class="boot-scanline"></div>
+    <div class="boot-logo" id="bootLogo">A.R.C.H.I.E.</div>
+    <div class="boot-logo-sub" id="bootLogoSub">AUTONOMOUS RESOURCE &amp; COGNITIVE HYPERINTELLIGENCE ENGINE</div>
+    <div class="boot-terminal" id="bootTerminal"></div>
+    <div class="boot-progress"><div class="boot-progress-fill" id="bootProgress"></div></div>
     <div class="boot-threat-flash" id="bootThreatFlash" data-i18n="boot_threat_level">THREAT LEVEL MIDNIGHT</div>
+    <div class="boot-skip" id="bootSkip">PRESS ANY KEY TO SKIP</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -3010,7 +3118,6 @@ body.light-mode .module-card-accent {
 // ═══════════════════════════════════════════════════════════════════════════════
 (function initFrameBoot() {
     if (sessionStorage.getItem('archie-booted')) {
-        // Skip boot — show everything immediately
         document.getElementById('bootOverlay')?.remove();
         document.querySelectorAll('.boot-hidden').forEach(function(f) { f.classList.remove('boot-hidden'); });
         return;
@@ -3018,38 +3125,117 @@ body.light-mode .module-card-accent {
 
     var overlay = document.getElementById('bootOverlay');
     var threatFlash = document.getElementById('bootThreatFlash');
+    var bootLogo = document.getElementById('bootLogo');
+    var bootLogoSub = document.getElementById('bootLogoSub');
+    var bootTerminal = document.getElementById('bootTerminal');
+    var bootProgress = document.getElementById('bootProgress');
+    var bootSkip = document.getElementById('bootSkip');
     var frames = document.querySelectorAll('.lcars-frame');
+    var skipped = false;
 
-    // All frames start hidden (should already have boot-hidden class from HTML)
     frames.forEach(function(f) { f.classList.add('boot-hidden'); });
 
-    // Phase 1: Darkness + Threat Level Midnight flash (0-500ms)
-    setTimeout(function() {
-        threatFlash.classList.add('flash');
-    }, 100);
+    // Boot sequence lines — typed out one by one
+    // NOTE: All content is hardcoded (no user input) — safe for innerHTML
+    var bootLines = [
+        { text: 'LCARS OPERATING SYSTEM \u2014 FEDERATION STANDARD', cls: 'system', delay: 400 },
+        { text: 'INITIALIZING KERNEL...', cls: 'info', ok: 'OK', delay: 600 },
+        { text: 'LOADING NEURAL CORE MATRIX...', cls: '', ok: 'OK', delay: 800 },
+        { text: 'SCANNING AI BRIDGE SUBSYSTEMS...', cls: '', ok: 'ONLINE', delay: 700 },
+        { text: 'MOUNTING KNOWLEDGE BASE...', cls: '', ok: 'OK', delay: 600 },
+        { text: 'AGENT ROSTER: 10 REGISTERED / 10 ACTIVE', cls: 'success', delay: 500 },
+        { text: 'ORCHESTRATION ENGINE...', cls: '', ok: 'ARMED', delay: 500 },
+        { text: 'SMART ROUTER \u2014 11-TIER CASCADE...', cls: '', ok: 'READY', delay: 500 },
+        { text: 'EMBEDDING SERVICE (ARCTIC-EMBED)...', cls: '', ok: 'WARM', delay: 400 },
+        { text: 'SECURITY PROTOCOLS...', cls: 'warn', ok: 'ENGAGED', delay: 400 },
+        { text: 'IAAE GOVERNANCE LAYER...', cls: '', ok: 'ACTIVE', delay: 400 },
+        { text: 'GPU: QUADRO M4000 (8GB VRAM)...', cls: 'system', ok: 'OK', delay: 300 },
+        { text: 'ALL SUBSYSTEMS NOMINAL', cls: 'success', delay: 600 },
+        { text: 'WELCOME BACK, COMMANDER', cls: 'info', delay: 400 }
+    ];
 
-    // Phase 2-5: Build frames sequentially with accelerating timing
-    var frameDelays = [500, 1200, 2000, 2800]; // first 4 frames get individual timing
-    var cascadeStart = 2800; // remaining frames cascade rapidly
+    var totalLines = bootLines.length;
+
+    // Show skip hint after 2s
+    setTimeout(function() {
+        if (!skipped && bootSkip) bootSkip.classList.add('visible');
+    }, 2000);
+
+    // Phase 1: Logo reveal (0-1s)
+    setTimeout(function() {
+        if (skipped) return;
+        bootLogo.classList.add('visible');
+    }, 300);
+    setTimeout(function() {
+        if (skipped) return;
+        bootLogoSub.classList.add('visible');
+    }, 800);
+
+    // Phase 2: Threat Level Midnight flash (1.5s)
+    setTimeout(function() {
+        if (skipped) return;
+        threatFlash.classList.add('flash');
+    }, 1500);
+
+    // Phase 3: Terminal lines begin (2.5s) — each line appears sequentially
+    var cumulativeDelay = 2500;
+
+    bootLines.forEach(function(line, i) {
+        cumulativeDelay += line.delay;
+        var t = cumulativeDelay;
+        setTimeout(function() {
+            if (skipped) return;
+            var div = document.createElement('div');
+            div.className = 'boot-line' + (line.cls ? ' ' + line.cls : '');
+            // Build content safely — all strings are hardcoded above
+            var span = '';
+            if (line.ok) span = '<span class="ok">[ ' + line.ok + ' ]</span>';
+            div.innerHTML = line.text + span;  // eslint-disable-line -- hardcoded content only
+            bootTerminal.appendChild(div);
+            void div.offsetWidth;
+            div.classList.add('visible');
+            // Update progress bar
+            bootProgress.style.width = Math.round(((i + 1) / totalLines) * 100) + '%';
+        }, t);
+    });
+
+    // Phase 4: Terminal done, pause (cumulativeDelay + 800ms)
+    var terminalEnd = cumulativeDelay + 800;
+
+    // Phase 5: Build frames with dramatic pacing
+    var frameBuildStart = terminalEnd;
+    var slowFrameGap = 600;
+    var fastFrameGap = 300;
 
     frames.forEach(function(frame, i) {
-        var delay = i < 4 ? frameDelays[i] : cascadeStart + (i - 4) * 200;
+        var delay;
+        if (i < 4) {
+            delay = frameBuildStart + i * slowFrameGap;
+        } else {
+            delay = frameBuildStart + 4 * slowFrameGap + (i - 4) * fastFrameGap;
+        }
         setTimeout(function() {
+            if (skipped) return;
             frame.classList.remove('boot-hidden');
             frame.classList.add('frame-build');
         }, delay);
     });
 
-    // Phase 6: System online — remove overlay after all frames built
-    var totalTime = cascadeStart + Math.max(0, frames.length - 4) * 200 + 400;
+    // Phase 6: Overlay fades out after all frames built
+    var lastFrameTime = frameBuildStart + 4 * slowFrameGap + Math.max(0, frames.length - 4) * fastFrameGap;
+    var fadeTime = lastFrameTime + 800;
+
     setTimeout(function() {
+        if (skipped) return;
         overlay.classList.add('fade-out');
         sessionStorage.setItem('archie-booted', '1');
-        setTimeout(function() { overlay.remove(); }, 300);
-    }, totalTime);
+        setTimeout(function() { overlay.remove(); }, 600);
+    }, fadeTime);
 
     // Skip on click or keypress
     function skipBoot() {
+        if (skipped) return;
+        skipped = true;
         frames.forEach(function(f) {
             f.classList.remove('boot-hidden');
             f.classList.remove('frame-build');

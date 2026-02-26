@@ -2598,110 +2598,81 @@ body.light-mode .featured-pin-btn.pinned {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CATEGORY GRID — Collapsible panels with module cards
-   Task 6 of Dashboard Rebuild
+   CATEGORY GRID — LCARS Framed Category Panels with Module Cards
+   Task 8 of Dashboard Rebuild — Full LCARS OKUDAGRAM frames per category
    ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ─── Category accent colors ─── */
-.category-admin_operations { --cat-accent: #cc6600; }
-.category-ai_command { --cat-accent: #cc6600; }
-.category-development_tools { --cat-accent: #00808f; }
-.category-saas_services { --cat-accent: #7c3aed; }
-.category-project_knowledge { --cat-accent: #00aa33; }
-.category-media_home { --cat-accent: #db2777; }
-.category-placeholders_future { --cat-accent: #8b949e; }
 
 /* ─── Category Grid Container ─── */
 .category-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
     margin-top: 16px;
 }
 
-/* ─── Category Header (LCARS framed) ─── */
-.cat-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 20px;
+/* ─── Per-Category LCARS Frame Color Classes ─── */
+.category-frame--admin_operations  { --frame-color: #ef4444; --frame-rgb: 239,68,68; --cat-accent: #ef4444; }
+.category-frame--ai_command        { --frame-color: #00ffff; --frame-rgb: 0,255,255; --cat-accent: #00ffff; }
+.category-frame--development_tools { --frame-color: #8b5cf6; --frame-rgb: 139,92,246; --cat-accent: #8b5cf6; }
+.category-frame--saas_services     { --frame-color: #f59e0b; --frame-rgb: 245,158,11; --cat-accent: #f59e0b; }
+.category-frame--project_knowledge { --frame-color: #00ff41; --frame-rgb: 0,255,65; --cat-accent: #00ff41; }
+.category-frame--media_home        { --frame-color: #0ea5e9; --frame-rgb: 14,165,233; --cat-accent: #0ea5e9; }
+.category-frame--placeholders_future { --frame-color: #ffaa00; --frame-rgb: 255,170,0; --cat-accent: #ffaa00; }
+
+/* ─── Category Header Bar Content ─── */
+.category-frame .lcars-bar {
     cursor: pointer;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 2px 12px 12px 2px;
-    background: rgba(10, 10, 26, 0.4);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    margin-bottom: 12px;
-    transition: all 0.2s ease;
-    position: relative;
+    user-select: none;
 }
-/* Left gradient bar in category color */
-.cat-header::before {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0; left: 0;
-    width: 4px;
-    background: linear-gradient(180deg,
-        var(--cat-accent) 0%,
-        rgba(255,255,255,0.05) 50%,
-        var(--cat-accent) 100%);
-    border-radius: 2px 0 0 2px;
-    pointer-events: none;
+.category-frame .lcars-bar:hover {
+    filter: brightness(1.1);
 }
-.cat-header:hover {
-    background: rgba(0, 0, 0, 0.5);
-    border-color: var(--cat-accent);
+.category-frame .lcars-bar i {
+    color: var(--archie-bg-primary, #010409);
+    font-size: 0.9rem;
+    flex-shrink: 0;
 }
-.cat-header-icon {
-    color: var(--cat-accent);
-    font-size: 1.1rem;
-}
-.cat-header-title {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--archie-text-secondary);
-    flex: 1;
+.category-frame .lcars-bar i[data-lucide] {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
 }
 .cat-module-count {
-    background: var(--cat-accent);
-    color: #000;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 10px;
-}
-.cat-admin-badge {
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--archie-bg-primary, #010409);
+    font-family: 'Orbitron', sans-serif;
     font-size: 0.6rem;
     font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.cat-admin-badge {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.55rem;
+    font-weight: 700;
     letter-spacing: 2px;
-    color: var(--cat-accent);
-    border: 1px solid var(--cat-accent);
+    color: var(--archie-bg-primary, #010409);
+    border: 1px solid rgba(0, 0, 0, 0.3);
     padding: 1px 6px;
     border-radius: 4px;
+    flex-shrink: 0;
 }
 .cat-chevron {
-    color: var(--archie-text-secondary);
+    color: var(--archie-bg-primary, #010409);
     transition: transform 0.3s ease;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+    flex-shrink: 0;
 }
-.category-panel.collapsed .cat-chevron {
+.category-frame.lcars-frame--collapsed .cat-chevron {
     transform: rotate(-90deg);
 }
 
 /* ─── Module Cards Grid ─── */
-.cat-cards {
+.module-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    padding-bottom: 24px;
-    max-height: 2000px;
-    overflow: hidden;
-    transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease;
-}
-.category-panel.collapsed .cat-cards {
-    max-height: 0;
-    opacity: 0;
-    padding-bottom: 0;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
 }
 
 /* ─── Module Card ─── */
@@ -2714,37 +2685,33 @@ body.light-mode .featured-pin-btn.pinned {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 2px 8px 8px 2px;
+    border-radius: 4px;
     text-decoration: none;
     color: var(--archie-text-secondary);
     transition: all 0.2s ease;
     position: relative;
+    overflow: hidden;
 }
-.module-card::before {
-    content: '';
+/* Top accent bar in category color */
+.module-card-accent {
     position: absolute;
-    top: 4px; bottom: 4px; left: 0;
-    width: 2px;
-    background: var(--cat-accent);
-    border-radius: 1px;
-    opacity: 0.4;
-    transition: opacity 0.2s;
-}
-.module-card:hover::before {
-    opacity: 1;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--frame-color);
+    border-radius: 4px 4px 0 0;
 }
 .module-card:hover {
-    border-color: var(--cat-accent);
+    border-color: var(--frame-color);
     background: rgba(0, 0, 0, 0.5);
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 20px rgba(var(--frame-rgb), 0.15), 0 0 0 1px rgba(var(--frame-rgb), 0.3);
 }
 .module-card.coming-soon {
     opacity: 0.4;
     pointer-events: none;
 }
 .module-card-icon {
-    color: var(--cat-accent);
+    color: var(--frame-color);
     font-size: 1rem;
     width: 24px;
     text-align: center;
@@ -2758,7 +2725,7 @@ body.light-mode .featured-pin-btn.pinned {
     height: 18px;
 }
 .module-card-name {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-family: 'Orbitron', sans-serif;
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 1px;
@@ -2787,7 +2754,7 @@ body.light-mode .featured-pin-btn.pinned {
 }
 .module-badge {
     position: absolute;
-    top: 6px;
+    top: 10px;
     right: 8px;
     font-family: 'Antonio', sans-serif;
     font-size: 0.5rem;
@@ -2814,7 +2781,7 @@ body.light-mode .featured-pin-btn.pinned {
     animation: cardMaterialize 0.4s ease forwards;
 }
 
-/* Pin star on category grid module cards */
+/* ─── Pin star on category grid module cards ─── */
 .module-pin-btn {
     position: absolute;
     top: 50%;
@@ -2863,22 +2830,44 @@ body.light-mode .module-pin-btn.pinned {
 
 /* ─── Category Grid Responsive ─── */
 @media (max-width: 1280px) {
-    .cat-cards { grid-template-columns: repeat(3, 1fr); }
+    .module-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 717px) {
-    .cat-cards { grid-template-columns: repeat(2, 1fr); }
+    .module-grid { grid-template-columns: repeat(2, 1fr); }
+    .category-grid { gap: 16px; }
 }
 @media (max-width: 480px) {
-    .cat-cards { grid-template-columns: 1fr; }
+    .module-grid { grid-template-columns: 1fr; }
+    .category-grid { gap: 12px; }
 }
 
 /* ─── Category Grid Light Mode ─── */
-[data-theme="light"] .cat-header,
-body.light-mode .cat-header {
-    background: rgba(0, 0, 0, 0.02);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    border-color: rgba(0, 0, 0, 0.08);
+[data-theme="light"] .category-frame .lcars-bar,
+body.light-mode .category-frame .lcars-bar {
+    background: rgba(var(--frame-rgb), 0.12);
+    border: 1px solid rgba(var(--frame-rgb), 0.3);
+}
+[data-theme="light"] .category-frame .lcars-bar-title,
+body.light-mode .category-frame .lcars-bar-title {
+    color: var(--frame-color);
+}
+[data-theme="light"] .category-frame .cat-module-count,
+body.light-mode .category-frame .cat-module-count {
+    background: rgba(var(--frame-rgb), 0.15);
+    color: var(--frame-color);
+}
+[data-theme="light"] .category-frame .cat-admin-badge,
+body.light-mode .category-frame .cat-admin-badge {
+    color: var(--frame-color);
+    border-color: rgba(var(--frame-rgb), 0.4);
+}
+[data-theme="light"] .category-frame .cat-chevron,
+body.light-mode .category-frame .cat-chevron {
+    color: var(--frame-color);
+}
+[data-theme="light"] .category-frame .lcars-bar i,
+body.light-mode .category-frame .lcars-bar i {
+    color: var(--frame-color);
 }
 [data-theme="light"] .module-card,
 body.light-mode .module-card {
@@ -2888,9 +2877,13 @@ body.light-mode .module-card {
     border-color: rgba(0, 0, 0, 0.08);
     color: #333;
 }
-[data-theme="light"] .module-card::before,
-body.light-mode .module-card::before {
-    opacity: 0.3;
+[data-theme="light"] .module-card:hover,
+body.light-mode .module-card:hover {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .module-card-accent,
+body.light-mode .module-card-accent {
+    opacity: 0.5;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2903,7 +2896,7 @@ body.light-mode .module-card::before {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.cat-header-title {
+.category-frame .lcars-bar-title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2930,10 +2923,7 @@ body.light-mode .module-card::before {
     border-left: 1px solid rgba(245, 158, 11, 0.15);
     border-right: 3px solid var(--feat-accent, rgba(245, 158, 11, 0.3));
 }
-[dir="rtl"] .cat-header::before {
-    background: linear-gradient(270deg, transparent, var(--cat-accent), transparent);
-}
-[dir="rtl"] .category-panel.collapsed .cat-chevron {
+[dir="rtl"] .category-frame.lcars-frame--collapsed .cat-chevron {
     transform: rotate(90deg);
 }
 [dir="rtl"] .module-badge {
@@ -2968,7 +2958,7 @@ body.light-mode .module-card::before {
 
 /* ─── Non-Latin scripts: reduce letter-spacing ─── */
 [dir="rtl"] .featured-card-name,
-[dir="rtl"] .cat-header-title,
+[dir="rtl"] .category-frame .lcars-bar-title,
 [dir="rtl"] .module-card-name,
 [dir="rtl"] .lcars-bar-title,
 [dir="rtl"] .briefing-col-header,
@@ -2979,7 +2969,7 @@ body.light-mode .module-card::before {
     letter-spacing: 0.5px;
 }
 [lang="zh"] .featured-card-name,
-[lang="zh"] .cat-header-title,
+[lang="zh"] .category-frame .lcars-bar-title,
 [lang="zh"] .module-card-name,
 [lang="zh"] .lcars-bar-title,
 [lang="zh"] .briefing-col-header,
@@ -2989,7 +2979,7 @@ body.light-mode .module-card::before {
 
 /* ─── Long-text languages (DE, FR, PT, ES): tighter letter-spacing on headers ─── */
 [lang="de"] .lcars-bar-title,
-[lang="de"] .cat-header-title,
+[lang="de"] .category-frame .lcars-bar-title,
 [lang="de"] .featured-card-name,
 [lang="de"] .briefing-col-header {
     letter-spacing: 2px;
@@ -3393,55 +3383,76 @@ body.light-mode .module-card::before {
         </div>
     </div>
 
-    <!-- Section 7: Category Grid with Collapsible Panels -->
+    <!-- Section 7: Category Grid — LCARS Framed Panels -->
     <div id="category-grid" class="category-grid">
         {% for cat_key, cat_info in dashboard_data.categories.items() %}
         {% if cat_key in dashboard_data.modules_by_category %}
-        <div class="category-panel category-{{ cat_key }}" data-category="{{ cat_key }}">
-
-            <!-- LCARS Framed Category Header -->
-            <div class="cat-header" onclick="toggleCategory('{{ cat_key }}')" role="button" tabindex="0" aria-expanded="true" aria-controls="cat-{{ cat_key }}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategory('{{ cat_key }}');}">
-                <div class="cat-header-icon">
+        <div class="category-frame lcars-frame category-frame--{{ cat_key }}"
+             data-category="{{ cat_key }}">
+            <!-- LCARS Left Sidebar -->
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: var(--frame-color)"></div>
+                <div class="lcars-seg" style="--seg-color: rgba(var(--frame-rgb), 0.6)"></div>
+                <div class="lcars-seg" style="--seg-color: rgba(var(--frame-rgb), 0.3)"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-elbow-bottom"></div>
+            </div>
+            <!-- LCARS Content Column -->
+            <div class="lcars-content">
+                <!-- Header Bar (clickable to collapse/expand) -->
+                <div class="lcars-bar" onclick="toggleCategory('{{ cat_key }}')" role="button" tabindex="0" aria-expanded="true" aria-controls="cat-{{ cat_key }}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategory('{{ cat_key }}');}">
                     <i class="{{ cat_info.icon }}"></i>
+                    <span class="lcars-bar-title" data-i18n="cat.{{ cat_key }}">{{ cat_info.name }}</span>
+                    {% if cat_info.get('admin_only') %}
+                    <span class="cat-admin-badge">ADMIN</span>
+                    {% endif %}
+                    <div class="lcars-bar-spacer"></div>
+                    <span class="cat-module-count">{{ dashboard_data.modules_by_category[cat_key] | length }}</span>
+                    <span class="cat-chevron">&#9660;</span>
                 </div>
-                <span class="cat-header-title" data-i18n="cat.{{ cat_key }}">{{ cat_info.name }}</span>
-                {% if cat_info.get('admin_only') %}
-                <span class="cat-admin-badge">ADMIN</span>
-                {% endif %}
-                <span class="cat-module-count">{{ dashboard_data.modules_by_category[cat_key] | length }}</span>
-                <span class="cat-chevron">&#9660;</span>
-            </div>
-
-            <!-- Module Cards Grid -->
-            <div class="cat-cards" id="cat-{{ cat_key }}">
-                {% for module in dashboard_data.modules_by_category[cat_key] %}
-                <a href="{{ module.route }}" class="module-card{% if module.coming_soon %} coming-soon{% endif %}"
-                   data-module-id="{{ module.id }}"
-                   data-module-name="{{ module.name }}"
-                   data-module-icon="{{ module.icon }}"
-                   data-module-desc="{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags | truncate(120) }}"
-                   data-module-category="{{ cat_key }}"
-                   {% if module.coming_soon %}onclick="return false;"{% endif %}>
-                    <div class="module-card-icon">
-                        <i data-lucide="{{ module.icon }}"></i>
+                <!-- Body: Module Cards Grid -->
+                <div class="lcars-body" id="cat-{{ cat_key }}">
+                    <div class="module-grid">
+                        {% for module in dashboard_data.modules_by_category[cat_key] %}
+                        <a href="{{ module.route }}" class="module-card{% if module.coming_soon %} coming-soon{% endif %}"
+                           data-module-id="{{ module.id }}"
+                           data-module-name="{{ module.name }}"
+                           data-module-icon="{{ module.icon }}"
+                           data-module-desc="{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags | truncate(120) }}"
+                           data-module-category="{{ cat_key }}"
+                           {% if module.coming_soon %}onclick="return false;"{% endif %}>
+                            <div class="module-card-accent"></div>
+                            <div class="module-card-icon">
+                                <i data-lucide="{{ module.icon }}"></i>
+                            </div>
+                            <div class="module-card-info">
+                                <div class="module-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
+                                <div class="module-card-status" data-status-for="{{ module.id }}">
+                                    <span class="status-dot checking"></span>
+                                    <span class="status-text">CHECKING...</span>
+                                </div>
+                            </div>
+                            {% if module.beta %}<span class="module-badge beta">BETA</span>{% endif %}
+                            {% if module.coming_soon %}<span class="module-badge soon">COMING SOON</span>{% endif %}
+                            <button class="module-pin-btn" data-pin-id="{{ module.id }}" title="Pin to Priority Stations"
+                                    onclick="event.preventDefault(); event.stopPropagation(); toggleGridPin(this, '{{ module.id }}');">
+                                <i data-lucide="star"></i>
+                            </button>
+                        </a>
+                        {% endfor %}
                     </div>
-                    <div class="module-card-info">
-                        <div class="module-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
-                        <div class="module-card-status" data-status-for="{{ module.id }}">
-                            <span class="status-dot checking"></span>
-                            <span class="status-text">CHECKING...</span>
-                        </div>
+                </div>
+                <!-- Footer Bar -->
+                <div class="lcars-footer-bar">
+                    <span class="lcars-footer-stardate" data-i18n="cat.{{ cat_key }}">{{ cat_info.name | upper }}</span>
+                    <div class="lcars-footer-dots">
+                        <span class="lcars-footer-dot" style="background: var(--frame-color)"></span>
+                        <span class="lcars-footer-dot" style="background: rgba(var(--frame-rgb), 0.5)"></span>
+                        <span class="lcars-footer-dot" style="background: rgba(var(--frame-rgb), 0.3)"></span>
                     </div>
-                    {% if module.beta %}<span class="module-badge beta">BETA</span>{% endif %}
-                    {% if module.coming_soon %}<span class="module-badge soon">COMING SOON</span>{% endif %}
-                    <button class="module-pin-btn" data-pin-id="{{ module.id }}" title="Pin to Priority Stations"
-                            onclick="event.preventDefault(); event.stopPropagation(); toggleGridPin(this, '{{ module.id }}');">
-                        <i data-lucide="star"></i>
-                    </button>
-                </a>
-                {% endfor %}
+                </div>
             </div>
-
         </div>
         {% endif %}
         {% endfor %}
@@ -5047,23 +5058,23 @@ window.timeAgo = function timeAgo(isoString) {
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CATEGORY GRID — Collapse/Expand, Health Status, Staggered Entry
-// Task 6 of Dashboard Rebuild
+// CATEGORY GRID — LCARS Frame Collapse/Expand, Health Status, Staggered Entry
+// Task 8 of Dashboard Rebuild — Full LCARS OKUDAGRAM frames per category
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── Toggle category collapse/expand ──
+// ── Toggle category collapse/expand (uses lcars-frame--collapsed) ──
 function toggleCategory(catKey) {
     'use strict';
     var STORAGE_KEY = 'archie-dashboard-collapsed';
-    var panel = document.querySelector('.category-panel[data-category="' + catKey + '"]');
-    if (!panel) return;
+    var frame = document.querySelector('.category-frame[data-category="' + catKey + '"]');
+    if (!frame) return;
 
-    panel.classList.toggle('collapsed');
+    frame.classList.toggle('lcars-frame--collapsed');
 
-    // Update aria-expanded on the header
-    var header = panel.querySelector('.cat-header');
-    if (header) {
-        header.setAttribute('aria-expanded', !panel.classList.contains('collapsed'));
+    // Update aria-expanded on the header bar
+    var bar = frame.querySelector('.lcars-bar');
+    if (bar) {
+        bar.setAttribute('aria-expanded', !frame.classList.contains('lcars-frame--collapsed'));
     }
 
     // Save state to localStorage
@@ -5073,7 +5084,7 @@ function toggleCategory(catKey) {
     } catch(e) { collapsed = []; }
 
     var idx = collapsed.indexOf(catKey);
-    if (panel.classList.contains('collapsed')) {
+    if (frame.classList.contains('lcars-frame--collapsed')) {
         if (idx === -1) collapsed.push(catKey);
     } else {
         if (idx !== -1) collapsed.splice(idx, 1);
@@ -5094,11 +5105,11 @@ function toggleCategory(catKey) {
         } catch(e) { collapsed = []; }
 
         collapsed.forEach(function(catKey) {
-            var panel = document.querySelector('.category-panel[data-category="' + catKey + '"]');
-            if (panel) {
-                panel.classList.add('collapsed');
-                var header = panel.querySelector('.cat-header');
-                if (header) header.setAttribute('aria-expanded', 'false');
+            var frame = document.querySelector('.category-frame[data-category="' + catKey + '"]');
+            if (frame) {
+                frame.classList.add('lcars-frame--collapsed');
+                var bar = frame.querySelector('.lcars-bar');
+                if (bar) bar.setAttribute('aria-expanded', 'false');
             }
         });
     }

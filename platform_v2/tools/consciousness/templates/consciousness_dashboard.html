@@ -2090,47 +2090,29 @@
 
 <div class="cs-container" data-module="consciousness">
 
-    <!-- LCARS Header — Compact Command Bar Frame (matches Dashboard pattern) -->
-    <div class="cs-header-frame" style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246;">
-        <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-            <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
-                <div class="lcars-elbow-top" style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
-                <div class="lcars-elbow-bottom" style="height: 28px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important; transform: scaleY(-1) !important;"></div>
-                <div class="lcars-seg" style="height: 12px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
-                <div class="lcars-seg" style="height: 12px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-                <div class="lcars-elbow-bottom" style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+    <!-- LCARS Header -->
+    <div class="cs-header">
+        <div class="cs-header-elbow"></div>
+        <div class="cs-header-title">
+            <i data-lucide="brain"></i>
+            <span data-i18n="consciousness.title">CONSCIOUSNESS</span>
+        </div>
+        <div class="cs-header-divider"></div>
+        <div class="cs-header-status">
+            <div class="cs-status-item">
+                <span class="status-dot online"></span>
+                <span class="status-label" data-i18n="consciousness.status.knowledge">Knowledge</span>
+                <span class="status-value" id="headerKnowledgeCount">--</span>
             </div>
-            <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                <!-- Thin 14px bar across the top -->
-                <div class="lcars-bar" style="background: #8b5cf6 !important; height: 14px !important; min-height: 14px !important; flex-shrink: 0 !important; border-radius: 0 20px 20px 0 !important; padding: 0 !important;"></div>
-                <!-- Header content area -->
-                <div class="lcars-body" style="display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 12px !important; padding: 6px 16px !important; flex: 1 !important; font-family: var(--archie-font-mono, 'JetBrains Mono', monospace) !important;">
-                    <!-- Left: Module title -->
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <i data-lucide="brain" style="width: 22px; height: 22px; color: #8b5cf6;"></i>
-                        <span style="font-family: 'Antonio', sans-serif; font-size: 1.1rem; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #8b5cf6;" data-i18n="consciousness.title">CONSCIOUSNESS</span>
-                    </div>
-                    <!-- Right: Status readouts -->
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div class="cs-status-item" style="display: flex; align-items: center; gap: 6px;">
-                            <span class="status-dot online" style="width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e;"></span>
-                            <span style="font-family: 'Antonio', sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.4);" data-i18n="consciousness.status.knowledge">Knowledge</span>
-                            <span style="font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: 600; color: #8b5cf6;" id="headerKnowledgeCount">--</span>
-                        </div>
-                        <div class="cs-status-item" style="display: flex; align-items: center; gap: 6px;">
-                            <span class="status-dot online" style="width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e;"></span>
-                            <span style="font-family: 'Antonio', sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.4);" data-i18n="consciousness.status.agents">Agents</span>
-                            <span style="font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: 600; color: #00ffff;" id="headerAgentCount">--</span>
-                        </div>
-                        <div class="cs-status-item" style="display: flex; align-items: center; gap: 6px;">
-                            <span class="status-dot online" style="width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e;"></span>
-                            <span style="font-family: 'Antonio', sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.4);" data-i18n="consciousness.status.translations">Translations</span>
-                            <span style="font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: 600; color: #f59e0b;" id="headerTranslationCount">--</span>
-                        </div>
-                    </div>
-                </div>
-                <!-- Footer bar -->
-                <div class="lcars-footer-bar" style="background: #8b5cf6 !important; height: 10px !important; min-height: 10px !important; flex-shrink: 0 !important; display: flex !important; border-radius: 0 20px 20px 0 !important;"></div>
+            <div class="cs-status-item">
+                <span class="status-dot online"></span>
+                <span class="status-label" data-i18n="consciousness.status.agents">Agents</span>
+                <span class="status-value" id="headerAgentCount">--</span>
+            </div>
+            <div class="cs-status-item">
+                <span class="status-dot online"></span>
+                <span class="status-label" data-i18n="consciousness.status.translations">Translations</span>
+                <span class="status-value" id="headerTranslationCount">--</span>
             </div>
         </div>
     </div>

@@ -572,17 +572,19 @@ body.light-mode #matrix-rain {
     justify-content: space-between;
     gap: 12px;
     padding: 0 16px;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(10, 10, 26, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-left: 4px solid rgba(0, 255, 65, 0.3);
     border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 255, 65, 0.03);
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
     font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
 }
 
 .command-bar.scrolled {
-    border-bottom-color: rgba(0, 255, 65, 0.35);
-    box-shadow: 0 2px 20px rgba(0, 255, 65, 0.08);
+    border-bottom-color: rgba(0, 255, 65, 0.15);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 255, 65, 0.05);
 }
 
 /* Command Bar Zones */
@@ -660,13 +662,13 @@ body.light-mode #matrix-rain {
     height: 30px;
     padding: 0 36px 0 32px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(0, 255, 65, 0.12);
+    background: rgba(0, 255, 65, 0.04);
     color: #ccc;
-    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
     outline: none;
-    transition: border-color 0.2s ease, background 0.2s ease;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .cb-search-input::placeholder {
@@ -675,7 +677,8 @@ body.light-mode #matrix-rain {
 
 .cb-search-input:focus {
     border-color: rgba(0, 255, 65, 0.3);
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(0, 255, 65, 0.06);
+    box-shadow: 0 0 12px rgba(0, 255, 65, 0.1);
 }
 
 .cb-search-icon {
@@ -712,11 +715,12 @@ body.light-mode #matrix-rain {
     right: 0;
     max-height: 360px;
     overflow-y: auto;
-    background: rgba(10, 10, 20, 0.95);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(0, 255, 65, 0.2);
-    border-radius: 10px;
+    background: rgba(15, 15, 30, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 255, 65, 0.12);
+    border-left: 3px solid rgba(0, 255, 65, 0.3);
+    border-radius: 0 12px 12px 0;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 65, 0.06);
     z-index: 200;
     display: none;
@@ -803,6 +807,8 @@ body.light-mode #matrix-rain {
 body.light-mode .cb-search-popover {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(0, 0, 0, 0.12);
+    border-left-color: rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
 }
 [data-theme="light"] .cb-search-result,
@@ -857,6 +863,7 @@ body.light-mode .cb-search-result-icon {
 .cb-icon-btn:hover {
     color: #00FF41;
     background: rgba(0, 255, 65, 0.08);
+    box-shadow: 0 0 12px rgba(0, 255, 65, 0.15);
 }
 
 .cb-icon-btn svg {
@@ -901,11 +908,12 @@ body.light-mode .cb-search-result-icon {
     transform: translateX(-50%);
     width: 380px;
     max-height: calc(100vh - 72px);
-    background: rgba(10, 10, 20, 0.97);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(0, 255, 65, 0.2);
-    border-radius: 16px;
+    background: rgba(15, 15, 30, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 255, 65, 0.12);
+    border-left: 3px solid rgba(0, 255, 65, 0.3);
+    border-radius: 0 12px 12px 0;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 255, 65, 0.06);
     z-index: 300;
     display: none;
@@ -934,10 +942,10 @@ body.light-mode .cb-search-result-icon {
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .cb-notif-title {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 0.7rem;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
     font-weight: 600;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.7);
 }
@@ -982,7 +990,7 @@ body.light-mode .cb-search-result-icon {
 }
 .cb-notif-item.unread {
     background: rgba(0, 255, 65, 0.04);
-    border-left: 2px solid rgba(0, 255, 65, 0.4);
+    border-left: 3px solid rgba(0, 255, 65, 0.5);
 }
 .cb-notif-item.unread:hover {
     background: rgba(0, 255, 65, 0.08);
@@ -1056,6 +1064,8 @@ body.light-mode .cb-search-result-icon {
 body.light-mode .cb-notif-popover {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(0, 0, 0, 0.12);
+    border-left-color: rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
 }
 [data-theme="light"] .cb-notif-item-title,
@@ -1305,6 +1315,11 @@ body.light-mode .cb-lang-option.active {
     padding: 0 var(--archie-spacing-xl, 24px);
     margin-top: 60px;
     overflow: hidden;
+    background: rgba(10, 10, 26, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-left: 3px solid rgba(0, 255, 65, 0.2);
+    border-bottom: 1px solid rgba(0, 255, 65, 0.06);
 }
 
 .hud-pod {
@@ -1329,17 +1344,19 @@ body.light-mode .cb-lang-option.active {
 }
 
 .hud-pod-label {
+    font-family: 'Antonio', sans-serif;
     font-size: 10px;
     font-weight: 600;
-    letter-spacing: 2px;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.4);
 }
 
 .hud-pod-value {
+    font-family: 'Orbitron', sans-serif;
     font-size: 18px;
     font-weight: 700;
-    color: #e0e0e0;
+    color: #00ff41;
     line-height: 1;
 }
 
@@ -1398,6 +1415,7 @@ body.light-mode .cb-lang-option.active {
     stroke-width: 5;
     stroke-linecap: round;
     transition: stroke-dashoffset 1s ease, stroke 0.3s ease;
+    filter: drop-shadow(0 0 4px rgba(0, 255, 65, 0.4));
 }
 
 .hud-ring-fg.warning {
@@ -1414,6 +1432,7 @@ body.light-mode .cb-lang-option.active {
     display: flex;
     align-items: center;
     justify-content: center;
+    font-family: 'Orbitron', sans-serif;
     font-size: 14px;
     font-weight: 700;
     color: #e0e0e0;
@@ -1426,7 +1445,7 @@ body.light-mode .cb-lang-option.active {
     border-radius: 50%;
     background: #00FF41;
     box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
-    animation: aiPulse 2s ease-in-out infinite;
+    animation: lcarsPulseGreen 3s ease-in-out infinite;
 }
 
 .hud-ai-dot.offline {
@@ -1447,7 +1466,7 @@ body.light-mode .cb-lang-option.active {
     border-radius: 50%;
     background: #8b5cf6;
     box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
-    animation: archiePulse 2.5s ease-in-out infinite;
+    animation: lcarsPulsePurple 3s ease-in-out infinite;
 }
 .hud-archie-dot.offline {
     background: #ff3b3b;
@@ -1457,6 +1476,29 @@ body.light-mode .cb-lang-option.active {
 @keyframes archiePulse {
     0%, 100% { box-shadow: 0 0 8px rgba(139, 92, 246, 0.6); }
     50% { box-shadow: 0 0 16px rgba(139, 92, 246, 0.9), 0 0 30px rgba(139, 92, 246, 0.3); }
+}
+
+/* LCARS-style pulsing glows for status dots */
+@keyframes lcarsPulseGreen {
+    0%, 100% {
+        opacity: 0.6;
+        box-shadow: 0 0 4px rgba(0, 255, 65, 0.2);
+    }
+    50% {
+        opacity: 1;
+        box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+    }
+}
+
+@keyframes lcarsPulsePurple {
+    0%, 100% {
+        opacity: 0.6;
+        box-shadow: 0 0 4px rgba(139, 92, 246, 0.2);
+    }
+    50% {
+        opacity: 1;
+        box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+    }
 }
 
 /* Dual-pod agent icon */
@@ -1469,14 +1511,16 @@ body.light-mode .cb-lang-option.active {
    ───────────────────────────────────────────────────────────────────────────── */
 [data-theme="light"] .command-bar,
 body.light-mode .command-bar {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.9);
+    border-left-color: rgba(0, 0, 0, 0.08);
     border-bottom-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .command-bar.scrolled,
 body.light-mode .command-bar.scrolled {
-    border-bottom-color: rgba(0, 0, 0, 0.2);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border-bottom-color: rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .cb-username,
@@ -1489,6 +1533,13 @@ body.light-mode .cb-search-input {
     background: rgba(0, 0, 0, 0.04);
     border-color: rgba(0, 0, 0, 0.1);
     color: #333;
+}
+
+[data-theme="light"] .cb-search-input:focus,
+body.light-mode .cb-search-input:focus {
+    border-color: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.02);
+    box-shadow: none;
 }
 
 [data-theme="light"] .cb-search-input::placeholder,
@@ -1517,6 +1568,7 @@ body.light-mode .cb-icon-btn {
 body.light-mode .cb-icon-btn:hover {
     color: #007a20;
     background: rgba(0, 122, 32, 0.08);
+    box-shadow: none;
 }
 
 [data-theme="light"] .hud-pod,
@@ -1530,14 +1582,26 @@ body.light-mode .hud-pod-label {
     color: #555;
 }
 
+[data-theme="light"] .hud-vitals-strip,
+body.light-mode .hud-vitals-strip {
+    background: rgba(255, 255, 255, 0.7);
+    border-left-color: rgba(0, 0, 0, 0.06);
+    border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
 [data-theme="light"] .hud-pod-value,
 body.light-mode .hud-pod-value {
-    color: #111;
+    color: #007a20;
 }
 
 [data-theme="light"] .hud-ring-bg,
 body.light-mode .hud-ring-bg {
     stroke: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .hud-ring-fg,
+body.light-mode .hud-ring-fg {
+    filter: none;
 }
 
 [data-theme="light"] .hud-ring-center,
@@ -1548,6 +1612,18 @@ body.light-mode .hud-ring-center {
 [data-theme="light"] .hud-pod-sub,
 body.light-mode .hud-pod-sub {
     color: #888;
+}
+
+[data-theme="light"] .hud-ai-dot,
+body.light-mode .hud-ai-dot {
+    animation: none;
+    box-shadow: none;
+}
+
+[data-theme="light"] .hud-archie-dot,
+body.light-mode .hud-archie-dot {
+    animation: none;
+    box-shadow: none;
 }
 
 [data-theme="light"] .hud-dual-divider,
@@ -2799,6 +2875,8 @@ body.light-mode .module-card {
 {% endblock %}
 
 {% block extra_head %}
+<!-- LCARS shared panels (animations, inputs, buttons) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-panels.css') }}">
 <!-- Font Awesome 6 (category header icons use fas fa-* classes) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 {% endblock %}

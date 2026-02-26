@@ -1620,54 +1620,112 @@ body.light-mode .footer-version {
     --frame-rgb: 0, 255, 65;
 }
 
-/* ── Body layout: 3-column grid ── */
+/* ── Body layout: stacked collapsible sections ── */
 .briefing-frame .lcars-body {
-    padding: 16px;
+    padding: 8px 16px;
 }
 
-.briefing-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-}
-
-/* ── Column containers ── */
-.briefing-col {
+.briefing-sections {
     display: flex;
     flex-direction: column;
-    min-width: 0;
+    gap: 4px;
+}
+
+/* ── Collapsible section ── */
+.briefing-section {
+    border-radius: 4px;
     overflow: hidden;
 }
 
-/* ── Column header — thin accent strip ── */
-.briefing-col-header {
+.briefing-section-header {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
-    border-top: 4px solid var(--col-accent, #00ff41);
-    background: rgba(255, 255, 255, 0.02);
-    margin-bottom: 8px;
+    border-left: 4px solid var(--col-accent, #00ff41);
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    user-select: none;
     font-family: 'Antonio', sans-serif;
     font-size: 0.72rem;
     font-weight: 500;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--col-accent, #00ff41);
+    transition: background 0.2s ease;
 }
 
-.briefing-col-header::after {
-    content: '';
-    display: inline-block;
+.briefing-section-header:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+/* Chevron */
+.briefing-section-chevron {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    transition: transform 0.25s ease;
+    opacity: 0.6;
+}
+
+.briefing-section.is-open .briefing-section-chevron {
+    transform: rotate(90deg);
+}
+
+/* Badge count */
+.briefing-badge {
+    margin-left: auto;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0;
+    background: var(--col-accent, #00ff41);
+    color: #000;
+    box-shadow: 0 0 8px rgba(var(--col-accent-rgb, 0,255,65), 0.4);
+}
+
+.briefing-badge:empty,
+.briefing-badge[data-count="0"] {
+    display: none;
+}
+
+/* Indicator dot (after badge) */
+.briefing-section-header .briefing-section-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: var(--col-accent, #00ff41);
     box-shadow: 0 0 6px var(--col-accent, #00ff41);
-    margin-left: auto;
     flex-shrink: 0;
     animation: lcarsFramePulse 3s ease-in-out infinite;
 }
+
+/* Collapsible body */
+.briefing-section-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 12px;
+}
+
+.briefing-section.is-open .briefing-section-body {
+    max-height: 400px;
+    padding: 8px 12px 12px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--col-accent-rgb, 0,255,65), 0.25) transparent;
+}
+
+.briefing-section.is-open .briefing-section-body::-webkit-scrollbar { width: 4px; }
+.briefing-section.is-open .briefing-section-body::-webkit-scrollbar-track { background: transparent; }
+.briefing-section.is-open .briefing-section-body::-webkit-scrollbar-thumb { background: rgba(var(--col-accent-rgb, 0,255,65), 0.25); border-radius: 2px; }
 
 /* ── Activity list ── */
 .briefing-activity-list {
@@ -1677,16 +1735,7 @@ body.light-mode .footer-version {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-height: 220px;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 255, 65, 0.25) transparent;
 }
-
-.briefing-activity-list::-webkit-scrollbar { width: 4px; }
-.briefing-activity-list::-webkit-scrollbar-track { background: transparent; }
-.briefing-activity-list::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.25); border-radius: 2px; }
-.briefing-activity-list::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 65, 0.45); }
 
 .briefing-activity-item {
     display: flex;
@@ -1829,70 +1878,6 @@ body.light-mode .footer-version {
     font-family: 'Antonio', sans-serif;
 }
 
-/* ── AI Insights ── */
-.briefing-ai-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 4px 0;
-}
-
-.briefing-ai-stat {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.briefing-ai-big-number {
-    font-size: 28px;
-    font-weight: 700;
-    font-family: 'Orbitron', sans-serif;
-    color: #00ffff;
-    text-shadow: 0 0 12px rgba(0, 255, 255, 0.4);
-    line-height: 1;
-    min-width: 56px;
-    text-align: center;
-}
-
-.briefing-ai-stat-label {
-    font-size: 11px;
-    font-family: 'Antonio', sans-serif;
-    color: rgba(255, 255, 255, 0.5);
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-}
-
-.briefing-ai-status-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-top: 4px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.briefing-ai-status-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: rgb(0, 255, 65);
-    box-shadow: 0 0 6px rgba(0, 255, 65, 0.5);
-    flex-shrink: 0;
-}
-
-.briefing-ai-status-dot.offline {
-    background: rgb(239, 68, 68);
-    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
-}
-
-.briefing-ai-status-text {
-    font-size: 11px;
-    font-family: 'Antonio', sans-serif;
-    color: rgba(255, 255, 255, 0.5);
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-}
-
 /* ─── Light Mode: Mission Briefing ─── */
 [data-theme="light"] .briefing-frame,
 body.light-mode .briefing-frame {
@@ -1900,17 +1885,28 @@ body.light-mode .briefing-frame {
     --frame-rgb: 0, 170, 42;
 }
 
-[data-theme="light"] .briefing-col-header,
-body.light-mode .briefing-col-header {
+[data-theme="light"] .briefing-section-header,
+body.light-mode .briefing-section-header {
     background: rgba(0, 0, 0, 0.02);
-    border-top-color: var(--col-accent);
+    border-left-color: var(--col-accent);
+    color: var(--col-accent);
 }
 
-[data-theme="light"] .briefing-col-header::after,
-body.light-mode .briefing-col-header::after {
+[data-theme="light"] .briefing-section-header:hover,
+body.light-mode .briefing-section-header:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .briefing-section-header .briefing-section-dot,
+body.light-mode .briefing-section-header .briefing-section-dot {
     box-shadow: none;
     animation: none;
     opacity: 0.5;
+}
+
+[data-theme="light"] .briefing-badge,
+body.light-mode .briefing-badge {
+    box-shadow: none;
 }
 
 [data-theme="light"] .briefing-activity-text,
@@ -1940,47 +1936,8 @@ body.light-mode .briefing-activity-item:hover {
     border-left-color: rgba(0, 170, 42, 0.3);
 }
 
-[data-theme="light"] .briefing-ai-big-number,
-body.light-mode .briefing-ai-big-number {
-    text-shadow: none;
-    color: #0088aa;
-}
-
-[data-theme="light"] .briefing-ai-stat-label,
-body.light-mode .briefing-ai-stat-label {
-    color: #666;
-}
-
-[data-theme="light"] .briefing-ai-status-text,
-body.light-mode .briefing-ai-status-text {
-    color: #666;
-}
-
-[data-theme="light"] .briefing-ai-status-dot,
-body.light-mode .briefing-ai-status-dot {
-    box-shadow: none;
-}
-
-[data-theme="light"] .briefing-ai-status-row,
-body.light-mode .briefing-ai-status-row {
-    border-top-color: rgba(0, 0, 0, 0.08);
-}
-
-/* ─── Mission Briefing Responsive: 3-col → 2-col at 1024px ─── */
-@media (max-width: 1024px) {
-    .briefing-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    .briefing-frame {
-        padding: 0 12px;
-    }
-}
-
-/* ─── Mission Briefing Responsive: 2-col → 1-col at 768px ─── */
+/* ─── Mission Briefing Responsive ─── */
 @media (max-width: 768px) {
-    .briefing-grid {
-        grid-template-columns: 1fr;
-    }
     .briefing-frame {
         padding: 0 8px;
         margin-top: 16px;
@@ -1989,8 +1946,14 @@ body.light-mode .briefing-ai-status-row {
 
 /* ─── Reduced Motion: Mission Briefing ─── */
 @media (prefers-reduced-motion: reduce) {
-    .briefing-col-header::after {
+    .briefing-section-header .briefing-section-dot {
         animation: none;
+    }
+    .briefing-section-chevron {
+        transition: none;
+    }
+    .briefing-section-body {
+        transition: none;
     }
 }
 
@@ -2886,16 +2849,14 @@ body.light-mode .module-card-accent {
         </div>
     </div>
 
-    <!-- Section 5: Mission Briefing — LCARS Full Frame (green) -->
+    <!-- Section 5: Mission Briefing — Admin-only collapsible sections -->
+    {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
     <div id="mission-briefing" class="briefing-frame" style="--frame-color: #00ff41; --frame-rgb: 0,255,65">
         <div class="lcars-frame boot-hidden">
             <div class="lcars-sidebar">
                 <div class="lcars-elbow-top"></div>
                 <div class="lcars-seg" style="--seg-color: #00ff41"></div>
                 <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
-                <div class="lcars-seg-light" style="--light-color: #00ffff"></div>
-                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
-                <div class="lcars-seg" style="--seg-color: #8b5cf6"></div>
                 <div class="lcars-seg-fill"></div>
                 <div class="lcars-elbow-bottom"></div>
             </div>
@@ -2910,32 +2871,33 @@ body.light-mode .module-card-accent {
                     </div>
                 </div>
                 <div class="lcars-body">
-                    <div class="briefing-grid">
-                        <!-- Column 1: Activity Feed -->
-                        <div class="briefing-col">
-                            <div class="briefing-col-header" style="--col-accent: #00ff41">
+                    <div class="briefing-sections">
+                        <!-- Section 1: Recent Activity (collapsed by default) -->
+                        <div class="briefing-section" id="briefingSectionActivity" data-key="activity" style="--col-accent: #00ff41; --col-accent-rgb: 0,255,65">
+                            <div class="briefing-section-header" onclick="toggleBriefingSection('activity')">
+                                <svg class="briefing-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                 <span data-i18n="dashboard_activity_title">RECENT ACTIVITY</span>
+                                <span class="briefing-badge" id="briefingBadgeActivity"></span>
+                                <span class="briefing-section-dot"></span>
                             </div>
-                            <div id="briefingActivity">
-                                <span class="briefing-muted" data-i18n="js.briefing.loading_activity">Loading activity...</span>
+                            <div class="briefing-section-body">
+                                <div id="briefingActivity">
+                                    <span class="briefing-muted" data-i18n="js.briefing.loading_activity">Loading activity...</span>
+                                </div>
                             </div>
                         </div>
-                        <!-- Column 2: System Alerts -->
-                        <div class="briefing-col">
-                            <div class="briefing-col-header" style="--col-accent: #f59e0b">
+                        <!-- Section 2: System Alerts (collapsed by default) -->
+                        <div class="briefing-section" id="briefingSectionAlerts" data-key="alerts" style="--col-accent: #f59e0b; --col-accent-rgb: 245,158,11">
+                            <div class="briefing-section-header" onclick="toggleBriefingSection('alerts')">
+                                <svg class="briefing-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                 <span data-i18n="dashboard_alerts_title">SYSTEM ALERTS</span>
+                                <span class="briefing-badge" id="briefingBadgeAlerts"></span>
+                                <span class="briefing-section-dot"></span>
                             </div>
-                            <div id="briefingAlerts">
-                                <span class="briefing-muted" data-i18n="js.briefing.checking_alerts">Checking alerts...</span>
-                            </div>
-                        </div>
-                        <!-- Column 3: AI Insights -->
-                        <div class="briefing-col">
-                            <div class="briefing-col-header" style="--col-accent: #00ffff">
-                                <span data-i18n="dashboard_ai_title">AI INSIGHTS</span>
-                            </div>
-                            <div id="briefingAi">
-                                <span class="briefing-muted" data-i18n="js.briefing.loading_insights">Loading insights...</span>
+                            <div class="briefing-section-body">
+                                <div id="briefingAlerts">
+                                    <span class="briefing-muted" data-i18n="js.briefing.checking_alerts">Checking alerts...</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2945,12 +2907,12 @@ body.light-mode .module-card-accent {
                     <div class="lcars-footer-dots">
                         <span class="lcars-footer-dot" style="background:#00ff41"></span>
                         <span class="lcars-footer-dot" style="background:#f59e0b"></span>
-                        <span class="lcars-footer-dot" style="background:#00ffff"></span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- Section 6: Featured Modules — Priority Stations (LCARS Amber Frame) -->
     <div id="featured-modules" class="featured-frame" style="--frame-color: #f59e0b; --frame-rgb: 245,158,11">
@@ -3963,11 +3925,66 @@ window.timeAgo = function timeAgo(isoString) {
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MISSION BRIEFING — Task 4
-// Recent Activity, System Alerts, AI Insights
+// MISSION BRIEFING — Collapsible sections (admin-only)
+// Recent Activity + System Alerts — collapsed by default, badge counts for new items
 // ═══════════════════════════════════════════════════════════════════════════════
 (function initMissionBriefing() {
     'use strict';
+
+    // Guard: if mission-briefing section isn't in DOM (non-admin), skip entirely
+    if (!document.getElementById('mission-briefing')) return;
+
+    // ── localStorage keys for "last seen" counts ──
+    var STORAGE_KEY = 'archie_briefing_seen';
+
+    function getSeenCounts() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            return raw ? JSON.parse(raw) : { activity: 0, alerts: 0 };
+        } catch (e) { return { activity: 0, alerts: 0 }; }
+    }
+
+    function setSeenCount(section, count) {
+        var seen = getSeenCounts();
+        seen[section] = count;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(seen)); } catch (e) {}
+    }
+
+    // ── Update badge for a section ──
+    function updateBadge(section, totalCount) {
+        var badgeId = section === 'activity' ? 'briefingBadgeActivity' : 'briefingBadgeAlerts';
+        var badge = document.getElementById(badgeId);
+        if (!badge) return;
+
+        var seen = getSeenCounts();
+        var newCount = Math.max(0, totalCount - (seen[section] || 0));
+
+        badge.textContent = newCount > 0 ? newCount : '';
+        badge.setAttribute('data-count', newCount);
+    }
+
+    // Track current item counts so toggle can mark as seen
+    var _currentCounts = { activity: 0, alerts: 0 };
+
+    // ── Toggle section open/close ──
+    window.toggleBriefingSection = function(section) {
+        var sectionId = section === 'activity' ? 'briefingSectionActivity' : 'briefingSectionAlerts';
+        var el = document.getElementById(sectionId);
+        if (!el) return;
+
+        var isOpen = el.classList.toggle('is-open');
+
+        // When opening: mark all current items as seen
+        if (isOpen) {
+            setSeenCount(section, _currentCounts[section] || 0);
+            var badgeId = section === 'activity' ? 'briefingBadgeActivity' : 'briefingBadgeAlerts';
+            var badge = document.getElementById(badgeId);
+            if (badge) {
+                badge.textContent = '';
+                badge.setAttribute('data-count', '0');
+            }
+        }
+    };
 
     // timeAgo is defined as window.timeAgo above (shared with notifications)
 
@@ -3977,6 +3994,8 @@ window.timeAgo = function timeAgo(isoString) {
         if (!container) return;
 
         if (!activities || activities.length === 0) {
+            _currentCounts.activity = 0;
+            updateBadge('activity', 0);
             var noActivitySpan = document.createElement('span');
             noActivitySpan.className = 'briefing-muted';
             noActivitySpan.textContent = archieI18n.t('js.briefing.no_recent_activity', 'No recent activity');
@@ -3986,14 +4005,17 @@ window.timeAgo = function timeAgo(isoString) {
         }
 
         var items = activities.slice(0, 15);
+        _currentCounts.activity = items.length;
+        updateBadge('activity', items.length);
+
         var ul = document.createElement('ul');
         ul.className = 'briefing-activity-list';
 
         var sourceIcons = {
-            user: '\u25C6',       /* diamond — user actions */
-            bridge: '\u2726',     /* sparkle — AI work */
-            governance: '\u2738', /* heavy asterisk — governance */
-            knowledge: '\u25CB'   /* circle — knowledge */
+            user: '\u25C6',
+            bridge: '\u2726',
+            governance: '\u2738',
+            knowledge: '\u25CB'
         };
 
         items.forEach(function(item) {
@@ -4008,7 +4030,6 @@ window.timeAgo = function timeAgo(isoString) {
 
             var textSpan = document.createElement('span');
             textSpan.className = 'briefing-activity-text';
-            // Action text is already human-readable from the API
             textSpan.textContent = item.action || 'Activity';
             textSpan.title = item.details || item.action || '';
 
@@ -4032,9 +4053,13 @@ window.timeAgo = function timeAgo(isoString) {
 
         var alerts = data.alerts || [];
         var serviceIssues = data.service_issues || [];
+        var totalAlerts = alerts.length + serviceIssues.length;
+
+        _currentCounts.alerts = totalAlerts;
+        updateBadge('alerts', totalAlerts);
 
         // If nothing is wrong, show nominal
-        if (alerts.length === 0 && serviceIssues.length === 0) {
+        if (totalAlerts === 0) {
             container.innerHTML = '';
             var nominal = document.createElement('div');
             nominal.className = 'briefing-alert-nominal';
@@ -4051,7 +4076,6 @@ window.timeAgo = function timeAgo(isoString) {
 
         container.innerHTML = '';
 
-        // Service issues first (these are more critical)
         serviceIssues.forEach(function(issue) {
             var div = document.createElement('div');
             var severity = (issue.status === 'error' || issue.status === 'down' || issue.status === 'offline') ? 'alert-critical' : 'alert-warning';
@@ -4065,7 +4089,7 @@ window.timeAgo = function timeAgo(isoString) {
             textWrap.className = 'briefing-alert-text';
             var titleSpan = document.createElement('span');
             titleSpan.className = 'briefing-alert-title';
-            titleSpan.textContent = (issue.service || 'Service').replace('_', ' ').toUpperCase() + ' — ' + (issue.status || 'issue');
+            titleSpan.textContent = (issue.service || 'Service').replace('_', ' ').toUpperCase() + ' \u2014 ' + (issue.status || 'issue');
             textWrap.appendChild(titleSpan);
             if (issue.error) {
                 var detail = document.createElement('span');
@@ -4077,7 +4101,6 @@ window.timeAgo = function timeAgo(isoString) {
             container.appendChild(div);
         });
 
-        // Blended alerts (failed jobs, welfare, notifications)
         alerts.forEach(function(alert) {
             var div = document.createElement('div');
             var severity = 'alert-info';
@@ -4123,64 +4146,10 @@ window.timeAgo = function timeAgo(isoString) {
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    // ── Render AI Insights (called from fetchAiStatus callback too) ──
+    // ── Keep renderAiInsights global for HUD (no-op if briefingAi element missing) ──
     window.renderAiInsights = function renderAiInsights(data) {
         var container = document.getElementById('briefingAi');
         if (!container) return;
-        if (!data) {
-            container.innerHTML = '';
-            var aiUnavailSpan = document.createElement('span');
-            aiUnavailSpan.className = 'briefing-muted';
-            aiUnavailSpan.textContent = archieI18n.t('js.briefing.ai_unavailable', 'AI data unavailable');
-            container.appendChild(aiUnavailSpan);
-            return;
-        }
-
-        container.innerHTML = '';
-        var stats = document.createElement('div');
-        stats.className = 'briefing-ai-stats';
-
-        // Today's interactions - big number
-        var interactionRow = document.createElement('div');
-        interactionRow.className = 'briefing-ai-stat';
-        var bigNum = document.createElement('div');
-        bigNum.className = 'briefing-ai-big-number';
-        bigNum.textContent = data.today_interactions || 0;
-        var interLabel = document.createElement('div');
-        interLabel.className = 'briefing-ai-stat-label';
-        interLabel.textContent = archieI18n.t('js.insights.interactions_24h', 'Interactions (24h)');
-        interactionRow.appendChild(bigNum);
-        interactionRow.appendChild(interLabel);
-        stats.appendChild(interactionRow);
-
-        // Active agents
-        var agentRow = document.createElement('div');
-        agentRow.className = 'briefing-ai-stat';
-        var agentNum = document.createElement('div');
-        agentNum.className = 'briefing-ai-big-number';
-        agentNum.style.fontSize = '22px';
-        agentNum.textContent = data.active_agents || 0;
-        var agentLabel = document.createElement('div');
-        agentLabel.className = 'briefing-ai-stat-label';
-        agentLabel.textContent = archieI18n.t('js.insights.active_agents', 'Active Agents');
-        agentRow.appendChild(agentNum);
-        agentRow.appendChild(agentLabel);
-        stats.appendChild(agentRow);
-
-        // Overall AI Status
-        var statusRow = document.createElement('div');
-        statusRow.className = 'briefing-ai-status-row';
-        var dot = document.createElement('div');
-        dot.className = 'briefing-ai-status-dot';
-        if (!data.ai_online) dot.classList.add('offline');
-        var statusText = document.createElement('span');
-        statusText.className = 'briefing-ai-status-text';
-        statusText.textContent = data.ai_online ? archieI18n.t('js.insights.ai_online', 'AI Systems Online') : archieI18n.t('js.insights.ai_offline', 'AI Systems Offline');
-        statusRow.appendChild(dot);
-        statusRow.appendChild(statusText);
-        stats.appendChild(statusRow);
-
-        container.appendChild(stats);
     };
 
     // ── Fetch Recent Activity ──
@@ -4227,15 +4196,10 @@ window.timeAgo = function timeAgo(isoString) {
             });
     }
 
-    // ── Start fetching when dashboard is visible ──
+    // ── Start fetching ──
     function startBriefingFetch() {
         fetchRecentActivity();
         fetchAlerts();
-
-        // AI insights: check if data was already fetched by HUD
-        if (window._archieAiStatusData) {
-            window.renderAiInsights(window._archieAiStatusData);
-        }
 
         // Update footer timestamp
         var tsEl = document.getElementById('briefingTimestamp');
@@ -4247,13 +4211,11 @@ window.timeAgo = function timeAgo(isoString) {
             tsEl.textContent = 'UPDATED ' + hh + ':' + mm + ':' + ss;
         }
 
-        // Re-render Lucide icons for newly added content
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
     }
 
-    // Start fetching immediately (boot sequence handles frame visibility separately)
     startBriefingFetch();
 })();
 

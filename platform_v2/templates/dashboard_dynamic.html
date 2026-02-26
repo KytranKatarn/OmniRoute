@@ -1138,163 +1138,150 @@ body.light-mode .cb-lang-option.active {
     --frame-rgb: 0, 255, 255;
 }
 
-/* ── Body layout: horizontal pods row ── */
+/* ── Body layout: vertical readout rows ── */
 .hud-frame .lcars-body {
     display: flex;
-    gap: 10px;
-    padding: 12px 16px;
-    overflow-x: auto;
-    overflow-y: hidden;
-}
-
-/* ── Pod cards inside frame ── */
-.hud-pod {
-    flex: 1 1 0;
-    min-width: 0;
-    display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 10px 8px;
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 255, 255, 0.15);
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.hud-pod:hover {
-    border-color: rgba(0, 255, 255, 0.3);
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.06);
-}
-
-.hud-pod-label {
-    font-family: 'Antonio', sans-serif;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.4);
-}
-
-.hud-pod-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    color: #00ff41;
-    line-height: 1;
-}
-
-.hud-pod-sub {
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.3);
-}
-
-/* Dual-stacked pods */
-.hud-pod-dual {
-    justify-content: center;
-    gap: 0;
-    padding: 6px 8px;
-}
-.hud-dual-top, .hud-dual-bottom {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    padding: 3px 0;
-}
-.hud-dual-row {
-    display: flex;
-    align-items: center;
     gap: 6px;
-}
-.hud-dual-divider {
-    width: 60%;
-    height: 1px;
-    margin: 4px auto;
-    background: rgba(255, 255, 255, 0.1);
+    padding: 14px 20px;
 }
 
-/* Ring Gauge SVG */
-.hud-ring-wrap {
-    position: relative;
-    width: 54px;
-    height: 54px;
-}
-
-.hud-ring-wrap svg {
-    width: 60px;
-    height: 60px;
-    transform: rotate(-90deg);
-}
-
-.hud-ring-bg {
-    fill: none;
-    stroke: rgba(255, 255, 255, 0.06);
-    stroke-width: 5;
-}
-
-.hud-ring-fg {
-    fill: none;
-    stroke: #00FF41;
-    stroke-width: 5;
-    stroke-linecap: round;
-    transition: stroke-dashoffset 1s ease, stroke 0.3s ease;
-    filter: drop-shadow(0 0 4px rgba(0, 255, 255, 0.4));
-}
-
-.hud-ring-fg.warning {
-    stroke: #ffaa00;
-    filter: drop-shadow(0 0 4px rgba(255, 170, 0, 0.4));
-}
-
-.hud-ring-fg.critical {
-    stroke: #ff3b3b;
-    filter: drop-shadow(0 0 4px rgba(255, 59, 59, 0.4));
-}
-
-.hud-ring-center {
-    position: absolute;
-    inset: 0;
+/* ── Each readout row ── */
+.hud-row {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 12px;
+    height: 28px;
+}
+
+/* Label column */
+.hud-row-label {
+    font-family: 'Antonio', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    width: 80px;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+/* Segmented bar container */
+.hud-bar {
+    flex: 1;
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    height: 18px;
+}
+
+/* Individual segment */
+.hud-seg {
+    flex: 1;
+    height: 100%;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+.hud-seg.lit {
+    background: #00ff41;
+    box-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
+}
+.hud-seg.lit.warning {
+    background: #ffaa00;
+    box-shadow: 0 0 6px rgba(255, 170, 0, 0.3);
+}
+.hud-seg.lit.critical {
+    background: #ff3b3b;
+    box-shadow: 0 0 6px rgba(255, 59, 59, 0.4);
+}
+
+/* Value readout */
+.hud-row-value {
     font-family: 'Orbitron', sans-serif;
     font-size: 14px;
     font-weight: 700;
-    color: #e0e0e0;
+    color: #00ff41;
+    width: 52px;
+    flex-shrink: 0;
+    text-align: right;
+    line-height: 1;
+}
+.hud-row-value.warning { color: #ffaa00; }
+.hud-row-value.critical { color: #ff3b3b; }
+
+/* Sub-detail (e.g. "62.5/125.7 GB") */
+.hud-row-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.3);
+    width: 100px;
+    flex-shrink: 0;
 }
 
-/* AI Status Indicator */
-.hud-ai-dot {
-    width: 12px;
-    height: 12px;
+/* ── Status readout rows (no bar) ── */
+.hud-status-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 24px;
+}
+.hud-status-label {
+    font-family: 'Antonio', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+    width: 80px;
+    flex-shrink: 0;
+    text-align: right;
+}
+.hud-status-dot {
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: #00FF41;
+    flex-shrink: 0;
+}
+.hud-status-dot.online {
+    background: #00ff41;
     box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
     animation: lcarsPulseGreen 3s ease-in-out infinite;
 }
-
-.hud-ai-dot.offline {
+.hud-status-dot.offline {
     background: #ff3b3b;
     box-shadow: 0 0 8px rgba(255, 59, 59, 0.6);
     animation: none;
 }
-
-/* A.R.C.H.I.E. status */
-.hud-archie-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
+.hud-status-dot.archie {
     background: #8b5cf6;
     box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
     animation: lcarsPulsePurple 3s ease-in-out infinite;
 }
-.hud-archie-dot.offline {
+.hud-status-dot.archie.offline {
     background: #ff3b3b;
     box-shadow: 0 0 8px rgba(255, 59, 59, 0.6);
     animation: none;
+}
+.hud-status-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: #00ff41;
+}
+.hud-status-value.offline { color: #ff3b3b; }
+.hud-status-extra {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
+    margin-left: auto;
+}
+/* Divider between bar readouts and status readouts */
+.hud-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,255,0.15), transparent);
+    margin: 4px 0;
 }
 
 /* LCARS-style pulsing glows for status dots */
@@ -1396,57 +1383,65 @@ body.light-mode .cb-icon-btn:hover {
 }
 
 /* ── HUD Frame Light Mode ── */
-[data-theme="light"] .hud-pod,
-body.light-mode .hud-pod {
-    background: rgba(255, 255, 255, 0.6);
-    border-color: rgba(0, 0, 0, 0.1);
-}
-
-[data-theme="light"] .hud-pod-label,
-body.light-mode .hud-pod-label {
+[data-theme="light"] .hud-row-label,
+body.light-mode .hud-row-label {
     color: #555;
 }
-
-[data-theme="light"] .hud-pod-value,
-body.light-mode .hud-pod-value {
+[data-theme="light"] .hud-row-value,
+body.light-mode .hud-row-value {
     color: #007a20;
 }
-
-[data-theme="light"] .hud-ring-bg,
-body.light-mode .hud-ring-bg {
-    stroke: rgba(0, 0, 0, 0.06);
+[data-theme="light"] .hud-row-value.warning,
+body.light-mode .hud-row-value.warning {
+    color: #b37400;
 }
-
-[data-theme="light"] .hud-ring-fg,
-body.light-mode .hud-ring-fg {
-    filter: none;
+[data-theme="light"] .hud-row-value.critical,
+body.light-mode .hud-row-value.critical {
+    color: #cc2222;
 }
-
-[data-theme="light"] .hud-ring-center,
-body.light-mode .hud-ring-center {
-    color: #222;
+[data-theme="light"] .hud-seg,
+body.light-mode .hud-seg {
+    background: rgba(0, 0, 0, 0.06);
 }
-
-[data-theme="light"] .hud-pod-sub,
-body.light-mode .hud-pod-sub {
+[data-theme="light"] .hud-seg.lit,
+body.light-mode .hud-seg.lit {
+    background: #00cc33;
+    box-shadow: none;
+}
+[data-theme="light"] .hud-seg.lit.warning,
+body.light-mode .hud-seg.lit.warning {
+    background: #cc8800;
+    box-shadow: none;
+}
+[data-theme="light"] .hud-seg.lit.critical,
+body.light-mode .hud-seg.lit.critical {
+    background: #cc2222;
+    box-shadow: none;
+}
+[data-theme="light"] .hud-row-sub,
+body.light-mode .hud-row-sub {
     color: #888;
 }
-
-[data-theme="light"] .hud-ai-dot,
-body.light-mode .hud-ai-dot {
+[data-theme="light"] .hud-status-label,
+body.light-mode .hud-status-label {
+    color: #555;
+}
+[data-theme="light"] .hud-status-dot,
+body.light-mode .hud-status-dot {
     animation: none;
     box-shadow: none;
 }
-
-[data-theme="light"] .hud-archie-dot,
-body.light-mode .hud-archie-dot {
-    animation: none;
-    box-shadow: none;
+[data-theme="light"] .hud-status-value,
+body.light-mode .hud-status-value {
+    color: #007a20;
 }
-
-[data-theme="light"] .hud-dual-divider,
-body.light-mode .hud-dual-divider {
-    background: rgba(0, 0, 0, 0.1);
+[data-theme="light"] .hud-status-extra,
+body.light-mode .hud-status-extra {
+    color: #888;
+}
+[data-theme="light"] .hud-divider,
+body.light-mode .hud-divider {
+    background: linear-gradient(90deg, transparent, rgba(0,0,0,0.08), transparent);
 }
 
 
@@ -1536,22 +1531,19 @@ body.light-mode .footer-version {
         padding: 0 12px;
     }
     .hud-frame .lcars-body {
-        gap: 8px;
-        padding: 10px 12px;
+        padding: 10px 14px;
     }
-    .hud-pod {
-        padding: 8px 6px;
+    .hud-row-label, .hud-status-label {
+        width: 65px;
+        font-size: 10px;
     }
-    .hud-ring-wrap {
-        width: 48px;
-        height: 48px;
-    }
-    .hud-ring-center {
+    .hud-row-value {
         font-size: 12px;
+        width: 44px;
     }
-    .hud-pod-label {
+    .hud-row-sub {
+        width: 85px;
         font-size: 9px;
-        letter-spacing: 1px;
     }
 }
 
@@ -1583,14 +1575,18 @@ body.light-mode .footer-version {
         margin-top: 8px;
     }
     .hud-frame .lcars-body {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
         padding: 8px 10px;
-        overflow-x: visible;
     }
-    .hud-pod {
-        flex: none;
+    .hud-row-label, .hud-status-label {
+        width: 55px;
+        font-size: 9px;
+    }
+    .hud-row-value {
+        font-size: 11px;
+        width: 40px;
+    }
+    .hud-row-sub, .hud-status-extra {
+        display: none;
     }
 }
 
@@ -2640,7 +2636,8 @@ body.light-mode .module-card-accent {
 [dir="rtl"] .module-card-name,
 [dir="rtl"] .lcars-bar-title,
 [dir="rtl"] .briefing-col-header,
-[dir="rtl"] .hud-pod-label,
+[dir="rtl"] .hud-row-label,
+[dir="rtl"] .hud-status-label,
 [dir="rtl"] .featured-card-status,
 [dir="rtl"] .cat-admin-badge,
 [dir="rtl"] .status-text {
@@ -2651,7 +2648,8 @@ body.light-mode .module-card-accent {
 [lang="zh"] .module-card-name,
 [lang="zh"] .lcars-bar-title,
 [lang="zh"] .briefing-col-header,
-[lang="zh"] .hud-pod-label {
+[lang="zh"] .hud-row-label,
+[lang="zh"] .hud-status-label {
     letter-spacing: 1px;
 }
 
@@ -2822,75 +2820,42 @@ body.light-mode .module-card-accent {
                     <span class="lcars-bar-status" id="hudUptime" data-i18n-title="dashboard_hud_uptime">--</span>
                 </div>
                 <div class="lcars-body" id="hud-vitals" role="status" aria-label="System vitals">
-                    <!-- Pod 1: SYSTEM health -->
-                    <div class="hud-pod" id="hudPodSystem">
-                        <span class="hud-pod-label" data-i18n="hud.system">SYSTEM</span>
-                        <div class="hud-ring-wrap">
-                            <svg viewBox="0 0 60 60">
-                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                                <circle class="hud-ring-fg" id="hudRingSystem" cx="30" cy="30" r="25"
-                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                            </svg>
-                            <div class="hud-ring-center" id="hudValSystem">--%</div>
-                        </div>
+                    <!-- Row 1: SYSTEM health bar -->
+                    <div class="hud-row" id="hudRowSystem">
+                        <span class="hud-row-label" data-i18n="hud.system">SYSTEM</span>
+                        <div class="hud-bar" id="hudBarSystem"></div>
+                        <span class="hud-row-value" id="hudValSystem">--%</span>
+                        <span class="hud-row-sub"></span>
                     </div>
-                    <!-- Pod 2: CPU -->
-                    <div class="hud-pod" id="hudPodCpu">
-                        <span class="hud-pod-label" data-i18n="hud.cpu">CPU</span>
-                        <div class="hud-ring-wrap">
-                            <svg viewBox="0 0 60 60">
-                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                                <circle class="hud-ring-fg" id="hudRingCpu" cx="30" cy="30" r="25"
-                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                            </svg>
-                            <div class="hud-ring-center" id="hudValCpu">--%</div>
-                        </div>
+                    <!-- Row 2: CPU bar -->
+                    <div class="hud-row" id="hudRowCpu">
+                        <span class="hud-row-label" data-i18n="hud.cpu">CPU</span>
+                        <div class="hud-bar" id="hudBarCpu"></div>
+                        <span class="hud-row-value" id="hudValCpu">--%</span>
+                        <span class="hud-row-sub"></span>
                     </div>
-                    <!-- Pod 3: MEMORY -->
-                    <div class="hud-pod" id="hudPodMem">
-                        <span class="hud-pod-label" data-i18n="hud.memory">MEMORY</span>
-                        <div class="hud-ring-wrap">
-                            <svg viewBox="0 0 60 60">
-                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                                <circle class="hud-ring-fg" id="hudRingMem" cx="30" cy="30" r="25"
-                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                            </svg>
-                            <div class="hud-ring-center" id="hudValMem">--%</div>
-                        </div>
-                        <span class="hud-pod-sub" id="hudMemDetail">--/-- GB</span>
+                    <!-- Row 3: MEMORY bar -->
+                    <div class="hud-row" id="hudRowMem">
+                        <span class="hud-row-label" data-i18n="hud.memory">MEMORY</span>
+                        <div class="hud-bar" id="hudBarMem"></div>
+                        <span class="hud-row-value" id="hudValMem">--%</span>
+                        <span class="hud-row-sub" id="hudMemDetail">--/-- GB</span>
                     </div>
-                    <!-- Pod 4: AI STATUS + AGENTS (stacked) -->
-                    <div class="hud-pod hud-pod-dual" id="hudPodAiAgents">
-                        <div class="hud-dual-top">
-                            <span class="hud-pod-label" data-i18n="hud.ai_status">AI STATUS</span>
-                            <div class="hud-dual-row">
-                                <div class="hud-ai-dot" id="hudAiDot"></div>
-                                <span class="hud-pod-value" id="hudValAi" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
-                            </div>
-                        </div>
-                        <div class="hud-dual-divider"></div>
-                        <div class="hud-dual-bottom">
-                            <span class="hud-pod-label" data-i18n="hud.agents">AGENTS</span>
-                            <div class="hud-dual-row">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                <span class="hud-pod-value" id="hudValAgents" style="font-size:13px;">0</span>
-                            </div>
-                        </div>
+                    <!-- Divider -->
+                    <div class="hud-divider"></div>
+                    <!-- Status row: AI CORE -->
+                    <div class="hud-status-row">
+                        <span class="hud-status-label" data-i18n="hud.ai_status">AI CORE</span>
+                        <div class="hud-status-dot online" id="hudAiDot"></div>
+                        <span class="hud-status-value" id="hudValAi" data-i18n="status.online">ONLINE</span>
+                        <span class="hud-status-extra"><span data-i18n="hud.agents">AGENTS</span>: <span id="hudValAgents">0</span></span>
                     </div>
-                    <!-- Pod 5: A.R.C.H.I.E. + UPTIME (stacked) -->
-                    <div class="hud-pod hud-pod-dual" id="hudPodArchieUptime">
-                        <div class="hud-dual-top">
-                            <span class="hud-pod-label" data-i18n="hud.archie">A.R.C.H.I.E.</span>
-                            <div class="hud-dual-row">
-                                <div class="hud-archie-dot online" id="hudArchieDot"></div>
-                                <span class="hud-pod-value" id="hudValArchie" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
-                            </div>
-                        </div>
-                        <div class="hud-dual-divider"></div>
-                        <div class="hud-dual-bottom">
-                            <span class="hud-pod-label" data-i18n="hud.uptime">UPTIME</span>
-                            <span class="hud-pod-value" id="hudValUptime" style="font-size:13px;">--h --m</span>
-                        </div>
+                    <!-- Status row: A.R.C.H.I.E. -->
+                    <div class="hud-status-row">
+                        <span class="hud-status-label" data-i18n="hud.archie">A.R.C.H.I.E.</span>
+                        <div class="hud-status-dot archie online" id="hudArchieDot"></div>
+                        <span class="hud-status-value" id="hudValArchie" data-i18n="status.online">ONLINE</span>
+                        <span class="hud-status-extra"><span data-i18n="hud.uptime">UPTIME</span>: <span id="hudValUptime">--h --m</span></span>
                     </div>
                 </div>
                 <div class="lcars-footer-bar">
@@ -3792,23 +3757,50 @@ window.timeAgo = function timeAgo(isoString) {
         lucide.createIcons();
     }
 
-    // ── Ring gauge helper ──
-    var CIRCUMFERENCE = 2 * Math.PI * 25; // r=25 => 157.08
+    // ── Segmented bar helper ──
+    var NUM_SEGMENTS = 12;
 
-    function setRing(ringId, percent, invert) {
-        var ring = document.getElementById(ringId);
-        if (!ring) return;
+    // Initialize bar segments on load
+    function initBar(barId) {
+        var bar = document.getElementById(barId);
+        if (!bar || bar.children.length > 0) return;
+        for (var i = 0; i < NUM_SEGMENTS; i++) {
+            var seg = document.createElement('div');
+            seg.className = 'hud-seg';
+            bar.appendChild(seg);
+        }
+    }
+    initBar('hudBarSystem');
+    initBar('hudBarCpu');
+    initBar('hudBarMem');
+
+    function setBar(barId, percent, invert) {
+        var bar = document.getElementById(barId);
+        if (!bar) return;
         var p = Math.max(0, Math.min(100, percent));
-        var offset = CIRCUMFERENCE - (p / 100) * CIRCUMFERENCE;
-        ring.setAttribute('stroke-dashoffset', offset);
-        // Color thresholds (invert: high=good, low=bad — for System Health)
-        ring.classList.remove('warning', 'critical');
+        var litCount = Math.round((p / 100) * NUM_SEGMENTS);
+        var segs = bar.querySelectorAll('.hud-seg');
+        // Determine color class
+        var cls = '';
         if (invert) {
-            if (p <= 25) ring.classList.add('critical');
-            else if (p <= 50) ring.classList.add('warning');
+            if (p <= 25) cls = 'critical';
+            else if (p <= 50) cls = 'warning';
         } else {
-            if (p >= 90) ring.classList.add('critical');
-            else if (p >= 75) ring.classList.add('warning');
+            if (p >= 90) cls = 'critical';
+            else if (p >= 75) cls = 'warning';
+        }
+        segs.forEach(function(seg, i) {
+            seg.classList.remove('lit', 'warning', 'critical');
+            if (i < litCount) {
+                seg.classList.add('lit');
+                if (cls) seg.classList.add(cls);
+            }
+        });
+        // Update value color
+        var valEl = bar.parentElement.querySelector('.hud-row-value');
+        if (valEl) {
+            valEl.classList.remove('warning', 'critical');
+            if (cls) valEl.classList.add(cls);
         }
     }
 
@@ -3821,13 +3813,13 @@ window.timeAgo = function timeAgo(isoString) {
 
                 // CPU
                 var cpuPct = Math.round(data.cpu_percent || 0);
-                setRing('hudRingCpu', cpuPct);
+                setBar('hudBarCpu', cpuPct);
                 var cpuValEl = document.getElementById('hudValCpu');
                 if (cpuValEl) cpuValEl.textContent = cpuPct + '%';
 
                 // Memory
                 var memPct = Math.round(data.memory_percent || 0);
-                setRing('hudRingMem', memPct);
+                setBar('hudBarMem', memPct);
                 var memValEl = document.getElementById('hudValMem');
                 if (memValEl) memValEl.textContent = memPct + '%';
                 var memDetail = document.getElementById('hudMemDetail');
@@ -3844,7 +3836,7 @@ window.timeAgo = function timeAgo(isoString) {
                 // System aggregate: average of CPU and Memory health (inverse of usage)
                 var systemPct = Math.round(100 - (cpuPct + memPct) / 2);
                 if (systemPct < 0) systemPct = 0;
-                setRing('hudRingSystem', systemPct, true);
+                setBar('hudBarSystem', systemPct, true);
                 var sysValEl = document.getElementById('hudValSystem');
                 if (sysValEl) sysValEl.textContent = systemPct + '%';
 

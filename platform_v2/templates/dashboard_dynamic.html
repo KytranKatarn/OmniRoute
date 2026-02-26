@@ -77,88 +77,60 @@ body.light-mode::before {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   MATRIX RAIN CANVAS
-   ───────────────────────────────────────────────────────────────────────────── */
-#matrix-rain {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-    opacity: 0.15;
-    pointer-events: none;
-}
-
-/* Light mode: hide matrix rain */
-[data-theme="light"] #matrix-rain,
-body.light-mode #matrix-rain {
-    display: none;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
    DASHBOARD MAIN CONTENT WRAPPER
    ───────────────────────────────────────────────────────────────────────────── */
 .dashboard-content {
     position: relative;
     z-index: 2;
     min-height: 100vh;
-    opacity: 0;
-    transition: opacity 0.6s var(--archie-ease-out);
-}
-
-.dashboard-content.visible {
-    opacity: 1;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   BOOT SEQUENCE OVERLAY
+   BOOT SEQUENCE OVERLAY — LCARS Frame-Build
    ───────────────────────────────────────────────────────────────────────────── */
 .boot-overlay {
     position: fixed;
     inset: 0;
-    z-index: 10000;
-    background: #000000;
+    background: #000;
+    z-index: 9999;
     display: flex;
-    flex-direction: column;
-    justify-content: center;
     align-items: center;
-    font-family: 'Antonio', sans-serif;
-    overflow: hidden;
+    justify-content: center;
+    transition: opacity 0.3s ease;
 }
-
-.boot-overlay.phase-split .boot-top-half,
-.boot-overlay.phase-split .boot-bottom-half {
+.boot-overlay.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+.boot-scanline {
     position: absolute;
-    left: 0;
-    right: 0;
-    background: #000000;
-    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,65,0.4), transparent);
+    animation: bootScanline 2s linear infinite;
 }
-
-.boot-overlay.phase-split .boot-top-half {
-    top: 0;
-    height: 50%;
-    transform: translateY(0);
+@keyframes bootScanline {
+    0% { top: -2px; }
+    100% { top: 100%; }
 }
-
-.boot-overlay.phase-split .boot-bottom-half {
-    bottom: 0;
-    height: 50%;
-    transform: translateY(0);
+.boot-threat-flash {
+    font-family: 'Antonio', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #ff2222;
+    opacity: 0;
+    pointer-events: none;
+    text-shadow: 0 0 20px rgba(255,34,34,0.5);
 }
-
-.boot-overlay.phase-split.reveal .boot-top-half {
-    transform: translateY(-100%);
+.boot-threat-flash.flash {
+    animation: threatFlash 0.6s ease-in-out forwards;
 }
-
-.boot-overlay.phase-split.reveal .boot-bottom-half {
-    transform: translateY(100%);
-}
-
-.boot-overlay.hidden {
-    display: none;
+@keyframes threatFlash {
+    0% { opacity: 0; }
+    30% { opacity: 0.4; }
+    70% { opacity: 0.35; }
+    100% { opacity: 0; }
 }
 
 /* ─── Shutdown Overlay ─── */
@@ -238,328 +210,6 @@ body.light-mode #matrix-rain {
 @keyframes scanDown {
     0% { top: 0; opacity: 0.8; }
     100% { top: 100%; opacity: 0; }
-}
-
-/* Boot Terminal Area — monospace green-on-dark */
-.boot-terminal {
-    width: 90%;
-    max-width: 700px;
-    padding: 2rem;
-    position: relative;
-    text-shadow: 0 0 6px rgba(0, 255, 65, 0.2);
-}
-
-.boot-line {
-    font-family: 'Antonio', sans-serif;
-    font-size: 14px;
-    line-height: 1.8;
-    color: #00FF41;
-    white-space: pre;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-    text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
-}
-
-.boot-line.visible {
-    opacity: 1;
-}
-
-.boot-line .label {
-    color: #00FF41;
-}
-
-.boot-line .dots {
-    color: #006618;
-}
-
-.boot-line .progress-track {
-    color: #003d0f;
-}
-
-.boot-line .progress-fill {
-    color: #00FF41;
-    display: inline;
-}
-
-.boot-line .status {
-    font-weight: 600;
-}
-
-.boot-line .status.connected { color: #00FF41; }
-.boot-line .status.online    { color: #00FFFF; }
-.boot-line .status.loaded    { color: #39ff6e; }
-.boot-line .status.secure    { color: #00FF41; }
-.boot-line .status.active    { color: #ffaa00; }
-.boot-line .status.aware     { color: #8b5cf6; }
-
-/* Cursor blink */
-.boot-cursor {
-    display: inline-block;
-    width: 10px;
-    height: 18px;
-    background: #00FF41;
-    vertical-align: middle;
-    animation: cursorBlink 0.6s step-end infinite;
-    box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
-}
-
-@keyframes cursorBlink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
-}
-
-/* Phase 1: Typing effect cursor */
-.boot-typing-line {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #00FF41;
-    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
-    margin-bottom: 1.5rem;
-    min-height: 1.5em;
-}
-
-/* Phase 3: Threat level */
-.boot-threat {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 18px;
-    font-weight: 700;
-    color: #ffaa00;
-    text-align: center;
-    opacity: 0;
-    text-shadow: 0 0 15px rgba(255, 170, 0, 0.6);
-    letter-spacing: 3px;
-    margin-top: 1.5rem;
-}
-
-.boot-threat.flash {
-    opacity: 1;
-    animation: threatFlash 0.5s ease-in-out;
-}
-
-/* "MIDNIGHT" scary styling */
-.midnight-text {
-    color: #ff1a1a;
-    font-size: 1.4em;
-    font-weight: 900;
-    font-style: italic;
-    letter-spacing: 6px;
-    text-shadow:
-        0 0 10px rgba(255, 0, 0, 0.9),
-        0 0 30px rgba(255, 0, 0, 0.6),
-        0 0 60px rgba(255, 0, 0, 0.3),
-        0 2px 4px rgba(0, 0, 0, 0.8);
-    position: relative;
-    display: inline-block;
-}
-
-.boot-threat.flash .midnight-text {
-    animation: midnightFlicker 2s ease-in-out 0.5s infinite;
-}
-
-@keyframes midnightFlicker {
-    0%   { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
-    5%   { opacity: 0.4; text-shadow: none; }
-    7%   { opacity: 1; text-shadow: 0 0 20px rgba(255,0,0,1), 0 0 40px rgba(255,0,0,0.7); }
-    10%  { opacity: 0.7; text-shadow: 0 0 5px rgba(255,0,0,0.5); }
-    13%  { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
-    50%  { opacity: 1; }
-    52%  { opacity: 0.3; text-shadow: none; }
-    54%  { opacity: 1; text-shadow: 0 0 15px rgba(255,0,0,0.8), 0 0 50px rgba(255,0,0,0.4); }
-    100% { opacity: 1; text-shadow: 0 0 10px rgba(255,0,0,0.9), 0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3); }
-}
-
-@keyframes threatFlash {
-    0%   { opacity: 0; transform: scale(0.95); }
-    30%  { opacity: 1; transform: scale(1.02); }
-    60%  { opacity: 0.5; }
-    100% { opacity: 1; transform: scale(1); }
-}
-
-/* Screen flicker effect */
-@keyframes screenFlicker {
-    0%   { opacity: 1; }
-    5%   { opacity: 0.3; }
-    10%  { opacity: 1; }
-    15%  { opacity: 0.6; }
-    20%  { opacity: 1; }
-    100% { opacity: 1; }
-}
-
-.boot-overlay.flicker {
-    animation: screenFlicker 0.4s linear;
-}
-
-/* Screen shake */
-@keyframes screenShake {
-    0%, 100% { transform: translate(0, 0); }
-    10%  { transform: translate(-3px, 1px); }
-    20%  { transform: translate(2px, -2px); }
-    30%  { transform: translate(-1px, 3px); }
-    40%  { transform: translate(3px, -1px); }
-    50%  { transform: translate(-2px, 2px); }
-    60%  { transform: translate(1px, -3px); }
-    70%  { transform: translate(-3px, 1px); }
-    80%  { transform: translate(2px, 2px); }
-    90%  { transform: translate(-1px, -1px); }
-}
-
-.boot-overlay.shake {
-    animation: screenShake 0.3s ease-in-out;
-}
-
-/* Phase 4: ARCHIE Logo */
-.boot-logo-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    pointer-events: none;
-}
-
-.boot-logo-container.visible {
-    opacity: 1;
-}
-
-.boot-logo-text {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 4rem;
-    font-weight: 900;
-    color: #00FF41;
-    text-shadow:
-        0 0 20px rgba(0, 255, 65, 0.8),
-        0 0 40px rgba(0, 255, 65, 0.5),
-        0 0 80px rgba(0, 255, 65, 0.3);
-    letter-spacing: 12px;
-    animation: logoMaterialize 0.5s ease-out;
-    position: relative;
-    z-index: 2;
-}
-
-@keyframes logoMaterialize {
-    0% {
-        opacity: 0;
-        transform: scale(0.8);
-        filter: blur(10px);
-        letter-spacing: 30px;
-    }
-    60% {
-        opacity: 1;
-        transform: scale(1.02);
-        filter: blur(0);
-    }
-    100% {
-        transform: scale(1);
-        letter-spacing: 12px;
-    }
-}
-
-.boot-logo-ring {
-    position: absolute;
-    width: 300px;
-    height: 300px;
-    border: 2px solid rgba(0, 255, 65, 0.4);
-    border-radius: 50%;
-    animation: ringExpand 1s ease-out forwards;
-    z-index: 1;
-}
-
-@keyframes ringExpand {
-    0% {
-        width: 0;
-        height: 0;
-        opacity: 1;
-        border-width: 3px;
-    }
-    100% {
-        width: 500px;
-        height: 500px;
-        opacity: 0;
-        border-width: 1px;
-    }
-}
-
-.boot-logo-ring:nth-child(2) {
-    animation-delay: 0.15s;
-    border-color: rgba(0, 255, 65, 0.3);
-}
-
-.boot-logo-ring:nth-child(3) {
-    animation-delay: 0.3s;
-    border-color: rgba(0, 255, 65, 0.2);
-}
-
-.boot-system-online {
-    font-family: 'Antonio', sans-serif;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #00FFFF;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    margin-top: 1.5rem;
-    text-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
-    animation: systemOnlinePulse 1s ease-in-out infinite alternate;
-    position: relative;
-    z-index: 2;
-}
-
-@keyframes systemOnlinePulse {
-    0% { opacity: 0.7; }
-    100% { opacity: 1; }
-}
-
-/* Skip Button */
-.boot-skip-btn {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    z-index: 10001;
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: rgba(0, 255, 65, 0.4);
-    background: transparent;
-    border: 1px solid rgba(0, 255, 65, 0.2);
-    border-radius: 20px;
-    padding: 8px 18px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.boot-skip-btn.visible {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.boot-skip-btn:hover {
-    color: rgba(0, 255, 65, 0.8);
-    border-color: rgba(0, 255, 65, 0.5);
-    background: rgba(0, 255, 65, 0.05);
-    box-shadow: 0 0 12px rgba(0, 255, 65, 0.1);
-}
-
-/* Scanline overlay during boot for extra CRT feel */
-.boot-scanlines {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0, 255, 65, 0.015) 2px,
-        rgba(0, 255, 65, 0.015) 4px
-    );
-    z-index: 3;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1861,52 +1511,9 @@ body.light-mode .footer-version {
 }
 
 @media (max-width: 768px) {
-    .boot-logo-text {
-        font-size: 2.5rem;
-        letter-spacing: 6px;
-    }
-
-    .boot-system-online {
-        font-size: 0.75rem;
-        letter-spacing: 4px;
-    }
-
-    .boot-terminal {
-        padding: 1rem;
-    }
-
-    .boot-line {
-        font-size: 11px;
-    }
-
-    .boot-typing-line {
-        font-size: 13px;
-    }
-
-    .boot-threat {
-        font-size: 14px;
-        letter-spacing: 2px;
-    }
-
-    .boot-skip-btn {
-        bottom: 1rem;
-        right: 1rem;
-    }
-
     .featured-frame,
     .category-grid {
         padding: 0 var(--archie-spacing-md);
-    }
-}
-
-@media (max-width: 480px) {
-    .boot-logo-text {
-        font-size: 1.8rem;
-        letter-spacing: 4px;
-    }
-
-    .boot-line {
-        font-size: 10px;
     }
 }
 
@@ -3002,45 +2609,14 @@ body.light-mode .module-card-accent {
 <!-- Sandbox Mode Banner (if in sandbox mode) -->
 {% include 'sandbox_banner.html' %}
 
-<!-- Matrix Rain Canvas -->
-<canvas id="matrix-rain"></canvas>
-
 <!-- ═══════════════════════════════════════════════════════════════════════════
-     BOOT SEQUENCE OVERLAY
-     6 phases, ~4s total, skippable
+     BOOT OVERLAY — LCARS Frame-Build Sequence
+     Scanline + Threat Level Midnight flash, then frames construct themselves
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="boot-overlay" id="bootOverlay">
-    <div class="boot-scanlines"></div>
-
-    <!-- Terminal output area -->
-    <div class="boot-terminal" id="bootTerminal">
-        <!-- Phase 0: Cursor blink -->
-        <div class="boot-line" id="bootCursor" style="opacity:1;"><span class="boot-cursor"></span></div>
-
-        <!-- Phase 1: Typing line -->
-        <div class="boot-typing-line" id="bootTyping"></div>
-
-        <!-- Phase 2: Subsystem checks (built by JS) -->
-        <div id="bootChecks"></div>
-
-        <!-- Phase 3: Threat level -->
-        <div class="boot-threat" id="bootThreat">&#9888; <span id="bootThreatLabel">THREAT LEVEL:</span> <span class="midnight-text" id="bootMidnight">MIDNIGHT</span></div>
-    </div>
-
-    <!-- Phase 4: Logo -->
-    <div class="boot-logo-container" id="bootLogo">
-        <div class="boot-logo-ring"></div>
-        <div class="boot-logo-ring"></div>
-        <div class="boot-logo-ring"></div>
-        <div class="boot-logo-text">A.R.C.H.I.E.</div>
-        <div class="boot-system-online" data-i18n="boot.system_online">SYSTEM ONLINE</div>
-    </div>
-
-    <!-- Phase 5: Split halves (created by JS for the reveal animation) -->
+    <div class="boot-scanline"></div>
+    <div class="boot-threat-flash" id="bootThreatFlash" data-i18n="boot_threat_level">THREAT LEVEL MIDNIGHT</div>
 </div>
-
-<!-- Skip button (outside overlay so it stays on top) -->
-<button class="boot-skip-btn" id="bootSkipBtn" onclick="window.skipBoot()"><span data-i18n="boot.skip">SKIP</span> &#9656;</button>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      DASHBOARD CONTENT
@@ -3050,7 +2626,7 @@ body.light-mode .module-card-accent {
 
     <!-- Section 3: Command Bar — LCARS Compact Frame -->
     <div class="command-bar-frame" style="--frame-color: #00ff41; --frame-rgb: 0,255,65">
-        <div class="lcars-frame lcars-frame--compact">
+        <div class="lcars-frame lcars-frame--compact boot-hidden">
             <div class="lcars-sidebar">
                 <div class="lcars-elbow-top"></div>
                 <div class="lcars-seg" style="--seg-color: #00ff41"></div>
@@ -3148,7 +2724,7 @@ body.light-mode .module-card-accent {
 
     <!-- Section 3: HUD Vitals — LCARS Full Frame (cyan) -->
     <div class="hud-frame" style="--frame-color: #00ffff; --frame-rgb: 0,255,255">
-        <div class="lcars-frame">
+        <div class="lcars-frame boot-hidden">
             <div class="lcars-sidebar">
                 <div class="lcars-elbow-top"></div>
                 <div class="lcars-seg" style="--seg-color: #00ffff"></div>
@@ -3258,7 +2834,7 @@ body.light-mode .module-card-accent {
 
     <!-- Section 5: Mission Briefing — LCARS Full Frame (green) -->
     <div id="mission-briefing" class="briefing-frame" style="--frame-color: #00ff41; --frame-rgb: 0,255,65">
-        <div class="lcars-frame">
+        <div class="lcars-frame boot-hidden">
             <div class="lcars-sidebar">
                 <div class="lcars-elbow-top"></div>
                 <div class="lcars-seg" style="--seg-color: #00ff41"></div>
@@ -3324,7 +2900,7 @@ body.light-mode .module-card-accent {
 
     <!-- Section 6: Featured Modules — Priority Stations (LCARS Amber Frame) -->
     <div id="featured-modules" class="featured-frame" style="--frame-color: #f59e0b; --frame-rgb: 245,158,11">
-        <div class="lcars-frame">
+        <div class="lcars-frame boot-hidden">
             <div class="lcars-sidebar">
                 <div class="lcars-elbow-top"></div>
                 <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
@@ -3387,7 +2963,7 @@ body.light-mode .module-card-accent {
     <div id="category-grid" class="category-grid">
         {% for cat_key, cat_info in dashboard_data.categories.items() %}
         {% if cat_key in dashboard_data.modules_by_category %}
-        <div class="category-frame lcars-frame category-frame--{{ cat_key }}"
+        <div class="category-frame lcars-frame boot-hidden category-frame--{{ cat_key }}"
              data-category="{{ cat_key }}">
             <!-- LCARS Left Sidebar -->
             <div class="lcars-sidebar">
@@ -3479,375 +3055,63 @@ body.light-mode .module-card-accent {
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════════
-// MATRIX RAIN — Katakana + Binary + "ARCHIE"
-// Slower interval (33ms), green on transparent, JetBrains Mono 14px
+// LCARS FRAME-BUILD BOOT SEQUENCE
+// Black overlay + scanline + "THREAT LEVEL MIDNIGHT" flash, then frames
+// construct themselves sequentially. Click/key to skip. sessionStorage bypass.
 // ═══════════════════════════════════════════════════════════════════════════════
-(function initMatrixRain() {
-    var canvas = document.getElementById('matrix-rain');
-    if (!canvas) return;
-    var ctx = canvas.getContext('2d');
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    var FONT_SIZE = 14;
-    var columns = Math.floor(canvas.width / FONT_SIZE);
-    var drops = [];
-    for (var c = 0; c < columns; c++) drops[c] = 1;
-
-    // Character ranges
-    var katakanaStart = 0x30A0;
-    var katakanaEnd = 0x30FF;
-    var archieStr = 'ARCHIE';
-
-    function getRandomChar() {
-        var roll = Math.random();
-        if (roll < 0.6) {
-            // Katakana
-            return String.fromCharCode(katakanaStart + Math.floor(Math.random() * (katakanaEnd - katakanaStart)));
-        } else if (roll < 0.9) {
-            // Binary
-            return Math.random() > 0.5 ? '1' : '0';
-        } else {
-            // ARCHIE characters
-            return archieStr[Math.floor(Math.random() * archieStr.length)];
-        }
-    }
-
-    function draw() {
-        // Fade with semi-transparent black
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.fillStyle = '#00FF41';
-        ctx.font = FONT_SIZE + 'px "JetBrains Mono", monospace';
-
-        for (var i = 0; i < drops.length; i++) {
-            var ch = getRandomChar();
-            var x = i * FONT_SIZE;
-            var y = drops[i] * FONT_SIZE;
-
-            ctx.fillText(ch, x, y);
-
-            // Reset drop to top randomly
-            if (y > canvas.height && Math.random() > 0.975) {
-                drops[i] = 0;
-            }
-            drops[i]++;
-        }
-    }
-
-    // 33ms interval = ~30fps (slower, more cinematic)
-    var matrixInterval = setInterval(draw, 33);
-
-    // Expose for external control
-    window.matrixRainInterval = matrixInterval;
-    window.restartMatrixRain = function() {
-        clearInterval(matrixInterval);
-        matrixInterval = setInterval(draw, 33);
-        window.matrixRainInterval = matrixInterval;
-    };
-})();
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// BOOT SEQUENCE — 6 Phases, ~4s
-// ═══════════════════════════════════════════════════════════════════════════════
-(function runBootSequence() {
-    'use strict';
-
-    var SKIP_KEY = 'archie-boot-skip';
-    var overlay = document.getElementById('bootOverlay');
-    var skipBtn = document.getElementById('bootSkipBtn');
-    var dashContent = document.getElementById('dashboardContent');
-
-    // If previously skipped, show dashboard immediately
-    if (sessionStorage.getItem(SKIP_KEY) === 'true') {
-        if (overlay) overlay.classList.add('hidden');
-        if (skipBtn) skipBtn.style.display = 'none';
-        if (dashContent) {
-            dashContent.classList.add('visible');
-        }
+(function initFrameBoot() {
+    if (sessionStorage.getItem('archie-booted')) {
+        // Skip boot — show everything immediately
+        document.getElementById('bootOverlay')?.remove();
+        document.querySelectorAll('.boot-hidden').forEach(function(f) { f.classList.remove('boot-hidden'); });
         return;
     }
 
-    var aborted = false;
-    var bootTimeouts = [];
+    var overlay = document.getElementById('bootOverlay');
+    var threatFlash = document.getElementById('bootThreatFlash');
+    var frames = document.querySelectorAll('.lcars-frame');
 
-    function schedule(fn, delay) {
-        var id = setTimeout(fn, delay);
-        bootTimeouts.push(id);
-        return id;
-    }
+    // All frames start hidden (should already have boot-hidden class from HTML)
+    frames.forEach(function(f) { f.classList.add('boot-hidden'); });
 
-    // Skip handler
-    window.skipBoot = function() {
-        if (aborted) return;
-        aborted = true;
-        sessionStorage.setItem(SKIP_KEY, 'true');
-        // Clear all pending timeouts
-        bootTimeouts.forEach(clearTimeout);
-        // Immediately reveal dashboard
-        finishBoot();
-    };
+    // Phase 1: Darkness + Threat Level Midnight flash (0-500ms)
+    setTimeout(function() {
+        threatFlash.classList.add('flash');
+    }, 100);
 
-    function finishBoot() {
-        if (skipBtn) skipBtn.style.display = 'none';
+    // Phase 2-5: Build frames sequentially with accelerating timing
+    var frameDelays = [500, 1200, 2000, 2800]; // first 4 frames get individual timing
+    var cascadeStart = 2800; // remaining frames cascade rapidly
 
-        // Split overlay and reveal
-        overlay.classList.add('phase-split');
-
-        // Create split halves for the horizontal split animation
-        var topHalf = document.createElement('div');
-        topHalf.className = 'boot-top-half';
-        var bottomHalf = document.createElement('div');
-        bottomHalf.className = 'boot-bottom-half';
-        overlay.appendChild(topHalf);
-        overlay.appendChild(bottomHalf);
-
-        // Hide terminal and logo
-        var terminal = document.getElementById('bootTerminal');
-        var logo = document.getElementById('bootLogo');
-        if (terminal) terminal.style.display = 'none';
-        if (logo) logo.style.display = 'none';
-
-        // Trigger split reveal
-        requestAnimationFrame(function() {
-            overlay.classList.add('reveal');
-        });
-
-        // Show dashboard content
-        if (dashContent) {
-            dashContent.classList.add('visible');
-        }
-
-        // Remove overlay after animation
+    frames.forEach(function(frame, i) {
+        var delay = i < 4 ? frameDelays[i] : cascadeStart + (i - 4) * 200;
         setTimeout(function() {
-            overlay.classList.add('hidden');
-        }, 600);
+            frame.classList.remove('boot-hidden');
+            frame.classList.add('frame-build');
+        }, delay);
+    });
+
+    // Phase 6: System online — remove overlay after all frames built
+    var totalTime = cascadeStart + Math.max(0, frames.length - 4) * 200 + 400;
+    setTimeout(function() {
+        overlay.classList.add('fade-out');
+        sessionStorage.setItem('archie-booted', '1');
+        setTimeout(function() { overlay.remove(); }, 300);
+    }, totalTime);
+
+    // Skip on click or keypress
+    function skipBoot() {
+        frames.forEach(function(f) {
+            f.classList.remove('boot-hidden');
+            f.classList.remove('frame-build');
+        });
+        overlay.remove();
+        sessionStorage.setItem('archie-booted', '1');
+        document.removeEventListener('click', skipBoot);
+        document.removeEventListener('keydown', skipBoot);
     }
-
-    // ── Phase 0 (0-300ms): Pure black + cursor blink ──
-    // Cursor element is already visible in the HTML
-
-    // ── Show skip button at 500ms ──
-    schedule(function() {
-        if (!aborted && skipBtn) skipBtn.classList.add('visible');
-    }, 500);
-
-    // ── Phase 1 (300-1000ms): Type initialization message ──
-    var typingEl = document.getElementById('bootTyping');
-    var cursorEl = document.getElementById('bootCursor');
-    var initMessage = archieI18n.t('js.boot.initializing', '> INITIALIZING A.R.C.H.I.E. CORE...');
-
-    schedule(function() {
-        if (aborted) return;
-        // Hide initial cursor, start typing
-        if (cursorEl) cursorEl.style.opacity = '0';
-
-        var charIdx = 0;
-        function typeChar() {
-            if (aborted || charIdx >= initMessage.length) {
-                // Show blinking cursor at end of typed text
-                if (!aborted && typingEl) {
-                    var endCursor = document.createElement('span');
-                    endCursor.className = 'boot-cursor';
-                    typingEl.appendChild(endCursor);
-                }
-                return;
-            }
-            if (typingEl) {
-                typingEl.textContent = initMessage.substring(0, charIdx + 1);
-            }
-            charIdx++;
-            schedule(typeChar, 18 + Math.random() * 12);
-        }
-        typeChar();
-
-        // Screen flicker during typing
-        schedule(function() {
-            if (!aborted) overlay.classList.add('flicker');
-            schedule(function() {
-                if (!aborted) overlay.classList.remove('flicker');
-            }, 400);
-        }, 300);
-    }, 300);
-
-    // ── Phase 2 (1000-2500ms): Subsystem checks ──
-    var checksContainer = document.getElementById('bootChecks');
-    var moduleCount = '{{ dashboard_data.accessible_count }}';
-    var subsystems = [
-        { label: archieI18n.t('js.boot.database', 'DATABASE'),      dots: 10, status: archieI18n.t('js.boot.connected', 'CONNECTED'), cls: 'connected', delay: 0 },
-        { label: archieI18n.t('js.boot.ai_bridge', 'AI BRIDGE'),     dots: 9,  status: archieI18n.t('js.boot.online', 'ONLINE'),    cls: 'online',    delay: 220 },
-        { label: archieI18n.t('js.boot.modules', 'MODULES'),       dots: 9,  status: moduleCount + ' ' + archieI18n.t('js.boot.loaded', 'LOADED'), cls: 'loaded', delay: 440 },
-        { label: archieI18n.t('js.boot.network', 'NETWORK'),       dots: 9,  status: archieI18n.t('js.boot.secure', 'SECURE'),    cls: 'secure',    delay: 660 },
-        { label: archieI18n.t('js.boot.agents', 'AGENTS'),        dots: 10, status: archieI18n.t('js.boot.active', 'ACTIVE'),    cls: 'active',    delay: 880 },
-        { label: archieI18n.t('js.boot.consciousness', 'CONSCIOUSNESS'), dots: 7,  status: archieI18n.t('js.boot.aware', 'AWARE'),     cls: 'aware',     delay: 1100 }
-    ];
-
-    // Build the subsystem check lines at phase 2 start
-    schedule(function() {
-        if (aborted) return;
-
-        // Remove typing cursor
-        if (typingEl) {
-            var existingCursor = typingEl.querySelector('.boot-cursor');
-            if (existingCursor) existingCursor.remove();
-        }
-
-        subsystems.forEach(function(sys) {
-            schedule(function() {
-                if (aborted) return;
-
-                // Build line using DOM methods (no innerHTML for security)
-                var line = document.createElement('div');
-                line.className = 'boot-line';
-
-                // Label span
-                var labelSpan = document.createElement('span');
-                labelSpan.className = 'label';
-                labelSpan.textContent = sys.label;
-                line.appendChild(labelSpan);
-
-                // Dots span
-                var dotsSpan = document.createElement('span');
-                dotsSpan.className = 'dots';
-                var dotStr = ' ';
-                for (var d = 0; d < sys.dots; d++) dotStr += '.';
-                dotStr += ' ';
-                dotsSpan.textContent = dotStr;
-                line.appendChild(dotsSpan);
-
-                // Opening bracket
-                line.appendChild(document.createTextNode('['));
-
-                // Progress fill (starts empty)
-                var fillSpan = document.createElement('span');
-                fillSpan.className = 'progress-fill';
-                fillSpan.textContent = '';
-                line.appendChild(fillSpan);
-
-                // Progress track (starts full with light blocks)
-                var trackSpan = document.createElement('span');
-                trackSpan.className = 'progress-track';
-                var emptyBlocks = '';
-                for (var e = 0; e < 12; e++) emptyBlocks += '\u2591';
-                trackSpan.textContent = emptyBlocks;
-                line.appendChild(trackSpan);
-
-                // Closing bracket + space
-                line.appendChild(document.createTextNode('] '));
-
-                // Status span (hidden initially)
-                var statusSpan = document.createElement('span');
-                statusSpan.className = 'status ' + sys.cls;
-                statusSpan.style.opacity = '0';
-                statusSpan.textContent = sys.status;
-                line.appendChild(statusSpan);
-
-                checksContainer.appendChild(line);
-
-                // Animate line in
-                requestAnimationFrame(function() {
-                    line.classList.add('visible');
-                });
-
-                // Animate progress bar fill over ~300ms
-                var fillStep = 0;
-                var fillTotal = 12;
-                var fillTimer = setInterval(function() {
-                    if (aborted) { clearInterval(fillTimer); return; }
-                    fillStep++;
-                    var fullBlocks = '';
-                    for (var f = 0; f < fillStep; f++) fullBlocks += '\u2588';
-                    fillSpan.textContent = fullBlocks;
-
-                    var remainBlocks = '';
-                    for (var r = 0; r < Math.max(0, fillTotal - fillStep); r++) remainBlocks += '\u2591';
-                    trackSpan.textContent = remainBlocks;
-
-                    if (fillStep >= fillTotal) {
-                        clearInterval(fillTimer);
-                        statusSpan.style.opacity = '1';
-                    }
-                }, 25);
-
-            }, 1000 + sys.delay);
-        });
-    }, 0);
-
-    // ── Phase 3 (2500-3000ms): Threat level flash + screen shake ──
-    schedule(function() {
-        if (aborted) return;
-        // Translate threat text before reveal
-        var threatLabel = document.getElementById('bootThreatLabel');
-        var midnightText = document.getElementById('bootMidnight');
-        if (threatLabel) threatLabel.textContent = archieI18n.t('boot.threat_level', 'THREAT LEVEL:');
-        if (midnightText) midnightText.textContent = archieI18n.t('boot.midnight', 'MIDNIGHT');
-        var threat = document.getElementById('bootThreat');
-        if (threat) threat.classList.add('flash');
-        overlay.classList.add('shake');
-        schedule(function() {
-            if (!aborted) overlay.classList.remove('shake');
-        }, 300);
-    }, 2500);
-
-    // ── Phase 4 (5000ms): Logo materializes (2s pause after threat) ──
-    schedule(function() {
-        if (aborted) return;
-        // Fade out terminal
-        var terminal = document.getElementById('bootTerminal');
-        if (terminal) {
-            terminal.style.transition = 'opacity 0.3s ease';
-            terminal.style.opacity = '0';
-        }
-
-        schedule(function() {
-            if (aborted) return;
-            var logo = document.getElementById('bootLogo');
-            if (logo) logo.classList.add('visible');
-        }, 200);
-    }, 5000);
-
-    // ── Phase 5: Split reveal (2.8s pause on logo) ──
-    schedule(function() {
-        if (aborted) return;
-        finishBoot();
-    }, 7800);
-
-})();
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// THEME INTEGRATION
-// Handle matrix rain visibility on theme change
-// ═══════════════════════════════════════════════════════════════════════════════
-(function() {
-    // Watch for theme changes via MutationObserver on html data-theme attribute
-    var htmlEl = document.documentElement;
-    var observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.attributeName === 'data-theme') {
-                var theme = htmlEl.getAttribute('data-theme');
-                var canvas = document.getElementById('matrix-rain');
-                if (canvas) {
-                    canvas.style.display = (theme === 'light') ? 'none' : '';
-                }
-            }
-        });
-    });
-    observer.observe(htmlEl, { attributes: true, attributeFilter: ['data-theme'] });
-
-    // Also handle the legacy body.light-mode class approach
-    var bodyObserver = new MutationObserver(function() {
-        var canvas = document.getElementById('matrix-rain');
-        if (canvas) {
-            canvas.style.display = document.body.classList.contains('light-mode') ? 'none' : '';
-        }
-    });
-    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    document.addEventListener('click', skipBoot);
+    document.addEventListener('keydown', skipBoot);
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4534,22 +3798,8 @@ window.timeAgo = function timeAgo(isoString) {
         setInterval(fetchNotifCount, 60000);
     }
 
-    // Start polling once dashboard content becomes visible
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent && dashContent.classList.contains('visible')) {
-        startHUDPolling();
-    } else {
-        // Watch for the boot sequence to finish
-        var pollObserver = new MutationObserver(function(mutations) {
-            if (dashContent.classList.contains('visible')) {
-                pollObserver.disconnect();
-                startHUDPolling();
-            }
-        });
-        if (dashContent) {
-            pollObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
-        }
-    }
+    // Start polling immediately (boot sequence handles frame visibility separately)
+    startHUDPolling();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4843,21 +4093,8 @@ window.timeAgo = function timeAgo(isoString) {
         }
     }
 
-    // Wait for dashboard to be visible before fetching
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent && dashContent.classList.contains('visible')) {
-        startBriefingFetch();
-    } else {
-        var briefingObserver = new MutationObserver(function() {
-            if (dashContent && dashContent.classList.contains('visible')) {
-                briefingObserver.disconnect();
-                startBriefingFetch();
-            }
-        });
-        if (dashContent) {
-            briefingObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
-        }
-    }
+    // Start fetching immediately (boot sequence handles frame visibility separately)
+    startBriefingFetch();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5041,20 +4278,8 @@ window.timeAgo = function timeAgo(isoString) {
         rebuildFeaturedCards();
     }
 
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent && dashContent.classList.contains('visible')) {
-        startFeaturedModules();
-    } else {
-        var featObserver = new MutationObserver(function() {
-            if (dashContent && dashContent.classList.contains('visible')) {
-                featObserver.disconnect();
-                startFeaturedModules();
-            }
-        });
-        if (dashContent) {
-            featObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
-        }
-    }
+    // Start immediately (boot sequence handles frame visibility separately)
+    startFeaturedModules();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5189,20 +4414,8 @@ function toggleCategory(catKey) {
         setTimeout(fetchCategoryHealth, 500);
     }
 
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent && dashContent.classList.contains('visible')) {
-        startCategoryGrid();
-    } else {
-        var catObserver = new MutationObserver(function() {
-            if (dashContent && dashContent.classList.contains('visible')) {
-                catObserver.disconnect();
-                startCategoryGrid();
-            }
-        });
-        if (dashContent) {
-            catObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
-        }
-    }
+    // Start immediately (boot sequence handles frame visibility separately)
+    startCategoryGrid();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5242,20 +4455,6 @@ setInterval(updateRefreshCounter, 1000);
     // Render Lucide icons once DOM is fully ready
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
-    }
-    // Also re-render when dashboard becomes visible (after boot sequence)
-    var dashContent = document.getElementById('dashboardContent');
-    if (dashContent) {
-        var iconObserver = new MutationObserver(function() {
-            if (dashContent.classList.contains('visible')) {
-                iconObserver.disconnect();
-                if (typeof lucide !== 'undefined') {
-                    // Small delay to let DOM settle after class change
-                    setTimeout(function() { lucide.createIcons(); }, 100);
-                }
-            }
-        });
-        iconObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
     }
 })();
 

@@ -214,30 +214,40 @@
     box-shadow: inset 0 0 8px color-mix(in srgb, var(--cat-accent) 10%, transparent);
 }
 
-/* ─── Icon buttons (inside utils bubble) ─── */
+/* ─── Icon buttons — LCARS terminal blocks (inside utils bubble) ─── */
 .nav-icon-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.35);
+    width: 36px;
+    height: 28px;
+    border-radius: 2px 8px 8px 2px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid var(--btn-accent, var(--cat-accent, #00ff41));
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--btn-accent, var(--cat-accent, #00ff41));
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
     text-decoration: none;
     flex-shrink: 0;
 }
 .nav-icon-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.7);
+    color: #fff;
+    background: rgba(var(--btn-accent-rgb, 255,170,0), 0.2);
+    box-shadow: 0 0 8px rgba(var(--btn-accent-rgb, 255,170,0), 0.25);
 }
 .nav-icon-btn.active {
-    background: color-mix(in srgb, var(--cat-accent) 15%, transparent);
-    color: var(--cat-accent);
+    background: rgba(var(--btn-accent-rgb, 255,170,0), 0.2);
+    color: var(--btn-accent, var(--cat-accent));
+    box-shadow: 0 0 8px rgba(var(--btn-accent-rgb, 255,170,0), 0.2);
 }
+.nav-icon-btn svg { width: 16px; height: 16px; shape-rendering: crispEdges; }
 .nav-icon-btn i { width: 16px; height: 16px; }
+
+/* Per-button accent colors */
+.nav-icon-btn[data-accent="cyan"]   { --btn-accent: #00ffff; --btn-accent-rgb: 0,255,255; }
+.nav-icon-btn[data-accent="purple"] { --btn-accent: #a78bfa; --btn-accent-rgb: 167,139,250; }
+.nav-icon-btn[data-accent="green"]  { --btn-accent: #00ff41; --btn-accent-rgb: 0,255,65; }
 /* Legacy wrapper compat */
 .theme-controls { display: contents; }
 
@@ -353,10 +363,13 @@ body.light-mode .nav-module-btn.active {
     color: var(--cat-accent);
 }
 body.light-mode .nav-icon-btn {
-    color: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.08);
+    border-left-color: var(--btn-accent, var(--cat-accent, #00ff41));
 }
 body.light-mode .nav-icon-btn:hover {
-    color: rgba(0, 0, 0, 0.7);
+    background: rgba(var(--btn-accent-rgb, 255,170,0), 0.15);
+    box-shadow: none;
 }
 body.light-mode .nav-lang-menu {
     background: rgba(255, 255, 255, 0.95);

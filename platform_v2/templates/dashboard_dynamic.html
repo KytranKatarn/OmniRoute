@@ -630,43 +630,49 @@ body.light-mode .cb-search-result-icon {
     border-right-color: rgba(0, 255, 65, 0.5);
 }
 
-/* Right zone icon buttons */
+/* Right zone icon buttons — LCARS terminal blocks */
 .cb-icon-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
+    width: 40px;
     height: 32px;
-    border-radius: 8px;
-    border: none;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.5);
+    border-radius: 2px 8px 8px 2px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid var(--btn-accent, #00ff41);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--btn-accent, #00ff41);
     cursor: pointer;
-    transition: color 0.2s ease, background 0.2s ease;
+    transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     position: relative;
     text-decoration: none;
 }
 
 .cb-icon-btn:hover {
-    color: var(--frame-color, #00ff41);
-    background: rgba(0, 255, 65, 0.1);
+    color: #fff;
+    background: rgba(var(--btn-accent-rgb, 0,255,65), 0.2);
+    box-shadow: 0 0 10px rgba(var(--btn-accent-rgb, 0,255,65), 0.3);
+    border-left-color: var(--btn-accent, #00ff41);
 }
 
 .cb-icon-btn svg {
     width: 18px;
     height: 18px;
+    shape-rendering: crispEdges;
 }
 
-.cb-icon-btn i[data-lucide] {
-    width: 18px;
-    height: 18px;
-}
+/* Per-button accent colors */
+.cb-icon-btn[data-accent="amber"]  { --btn-accent: #f59e0b; --btn-accent-rgb: 245,158,11; }
+.cb-icon-btn[data-accent="cyan"]   { --btn-accent: #00ffff; --btn-accent-rgb: 0,255,255; }
+.cb-icon-btn[data-accent="purple"] { --btn-accent: #a78bfa; --btn-accent-rgb: 167,139,250; }
+.cb-icon-btn[data-accent="green"]  { --btn-accent: #00ff41; --btn-accent-rgb: 0,255,65; }
+.cb-icon-btn[data-accent="red"]    { --btn-accent: #ff3b3b; --btn-accent-rgb: 255,59,59; }
 
 /* Notification badge */
 .cb-notif-badge {
     position: absolute;
-    top: 2px;
-    right: 2px;
+    top: -4px;
+    right: -4px;
     min-width: 15px;
     height: 15px;
     border-radius: 8px;
@@ -1047,11 +1053,7 @@ body.light-mode .cb-notif-modal-meta-item { color: rgba(0,0,0,0.35); }
 [data-theme="light"] .cb-notif-modal-meta-item strong,
 body.light-mode .cb-notif-modal-meta-item strong { color: rgba(0,0,0,0.55); }
 
-/* Logout button specific */
-.cb-icon-btn.cb-logout:hover {
-    color: #ff5555;
-    background: rgba(255, 85, 85, 0.1);
-}
+/* Logout button — uses data-accent="red" now, no special override needed */
 
 /* Language dropdown menu */
 .cb-lang-menu {
@@ -1122,7 +1124,6 @@ body.light-mode .cb-lang-option.active {
     position: relative;
     z-index: 10;
     margin-top: 12px;
-    padding: 0 var(--archie-spacing-xl, 24px);
     --frame-color: #00ffff;
     --frame-rgb: 0, 255, 255;
 }
@@ -1380,13 +1381,14 @@ body.light-mode .cb-search-hint {
 
 [data-theme="light"] .cb-icon-btn,
 body.light-mode .cb-icon-btn {
-    color: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.08);
+    border-left-color: var(--btn-accent, #00ff41);
 }
 
 [data-theme="light"] .cb-icon-btn:hover,
 body.light-mode .cb-icon-btn:hover {
-    color: #007a20;
-    background: rgba(0, 122, 32, 0.08);
+    background: rgba(var(--btn-accent-rgb, 0,255,65), 0.15);
     box-shadow: none;
 }
 
@@ -1456,7 +1458,6 @@ body.light-mode .hud-divider {
 .category-grid {
     position: relative;
     z-index: 10;
-    padding: 0 var(--archie-spacing-xl);
 }
 
 .status-footer {
@@ -1535,9 +1536,6 @@ body.light-mode .footer-version {
     .cb-username, .cb-badge {
         display: none;
     }
-    .hud-frame {
-        padding: 0 12px;
-    }
     .hud-frame .lcars-body {
         padding: 10px 14px;
     }
@@ -1579,7 +1577,6 @@ body.light-mode .footer-version {
         max-height: 50vh;
     }
     .hud-frame {
-        padding: 0 8px;
         margin-top: 8px;
     }
     .hud-frame .lcars-body {
@@ -1598,12 +1595,7 @@ body.light-mode .footer-version {
     }
 }
 
-@media (max-width: 768px) {
-    .featured-frame,
-    .category-grid {
-        padding: 0 var(--archie-spacing-md);
-    }
-}
+/* (padding removed — all sections edge-to-edge) */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    MISSION BRIEFING — LCARS Full Frame (green) with 3-column grid
@@ -1615,7 +1607,6 @@ body.light-mode .footer-version {
     position: relative;
     z-index: 10;
     margin-top: 24px;
-    padding: 0 var(--archie-spacing-xl, 24px);
     --frame-color: #00ff41;
     --frame-rgb: 0, 255, 65;
 }
@@ -1939,7 +1930,6 @@ body.light-mode .briefing-activity-item:hover {
 /* ─── Mission Briefing Responsive ─── */
 @media (max-width: 768px) {
     .briefing-frame {
-        padding: 0 8px;
         margin-top: 16px;
     }
 }
@@ -1967,7 +1957,6 @@ body.light-mode .briefing-activity-item:hover {
     position: relative;
     z-index: 10;
     margin-top: 24px;
-    padding: 0 var(--archie-spacing-xl, 24px);
     --frame-color: #f59e0b;
     --frame-rgb: 245, 158, 11;
 }
@@ -2237,9 +2226,6 @@ body.light-mode .featured-pin-btn.pinned {
         min-width: 0;
         flex: none;
         min-height: 160px;
-    }
-    .featured-frame {
-        padding: 0 var(--archie-spacing-md, 12px);
     }
 }
 
@@ -2700,31 +2686,31 @@ body.light-mode .module-card-accent {
                     </div>
                     <!-- Right Zone: Actions -->
                     <div class="cb-zone cb-zone-right">
-                        <!-- Notifications -->
+                        <!-- Notifications — bell -->
                         <div style="position:relative;">
-                            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
-                                <i data-lucide="bell"></i>
+                            <button class="cb-icon-btn" data-accent="amber" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a6 6 0 0 0-6 6v4l-2 3h16l-2-3V8a6 6 0 0 0-6-6z"/><path d="M10 20a2 2 0 0 0 4 0h-4z"/></svg>
                                 <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
                             </button>
                         </div>
-                        <!-- Theme toggle -->
-                        <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
-                            <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
-                            <i data-lucide="moon" id="cbThemeIconMoon"></i>
+                        <!-- Theme toggle — sun/moon -->
+                        <button class="cb-icon-btn" data-accent="cyan" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
+                            <svg id="cbThemeIconSun" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><circle cx="12" cy="12" r="5"/><rect x="11" y="1" width="2" height="4" rx="1"/><rect x="11" y="19" width="2" height="4" rx="1"/><rect x="1" y="11" width="4" height="2" rx="1"/><rect x="19" y="11" width="4" height="2" rx="1"/><rect x="3.9" y="3.9" width="2" height="4" rx="1" transform="rotate(-45 4.9 5.9)"/><rect x="17.1" y="16.1" width="2" height="4" rx="1" transform="rotate(-45 18.1 18.1)"/><rect x="16.1" y="3.9" width="4" height="2" rx="1" transform="rotate(-45 18.1 4.9)"/><rect x="2.9" y="17.1" width="4" height="2" rx="1" transform="rotate(-45 4.9 18.1)"/></svg>
+                            <svg id="cbThemeIconMoon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
                         </button>
-                        <!-- Language -->
-                        <button class="cb-icon-btn" id="cbLangBtn" title="Language" data-i18n-title="js.nav.language" aria-label="Change language" onclick="toggleLangMenu(this);">
-                            <i data-lucide="languages"></i>
+                        <!-- Language — globe -->
+                        <button class="cb-icon-btn" data-accent="purple" id="cbLangBtn" title="Language" data-i18n-title="js.nav.language" aria-label="Change language" onclick="toggleLangMenu(this);">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
                         </button>
                         {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
-                        <!-- Dev HQ -->
-                        <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" data-i18n-title="js.nav.dev_hq" aria-label="Dev HQ">
-                            <i data-lucide="compass"></i>
+                        <!-- Dev HQ — grid -->
+                        <a class="cb-icon-btn" data-accent="green" href="/dev-hq" title="Dev HQ" data-i18n-title="js.nav.dev_hq" aria-label="Dev HQ">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
                         </a>
                         {% endif %}
-                        <!-- Logout -->
-                        <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout" id="cbLogoutBtn" onclick="event.preventDefault(); startShutdownSequence();">
-                            <i data-lucide="log-out"></i>
+                        <!-- Logout — power -->
+                        <a class="cb-icon-btn cb-logout" data-accent="red" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout" id="cbLogoutBtn" onclick="event.preventDefault(); startShutdownSequence();">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="12"/><path d="M18.36 6.64A9 9 0 1 1 5.64 6.64"/></svg>
                         </a>
                     </div>
                 </div>

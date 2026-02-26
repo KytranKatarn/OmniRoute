@@ -8,6 +8,8 @@
 
 **Replaces:** `docs/plans/2026-02-25-dashboard-login-overhaul-design.md` (thin accent line approach)
 
+**i18n Requirement:** ALL visible text in LCARS frames MUST use `data-i18n` keys for translation via the Consciousness Languages tab. This includes header bar titles, footer stardates, status readouts, button labels, section titles, and any new text introduced. Preserve all existing `data-i18n` keys from current templates. Use the existing `archieI18n` system.
+
 ---
 
 ## Architecture

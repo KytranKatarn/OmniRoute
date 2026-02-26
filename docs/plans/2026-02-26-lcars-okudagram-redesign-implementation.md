@@ -10,6 +10,8 @@
 
 **Design Doc:** `docs/plans/2026-02-26-lcars-okudagram-redesign-design.md`
 
+**i18n Requirement:** ALL visible text in LCARS frames MUST use `data-i18n` keys for the Consciousness Languages translation system. Header bar titles, footer text, status readouts, button labels, section titles — everything user-visible gets a `data-i18n` attribute. Preserve all existing keys from current templates. Use the existing `archieI18n` system.
+
 ---
 
 ## Task 1: Create shared `lcars-frames.css` structural component

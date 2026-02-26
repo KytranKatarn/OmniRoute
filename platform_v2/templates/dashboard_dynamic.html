@@ -1694,11 +1694,7 @@ body.light-mode .hud-dual-divider {
     background: rgba(0, 0, 0, 0.1);
 }
 
-.featured-modules {
-    position: relative;
-    z-index: 10;
-    padding: 0 var(--archie-spacing-xl);
-}
+/* .featured-modules replaced by .featured-frame (LCARS amber frame, Task 7) */
 
 .category-grid {
     position: relative;
@@ -1897,7 +1893,7 @@ body.light-mode .footer-version {
         right: 1rem;
     }
 
-    .featured-modules,
+    .featured-frame,
     .category-grid {
         padding: 0 var(--archie-spacing-md);
     }
@@ -2316,44 +2312,23 @@ body.light-mode .briefing-ai-status-row {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   FEATURED MODULES — Priority Stations
-   Task 5
+   FEATURED MODULES — Priority Stations (LCARS Amber Frame)
+   Task 7
    ───────────────────────────────────────────────────────────────────────────── */
-.section-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 32px 0 20px;
-    padding: 0 4px;
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--archie-text-secondary);
-}
-.section-header::before {
-    content: '';
-    display: inline-block;
-    width: 6px;
-    height: 18px;
-    background: rgba(0, 255, 65, 0.7);
-    border-radius: 1px;
-    flex-shrink: 0;
+
+/* ── Outer wrapper ── */
+.featured-frame {
+    position: relative;
+    z-index: 10;
+    margin-top: 24px;
+    padding: 0 var(--archie-spacing-xl, 24px);
+    --frame-color: #f59e0b;
+    --frame-rgb: 245, 158, 11;
 }
 
-.section-header::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(0, 255, 65, 0.3), transparent);
-}
-
-.section-header i[data-lucide] {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-    color: rgba(0, 255, 65, 0.7);
+/* ── Body layout: flex row of glass tiles ── */
+.featured-frame .lcars-body {
+    padding: 16px;
 }
 
 .featured-cards-row {
@@ -2362,14 +2337,15 @@ body.light-mode .briefing-ai-status-row {
     flex-wrap: wrap;
 }
 
+/* ── Glass tile card ── */
 .featured-card {
     display: flex;
     flex-direction: column;
     padding: 24px;
-    background: rgba(10, 10, 26, 0.5);
-    backdrop-filter: blur(12px) saturate(1.4);
-    -webkit-backdrop-filter: blur(12px) saturate(1.4);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(10, 10, 26, 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(245, 158, 11, 0.15);
     border-radius: 2px 12px 12px 2px;
     text-decoration: none;
     color: inherit;
@@ -2379,23 +2355,25 @@ body.light-mode .briefing-ai-status-row {
     flex: 1;
     min-width: 280px;
 }
+
+/* Left accent bar per category */
 .featured-card::before {
     content: '';
     position: absolute;
     top: 0; bottom: 0; left: 0;
     width: 3px;
     background: linear-gradient(180deg,
-        var(--feat-accent) 0%,
+        var(--feat-accent, #f59e0b) 0%,
         rgba(255,255,255,0.05) 50%,
-        var(--feat-accent) 100%);
+        var(--feat-accent, #f59e0b) 100%);
     border-radius: 2px 0 0 2px;
     pointer-events: none;
 }
 
 .featured-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 0 20px rgba(0, 255, 65, 0.12);
-    border-color: var(--feat-accent);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.5);
     text-decoration: none;
     color: inherit;
 }
@@ -2431,7 +2409,7 @@ body.light-mode .briefing-ai-status-row {
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.05);
     margin-bottom: 16px;
-    color: var(--feat-accent, rgba(0, 255, 65, 0.7));
+    color: var(--feat-accent, rgba(245, 158, 11, 0.7));
 }
 
 .featured-card-icon i[data-lucide] {
@@ -2441,7 +2419,7 @@ body.light-mode .briefing-ai-status-row {
 
 .featured-card-name {
     font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -2450,8 +2428,8 @@ body.light-mode .briefing-ai-status-row {
 }
 
 .featured-card-desc {
-    font-family: var(--archie-font-mono, 'IBM Plex Mono', monospace);
-    font-size: 12px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.78rem;
     color: rgba(255, 255, 255, 0.55);
     line-height: 1.6;
     flex: 1;
@@ -2494,6 +2472,7 @@ body.light-mode .briefing-ai-status-row {
     background: #ff3b3b;
     box-shadow: 0 0 6px rgba(255, 59, 59, 0.6);
 }
+
 .featured-status-dot.warning {
     background: #f59e0b;
     box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
@@ -2534,25 +2513,17 @@ body.light-mode .briefing-ai-status-row {
 }
 
 /* ─── Light Mode: Featured Modules ─── */
-[data-theme="light"] .section-header,
-body.light-mode .section-header {
-    color: #444;
-}
-
-[data-theme="light"] .section-header::after,
-body.light-mode .section-header::after {
-    background: linear-gradient(90deg, rgba(0, 100, 40, 0.2), transparent);
-}
-
-[data-theme="light"] .section-header i[data-lucide],
-body.light-mode .section-header i[data-lucide] {
-    color: rgba(0, 100, 40, 0.6);
+[data-theme="light"] .featured-frame,
+body.light-mode .featured-frame {
+    --frame-color: #d97706;
+    --frame-rgb: 217, 119, 6;
 }
 
 [data-theme="light"] .featured-card,
 body.light-mode .featured-card {
     background: rgba(255, 255, 255, 0.8);
     border-color: rgba(0, 0, 0, 0.1);
+    backdrop-filter: none;
 }
 
 [data-theme="light"] .featured-card:hover,
@@ -2621,10 +2592,8 @@ body.light-mode .featured-pin-btn.pinned {
         flex: none;
         min-height: 160px;
     }
-    .section-header {
-        margin: 24px 0 16px;
-        font-size: 0.75rem;
-        letter-spacing: 3px;
+    .featured-frame {
+        padding: 0 var(--archie-spacing-md, 12px);
     }
 }
 
@@ -2954,18 +2923,12 @@ body.light-mode .module-card::before {
 .briefing-col-header span {
     word-break: break-word;
 }
-.section-header span {
-    white-space: nowrap;
-    flex-shrink: 0;
-}
+/* .section-header removed — LCARS bar title handles this (Task 7) */
 
 /* ─── RTL: direction flips ─── */
 [dir="rtl"] .featured-card {
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    border-right: 3px solid var(--feat-accent, rgba(0, 255, 65, 0.3));
-}
-[dir="rtl"] .section-header::after {
-    background: linear-gradient(270deg, rgba(0, 255, 65, 0.3), transparent);
+    border-left: 1px solid rgba(245, 158, 11, 0.15);
+    border-right: 3px solid var(--feat-accent, rgba(245, 158, 11, 0.3));
 }
 [dir="rtl"] .cat-header::before {
     background: linear-gradient(270deg, transparent, var(--cat-accent), transparent);
@@ -3000,14 +2963,14 @@ body.light-mode .module-card::before {
 [dir="rtl"][data-theme="light"] .featured-card,
 [dir="rtl"] body.light-mode .featured-card {
     border-left: 1px solid rgba(0, 0, 0, 0.08);
-    border-right: 3px solid var(--feat-accent, rgba(0, 255, 65, 0.3));
+    border-right: 3px solid var(--feat-accent, rgba(217, 119, 6, 0.3));
 }
 
 /* ─── Non-Latin scripts: reduce letter-spacing ─── */
 [dir="rtl"] .featured-card-name,
 [dir="rtl"] .cat-header-title,
 [dir="rtl"] .module-card-name,
-[dir="rtl"] .section-header,
+[dir="rtl"] .lcars-bar-title,
 [dir="rtl"] .briefing-col-header,
 [dir="rtl"] .hud-pod-label,
 [dir="rtl"] .featured-card-status,
@@ -3018,14 +2981,14 @@ body.light-mode .module-card::before {
 [lang="zh"] .featured-card-name,
 [lang="zh"] .cat-header-title,
 [lang="zh"] .module-card-name,
-[lang="zh"] .section-header,
+[lang="zh"] .lcars-bar-title,
 [lang="zh"] .briefing-col-header,
 [lang="zh"] .hud-pod-label {
     letter-spacing: 1px;
 }
 
 /* ─── Long-text languages (DE, FR, PT, ES): tighter letter-spacing on headers ─── */
-[lang="de"] .section-header,
+[lang="de"] .lcars-bar-title,
 [lang="de"] .cat-header-title,
 [lang="de"] .featured-card-name,
 [lang="de"] .briefing-col-header {
@@ -3369,36 +3332,64 @@ body.light-mode .module-card::before {
         </div>
     </div>
 
-    <!-- Section 6: Featured Modules — Priority Stations -->
-    <div id="featured-modules" class="featured-modules">
-        <div class="section-header">
-            <i data-lucide="star"></i>
-            <span data-i18n="section.priority_stations">Priority Stations</span>
-        </div>
-        <div class="featured-cards-row" id="featuredCardsRow">
-            {% for module in dashboard_data.featured_modules %}
-            <a href="{{ module.route }}" class="featured-card" data-module-id="{{ module.id }}" data-category="{{ module.category }}">
-                <!-- Pin/unpin toggle -->
-                <button class="featured-pin-btn pinned" data-pin-id="{{ module.id }}" title="Unpin module" onclick="event.preventDefault(); event.stopPropagation(); togglePin(this, '{{ module.id }}');">
-                    <i data-lucide="star"></i>
-                </button>
-                <!-- Module icon -->
-                <div class="featured-card-icon">
-                    <i data-lucide="{{ module.icon }}"></i>
-                </div>
-                <!-- Module name -->
-                <div class="featured-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
-                <!-- Module description (strip HTML tags for clean display) -->
-                <div class="featured-card-desc" data-i18n="module.{{ module.id }}.desc">{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags }}</div>
-                <!-- Footer: status indicator -->
-                <div class="featured-card-footer">
-                    <div class="featured-card-status">
-                        <span class="featured-status-dot" id="featStatus-{{ module.id }}"></span>
-                        <span class="featured-status-text" id="featStatusText-{{ module.id }}">CHECKING...</span>
+    <!-- Section 6: Featured Modules — Priority Stations (LCARS Amber Frame) -->
+    <div id="featured-modules" class="featured-frame" style="--frame-color: #f59e0b; --frame-rgb: 245,158,11">
+        <div class="lcars-frame">
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-seg" style="--seg-color: #8b5cf6"></div>
+                <div class="lcars-elbow-bottom"></div>
+            </div>
+            <div class="lcars-content">
+                <div class="lcars-bar">
+                    <span class="lcars-bar-title" data-i18n="dashboard_featured_title">PRIORITY STATIONS</span>
+                    <div class="lcars-bar-spacer"></div>
+                    <div class="lcars-pips">
+                        <span class="lcars-pip" style="width:20px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:14px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:35px; background:rgba(0,0,0,0.3)"></span>
                     </div>
                 </div>
-            </a>
-            {% endfor %}
+                <div class="lcars-body">
+                    <div class="featured-cards-row" id="featuredCardsRow">
+                        {% for module in dashboard_data.featured_modules %}
+                        <a href="{{ module.route }}" class="featured-card" data-module-id="{{ module.id }}" data-category="{{ module.category }}">
+                            <!-- Pin/unpin toggle -->
+                            <button class="featured-pin-btn pinned" data-pin-id="{{ module.id }}" title="Unpin module" onclick="event.preventDefault(); event.stopPropagation(); togglePin(this, '{{ module.id }}');">
+                                <i data-lucide="star"></i>
+                            </button>
+                            <!-- Module icon -->
+                            <div class="featured-card-icon">
+                                <i data-lucide="{{ module.icon }}"></i>
+                            </div>
+                            <!-- Module name -->
+                            <div class="featured-card-name" data-i18n="module.{{ module.id }}.name">{{ module.name }}</div>
+                            <!-- Module description (strip HTML tags for clean display) -->
+                            <div class="featured-card-desc" data-i18n="module.{{ module.id }}.desc">{{ module.description | replace('<br>', ' • ') | replace('<br/>', ' • ') | replace('<br />', ' • ') | striptags }}</div>
+                            <!-- Footer: status indicator -->
+                            <div class="featured-card-footer">
+                                <div class="featured-card-status">
+                                    <span class="featured-status-dot" id="featStatus-{{ module.id }}"></span>
+                                    <span class="featured-status-text" id="featStatusText-{{ module.id }}">CHECKING...</span>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="lcars-footer-bar">
+                    <span class="lcars-footer-stardate" id="featuredPinCount" data-i18n="dashboard_featured_pinned">PINNED</span>
+                    <div class="lcars-footer-dots">
+                        <span class="lcars-footer-dot" style="background:#f59e0b"></span>
+                        <span class="lcars-footer-dot" style="background:#00ff41"></span>
+                        <span class="lcars-footer-dot" style="background:#8b5cf6"></span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -6,35 +6,27 @@
 
 {% block styles %}
 /* ═══════════════════════════════════════════════════════════════════════════
-   A.R.C.H.I.E. LOGIN — LCARS Design Language
-   Framed card, green #00ff41 accent, ~2.5s staggered boot
+   A.R.C.H.I.E. LOGIN — LCARS OKUDAGRAM Tablet Frame
+   Uses lcars-frames.css for structural geometry. This file has page-level
+   styles only: background, form overrides, boot animation, responsive.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    background: var(--archie-bg-void);
-    font-family: 'JetBrains Mono', monospace;
-    overflow-x: hidden;
-    overflow-y: auto;
-}
-
-/* ─── Background — dark gradient with soft radial green glow ─── */
-.login-bg {
+/* ─── Page Background ─── */
+.login-page {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0; right: 0; bottom: 0;
     background: linear-gradient(135deg, #0a0a1a 0%, #0f0f2a 50%, #0a0a1a 100%);
-    z-index: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-y: auto;
+    z-index: 1;
 }
 
-.login-bg::after {
+.login-page::after {
     content: '';
-    position: absolute;
+    position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -43,156 +35,370 @@ body {
     background: radial-gradient(circle, rgba(0,255,65,0.06) 0%, transparent 70%);
     border-radius: 50%;
     pointer-events: none;
+    z-index: 0;
 }
 
-/* ─── Login Container ─── */
-.login-container {
-    position: relative;
-    z-index: 10;
+/* ─── Frame Centering ─── */
+.login-frame {
+    max-width: 560px;
     width: 100%;
-    max-width: 440px;
-    margin: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* ─── Login Card — extends .lcars-panel ─── */
-.login-card {
-    max-width: 440px;
-    width: 90%;
-    margin: 0 auto;
-    border-radius: 12px;
-    border-left-width: 1px;
-    border-top: 3px solid rgba(0,255,65,0.4);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    background: rgba(15,15,30,0.7);
-    padding: 48px 40px;
-    box-shadow:
-        0 30px 60px rgba(0, 0, 0, 0.6),
-        0 0 60px rgba(0,255,65,0.04);
-    animation: lcarsCardIn 0.8s ease-out both;
-}
-
-/* Override lcars-panel ::before — top accent bar instead of left */
-.login-card::before {
-    width: 100%;
-    height: 3px;
-    top: 0;
-    left: 0;
-    background: linear-gradient(90deg, rgba(0,255,65,0.6), rgba(0,255,65,0.2), rgba(0,255,65,0.4));
-    border-radius: 12px 12px 0 0;
-}
-
-/* ─── Corner Decorations (top-left + bottom-right only) ─── */
-.corner-decoration {
-    position: absolute;
-    width: 24px;
-    height: 24px;
-    z-index: 5;
-}
-
-.corner-decoration::before,
-.corner-decoration::after {
-    content: '';
-    position: absolute;
-    background: rgba(0,255,65,0.3);
-}
-
-.corner-decoration::before {
-    width: 24px;
-    height: 2px;
-    top: 0;
-    left: 0;
-}
-
-.corner-decoration::after {
-    width: 2px;
-    height: 24px;
-    top: 0;
-    left: 0;
-}
-
-.top-left {
-    top: -1px;
-    left: -1px;
-}
-
-.bottom-right {
-    bottom: -1px;
-    right: -1px;
-    transform: rotate(180deg);
-}
-
-/* ─── Header ─── */
-.login-header {
-    text-align: center;
-    margin-bottom: 32px;
-    padding: 20px 16px 16px;
-    border: 1px solid rgba(var(--lcars-accent-rgb), 0.15);
-    border-radius: 10px;
-    background: linear-gradient(180deg, rgba(var(--lcars-accent-rgb), 0.06) 0%, transparent 100%);
+    margin: 15vh auto 0;
+    padding: 0 16px;
     position: relative;
-    animation: lcarsCardIn 0.6s ease-out 0.3s both;
+    z-index: 2;
 }
 
-.login-header-indicators {
-    display: flex;
-    justify-content: center;
-    gap: 6px;
-    margin-bottom: 14px;
-}
-
-.login-logo {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 2.4rem;
-    font-weight: 900;
-    letter-spacing: 0.2em;
-    color: var(--archie-green);
-    text-shadow:
-        0 0 20px rgba(0,255,65,0.3),
-        0 0 40px rgba(0,255,65,0.15),
-        0 2px 4px rgba(0, 0, 0, 0.5);
-    margin-bottom: 8px;
-    position: relative;
-}
-
+/* ─── Login Subtitle ─── */
 .login-subtitle {
     font-family: 'Antonio', sans-serif;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     letter-spacing: 0.3em;
     color: var(--archie-cyan);
     text-transform: uppercase;
     opacity: 0.7;
+    text-align: center;
+    margin-bottom: 24px;
 }
 
-.login-controls {
-    display: inline-flex;
-    gap: 6px;
-    margin-top: 12px;
+/* ─── Form Groups ─── */
+.login-form-group {
+    margin-bottom: 20px;
+    position: relative;
 }
 
-/* Theme Toggle */
-.theme-toggle-login {
-    width: 30px;
-    height: 30px;
+.login-form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(0, 255, 65, 0.5);
+    transition: color 0.3s ease;
+}
+
+.login-form-group:focus-within .login-form-label {
+    color: rgba(0, 255, 65, 0.85);
+}
+
+.login-form-input {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-left: 3px solid rgba(0, 255, 65, 0.3);
+    border-radius: 0 8px 8px 0;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.login-form-input::placeholder {
+    color: rgba(255, 255, 255, 0.2);
+    font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.5px;
+    font-size: 0.85rem;
+}
+
+.login-form-input:focus {
+    border-color: rgba(0, 255, 65, 0.5);
+    border-left-color: rgba(0, 255, 65, 0.7);
+    box-shadow:
+        0 0 12px rgba(0, 255, 65, 0.15),
+        inset 0 0 6px rgba(0, 255, 65, 0.05);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Focus scan bar */
+.login-form-group::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #00ff41, transparent);
+    transform: scaleX(0);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-form-group:focus-within::after {
+    transform: scaleX(1);
+}
+
+/* ─── Password Toggle ─── */
+.input-wrapper {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--archie-text-disabled);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.3s ease;
+    z-index: 2;
+}
+
+.password-toggle:hover {
+    color: #00ff41;
+}
+
+.input-wrapper .login-form-input {
+    padding-right: 44px;
+}
+
+/* ─── Submit Button — LCARS pill ─── */
+.login-btn {
+    width: 100%;
+    padding: 14px 24px;
+    margin-top: 8px;
+    background: rgba(0, 255, 65, 0.12);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 20px;
+    color: rgba(0, 255, 65, 0.9);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+
+/* Energy sweep on hover */
+.login-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.15), transparent);
+    animation: lcarsBtnSweep 3s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes lcarsBtnSweep {
+    0% { left: -100%; }
+    50% { left: 100%; }
+    100% { left: 100%; }
+}
+
+.login-btn:hover {
+    background: rgba(0, 255, 65, 0.2);
+    border-color: rgba(0, 255, 65, 0.5);
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+    color: #00ff41;
+}
+
+.login-btn:active {
+    transform: scale(0.98);
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.15);
+}
+
+/* Loading state */
+.login-btn.loading {
+    pointer-events: none;
+    color: transparent;
+    background: rgba(0, 255, 65, 0.15);
+    border-color: rgba(0, 255, 65, 0.4);
+}
+
+.login-btn.loading::before { display: none; }
+
+.login-btn.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border: 2px solid transparent;
+    border-top-color: #00ff41;
+    border-radius: 50%;
+    animation: loginSpin 0.7s linear infinite;
+}
+
+@keyframes loginSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ─── Forgot Password ─── */
+.forgot-section {
+    text-align: center;
+    margin-top: 14px;
+}
+
+.forgot-link {
+    font-size: 0.7rem;
+    color: var(--archie-text-disabled);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    transition: all 0.3s;
+}
+
+.forgot-link:hover {
+    color: var(--archie-cyan);
+    text-shadow: 0 0 12px rgba(0,255,255,0.15);
+}
+
+/* Forgot Password Message */
+.forgot-password-msg {
+    display: none;
+    margin-top: 14px;
+    padding: 18px;
+    background: rgba(0, 255, 65, 0.06);
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-radius: 8px;
+    text-align: center;
+    animation: loginFadeIn 0.3s ease-out;
+}
+
+@keyframes loginFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.forgot-password-msg .msg-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    color: #00ff41;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+}
+
+.forgot-password-msg .msg-body {
+    font-size: 0.75rem;
+    color: var(--archie-text-tertiary);
+    line-height: 1.6;
+    margin-bottom: 6px;
+}
+
+.forgot-password-msg .msg-note {
+    font-size: 0.65rem;
+    color: var(--archie-text-disabled);
+}
+
+/* ─── Divider ─── */
+.login-divider {
+    display: flex;
+    align-items: center;
+    margin: 24px 0;
+    color: var(--archie-text-disabled);
+    font-size: 0.6rem;
+    letter-spacing: 0.25em;
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--archie-border-muted), transparent);
+}
+
+.login-divider span {
+    padding: 0 14px;
+}
+
+/* ─── Google OAuth ─── */
+.google-btn {
+    width: 100%;
+    padding: 13px 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--archie-border-muted);
+    border-radius: 8px;
+    color: var(--archie-text-secondary);
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.google-btn:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: var(--archie-border-emphasis);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.google-btn svg { width: 16px; height: 16px; }
+.google-btn:active { transform: translateY(0); }
+
+/* ─── Signup Section ─── */
+.signup-section {
+    text-align: center;
+    padding: 16px;
+    background: rgba(0, 255, 65, 0.05);
+    border: 1px solid rgba(0, 255, 65, 0.08);
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.signup-text {
+    font-size: 0.7rem;
+    color: var(--archie-text-disabled);
+    letter-spacing: 0.08em;
+}
+
+.signup-link {
+    color: #00ff41;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.7rem;
+    margin-left: 6px;
+    transition: all 0.3s;
+}
+
+.signup-link:hover {
+    text-shadow: 0 0 15px rgba(0,255,65,0.25);
+}
+
+/* ─── Footer Bar Buttons ─── */
+.login-footer-btn {
+    background: none;
+    border: none;
+    color: var(--archie-bg-primary, #010409);
+    cursor: pointer;
+    padding: 2px 4px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: 1px solid var(--archie-border-muted);
-    border-radius: var(--archie-radius-md);
-    color: var(--archie-text-muted);
-    cursor: pointer;
-    transition: all 0.3s ease;
+    border-radius: 3px;
+    transition: background 0.2s, color 0.2s;
+    font-size: 0.6rem;
+    font-family: 'Orbitron', monospace;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    opacity: 0.8;
 }
 
-.theme-toggle-login:hover {
-    border-color: var(--archie-green);
-    color: var(--archie-green);
-    background: rgba(0,255,65,0.08);
-    box-shadow: 0 0 12px rgba(0,255,65,0.15);
+.login-footer-btn:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.15);
 }
 
 /* ─── Language Dropdown ─── */
@@ -203,10 +409,10 @@ body {
 
 .lang-dropdown {
     position: absolute;
-    top: 100%;
+    bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
-    margin-top: 4px;
+    margin-bottom: 6px;
     background: rgba(10, 14, 10, 0.95);
     border: 1px solid var(--archie-border-muted);
     border-radius: var(--archie-radius-md);
@@ -239,564 +445,365 @@ body {
 }
 
 .lang-dropdown-item.active {
-    color: var(--archie-green);
+    color: #00ff41;
     font-weight: 600;
 }
 
-/* ─── Login Body ─── */
-.login-body {
-    animation: lcarsFieldIn 0.4s ease-out 0.6s both;
-}
-
-/* ─── Form ─── */
-.login-form {
-    margin-top: 4px;
-}
-
-.form-group {
-    margin-bottom: 22px;
-    position: relative;
-}
-
-.form-group:nth-child(1) { animation: lcarsFieldIn 0.4s ease-out 0.8s both; }
-.form-group:nth-child(2) { animation: lcarsFieldIn 0.4s ease-out 1.0s both; }
-
-.form-label {
-    display: block;
-    margin-bottom: 6px;
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: rgba(var(--lcars-accent-rgb), 0.6);
-    transition: all 0.3s ease;
-}
-
-.form-input {
-    width: 100%;
-    padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(var(--lcars-accent-rgb), 0.15);
-    border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.3);
-    border-radius: 0 8px 8px 0;
-    color: rgba(255, 255, 255, 0.9);
-    font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
-    font-size: 0.9rem;
-    letter-spacing: 0.05em;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-}
-
-.form-input::placeholder {
-    color: rgba(255, 255, 255, 0.2);
-    font-family: 'Antonio', sans-serif;
-    letter-spacing: 0.5px;
-    font-size: 0.85rem;
-}
-
-.form-input:focus {
-    border-color: rgba(var(--lcars-accent-rgb), 0.5);
-    border-left-color: rgba(var(--lcars-accent-rgb), 0.7);
-    box-shadow:
-        0 0 12px rgba(var(--lcars-accent-rgb), 0.15),
-        inset 0 0 6px rgba(var(--lcars-accent-rgb), 0.05);
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.form-group:focus-within .form-label {
-    color: rgba(var(--lcars-accent-rgb), 0.85);
-}
-
-/* Focus scan bar */
-.form-group::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
-    transform: scaleX(0);
-    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.form-group:focus-within::after {
-    transform: scaleX(1);
-}
-
-/* ─── Password Toggle ─── */
-.input-wrapper {
-    position: relative;
-}
-
-.password-toggle {
-    position: absolute;
-    right: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: var(--archie-text-disabled);
-    cursor: pointer;
-    padding: 4px;
+/* ─── Status Strip ─── */
+.login-status-strip {
     display: flex;
-    align-items: center;
     justify-content: center;
-    transition: color 0.3s ease;
+    gap: 24px;
+    margin-top: 24px;
+    padding: 0 16px 24px;
+    position: relative;
     z-index: 2;
 }
 
-.password-toggle:hover {
-    color: var(--archie-green);
-}
-
-.input-wrapper .form-input {
-    padding-right: 44px;
-}
-
-/* ─── Submit Button — LCARS pill style ─── */
-.login-btn-wrap {
-    animation: lcarsFieldIn 0.4s ease-out 1.2s both;
-}
-
-.login-btn {
-    width: 100%;
-    padding: 14px 24px;
-    margin-top: 8px;
-    background: rgba(var(--lcars-accent-rgb), 0.12);
-    border: 1px solid rgba(var(--lcars-accent-rgb), 0.3);
-    border-radius: 20px;
-    color: rgba(var(--lcars-accent-rgb), 0.9);
+.login-status-strip span {
     font-family: 'Antonio', sans-serif;
-    font-size: 0.85rem;
-    font-weight: 500;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s;
-    white-space: nowrap;
-}
-
-/* Energy sweep on hover */
-.login-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(var(--lcars-accent-rgb), 0.15), transparent);
-    animation: lcarsSweep 3s ease-in-out infinite;
-    pointer-events: none;
-}
-
-.login-btn:hover {
-    background: rgba(var(--lcars-accent-rgb), 0.2);
-    border-color: rgba(var(--lcars-accent-rgb), 0.5);
-    box-shadow: 0 0 20px rgba(var(--lcars-accent-rgb), 0.2);
-    color: rgba(var(--lcars-accent-rgb), 1);
-}
-
-.login-btn:active {
-    transform: scale(0.98);
-    box-shadow: 0 0 8px rgba(var(--lcars-accent-rgb), 0.15);
-}
-
-/* Loading state */
-.login-btn.loading {
-    pointer-events: none;
-    color: transparent;
-    background: rgba(var(--lcars-accent-rgb), 0.15);
-    border-color: rgba(var(--lcars-accent-rgb), 0.4);
-}
-
-.login-btn.loading::before { display: none; }
-
-.login-btn.loading::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 18px;
-    height: 18px;
-    margin: -9px 0 0 -9px;
-    border: 2px solid transparent;
-    border-top-color: var(--archie-green);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-}
-
-/* ─── Forgot Password ─── */
-.forgot-section {
-    text-align: center;
-    margin-top: 14px;
-    animation: lcarsFieldIn 0.4s ease-out 1.4s both;
-}
-
-.forgot-link {
-    font-size: 0.7rem;
-    color: var(--archie-text-disabled);
-    text-decoration: none;
-    letter-spacing: 0.08em;
-    transition: all 0.3s;
-}
-
-.forgot-link:hover {
-    color: var(--archie-cyan);
-    text-shadow: 0 0 12px rgba(0,255,255,0.15);
-}
-
-/* Forgot Password Message */
-.forgot-password-msg {
-    display: none;
-    margin-top: 14px;
-    padding: 18px;
-    background: rgba(var(--lcars-accent-rgb), 0.06);
-    border: 1px solid rgba(var(--lcars-accent-rgb), 0.15);
-    border-radius: 8px;
-    text-align: center;
-    animation: fadeIn 0.3s ease-out;
-}
-
-.forgot-password-msg .msg-title {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.7rem;
-    color: var(--archie-green);
+    font-size: 0.6rem;
     letter-spacing: 0.12em;
-    margin-bottom: 8px;
-}
-
-.forgot-password-msg .msg-body {
-    font-size: 0.75rem;
-    color: var(--archie-text-tertiary);
-    line-height: 1.6;
-    margin-bottom: 6px;
-}
-
-.forgot-password-msg .msg-note {
-    font-size: 0.65rem;
-    color: var(--archie-text-disabled);
-}
-
-/* ─── Divider ─── */
-.divider {
-    display: flex;
-    align-items: center;
-    margin: 24px 0;
-    color: var(--archie-text-disabled);
-    font-size: 0.6rem;
-    letter-spacing: 0.25em;
-    animation: lcarsFieldIn 0.4s ease-out 1.6s both;
-}
-
-.divider::before,
-.divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--archie-border-muted), transparent);
-}
-
-.divider span {
-    padding: 0 14px;
-}
-
-/* ─── Google OAuth Button ─── */
-.oauth-section {
-    margin-top: 20px;
-    animation: lcarsFieldIn 0.4s ease-out 1.8s both;
-}
-
-.google-btn {
-    width: 100%;
-    padding: 13px 18px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 8px;
-    color: var(--archie-text-secondary);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    text-decoration: none;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.google-btn:hover {
-    background: rgba(255, 255, 255, 0.07);
-    border-color: var(--archie-border-emphasis);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-
-.google-btn svg { width: 16px; height: 16px; }
-.google-btn:active { transform: translateY(0); }
-
-/* ─── Signup Section ─── */
-.signup-section {
-    text-align: center;
-    padding: 16px;
-    background: rgba(var(--lcars-accent-rgb), 0.05);
-    border: 1px solid rgba(var(--lcars-accent-rgb), 0.08);
-    border-radius: 8px;
-    margin-top: 20px;
-    animation: lcarsFieldIn 0.4s ease-out 2.0s both;
-}
-
-.signup-text {
-    font-size: 0.7rem;
-    color: var(--archie-text-disabled);
-    letter-spacing: 0.08em;
-}
-
-.signup-link {
-    color: var(--archie-green);
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.7rem;
-    margin-left: 6px;
-    transition: all 0.3s;
-}
-
-.signup-link:hover {
-    text-shadow: 0 0 15px rgba(0,255,65,0.25);
-}
-
-/* ─── System Status ─── */
-.system-status {
-    margin-top: 24px;
-    padding: 16px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--archie-border-muted);
-    border-radius: 8px;
-    font-size: 0.6rem;
-    line-height: 2;
-    color: var(--archie-text-disabled);
-    letter-spacing: 0.06em;
-    animation: lcarsFieldIn 0.4s ease-out 2.2s both;
-}
-
-.status-line {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    color: rgba(0, 255, 65, 0.35);
+    text-transform: uppercase;
 }
 
 /* ─── Light Mode Overrides ─── */
-body.light-mode .login-bg {
+body.light-mode .login-page,
+[data-theme="light"] .login-page {
     background: linear-gradient(135deg, #f0f2f5 0%, #e8eaf0 50%, #f0f2f5 100%);
 }
 
-body.light-mode .login-bg::after {
+body.light-mode .login-page::after,
+[data-theme="light"] .login-page::after {
     background: radial-gradient(circle, rgba(0,170,51,0.04) 0%, transparent 70%);
 }
 
-body.light-mode .login-card {
-    background: rgba(255, 255, 255, 0.92);
-    border-color: rgba(0, 0, 0, 0.1);
-    border-top-color: rgba(0, 170, 51, 0.35);
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12), 0 0 40px rgba(0, 170, 51, 0.04);
+body.light-mode .login-subtitle,
+[data-theme="light"] .login-subtitle {
+    color: #0077cc;
 }
 
-body.light-mode .login-card::before {
-    background: linear-gradient(90deg, rgba(0,170,51,0.4), rgba(0,170,51,0.15), rgba(0,170,51,0.3));
-}
-
-body.light-mode .corner-decoration::before,
-body.light-mode .corner-decoration::after {
-    background: rgba(0, 0, 0, 0.12);
-}
-
-body.light-mode .login-header {
-    border-color: rgba(0, 170, 51, 0.2);
-    background: linear-gradient(180deg, rgba(0, 170, 51, 0.04) 0%, transparent 100%);
-}
-
-body.light-mode .login-logo {
-    text-shadow: none;
-}
-
-body.light-mode .form-input {
+body.light-mode .login-form-input,
+[data-theme="light"] .login-form-input {
     background: rgba(255, 255, 255, 0.8);
     border-color: rgba(0, 170, 51, 0.18);
     border-left-color: rgba(0, 170, 51, 0.25);
     color: #1f2937;
 }
 
-body.light-mode .form-input::placeholder {
+body.light-mode .login-form-input::placeholder,
+[data-theme="light"] .login-form-input::placeholder {
     color: rgba(0, 0, 0, 0.25);
 }
 
-body.light-mode .form-input:focus {
+body.light-mode .login-form-input:focus,
+[data-theme="light"] .login-form-input:focus {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(0, 170, 51, 0.35);
     border-left-color: rgba(0, 170, 51, 0.5);
     box-shadow: 0 0 8px rgba(0, 170, 51, 0.1);
 }
 
-body.light-mode .form-label {
+body.light-mode .login-form-label,
+[data-theme="light"] .login-form-label {
     color: #374151;
 }
 
-body.light-mode .login-btn {
+body.light-mode .login-btn,
+[data-theme="light"] .login-btn {
     background: rgba(0, 170, 51, 0.08);
     border-color: rgba(0, 170, 51, 0.25);
     color: rgba(0, 170, 51, 0.75);
 }
 
-body.light-mode .login-btn:hover {
+body.light-mode .login-btn:hover,
+[data-theme="light"] .login-btn:hover {
     background: rgba(0, 170, 51, 0.14);
     border-color: rgba(0, 170, 51, 0.35);
     box-shadow: none;
     color: rgba(0, 170, 51, 0.85);
 }
 
-body.light-mode .login-btn.loading {
+body.light-mode .login-btn.loading,
+[data-theme="light"] .login-btn.loading {
     background: rgba(0, 170, 51, 0.08);
 }
 
-body.light-mode .login-btn.loading::after {
-    border-top-color: var(--archie-green);
+body.light-mode .login-btn.loading::after,
+[data-theme="light"] .login-btn.loading::after {
+    border-top-color: #00aa33;
 }
 
-body.light-mode .google-btn {
+body.light-mode .google-btn,
+[data-theme="light"] .google-btn {
     background: rgba(0, 0, 0, 0.02);
     border-color: rgba(0, 0, 0, 0.12);
+    color: #444;
 }
 
-body.light-mode .google-btn:hover {
+body.light-mode .google-btn:hover,
+[data-theme="light"] .google-btn:hover {
     background: rgba(0, 0, 0, 0.05);
     border-color: rgba(0, 0, 0, 0.18);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
-body.light-mode .signup-section {
+body.light-mode .signup-section,
+[data-theme="light"] .signup-section {
     background: rgba(0, 170, 51, 0.04);
     border-color: rgba(0, 170, 51, 0.1);
 }
 
-body.light-mode .system-status {
-    background: rgba(0, 0, 0, 0.02);
-    border-color: rgba(0, 0, 0, 0.06);
-}
-
-body.light-mode .forgot-password-msg {
+body.light-mode .forgot-password-msg,
+[data-theme="light"] .forgot-password-msg {
     background: rgba(0, 170, 51, 0.05);
     border-color: rgba(0, 170, 51, 0.12);
 }
 
-body.light-mode .theme-toggle-login {
-    border-color: rgba(0, 0, 0, 0.12);
-}
-
-body.light-mode .theme-toggle-login:hover {
-    border-color: var(--archie-green);
-    color: var(--archie-green);
-    background: rgba(0, 170, 51, 0.06);
-    box-shadow: none;
-}
-
-body.light-mode .lang-dropdown {
+body.light-mode .lang-dropdown,
+[data-theme="light"] .lang-dropdown {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(0, 0, 0, 0.1);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-body.light-mode .lang-dropdown-item { color: #555; }
-body.light-mode .lang-dropdown-item:hover { background: rgba(0, 122, 32, 0.06); color: #111; }
-body.light-mode .lang-dropdown-item.active { color: #007a20; }
+body.light-mode .lang-dropdown-item,
+[data-theme="light"] .lang-dropdown-item { color: #555; }
+body.light-mode .lang-dropdown-item:hover,
+[data-theme="light"] .lang-dropdown-item:hover { background: rgba(0, 122, 32, 0.06); color: #111; }
+body.light-mode .lang-dropdown-item.active,
+[data-theme="light"] .lang-dropdown-item.active { color: #007a20; }
 
-/* ─── Responsive: 5 Breakpoints ─── */
-@media (min-width: 1280px) {
-    .login-container { max-width: 460px; }
-    .login-card { padding: 56px 48px; }
+body.light-mode .login-footer-btn,
+[data-theme="light"] .login-footer-btn {
+    color: rgba(0, 0, 0, 0.6);
 }
 
-@media (max-width: 768px) {
-    .login-card { padding: 40px 30px; }
-    .login-header { padding: 18px 14px 14px; }
-    .login-logo { font-size: 2rem; }
+body.light-mode .login-status-strip span,
+[data-theme="light"] .login-status-strip span {
+    color: rgba(0, 0, 0, 0.25);
 }
 
-@media (max-width: 717px) {
-    .login-card { padding: 24px 20px; border-radius: 10px; }
-    .login-logo { font-size: 1.8rem; letter-spacing: 0.15em; }
-    .login-header { padding: 14px 12px 12px; margin-bottom: 20px; }
-    .login-subtitle { font-size: 0.6rem; }
-    .theme-toggle-login { width: 26px; height: 26px; }
-    .form-group { margin-bottom: 14px; }
-    .form-input { padding: 10px 14px; }
-    .login-btn { padding: 12px 20px; margin-top: 4px; }
-    .forgot-section { margin-top: 10px; }
-    .divider { margin: 14px 0; }
-    .oauth-section { margin-top: 12px; }
-    .google-btn { padding: 11px 16px; }
-    .signup-section { padding: 12px; margin-top: 12px; }
-    .system-status { margin-top: 14px; padding: 10px; line-height: 1.8; }
+/* ─── Responsive ─── */
+@media (max-width: 767px) {
+    .login-frame {
+        margin-top: 10vh;
+        padding: 0 10px;
+    }
+
+    .login-subtitle {
+        font-size: 0.62rem;
+        letter-spacing: 0.2em;
+    }
+
+    .login-form-input {
+        padding: 10px 14px;
+    }
+
+    .login-btn {
+        padding: 12px 20px;
+        margin-top: 4px;
+    }
+
+    .forgot-section {
+        margin-top: 10px;
+    }
+
+    .login-divider {
+        margin: 14px 0;
+    }
+
+    .google-btn {
+        padding: 11px 16px;
+    }
+
+    .signup-section {
+        padding: 12px;
+        margin-top: 12px;
+    }
+
+    .login-status-strip {
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        margin-top: 16px;
+    }
 }
 
-@media (max-width: 480px) {
-    .login-card { padding: 28px 20px; border-radius: 10px; }
-    .login-logo { font-size: 1.6rem; letter-spacing: 0.12em; }
-    .login-header { padding: 14px 12px 12px; margin-bottom: 22px; }
-    .form-input { padding: 10px 12px; font-size: 0.85rem; }
-    .login-btn { padding: 12px 18px; font-size: 0.78rem; }
-    .corner-decoration { display: none; }
-    .system-status { display: none; }
+@media (max-width: 479px) {
+    .login-frame {
+        margin-top: 6vh;
+        padding: 0 6px;
+    }
+
+    .login-form-input {
+        padding: 10px 12px;
+        font-size: 0.85rem;
+    }
+
+    .login-btn {
+        padding: 12px 18px;
+        font-size: 0.78rem;
+    }
+
+    .login-status-strip {
+        display: none;
+    }
 }
 
 @media (max-width: 374px) {
-    .login-container { margin: 8px; }
-    .login-card { padding: 22px 16px; border-radius: 8px; }
-    .login-logo { font-size: 1.4rem; letter-spacing: 0.08em; }
-    .login-subtitle { font-size: 0.55rem; letter-spacing: 0.15em; }
-    .login-header { padding: 12px 10px 10px; margin-bottom: 18px; }
-    .form-input { padding: 10px 10px; font-size: 0.82rem; }
-    .login-btn { padding: 12px 14px; font-size: 0.72rem; }
-    .corner-decoration { display: none; }
-    .google-btn { padding: 11px 14px; font-size: 0.75rem; }
-    .signup-section { padding: 12px; }
-    .divider { margin: 16px 0; }
-    .theme-toggle-login { width: 26px; height: 26px; }
+    .login-frame {
+        margin-top: 4vh;
+        padding: 0 4px;
+    }
+
+    .login-form-input {
+        padding: 10px 10px;
+        font-size: 0.82rem;
+    }
+
+    .login-btn {
+        padding: 12px 14px;
+        font-size: 0.72rem;
+    }
+
+    .google-btn {
+        padding: 11px 14px;
+        font-size: 0.75rem;
+    }
+
+    .login-divider {
+        margin: 16px 0;
+    }
+
+    .signup-section {
+        padding: 12px;
+    }
 }
 {% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-panels.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 
-<!-- Background -->
-<div class="login-bg"></div>
+<div class="login-page">
+    <!-- LCARS Tablet Frame -->
+    <div class="login-frame lcars-frame lcars-frame--tablet boot-hidden"
+         id="loginFrame"
+         style="--frame-color: #00ff41; --frame-rgb: 0,255,65">
 
-<!-- Login Container -->
-<div class="login-container">
-    <div class="login-card lcars-panel">
-        <!-- Corner Decorations -->
-        <div class="corner-decoration top-left"></div>
-        <div class="corner-decoration bottom-right"></div>
+        <!-- Left Sidebar -->
+        <div class="lcars-sidebar">
+            <div class="lcars-elbow-top"></div>
+            <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+            <div class="lcars-seg-light" style="--light-color: #00ff41"></div>
+            <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+            <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+            <div class="lcars-seg-fill"></div>
+            <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+            <div class="lcars-elbow-bottom"></div>
+        </div>
 
-        <!-- Header -->
-        <div class="login-header">
-            <div class="login-header-indicators">
-                <span class="lcars-dot online pulse"></span>
-                <span class="lcars-dot online pulse" style="animation-delay:0.5s"></span>
-                <span class="lcars-dot online pulse" style="animation-delay:1s"></span>
+        <!-- Right Content Column -->
+        <div class="lcars-content">
+            <!-- Header Bar -->
+            <div class="lcars-bar">
+                <span class="lcars-bar-title" data-i18n="login_header_title">A.R.C.H.I.E.</span>
+                <div class="lcars-bar-spacer"></div>
+                <div class="lcars-pips">
+                    <span class="lcars-pip" style="width:20px; background:#00ff41"></span>
+                    <span class="lcars-pip" style="width:14px; background:#00ff41"></span>
+                    <span class="lcars-pip" style="width:14px; background:#00ff41"></span>
+                </div>
             </div>
-            <h1 class="login-logo">A.R.C.H.I.E.</h1>
-            <p class="login-subtitle" data-i18n="login.auth_required">AUTHENTICATION REQUIRED</p>
-            <div class="login-controls">
-                <button class="theme-toggle-login" id="themeToggle" title="Toggle light/dark mode">
-                    <i data-lucide="moon" width="14" height="14"></i>
+
+            <!-- Body -->
+            <div class="lcars-body">
+                <p class="login-subtitle" data-i18n="login.auth_required">AUTHENTICATION REQUIRED</p>
+
+                <!-- Login Form -->
+                <form method="POST" action="/login" class="login-form" id="loginForm">
+                    <div class="login-form-group">
+                        <label class="login-form-label" for="username" data-i18n="login.username">Username</label>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            class="login-form-input"
+                            placeholder="Enter your username"
+                            data-i18n-placeholder="login.enter_username"
+                            required
+                            autofocus
+                            autocomplete="username"
+                        >
+                    </div>
+
+                    <div class="login-form-group">
+                        <label class="login-form-label" for="password" data-i18n="login.password">Password</label>
+                        <div class="input-wrapper">
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                class="login-form-input"
+                                placeholder="Enter your password"
+                                data-i18n-placeholder="login.enter_password"
+                                required
+                                autocomplete="current-password"
+                            >
+                            <button type="button" class="password-toggle" data-target="password" title="Show password" data-i18n-title="login.show_password">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button type="submit" class="login-btn" id="loginBtn" data-i18n="login.access_system">
+                            Access System
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Forgot Password -->
+                <div class="forgot-section">
+                    <a href="#" class="forgot-link" id="forgotPasswordLink" data-i18n="login.forgot_password">Forgot Password?</a>
+                </div>
+
+                <!-- Forgot Password Message -->
+                <div class="forgot-password-msg" id="forgotPasswordMsg">
+                    <div class="msg-title" data-i18n="login.password_reset">PASSWORD RESET</div>
+                    <p class="msg-body" data-i18n="login.reset_contact_admin">Contact your system administrator to reset your password.</p>
+                    <p class="msg-note" data-i18n="login.reset_coming_soon">Self-service password reset via email coming soon.</p>
+                </div>
+
+                <!-- OAuth Section -->
+                <div class="login-divider"><span data-i18n="login_divider_or">OR</span></div>
+                <a href="{{ url_for('oauth.google_login') }}" class="google-btn">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
+                    <span data-i18n="login.continue_google">Continue with Google</span>
+                </a>
+
+                <!-- Signup Link -->
+                <div class="signup-section">
+                    <span class="signup-text" data-i18n="login.no_account">No account?</span>
+                    <a href="{{ url_for('signup') }}" class="signup-link" data-i18n="login.request_access">Request Access &rarr;</a>
+                </div>
+            </div>
+
+            <!-- Footer Bar -->
+            <div class="lcars-footer-bar">
+                <span class="lcars-footer-stardate" id="loginStardate" data-i18n="login_stardate">SD 79145.7</span>
+                <button class="login-footer-btn" onclick="window.toggleTheme ? window.toggleTheme() : document.body.classList.toggle('light-mode')" title="Toggle theme">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
                 </button>
                 <div class="lang-wrapper">
-                    <button class="theme-toggle-login" id="langToggle" title="Switch language" style="font-size: 0.6rem; font-family: 'Orbitron', monospace; font-weight: 600; letter-spacing: 0.05em; min-width: 36px;" onclick="document.getElementById('langMenu').classList.toggle('hidden');">
-                        EN
+                    <button class="login-footer-btn login-lang-btn" id="langToggle" onclick="document.getElementById('langMenu').classList.toggle('hidden');">
+                        <span data-i18n="current_lang">EN</span>
                     </button>
                     <div class="lang-dropdown hidden" id="langMenu">
                         <button class="lang-dropdown-item active" data-lang="en">English</button>
@@ -809,189 +816,169 @@ body.light-mode .lang-dropdown-item.active { color: #007a20; }
                         <button class="lang-dropdown-item" data-lang="he">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
                     </div>
                 </div>
+                <div class="lcars-footer-dots">
+                    <span class="lcars-footer-dot" style="background:#00ff41"></span>
+                    <span class="lcars-footer-dot" style="background:#00ffff"></span>
+                    <span class="lcars-footer-dot" style="background:#f59e0b"></span>
+                </div>
             </div>
         </div>
+    </div>
 
-        <!-- Login Body -->
-        <div class="login-body">
-            <!-- Login Form -->
-            <form method="POST" action="/login" class="login-form" id="loginForm">
-                <div class="form-group">
-                    <label class="form-label lcars-label" for="username" data-i18n="login.username">Username</label>
-                    <input
-                        type="text"
-                        id="username"
-                        name="username"
-                        class="form-input lcars-input"
-                        placeholder="Enter your username"
-                        data-i18n-placeholder="login.enter_username"
-                        required
-                        autofocus
-                        autocomplete="username"
-                    >
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label lcars-label" for="password" data-i18n="login.password">Password</label>
-                    <div class="input-wrapper">
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            class="form-input lcars-input"
-                            placeholder="Enter your password"
-                            data-i18n-placeholder="login.enter_password"
-                            required
-                            autocomplete="current-password"
-                        >
-                        <button type="button" class="password-toggle" data-target="password" title="Show password" data-i18n-title="login.show_password">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="login-btn-wrap">
-                    <button type="submit" class="login-btn" id="loginBtn" data-i18n="login.access_system">
-                        Access System
-                    </button>
-                </div>
-            </form>
-
-            <!-- Forgot Password -->
-            <div class="forgot-section">
-                <a href="#" class="forgot-link" id="forgotPasswordLink" data-i18n="login.forgot_password">Forgot Password?</a>
-            </div>
-
-            <!-- Forgot Password Message -->
-            <div class="forgot-password-msg" id="forgotPasswordMsg">
-                <div class="msg-title" data-i18n="login.password_reset">PASSWORD RESET</div>
-                <p class="msg-body" data-i18n="login.reset_contact_admin">Contact your system administrator to reset your password.</p>
-                <p class="msg-note" data-i18n="login.reset_coming_soon">Self-service password reset via email coming soon.</p>
-            </div>
-
-            <!-- OAuth Section -->
-            <div class="oauth-section">
-                <div class="divider"><span>OR</span></div>
-                <a href="{{ url_for('oauth.google_login') }}" class="google-btn">
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                    </svg>
-                    <span data-i18n="login.continue_google">Continue with Google</span>
-                </a>
-            </div>
-
-            <!-- Signup Link -->
-            <div class="signup-section">
-                <span class="signup-text" data-i18n="login.no_account">No account?</span>
-                <a href="{{ url_for('signup') }}" class="signup-link" data-i18n="login.request_access">Request Access &rarr;</a>
-            </div>
-        </div>
-
-        <!-- System Status -->
-        <div class="system-status">
-            <div class="status-line">
-                <span class="lcars-dot online pulse"></span>
-                <span data-i18n="login.system_online">SYSTEM STATUS: ONLINE</span>
-            </div>
-            <div class="status-line">
-                <span class="lcars-dot online pulse" style="animation-delay:0.3s"></span>
-                <span data-i18n="login.ai_core_active">AI CORE: ACTIVE</span>
-            </div>
-            <div class="status-line">
-                <span class="lcars-dot online pulse" style="animation-delay:0.6s"></span>
-                <span data-i18n="login.security_enabled">SECURITY PROTOCOL: ENABLED</span>
-            </div>
-        </div>
+    <!-- System Status Indicators -->
+    <div class="login-status-strip">
+        <span data-i18n="login.system_online">SYSTEM STATUS: ONLINE</span>
+        <span data-i18n="login.ai_core_active">AI CORE: ACTIVE</span>
+        <span data-i18n="login.security_enabled">SECURITY PROTOCOL: ENABLED</span>
     </div>
 </div>
 
 <script>
-// ─── Form Submit ───
-document.getElementById('loginForm').addEventListener('submit', function() {
-    var btn = document.getElementById('loginBtn');
-    btn.classList.add('loading');
-    btn.textContent = archieI18n.t('login.authenticating', 'AUTHENTICATING...');
-});
+(function() {
+    'use strict';
 
-// ─── Forgot Password Toggle ───
-document.getElementById('forgotPasswordLink').addEventListener('click', function(e) {
-    e.preventDefault();
-    var msg = document.getElementById('forgotPasswordMsg');
-    msg.style.display = msg.style.display === 'none' || msg.style.display === '' ? 'block' : 'none';
-});
-
-// ─── Password Visibility Toggle ───
-function createSvgIcon(pathData) {
-    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', '16');
-    svg.setAttribute('height', '16');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('stroke', 'currentColor');
-    svg.setAttribute('stroke-width', '2');
-    svg.setAttribute('stroke-linecap', 'round');
-    svg.setAttribute('stroke-linejoin', 'round');
-    pathData.forEach(function(d) {
-        var el;
-        if (d.tag === 'circle') {
-            el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            el.setAttribute('cx', d.cx); el.setAttribute('cy', d.cy); el.setAttribute('r', d.r);
-        } else if (d.tag === 'line') {
-            el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            el.setAttribute('x1', d.x1); el.setAttribute('y1', d.y1);
-            el.setAttribute('x2', d.x2); el.setAttribute('y2', d.y2);
-        } else {
-            el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            el.setAttribute('d', d.d);
-        }
-        svg.appendChild(el);
-    });
-    return svg;
-}
-var eyeOpenPaths = [
-    {d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'},
-    {tag: 'circle', cx: '12', cy: '12', r: '3'}
-];
-var eyeClosedPaths = [
-    {d: 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24'},
-    {tag: 'line', x1: '1', y1: '1', x2: '23', y2: '23'}
-];
-document.querySelectorAll('.password-toggle').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-        var input = document.getElementById(this.dataset.target);
-        var isHidden = input.type === 'password';
-        input.type = isHidden ? 'text' : 'password';
-        this.replaceChildren(createSvgIcon(isHidden ? eyeClosedPaths : eyeOpenPaths));
-        this.title = isHidden ? archieI18n.t('login.hide_password', 'Hide password') : archieI18n.t('login.show_password', 'Show password');
-    });
-});
-
-// ─── Theme Toggle ───
-var themeToggleBtn = document.getElementById('themeToggle');
-
-themeToggleBtn.addEventListener('click', function() {
-    if (typeof window.toggleTheme === 'function') {
-        window.toggleTheme();
-    } else {
-        document.body.classList.toggle('light-mode');
-        localStorage.setItem('archie-theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+    // ═══════════════════════════════════════════════════════════════════════
+    // Stardate Calculator
+    // ═══════════════════════════════════════════════════════════════════════
+    function calcStardate() {
+        var now = new Date();
+        var y = now.getFullYear();
+        var start = new Date(y, 0, 1);
+        var diff = now - start;
+        var dayOfYear = Math.floor(diff / 86400000);
+        var fraction = (dayOfYear / 365.25).toFixed(1);
+        // TNG-era stardate: (year - 1947) * 1000 + day fraction
+        var sd = ((y - 1947) * 1000 + dayOfYear * (1000 / 365.25)).toFixed(1);
+        return 'SD ' + sd;
     }
-});
 
-// ─── Init Lucide + Language Dropdown ───
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof lucide !== 'undefined') lucide.createIcons();
+    // ═══════════════════════════════════════════════════════════════════════
+    // Boot Animation
+    // ═══════════════════════════════════════════════════════════════════════
+    var frame = document.getElementById('loginFrame');
+    var stardateEl = document.getElementById('loginStardate');
+    var BOOT_KEY = 'archie-login-booted';
+    var skipBoot = sessionStorage.getItem(BOOT_KEY) === '1';
 
-    // Language dropdown handler
-    var LANG_LABELS = { en: 'EN', fr: 'FR', es: 'ES', pt: 'PT', de: 'DE', zh: '中文', ar: 'عر' };
+    function finishBoot() {
+        frame.classList.remove('boot-hidden');
+        frame.classList.add('frame-build');
+        sessionStorage.setItem(BOOT_KEY, '1');
+        // Set real stardate after brief easter egg
+        if (stardateEl) {
+            stardateEl.textContent = 'THREAT LEVEL MIDNIGHT';
+            setTimeout(function() {
+                stardateEl.textContent = calcStardate();
+            }, 500);
+        }
+    }
+
+    if (skipBoot) {
+        // Skip animation, show immediately
+        frame.classList.remove('boot-hidden');
+        frame.classList.add('frame-build');
+        if (stardateEl) stardateEl.textContent = calcStardate();
+    } else {
+        // Slight delay then trigger boot sequence
+        setTimeout(finishBoot, 150);
+
+        // Click or keypress to skip boot animation
+        var skipHandler = function() {
+            frame.classList.remove('boot-hidden');
+            frame.classList.add('frame-build');
+            sessionStorage.setItem(BOOT_KEY, '1');
+            if (stardateEl) stardateEl.textContent = calcStardate();
+            document.removeEventListener('click', skipHandler);
+            document.removeEventListener('keypress', skipHandler);
+        };
+        document.addEventListener('click', skipHandler);
+        document.addEventListener('keypress', skipHandler);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Form Submit — Loading State
+    // ═══════════════════════════════════════════════════════════════════════
+    document.getElementById('loginForm').addEventListener('submit', function() {
+        var btn = document.getElementById('loginBtn');
+        btn.classList.add('loading');
+        btn.textContent = (typeof archieI18n !== 'undefined')
+            ? archieI18n.t('login.authenticating', 'AUTHENTICATING...')
+            : 'AUTHENTICATING...';
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Forgot Password Toggle
+    // ═══════════════════════════════════════════════════════════════════════
+    document.getElementById('forgotPasswordLink').addEventListener('click', function(e) {
+        e.preventDefault();
+        var msg = document.getElementById('forgotPasswordMsg');
+        msg.style.display = msg.style.display === 'none' || msg.style.display === '' ? 'block' : 'none';
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Password Visibility Toggle
+    // ═══════════════════════════════════════════════════════════════════════
+    function createSvgIcon(pathData) {
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '16');
+        svg.setAttribute('height', '16');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        pathData.forEach(function(d) {
+            var el;
+            if (d.tag === 'circle') {
+                el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                el.setAttribute('cx', d.cx); el.setAttribute('cy', d.cy); el.setAttribute('r', d.r);
+            } else if (d.tag === 'line') {
+                el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                el.setAttribute('x1', d.x1); el.setAttribute('y1', d.y1);
+                el.setAttribute('x2', d.x2); el.setAttribute('y2', d.y2);
+            } else {
+                el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                el.setAttribute('d', d.d);
+            }
+            svg.appendChild(el);
+        });
+        return svg;
+    }
+
+    var eyeOpenPaths = [
+        {d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'},
+        {tag: 'circle', cx: '12', cy: '12', r: '3'}
+    ];
+    var eyeClosedPaths = [
+        {d: 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24'},
+        {tag: 'line', x1: '1', y1: '1', x2: '23', y2: '23'}
+    ];
+
+    document.querySelectorAll('.password-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var input = document.getElementById(this.dataset.target);
+            var isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            this.replaceChildren(createSvgIcon(isHidden ? eyeClosedPaths : eyeOpenPaths));
+            this.title = isHidden
+                ? ((typeof archieI18n !== 'undefined') ? archieI18n.t('login.hide_password', 'Hide password') : 'Hide password')
+                : ((typeof archieI18n !== 'undefined') ? archieI18n.t('login.show_password', 'Show password') : 'Show password');
+        });
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Language Dropdown
+    // ═══════════════════════════════════════════════════════════════════════
+    var LANG_LABELS = { en: 'EN', fr: 'FR', es: 'ES', pt: 'PT', de: 'DE', zh: '中文', ar: 'عر', he: 'עב' };
     var langBtn = document.getElementById('langToggle');
     var langMenu = document.getElementById('langMenu');
 
     function syncLangUI(lang) {
-        if (langBtn) langBtn.textContent = LANG_LABELS[lang] || lang.toUpperCase();
+        if (langBtn) {
+            var span = langBtn.querySelector('span');
+            if (span) span.textContent = LANG_LABELS[lang] || lang.toUpperCase();
+        }
         if (langMenu) {
             langMenu.querySelectorAll('.lang-dropdown-item').forEach(function(o) {
                 o.classList.toggle('active', o.getAttribute('data-lang') === lang);
@@ -1018,10 +1005,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // i18n Init
+    // ═══════════════════════════════════════════════════════════════════════
     if (typeof archieI18n !== 'undefined') {
         archieI18n.init();
         setTimeout(function() { syncLangUI(archieI18n.getCurrentLanguage()); }, 500);
     }
-});
+})();
 </script>
 {% endblock %}

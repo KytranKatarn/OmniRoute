@@ -3372,14 +3372,14 @@ class BridgeDispatcher:
     # STALE JOB REAPER
     # ========================================================================
 
-    def reap_stale_jobs(self, max_age_minutes: int = 5) -> int:
+    def reap_stale_jobs(self, max_age_minutes: int = 5, reason: str = "stale — no progress update") -> int:
         """Mark orphaned running jobs as failed.
 
         Background threads die on platform restart, leaving jobs stuck
         in 'running' state forever. This reaper finds jobs that haven't
         been updated in max_age_minutes and marks them failed.
 
-        Called on startup and can be called periodically.
+        Called on startup (max_age_minutes=0) and periodically (max_age_minutes=5).
 
         Returns:
             Number of jobs reaped.
@@ -3394,12 +3394,12 @@ class BridgeDispatcher:
                     completed_at = NOW(),
                     updated_at = NOW(),
                     metadata = COALESCE(metadata, '{}'::jsonb)
-                        || '{"reap_reason": "stale — no progress update"}'::jsonb
+                        || jsonb_build_object('reap_reason', %s)
                 WHERE status = 'running'
                   AND updated_at < NOW() - INTERVAL '%s minutes'
                 RETURNING id, job_type, description, completed_steps, total_steps
                 """,
-                (max_age_minutes,),
+                (reason, max_age_minutes),
             )
             reaped = cur.fetchall()
             conn.commit()
@@ -3624,9 +3624,14 @@ def get_dispatcher() -> BridgeDispatcher:
     global _dispatcher
     if _dispatcher is None:
         _dispatcher = BridgeDispatcher()
-        # Reap orphaned jobs from previous runs on first init
+        # Reap ALL orphaned jobs from previous runs on first init.
+        # No background threads survive a container restart, so any
+        # job still marked 'running' is guaranteed stale.
         try:
-            reaped = _dispatcher.reap_stale_jobs(max_age_minutes=5)
+            reaped = _dispatcher.reap_stale_jobs(
+                max_age_minutes=0,
+                reason="orphaned — platform restarted",
+            )
             if reaped:
                 logger.info(f"[BridgeDispatcher] Startup reaper cleaned {reaped} stale jobs")
         except Exception:

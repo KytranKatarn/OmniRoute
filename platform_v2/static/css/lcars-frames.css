@@ -32,7 +32,7 @@
     --frame-radius: 20px;
     --frame-sidebar-w: 48px;
     --frame-bar-h: 44px;
-    --frame-footer-h: 28px;
+    --frame-footer-h: 44px;
     --frame-elbow-top-h: 52px;
     --frame-elbow-bottom-h: 36px;
     --frame-seg-h: 28px;
@@ -245,19 +245,12 @@
 
 /* ── 2.17 Footer Stardate Text ───────────────────────────────────────── */
 .lcars-footer-stardate {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.65rem;
-    font-weight: 400;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--archie-bg-primary, #010409);
-    white-space: nowrap;
-    opacity: 0.8;
+    display: none;
 }
 
 /* ── 2.18 Footer Dots Container ──────────────────────────────────────── */
 .lcars-footer-dots {
-    display: flex;
+    display: none;
     align-items: center;
     gap: 4px;
     margin-left: auto;
@@ -530,8 +523,9 @@ body.light-mode .lcars-body::-webkit-scrollbar-thumb:hover {
 
 [data-theme="light"] .lcars-footer-bar,
 body.light-mode .lcars-footer-bar {
-    background: rgba(var(--frame-rgb), 0.15);
-    border: 1px solid rgba(var(--frame-rgb), 0.3);
+    background: var(--frame-color);
+    filter: saturate(0.3) brightness(1.1);
+    border: none;
 }
 
 [data-theme="light"] .lcars-footer-stardate,

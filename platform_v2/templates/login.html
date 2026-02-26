@@ -859,6 +859,8 @@ body.light-mode .login-status-strip span,
     var stardateEl = document.getElementById('loginStardate');
     var BOOT_KEY = 'archie-login-booted';
     var skipBoot = sessionStorage.getItem(BOOT_KEY) === '1';
+    // Clear dashboard boot key so boot animation plays after every fresh login
+    sessionStorage.removeItem('archie-booted');
 
     function finishBoot() {
         frame.classList.remove('boot-hidden');

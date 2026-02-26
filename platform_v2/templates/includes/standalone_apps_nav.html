@@ -33,18 +33,23 @@
 
     <div class="nav-right">
         <div class="nav-utils">
-            <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
-                <i data-lucide="sun" id="themeIcon"></i>
+            <!-- Theme toggle — cyan -->
+            <button class="nav-icon-btn" data-accent="cyan" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+                <svg id="navThemeIconSun" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><circle cx="12" cy="12" r="5"/><rect x="11" y="1" width="2" height="4" rx="1"/><rect x="11" y="19" width="2" height="4" rx="1"/><rect x="1" y="11" width="4" height="2" rx="1"/><rect x="19" y="11" width="4" height="2" rx="1"/></svg>
+                <svg id="navThemeIconMoon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
             </button>
-            <button class="nav-icon-btn" onclick="showLanguageMenu()" title="Language (Coming Soon)">
-                <i data-lucide="globe"></i>
+            <!-- Language — purple -->
+            <button class="nav-icon-btn" data-accent="purple" onclick="showLanguageMenu()" title="Language (Coming Soon)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
             </button>
+            <!-- Dev HQ — green -->
             {% if current_user.is_authenticated and current_user.is_admin %}
             <a href="{{ url_for('dev_hq.index') }}"
                class="nav-icon-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
+               data-accent="green"
                onclick="showTransition(event, this.href)"
                title="Dev HQ">
-                <i data-lucide="compass"></i>
+                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
             </a>
             {% endif %}
         </div>

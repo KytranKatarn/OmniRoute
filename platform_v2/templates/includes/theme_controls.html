@@ -1,24 +1,28 @@
 {# ═══════════════════════════════════════════════════════════════════════════════
    Theme Controls - Reusable component for light/dark mode and language
-   Phase 31: UI Standardization
+   Phase 31: UI Standardization — Updated with LCARS terminal block icons
    Usage: include 'includes/theme_controls.html'
    ═══════════════════════════════════════════════════════════════════════════════ #}
 
 <div class="archie-theme-controls">
-    <button class="archie-theme-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
-        <i data-lucide="sun" id="themeIcon"></i>
+    <!-- Theme toggle — cyan -->
+    <button class="archie-theme-btn" data-accent="cyan" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+        <svg id="themeCtrlSun" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><circle cx="12" cy="12" r="5"/><rect x="11" y="1" width="2" height="4" rx="1"/><rect x="11" y="19" width="2" height="4" rx="1"/><rect x="1" y="11" width="4" height="2" rx="1"/><rect x="19" y="11" width="4" height="2" rx="1"/></svg>
+        <svg id="themeCtrlMoon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
     </button>
-    <button class="archie-theme-btn" onclick="showLanguageMenu()" title="Language (Coming Soon)">
-        <i data-lucide="globe"></i>
+    <!-- Language — purple -->
+    <button class="archie-theme-btn" data-accent="purple" onclick="showLanguageMenu()" title="Language (Coming Soon)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
     </button>
-    <a href="{{ url_for('dashboard') }}" class="archie-theme-btn" title="Back to Dashboard">
-        <i data-lucide="arrow-left"></i>
+    <!-- Dashboard — green -->
+    <a href="{{ url_for('dashboard') }}" class="archie-theme-btn" data-accent="green" title="Back to Dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
     </a>
 </div>
 
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════════
-   THEME CONTROLS - UNIVERSAL STYLES
+   THEME CONTROLS — LCARS TERMINAL BLOCK STYLE
    Works with any module regardless of accent color
    ═══════════════════════════════════════════════════════════════════════════════ */
 .archie-theme-controls {
@@ -32,53 +36,50 @@
     align-items: center;
     justify-content: center;
     width: 36px;
-    height: 36px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default, #333);
-    border-radius: 6px;
-    color: var(--archie-text-secondary, #8b949e);
+    height: 30px;
+    border-radius: 2px 8px 8px 2px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid var(--btn-accent, #00ff41);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--btn-accent, #00ff41);
     cursor: pointer;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
 .archie-theme-btn:hover {
-    border-color: var(--archie-green, #00ff41);
-    color: var(--archie-green, #00ff41);
-    background: rgba(0, 255, 65, 0.1);
+    color: #fff;
+    background: rgba(var(--btn-accent-rgb, 0,255,65), 0.2);
+    box-shadow: 0 0 8px rgba(var(--btn-accent-rgb, 0,255,65), 0.25);
 }
 
-.archie-theme-btn i {
-    width: 18px;
-    height: 18px;
+.archie-theme-btn svg {
+    width: 16px;
+    height: 16px;
+    shape-rendering: crispEdges;
 }
+
+/* Per-button accent colors */
+.archie-theme-btn[data-accent="cyan"]   { --btn-accent: #00ffff; --btn-accent-rgb: 0,255,255; }
+.archie-theme-btn[data-accent="purple"] { --btn-accent: #a78bfa; --btn-accent-rgb: 167,139,250; }
+.archie-theme-btn[data-accent="green"]  { --btn-accent: #00ff41; --btn-accent-rgb: 0,255,65; }
 
 /* Light Mode */
 body.light-mode .archie-theme-btn {
-    border-color: rgba(0, 0, 0, 0.15);
-    color: var(--archie-text-secondary, #374151);
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.08);
+    border-left-color: var(--btn-accent, #00ff41);
 }
 
 body.light-mode .archie-theme-btn:hover {
-    border-color: var(--archie-green, #00aa33);
-    color: var(--archie-green, #00aa33);
-    background: rgba(0, 170, 51, 0.08);
+    background: rgba(var(--btn-accent-rgb, 0,255,65), 0.15);
+    box-shadow: none;
 }
 
 /* Responsive */
 @media (max-width: 480px) {
-    .archie-theme-controls {
-        gap: 4px;
-    }
-
-    .archie-theme-btn {
-        width: 32px;
-        height: 32px;
-    }
-
-    .archie-theme-btn i {
-        width: 16px;
-        height: 16px;
-    }
+    .archie-theme-controls { gap: 4px; }
+    .archie-theme-btn { width: 32px; height: 26px; }
+    .archie-theme-btn svg { width: 14px; height: 14px; }
 }
 </style>

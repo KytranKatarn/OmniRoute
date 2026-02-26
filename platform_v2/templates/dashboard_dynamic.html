@@ -1853,7 +1853,7 @@ body.light-mode .footer-version {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    MISSION BRIEFING — 3 LCARS-framed info cards
-   Task 4
+   Task 5
    ───────────────────────────────────────────────────────────────────────────── */
 .mission-briefing-row {
     display: flex;
@@ -1865,27 +1865,48 @@ body.light-mode .footer-version {
 .briefing-card {
     flex: 1;
     min-width: 280px;
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
+    position: relative;
+    background: rgba(10, 10, 26, 0.6);
+    backdrop-filter: blur(12px) saturate(1.4);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-left: 3px solid var(--card-accent);
+    border-radius: 2px 12px 12px 2px;
     overflow: hidden;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* Left edge gradient overlay (matches lcars-panel::before) */
+.briefing-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(
+        180deg,
+        rgba(var(--card-accent-rgb), 0.6) 0%,
+        rgba(var(--card-accent-rgb), 0.15) 50%,
+        rgba(var(--card-accent-rgb), 0.6) 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
 .briefing-card:hover {
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+    border-color: rgba(var(--card-accent-rgb), 0.35);
+    box-shadow: 0 0 20px rgba(var(--card-accent-rgb), 0.1),
+                0 0 40px rgba(var(--card-accent-rgb), 0.05);
 }
 
 .briefing-card-header {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 10px;
     padding: 10px 16px;
-    border-bottom: 2px solid var(--card-accent);
+    border-bottom: 1px solid rgba(var(--card-accent-rgb), 0.25);
+    background: rgba(var(--card-accent-rgb), 0.05);
     position: relative;
     font-family: var(--archie-font-display, 'Orbitron', sans-serif);
     font-size: 0.75rem;
@@ -1895,25 +1916,21 @@ body.light-mode .footer-version {
     color: var(--card-accent);
 }
 
-/* Top gradient line */
-.briefing-card-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--card-accent), transparent);
+/* LCARS cap bar — small colored block on header left */
+.briefing-cap {
+    display: inline-block;
+    width: 6px;
+    height: 18px;
+    background: var(--card-accent);
+    border-radius: 1px 3px 3px 1px;
+    flex-shrink: 0;
+    opacity: 0.8;
 }
 
 .briefing-card-header i[data-lucide] {
     width: 16px;
     height: 16px;
     flex-shrink: 0;
-}
-
-.briefing-card-header span {
-    text-align: center;
 }
 
 .briefing-card-body {
@@ -1925,7 +1942,7 @@ body.light-mode .footer-version {
     max-height: 220px;
     overflow-y: auto;
 }
-/* Thin scrollbar styling */
+/* Scrollbar with accent tint */
 .briefing-card-body::-webkit-scrollbar {
     width: 4px;
 }
@@ -1933,17 +1950,26 @@ body.light-mode .footer-version {
     background: transparent;
 }
 .briefing-card-body::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(var(--card-accent-rgb), 0.25);
     border-radius: 2px;
 }
 .briefing-card-body::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(var(--card-accent-rgb), 0.45);
 }
 
 /* Card accent colors */
-.briefing-card--activity { --card-accent: #00FFFF; }
-.briefing-card--alerts  { --card-accent: #ffaa00; }
-.briefing-card--ai      { --card-accent: #8b5cf6; }
+.briefing-card--activity {
+    --card-accent: #00ff41;
+    --card-accent-rgb: 0, 255, 65;
+}
+.briefing-card--alerts {
+    --card-accent: #f59e0b;
+    --card-accent-rgb: 245, 158, 11;
+}
+.briefing-card--ai {
+    --card-accent: #00ffff;
+    --card-accent-rgb: 0, 255, 255;
+}
 
 /* Activity list */
 .briefing-activity-list {
@@ -1962,6 +1988,13 @@ body.light-mode .footer-version {
     gap: 12px;
     padding: 6px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-left: 2px solid transparent;
+    padding-left: 6px;
+    transition: border-left-color 0.2s ease;
+}
+
+.briefing-activity-item:hover {
+    border-left-color: rgba(var(--card-accent-rgb), 0.4);
 }
 
 .briefing-activity-item:last-child {
@@ -2023,6 +2056,8 @@ body.light-mode .footer-version {
     gap: 8px;
     padding: 6px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-left: 2px solid transparent;
+    padding-left: 6px;
 }
 
 .briefing-alert-item:last-child {
@@ -2038,14 +2073,17 @@ body.light-mode .footer-version {
 
 .briefing-alert-item.alert-warning {
     color: #ffaa00;
+    border-left-color: rgba(255, 170, 0, 0.5);
 }
 
 .briefing-alert-item.alert-critical {
     color: #ff3b3b;
+    border-left-color: rgba(255, 59, 59, 0.5);
 }
 
 .briefing-alert-item.alert-info {
     color: #00CCFF;
+    border-left-color: rgba(0, 204, 255, 0.5);
 }
 
 .briefing-alert-text {
@@ -2091,7 +2129,8 @@ body.light-mode .footer-version {
     font-size: 28px;
     font-weight: 700;
     font-family: var(--archie-font-display, 'Orbitron', sans-serif);
-    color: #8b5cf6;
+    color: var(--card-accent);
+    text-shadow: 0 0 12px rgba(var(--card-accent-rgb), 0.4);
     line-height: 1;
     min-width: 56px;
     text-align: center;
@@ -2113,16 +2152,18 @@ body.light-mode .footer-version {
 }
 
 .briefing-ai-status-dot {
+    display: inline-block;
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #00FF41;
-    box-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
+    background: rgb(0, 255, 65);
+    box-shadow: 0 0 6px rgba(0, 255, 65, 0.5);
+    flex-shrink: 0;
 }
 
 .briefing-ai-status-dot.offline {
-    background: #ff3b3b;
-    box-shadow: 0 0 6px rgba(255, 59, 59, 0.6);
+    background: rgb(239, 68, 68);
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
 }
 
 .briefing-ai-status-text {
@@ -2135,13 +2176,48 @@ body.light-mode .footer-version {
 /* ─── Light Mode: Mission Briefing ─── */
 [data-theme="light"] .briefing-card,
 body.light-mode .briefing-card {
-    background: rgba(255, 255, 255, 0.7);
-    border-color: rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 0, 0, 0.08);
+    border-left-color: var(--card-accent);
+    box-shadow: none;
+}
+
+[data-theme="light"] .briefing-card::before,
+body.light-mode .briefing-card::before {
+    background: linear-gradient(
+        180deg,
+        rgba(var(--card-accent-rgb), 0.35) 0%,
+        rgba(var(--card-accent-rgb), 0.1) 50%,
+        rgba(var(--card-accent-rgb), 0.35) 100%
+    );
+}
+
+[data-theme="light"] .briefing-card:hover,
+body.light-mode .briefing-card:hover {
+    box-shadow: none;
+    border-color: rgba(0, 0, 0, 0.12);
+    border-left-color: var(--card-accent);
+}
+
+[data-theme="light"] .briefing-card-header,
+body.light-mode .briefing-card-header {
+    background: rgba(var(--card-accent-rgb), 0.06);
+    border-bottom-color: rgba(var(--card-accent-rgb), 0.15);
+}
+
+[data-theme="light"] .briefing-cap,
+body.light-mode .briefing-cap {
+    opacity: 0.6;
 }
 
 [data-theme="light"] .briefing-card-body,
 body.light-mode .briefing-card-body {
     color: #333;
+}
+
+[data-theme="light"] .briefing-card-body::-webkit-scrollbar-thumb,
+body.light-mode .briefing-card-body::-webkit-scrollbar-thumb {
+    background: rgba(var(--card-accent-rgb), 0.15);
 }
 
 [data-theme="light"] .briefing-activity-text,
@@ -2166,6 +2242,16 @@ body.light-mode .briefing-alert-item {
     border-bottom-color: rgba(0, 0, 0, 0.06);
 }
 
+[data-theme="light"] .briefing-activity-item:hover,
+body.light-mode .briefing-activity-item:hover {
+    border-left-color: rgba(var(--card-accent-rgb), 0.3);
+}
+
+[data-theme="light"] .briefing-ai-big-number,
+body.light-mode .briefing-ai-big-number {
+    text-shadow: none;
+}
+
 [data-theme="light"] .briefing-ai-stat-label,
 body.light-mode .briefing-ai-stat-label {
     color: #666;
@@ -2176,9 +2262,21 @@ body.light-mode .briefing-ai-status-text {
     color: #666;
 }
 
+[data-theme="light"] .briefing-ai-status-dot,
+body.light-mode .briefing-ai-status-dot {
+    box-shadow: none;
+}
+
 [data-theme="light"] .briefing-ai-status-row,
 body.light-mode .briefing-ai-status-row {
     border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+/* ─── Reduced Motion: Mission Briefing ─── */
+@media (prefers-reduced-motion: reduce) {
+    .briefing-card-header .lcars-dot.pulse {
+        animation: none;
+    }
 }
 
 /* ─── Mission Briefing Responsive: 717px ─── */
@@ -3095,8 +3193,10 @@ body.light-mode .module-card {
             <!-- Card 1: Recent Activity -->
             <div class="briefing-card briefing-card--activity">
                 <div class="briefing-card-header">
+                    <span class="briefing-cap"></span>
                     <i data-lucide="activity"></i>
                     <span data-i18n="section.recent_activity">Recent Activity</span>
+                    <span class="lcars-dot online pulse" style="margin-left:auto"></span>
                 </div>
                 <div class="briefing-card-body" id="briefingActivity">
                     <span class="briefing-muted" data-i18n="js.briefing.loading_activity">Loading activity...</span>
@@ -3105,8 +3205,10 @@ body.light-mode .module-card {
             <!-- Card 2: System Alerts -->
             <div class="briefing-card briefing-card--alerts">
                 <div class="briefing-card-header">
+                    <span class="briefing-cap"></span>
                     <i data-lucide="alert-triangle"></i>
                     <span data-i18n="section.system_alerts">System Alerts</span>
+                    <span class="lcars-dot online pulse" style="margin-left:auto"></span>
                 </div>
                 <div class="briefing-card-body" id="briefingAlerts">
                     <span class="briefing-muted" data-i18n="js.briefing.checking_alerts">Checking alerts...</span>
@@ -3115,8 +3217,10 @@ body.light-mode .module-card {
             <!-- Card 3: AI Insights -->
             <div class="briefing-card briefing-card--ai">
                 <div class="briefing-card-header">
+                    <span class="briefing-cap"></span>
                     <i data-lucide="brain"></i>
                     <span data-i18n="section.ai_insights">AI Insights</span>
+                    <span class="lcars-dot online pulse" style="margin-left:auto"></span>
                 </div>
                 <div class="briefing-card-body" id="briefingAi">
                     <span class="briefing-muted" data-i18n="js.briefing.loading_insights">Loading insights...</span>

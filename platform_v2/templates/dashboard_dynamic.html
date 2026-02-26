@@ -1360,23 +1360,30 @@ body.light-mode .cb-lang-option.active {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   HUD VITALS STRIP — 6 stat pods
+   HUD VITALS — LCARS Full Frame (cyan)
+   Uses lcars-frames.css structural classes + local content overrides
    ───────────────────────────────────────────────────────────────────────────── */
-.hud-vitals-strip {
+
+/* ── Outer wrapper ── */
+.hud-frame {
     position: relative;
     z-index: 10;
-    display: flex;
-    gap: 10px;
-    padding: 0 var(--archie-spacing-xl, 24px);
     margin-top: 12px;
-    overflow: hidden;
-    background: rgba(10, 10, 26, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-left: 3px solid rgba(0, 255, 65, 0.2);
-    border-bottom: 1px solid rgba(0, 255, 65, 0.06);
+    padding: 0 var(--archie-spacing-xl, 24px);
+    --frame-color: #00ffff;
+    --frame-rgb: 0, 255, 255;
 }
 
+/* ── Body layout: horizontal pods row ── */
+.hud-frame .lcars-body {
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* ── Pod cards inside frame ── */
 .hud-pod {
     flex: 1 1 0;
     min-width: 0;
@@ -1389,13 +1396,13 @@ body.light-mode .cb-lang-option.active {
     background: rgba(0, 0, 0, 0.35);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 255, 65, 0.15);
+    border: 1px solid rgba(0, 255, 255, 0.15);
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .hud-pod:hover {
-    border-color: rgba(0, 255, 65, 0.3);
-    box-shadow: 0 0 15px rgba(0, 255, 65, 0.06);
+    border-color: rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.06);
 }
 
 .hud-pod-label {
@@ -1470,15 +1477,17 @@ body.light-mode .cb-lang-option.active {
     stroke-width: 5;
     stroke-linecap: round;
     transition: stroke-dashoffset 1s ease, stroke 0.3s ease;
-    filter: drop-shadow(0 0 4px rgba(0, 255, 65, 0.4));
+    filter: drop-shadow(0 0 4px rgba(0, 255, 255, 0.4));
 }
 
 .hud-ring-fg.warning {
     stroke: #ffaa00;
+    filter: drop-shadow(0 0 4px rgba(255, 170, 0, 0.4));
 }
 
 .hud-ring-fg.critical {
     stroke: #ff3b3b;
+    filter: drop-shadow(0 0 4px rgba(255, 59, 59, 0.4));
 }
 
 .hud-ring-center {
@@ -1631,6 +1640,7 @@ body.light-mode .cb-icon-btn:hover {
     box-shadow: none;
 }
 
+/* ── HUD Frame Light Mode ── */
 [data-theme="light"] .hud-pod,
 body.light-mode .hud-pod {
     background: rgba(255, 255, 255, 0.6);
@@ -1640,13 +1650,6 @@ body.light-mode .hud-pod {
 [data-theme="light"] .hud-pod-label,
 body.light-mode .hud-pod-label {
     color: #555;
-}
-
-[data-theme="light"] .hud-vitals-strip,
-body.light-mode .hud-vitals-strip {
-    background: rgba(255, 255, 255, 0.7);
-    border-left-color: rgba(0, 0, 0, 0.06);
-    border-bottom-color: rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .hud-pod-value,
@@ -1805,9 +1808,12 @@ body.light-mode .footer-version {
     .cb-username, .cb-badge {
         display: none;
     }
-    .hud-vitals-strip {
+    .hud-frame {
         padding: 0 12px;
+    }
+    .hud-frame .lcars-body {
         gap: 8px;
+        padding: 10px 12px;
     }
     .hud-pod {
         padding: 8px 6px;
@@ -1848,12 +1854,15 @@ body.light-mode .footer-version {
         right: 8px;
         max-height: 50vh;
     }
-    .hud-vitals-strip {
+    .hud-frame {
+        padding: 0 8px;
+        margin-top: 8px;
+    }
+    .hud-frame .lcars-body {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
-        padding: 0 12px;
-        margin-top: 8px;
+        padding: 8px 10px;
         overflow-x: visible;
     }
     .hud-pod {
@@ -3247,76 +3256,112 @@ body.light-mode .module-card::before {
         </div>
     </div>
 
-    <!-- Section 3: HUD Vitals -->
-    <div id="hud-vitals" class="hud-vitals-strip" role="status" aria-label="System vitals">
-        <!-- Pod 1: SYSTEM health -->
-        <div class="hud-pod" id="hudPodSystem">
-            <span class="hud-pod-label" data-i18n="hud.system">SYSTEM</span>
-            <div class="hud-ring-wrap">
-                <svg viewBox="0 0 60 60">
-                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                    <circle class="hud-ring-fg" id="hudRingSystem" cx="30" cy="30" r="25"
-                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                </svg>
-                <div class="hud-ring-center" id="hudValSystem">--%</div>
+    <!-- Section 3: HUD Vitals — LCARS Full Frame (cyan) -->
+    <div class="hud-frame" style="--frame-color: #00ffff; --frame-rgb: 0,255,255">
+        <div class="lcars-frame">
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg-light" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg-light" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg" style="--seg-color: #0ea5e9"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-elbow-bottom"></div>
             </div>
-        </div>
-        <!-- Pod 2: CPU -->
-        <div class="hud-pod" id="hudPodCpu">
-            <span class="hud-pod-label" data-i18n="hud.cpu">CPU</span>
-            <div class="hud-ring-wrap">
-                <svg viewBox="0 0 60 60">
-                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                    <circle class="hud-ring-fg" id="hudRingCpu" cx="30" cy="30" r="25"
-                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                </svg>
-                <div class="hud-ring-center" id="hudValCpu">--%</div>
-            </div>
-        </div>
-        <!-- Pod 3: MEMORY -->
-        <div class="hud-pod" id="hudPodMem">
-            <span class="hud-pod-label" data-i18n="hud.memory">MEMORY</span>
-            <div class="hud-ring-wrap">
-                <svg viewBox="0 0 60 60">
-                    <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
-                    <circle class="hud-ring-fg" id="hudRingMem" cx="30" cy="30" r="25"
-                            stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
-                </svg>
-                <div class="hud-ring-center" id="hudValMem">--%</div>
-            </div>
-            <span class="hud-pod-sub" id="hudMemDetail">--/-- GB</span>
-        </div>
-        <!-- Pod 4: AI STATUS + AGENTS (stacked) -->
-        <div class="hud-pod hud-pod-dual" id="hudPodAiAgents">
-            <div class="hud-dual-top">
-                <span class="hud-pod-label" data-i18n="hud.ai_status">AI STATUS</span>
-                <div class="hud-dual-row">
-                    <div class="hud-ai-dot" id="hudAiDot"></div>
-                    <span class="hud-pod-value" id="hudValAi" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
+            <div class="lcars-content">
+                <div class="lcars-bar">
+                    <span class="lcars-bar-title" data-i18n="dashboard_hud_title">SYSTEM STATUS</span>
+                    <div class="lcars-bar-spacer"></div>
+                    <div class="lcars-pips">
+                        <span class="lcars-pip" style="width:20px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:35px; background:rgba(0,0,0,0.3)"></span>
+                        <span class="lcars-pip" style="width:14px; background:rgba(0,0,0,0.3)"></span>
+                    </div>
+                    <span class="lcars-bar-status" id="hudUptime" data-i18n-title="dashboard_hud_uptime">--</span>
                 </div>
-            </div>
-            <div class="hud-dual-divider"></div>
-            <div class="hud-dual-bottom">
-                <span class="hud-pod-label" data-i18n="hud.agents">AGENTS</span>
-                <div class="hud-dual-row">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    <span class="hud-pod-value" id="hudValAgents" style="font-size:13px;">0</span>
+                <div class="lcars-body" id="hud-vitals" role="status" aria-label="System vitals">
+                    <!-- Pod 1: SYSTEM health -->
+                    <div class="hud-pod" id="hudPodSystem">
+                        <span class="hud-pod-label" data-i18n="hud.system">SYSTEM</span>
+                        <div class="hud-ring-wrap">
+                            <svg viewBox="0 0 60 60">
+                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                                <circle class="hud-ring-fg" id="hudRingSystem" cx="30" cy="30" r="25"
+                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                            </svg>
+                            <div class="hud-ring-center" id="hudValSystem">--%</div>
+                        </div>
+                    </div>
+                    <!-- Pod 2: CPU -->
+                    <div class="hud-pod" id="hudPodCpu">
+                        <span class="hud-pod-label" data-i18n="hud.cpu">CPU</span>
+                        <div class="hud-ring-wrap">
+                            <svg viewBox="0 0 60 60">
+                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                                <circle class="hud-ring-fg" id="hudRingCpu" cx="30" cy="30" r="25"
+                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                            </svg>
+                            <div class="hud-ring-center" id="hudValCpu">--%</div>
+                        </div>
+                    </div>
+                    <!-- Pod 3: MEMORY -->
+                    <div class="hud-pod" id="hudPodMem">
+                        <span class="hud-pod-label" data-i18n="hud.memory">MEMORY</span>
+                        <div class="hud-ring-wrap">
+                            <svg viewBox="0 0 60 60">
+                                <circle class="hud-ring-bg" cx="30" cy="30" r="25"/>
+                                <circle class="hud-ring-fg" id="hudRingMem" cx="30" cy="30" r="25"
+                                        stroke-dasharray="157.08" stroke-dashoffset="157.08"/>
+                            </svg>
+                            <div class="hud-ring-center" id="hudValMem">--%</div>
+                        </div>
+                        <span class="hud-pod-sub" id="hudMemDetail">--/-- GB</span>
+                    </div>
+                    <!-- Pod 4: AI STATUS + AGENTS (stacked) -->
+                    <div class="hud-pod hud-pod-dual" id="hudPodAiAgents">
+                        <div class="hud-dual-top">
+                            <span class="hud-pod-label" data-i18n="hud.ai_status">AI STATUS</span>
+                            <div class="hud-dual-row">
+                                <div class="hud-ai-dot" id="hudAiDot"></div>
+                                <span class="hud-pod-value" id="hudValAi" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
+                            </div>
+                        </div>
+                        <div class="hud-dual-divider"></div>
+                        <div class="hud-dual-bottom">
+                            <span class="hud-pod-label" data-i18n="hud.agents">AGENTS</span>
+                            <div class="hud-dual-row">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                <span class="hud-pod-value" id="hudValAgents" style="font-size:13px;">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Pod 5: A.R.C.H.I.E. + UPTIME (stacked) -->
+                    <div class="hud-pod hud-pod-dual" id="hudPodArchieUptime">
+                        <div class="hud-dual-top">
+                            <span class="hud-pod-label" data-i18n="hud.archie">A.R.C.H.I.E.</span>
+                            <div class="hud-dual-row">
+                                <div class="hud-archie-dot online" id="hudArchieDot"></div>
+                                <span class="hud-pod-value" id="hudValArchie" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
+                            </div>
+                        </div>
+                        <div class="hud-dual-divider"></div>
+                        <div class="hud-dual-bottom">
+                            <span class="hud-pod-label" data-i18n="hud.uptime">UPTIME</span>
+                            <span class="hud-pod-value" id="hudValUptime" style="font-size:13px;">--h --m</span>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <!-- Pod 5: A.R.C.H.I.E. + UPTIME (stacked) -->
-        <div class="hud-pod hud-pod-dual" id="hudPodArchieUptime">
-            <div class="hud-dual-top">
-                <span class="hud-pod-label" data-i18n="hud.archie">A.R.C.H.I.E.</span>
-                <div class="hud-dual-row">
-                    <div class="hud-archie-dot online" id="hudArchieDot"></div>
-                    <span class="hud-pod-value" id="hudValArchie" style="font-size:13px;" data-i18n="status.online">ONLINE</span>
+                <div class="lcars-footer-bar">
+                    <span class="lcars-footer-stardate" id="hudStardate" data-i18n="dashboard_hud_stardate">SD 79145.7</span>
+                    <span class="lcars-footer-stardate" data-i18n="dashboard_version_label">v{{ config.get('VERSION','5.32.0') }}</span>
+                    <div class="lcars-footer-dots">
+                        <span class="lcars-footer-dot" style="background:#00ffff"></span>
+                        <span class="lcars-footer-dot" style="background:#00ff41"></span>
+                        <span class="lcars-footer-dot" style="background:#0ea5e9"></span>
+                    </div>
                 </div>
-            </div>
-            <div class="hud-dual-divider"></div>
-            <div class="hud-dual-bottom">
-                <span class="hud-pod-label" data-i18n="hud.uptime">UPTIME</span>
-                <span class="hud-pod-value" id="hudValUptime" style="font-size:13px;">--h --m</span>
             </div>
         </div>
     </div>

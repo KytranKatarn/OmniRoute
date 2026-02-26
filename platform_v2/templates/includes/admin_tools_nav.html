@@ -1,7 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════════
-   Admin Tools Navigation Bar — LCARS Command Bar Frame
-   Shared component for Account Center, System Operations, Backup Manager, Security & Network
-   Matches Dashboard command bar pattern: sidebar + thin bar + body + footer bar
+   Admin Tools Navigation Bar — LCARS Compact Command Bar
+   Matches Dashboard command bar exactly: user info | modules | utils
    ═══════════════════════════════════════════════════════════════════════════════ -->
 
 <!-- Page Transition Overlay -->
@@ -15,74 +14,42 @@
     </div>
 </div>
 
-<!-- Admin Tools — LCARS Compact Command Bar Frame -->
+<!-- Admin Tools — LCARS Compact Command Bar (Dashboard-matching) -->
 <nav class="category-nav admin-tools-nav" style="padding: 0; background: transparent; border: none; box-shadow: none;">
-    <div style="--frame-color: var(--cat-accent, #f97316); --frame-rgb: 249,115,22; width: 100%;">
+    <div style="--frame-color: var(--cat-accent, #f97316); --frame-rgb: 249,115,22; width: 100%; background: var(--archie-bg-primary, #010409);">
         <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
             <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
-                <div class="lcars-elbow-top" style="height: 52px !important; background: var(--cat-accent, #f97316) !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
-                <div class="lcars-elbow-bottom" style="height: 28px !important; background: var(--cat-accent, #f97316) !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important; transform: scaleY(-1) !important;"></div>
-                <div class="lcars-seg" style="height: 12px !important; border-radius: 0 8px 8px 0 !important; background: var(--cat-accent, #f97316) !important; flex-shrink: 0 !important;"></div>
-                <div class="lcars-seg" style="height: 12px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-                <div class="lcars-elbow-bottom" style="height: 36px !important; background: var(--cat-accent, #f97316) !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                <div class="lcars-elbow-top" style="display: none !important;"></div>
+                <div class="lcars-elbow-bottom" style="display: block !important; opacity: 1 !important; max-height: none !important; overflow: visible !important; transform: scaleY(-1) !important; height: 28px !important; background: var(--cat-accent, #f97316) !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+                <div class="lcars-seg" style="min-height: 12px !important; height: 12px !important; border-radius: 0 8px 8px 0 !important; background: var(--cat-accent, #f97316) !important; flex-shrink: 0 !important;"></div>
+                <div class="lcars-seg" style="min-height: 12px !important; height: 12px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
+                <div class="lcars-elbow-bottom" style="display: block !important; opacity: 1 !important; max-height: none !important; overflow: visible !important; height: 36px !important; background: var(--cat-accent, #f97316) !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
             </div>
             <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                <!-- Thin bar across the top -->
                 <div class="lcars-bar" style="background: var(--cat-accent, #f97316) !important; height: 14px !important; min-height: 14px !important; flex-shrink: 0 !important; border-radius: 0 20px 20px 0 !important; padding: 0 !important;"></div>
-                <!-- Nav body — same 3-zone layout as Dashboard command bar -->
                 <div class="lcars-body" role="navigation" aria-label="Admin Tools navigation" style="display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 12px !important; padding: 4px 16px !important; flex: 1 !important; font-family: var(--archie-font-mono, 'JetBrains Mono', monospace) !important;">
-                    <!-- Left Zone: Dashboard back + Category label -->
-                    <div class="nav-left" style="display: flex; align-items: center; gap: 8px;">
-                        <a href="{{ url_for('dashboard') }}" class="nav-back-btn" onclick="showTransition(event, this.href)">
-                            <i data-lucide="arrow-left"></i>
-                            <span>DASHBOARD</span>
+                    <div class="cn-zone cn-zone-left">
+                        <a href="{{ url_for('dashboard') }}" class="cn-back" onclick="showTransition(event, this.href)" title="Back to Dashboard">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                         </a>
-                        <span class="nav-category-label">
-                            <i data-lucide="settings-2"></i>
-                            ADMIN TOOLS
-                        </span>
+                        <div class="cn-avatar">{{ current_user.username[0] | upper }}</div>
+                        <span class="cn-username">{{ current_user.username }}</span>
+                        {% if current_user.is_admin %}<span class="cn-badge cn-badge-role">ADMIN</span>{% endif %}
                     </div>
-                    <!-- Center Zone: Module buttons -->
-                    <div class="nav-modules" style="display: flex; align-items: center; gap: 6px;">
-                        <a href="{{ url_for('account_center.index') }}"
-                           class="nav-module-btn {% if request.endpoint and 'account_center' in request.endpoint %}active{% endif %}"
-                           onclick="showTransition(event, this.href)"
-                           title="Account Center">
-                            <i data-lucide="user"></i>
-                            <span>Accounts</span>
-                        </a>
-                        <a href="{{ url_for('system_operations.index') }}"
-                           class="nav-module-btn {% if request.endpoint and 'system_operations' in request.endpoint %}active{% endif %}"
-                           onclick="showTransition(event, this.href)"
-                           title="System Operations">
-                            <i data-lucide="server"></i>
-                            <span>System Ops</span>
-                        </a>
-                        <a href="{{ url_for('backup_manager.index') }}"
-                           class="nav-module-btn {% if request.endpoint and 'backup_manager' in request.endpoint %}active{% endif %}"
-                           onclick="showTransition(event, this.href)"
-                           title="Backup Manager">
-                            <i data-lucide="hard-drive"></i>
-                            <span>Backups</span>
-                        </a>
-                        <a href="{{ url_for('security_network.index') }}"
-                           class="nav-module-btn {% if request.endpoint and 'security_network' in request.endpoint %}active{% endif %}"
-                           onclick="showTransition(event, this.href)"
-                           title="Security & Network">
-                            <i data-lucide="shield"></i>
-                            <span>Security</span>
-                        </a>
+                    <div class="cn-zone cn-zone-center">
+                        <span class="cn-category-label"><i data-lucide="settings-2"></i> ADMIN TOOLS</span>
+                        <a href="{{ url_for('account_center.index') }}" class="nav-module-btn {% if request.endpoint and 'account_center' in request.endpoint %}active{% endif %}" onclick="showTransition(event, this.href)" title="Account Center"><i data-lucide="user"></i><span>Accounts</span></a>
+                        <a href="{{ url_for('system_operations.index') }}" class="nav-module-btn {% if request.endpoint and 'system_operations' in request.endpoint %}active{% endif %}" onclick="showTransition(event, this.href)" title="System Operations"><i data-lucide="server"></i><span>System Ops</span></a>
+                        <a href="{{ url_for('backup_manager.index') }}" class="nav-module-btn {% if request.endpoint and 'backup_manager' in request.endpoint %}active{% endif %}" onclick="showTransition(event, this.href)" title="Backup Manager"><i data-lucide="hard-drive"></i><span>Backups</span></a>
+                        <a href="{{ url_for('security_network.index') }}" class="nav-module-btn {% if request.endpoint and 'security_network' in request.endpoint %}active{% endif %}" onclick="showTransition(event, this.href)" title="Security & Network"><i data-lucide="shield"></i><span>Security</span></a>
                     </div>
-                    <!-- Right Zone: Utils -->
-                    <div class="nav-utils" style="display: flex; align-items: center; gap: 6px;">
-                        <!-- Theme toggle — cyan -->
-                        <button class="nav-icon-btn" data-accent="cyan" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+                    <div class="cn-zone cn-zone-right">
+                        <button class="cn-icon-btn" data-accent="cyan" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
                             <svg id="navThemeIconSun" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><circle cx="12" cy="12" r="5"/><rect x="11" y="1" width="2" height="4" rx="1"/><rect x="11" y="19" width="2" height="4" rx="1"/><rect x="1" y="11" width="4" height="2" rx="1"/><rect x="19" y="11" width="4" height="2" rx="1"/></svg>
                             <svg id="navThemeIconMoon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
                         </button>
-                        <!-- Language — purple -->
                         <div style="position:relative;">
-                            <button class="nav-icon-btn" data-accent="purple" id="navLangBtn" onclick="toggleNavLangMenu()" title="Language">
+                            <button class="cn-icon-btn" data-accent="purple" id="navLangBtn" onclick="toggleNavLangMenu()" title="Language">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
                             </button>
                             <div class="nav-lang-menu hidden" id="navLangMenu">
@@ -96,19 +63,13 @@
                                 <button class="nav-lang-option" data-lang="he">&#x05E2;&#x05D1;&#x05E8;&#x05D9;&#x05EA;</button>
                             </div>
                         </div>
-                        <!-- Dev HQ — green -->
                         {% if current_user.is_authenticated and current_user.is_admin %}
-                        <a href="{{ url_for('dev_hq.index') }}"
-                           class="nav-icon-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
-                           data-accent="green"
-                           onclick="showTransition(event, this.href)"
-                           title="Dev HQ">
+                        <a href="{{ url_for('dev_hq.index') }}" class="cn-icon-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}" data-accent="green" onclick="showTransition(event, this.href)" title="Dev HQ">
                             <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
                         </a>
                         {% endif %}
                     </div>
                 </div>
-                <!-- Footer bar -->
                 <div class="lcars-footer-bar" style="background: var(--cat-accent, #f97316) !important; height: 10px !important; min-height: 10px !important; flex-shrink: 0 !important; display: flex !important; border-radius: 0 20px 20px 0 !important;"></div>
             </div>
         </div>
@@ -116,96 +77,39 @@
 </nav>
 
 <style>
-/* Admin Tools — Orange accent */
 .admin-tools-nav { --cat-accent: #f97316; --cat-accent-light: #ea580c; }
-/* Reset nav background since LCARS frame provides the structure */
 .admin-tools-nav.category-nav { background: transparent !important; border-bottom: none !important; box-shadow: none !important; min-height: auto !important; }
+.cn-zone { display: flex; align-items: center; gap: 10px; }
+.cn-zone-left { gap: 8px; flex-shrink: 0; }
+.cn-zone-center { display: flex; align-items: center; gap: 6px; flex: 1; justify-content: center; }
+.cn-zone-right { gap: 6px; flex-shrink: 0; }
+.cn-back { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; color: rgba(255,255,255,0.5); text-decoration: none; transition: color 0.2s, background 0.2s; }
+.cn-back:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.cn-back svg { width: 16px; height: 16px; }
+.cn-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--cat-accent, #f97316) 0%, #00CCFF 100%); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #000; text-transform: uppercase; flex-shrink: 0; }
+.cn-username { font-size: 13px; font-weight: 600; color: #e0e0e0; white-space: nowrap; }
+.cn-badge { font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 2px 7px; border-radius: 8px; white-space: nowrap; }
+.cn-badge-role { background: rgba(var(--cat-accent-rgb, 249,115,22), 0.1); color: var(--cat-accent, #f97316); border: 1px solid rgba(var(--cat-accent-rgb, 249,115,22), 0.3); }
+.cn-category-label { display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--cat-accent, #f97316); text-transform: uppercase; white-space: nowrap; padding-right: 6px; border-right: 1px solid rgba(255,255,255,0.1); margin-right: 2px; }
+.cn-category-label i, .cn-category-label svg { width: 14px; height: 14px; }
+.cn-icon-btn { display: flex; align-items: center; justify-content: center; width: 40px; height: 32px; border-radius: 2px 8px 8px 2px; border: 1px solid rgba(255,255,255,0.06); border-left: 3px solid var(--btn-accent, var(--cat-accent, #f97316)); background: rgba(255,255,255,0.06); color: var(--btn-accent, var(--cat-accent, #f97316)); cursor: pointer; transition: color 0.2s, background 0.2s, box-shadow 0.2s; position: relative; text-decoration: none; }
+.cn-icon-btn:hover { color: #fff; background: rgba(var(--btn-accent-rgb, 249,115,22), 0.2); box-shadow: 0 0 10px rgba(var(--btn-accent-rgb, 249,115,22), 0.3); }
+.cn-icon-btn svg { width: 18px; height: 18px; shape-rendering: crispEdges; }
+.cn-icon-btn[data-accent="cyan"]   { --btn-accent: #00ffff; --btn-accent-rgb: 0,255,255; }
+.cn-icon-btn[data-accent="purple"] { --btn-accent: #a78bfa; --btn-accent-rgb: 167,139,250; }
+.cn-icon-btn[data-accent="green"]  { --btn-accent: #00ff41; --btn-accent-rgb: 0,255,65; }
 </style>
 
 <script>
-// Page Transition Handler
-function showTransition(event, targetUrl) {
-    if (event.currentTarget.classList.contains('active')) {
-        event.preventDefault();
-        return;
-    }
-    event.preventDefault();
-    var overlay = document.getElementById('pageTransition');
-    overlay.classList.add('active');
-    setTimeout(function() {
-        window.location.href = targetUrl;
-    }, 600);
-}
-
-// Initialize Lucide icons in nav
+function showTransition(event, targetUrl) { if (event.currentTarget.classList.contains('active')) { event.preventDefault(); return; } event.preventDefault(); var o = document.getElementById('pageTransition'); o.classList.add('active'); setTimeout(function() { window.location.href = targetUrl; }, 600); }
+document.addEventListener('DOMContentLoaded', function() { if (typeof lucide !== 'undefined') lucide.createIcons(); });
+window.addEventListener('pageshow', function() { var o = document.getElementById('pageTransition'); if (o) o.classList.remove('active'); });
+function toggleNavLangMenu() { var m = document.getElementById('navLangMenu'); if (m) m.classList.toggle('hidden'); }
+document.addEventListener('click', function(e) { var m = document.getElementById('navLangMenu'), b = document.getElementById('navLangBtn'); if (!m || m.classList.contains('hidden')) return; if (!m.contains(e.target) && e.target !== b && !b.contains(e.target)) m.classList.add('hidden'); });
 document.addEventListener('DOMContentLoaded', function() {
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-});
-
-// Hide transition on page load (for back button)
-window.addEventListener('pageshow', function() {
-    var overlay = document.getElementById('pageTransition');
-    if (overlay) overlay.classList.remove('active');
-});
-
-// ═══════════════════════════════════════════════════════════════════════
-// LANGUAGE DROPDOWN
-// ═══════════════════════════════════════════════════════════════════════
-function toggleNavLangMenu() {
-    var menu = document.getElementById('navLangMenu');
-    if (menu) menu.classList.toggle('hidden');
-}
-
-// Close on outside click
-document.addEventListener('click', function(e) {
-    var menu = document.getElementById('navLangMenu');
-    var btn = document.getElementById('navLangBtn');
-    if (!menu || menu.classList.contains('hidden')) return;
-    if (!menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
-        menu.classList.add('hidden');
-    }
-});
-
-// Language selection
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.nav-lang-option').forEach(function(opt) {
-        opt.addEventListener('click', function() {
-            var lang = opt.getAttribute('data-lang');
-            document.querySelectorAll('.nav-lang-option').forEach(function(o) { o.classList.remove('active'); });
-            opt.classList.add('active');
-            document.getElementById('navLangMenu').classList.add('hidden');
-            if (window.archieI18n) {
-                archieI18n.switchLanguage(lang);
-            }
-        });
-    });
-
-    // Sync active language on load
-    if (window.archieI18n) {
-        archieI18n.init();
-        setTimeout(function() {
-            var curLang = archieI18n.getCurrentLanguage();
-            document.querySelectorAll('.nav-lang-option').forEach(function(o) {
-                o.classList.toggle('active', o.getAttribute('data-lang') === curLang);
-            });
-        }, 600);
-    }
-
-    // Theme icon sync
-    function syncNavThemeIcons() {
-        var sunIcon = document.getElementById('navThemeIconSun');
-        var moonIcon = document.getElementById('navThemeIconMoon');
-        if (!sunIcon || !moonIcon) return;
-        var isLight = document.documentElement.getAttribute('data-theme') === 'light' ||
-                      document.body.classList.contains('light-mode');
-        sunIcon.style.display = isLight ? 'none' : 'inline-block';
-        moonIcon.style.display = isLight ? 'inline-block' : 'none';
-    }
-    syncNavThemeIcons();
-    var navThemeObs = new MutationObserver(syncNavThemeIcons);
-    navThemeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    navThemeObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    document.querySelectorAll('.nav-lang-option').forEach(function(o) { o.addEventListener('click', function() { document.querySelectorAll('.nav-lang-option').forEach(function(x) { x.classList.remove('active'); }); o.classList.add('active'); document.getElementById('navLangMenu').classList.add('hidden'); if (window.archieI18n) archieI18n.switchLanguage(o.getAttribute('data-lang')); }); });
+    if (window.archieI18n) { archieI18n.init(); setTimeout(function() { var c = archieI18n.getCurrentLanguage(); document.querySelectorAll('.nav-lang-option').forEach(function(o) { o.classList.toggle('active', o.getAttribute('data-lang') === c); }); }, 600); }
+    function syncIcons() { var s = document.getElementById('navThemeIconSun'), m = document.getElementById('navThemeIconMoon'); if (!s||!m) return; var l = document.documentElement.getAttribute('data-theme')==='light'||document.body.classList.contains('light-mode'); s.style.display=l?'none':'inline-block'; m.style.display=l?'inline-block':'none'; }
+    syncIcons(); var obs = new MutationObserver(syncIcons); obs.observe(document.documentElement, {attributes:true,attributeFilter:['data-theme']}); obs.observe(document.body, {attributes:true,attributeFilter:['class']});
 });
 </script>

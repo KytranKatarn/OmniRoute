@@ -563,36 +563,56 @@ body.light-mode #matrix-rain {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   DASHBOARD SECTION PLACEHOLDERS
+   COMMAND BAR — LCARS Compact Frame (sticky top)
+   Uses lcars-frames.css structural classes + local content overrides
    ───────────────────────────────────────────────────────────────────────────── */
-/* ─────────────────────────────────────────────────────────────────────────────
-   COMMAND BAR — Fixed 48px top bar
-   ───────────────────────────────────────────────────────────────────────────── */
-.command-bar {
-    position: fixed;
+
+/* ── Outer wrapper: sticky positioning ── */
+.command-bar-frame {
+    position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
-    height: 48px;
     z-index: 100;
+    --frame-color: #00ff41;
+    --frame-rgb: 0, 255, 65;
+}
+
+/* Override compact frame bar for command bar specifics */
+.command-bar-frame .lcars-frame--compact .lcars-bar {
+    height: 44px;
+    background: var(--frame-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 0 16px;
-    background: rgba(10, 10, 26, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-left: 4px solid rgba(0, 255, 65, 0.3);
-    border-bottom: 1px solid rgba(0, 255, 65, 0.1);
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 255, 65, 0.03);
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
     font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
 }
 
-.command-bar.scrolled {
-    border-bottom-color: rgba(0, 255, 65, 0.15);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 255, 65, 0.05);
+/* The command-bar ID is preserved for JS scroll detection */
+#command-bar {
+    /* Reset — actual styling comes from .lcars-bar */
+}
+
+#command-bar.scrolled {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Glass backing behind the bar content (dark mode) ── */
+.command-bar-frame .lcars-content {
+    background: rgba(10, 10, 26, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 0;
+}
+
+.command-bar-frame .lcars-bar {
+    background: transparent !important;
+    border-radius: 0 !important;
+}
+
+/* ── Elbow: dark bg behind the cutout ── */
+.command-bar-frame .lcars-elbow-top::after {
+    background: rgba(10, 10, 26, 0.85);
 }
 
 /* Command Bar Zones */
@@ -726,8 +746,8 @@ body.light-mode #matrix-rain {
     background: rgba(15, 15, 30, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(0, 255, 65, 0.12);
-    border-left: 3px solid rgba(0, 255, 65, 0.3);
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-left: 3px solid rgba(0, 255, 65, 0.4);
     border-radius: 0 12px 12px 0;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 255, 65, 0.06);
     z-index: 200;
@@ -815,7 +835,7 @@ body.light-mode #matrix-rain {
     letter-spacing: 0.08em;
 }
 
-/* Light mode */
+/* Light mode search popover */
 [data-theme="light"] .cb-search-popover,
 body.light-mode .cb-search-popover {
     background: rgba(255, 255, 255, 0.95);
@@ -924,8 +944,8 @@ body.light-mode .cb-search-result-icon {
     background: rgba(15, 15, 30, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(0, 255, 65, 0.12);
-    border-left: 3px solid rgba(0, 255, 65, 0.3);
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-left: 3px solid rgba(0, 255, 65, 0.4);
     border-radius: 0 12px 12px 0;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px rgba(0, 255, 65, 0.06);
     z-index: 300;
@@ -1072,7 +1092,7 @@ body.light-mode .cb-search-result-icon {
     letter-spacing: 1px;
 }
 
-/* Light mode */
+/* Light mode notifications popover */
 [data-theme="light"] .cb-notif-popover,
 body.light-mode .cb-notif-popover {
     background: rgba(255, 255, 255, 0.95);
@@ -1283,13 +1303,14 @@ body.light-mode .cb-notif-modal-meta-item strong { color: rgba(0,0,0,0.55); }
 /* Language dropdown menu */
 .cb-lang-menu {
     position: fixed;
-    top: 44px;
+    top: 56px;
     right: 24px;
     background: rgba(20, 20, 30, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-left: 3px solid rgba(0, 255, 65, 0.4);
+    border-radius: 0 12px 12px 0;
     padding: 6px 0;
     min-width: 140px;
     z-index: 200;
@@ -1320,7 +1341,9 @@ body.light-mode .cb-notif-modal-meta-item strong { color: rgba(0,0,0,0.55); }
 body.light-mode .cb-lang-menu {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(0, 0, 0, 0.1);
+    border-left-color: rgba(0, 0, 0, 0.1);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
 }
 [data-theme="light"] .cb-lang-option,
 body.light-mode .cb-lang-option {
@@ -1345,7 +1368,7 @@ body.light-mode .cb-lang-option.active {
     display: flex;
     gap: 10px;
     padding: 0 var(--archie-spacing-xl, 24px);
-    margin-top: 60px;
+    margin-top: 12px;
     overflow: hidden;
     background: rgba(10, 10, 26, 0.6);
     backdrop-filter: blur(12px);
@@ -1539,20 +1562,25 @@ body.light-mode .cb-lang-option.active {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   LIGHT MODE OVERRIDES — Command Bar & HUD
+   LIGHT MODE OVERRIDES — Command Bar Frame & HUD
    ───────────────────────────────────────────────────────────────────────────── */
-[data-theme="light"] .command-bar,
-body.light-mode .command-bar {
-    background: rgba(255, 255, 255, 0.9);
-    border-left-color: rgba(0, 0, 0, 0.08);
-    border-bottom-color: rgba(0, 0, 0, 0.1);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+
+/* LCARS frame light mode: glass bg becomes white */
+[data-theme="light"] .command-bar-frame .lcars-content,
+body.light-mode .command-bar-frame .lcars-content {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
-[data-theme="light"] .command-bar.scrolled,
-body.light-mode .command-bar.scrolled {
-    border-bottom-color: rgba(0, 0, 0, 0.15);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+[data-theme="light"] .command-bar-frame .lcars-elbow-top::after,
+body.light-mode .command-bar-frame .lcars-elbow-top::after {
+    background: rgba(255, 255, 255, 0.92);
+}
+
+[data-theme="light"] #command-bar.scrolled,
+body.light-mode #command-bar.scrolled {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .cb-username,
@@ -1797,10 +1825,11 @@ body.light-mode .footer-version {
     }
 }
 
-/* ─── Command Bar + HUD responsive: 374px (mobile) ─── */
+/* ─── Command Bar + HUD responsive: 480px (mobile) ─── */
 @media (max-width: 480px) {
-    .command-bar {
+    .command-bar-frame .lcars-bar {
         padding: 0 8px;
+        gap: 8px;
     }
     .cb-zone-center {
         flex: 1 1 0;
@@ -1824,7 +1853,7 @@ body.light-mode .footer-version {
         grid-template-columns: 1fr 1fr;
         gap: 8px;
         padding: 0 12px;
-        margin-top: 56px;
+        margin-top: 8px;
         overflow-x: visible;
     }
     .hud-pod {
@@ -3062,6 +3091,8 @@ body.light-mode .module-card::before {
 {% endblock %}
 
 {% block extra_head %}
+<!-- LCARS structural frames (elbows, sidebars, bars) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 <!-- LCARS shared panels (animations, inputs, buttons) -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-panels.css') }}">
 <!-- Font Awesome 6 (category header icons use fas fa-* classes) -->
@@ -3118,87 +3149,101 @@ body.light-mode .module-card::before {
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="dashboard-content" id="dashboardContent">
 
-    <!-- Section 3: Command Bar -->
-    <div id="command-bar" class="command-bar" role="navigation" aria-label="Dashboard command bar">
-        <!-- Left Zone: User info -->
-        <div class="cb-zone cb-zone-left">
-            <div class="cb-avatar">{{ current_user.username[0] | upper }}</div>
-            <span class="cb-username">{{ current_user.username }}</span>
-            <span class="cb-badge cb-badge-role">{{ dashboard_data.user_role }}</span>
-            <span class="cb-badge cb-badge-tier">{{ dashboard_data.subscription_tier }}</span>
-        </div>
-        <!-- Center Zone: Search -->
-        <div class="cb-zone cb-zone-center">
-            <div class="cb-search">
-                <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search..." data-i18n-placeholder="cmd.search_placeholder" autocomplete="off" />
-                <span class="cb-search-hint">Ctrl+K</span>
-                <div class="cb-search-popover" id="cbSearchPopover"></div>
+    <!-- Section 3: Command Bar — LCARS Compact Frame -->
+    <div class="command-bar-frame" style="--frame-color: #00ff41; --frame-rgb: 0,255,65">
+        <div class="lcars-frame lcars-frame--compact">
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
             </div>
-        </div>
-        <!-- Right Zone: Actions -->
-        <div class="cb-zone cb-zone-right">
-            <!-- Notifications -->
-            <div style="position:relative;">
-                <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
-                    <i data-lucide="bell"></i>
-                    <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
-                </button>
-                <div class="cb-notif-overlay" id="cbNotifOverlay"></div>
-                <div class="cb-notif-popover" id="cbNotifPopover">
-                    <div class="cb-notif-header">
-                        <span class="cb-notif-title" data-i18n="js.notif.title">Notifications</span>
-                        <button class="cb-notif-mark-all" id="cbNotifMarkAll" data-i18n="js.notif.mark_all_read">Mark all read</button>
+            <div class="lcars-content">
+                <div class="lcars-bar" id="command-bar" role="navigation" aria-label="Dashboard command bar">
+                    <!-- Left Zone: User info -->
+                    <div class="cb-zone cb-zone-left">
+                        <div class="cb-avatar">{{ current_user.username[0] | upper }}</div>
+                        <span class="cb-username">{{ current_user.username }}</span>
+                        <span class="cb-badge cb-badge-role">{{ dashboard_data.user_role }}</span>
+                        <span class="cb-badge cb-badge-tier">{{ dashboard_data.subscription_tier }}</span>
                     </div>
-                    <div class="cb-notif-list" id="cbNotifList">
-                        <div class="cb-notif-empty" data-i18n="js.notif.loading">Loading...</div>
+                    <!-- Center Zone: Search -->
+                    <div class="cb-zone cb-zone-center">
+                        <div class="cb-search">
+                            <svg class="cb-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" class="cb-search-input" id="cbSearchInput" placeholder="Search..." data-i18n-placeholder="cmd.search_placeholder" autocomplete="off" />
+                            <span class="cb-search-hint">Ctrl+K</span>
+                            <div class="cb-search-popover" id="cbSearchPopover"></div>
+                        </div>
+                    </div>
+                    <!-- Right Zone: Actions -->
+                    <div class="cb-zone cb-zone-right">
+                        <!-- Notifications -->
+                        <div style="position:relative;">
+                            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" data-i18n-title="js.nav.notifications" aria-label="Notifications">
+                                <i data-lucide="bell"></i>
+                                <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
+                            </button>
+                        </div>
+                        <!-- Theme toggle -->
+                        <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
+                            <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
+                            <i data-lucide="moon" id="cbThemeIconMoon"></i>
+                        </button>
+                        <!-- Language -->
+                        <button class="cb-icon-btn" id="cbLangBtn" title="Language" data-i18n-title="js.nav.language" aria-label="Change language" onclick="toggleLangMenu(this);">
+                            <i data-lucide="languages"></i>
+                        </button>
+                        {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
+                        <!-- Dev HQ -->
+                        <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" data-i18n-title="js.nav.dev_hq" aria-label="Dev HQ">
+                            <i data-lucide="compass"></i>
+                        </a>
+                        {% endif %}
+                        <!-- Logout -->
+                        <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout" id="cbLogoutBtn" onclick="event.preventDefault(); startShutdownSequence();">
+                            <i data-lucide="log-out"></i>
+                        </a>
                     </div>
                 </div>
             </div>
-            <!-- Notification Detail Modal -->
-            <div class="cb-notif-modal-overlay" id="cbNotifModal">
-                <div class="cb-notif-modal">
-                    <div class="cb-notif-modal-header">
-                        <div class="cb-notif-modal-dot" id="cbNotifModalDot"></div>
-                        <span class="cb-notif-modal-title" id="cbNotifModalTitle"></span>
-                        <button class="cb-notif-modal-close" id="cbNotifModalClose" aria-label="Close">&times;</button>
-                    </div>
-                    <div class="cb-notif-modal-body">
-                        <div class="cb-notif-modal-message" id="cbNotifModalMsg"></div>
-                        <div class="cb-notif-modal-meta" id="cbNotifModalMeta"></div>
-                    </div>
-                    <div class="cb-notif-modal-footer" id="cbNotifModalFooter"></div>
+        </div>
+        <!-- Popovers & modals — outside frame for proper overlay z-index -->
+        <div class="cb-notif-overlay" id="cbNotifOverlay"></div>
+        <div class="cb-notif-popover" id="cbNotifPopover">
+            <div class="cb-notif-header">
+                <span class="cb-notif-title" data-i18n="js.notif.title">Notifications</span>
+                <button class="cb-notif-mark-all" id="cbNotifMarkAll" data-i18n="js.notif.mark_all_read">Mark all read</button>
+            </div>
+            <div class="cb-notif-list" id="cbNotifList">
+                <div class="cb-notif-empty" data-i18n="js.notif.loading">Loading...</div>
+            </div>
+        </div>
+        <!-- Notification Detail Modal -->
+        <div class="cb-notif-modal-overlay" id="cbNotifModal">
+            <div class="cb-notif-modal">
+                <div class="cb-notif-modal-header">
+                    <div class="cb-notif-modal-dot" id="cbNotifModalDot"></div>
+                    <span class="cb-notif-modal-title" id="cbNotifModalTitle"></span>
+                    <button class="cb-notif-modal-close" id="cbNotifModalClose" aria-label="Close">&times;</button>
                 </div>
+                <div class="cb-notif-modal-body">
+                    <div class="cb-notif-modal-message" id="cbNotifModalMsg"></div>
+                    <div class="cb-notif-modal-meta" id="cbNotifModalMeta"></div>
+                </div>
+                <div class="cb-notif-modal-footer" id="cbNotifModalFooter"></div>
             </div>
-            <!-- Theme toggle -->
-            <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" data-i18n-title="js.nav.toggle_theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
-                <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
-                <i data-lucide="moon" id="cbThemeIconMoon"></i>
-            </button>
-            <!-- Language -->
-            <button class="cb-icon-btn" id="cbLangBtn" title="Language" data-i18n-title="js.nav.language" aria-label="Change language" onclick="toggleLangMenu(this);">
-                <i data-lucide="languages"></i>
-            </button>
-            <div class="cb-lang-menu hidden" id="cbLangMenu">
-                <button class="cb-lang-option active" data-lang="en">English</button>
-                <button class="cb-lang-option" data-lang="fr">Français (QC)</button>
-                <button class="cb-lang-option" data-lang="es">Español</button>
-                <button class="cb-lang-option" data-lang="pt">Português</button>
-                <button class="cb-lang-option" data-lang="de">Deutsch</button>
-                <button class="cb-lang-option" data-lang="zh">中文</button>
-                <button class="cb-lang-option" data-lang="ar">العربية</button>
-                <button class="cb-lang-option" data-lang="he">עברית</button>
-            </div>
-            {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
-            <!-- Dev HQ -->
-            <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" data-i18n-title="js.nav.dev_hq" aria-label="Dev HQ">
-                <i data-lucide="compass"></i>
-            </a>
-            {% endif %}
-            <!-- Logout -->
-            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" data-i18n-title="js.nav.logout" aria-label="Logout" id="cbLogoutBtn" onclick="event.preventDefault(); startShutdownSequence();">
-                <i data-lucide="log-out"></i>
-            </a>
+        </div>
+        <!-- Language menu -->
+        <div class="cb-lang-menu hidden" id="cbLangMenu">
+            <button class="cb-lang-option active" data-lang="en">English</button>
+            <button class="cb-lang-option" data-lang="fr">Français (QC)</button>
+            <button class="cb-lang-option" data-lang="es">Español</button>
+            <button class="cb-lang-option" data-lang="pt">Português</button>
+            <button class="cb-lang-option" data-lang="de">Deutsch</button>
+            <button class="cb-lang-option" data-lang="zh">中文</button>
+            <button class="cb-lang-option" data-lang="ar">العربية</button>
+            <button class="cb-lang-option" data-lang="he">עברית</button>
         </div>
     </div>
 

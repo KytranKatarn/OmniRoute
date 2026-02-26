@@ -123,7 +123,7 @@ body.light-mode #matrix-rain {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    font-family: var(--archie-font-mono);
+    font-family: 'Antonio', sans-serif;
     overflow: hidden;
 }
 
@@ -246,9 +246,11 @@ body.light-mode #matrix-rain {
     max-width: 700px;
     padding: 2rem;
     position: relative;
+    text-shadow: 0 0 6px rgba(0, 255, 65, 0.2);
 }
 
 .boot-line {
+    font-family: 'Antonio', sans-serif;
     font-size: 14px;
     line-height: 1.8;
     color: #00FF41;
@@ -308,7 +310,10 @@ body.light-mode #matrix-rain {
 
 /* Phase 1: Typing effect cursor */
 .boot-typing-line {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
     font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
     color: #00FF41;
     text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
     margin-bottom: 1.5rem;
@@ -317,6 +322,7 @@ body.light-mode #matrix-rain {
 
 /* Phase 3: Threat level */
 .boot-threat {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
     font-size: 18px;
     font-weight: 700;
     color: #ffaa00;
@@ -480,20 +486,20 @@ body.light-mode #matrix-rain {
 
 .boot-logo-ring:nth-child(2) {
     animation-delay: 0.15s;
-    border-color: rgba(0, 255, 255, 0.3);
+    border-color: rgba(0, 255, 65, 0.3);
 }
 
 .boot-logo-ring:nth-child(3) {
     animation-delay: 0.3s;
-    border-color: rgba(139, 92, 246, 0.2);
+    border-color: rgba(0, 255, 65, 0.2);
 }
 
 .boot-system-online {
-    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-family: 'Antonio', sans-serif;
     font-size: 1rem;
     font-weight: 600;
     color: #00FFFF;
-    letter-spacing: 8px;
+    letter-spacing: 0.3em;
     text-transform: uppercase;
     margin-top: 1.5rem;
     text-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
@@ -513,14 +519,15 @@ body.light-mode #matrix-rain {
     bottom: 2rem;
     right: 2rem;
     z-index: 10001;
-    font-family: var(--archie-font-mono);
+    font-family: 'Antonio', sans-serif;
     font-size: 0.8rem;
-    font-weight: 500;
-    letter-spacing: 2px;
-    color: rgba(255, 255, 255, 0.3);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(0, 255, 65, 0.4);
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: var(--archie-radius-md, 6px);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    border-radius: 20px;
     padding: 8px 18px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -534,9 +541,10 @@ body.light-mode #matrix-rain {
 }
 
 .boot-skip-btn:hover {
-    color: rgba(255, 255, 255, 0.7);
-    border-color: rgba(255, 255, 255, 0.3);
-    background: rgba(255, 255, 255, 0.05);
+    color: rgba(0, 255, 65, 0.8);
+    border-color: rgba(0, 255, 65, 0.5);
+    background: rgba(0, 255, 65, 0.05);
+    box-shadow: 0 0 12px rgba(0, 255, 65, 0.1);
 }
 
 /* Scanline overlay during boot for extra CRT feel */

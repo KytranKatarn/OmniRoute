@@ -229,6 +229,7 @@ def register_knowledge_routes(bp, admin_required):
         """List knowledge entries with filtering and pagination"""
         category = request.args.get("category")
         knowledge_type = request.args.get("type")
+        search = request.args.get("search")
         try:
             limit = min(int(request.args.get("limit", 50)), 200)
             offset = max(int(request.args.get("offset", 0)), 0)
@@ -241,7 +242,8 @@ def register_knowledge_routes(bp, admin_required):
         try:
             query = """
                 SELECT id, title, knowledge_type, category, tags, importance_score,
-                       created_at, updated_at
+                       created_at, updated_at,
+                       (embedding IS NOT NULL) as has_embedding
                 FROM knowledge_base
                 WHERE 1=1
             """
@@ -254,6 +256,10 @@ def register_knowledge_routes(bp, admin_required):
             if knowledge_type and knowledge_type != "all":
                 query += " AND knowledge_type = %s"
                 params.append(knowledge_type)
+
+            if search:
+                query += " AND (title ILIKE %s OR content ILIKE %s)"
+                params.extend([f"%{search}%", f"%{search}%"])
 
             query += " ORDER BY updated_at DESC NULLS LAST LIMIT %s OFFSET %s"
             params.extend([limit, offset])
@@ -270,6 +276,9 @@ def register_knowledge_routes(bp, admin_required):
             if knowledge_type and knowledge_type != "all":
                 count_query += " AND knowledge_type = %s"
                 count_params.append(knowledge_type)
+            if search:
+                count_query += " AND (title ILIKE %s OR content ILIKE %s)"
+                count_params.extend([f"%{search}%", f"%{search}%"])
 
             cur.execute(count_query, count_params)
             total = cur.fetchone()["count"]

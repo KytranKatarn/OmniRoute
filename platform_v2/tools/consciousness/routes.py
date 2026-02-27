@@ -395,22 +395,29 @@ def backup_consciousness():
         import subprocess
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_file = f"/var/backups/archie_brain/archie_consciousness_{timestamp}.sql"
+        backup_dir = "/var/backups/archie_brain"
+        backup_file = f"{backup_dir}/archie_consciousness_{timestamp}.sql"
 
         # Create backup directory if it doesn't exist
-        os.makedirs("/var/backups/archie_brain", exist_ok=True)
+        os.makedirs(backup_dir, exist_ok=True)
 
-        # Backup knowledge_base table
+        db_host = os.environ.get("DB_HOST", "archie_database")
+        db_port = os.environ.get("DB_PORT", "5432")
+        db_name = os.environ.get("DB_NAME", "archie")
+        db_user = os.environ.get("DB_USER", "archie")
+
+        # Direct pg_dump over the network (runs inside the platform container)
         result = subprocess.run(
             [
-                "docker",
-                "exec",
-                "archie_database",
                 "pg_dump",
+                "-h",
+                db_host,
+                "-p",
+                db_port,
                 "-U",
-                "archie",
+                db_user,
                 "-d",
-                "archie",
+                db_name,
                 "-t",
                 "knowledge_base",
                 "-t",
@@ -420,6 +427,11 @@ def backup_consciousness():
             ],
             capture_output=True,
             text=True,
+            env={
+                **os.environ,
+                "PGPASSWORD": os.environ.get("DB_PASSWORD", ""),
+            },
+            timeout=120,
         )
 
         if result.returncode == 0:
@@ -431,6 +443,8 @@ def backup_consciousness():
             )
         else:
             return jsonify({"success": False, "error": result.stderr}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Backup timed out (120s)"}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

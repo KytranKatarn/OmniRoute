@@ -171,7 +171,7 @@ def register_team_routes(bp, admin_required):
                              WHEN current_mood = 'confused' THEN 0.3
                              WHEN current_mood = 'frustrated' THEN 0.2
                              ELSE 0.5 END) as avg_mood_score,
-                    AVG(mood_intensity) as avg_energy,
+                    AVG(energy_level) as avg_energy,
                     AVG(mood_intensity) as avg_confidence,
                     COUNT(*) as measurement_count,
                     MODE() WITHIN GROUP (ORDER BY current_mood) as dominant_mood

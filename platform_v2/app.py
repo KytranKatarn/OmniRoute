@@ -2305,21 +2305,34 @@ def get_notifications():
         notifications_list = []
 
         # 1. System notifications — grouped by title+source (last 7 days)
+        is_admin = getattr(current_user, "is_admin", False)
+        user_id = current_user.id
+
+        if is_admin:
+            visibility_filter = ""
+            notif_params = [user_id]
+        else:
+            visibility_filter = "AND (sn.visibility = 'all' OR (sn.visibility = 'user' AND sn.target_user_id = %s))"
+            notif_params = [user_id, user_id]
+
         cur.execute(
-            """
+            f"""
             SELECT title, source, type, priority,
                    MAX(message) as message,
-                   MAX(id) as id,
+                   MAX(sn.id) as id,
                    COUNT(*) as group_count,
-                   MAX(created_at) as latest,
-                   BOOL_AND(is_read) as all_read
-            FROM system_notifications
-            WHERE is_archived = FALSE
-              AND created_at >= NOW() - INTERVAL '7 days'
+                   MAX(sn.created_at) as latest,
+                   COUNT(*) FILTER (WHERE nr.notification_id IS NULL) = 0 as all_read
+            FROM system_notifications sn
+            LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
+            WHERE sn.is_archived = FALSE
+              AND sn.created_at >= NOW() - INTERVAL '7 days'
+              {visibility_filter}
             GROUP BY title, source, type, priority
-            ORDER BY MAX(created_at) DESC
+            ORDER BY MAX(sn.created_at) DESC
             LIMIT 20
-        """
+        """,
+            notif_params,
         )
         for n in cur.fetchall():
             count = n["group_count"]
@@ -2339,92 +2352,95 @@ def get_notifications():
                 }
             )
 
-        # 2. Failed bridge jobs (last 24h) — grouped by module+capability
-        cur.execute(
-            """
-            SELECT t.module_source, t.capability,
-                   LEFT(t.error_message, 120) as error_summary,
-                   COUNT(*) as fail_count, MAX(t.created_at) as latest,
-                   a.first_name, a.last_name
-            FROM task_execution_log t
-            LEFT JOIN agents a ON a.name = SPLIT_PART(t.agent_name, '→', 1)
-            WHERE t.success = false AND t.created_at >= NOW() - INTERVAL '24 hours'
-            GROUP BY t.module_source, t.capability,
-                     LEFT(t.error_message, 120), a.first_name, a.last_name
-            ORDER BY latest DESC
-            LIMIT 3
-        """
-        )
-        for row in cur.fetchall():
-            first = (row["first_name"] or "").strip()
-            last = (row["last_name"] or "").strip()
-            agent = f"{first} {last}".strip() or "Bridge"
-            module = (row["module_source"] or "bridge").replace("_", " ").title()
-            count = row["fail_count"]
-            notifications_list.append(
-                {
-                    "id": 0,
-                    "type": "warning" if count < 10 else "error",
-                    "title": f"{module}: {count} failed {row['capability']}",
-                    "message": f"{agent} — {row['error_summary'] or 'Unknown error'}",
-                    "source": "bridge",
-                    "is_read": True,
-                    "priority": "high" if count >= 10 else "medium",
-                    "created_at": _ts_notif(row["latest"]),
-                }
-            )
+        # 2-4. Admin-only blended sources
+        if is_admin:
 
-        # 3. Failed logins (last 24h) — grouped by username
-        cur.execute(
+            # 2. Failed bridge jobs (last 24h) — grouped by module+capability
+            cur.execute(
+                """
+                SELECT t.module_source, t.capability,
+                       LEFT(t.error_message, 120) as error_summary,
+                       COUNT(*) as fail_count, MAX(t.created_at) as latest,
+                       a.first_name, a.last_name
+                FROM task_execution_log t
+                LEFT JOIN agents a ON a.name = SPLIT_PART(t.agent_name, '→', 1)
+                WHERE t.success = false AND t.created_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY t.module_source, t.capability,
+                         LEFT(t.error_message, 120), a.first_name, a.last_name
+                ORDER BY latest DESC
+                LIMIT 3
             """
-            SELECT username, COUNT(*) as attempts, MAX(attempted_at) as latest,
-                   (array_agg(DISTINCT ip_address))[1:2] as ips
-            FROM failed_logins
-            WHERE attempted_at >= NOW() - INTERVAL '24 hours'
-            GROUP BY username
-            ORDER BY attempts DESC
-            LIMIT 3
-        """
-        )
-        for row in cur.fetchall():
-            count = row["attempts"]
-            ips = ", ".join(row["ips"]) if row["ips"] else "unknown"
-            notifications_list.append(
-                {
-                    "id": 0,
-                    "type": "warning" if count < 5 else "error",
-                    "title": f"{count} failed login{'s' if count > 1 else ''} — {row['username']}",
-                    "message": f"From IP: {ips}",
-                    "source": "security",
-                    "is_read": True,
-                    "priority": "high" if count >= 5 else "medium",
-                    "created_at": _ts_notif(row["latest"]),
-                }
             )
+            for row in cur.fetchall():
+                first = (row["first_name"] or "").strip()
+                last = (row["last_name"] or "").strip()
+                agent = f"{first} {last}".strip() or "Bridge"
+                module = (row["module_source"] or "bridge").replace("_", " ").title()
+                count = row["fail_count"]
+                notifications_list.append(
+                    {
+                        "id": 0,
+                        "type": "warning" if count < 10 else "error",
+                        "title": f"{module}: {count} failed {row['capability']}",
+                        "message": f"{agent} — {row['error_summary'] or 'Unknown error'}",
+                        "source": "bridge",
+                        "is_read": True,
+                        "priority": "high" if count >= 10 else "medium",
+                        "created_at": _ts_notif(row["latest"]),
+                    }
+                )
 
-        # 4. Unresolved system alerts
-        cur.execute(
+            # 3. Failed logins (last 24h) — grouped by username
+            cur.execute(
+                """
+                SELECT username, COUNT(*) as attempts, MAX(attempted_at) as latest,
+                       (array_agg(DISTINCT ip_address))[1:2] as ips
+                FROM failed_logins
+                WHERE attempted_at >= NOW() - INTERVAL '24 hours'
+                GROUP BY username
+                ORDER BY attempts DESC
+                LIMIT 3
             """
-            SELECT alert_type, severity, message, created_at
-            FROM system_alerts
-            WHERE resolved = false
-            ORDER BY created_at DESC
-            LIMIT 3
-        """
-        )
-        for row in cur.fetchall():
-            notifications_list.append(
-                {
-                    "id": 0,
-                    "type": "error" if row["severity"] in ("critical", "error") else "warning",
-                    "title": row["alert_type"].replace("_", " ").title(),
-                    "message": row["message"],
-                    "source": "system",
-                    "is_read": True,
-                    "priority": row["severity"],
-                    "created_at": _ts_notif(row["created_at"]),
-                }
             )
+            for row in cur.fetchall():
+                count = row["attempts"]
+                ips = ", ".join(row["ips"]) if row["ips"] else "unknown"
+                notifications_list.append(
+                    {
+                        "id": 0,
+                        "type": "warning" if count < 5 else "error",
+                        "title": f"{count} failed login{'s' if count > 1 else ''} — {row['username']}",
+                        "message": f"From IP: {ips}",
+                        "source": "security",
+                        "is_read": True,
+                        "priority": "high" if count >= 5 else "medium",
+                        "created_at": _ts_notif(row["latest"]),
+                    }
+                )
+
+            # 4. Unresolved system alerts
+            cur.execute(
+                """
+                SELECT alert_type, severity, message, created_at
+                FROM system_alerts
+                WHERE resolved = false
+                ORDER BY created_at DESC
+                LIMIT 3
+            """
+            )
+            for row in cur.fetchall():
+                notifications_list.append(
+                    {
+                        "id": 0,
+                        "type": "error" if row["severity"] in ("critical", "error") else "warning",
+                        "title": row["alert_type"].replace("_", " ").title(),
+                        "message": row["message"],
+                        "source": "system",
+                        "is_read": True,
+                        "priority": row["severity"],
+                        "created_at": _ts_notif(row["created_at"]),
+                    }
+                )
 
         cur.close()
         conn.close()
@@ -2460,14 +2476,25 @@ def mark_notification_read(notification_id):
         )
         row = cur.fetchone()
         if row:
+            # Insert read records for all notifications in this group
             cur.execute(
-                "UPDATE system_notifications SET is_read = TRUE WHERE title = %s AND source = %s AND is_read = FALSE",
-                (row["title"], row["source"]),
+                """
+                INSERT INTO notification_reads (notification_id, user_id, read_at)
+                SELECT id, %s, NOW()
+                FROM system_notifications
+                WHERE title = %s AND source = %s AND is_archived = FALSE
+                ON CONFLICT (notification_id, user_id) DO NOTHING
+            """,
+                (current_user.id, row["title"], row["source"]),
             )
         else:
             cur.execute(
-                "UPDATE system_notifications SET is_read = TRUE WHERE id = %s",
-                (notification_id,),
+                """
+                INSERT INTO notification_reads (notification_id, user_id, read_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (notification_id, user_id) DO NOTHING
+            """,
+                (notification_id, current_user.id),
             )
         conn.commit()
         cur.close()
@@ -2480,11 +2507,35 @@ def mark_notification_read(notification_id):
 @app.route("/api/notifications/mark-all-read", methods=["POST"])
 @login_required
 def mark_all_notifications_read():
-    """Mark all notifications as read"""
+    """Mark all visible notifications as read for the current user"""
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE system_notifications SET is_read = TRUE WHERE is_read = FALSE")
+
+        is_admin = getattr(current_user, "is_admin", False)
+        user_id = current_user.id
+
+        if is_admin:
+            visibility_clause = ""
+            params = [user_id, user_id]
+        else:
+            visibility_clause = "AND (visibility = 'all' OR (visibility = 'user' AND target_user_id = %s))"
+            params = [user_id, user_id, user_id]
+
+        cur.execute(
+            f"""
+            INSERT INTO notification_reads (notification_id, user_id, read_at)
+            SELECT id, %s, NOW()
+            FROM system_notifications
+            WHERE is_archived = FALSE
+              AND created_at >= NOW() - INTERVAL '7 days'
+              AND id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = %s)
+              {visibility_clause}
+            ON CONFLICT (notification_id, user_id) DO NOTHING
+        """,
+            params,
+        )
+
         conn.commit()
         cur.close()
         conn.close()
@@ -2511,6 +2562,8 @@ def create_notification_endpoint():
         priority = data.get("priority", "normal")
         source_icon = data.get("source_icon", "")
         related_action = data.get("related_action", None)
+        visibility = data.get("visibility", "all")
+        target_user_id = data.get("target_user_id", None)
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2559,8 +2612,8 @@ def create_notification_endpoint():
             """
             INSERT INTO system_notifications
                 (type, title, message, source, priority,
-                 source_icon, related_action, is_read, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, NOW())
+                 source_icon, related_action, is_read, visibility, target_user_id, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, %s, %s, NOW())
             RETURNING id
         """,
             (
@@ -2571,6 +2624,8 @@ def create_notification_endpoint():
                 priority,
                 source_icon,
                 related_action,
+                visibility,
+                target_user_id,
             ),
         )
 
@@ -2587,21 +2642,33 @@ def create_notification_endpoint():
 @app.route("/api/notifications/count", methods=["GET"])
 @login_required
 def get_notification_count():
-    """Get unread notification count — only markable system_notifications."""
+    """Get unread notification count — only markable system_notifications, per-user."""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Only count real system_notifications that the user can mark as read
+        is_admin = getattr(current_user, "is_admin", False)
+        user_id = current_user.id
+
+        if is_admin:
+            visibility_clause = ""
+            params = [user_id]
+        else:
+            visibility_clause = "AND (sn.visibility = 'all' OR (sn.visibility = 'user' AND sn.target_user_id = %s))"
+            params = [user_id, user_id]
+
         cur.execute(
-            """
+            f"""
             SELECT
-                COUNT(DISTINCT (title, source)) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) as unread,
-                COUNT(*) FILTER (WHERE priority = 'critical' AND is_read = FALSE) as critical,
-                COUNT(*) FILTER (WHERE type = 'error' AND is_read = FALSE) as errors
-            FROM system_notifications
-            WHERE created_at >= NOW() - INTERVAL '7 days'
-        """
+                COUNT(DISTINCT (sn.title, sn.source)) FILTER (WHERE nr.notification_id IS NULL AND sn.is_archived = FALSE) as unread,
+                COUNT(*) FILTER (WHERE sn.priority = 'critical' AND nr.notification_id IS NULL) as critical,
+                COUNT(*) FILTER (WHERE sn.type = 'error' AND nr.notification_id IS NULL) as errors
+            FROM system_notifications sn
+            LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
+            WHERE sn.created_at >= NOW() - INTERVAL '7 days'
+              {visibility_clause}
+        """,
+            params,
         )
         counts = cur.fetchone()
         cur.close()
@@ -2641,10 +2708,18 @@ def search_notifications():
         where_clauses = ["is_archived = FALSE"]
         params = []
 
+        # Visibility filter — non-admins only see 'all' or targeted notifications
+        is_admin = getattr(current_user, "is_admin", False)
+        if not is_admin:
+            where_clauses.append("(visibility = 'all' OR (visibility = 'user' AND target_user_id = %s))")
+            params.append(current_user.id)
+
         if filter_type == "unread":
-            where_clauses.append("is_read = FALSE")
+            where_clauses.append("id NOT IN (SELECT notification_id FROM notification_reads WHERE user_id = %s)")
+            params.append(current_user.id)
         elif filter_type == "read":
-            where_clauses.append("is_read = TRUE")
+            where_clauses.append("id IN (SELECT notification_id FROM notification_reads WHERE user_id = %s)")
+            params.append(current_user.id)
 
         if notification_type != "all":
             where_clauses.append("type = %s")
@@ -2728,6 +2803,9 @@ def export_notifications():
     import csv
 
     try:
+        if not getattr(current_user, "is_admin", False):
+            return jsonify({"success": False, "error": "Admin access required"}), 403
+
         format_type = request.args.get("format", "csv")
 
         conn = get_db()

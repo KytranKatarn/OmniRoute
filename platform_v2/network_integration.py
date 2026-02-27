@@ -379,8 +379,8 @@ def auto_block_threats():
                     cur = conn.cursor()
                     cur.execute(
                         """
-                        INSERT INTO system_notifications (type, title, message, source)
-                        VALUES ('warning', 'IP Auto-Blocked', %s, 'security_monitor')
+                        INSERT INTO system_notifications (type, title, message, source, visibility)
+                        VALUES ('warning', 'IP Auto-Blocked', %s, 'security_monitor', 'admin')
                     """,
                         (threat["message"],),
                     )

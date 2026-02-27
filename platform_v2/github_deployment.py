@@ -189,8 +189,8 @@ def deploy_website(user_id):
         # Create notification
         cur.execute(
             """
-            INSERT INTO system_notifications (type, title, message, source)
-            VALUES ('success', 'Website Deployed', %s, 'github_deploy')
+            INSERT INTO system_notifications (type, title, message, source, visibility)
+            VALUES ('success', 'Website Deployed', %s, 'github_deploy', 'admin')
         """,
             (f"Successfully deployed {commit_info['sha'][:7]}: {commit_info['message']}",),
         )
@@ -209,8 +209,8 @@ def deploy_website(user_id):
             cur = conn.cursor()
             cur.execute(
                 """
-                INSERT INTO system_notifications (type, title, message, source)
-                VALUES ('error', 'Deployment Failed', %s, 'github_deploy')
+                INSERT INTO system_notifications (type, title, message, source, visibility)
+                VALUES ('error', 'Deployment Failed', %s, 'github_deploy', 'admin')
             """,
                 (str(e),),
             )

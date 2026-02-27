@@ -1019,6 +1019,23 @@ MODULES: List[ModuleDefinition] = [
         priority=6,
         tags=["autonomy", "agent-loop", "proactive", "approvals", "ai-command"],
     ),
+    # User Profile - accessible to all authenticated users
+    ModuleDefinition(
+        id="user_profile",
+        name="My Profile",
+        description="View your profile, accessible modules, and notifications",
+        icon="user",
+        category=ModuleCategory.SAAS_SERVICES,
+        route="/tools/my-profile",
+        blueprint_import="tools.user_profile:user_profile_bp",
+        required_permissions=[],
+        minimum_role="USER",
+        enabled=True,
+        health_check=lambda: default_health_check("user_profile"),
+        priority=20,
+        tags=["profile", "user", "settings", "notifications"],
+        show_on_dashboard=False,
+    ),
     # app_builder placeholder - not yet implemented
     # ModuleDefinition(
     #     id="app_builder",

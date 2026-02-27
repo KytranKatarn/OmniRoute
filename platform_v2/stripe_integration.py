@@ -424,8 +424,8 @@ def handle_invoice_payment_failed(invoice):
     # Create notification
     cur.execute(
         """
-        INSERT INTO system_notifications (type, title, message, source)
-        VALUES ('error', 'Payment Failed', %s, 'stripe_webhook')
+        INSERT INTO system_notifications (type, title, message, source, visibility)
+        VALUES ('error', 'Payment Failed', %s, 'stripe_webhook', 'all')
     """,
         (f"Payment failed for invoice {invoice.get('number', invoice['id'])}",),
     )

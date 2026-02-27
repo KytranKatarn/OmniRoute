@@ -2274,25 +2274,46 @@ def memory_preferences():
 @archie_chat_bp.route("/api/notifications/unread")
 @login_required
 def notifications_unread():
-    """Unread system notifications."""
+    """Unread system notifications (per-user read tracking)."""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        is_admin = getattr(current_user, "is_admin", False)
+        user_id = current_user.id
+
+        if is_admin:
+            vis_clause = ""
+            count_params = [user_id]
+            recent_params = [user_id]
+        else:
+            vis_clause = "AND (sn.visibility = 'all' OR (sn.visibility = 'user' AND sn.target_user_id = %s))"
+            count_params = [user_id, user_id]
+            recent_params = [user_id, user_id]
+
         cur.execute(
-            """
-            SELECT COUNT(*) as count FROM system_notifications
-            WHERE is_read = FALSE
-        """
+            f"""
+            SELECT COUNT(*) as count FROM system_notifications sn
+            LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
+            WHERE nr.notification_id IS NULL
+              AND sn.is_archived = FALSE
+              {vis_clause}
+        """,
+            count_params,
         )
         count = cur.fetchone()["count"]
         cur.execute(
-            """
-            SELECT id, type, title, message, priority, created_at
-            FROM system_notifications
-            WHERE is_read = FALSE
-            ORDER BY created_at DESC
+            f"""
+            SELECT sn.id, sn.type, sn.title, sn.message, sn.priority, sn.created_at
+            FROM system_notifications sn
+            LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
+            WHERE nr.notification_id IS NULL
+              AND sn.is_archived = FALSE
+              {vis_clause}
+            ORDER BY sn.created_at DESC
             LIMIT 5
-        """
+        """,
+            recent_params,
         )
         recent = cur.fetchall()
         for r in recent:
@@ -2318,10 +2339,11 @@ def notification_mark_read(notification_id):
         cur = conn.cursor()
         cur.execute(
             """
-            UPDATE system_notifications SET is_read = TRUE, read_at = NOW()
-            WHERE id = %s
+            INSERT INTO notification_reads (notification_id, user_id, read_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (notification_id, user_id) DO NOTHING
             """,
-            (notification_id,),
+            (notification_id, current_user.id),
         )
         conn.commit()
         return jsonify({"ok": True})

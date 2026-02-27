@@ -5,6 +5,8 @@
 {% block module_name %}account-center{% endblock %}
 
 {% block styles %}
+<link rel="stylesheet" href="/static/css/lcars-panels.css">
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
     /* Module-specific overrides only - uses shared theme.css and components.css
@@ -1814,6 +1816,544 @@
         .saas-org-card { padding: var(--archie-space-3); }
         .saas-org-card-stats { flex-wrap: wrap; gap: var(--archie-space-2); }
     }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       LCARS OVERHAUL — Orange Accent (#f97316 / 245, 158, 11)
+       Matching Admin Operations category & gold standard modules
+       ═══════════════════════════════════════════════════════════════════ */
+
+    .account-center-container {
+        --lcars-accent-rgb: 245, 158, 11;
+        --lcars-accent: #f59e0b;
+        --lcars-accent-dim: #d48a09;
+    }
+
+    /* ── LCARS Header ──────────────────────────────────────── */
+    .account-center-header {
+        text-align: center;
+        padding: 25px;
+        border: 2px solid rgba(var(--lcars-accent-rgb), 0.4);
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(var(--lcars-accent-rgb), 0.08) 0%, transparent 100%);
+        box-shadow: 0 0 30px rgba(var(--lcars-accent-rgb), 0.15);
+        border-bottom: 2px solid rgba(var(--lcars-accent-rgb), 0.4);
+    }
+
+    .account-center-header h1 {
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: rgba(var(--lcars-accent-rgb), 1);
+        text-shadow: 0 0 20px rgba(var(--lcars-accent-rgb), 0.4);
+        letter-spacing: 3px;
+    }
+
+    .account-center-header .lcars-subtitle {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.45);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-top: 6px;
+    }
+
+    /* ── LCARS Stat Cards ──────────────────────────────────── */
+    .stats-grid .stat-card {
+        position: relative;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(var(--lcars-accent-rgb), 0.12);
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.4);
+        border-radius: 0 12px 12px 0;
+        overflow: hidden;
+        animation: lcarsCardIn 0.4s ease-out both;
+    }
+
+    .stats-grid .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: linear-gradient(
+            180deg,
+            rgba(var(--lcars-accent-rgb), 0.6) 0%,
+            rgba(var(--lcars-accent-rgb), 0.15) 50%,
+            rgba(var(--lcars-accent-rgb), 0.6) 100%
+        );
+        pointer-events: none;
+        z-index: 1;
+        opacity: 1;
+    }
+
+    .stats-grid .stat-card .stat-label {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: rgba(var(--lcars-accent-rgb), 0.65);
+    }
+
+    .stats-grid .stat-card .stat-value {
+        font-family: 'Orbitron', sans-serif;
+        font-weight: 600;
+    }
+
+    .stats-grid .stat-card:hover {
+        border-color: rgba(var(--lcars-accent-rgb), 0.3);
+        box-shadow: 0 0 16px rgba(var(--lcars-accent-rgb), 0.12);
+    }
+
+    /* Stat card indicator lights */
+    .stat-card .lcars-light {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: rgba(var(--lcars-accent-rgb), 0.8);
+        box-shadow: 0 0 6px rgba(var(--lcars-accent-rgb), 0.4);
+        display: inline-block;
+        animation: lcarsPulse 3s ease-in-out infinite;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+
+    /* Per-card accent colors for stat cards */
+    .stats-grid .stat-card:nth-child(1) { --lcars-accent-rgb: 245, 158, 11; }   /* Total=orange */
+    .stats-grid .stat-card:nth-child(2) { --lcars-accent-rgb: 239, 68, 68; }    /* Admins=red */
+    .stats-grid .stat-card:nth-child(3) { --lcars-accent-rgb: 245, 158, 11; }   /* Premium=orange */
+    .stats-grid .stat-card:nth-child(4) { --lcars-accent-rgb: 160, 160, 170; }  /* Free=muted */
+    .stats-grid .stat-card:nth-child(5) { --lcars-accent-rgb: 0, 255, 255; }    /* Active=cyan */
+    .stats-grid .stat-card:nth-child(6) { --lcars-accent-rgb: 0, 255, 65; }     /* Sessions=green */
+    .stats-grid .stat-card:nth-child(7) { --lcars-accent-rgb: 139, 92, 246; }   /* API Keys=purple */
+    .stats-grid .stat-card:nth-child(8) { --lcars-accent-rgb: 245, 158, 11; }   /* Orgs=accent */
+
+    /* ── LCARS Tab Navigation ──────────────────────────────── */
+    .account-center-container .tab-nav {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(245, 158, 11, 0.12);
+        border-radius: 0 12px 12px 0;
+        border-left: 3px solid rgba(245, 158, 11, 0.3);
+        padding: 6px;
+    }
+
+    .account-center-container .tab-btn {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 500;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.45);
+        border: 1px solid transparent;
+        border-radius: 2px 12px 12px 2px;
+        padding: 8px 16px;
+        position: relative;
+        transition: all 0.2s ease;
+    }
+
+    .account-center-container .tab-btn::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 20%;
+        height: 60%;
+        width: 3px;
+        border-radius: 2px;
+        background: transparent;
+        transition: background 0.2s ease;
+    }
+
+    .account-center-container .tab-btn:hover {
+        color: rgba(245, 158, 11, 0.8);
+        background: rgba(245, 158, 11, 0.06);
+    }
+
+    .account-center-container .tab-btn.active {
+        color: rgba(245, 158, 11, 1);
+        background: rgba(245, 158, 11, 0.12);
+        border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    .account-center-container .tab-btn.active::before {
+        background: rgba(245, 158, 11, 0.7);
+    }
+
+    /* ── LCARS Section Headers ─────────────────────────────── */
+    .lcars-section-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .account-center-container .lcars-section-cap {
+        width: 6px;
+        height: 24px;
+        border-radius: 2px;
+        background: rgba(var(--lcars-accent-rgb), 0.5);
+        flex-shrink: 0;
+    }
+
+    .account-center-container .lcars-section-title {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.78rem;
+        font-weight: 500;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: rgba(var(--lcars-accent-rgb), 0.7);
+    }
+
+    /* ── LCARS Table Styling ───────────────────────────────── */
+    .account-center-container .data-table thead th {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 0.7rem;
+        font-weight: 500;
+        letter-spacing: 1px;
+        color: rgba(245, 158, 11, 0.75);
+        border-bottom: 2px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .account-center-container .data-table thead {
+        border-top: 2px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .account-center-container .data-table tbody tr:hover td {
+        background: rgba(245, 158, 11, 0.04);
+    }
+
+    /* ── Permission Matrix Table LCARS ─────────────────────── */
+    .perm-matrix-table th {
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 0.68rem !important;
+        letter-spacing: 0.8px;
+        color: rgba(245, 158, 11, 0.75) !important;
+        border-bottom: 2px solid rgba(245, 158, 11, 0.25) !important;
+    }
+
+    .perm-matrix-table .category-row td {
+        font-family: 'Antonio', sans-serif !important;
+        color: rgba(245, 158, 11, 0.85) !important;
+        border-bottom-color: rgba(245, 158, 11, 0.2) !important;
+    }
+
+    /* ── LCARS Panel Treatment for Cards ───────────────────── */
+    .account-center-container .card {
+        position: relative;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(var(--lcars-accent-rgb), 0.12);
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.4);
+        border-radius: 0 12px 12px 0;
+    }
+
+    .account-center-container .card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: linear-gradient(
+            180deg,
+            rgba(var(--lcars-accent-rgb), 0.6) 0%,
+            rgba(var(--lcars-accent-rgb), 0.15) 50%,
+            rgba(var(--lcars-accent-rgb), 0.6) 100%
+        );
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    .account-center-container .card-header {
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 0.75rem !important;
+        color: rgba(var(--lcars-accent-rgb), 0.85) !important;
+        letter-spacing: 1.2px;
+        background: rgba(var(--lcars-accent-rgb), 0.05);
+        border-bottom: 1px solid rgba(var(--lcars-accent-rgb), 0.08);
+    }
+
+    /* ── Security Cards LCARS Treatment ────────────────────── */
+    .security-card {
+        position: relative;
+        background: rgba(255, 255, 255, 0.02) !important;
+        border: 1px solid rgba(var(--lcars-accent-rgb), 0.12) !important;
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.4) !important;
+        border-radius: 0 12px 12px 0 !important;
+    }
+
+    .security-card .security-card-title {
+        font-family: 'Antonio', sans-serif;
+        letter-spacing: 1.5px;
+    }
+
+    .security-card .security-card-value {
+        font-family: 'Orbitron', sans-serif !important;
+    }
+
+    .security-card.card-danger {
+        --lcars-accent-rgb: 239, 68, 68;
+    }
+    .security-card.card-warning {
+        --lcars-accent-rgb: 245, 158, 11;
+    }
+    .security-card.card-success {
+        --lcars-accent-rgb: 0, 255, 65;
+    }
+
+    /* ── Role Overview Cards LCARS ─────────────────────────── */
+    .role-overview-card {
+        background: rgba(255, 255, 255, 0.02) !important;
+        border: 1px solid rgba(var(--lcars-accent-rgb), 0.12) !important;
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.4) !important;
+        border-radius: 0 12px 12px 0 !important;
+    }
+
+    .role-overview-card .role-card-name {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 0.82rem;
+        letter-spacing: 1px;
+    }
+
+    .role-overview-card .role-card-level {
+        font-family: 'Antonio', sans-serif;
+        letter-spacing: 1.5px;
+    }
+
+    .role-overview-card .role-perm-count {
+        font-family: 'Orbitron', sans-serif;
+    }
+
+    /* ── Tier Cards LCARS ──────────────────────────────────── */
+    .tier-card {
+        background: rgba(255, 255, 255, 0.02) !important;
+        border: 1px solid rgba(var(--lcars-accent-rgb), 0.15) !important;
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.4) !important;
+        border-radius: 0 12px 12px 0 !important;
+    }
+
+    .tier-name {
+        font-family: 'Orbitron', sans-serif !important;
+        letter-spacing: 1px;
+    }
+
+    .tier-price {
+        font-family: 'Orbitron', sans-serif;
+        color: rgba(var(--lcars-accent-rgb), 1) !important;
+    }
+
+    .tier-role-badge {
+        font-family: 'Antonio', sans-serif;
+        letter-spacing: 1.5px;
+    }
+
+    /* ── LCARS Button Glow ─────────────────────────────────── */
+    .account-center-container .btn-primary:hover,
+    .account-center-container .btn-success:hover {
+        box-shadow: 0 0 16px rgba(var(--lcars-accent-rgb), 0.25);
+    }
+
+    .account-center-container .btn-primary {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .account-center-container .btn-primary::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.08),
+            transparent
+        );
+        animation: lcarsSweep 4s ease-in-out infinite;
+        pointer-events: none;
+    }
+
+    /* ── SaaS Sub-tabs LCARS ───────────────────────────────── */
+    .saas-sub-tab-btn {
+        font-family: 'Antonio', sans-serif !important;
+        letter-spacing: 1.5px !important;
+        border-radius: 2px 12px 12px 2px !important;
+        position: relative;
+    }
+
+    .saas-sub-tab-btn.active {
+        border-color: rgba(245, 158, 11, 0.4) !important;
+        background: rgba(245, 158, 11, 0.12) !important;
+        color: rgba(245, 158, 11, 1) !important;
+    }
+
+    /* ── SaaS Org Cards LCARS ──────────────────────────────── */
+    .saas-org-card {
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.4) !important;
+        border-radius: 0 12px 12px 0 !important;
+    }
+
+    .saas-org-name {
+        font-family: 'Orbitron', sans-serif;
+        letter-spacing: 0.8px;
+    }
+
+    /* ── Modals LCARS Border ───────────────────────────────── */
+    .account-center-container .modal {
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        border-left: 3px solid rgba(245, 158, 11, 0.4);
+        border-radius: 0 12px 12px 0;
+    }
+
+    .account-center-container .modal-header {
+        font-family: 'Orbitron', sans-serif;
+        border-bottom: 1px solid rgba(245, 158, 11, 0.12);
+        background: rgba(245, 158, 11, 0.04);
+    }
+
+    .account-center-container .modal-header h3,
+    .account-center-container .modal-header .modal-title {
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 0.85rem;
+        letter-spacing: 1.5px;
+        color: rgba(245, 158, 11, 0.9);
+    }
+
+    /* ── Sessions Tab Live Indicator ───────────────────────── */
+    .sessions-live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(0, 255, 65, 0.8);
+        box-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+        display: inline-block;
+        animation: lcarsPulse 2s ease-in-out infinite;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+
+    /* ── Activity Tab Chart Panel ──────────────────────────── */
+    .activity-chart-panel {
+        position: relative;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(245, 158, 11, 0.12);
+        border-left: 3px solid rgba(245, 158, 11, 0.4);
+        border-radius: 0 12px 12px 0;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .activity-chart-panel::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: linear-gradient(
+            180deg,
+            rgba(245, 158, 11, 0.6) 0%,
+            rgba(245, 158, 11, 0.15) 50%,
+            rgba(245, 158, 11, 0.6) 100%
+        );
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    /* ── Policy Items LCARS ────────────────────────────────── */
+    .policy-item {
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.3) !important;
+        border-radius: 0 8px 8px 0 !important;
+    }
+
+    .policy-item .policy-value {
+        font-family: 'Orbitron', sans-serif;
+    }
+
+    .policy-item .policy-label {
+        font-family: 'Antonio', sans-serif;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    /* ── Form Borders LCARS ────────────────────────────────── */
+    .account-center-container .form-input:focus,
+    .account-center-container .form-select:focus {
+        border-color: rgba(245, 158, 11, 0.4);
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.12);
+    }
+
+    /* ── Bulk Ops Form Borders ─────────────────────────────── */
+    .account-center-container .file-upload-zone {
+        border-color: rgba(245, 158, 11, 0.2);
+    }
+
+    .account-center-container .file-upload-zone:hover,
+    .account-center-container .file-upload-zone.dragover {
+        border-color: rgba(245, 158, 11, 0.5);
+        background: rgba(245, 158, 11, 0.05);
+    }
+
+    /* ── Profile Tab Buttons LCARS ─────────────────────────── */
+    .profile-tab-btn {
+        font-family: 'Antonio', sans-serif !important;
+        letter-spacing: 1.5px !important;
+        border-radius: 2px 12px 12px 2px !important;
+    }
+
+    /* ── Pagination LCARS ──────────────────────────────────── */
+    .pagination .btn {
+        border-radius: 2px 8px 8px 2px;
+    }
+
+    /* ── LCARS Animations (duplicate-safe — lcars-panels.css may already define) */
+    @keyframes lcarsCardIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes lcarsPulse {
+        0%, 100% {
+            opacity: 0.6;
+            box-shadow: 0 0 4px rgba(var(--lcars-accent-rgb), 0.2);
+        }
+        50% {
+            opacity: 1;
+            box-shadow: 0 0 10px rgba(var(--lcars-accent-rgb), 0.5);
+        }
+    }
+
+    @keyframes lcarsSweep {
+        0% { left: -100%; }
+        100% { left: 100%; }
+    }
+
+    /* ── LCARS Responsive Overrides ─────────────────────────── */
+    @media (max-width: 920px) {
+        .account-center-header h1 {
+            font-size: 1.3rem;
+            letter-spacing: 2px;
+        }
+        .account-center-container .tab-btn {
+            font-size: 0.72rem;
+            letter-spacing: 1px;
+            padding: 6px 10px;
+        }
+    }
+
+    @media (max-width: 600px) {
+        .account-center-header h1 {
+            font-size: 1.1rem;
+            letter-spacing: 1.5px;
+        }
+        .account-center-container .tab-btn {
+            font-size: 0.65rem;
+            letter-spacing: 0.8px;
+            padding: 5px 8px;
+        }
+        .stats-grid .stat-card .stat-label {
+            font-size: 0.6rem;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -1824,42 +2364,47 @@
     <div class="account-center-content">
         <div class="account-center-header">
             <h1><span data-i18n="account_center.account_center">ACCOUNT CENTER</span></h1>
+            <div class="lcars-subtitle">ADMIN OPERATIONS // USER MANAGEMENT INTERFACE</div>
         </div>
 
         <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-6);">
             <!-- Stats Overview -->
+            <div class="lcars-section-label" style="margin-top: 4px;">
+                <div class="lcars-section-cap" style="--lcars-accent-rgb: 245, 158, 11;"></div>
+                <div class="lcars-section-title" style="--lcars-accent-rgb: 245, 158, 11;">SYSTEM METRICS</div>
+            </div>
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-label"><span data-i18n="account_center.total_users">TOTAL USERS</span></div>
-                    <div class="stat-value" id="stat-total">{{ stats.total_users }}</div>
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.total_users">TOTAL USERS</span></div>
+                    <div class="stat-value" id="stat-total" style="color: rgb(245, 158, 11);">{{ stats.total_users }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label"><span data-i18n="account_center.admins">ADMINS</span></div>
-                    <div class="stat-value" id="stat-admins" style="color: var(--archie-red);">{{ stats.admins }}</div>
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.admins">ADMINS</span></div>
+                    <div class="stat-value" id="stat-admins" style="color: rgb(239, 68, 68);">{{ stats.admins }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label"><span data-i18n="account_center.premium">PREMIUM</span></div>
-                    <div class="stat-value" id="stat-premium" style="color: var(--archie-orange);">{{ stats.premium }}</div>
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.premium">PREMIUM</span></div>
+                    <div class="stat-value" id="stat-premium" style="color: rgb(245, 158, 11);">{{ stats.premium }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label"><span data-i18n="account_center.free">FREE</span></div>
-                    <div class="stat-value" id="stat-free" style="color: var(--archie-text-secondary);">{{ stats.free }}</div>
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.free">FREE</span></div>
+                    <div class="stat-value" id="stat-free" style="color: rgb(160, 160, 170);">{{ stats.free }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label"><span data-i18n="account_center.active_today">ACTIVE TODAY</span></div>
-                    <div class="stat-value" id="stat-active" style="color: var(--archie-cyan);">{{ stats.active_today }}</div>
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.active_today">ACTIVE TODAY</span></div>
+                    <div class="stat-value" id="stat-active" style="color: rgb(0, 255, 255);">{{ stats.active_today }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label"><span data-i18n="account_center.sessions">SESSIONS</span></div>
-                    <div class="stat-value" id="stat-sessions" style="color: var(--archie-green);">{{ stats.active_sessions }}</div>
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.sessions">SESSIONS</span></div>
+                    <div class="stat-value" id="stat-sessions" style="color: rgb(0, 255, 65);">{{ stats.active_sessions }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label"><span data-i18n="account_center.api_keys">API KEYS</span></div>
-                    <div class="stat-value" id="stat-apikeys" style="color: var(--archie-purple);">{{ stats.api_keys }}</div>
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.api_keys">API KEYS</span></div>
+                    <div class="stat-value" id="stat-apikeys" style="color: rgb(139, 92, 246);">{{ stats.api_keys }}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label"><span data-i18n="account_center.orgs">ORGS</span></div>
-                    <div class="stat-value" id="stat-orgs" style="color: var(--archie-accent);">{{ stats.organizations }}</div>
+                    <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.orgs">ORGS</span></div>
+                    <div class="stat-value" id="stat-orgs" style="color: rgb(245, 158, 11);">{{ stats.organizations }}</div>
                 </div>
             </div>
 
@@ -1878,6 +2423,10 @@
 
             <!-- LIST Tab -->
             <div class="tab-content active" id="tab-list">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap"></div>
+                    <div class="lcars-section-title">USER DIRECTORY</div>
+                </div>
                 <div class="action-bar">
                     <div class="filters">
                         <select id="filter-role" class="form-select">
@@ -1948,6 +2497,10 @@
 
             <!-- PERMISSIONS Tab -->
             <div class="tab-content" id="tab-permissions">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap"></div>
+                    <div class="lcars-section-title">ACCESS CONTROL MATRIX</div>
+                </div>
                 <!-- Role Overview Cards -->
                 <div class="roles-overview" id="roles-overview">
                     <div class="loading">
@@ -1987,6 +2540,10 @@
 
             <!-- SUBSCRIPTIONS Tab -->
             <div class="tab-content" id="tab-subscriptions">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap"></div>
+                    <div class="lcars-section-title">SUBSCRIPTION TIERS</div>
+                </div>
                 <div class="tiers-grid" id="tiers-grid">
                     <div class="loading">
                         <div class="loading-spinner"></div>
@@ -2049,6 +2606,10 @@
 
             <!-- SECURITY Tab -->
             <div class="tab-content" id="tab-security">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap" style="--lcars-accent-rgb: 239, 68, 68;"></div>
+                    <div class="lcars-section-title" style="--lcars-accent-rgb: 239, 68, 68;">SECURITY OVERVIEW</div>
+                </div>
                 <!-- Security Overview -->
                 <div class="security-grid" style="margin-bottom: var(--archie-space-6);">
                     <div class="security-card card-danger">
@@ -2212,6 +2773,10 @@
 
             <!-- SESSIONS Tab -->
             <div class="tab-content" id="tab-sessions">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap" style="--lcars-accent-rgb: 0, 255, 65;"></div>
+                    <div class="lcars-section-title" style="--lcars-accent-rgb: 0, 255, 65;"><span class="sessions-live-dot"></span>ACTIVE SESSIONS</div>
+                </div>
                 <div class="action-bar">
                     <div class="filters">
                         <select id="filter-session-user" class="form-select">
@@ -2277,6 +2842,10 @@
 
             <!-- API KEYS Tab -->
             <div class="tab-content" id="tab-api-keys">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap" style="--lcars-accent-rgb: 139, 92, 246;"></div>
+                    <div class="lcars-section-title" style="--lcars-accent-rgb: 139, 92, 246;">API KEY MANAGEMENT</div>
+                </div>
                 <div class="action-bar">
                     <div class="filters">
                         <select id="filter-apikey-user" class="form-select">
@@ -2341,6 +2910,10 @@
 
             <!-- BULK OPS Tab -->
             <div class="tab-content" id="tab-bulk">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap"></div>
+                    <div class="lcars-section-title">BULK OPERATIONS</div>
+                </div>
                 <div class="card" style="margin-bottom: var(--archie-space-6);">
                     <div class="card-header"><span data-i18n="account_center.export_users">Export Users</span></div>
                     <div class="card-body">
@@ -2456,6 +3029,10 @@
 
             <!-- ACTIVITY Tab -->
             <div class="tab-content" id="tab-activity">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap"></div>
+                    <div class="lcars-section-title">ACTIVITY LOG</div>
+                </div>
                 <div class="action-bar">
                     <div class="filters">
                         <select id="filter-activity-module" class="form-select">
@@ -2532,22 +3109,26 @@
 
             <!-- ORGANIZATIONS Tab (SaaS Manager) -->
             <div class="tab-content" id="tab-organizations">
+                <div class="lcars-section-label">
+                    <div class="lcars-section-cap"></div>
+                    <div class="lcars-section-title">ORGANIZATION MANAGEMENT</div>
+                </div>
                 <!-- SaaS Sub-Stats -->
                 <div class="stats-grid" style="margin-bottom: var(--archie-space-5);">
                     <div class="stat-card">
-                        <div class="stat-label"><span data-i18n="account_center.total_orgs">TOTAL ORGS</span></div>
+                        <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.total_orgs">TOTAL ORGS</span></div>
                         <div class="stat-value" id="saas-stat-orgs">-</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label"><span data-i18n="account_center.domains">DOMAINS</span></div>
-                        <div class="stat-value" id="saas-stat-domains" style="color: var(--archie-cyan);">-</div>
+                        <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.domains">DOMAINS</span></div>
+                        <div class="stat-value" id="saas-stat-domains" style="color: rgb(0, 255, 255);">-</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label"><span data-i18n="account_center.modules">MODULES</span></div>
-                        <div class="stat-value" id="saas-stat-modules" style="color: var(--archie-orange);">-</div>
+                        <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.modules">MODULES</span></div>
+                        <div class="stat-value" id="saas-stat-modules" style="color: rgb(245, 158, 11);">-</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label"><span data-i18n="account_center.public_ip">PUBLIC IP</span></div>
+                        <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.public_ip">PUBLIC IP</span></div>
                         <div class="stat-value" id="saas-stat-ip" style="color: var(--archie-green); font-size: var(--archie-text-lg);">-</div>
                     </div>
                 </div>

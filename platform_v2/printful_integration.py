@@ -436,8 +436,8 @@ def handle_printful_webhook(event_type, data):
             # Create notification
             cur.execute(
                 """
-                INSERT INTO system_notifications (type, title, message, source)
-                VALUES ('success', 'Order Shipped', %s, 'printful_webhook')
+                INSERT INTO system_notifications (type, title, message, source, visibility)
+                VALUES ('success', 'Order Shipped', %s, 'printful_webhook', 'all')
             """,
                 (f"Order {order.get('external_id')} has been shipped. Tracking: {shipment.get('tracking_number')}",),
             )
@@ -450,8 +450,8 @@ def handle_printful_webhook(event_type, data):
             # Create notification
             cur.execute(
                 """
-                INSERT INTO system_notifications (type, title, message, source)
-                VALUES ('warning', 'Order Returned', %s, 'printful_webhook')
+                INSERT INTO system_notifications (type, title, message, source, visibility)
+                VALUES ('warning', 'Order Returned', %s, 'printful_webhook', 'all')
             """,
                 (f"Order {order.get('external_id')} was returned",),
             )

@@ -1,0 +1,647 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - A.R.C.H.I.E.{% endblock %}
+{% block module_name %}my-profile{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-panels.css') }}">
+<style>
+    :root {
+        --lcars-accent: #3b82f6;
+        --lcars-accent-rgb: 59, 130, 246;
+        --lcars-accent-dim: #2563eb;
+    }
+
+    .profile-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    .profile-header {
+        text-align: center;
+        padding: 24px;
+        margin-bottom: 24px;
+        border: 1px solid rgba(var(--lcars-accent-rgb), 0.2);
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.5);
+        border-radius: 0 12px 12px 0;
+        background: rgba(var(--lcars-accent-rgb), 0.04);
+    }
+
+    .profile-header h1 {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1.6rem;
+        color: rgb(var(--lcars-accent-rgb));
+        letter-spacing: 3px;
+        margin: 0 0 6px 0;
+        text-transform: uppercase;
+    }
+
+    .profile-header .subtitle {
+        font-family: 'Antonio', sans-serif;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 0.8rem;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+    }
+
+    /* ── Grid Layout ────────────────────────────────── */
+    .profile-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .profile-grid .full-width {
+        grid-column: 1 / -1;
+    }
+
+    /* ── Profile Info Card ──────────────────────────── */
+    .profile-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(var(--lcars-accent-rgb), 0.06);
+    }
+
+    .profile-info-row:last-child {
+        border-bottom: none;
+    }
+
+    .profile-info-label {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.72rem;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: rgba(var(--lcars-accent-rgb), 0.6);
+    }
+
+    .profile-info-value {
+        font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .profile-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 10px;
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.7rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    .badge-admin {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-user {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-tier {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    /* ── Password Form ──────────────────────────────── */
+    .password-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .form-msg {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.75rem;
+        letter-spacing: 1px;
+        text-align: center;
+        padding: 6px;
+        border-radius: 4px;
+        display: none;
+    }
+
+    .form-msg.success {
+        display: block;
+        color: #00ff41;
+        background: rgba(0, 255, 65, 0.08);
+    }
+
+    .form-msg.error {
+        display: block;
+        color: #ef4444;
+        background: rgba(239, 68, 68, 0.08);
+    }
+
+    /* ── Module Cards Grid ──────────────────────────── */
+    .modules-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+    }
+
+    .module-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        background: rgba(var(--lcars-accent-rgb), 0.04);
+        border: 1px solid rgba(var(--lcars-accent-rgb), 0.1);
+        border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.3);
+        border-radius: 0 8px 8px 0;
+        text-decoration: none;
+        color: rgba(255, 255, 255, 0.8);
+        transition: background 0.2s, border-color 0.2s;
+    }
+
+    .module-card:hover {
+        background: rgba(var(--lcars-accent-rgb), 0.1);
+        border-color: rgba(var(--lcars-accent-rgb), 0.3);
+        color: rgba(255, 255, 255, 0.95);
+    }
+
+    .module-card-icon {
+        font-size: 1.3rem;
+        flex-shrink: 0;
+        width: 32px;
+        text-align: center;
+    }
+
+    .module-card-info {
+        min-width: 0;
+    }
+
+    .module-card-name {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.78rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: rgba(var(--lcars-accent-rgb), 0.85);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .module-card-cat {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.62rem;
+        color: rgba(255, 255, 255, 0.3);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* ── Notifications ──────────────────────────────── */
+    .notif-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(var(--lcars-accent-rgb), 0.06);
+    }
+
+    .notif-item:last-child {
+        border-bottom: none;
+    }
+
+    .notif-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        margin-top: 6px;
+        flex-shrink: 0;
+    }
+
+    .notif-dot.unread {
+        background: rgb(var(--lcars-accent-rgb));
+        box-shadow: 0 0 6px rgba(var(--lcars-accent-rgb), 0.5);
+    }
+
+    .notif-dot.read {
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .notif-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .notif-title {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.78rem;
+        letter-spacing: 0.8px;
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .notif-message {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.45);
+        margin-top: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .notif-time {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.62rem;
+        color: rgba(255, 255, 255, 0.25);
+        margin-top: 3px;
+    }
+
+    .notif-mark-btn {
+        background: none;
+        border: 1px solid rgba(var(--lcars-accent-rgb), 0.2);
+        border-radius: 4px;
+        color: rgba(var(--lcars-accent-rgb), 0.6);
+        font-size: 0.6rem;
+        font-family: 'Antonio', sans-serif;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        cursor: pointer;
+        flex-shrink: 0;
+        margin-top: 3px;
+        transition: background 0.2s, color 0.2s;
+    }
+
+    .notif-mark-btn:hover {
+        background: rgba(var(--lcars-accent-rgb), 0.15);
+        color: rgba(var(--lcars-accent-rgb), 0.9);
+    }
+
+    .notif-empty {
+        text-align: center;
+        padding: 20px;
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.78rem;
+        letter-spacing: 1px;
+        color: rgba(255, 255, 255, 0.25);
+    }
+
+    .lcars-panel-body.no-scroll {
+        overflow: visible;
+        max-height: none;
+    }
+
+    /* ── Responsive ─────────────────────────────────── */
+    @media (max-width: 768px) {
+        .profile-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .modules-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .profile-header h1 {
+            font-size: 1.2rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .profile-container {
+            padding: 12px;
+        }
+
+        .modules-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <!-- Header -->
+    <div class="profile-header">
+        <h1>My Profile</h1>
+        <div class="subtitle">Personnel File &mdash; A.R.C.H.I.E. Platform</div>
+    </div>
+
+    <div class="profile-grid">
+        <!-- Profile Info Panel -->
+        <div class="lcars-panel" style="animation-delay: 0.1s;">
+            <div class="lcars-panel-header">
+                <div class="lcars-panel-cap"></div>
+                <span class="lcars-panel-title">Profile Information</span>
+                <div class="lcars-panel-light"></div>
+            </div>
+            <div class="lcars-panel-body no-scroll" id="profileInfo">
+                <div class="profile-info-row">
+                    <span class="profile-info-label">Username</span>
+                    <span class="profile-info-value" id="profileUsername">---</span>
+                </div>
+                <div class="profile-info-row">
+                    <span class="profile-info-label">Email</span>
+                    <span class="profile-info-value" id="profileEmail">---</span>
+                </div>
+                <div class="profile-info-row">
+                    <span class="profile-info-label">Role</span>
+                    <span id="profileRole">---</span>
+                </div>
+                <div class="profile-info-row">
+                    <span class="profile-info-label">Tier</span>
+                    <span id="profileTier">---</span>
+                </div>
+                <div class="profile-info-row">
+                    <span class="profile-info-label">Member Since</span>
+                    <span class="profile-info-value" id="profileCreated">---</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change Password Panel -->
+        <div class="lcars-panel" style="animation-delay: 0.2s;">
+            <div class="lcars-panel-header">
+                <div class="lcars-panel-cap"></div>
+                <span class="lcars-panel-title">Change Password</span>
+                <div class="lcars-panel-light"></div>
+            </div>
+            <div class="lcars-panel-body no-scroll">
+                <form class="password-form" id="passwordForm" onsubmit="return changePassword(event)">
+                    <div id="passwordMsg" class="form-msg"></div>
+                    <div class="form-group">
+                        <label class="lcars-label" for="currentPassword">Current Password</label>
+                        <input type="password" class="lcars-input" id="currentPassword" required autocomplete="current-password">
+                    </div>
+                    <div class="form-group">
+                        <label class="lcars-label" for="newPassword">New Password</label>
+                        <input type="password" class="lcars-input" id="newPassword" required minlength="8" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label class="lcars-label" for="confirmPassword">Confirm Password</label>
+                        <input type="password" class="lcars-input" id="confirmPassword" required minlength="8" autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="lcars-btn" id="passwordBtn">Update Password</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- My Modules Panel -->
+        <div class="lcars-panel full-width" style="animation-delay: 0.3s;">
+            <div class="lcars-panel-header">
+                <div class="lcars-panel-cap"></div>
+                <span class="lcars-panel-title">My Modules</span>
+                <div class="lcars-panel-light"></div>
+            </div>
+            <div class="lcars-panel-body no-scroll">
+                <div class="modules-grid" id="modulesGrid">
+                    <div class="notif-empty">Loading modules...</div>
+                </div>
+            </div>
+            <div class="lcars-panel-footer" id="modulesFooter">---</div>
+        </div>
+
+        <!-- My Notifications Panel -->
+        <div class="lcars-panel full-width" style="animation-delay: 0.4s;">
+            <div class="lcars-panel-header">
+                <div class="lcars-panel-cap"></div>
+                <span class="lcars-panel-title">My Notifications</span>
+                <div class="lcars-panel-light"></div>
+            </div>
+            <div class="lcars-panel-body" id="notifList">
+                <div class="notif-empty">Loading notifications...</div>
+            </div>
+            <div class="lcars-panel-footer" id="notifFooter">---</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    'use strict';
+
+    // ── Helpers ───────────────────────────────────────
+    function el(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text) e.textContent = text;
+        return e;
+    }
+
+    function timeAgo(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        var s = Math.floor((Date.now() - d.getTime()) / 1000);
+        if (s < 60) return 'just now';
+        if (s < 3600) return Math.floor(s / 60) + 'm ago';
+        if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+        return Math.floor(s / 86400) + 'd ago';
+    }
+
+    function formatDate(iso) {
+        if (!iso) return '---';
+        var d = new Date(iso);
+        return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    // ── Load Profile Data ─────────────────────────────
+    function loadProfile() {
+        fetch('/tools/my-profile/api/profile')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var p = data.profile;
+                document.getElementById('profileUsername').textContent = p.username || '---';
+                document.getElementById('profileEmail').textContent = p.email || '(not set)';
+
+                // Role badge
+                var roleEl = document.getElementById('profileRole');
+                roleEl.textContent = '';
+                var roleBadge = el('span', 'profile-badge ' + (p.role === 'admin' ? 'badge-admin' : 'badge-user'), p.role);
+                roleEl.appendChild(roleBadge);
+
+                // Tier badge
+                var tierEl = document.getElementById('profileTier');
+                tierEl.textContent = '';
+                var tierBadge = el('span', 'profile-badge badge-tier', p.subscription_tier);
+                tierEl.appendChild(tierBadge);
+
+                document.getElementById('profileCreated').textContent = formatDate(p.created_at);
+
+                // Render modules
+                renderModules(data.modules || []);
+            })
+            .catch(function(e) {
+                console.error('[Profile] Load failed:', e);
+            });
+    }
+
+    // ── Render Modules Grid ───────────────────────────
+    function renderModules(modules) {
+        var grid = document.getElementById('modulesGrid');
+        var footer = document.getElementById('modulesFooter');
+        grid.textContent = '';
+
+        if (!modules.length) {
+            grid.appendChild(el('div', 'notif-empty', 'No accessible modules'));
+            footer.textContent = '0 modules';
+            return;
+        }
+
+        modules.forEach(function(m) {
+            var a = document.createElement('a');
+            a.className = 'module-card';
+            a.href = m.url;
+
+            var iconSpan = el('span', 'module-card-icon');
+            var lucideI = document.createElement('i');
+            lucideI.setAttribute('data-lucide', m.icon || 'box');
+            iconSpan.appendChild(lucideI);
+            a.appendChild(iconSpan);
+
+            var info = el('div', 'module-card-info');
+            info.appendChild(el('div', 'module-card-name', m.name));
+            info.appendChild(el('div', 'module-card-cat', (m.category || '').replace(/_/g, ' ')));
+            a.appendChild(info);
+
+            grid.appendChild(a);
+        });
+
+        footer.textContent = modules.length + ' accessible module' + (modules.length !== 1 ? 's' : '');
+
+        // Re-render lucide icons for the new elements
+        if (window.lucide) lucide.createIcons();
+    }
+
+    // ── Load Notifications ────────────────────────────
+    function loadNotifications() {
+        fetch('/api/notifications?limit=20')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var list = document.getElementById('notifList');
+                var footer = document.getElementById('notifFooter');
+                var items = data.notifications || data.items || [];
+                list.textContent = '';
+
+                if (!items.length) {
+                    list.appendChild(el('div', 'notif-empty', 'No notifications'));
+                    footer.textContent = '0 notifications';
+                    return;
+                }
+
+                items.forEach(function(n) {
+                    var isRead = n.is_read || n.read;
+                    var row = el('div', 'notif-item');
+
+                    row.appendChild(el('div', 'notif-dot ' + (isRead ? 'read' : 'unread')));
+
+                    var body = el('div', 'notif-body');
+                    body.appendChild(el('div', 'notif-title', n.title || n.type || 'Notification'));
+                    body.appendChild(el('div', 'notif-message', n.message || n.content || ''));
+                    body.appendChild(el('div', 'notif-time', timeAgo(n.created_at || n.timestamp)));
+                    row.appendChild(body);
+
+                    if (!isRead && n.id) {
+                        var btn = el('button', 'notif-mark-btn', 'Mark Read');
+                        btn.addEventListener('click', (function(id, btnRef, rowRef) {
+                            return function() { markNotifRead(id, btnRef, rowRef); };
+                        })(n.id, btn, row));
+                        row.appendChild(btn);
+                    }
+
+                    list.appendChild(row);
+                });
+
+                var unreadCount = items.filter(function(n) { return !n.is_read && !n.read; }).length;
+                footer.textContent = items.length + ' notification' + (items.length !== 1 ? 's' : '') +
+                    (unreadCount > 0 ? ' (' + unreadCount + ' unread)' : '');
+            })
+            .catch(function(e) {
+                console.error('[Profile] Notifications failed:', e);
+                var list = document.getElementById('notifList');
+                list.textContent = '';
+                list.appendChild(el('div', 'notif-empty', 'Failed to load notifications'));
+            });
+    }
+
+    // ── Mark Notification Read ────────────────────────
+    function markNotifRead(id, btn, row) {
+        fetch('/api/notifications/mark-read/' + id, { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    var dot = row.querySelector('.notif-dot');
+                    if (dot) dot.className = 'notif-dot read';
+                    btn.remove();
+                }
+            })
+            .catch(function(e) {
+                console.error('[Profile] Mark read failed:', e);
+            });
+    }
+
+    // ── Change Password ───────────────────────────────
+    window.changePassword = function(e) {
+        e.preventDefault();
+        var msgEl = document.getElementById('passwordMsg');
+        var newPw = document.getElementById('newPassword').value;
+        var confirmPw = document.getElementById('confirmPassword').value;
+
+        if (newPw !== confirmPw) {
+            msgEl.className = 'form-msg error';
+            msgEl.textContent = 'Passwords do not match';
+            return false;
+        }
+
+        var btn = document.getElementById('passwordBtn');
+        btn.disabled = true;
+        btn.textContent = 'Updating...';
+        msgEl.className = 'form-msg';
+        msgEl.style.display = 'none';
+
+        fetch('/tools/my-profile/api/profile/password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                current_password: document.getElementById('currentPassword').value,
+                new_password: newPw
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            btn.textContent = 'Update Password';
+            if (data.success) {
+                msgEl.className = 'form-msg success';
+                msgEl.textContent = data.message || 'Password updated';
+                document.getElementById('passwordForm').reset();
+            } else {
+                msgEl.className = 'form-msg error';
+                msgEl.textContent = data.error || 'Update failed';
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Update Password';
+            msgEl.className = 'form-msg error';
+            msgEl.textContent = 'Network error';
+        });
+
+        return false;
+    };
+
+    // ── Init ──────────────────────────────────────────
+    loadProfile();
+    loadNotifications();
+})();
+</script>
+{% endblock %}

@@ -57,8 +57,10 @@ def get_imap_settings():
                    from_email, from_name, reply_to,
                    smtp_test_result, smtp_test_message, smtp_tested_at
             FROM email_imap_settings
+            WHERE user_id = %s
             ORDER BY id
-            """
+            """,
+            (current_user.id,),
         )
         settings = [dict(r) for r in cur.fetchall()]
         return jsonify({"success": True, "settings": settings})
@@ -95,9 +97,9 @@ def create_imap_setting():
             (name, imap_host, imap_port, imap_user, imap_password_encrypted,
              encryption, folder, check_interval_minutes, auto_analyze, auto_file_kb,
              smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
-             smtp_encryption, from_email, from_name, reply_to)
+             smtp_encryption, from_email, from_name, reply_to, user_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s)
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """,
             (
@@ -119,6 +121,7 @@ def create_imap_setting():
                 data.get("from_email"),
                 data.get("from_name"),
                 data.get("reply_to"),
+                current_user.id,
             ),
         )
         setting_id = cur.fetchone()["id"]
@@ -181,10 +184,10 @@ def update_imap_setting(setting_id):
             return jsonify({"success": False, "error": "No fields to update"}), 400
 
         updates.append("updated_at = NOW()")
-        params.append(setting_id)
+        params.extend([setting_id, current_user.id])
 
         cur.execute(
-            f"UPDATE email_imap_settings SET {', '.join(updates)} WHERE id = %s RETURNING id",
+            f"UPDATE email_imap_settings SET {', '.join(updates)} WHERE id = %s AND user_id = %s RETURNING id",
             params,
         )
         result = cur.fetchone()
@@ -212,6 +215,16 @@ def delete_imap_setting(setting_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # Verify ownership first
+        cur.execute(
+            "SELECT id FROM email_imap_settings WHERE id = %s AND user_id = %s",
+            (setting_id, current_user.id),
+        )
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Setting not found"}), 404
+
         # Check for dependent emails
         cur.execute(
             "SELECT COUNT(*) as cnt FROM email_inbox WHERE imap_setting_id = %s",
@@ -232,8 +245,8 @@ def delete_imap_setting(setting_id):
             )
 
         cur.execute(
-            "DELETE FROM email_imap_settings WHERE id = %s RETURNING id",
-            (setting_id,),
+            "DELETE FROM email_imap_settings WHERE id = %s AND user_id = %s RETURNING id",
+            (setting_id, current_user.id),
         )
         result = cur.fetchone()
         conn.commit()
@@ -259,7 +272,10 @@ def test_imap_setting(setting_id):
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM email_imap_settings WHERE id = %s", (setting_id,))
+        cur.execute(
+            "SELECT * FROM email_imap_settings WHERE id = %s AND user_id = %s",
+            (setting_id, current_user.id),
+        )
         setting = cur.fetchone()
 
         if not setting:
@@ -307,8 +323,8 @@ def test_smtp_setting(setting_id):
         cur.execute(
             """SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
                       smtp_encryption, from_email
-               FROM email_imap_settings WHERE id = %s""",
-            (setting_id,),
+               FROM email_imap_settings WHERE id = %s AND user_id = %s""",
+            (setting_id, current_user.id),
         )
         setting = cur.fetchone()
 
@@ -362,8 +378,8 @@ def test_smtp_setting(setting_id):
         cur.execute(
             """UPDATE email_imap_settings
                SET smtp_test_result = %s, smtp_test_message = %s, smtp_tested_at = NOW()
-               WHERE id = %s""",
-            (test_result, test_message, setting_id),
+               WHERE id = %s AND user_id = %s""",
+            (test_result, test_message, setting_id, current_user.id),
         )
         conn.commit()
 
@@ -397,8 +413,10 @@ def get_smtp_accounts():
             SELECT id, name, from_email, from_name, smtp_test_result
             FROM email_imap_settings
             WHERE is_active = true AND smtp_host IS NOT NULL AND from_email IS NOT NULL
+              AND user_id = %s
             ORDER BY id
-            """
+            """,
+            (current_user.id,),
         )
         accounts = [dict(r) for r in cur.fetchall()]
         return jsonify({"success": True, "accounts": accounts})
@@ -435,8 +453,11 @@ def get_inbox():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        where = ["e.is_archived = FALSE"]
-        params = []
+        where = [
+            "e.is_archived = FALSE",
+            "eis.user_id = %s",
+        ]
+        params = [current_user.id]
 
         if category:
             where.append("e.ai_category = %s")
@@ -470,7 +491,7 @@ def get_inbox():
         cur.execute(
             f"""SELECT COUNT(*) as total
             FROM email_inbox e
-            LEFT JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
             WHERE {where_clause}""",
             params,
         )
@@ -484,7 +505,7 @@ def get_inbox():
                    e.is_read, e.is_starred, e.crm_customer_id, e.kb_entry_id, e.created_at,
                    eis.name as account_name
             FROM email_inbox e
-            LEFT JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
             WHERE {where_clause}
             ORDER BY {order_clause}
             LIMIT %s OFFSET %s
@@ -493,16 +514,18 @@ def get_inbox():
         )
         emails = [dict(r) for r in cur.fetchall()]
 
-        # Category counts (respect account filter)
-        acct_filter = ""
-        acct_params = []
+        # Category counts (respect account filter + user ownership)
+        acct_filter = " AND eis.user_id = %s"
+        acct_params = [current_user.id]
         if account:
-            acct_filter = " AND e.imap_setting_id = %s"
-            acct_params = [int(account)]
+            acct_filter += " AND e.imap_setting_id = %s"
+            acct_params.append(int(account))
 
         cur.execute(
             f"""SELECT e.ai_category, COUNT(*) as count
-            FROM email_inbox e WHERE e.is_archived = FALSE{acct_filter}
+            FROM email_inbox e
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE e.is_archived = FALSE{acct_filter}
             GROUP BY e.ai_category""",
             acct_params,
         )
@@ -510,28 +533,33 @@ def get_inbox():
 
         # Unread count
         cur.execute(
-            f"SELECT COUNT(*) as c FROM email_inbox e WHERE e.is_read = FALSE AND e.is_archived = FALSE{acct_filter}",
+            f"""SELECT COUNT(*) as c FROM email_inbox e
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE e.is_read = FALSE AND e.is_archived = FALSE{acct_filter}""",
             acct_params,
         )
         unread = cur.fetchone()["c"]
 
         # Starred count
         cur.execute(
-            f"SELECT COUNT(*) as c FROM email_inbox e WHERE e.is_starred = TRUE AND e.is_archived = FALSE{acct_filter}",
+            f"""SELECT COUNT(*) as c FROM email_inbox e
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE e.is_starred = TRUE AND e.is_archived = FALSE{acct_filter}""",
             acct_params,
         )
         starred = cur.fetchone()["c"]
 
-        # Account counts (always show all accounts)
+        # Account counts (only user's accounts)
         cur.execute(
             """
             SELECT eis.id, eis.name, COUNT(*) as count
             FROM email_inbox e
             JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
-            WHERE e.is_archived = FALSE
+            WHERE e.is_archived = FALSE AND eis.user_id = %s
             GROUP BY eis.id, eis.name
             ORDER BY eis.name
-        """
+        """,
+            (current_user.id,),
         )
         accounts = [dict(r) for r in cur.fetchall()]
 
@@ -566,10 +594,10 @@ def get_inbox_stats():
     try:
         account = request.args.get("account")
         acct_filter = ""
-        acct_params = []
+        acct_params = [current_user.id]
         if account:
-            acct_filter = " WHERE imap_setting_id = %s"
-            acct_params = [int(account)]
+            acct_filter = " AND e.imap_setting_id = %s"
+            acct_params.append(int(account))
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -577,11 +605,13 @@ def get_inbox_stats():
             f"""
             SELECT
                 COUNT(*) as total,
-                COUNT(ai_analyzed_at) as analyzed,
-                COUNT(*) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) as unread,
-                COUNT(*) FILTER (WHERE is_archived = TRUE) as archived,
-                COUNT(*) FILTER (WHERE is_starred = TRUE AND is_archived = FALSE) as starred
-            FROM email_inbox{acct_filter}
+                COUNT(e.ai_analyzed_at) as analyzed,
+                COUNT(*) FILTER (WHERE e.is_read = FALSE AND e.is_archived = FALSE) as unread,
+                COUNT(*) FILTER (WHERE e.is_archived = TRUE) as archived,
+                COUNT(*) FILTER (WHERE e.is_starred = TRUE AND e.is_archived = FALSE) as starred
+            FROM email_inbox e
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE eis.user_id = %s{acct_filter}
         """,
             acct_params,
         )
@@ -686,34 +716,39 @@ def bulk_action():
         cur = conn.cursor()
 
         placeholders = ",".join(["%s"] * len(ids))
+        ownership = f" AND imap_setting_id IN (SELECT id FROM email_imap_settings WHERE user_id = %s)"
+        params_with_user = ids + [current_user.id]
 
         if action == "mark_read":
             cur.execute(
-                f"UPDATE email_inbox SET is_read = TRUE WHERE id IN ({placeholders})",
-                ids,
+                f"UPDATE email_inbox SET is_read = TRUE WHERE id IN ({placeholders}){ownership}",
+                params_with_user,
             )
         elif action == "mark_unread":
             cur.execute(
-                f"UPDATE email_inbox SET is_read = FALSE WHERE id IN ({placeholders})",
-                ids,
+                f"UPDATE email_inbox SET is_read = FALSE WHERE id IN ({placeholders}){ownership}",
+                params_with_user,
             )
         elif action == "archive":
             cur.execute(
-                f"UPDATE email_inbox SET is_archived = TRUE WHERE id IN ({placeholders})",
-                ids,
+                f"UPDATE email_inbox SET is_archived = TRUE WHERE id IN ({placeholders}){ownership}",
+                params_with_user,
             )
         elif action == "star":
             cur.execute(
-                f"UPDATE email_inbox SET is_starred = TRUE WHERE id IN ({placeholders})",
-                ids,
+                f"UPDATE email_inbox SET is_starred = TRUE WHERE id IN ({placeholders}){ownership}",
+                params_with_user,
             )
         elif action == "unstar":
             cur.execute(
-                f"UPDATE email_inbox SET is_starred = FALSE WHERE id IN ({placeholders})",
-                ids,
+                f"UPDATE email_inbox SET is_starred = FALSE WHERE id IN ({placeholders}){ownership}",
+                params_with_user,
             )
         elif action == "delete":
-            cur.execute(f"DELETE FROM email_inbox WHERE id IN ({placeholders})", ids)
+            cur.execute(
+                f"DELETE FROM email_inbox WHERE id IN ({placeholders}){ownership}",
+                params_with_user,
+            )
 
         affected = cur.rowcount
         conn.commit()
@@ -740,9 +775,9 @@ def get_email_detail(email_id):
         cur.execute(
             """SELECT e.*, eis.name as account_name
             FROM email_inbox e
-            LEFT JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
-            WHERE e.id = %s""",
-            (email_id,),
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE e.id = %s AND eis.user_id = %s""",
+            (email_id, current_user.id),
         )
         email_row = cur.fetchone()
 
@@ -784,22 +819,28 @@ def get_email_thread(email_id):
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        # Get thread_id for this email
-        cur.execute("SELECT thread_id FROM email_inbox WHERE id = %s", (email_id,))
+        # Get thread_id for this email (with ownership check)
+        cur.execute(
+            """SELECT e.thread_id FROM email_inbox e
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE e.id = %s AND eis.user_id = %s""",
+            (email_id, current_user.id),
+        )
         row = cur.fetchone()
         if not row or not row.get("thread_id"):
             return jsonify({"success": True, "thread": [], "count": 0})
 
-        # Get all emails in this thread
+        # Get all emails in this thread (only user's emails)
         cur.execute(
             """
-            SELECT id, from_address, from_name, subject, received_at, is_read, ai_summary,
-                   LEFT(body_text, 200) as preview
-            FROM email_inbox
-            WHERE thread_id = %s
-            ORDER BY received_at ASC
+            SELECT e.id, e.from_address, e.from_name, e.subject, e.received_at, e.is_read, e.ai_summary,
+                   LEFT(e.body_text, 200) as preview
+            FROM email_inbox e
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE e.thread_id = %s AND eis.user_id = %s
+            ORDER BY e.received_at ASC
         """,
-            (row["thread_id"],),
+            (row["thread_id"], current_user.id),
         )
         thread = cur.fetchall()
 
@@ -824,8 +865,10 @@ def toggle_star(email_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
-            "UPDATE email_inbox SET is_starred = NOT is_starred WHERE id = %s RETURNING is_starred",
-            (email_id,),
+            """UPDATE email_inbox SET is_starred = NOT is_starred
+            WHERE id = %s AND imap_setting_id IN (SELECT id FROM email_imap_settings WHERE user_id = %s)
+            RETURNING is_starred""",
+            (email_id, current_user.id),
         )
         result = cur.fetchone()
         conn.commit()
@@ -848,8 +891,10 @@ def toggle_read(email_id):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         cur.execute(
-            "UPDATE email_inbox SET is_read = NOT is_read, updated_at = NOW() WHERE id = %s RETURNING is_read",
-            (email_id,),
+            """UPDATE email_inbox SET is_read = NOT is_read, updated_at = NOW()
+            WHERE id = %s AND imap_setting_id IN (SELECT id FROM email_imap_settings WHERE user_id = %s)
+            RETURNING is_read""",
+            (email_id, current_user.id),
         )
         row = cur.fetchone()
         if not row:
@@ -871,7 +916,11 @@ def archive_email(email_id):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE email_inbox SET is_archived = TRUE WHERE id = %s", (email_id,))
+        cur.execute(
+            """UPDATE email_inbox SET is_archived = TRUE
+            WHERE id = %s AND imap_setting_id IN (SELECT id FROM email_imap_settings WHERE user_id = %s)""",
+            (email_id, current_user.id),
+        )
         conn.commit()
         return jsonify({"success": True})
     except Exception as e:
@@ -891,7 +940,11 @@ def delete_email(email_id):
     conn = get_db()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM email_inbox WHERE id = %s", (email_id,))
+        cur.execute(
+            """DELETE FROM email_inbox
+            WHERE id = %s AND imap_setting_id IN (SELECT id FROM email_imap_settings WHERE user_id = %s)""",
+            (email_id, current_user.id),
+        )
         if cur.rowcount == 0:
             return jsonify({"success": False, "error": "Email not found"}), 404
         conn.commit()
@@ -988,8 +1041,24 @@ def check_inbox_now():
         from email_intelligence import EmailIntelligence
 
         ei = EmailIntelligence()
-        setting_id = request.get_json(silent=True, force=True) or {}
-        setting_id = setting_id.get("setting_id")
+        data = request.get_json(silent=True, force=True) or {}
+        setting_id = data.get("setting_id")
+
+        # If specific setting requested, verify ownership
+        if setting_id:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT id FROM email_imap_settings WHERE id = %s AND user_id = %s",
+                (setting_id, current_user.id),
+            )
+            if not cur.fetchone():
+                cur.close()
+                conn.close()
+                return jsonify({"success": False, "error": "Setting not found"}), 404
+            cur.close()
+            conn.close()
+
         result = ei.check_inbox(setting_id)
         return jsonify({"success": True, **result})
     except Exception as e:
@@ -1015,11 +1084,12 @@ def get_drafts():
             SELECT d.*, e.from_address, e.subject as original_subject
             FROM email_drafts d
             LEFT JOIN email_inbox e ON d.inbox_email_id = e.id
-            WHERE d.status = %s
+            LEFT JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE d.status = %s AND (eis.user_id = %s OR d.inbox_email_id IS NULL)
             ORDER BY d.created_at DESC
             LIMIT 50
             """,
-            (status_filter,),
+            (status_filter, current_user.id),
         )
         drafts = [dict(r) for r in cur.fetchall()]
         return jsonify({"success": True, "drafts": drafts})

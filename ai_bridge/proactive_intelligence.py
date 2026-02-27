@@ -404,12 +404,12 @@ class AnomalyDetector:
                         (rule["id"],),
                     )
 
-                    # Create notification
+                    # Create notification (admin-only — anomalies are system-level)
                     cur.execute(
                         """
                         INSERT INTO system_notifications
-                        (type, title, message, source, priority, is_read, created_at)
-                        VALUES (%s, %s, %s, 'anomaly_detector', %s, FALSE, NOW())
+                        (type, title, message, source, priority, visibility, is_read, created_at)
+                        VALUES (%s, %s, %s, 'anomaly_detector', %s, 'admin', FALSE, NOW())
                         """,
                         (
                             (

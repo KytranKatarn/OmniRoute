@@ -846,17 +846,29 @@ class AgentLoop:
                     f"Email inbox: {fetched} fetched, {analyzed} analyzed ({duration_ms}ms)"
                 )
 
-                # Create notification for new emails
+                # Create per-user notifications for new emails
                 if fetched > 0:
                     conn = get_db()
                     cur = conn.cursor(cursor_factory=RealDictCursor)
-                    self._create_notification(
-                        cur,
-                        notification_type="info",
-                        title="New Emails",
-                        message=f"{fetched} new email(s) received and {analyzed} analyzed",
-                        source="email_intelligence",
+                    # Get distinct account owners who received new mail
+                    cur.execute(
+                        """SELECT DISTINCT eis.user_id, COUNT(*) as cnt
+                        FROM email_inbox e
+                        JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+                        WHERE e.created_at > NOW() - INTERVAL '10 minutes'
+                        GROUP BY eis.user_id"""
                     )
+                    user_counts = cur.fetchall()
+                    for uc in user_counts:
+                        self._create_notification(
+                            cur,
+                            notification_type="info",
+                            title="New Emails",
+                            message=f"{uc['cnt']} new email(s) received",
+                            source="email_intelligence",
+                            visibility="user",
+                            target_user_id=uc["user_id"],
+                        )
                     conn.commit()
                     cur.close()
                     conn.close()
@@ -2302,19 +2314,25 @@ class AgentLoop:
         source: str,
         priority: str = "normal",
         related_action: str = None,
+        visibility: str = "all",
+        target_user_id: int = None,
     ):
         """Create a system notification with deduplication."""
         # Deduplication: check for same message in last 5 minutes
-        cur.execute(
-            """
+        dedup_sql = """
             SELECT id, grouped_count FROM system_notifications
             WHERE message = %s AND type = %s AND source = %s
               AND created_at > NOW() - INTERVAL '5 minutes'
               AND is_read = FALSE
-            ORDER BY created_at DESC LIMIT 1
-            """,
-            (message, notification_type, source),
-        )
+        """
+        dedup_params = [message, notification_type, source]
+        if target_user_id is not None:
+            dedup_sql += " AND target_user_id = %s"
+            dedup_params.append(target_user_id)
+        else:
+            dedup_sql += " AND target_user_id IS NULL"
+        dedup_sql += " ORDER BY created_at DESC LIMIT 1"
+        cur.execute(dedup_sql, dedup_params)
         existing = cur.fetchone()
 
         if existing:
@@ -2330,8 +2348,9 @@ class AgentLoop:
             cur.execute(
                 """
                 INSERT INTO system_notifications
-                (type, title, message, source, priority, source_icon, related_action, is_read, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, NOW())
+                (type, title, message, source, priority, source_icon, related_action,
+                 visibility, target_user_id, is_read, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, NOW())
                 """,
                 (
                     notification_type,
@@ -2341,6 +2360,8 @@ class AgentLoop:
                     priority,
                     "bot",
                     related_action,
+                    visibility,
+                    target_user_id,
                 ),
             )
 

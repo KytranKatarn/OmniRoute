@@ -157,10 +157,15 @@ def index():
         )
         smtp_status = cur.fetchone()
 
-        # Get unread inbox count for nav badge
+        # Get unread inbox count for nav badge (only user's accounts)
         email_unread_count = 0
         try:
-            cur.execute("SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE")
+            cur.execute(
+                """SELECT COUNT(*) as c FROM email_inbox e
+                JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+                WHERE e.is_read = FALSE AND e.is_archived = FALSE AND eis.user_id = %s""",
+                (current_user.id,),
+            )
             email_unread_count = cur.fetchone()["c"]
         except Exception:
             email_unread_count = 0
@@ -909,8 +914,8 @@ def get_logs():
         per_page = int(request.args.get("per_page", 50))
         offset = (page - 1) * per_page
 
-        where_clauses = ["1=1"]
-        params = []
+        where_clauses = ["created_by = %s"]
+        params = [current_user.id]
 
         if status:
             where_clauses.append("status = %s")
@@ -974,8 +979,10 @@ def get_campaigns():
             FROM email_campaigns c
             LEFT JOIN email_templates t ON c.template_id = t.id
             LEFT JOIN crm_segments s ON c.segment_id = s.id
+            WHERE c.created_by = %s
             ORDER BY c.created_at DESC
-        """
+        """,
+            (current_user.id,),
         )
         campaigns = cur.fetchall()
 
@@ -1148,7 +1155,7 @@ def get_stats():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Overall stats (last 30 days)
+        # Overall stats (last 30 days, per user)
         cur.execute(
             """
             SELECT
@@ -1159,8 +1166,9 @@ def get_stats():
                 COUNT(*) FILTER (WHERE status = 'failed') as failed,
                 COUNT(*) FILTER (WHERE status = 'bounced') as bounced
             FROM email_logs
-            WHERE created_at > NOW() - INTERVAL '30 days'
-        """
+            WHERE created_at > NOW() - INTERVAL '30 days' AND created_by = %s
+        """,
+            (current_user.id,),
         )
         stats = cur.fetchone()
 
@@ -1171,10 +1179,11 @@ def get_stats():
                    COUNT(*) as sent,
                    COUNT(*) FILTER (WHERE status = 'opened') as opened
             FROM email_logs
-            WHERE created_at > NOW() - INTERVAL '30 days'
+            WHERE created_at > NOW() - INTERVAL '30 days' AND created_by = %s
             GROUP BY DATE(created_at)
             ORDER BY date
-        """
+        """,
+            (current_user.id,),
         )
         daily_trend = cur.fetchall()
 
@@ -1183,12 +1192,13 @@ def get_stats():
             """
             SELECT t.name, COUNT(l.id) as send_count
             FROM email_templates t
-            LEFT JOIN email_logs l ON t.id = l.template_id
+            LEFT JOIN email_logs l ON t.id = l.template_id AND l.created_by = %s
             WHERE l.created_at > NOW() - INTERVAL '30 days' OR l.id IS NULL
             GROUP BY t.id, t.name
             ORDER BY send_count DESC
             LIMIT 10
-        """
+        """,
+            (current_user.id,),
         )
         template_usage = cur.fetchall()
 

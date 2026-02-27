@@ -1601,6 +1601,7 @@ def get_lounge_agents():
                 SELECT
                     a.id as agent_id,
                     a.name as agent_name,
+                    a.display_name,
                     a.avatar_url,
                     a.department,
                     arc.id as rest_cycle_id,

@@ -3328,6 +3328,10 @@ body.light-mode .bridge-zone-unstaffed {
 .contractor-firm.expanded .contractor-firm-body {
     display: block;
 }
+.contractor-header-summary {
+    font-size: 0.55rem; color: rgba(255,255,255,0.4); white-space: nowrap;
+}
+.contractor-firm.expanded .contractor-header-summary { display: none; }
 .contractor-models-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -3393,91 +3397,323 @@ body.light-mode .bridge-zone-unstaffed {
     accent-color: #a855f7;
 }
 
-/* Provider Modal */
-.provider-modal-overlay {
+/* ============================================================================
+   LCARS TABLET MODALS (.bm-* = bridge-modal)
+   Uses CSS custom properties --bm-accent / --bm-accent-rgb per modal
+   ============================================================================ */
+.bm-overlay {
+    display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
     justify-content: center;
-    z-index: 9999;
+    align-items: center;
 }
-.provider-modal {
-    background: var(--archie-bg-primary, #0d1117);
-    border: 1px solid rgba(168, 85, 247, 0.3);
-    border-radius: 12px;
-    padding: 24px;
-    width: 400px;
-    max-width: 90vw;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+.bm-overlay.active { display: flex; }
+/* Tablet device shell */
+.bm-shell {
+    background: #06060c;
+    border: none;
+    border-radius: 24px;
+    width: 90%; max-width: 500px;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    box-shadow:
+        0 0 0 2px #1e1e35,
+        0 0 0 4px rgba(var(--bm-accent-rgb),0.12),
+        0 24px 80px rgba(0,0,0,0.8),
+        0 0 60px rgba(var(--bm-accent-rgb),0.06);
+    animation: bmTabletIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.provider-modal h3 {
-    color: #a855f7;
-    font-size: 1rem;
-    margin: 0 0 16px 0;
+@keyframes bmTabletIn {
+    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+/* ─── Left LCARS sidebar frame ─── */
+.bm-frame {
+    flex-shrink: 0;
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 0;
+    background: transparent;
+}
+.bm-frame-elbow-top {
+    height: 52px;
+    background: var(--bm-accent);
+    border-radius: 20px 0 0 0;
+    position: relative;
+}
+.bm-frame-elbow-top::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 18px; height: 18px;
+    background: #06060c;
+    border-radius: 0 10px 0 0;
+}
+.bm-frame-seg {
+    height: 28px;
+    border-radius: 0 8px 8px 0;
+    margin-right: 6px;
+    background: var(--bm-accent);
+}
+.bm-frame-seg.dim { opacity: 0.6; }
+.bm-frame-seg.dimmer { opacity: 0.3; }
+.bm-frame-seg.amber { background: #FFAA00; }
+.bm-frame-seg.cyan { background: #00d4ff; }
+.bm-frame-seg.green { background: #10b981; }
+.bm-frame-seg.red { background: #ff6b6b; }
+.bm-frame-seg.purple { background: #8b5cf6; }
+.bm-frame-light {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin: 4px auto;
+    animation: bmLightPulse 2s ease-in-out infinite;
+}
+.bm-frame-light.on { background: #10b981; box-shadow: 0 0 8px #10b981; }
+.bm-frame-light.amber { background: #FFAA00; box-shadow: 0 0 8px #FFAA00; animation-delay: 0.7s; }
+.bm-frame-light.cyan { background: #00d4ff; box-shadow: 0 0 8px #00d4ff; animation-delay: 1.4s; }
+@keyframes bmLightPulse {
+    0%, 100% { opacity: 1; }
+    40% { opacity: 0.3; }
+    60% { opacity: 0.3; }
+}
+.bm-frame-fill {
+    flex: 1;
+    background: rgba(var(--bm-accent-rgb),0.25);
+    border-radius: 0 8px 0 0;
+    margin-right: 6px;
+    min-height: 20px;
+}
+.bm-frame-elbow-bottom {
+    height: 36px;
+    background: var(--bm-accent);
+    border-radius: 0 0 0 20px;
+    position: relative;
+}
+.bm-frame-elbow-bottom::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 18px; height: 14px;
+    background: #06060c;
+    border-radius: 0 0 0 10px;
+}
+/* ─── Right content column ─── */
+.bm-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+.bm-header {
+    display: flex;
+    align-items: stretch;
+    gap: 3px;
+    padding: 0;
+    border-bottom: none;
+    background: transparent;
+    min-height: 44px;
+    flex-shrink: 0;
+}
+.bm-header-title {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-.provider-modal label {
-    display: block;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    margin-bottom: 4px;
+    padding: 0 18px;
+    background: var(--bm-accent);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: #fff;
+    white-space: nowrap;
 }
-.provider-modal input,
-.provider-modal select {
+.bm-header-strip {
+    flex: 1;
+    background: rgba(var(--bm-accent-rgb),0.18);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 8px;
+    border-radius: 0 20px 0 0;
+    gap: 6px;
+}
+.bm-header-pip {
+    height: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.bm-header-pip.w1 { width: 20px; background: rgba(var(--bm-accent-rgb),0.35); }
+.bm-header-pip.w2 { width: 35px; background: rgba(255,170,0,0.3); }
+.bm-header-pip.w3 { width: 14px; background: rgba(0,212,255,0.3); }
+.bm-close {
+    background: rgba(var(--bm-accent-rgb),0.15);
+    border: 1px solid rgba(var(--bm-accent-rgb),0.3);
+    color: rgba(255,255,255,0.6);
+    font-size: 1rem;
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    flex-shrink: 0;
+}
+.bm-close:hover {
+    background: rgba(var(--bm-accent-rgb),0.3);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(var(--bm-accent-rgb),0.2);
+}
+/* Screen area */
+.bm-body {
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+    background: transparent;
+    font-family: 'Antonio', sans-serif;
+}
+.bm-body * { font-family: 'Antonio', sans-serif; }
+.bm-body code, .bm-body pre { font-family: 'IBM Plex Mono', monospace; }
+.bm-body::-webkit-scrollbar { width: 4px; }
+.bm-body::-webkit-scrollbar-thumb { background: rgba(var(--bm-accent-rgb),0.3); border-radius: 2px; }
+.bm-body::-webkit-scrollbar-track { background: transparent; }
+.bm-body label {
+    font-family: 'Antonio', sans-serif !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase;
+    font-size: 0.72rem !important;
+    color: rgba(var(--bm-accent-rgb),0.6) !important;
+    display: block;
+    margin-bottom: 4px;
+}
+.bm-body input[type="text"],
+.bm-body input[type="number"],
+.bm-body input[type="password"],
+.bm-body select,
+.bm-body textarea {
     width: 100%;
     padding: 8px 10px;
-    background: var(--archie-bg-tertiary, rgba(255,255,255,0.05));
-    border: 1px solid rgba(168, 85, 247, 0.2);
-    border-radius: 6px;
-    color: var(--archie-text-primary);
-    font-size: 0.8rem;
+    background: rgba(var(--bm-accent-rgb),0.06) !important;
+    border: 1px solid rgba(var(--bm-accent-rgb),0.2) !important;
+    border-radius: 8px !important;
+    color: #fff !important;
+    font-family: 'Antonio', sans-serif !important;
+    font-size: 0.85rem !important;
+    letter-spacing: 0.03em;
     margin-bottom: 12px;
     box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-.provider-modal input:focus,
-.provider-modal select:focus {
+.bm-body input:focus,
+.bm-body select:focus,
+.bm-body textarea:focus {
     outline: none;
-    border-color: #a855f7;
+    border-color: var(--bm-accent) !important;
+    box-shadow: 0 0 12px rgba(var(--bm-accent-rgb),0.15);
 }
-.provider-modal-buttons {
+/* Actions bar */
+.bm-actions {
     display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    margin-top: 8px;
+    gap: 10px;
+    padding: 10px 24px;
+    border-top: 1px solid rgba(var(--bm-accent-rgb),0.12);
+    background: rgba(0,0,0,0.2);
+    flex-shrink: 0;
+    flex-wrap: wrap;
 }
-.provider-modal-buttons button {
-    padding: 8px 16px;
+.bm-actions button {
+    padding: 10px 16px;
     border-radius: 6px;
-    font-size: 0.75rem;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem;
     cursor: pointer;
-    border: 1px solid;
-    transition: all 0.2s ease;
+    transition: all 0.2s;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
-.provider-modal-buttons .btn-save {
-    background: rgba(168, 85, 247, 0.15);
-    border-color: rgba(168, 85, 247, 0.4);
-    color: #a855f7;
-}
-.provider-modal-buttons .btn-save:hover {
-    background: rgba(168, 85, 247, 0.25);
-}
-.provider-modal-buttons .btn-cancel {
+.bm-actions .btn-cancel {
     background: transparent;
-    border-color: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255,255,255,0.15);
     color: var(--archie-text-muted);
 }
-.provider-modal-buttons .btn-cancel:hover {
-    background: rgba(255, 255, 255, 0.05);
+.bm-actions .btn-cancel:hover {
+    background: rgba(255,255,255,0.05);
+}
+.bm-actions .btn-submit {
+    background: rgba(var(--bm-accent-rgb),0.2);
+    border: 1px solid rgba(var(--bm-accent-rgb),0.5);
+    color: #fff;
+}
+.bm-actions .btn-submit:hover {
+    background: rgba(var(--bm-accent-rgb),0.35);
+    box-shadow: 0 0 16px rgba(var(--bm-accent-rgb),0.2);
+}
+.bm-actions .btn-delete {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border: none;
+    color: #fff;
+    flex: 0 0 auto;
+    padding: 10px 20px;
+}
+.bm-actions .btn-danger {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.bm-actions .btn-danger:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+/* Footer decorative strip */
+.bm-footer {
+    display: flex;
+    align-items: stretch;
+    min-height: 14px;
+    flex-shrink: 0;
+    gap: 3px;
+}
+.bm-footer-strip {
+    flex: 1;
+    background: rgba(var(--bm-accent-rgb),0.18);
+    border-radius: 0 0 20px 0;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 4px;
+}
+.bm-footer-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.bm-footer-dot.cyan { background: rgba(0,212,255,0.4); }
+.bm-footer-dot.gold { background: rgba(255,170,0,0.4); }
+.bm-footer-dot.green { background: rgba(16,185,129,0.4); }
+.bm-footer-dot.purple { background: rgba(139,92,246,0.5); }
+.bm-footer-dot.red { background: rgba(255,107,107,0.4); }
+/* Responsive */
+@media (max-width: 768px) {
+    .bm-shell { width: 95%; max-height: 90vh; border-radius: 16px; }
+    .bm-frame { width: 32px; }
+    .bm-frame-elbow-top { height: 38px; border-radius: 14px 0 0 0; }
+    .bm-frame-elbow-bottom { height: 26px; border-radius: 0 0 0 14px; }
+    .bm-frame-seg { height: 20px; }
+    .bm-header { min-height: 36px; }
+    .bm-header-title { font-size: 0.75rem; padding: 0 10px; }
+    .bm-header-pip.w2 { display: none; }
+    .bm-body { padding: 16px; }
+    .bm-actions { padding: 8px 16px; }
 }
 
 /* ============================================================================
@@ -3606,155 +3842,8 @@ body.light-mode .bridge-zone-unstaffed {
     pointer-events: none; z-index: 1;
 }
 
-/* Assignment Modal */
-.assignment-modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-}
-
-.assignment-modal-overlay.active {
-    display: flex;
-}
-
-.assignment-modal {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    width: 500px;
-    max-width: 90vw;
-    max-height: 80vh;
-    overflow: hidden;
-    box-shadow: 0 0 40px rgba(139, 92, 246, 0.3);
-}
-
-.assignment-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.5rem;
-    background: linear-gradient(90deg, rgba(139, 92, 246, 0.2), transparent);
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.assignment-modal-header h3 {
-    font-family: var(--archie-font-display);
-    font-size: 1rem;
-    margin: 0;
-    color: #8B5CF6;
-}
-
-.assignment-modal-close {
-    background: none;
-    border: none;
-    color: var(--archie-text-muted);
-    cursor: pointer;
-    font-size: 1.2rem;
-    padding: 4px;
-}
-
-.assignment-modal-body {
-    padding: 1.5rem;
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.assignment-form-group {
-    margin-bottom: 1rem;
-}
-
-.assignment-form-group label {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.assignment-form-group select,
-.assignment-form-group input {
-    width: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 6px;
-    padding: 10px 12px;
-    color: var(--archie-text-secondary);
-    font-family: var(--archie-font-mono);
-    font-size: 0.85rem;
-}
-
-.assignment-form-group select:focus,
-.assignment-form-group input:focus {
-    outline: none;
-    border-color: #8B5CF6;
-}
-
-.assignment-modal-footer {
-    display: flex;
-    gap: 10px;
-    padding: 1rem 1.5rem;
-    border-top: 1px solid var(--archie-border-default);
-    background: rgba(0, 0, 0, 0.2);
-}
-
-.assignment-modal-footer button {
-    flex: 1;
-    padding: 10px;
-    border-radius: 6px;
-    font-family: var(--archie-font-display);
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.assignment-modal-footer .btn-cancel {
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    color: var(--archie-text-muted);
-}
-
-.assignment-modal-footer .btn-submit {
-    background: linear-gradient(135deg, #8B5CF6, #6d28d9);
-    border: none;
-    color: #fff;
-}
-
-.assignment-modal-footer .btn-submit:hover {
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
-}
-
-.assignment-modal-footer .btn-delete {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    border: none;
-    color: #fff;
-    flex: 0 0 auto;
-    padding: 10px 20px;
-}
-
-.assignment-modal-footer .btn-danger {
-    background: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #ef4444;
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.assignment-modal-footer .btn-danger:hover {
-    background: rgba(239, 68, 68, 0.3);
-}
-
-/* Node Details Modal */
-.node-detail-modal {
+/* Node Details Modal — shell width override */
+.bm-shell.node-detail-modal {
     width: 800px;
     max-width: 95vw;
 }
@@ -3780,6 +3869,7 @@ body.light-mode .bridge-zone-unstaffed {
     display: flex;
     gap: 2px;
     padding: 0 1rem;
+    margin: -20px -24px 16px;
     background: rgba(0, 0, 0, 0.2);
     border-bottom: 1px solid var(--archie-border-default);
 }
@@ -4997,7 +5087,7 @@ body.light-mode .bridge-zone-unstaffed {
     transition: color 0.2s, background 0.2s;
     position: relative;
 }
-.bridge-tab i, .bridge-tab svg { width: 14px; height: 14px; }
+.bridge-tab i, .bridge-tab svg { width: 14px; height: 14px; flex-shrink: 0; display: block; }
 .bridge-tab:hover {
     color: rgba(255, 255, 255, 0.65);
 }
@@ -5337,19 +5427,18 @@ body.light-mode .contractor-firm-body,
 [data-theme="light"] .contractor-firm-body {
     border-top-color: rgba(168, 85, 247, 0.08);
 }
-body.light-mode .provider-modal,
-[data-theme="light"] .provider-modal {
-    background: #ffffff;
-    border-color: rgba(168, 85, 247, 0.2);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+body.light-mode .bm-shell,
+[data-theme="light"] .bm-shell {
+    background: #0a0a14;
 }
-body.light-mode .provider-modal input,
-body.light-mode .provider-modal select,
-[data-theme="light"] .provider-modal input,
-[data-theme="light"] .provider-modal select {
-    background: rgba(0, 0, 0, 0.03);
-    border-color: rgba(168, 85, 247, 0.15);
-    color: #1a1a2e;
+body.light-mode .bm-body input,
+body.light-mode .bm-body select,
+body.light-mode .bm-body textarea,
+[data-theme="light"] .bm-body input,
+[data-theme="light"] .bm-body select,
+[data-theme="light"] .bm-body textarea {
+    background: rgba(0, 0, 0, 0.06) !important;
+    color: #fff !important;
 }
 body.light-mode .contractor-btn-toggle,
 [data-theme="light"] .contractor-btn-toggle {
@@ -5414,37 +5503,7 @@ body.light-mode .model-card:hover,
 
 /* Remote placeholder light-mode CSS removed */
 
-/* Modals */
-body.light-mode .assignment-modal,
-[data-theme="light"] .assignment-modal {
-    background: #fff;
-    border-color: rgba(0, 0, 0, 0.1);
-}
-
-body.light-mode .assignment-modal-header,
-[data-theme="light"] .assignment-modal-header {
-    background: rgba(0, 0, 0, 0.02);
-    border-bottom-color: rgba(0, 0, 0, 0.06);
-}
-
-body.light-mode .assignment-modal-header h3,
-[data-theme="light"] .assignment-modal-header h3 {
-    color: #333;
-}
-
-body.light-mode .assignment-modal-body label,
-[data-theme="light"] .assignment-modal-body label {
-    color: #555;
-}
-
-body.light-mode .assignment-modal-body select,
-body.light-mode .assignment-modal-body input,
-[data-theme="light"] .assignment-modal-body select,
-[data-theme="light"] .assignment-modal-body input {
-    background: #f8f9fa;
-    border-color: rgba(0, 0, 0, 0.15);
-    color: #333;
-}
+/* LCARS Modals — dark shell preserved in light mode */
 
 /* Station Coverage Cards (light) */
 body.light-mode .station-coverage-card,
@@ -5919,6 +5978,92 @@ body.light-mode .station-coverage-code,
     margin: 0 16px 16px;
 }
 
+/* Training Room — Agent Chip Selector */
+.training-chip-row {
+    display: flex; gap: 8px; overflow-x: auto; padding: 6px 2px 8px;
+    scrollbar-width: thin; scrollbar-color: rgba(var(--chip-accent-rgb, 255,170,0),0.3) transparent;
+    -webkit-overflow-scrolling: touch;
+}
+.training-chip-row::-webkit-scrollbar { height: 4px; }
+.training-chip-row::-webkit-scrollbar-thumb { background: rgba(255,170,0,0.3); border-radius: 2px; }
+.training-chip {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 6px 8px; min-width: 64px; flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+    cursor: pointer; transition: all 0.15s ease; background: transparent;
+}
+.training-chip:hover { background: rgba(var(--chip-accent-rgb, 255,170,0),0.06); border-color: rgba(var(--chip-accent-rgb, 255,170,0),0.25); }
+.training-chip.selected {
+    background: rgba(var(--chip-accent-rgb, 255,170,0),0.12); border-color: rgba(var(--chip-accent-rgb, 255,170,0),0.5);
+    box-shadow: 0 0 8px rgba(var(--chip-accent-rgb, 255,170,0),0.15);
+}
+.training-chip-avatar {
+    width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.1); transition: border-color 0.15s;
+}
+.training-chip.selected .training-chip-avatar { border-color: var(--chip-accent, #ffaa00); }
+.training-chip-name {
+    font-size: 0.6rem; color: rgba(255,255,255,0.8); margin-top: 3px;
+    max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center;
+}
+.training-chip.selected .training-chip-name { color: var(--chip-accent, #ffaa00); }
+.training-chip-station {
+    font-size: 0.5rem; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* Training — Skill Chip Selector */
+.training-skill-row {
+    display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 6px;
+    scrollbar-width: thin; scrollbar-color: rgba(255,170,0,0.3) transparent;
+    -webkit-overflow-scrolling: touch; min-height: 32px; align-items: center;
+}
+.training-skill-row::-webkit-scrollbar { height: 3px; }
+.training-skill-row::-webkit-scrollbar-thumb { background: rgba(255,170,0,0.3); border-radius: 2px; }
+.training-skill-chip {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 10px; flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+    cursor: pointer; transition: all 0.15s ease; background: transparent;
+    font-size: 0.65rem; color: rgba(255,255,255,0.7); white-space: nowrap;
+}
+.training-skill-chip:hover { background: rgba(255,170,0,0.06); border-color: rgba(255,170,0,0.25); }
+.training-skill-chip.selected {
+    background: rgba(255,170,0,0.12); border-color: rgba(255,170,0,0.5);
+    color: #ffaa00; box-shadow: 0 0 6px rgba(255,170,0,0.12);
+}
+.training-skill-chip .skill-chip-lvl {
+    font-size: 0.55rem; padding: 1px 5px; border-radius: 6px;
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4);
+}
+.training-skill-chip.selected .skill-chip-lvl {
+    background: rgba(255,170,0,0.2); color: #ffaa00;
+}
+.training-skill-empty {
+    font-size: 0.7rem; color: rgba(255,255,255,0.3); font-style: italic; padding: 4px 0;
+}
+
+/* Training — Level Pill Selector */
+.training-level-row {
+    display: flex; gap: 4px; align-items: center;
+}
+.training-level-label {
+    font-size: 0.6rem; color: rgba(255,255,255,0.35); margin-right: 2px; white-space: nowrap;
+}
+.training-level-pill {
+    width: 28px; height: 24px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    cursor: pointer; transition: all 0.15s ease; background: transparent;
+    font-size: 0.65rem; color: rgba(255,255,255,0.5); font-family: 'Orbitron', monospace;
+}
+.training-level-pill:hover { background: rgba(255,170,0,0.06); border-color: rgba(255,170,0,0.25); color: rgba(255,255,255,0.8); }
+.training-level-pill.selected {
+    background: rgba(255,170,0,0.15); border-color: rgba(255,170,0,0.5);
+    color: #ffaa00; box-shadow: 0 0 6px rgba(255,170,0,0.1);
+}
+.training-level-pill.disabled {
+    opacity: 0.25; cursor: not-allowed; pointer-events: none;
+}
+
 /* Light mode briefing cards */
 [data-theme="light"] .briefing-card,
 body.light-mode .briefing-card {
@@ -5970,7 +6115,7 @@ body.light-mode .bridge-hud-value {
         margin: 0 8px 8px;
         padding: 4px 4px;
     }
-    .bridge-tab { padding: 6px 10px; font-size: 0.65rem; }
+    .bridge-tab { padding: 6px 10px; font-size: 0.65rem; justify-content: center; }
     .bridge-tab span { display: none; }
 
     /* Briefing cards stack to single column */
@@ -5989,7 +6134,7 @@ body.light-mode .bridge-hud-value {
         padding: 4px 4px;
     }
     .crew-subtab span { display: none; }
-    .crew-subtab { padding: 6px 10px; }
+    .crew-subtab { padding: 6px 10px; justify-content: center; }
 }
 
 @media (max-width: 480px) {
@@ -6124,6 +6269,17 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 .briefing-card[style*="--card-accent: #00ffff"] { --card-accent-rgb: 0,255,255; }
 .briefing-card[style*="--card-accent: #58a6ff"] { --card-accent-rgb: 88,166,255; }
 .briefing-card[style*="--card-accent: #fbbf24"] { --card-accent-rgb: 251,191,36; }
+
+/* ── Bridge LCARS frame overrides ── */
+[data-panel] .lcars-frame { margin-bottom: 16px; }
+[data-panel] .lcars-body { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+[data-panel] .lcars-body .briefing-card { margin: 0 !important; }
+[data-panel] .lcars-body .bridge-hud-strip { margin: 0; padding: 0; }
+[data-panel] .lcars-body .bridge-overview-cards { margin: 0; padding: 0; }
+[data-panel] .lcars-body .bridge-nodes-header { margin: 0; padding: 8px 0; }
+.crew-subpanel .lcars-frame { margin-bottom: 0; }
+.crew-subpanel > div[style*="--frame-color"] { margin-top: 0; }
+[data-panel] .lcars-body > div[style*="display:flex"] { margin: 0 !important; }
 </style>
 
 <!-- Admin Operations Navigation -->
@@ -6265,6 +6421,24 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
         <div class="bridge-content">
             <!-- Overview Tab Panel -->
             <div class="bridge-tab-panel" data-panel="overview">
+                <!-- LCARS Frame: Bridge Vitals -->
+                <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255;">
+                <div class="lcars-frame">
+                    <div class="lcars-sidebar">
+                        <div class="lcars-elbow-top"></div>
+                        <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                        <div class="lcars-seg-light" style="--seg-color: #00ff41"></div>
+                        <div class="lcars-seg" style="--seg-color: #0ea5e9"></div>
+                        <div class="lcars-seg-fill"></div>
+                        <div class="lcars-elbow-bottom"></div>
+                    </div>
+                    <div class="lcars-content">
+                        <div class="lcars-bar">
+                            <span class="lcars-bar-title">BRIDGE VITALS</span>
+                            <div class="lcars-bar-spacer"></div>
+                            <div class="lcars-pips"><span class="lcars-pip" style="width:20px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:35px;background:rgba(0,0,0,0.3)"></span></div>
+                        </div>
+                        <div class="lcars-body">
                 <!-- HUD Pods Strip -->
                 <div class="bridge-hud-strip">
                     <div class="bridge-hud-pod">
@@ -6288,7 +6462,31 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                         <span class="bridge-hud-unit"><span data-i18n="bridge.compliance">compliance</span></span>
                     </div>
                 </div>
+                        </div>
+                        <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:#00ff41"></span><span class="lcars-footer-dot" style="background:#0ea5e9"></span></div></div>
+                    </div>
+                </div>
+                </div>
 
+                <!-- LCARS Frame: Station Briefing -->
+                <div style="--frame-color: #ffaa00; --frame-rgb: 255,170,0;">
+                <div class="lcars-frame">
+                    <div class="lcars-sidebar">
+                        <div class="lcars-elbow-top"></div>
+                        <div class="lcars-seg" style="--seg-color: #ffaa00"></div>
+                        <div class="lcars-seg" style="--seg-color: rgba(255,170,0,0.6)"></div>
+                        <div class="lcars-seg-light" style="--seg-color: #00ffff"></div>
+                        <div class="lcars-seg" style="--seg-color: rgba(255,170,0,0.3)"></div>
+                        <div class="lcars-seg-fill"></div>
+                        <div class="lcars-elbow-bottom"></div>
+                    </div>
+                    <div class="lcars-content">
+                        <div class="lcars-bar">
+                            <span class="lcars-bar-title">STATION BRIEFING</span>
+                            <div class="lcars-bar-spacer"></div>
+                            <div class="lcars-pips"><span class="lcars-pip" style="width:25px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:15px;background:rgba(0,0,0,0.3)"></span></div>
+                        </div>
+                        <div class="lcars-body">
                 <!-- Briefing Cards Row -->
                 <div class="bridge-overview-cards">
                     <!-- AI Bridge Status -->
@@ -6322,7 +6520,30 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#ffaa00"></span><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:rgba(255,170,0,0.5)"></span></div></div>
+                    </div>
+                </div>
+                </div>
 
+                <!-- LCARS Frame: Intelligence -->
+                <div style="--frame-color: #ff6b6b; --frame-rgb: 255,107,107;">
+                <div class="lcars-frame">
+                    <div class="lcars-sidebar">
+                        <div class="lcars-elbow-top"></div>
+                        <div class="lcars-seg" style="--seg-color: #ff6b6b"></div>
+                        <div class="lcars-seg-light" style="--seg-color: #ff6b6b"></div>
+                        <div class="lcars-seg" style="--seg-color: rgba(255,107,107,0.6)"></div>
+                        <div class="lcars-seg-fill"></div>
+                        <div class="lcars-elbow-bottom"></div>
+                    </div>
+                    <div class="lcars-content">
+                        <div class="lcars-bar">
+                            <span class="lcars-bar-title">INTELLIGENCE</span>
+                            <div class="lcars-bar-spacer"></div>
+                            <div class="lcars-pips"><span class="lcars-pip" style="width:30px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:12px;background:rgba(0,0,0,0.3)"></span></div>
+                        </div>
+                        <div class="lcars-body">
                 <!-- Vigil's Log -->
                 <div class="briefing-card" style="--card-accent: #ff6b6b;">
                     <div class="briefing-card-header">
@@ -6345,6 +6566,11 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     <div class="briefing-card-body" id="overviewMiniActivity">
                         <span class="briefing-muted" data-i18n="bridge.overview.loading">Loading...</span>
                     </div>
+                </div>
+                        </div>
+                        <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#ff6b6b"></span><span class="lcars-footer-dot" style="background:#00ffff"></span></div></div>
+                    </div>
+                </div>
                 </div>
             </div>
 
@@ -6424,6 +6650,24 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 
             <!-- Dispatch Tab Panel -->
             <div class="bridge-tab-panel" data-panel="dispatch">
+            <!-- LCARS Frame: Dispatch Metrics -->
+            <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255;">
+            <div class="lcars-frame">
+                <div class="lcars-sidebar">
+                    <div class="lcars-elbow-top"></div>
+                    <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                    <div class="lcars-seg-light" style="--seg-color: #00ff41"></div>
+                    <div class="lcars-seg" style="--seg-color: #0ea5e9"></div>
+                    <div class="lcars-seg-fill"></div>
+                    <div class="lcars-elbow-bottom"></div>
+                </div>
+                <div class="lcars-content">
+                    <div class="lcars-bar">
+                        <span class="lcars-bar-title">DISPATCH METRICS</span>
+                        <div class="lcars-bar-spacer"></div>
+                        <div class="lcars-pips"><span class="lcars-pip" style="width:20px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:35px;background:rgba(0,0,0,0.3)"></span></div>
+                    </div>
+                    <div class="lcars-body">
             <!-- Dispatch Stats HUD Pods -->
             <div class="bridge-hud-strip">
                 <div class="bridge-hud-pod">
@@ -6447,9 +6691,33 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     <span class="bridge-hud-unit" data-i18n="bridge.dispatch.response_time">response</span>
                 </div>
             </div>
+                    </div>
+                    <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:#00ff41"></span><span class="lcars-footer-dot" style="background:#0ea5e9"></span></div></div>
+                </div>
+            </div>
+            </div>
 
+            <!-- LCARS Frame: Dispatch Log -->
+            <div style="--frame-color: #ffaa00; --frame-rgb: 255,170,0;">
+            <div class="lcars-frame">
+                <div class="lcars-sidebar">
+                    <div class="lcars-elbow-top"></div>
+                    <div class="lcars-seg" style="--seg-color: #ffaa00"></div>
+                    <div class="lcars-seg-light" style="--seg-color: #00ffff"></div>
+                    <div class="lcars-seg" style="--seg-color: rgba(255,170,0,0.6)"></div>
+                    <div class="lcars-seg" style="--seg-color: rgba(255,170,0,0.3)"></div>
+                    <div class="lcars-seg-fill"></div>
+                    <div class="lcars-elbow-bottom"></div>
+                </div>
+                <div class="lcars-content">
+                    <div class="lcars-bar">
+                        <span class="lcars-bar-title">DISPATCH LOG</span>
+                        <div class="lcars-bar-spacer"></div>
+                        <div class="lcars-pips"><span class="lcars-pip" style="width:18px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:28px;background:rgba(0,0,0,0.3)"></span></div>
+                    </div>
+                    <div class="lcars-body">
             <!-- Active Jobs (hidden when empty) -->
-            <div class="briefing-card" style="--card-accent: #ffaa00; margin: 0 16px; display: none;" id="dispatch-jobs-section">
+            <div class="briefing-card" style="--card-accent: #ffaa00; display: none;" id="dispatch-jobs-section">
                 <div class="briefing-card-header">
                     <i data-lucide="loader"></i>
                     <span data-i18n="bridge.dispatch.active_jobs">Active Jobs</span>
@@ -6461,7 +6729,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
             </div>
 
             <!-- Recent Dispatches -->
-            <div class="briefing-card" style="--card-accent: #00ffff; margin: 0 16px;">
+            <div class="briefing-card" style="--card-accent: #00ffff;">
                 <div class="briefing-card-header">
                     <i data-lucide="history"></i>
                     <span data-i18n="bridge.dispatch.recent">Recent Dispatches</span>
@@ -6474,7 +6742,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
             </div>
 
             <!-- Station Activity (24h) -->
-            <div class="briefing-card" style="--card-accent: #00ffff; margin: 0 16px;">
+            <div class="briefing-card" style="--card-accent: #00ffff;">
                 <div class="briefing-card-header">
                     <i data-lucide="bar-chart-3"></i>
                     <span data-i18n="bridge.dispatch.station_activity">Station Activity (24h)</span>
@@ -6484,6 +6752,11 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                         <div class="dispatch-empty" data-i18n="bridge.loading.station_activity">Loading station activity...</div>
                     </div>
                 </div>
+            </div>
+                    </div>
+                    <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#ffaa00"></span><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:rgba(255,170,0,0.5)"></span></div></div>
+                </div>
+            </div>
             </div>
             </div><!-- /dispatch panel -->
 
@@ -6515,7 +6788,24 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 
                 <!-- Manifest Sub-Panel -->
                 <div class="crew-subpanel active" data-subpanel="manifest">
-                    <div class="briefing-card" style="--card-accent: #8b5cf6; margin: 0 16px;">
+                    <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246;">
+                    <div class="lcars-frame">
+                        <div class="lcars-sidebar">
+                            <div class="lcars-elbow-top"></div>
+                            <div class="lcars-seg" style="--seg-color: #8b5cf6"></div>
+                            <div class="lcars-seg-light" style="--seg-color: #00ffff"></div>
+                            <div class="lcars-seg" style="--seg-color: rgba(139,92,246,0.6)"></div>
+                            <div class="lcars-seg-fill"></div>
+                            <div class="lcars-elbow-bottom"></div>
+                        </div>
+                        <div class="lcars-content">
+                            <div class="lcars-bar">
+                                <span class="lcars-bar-title">ACTIVE ROSTER</span>
+                                <div class="lcars-bar-spacer"></div>
+                                <div class="lcars-pips"><span class="lcars-pip" style="width:22px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:14px;background:rgba(0,0,0,0.3)"></span></div>
+                            </div>
+                            <div class="lcars-body">
+                    <div class="briefing-card" style="--card-accent: #8b5cf6;">
                         <div class="briefing-card-header">
                             <i data-lucide="users"></i>
                             <span data-i18n="bridge.crew.active_roster">Active Roster</span>
@@ -6528,13 +6818,36 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                             </div>
                         </div>
                     </div>
+                            </div>
+                            <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#8b5cf6"></span><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:rgba(139,92,246,0.5)"></span></div></div>
+                        </div>
+                    </div>
+                    </div>
                 </div>
 
                 <!-- Training Sub-Panel -->
                 <div class="crew-subpanel" data-subpanel="training">
+                    <div style="--frame-color: #ffaa00; --frame-rgb: 255,170,0;">
+                    <div class="lcars-frame">
+                        <div class="lcars-sidebar">
+                            <div class="lcars-elbow-top"></div>
+                            <div class="lcars-seg" style="--seg-color: #ffaa00"></div>
+                            <div class="lcars-seg-light" style="--seg-color: #00ff41"></div>
+                            <div class="lcars-seg" style="--seg-color: rgba(255,170,0,0.6)"></div>
+                            <div class="lcars-seg" style="--seg-color: rgba(255,170,0,0.3)"></div>
+                            <div class="lcars-seg-fill"></div>
+                            <div class="lcars-elbow-bottom"></div>
+                        </div>
+                        <div class="lcars-content">
+                            <div class="lcars-bar">
+                                <span class="lcars-bar-title">TRAINING OPERATIONS</span>
+                                <div class="lcars-bar-spacer"></div>
+                                <div class="lcars-pips"><span class="lcars-pip" style="width:20px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:30px;background:rgba(0,0,0,0.3)"></span></div>
+                            </div>
+                            <div class="lcars-body">
 
                     <!-- 1. Skill Gap Alerts -->
-                    <div class="briefing-card" style="--card-accent: #ff6b6b; margin: 0 16px 12px 16px;">
+                    <div class="briefing-card" style="--card-accent: #ff6b6b;">
                         <div class="briefing-card-header">
                             <i data-lucide="alert-triangle"></i>
                             <span><span data-i18n="bridge.skill_gap_alerts">Skill Gap Alerts</span></span>
@@ -6548,28 +6861,34 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     </div>
 
                     <!-- 2. Training Rooms -->
-                    <div class="briefing-card" style="--card-accent: #ffaa00; margin: 0 16px 12px 16px;">
+                    <div class="briefing-card" style="--card-accent: #ffaa00;">
                         <div class="briefing-card-header">
                             <i data-lucide="graduation-cap"></i>
                             <span><span data-i18n="bridge.training_rooms">Training Rooms</span></span>
                             <span id="training-active-count" style="background:rgba(255,170,0,0.2);color:#ffaa00;padding:1px 7px;border-radius:8px;font-size:0.65rem;margin-left:auto;"><span data-i18n="bridge.0_active">0 active</span></span>
                         </div>
                         <div class="briefing-card-body">
-                            <!-- Assignment controls -->
-                            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-                                <select id="training-agent-select" style="flex:1;min-width:120px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
-                                    <option value=""><span data-i18n="bridge.select_agent">Select agent...</span></option>
-                                </select>
-                                <select id="training-skill-select" style="flex:1;min-width:120px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;" disabled>
-                                    <option value=""><span data-i18n="bridge.select_skill">Select skill...</span></option>
-                                </select>
-                                <select id="training-target-select" style="width:80px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
-                                    <option value="2"><span data-i18n="bridge.level_2">Level 2</span></option>
-                                    <option value="3"><span data-i18n="bridge.level_3">Level 3</span></option>
-                                    <option value="4"><span data-i18n="bridge.level_4">Level 4</span></option>
-                                    <option value="5"><span data-i18n="bridge.level_5">Level 5</span></option>
-                                </select>
-                                <button onclick="assignTraining()" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;"><span data-i18n="bridge.assign_training">Assign Training</span></button>
+                            <!-- Agent chip selector -->
+                            <div id="training-agent-chips" class="training-chip-row" style="--chip-accent: #ffaa00; --chip-accent-rgb: 255,170,0;">
+                                <span class="briefing-muted" style="font-size:0.75rem;">Loading agents...</span>
+                            </div>
+                            <input type="hidden" id="training-agent-select" value="">
+                            <!-- Skill chip selector -->
+                            <div id="training-skill-chips" class="training-skill-row">
+                                <span class="training-skill-empty">Select an agent first</span>
+                            </div>
+                            <input type="hidden" id="training-skill-select" value="">
+                            <!-- Target level + assign row -->
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+                                <div class="training-level-row">
+                                    <span class="training-level-label">TARGET</span>
+                                    <div class="training-level-pill" data-level="2">2</div>
+                                    <div class="training-level-pill" data-level="3">3</div>
+                                    <div class="training-level-pill" data-level="4">4</div>
+                                    <div class="training-level-pill" data-level="5">5</div>
+                                </div>
+                                <input type="hidden" id="training-target-select" value="">
+                                <button onclick="assignTraining()" style="margin-left:auto;background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;"><span data-i18n="bridge.assign_training">Assign Training</span></button>
                             </div>
                             <!-- Active training list -->
                             <div id="training-active-list">
@@ -6579,7 +6898,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     </div>
 
                     <!-- 3. Training History (collapsed) -->
-                    <div class="briefing-card" style="--card-accent: rgba(255,170,0,0.5); margin: 0 16px 12px 16px;">
+                    <div class="briefing-card" style="--card-accent: rgba(255,170,0,0.5);">
                         <div class="briefing-card-header" onclick="toggleTrainingHistory()" style="cursor:pointer;">
                             <i data-lucide="history"></i>
                             <span><span data-i18n="bridge.training_history">Training History</span></span>
@@ -6593,7 +6912,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     </div>
 
                     <!-- 4. Node Training Requests (placeholder) -->
-                    <div class="briefing-card" style="--card-accent: #00bfff; margin: 0 16px;">
+                    <div class="briefing-card" style="--card-accent: #00bfff;">
                         <div class="briefing-card-header">
                             <i data-lucide="network"></i>
                             <span><span data-i18n="bridge.node_training_requests">Node Training Requests</span></span>
@@ -6604,13 +6923,35 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                         </div>
                     </div>
 
+                            </div>
+                            <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#ffaa00"></span><span class="lcars-footer-dot" style="background:#00ff41"></span><span class="lcars-footer-dot" style="background:rgba(255,170,0,0.5)"></span></div></div>
+                        </div>
+                    </div>
+                    </div>
                 </div>
 
                 <!-- Lounge Sub-Panel -->
                 <div class="crew-subpanel" data-subpanel="lounge">
+                    <div style="--frame-color: #00ff41; --frame-rgb: 0,255,65;">
+                    <div class="lcars-frame">
+                        <div class="lcars-sidebar">
+                            <div class="lcars-elbow-top"></div>
+                            <div class="lcars-seg" style="--seg-color: #00ff41"></div>
+                            <div class="lcars-seg-light" style="--seg-color: #00ffff"></div>
+                            <div class="lcars-seg" style="--seg-color: rgba(0,255,65,0.6)"></div>
+                            <div class="lcars-seg-fill"></div>
+                            <div class="lcars-elbow-bottom"></div>
+                        </div>
+                        <div class="lcars-content">
+                            <div class="lcars-bar">
+                                <span class="lcars-bar-title">CREW WELLNESS</span>
+                                <div class="lcars-bar-spacer"></div>
+                                <div class="lcars-pips"><span class="lcars-pip" style="width:16px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:24px;background:rgba(0,0,0,0.3)"></span></div>
+                            </div>
+                            <div class="lcars-body">
 
                     <!-- 1. Wellness Summary — 3-column row -->
-                    <div style="display:flex;gap:10px;margin:0 16px 10px 16px;">
+                    <div style="display:flex;gap:10px;">
                         <div id="wellness-healthy" style="flex:1;text-align:center;padding:10px 6px;background:rgba(0,255,65,0.06);border:1px solid rgba(0,255,65,0.2);border-radius:8px;">
                             <div style="font-size:1.4rem;font-weight:700;color:#00ff41;">--</div>
                             <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;"><span data-i18n="bridge.healthy">Healthy</span></div>
@@ -6626,7 +6967,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     </div>
 
                     <!-- 2. Burnout Risk Alerts card -->
-                    <div class="briefing-card" style="--card-accent: #ef4444; margin: 0 16px 10px 16px;">
+                    <div class="briefing-card" style="--card-accent: #ef4444;">
                         <div class="briefing-card-header">
                             <i data-lucide="heart-pulse"></i>
                             <span><span data-i18n="bridge.burnout_risk_alerts">Burnout Risk Alerts</span></span>
@@ -6639,17 +6980,19 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     </div>
 
                     <!-- 3. Lounge / Rest card -->
-                    <div class="briefing-card" style="--card-accent: #8b5cf6; margin: 0 16px 10px 16px;">
+                    <div class="briefing-card" style="--card-accent: #8b5cf6;">
                         <div class="briefing-card-header">
                             <i data-lucide="coffee"></i>
                             <span data-i18n="bridge.crew.lounge_rest">Lounge / Rest</span>
                         </div>
                         <div class="briefing-card-body">
+                            <!-- Agent chip selector -->
+                            <div id="lounge-agent-chips" class="training-chip-row" style="--chip-accent: #8b5cf6; --chip-accent-rgb: 139,92,246;">
+                                <span class="briefing-muted" style="font-size:0.75rem;">Loading agents...</span>
+                            </div>
+                            <input type="hidden" id="lounge-agent-select" value="">
                             <!-- Send to lounge controls -->
                             <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-                                <select id="lounge-agent-select" style="flex:1;min-width:100px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
-                                    <option value=""><span data-i18n="bridge.select_agent_2">Select agent...</span></option>
-                                </select>
                                 <input id="lounge-reason-input" type="text" placeholder="Reason (optional)" style="flex:1;min-width:80px;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.75rem;">
                                 <button onclick="sendToLounge()" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;"><span data-i18n="bridge.send_to_rest">Send to Rest</span></button>
                             </div>
@@ -6661,7 +7004,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     </div>
 
                     <!-- 4. Rest History card (collapsed by default) -->
-                    <div class="briefing-card" style="--card-accent: rgba(139,92,246,0.5); margin: 0 16px;">
+                    <div class="briefing-card" style="--card-accent: rgba(139,92,246,0.5);">
                         <div class="briefing-card-header" style="cursor:pointer;" onclick="toggleRestHistory()">
                             <i data-lucide="history"></i>
                             <span><span data-i18n="bridge.rest_history">Rest History</span></span>
@@ -6674,11 +7017,33 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                         </div>
                     </div>
 
+                            </div>
+                            <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#00ff41"></span><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:rgba(0,255,65,0.5)"></span></div></div>
+                        </div>
+                    </div>
+                    </div>
                 </div>
 
                 <!-- Contractors Sub-Panel -->
                 <div class="crew-subpanel" data-subpanel="contractors">
-                    <div class="briefing-card" style="--card-accent: #a855f7; margin: 0 16px;">
+                    <div style="--frame-color: #a855f7; --frame-rgb: 168,85,247;">
+                    <div class="lcars-frame">
+                        <div class="lcars-sidebar">
+                            <div class="lcars-elbow-top"></div>
+                            <div class="lcars-seg" style="--seg-color: #a855f7"></div>
+                            <div class="lcars-seg-light" style="--seg-color: #00ffff"></div>
+                            <div class="lcars-seg" style="--seg-color: rgba(168,85,247,0.6)"></div>
+                            <div class="lcars-seg-fill"></div>
+                            <div class="lcars-elbow-bottom"></div>
+                        </div>
+                        <div class="lcars-content">
+                            <div class="lcars-bar">
+                                <span class="lcars-bar-title">EXTERNAL CONTRACTORS</span>
+                                <div class="lcars-bar-spacer"></div>
+                                <div class="lcars-pips"><span class="lcars-pip" style="width:18px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:26px;background:rgba(0,0,0,0.3)"></span></div>
+                            </div>
+                            <div class="lcars-body">
+                    <div class="briefing-card" style="--card-accent: #a855f7;">
                         <div class="briefing-card-header">
                             <i data-lucide="building-2"></i>
                             <span data-i18n="bridge.crew.external_contractors">External Contractors</span>
@@ -6691,11 +7056,33 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                             </div>
                         </div>
                     </div>
+                            </div>
+                            <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#a855f7"></span><span class="lcars-footer-dot" style="background:#00ffff"></span></div></div>
+                        </div>
+                    </div>
+                    </div>
                 </div>
 
                 <!-- Leaderboard Sub-Panel -->
                 <div class="crew-subpanel" data-subpanel="leaderboard">
-                    <div class="briefing-card" style="--card-accent: #fbbf24; margin: 0 16px;">
+                    <div style="--frame-color: #fbbf24; --frame-rgb: 251,191,36;">
+                    <div class="lcars-frame">
+                        <div class="lcars-sidebar">
+                            <div class="lcars-elbow-top"></div>
+                            <div class="lcars-seg" style="--seg-color: #fbbf24"></div>
+                            <div class="lcars-seg-light" style="--seg-color: #00ff41"></div>
+                            <div class="lcars-seg" style="--seg-color: rgba(251,191,36,0.6)"></div>
+                            <div class="lcars-seg-fill"></div>
+                            <div class="lcars-elbow-bottom"></div>
+                        </div>
+                        <div class="lcars-content">
+                            <div class="lcars-bar">
+                                <span class="lcars-bar-title">PERFORMANCE RANKINGS</span>
+                                <div class="lcars-bar-spacer"></div>
+                                <div class="lcars-pips"><span class="lcars-pip" style="width:22px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:18px;background:rgba(0,0,0,0.3)"></span></div>
+                            </div>
+                            <div class="lcars-body">
+                    <div class="briefing-card" style="--card-accent: #fbbf24;">
                         <div class="briefing-card-header">
                             <i data-lucide="trophy"></i>
                             <span data-i18n="bridge.crew.leaderboard">Performance Leaderboard</span>
@@ -6707,6 +7094,11 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                             </div>
                         </div>
                     </div>
+                            </div>
+                            <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#fbbf24"></span><span class="lcars-footer-dot" style="background:#00ff41"></span><span class="lcars-footer-dot" style="background:rgba(251,191,36,0.5)"></span></div></div>
+                        </div>
+                    </div>
+                    </div>
                 </div>
             </div><!-- /crew panel -->
 
@@ -6714,6 +7106,26 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
             <div class="bridge-tab-panel" data-panel="network">
             <!-- Node Network Section -->
             <div class="bridge-nodes-section">
+                <!-- LCARS Frame: Fleet Network -->
+                <div style="--frame-color: #ff6b6b; --frame-rgb: 255,107,107;">
+                <div class="lcars-frame">
+                    <div class="lcars-sidebar">
+                        <div class="lcars-elbow-top"></div>
+                        <div class="lcars-seg" style="--seg-color: #ff6b6b"></div>
+                        <div class="lcars-seg-light" style="--seg-color: #ffaa00"></div>
+                        <div class="lcars-seg" style="--seg-color: rgba(255,107,107,0.6)"></div>
+                        <div class="lcars-seg" style="--seg-color: rgba(255,107,107,0.3)"></div>
+                        <div class="lcars-seg-light" style="--seg-color: #ff6b6b"></div>
+                        <div class="lcars-seg-fill"></div>
+                        <div class="lcars-elbow-bottom"></div>
+                    </div>
+                    <div class="lcars-content">
+                        <div class="lcars-bar">
+                            <span class="lcars-bar-title">FLEET NETWORK</span>
+                            <div class="lcars-bar-spacer"></div>
+                            <div class="lcars-pips"><span class="lcars-pip" style="width:24px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:16px;background:rgba(0,0,0,0.3)"></span></div>
+                        </div>
+                        <div class="lcars-body">
                 <!-- Network Header Bar -->
                 <div class="bridge-nodes-header">
                     <h2><i data-lucide="network"></i> <span data-i18n="bridge.sections.node_network">NODE NETWORK</span></h2>
@@ -6798,7 +7210,30 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#ff6b6b"></span><span class="lcars-footer-dot" style="background:#ffaa00"></span><span class="lcars-footer-dot" style="background:rgba(255,107,107,0.5)"></span></div></div>
+                    </div>
+                </div>
+                </div>
 
+                <!-- LCARS Frame: Model Registry -->
+                <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255;">
+                <div class="lcars-frame">
+                    <div class="lcars-sidebar">
+                        <div class="lcars-elbow-top"></div>
+                        <div class="lcars-seg" style="--seg-color: #00ffff"></div>
+                        <div class="lcars-seg-light" style="--seg-color: #00ff41"></div>
+                        <div class="lcars-seg" style="--seg-color: rgba(0,255,255,0.6)"></div>
+                        <div class="lcars-seg-fill"></div>
+                        <div class="lcars-elbow-bottom"></div>
+                    </div>
+                    <div class="lcars-content">
+                        <div class="lcars-bar">
+                            <span class="lcars-bar-title">MODEL REGISTRY</span>
+                            <div class="lcars-bar-spacer"></div>
+                            <div class="lcars-pips"><span class="lcars-pip" style="width:20px;background:rgba(0,0,0,0.3)"></span><span class="lcars-pip" style="width:30px;background:rgba(0,0,0,0.3)"></span></div>
+                        </div>
+                        <div class="lcars-body">
                 <!-- Local Models — briefing card -->
                 <div class="briefing-card" style="--card-accent: #00ffff;">
                     <div class="briefing-card-header">
@@ -6832,6 +7267,11 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                         </div>
                     </div>
                 </div>
+                        </div>
+                        <div class="lcars-footer-bar"><div class="lcars-footer-dots"><span class="lcars-footer-dot" style="background:#00ffff"></span><span class="lcars-footer-dot" style="background:#00ff41"></span></div></div>
+                    </div>
+                </div>
+                </div>
             </div>
             </div><!-- /network panel -->
 
@@ -6842,84 +7282,156 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 </div>
 
 <!-- Station Assignment Modal -->
-<div class="assignment-modal-overlay" id="assignment-modal">
-    <div class="assignment-modal">
-        <div class="assignment-modal-header">
-            <h3 id="assignment-modal-title"><span data-i18n="bridge.assign_node_to_station">Assign Node to Station</span></h3>
-            <button class="assignment-modal-close" onclick="closeAssignmentModal()"><span data-i18n="bridge.times">&times;</span></button>
+<div class="bm-overlay" id="assignment-modal" style="--bm-accent:#00ffff;--bm-accent-rgb:0,255,255;">
+    <div class="bm-shell" style="max-width:500px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg cyan"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <div class="assignment-modal-body">
-            <div class="assignment-form-group">
-                <label><span data-i18n="bridge.node">Node</span></label>
-                <select id="assignment-node-select">
-                    <option value=""><span data-i18n="bridge.select_a_node">Select a node...</span></option>
-                </select>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="assignment-modal-title"><span data-i18n="bridge.assign_node_to_station">ASSIGN NODE</span></span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeAssignmentModal()">&times;</button>
+                </div>
             </div>
-            <div class="assignment-form-group">
-                <label><span data-i18n="bridge.station">Station</span></label>
-                <select id="assignment-station-select" disabled>
-                    <option value=""><span data-i18n="bridge.select_station_first">Select station first</span></option>
-                </select>
+            <div class="bm-body">
+                <div style="margin-bottom:12px;">
+                    <label><span data-i18n="bridge.node">Node</span></label>
+                    <select id="assignment-node-select">
+                        <option value=""><span data-i18n="bridge.select_a_node">Select a node...</span></option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label><span data-i18n="bridge.station">Station</span></label>
+                    <select id="assignment-station-select" disabled>
+                        <option value=""><span data-i18n="bridge.select_station_first">Select station first</span></option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label><span data-i18n="bridge.role">Role</span></label>
+                    <select id="assignment-role-select">
+                        <option value="worker"><span data-i18n="bridge.worker">Worker</span></option>
+                        <option value="primary"><span data-i18n="bridge.primary">Primary</span></option>
+                        <option value="backup"><span data-i18n="bridge.backup">Backup</span></option>
+                        <option value="relief"><span data-i18n="bridge.relief">Relief</span></option>
+                    </select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label><span data-i18n="bridge.priority_1_highest">Priority (1 = Highest)</span></label>
+                    <input type="number" id="assignment-priority" value="10" min="1" max="100">
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label><span data-i18n="bridge.shift_preference">Shift Preference</span></label>
+                    <select id="assignment-shift-select">
+                        <option value="any"><span data-i18n="bridge.any_shift">Any Shift</span></option>
+                        <option value="alpha"><span data-i18n="bridge.alpha_morning">Alpha (Morning)</span></option>
+                        <option value="beta"><span data-i18n="bridge.beta_afternoon">Beta (Afternoon)</span></option>
+                        <option value="gamma"><span data-i18n="bridge.gamma_night">Gamma (Night)</span></option>
+                    </select>
+                </div>
             </div>
-            <div class="assignment-form-group">
-                <label><span data-i18n="bridge.role">Role</span></label>
-                <select id="assignment-role-select">
-                    <option value="worker"><span data-i18n="bridge.worker">Worker</span></option>
-                    <option value="primary"><span data-i18n="bridge.primary">Primary</span></option>
-                    <option value="backup"><span data-i18n="bridge.backup">Backup</span></option>
-                    <option value="relief"><span data-i18n="bridge.relief">Relief</span></option>
-                </select>
+            <div class="bm-actions">
+                <button class="btn-delete" id="assignment-delete-btn" style="display:none;" onclick="deleteAssignment()"><span data-i18n="bridge.delete">Delete</span></button>
+                <button class="btn-cancel" onclick="closeAssignmentModal()"><span data-i18n="bridge.cancel">Cancel</span></button>
+                <button class="btn-submit" id="assignment-submit-btn" onclick="submitAssignment()"><span data-i18n="bridge.assign">Assign</span></button>
             </div>
-            <div class="assignment-form-group">
-                <label><span data-i18n="bridge.priority_1_highest">Priority (1 = Highest)</span></label>
-                <input type="number" id="assignment-priority" value="10" min="1" max="100">
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
             </div>
-            <div class="assignment-form-group">
-                <label><span data-i18n="bridge.shift_preference">Shift Preference</span></label>
-                <select id="assignment-shift-select">
-                    <option value="any"><span data-i18n="bridge.any_shift">Any Shift</span></option>
-                    <option value="alpha"><span data-i18n="bridge.alpha_morning">Alpha (Morning)</span></option>
-                    <option value="beta"><span data-i18n="bridge.beta_afternoon">Beta (Afternoon)</span></option>
-                    <option value="gamma"><span data-i18n="bridge.gamma_night">Gamma (Night)</span></option>
-                </select>
-            </div>
-        </div>
-        <div class="assignment-modal-footer">
-            <button class="btn-delete" id="assignment-delete-btn" style="display:none;" onclick="deleteAssignment()"><span data-i18n="bridge.delete">Delete</span></button>
-            <button class="btn-cancel" onclick="closeAssignmentModal()"><span data-i18n="bridge.cancel">Cancel</span></button>
-            <button class="btn-submit" id="assignment-submit-btn" onclick="submitAssignment()"><span data-i18n="bridge.assign">Assign</span></button>
         </div>
     </div>
 </div>
 
 <!-- Station Detail Modal -->
-<div class="assignment-modal-overlay" id="station-detail-modal">
-    <div class="assignment-modal" style="width: 600px;">
-        <div class="assignment-modal-header">
-            <h3 id="station-detail-title"><span data-i18n="bridge.station_nodes">Station Nodes</span></h3>
-            <button class="assignment-modal-close" onclick="closeStationDetailModal()"><span data-i18n="bridge.times_2">&times;</span></button>
+<div class="bm-overlay" id="station-detail-modal" style="--bm-accent:#ffaa00;--bm-accent-rgb:255,170,0;">
+    <div class="bm-shell" style="max-width:600px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg green"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <div class="assignment-modal-body" id="station-detail-body">
-            <!-- Filled by JavaScript -->
-        </div>
-        <div class="assignment-modal-footer">
-            <button class="btn-cancel" onclick="closeStationDetailModal()"><span data-i18n="bridge.close">Close</span></button>
-            <button class="btn-submit" onclick="openAssignModalForStation()"><span data-i18n="bridge.add_node">+ Add Node</span></button>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="station-detail-title"><span data-i18n="bridge.station_nodes">STATION NODES</span></span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeStationDetailModal()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" id="station-detail-body">
+                <!-- Filled by JavaScript -->
+            </div>
+            <div class="bm-actions">
+                <button class="btn-cancel" onclick="closeStationDetailModal()"><span data-i18n="bridge.close">Close</span></button>
+                <button class="btn-submit" onclick="openAssignModalForStation()"><span data-i18n="bridge.add_node">+ Add Node</span></button>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Isometric Zone Info Modal -->
-<div class="assignment-modal-overlay" id="iso-zone-info-modal">
-    <div class="assignment-modal" style="width: 560px; max-height: 80vh;">
-        <div class="assignment-modal-header">
-            <h3 id="iso-zone-info-title"><span data-i18n="bridge.station_info">Station Info</span></h3>
-            <button class="assignment-modal-close" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')"><span data-i18n="bridge.times_3">&times;</span></button>
+<div class="bm-overlay" id="iso-zone-info-modal" style="--bm-accent:#ffaa00;--bm-accent-rgb:255,170,0;">
+    <div class="bm-shell" style="max-width:560px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg green"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <div class="assignment-modal-body" id="iso-zone-info-body" style="overflow-y: auto; max-height: 55vh;">
-        </div>
-        <div class="assignment-modal-footer">
-            <button class="btn-cancel" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')"><span data-i18n="bridge.close_2">Close</span></button>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="iso-zone-info-title"><span data-i18n="bridge.station_info">STATION INFO</span></span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" id="iso-zone-info-body" style="max-height:55vh;overflow-y:auto;">
+            </div>
+            <div class="bm-actions">
+                <button class="btn-cancel" onclick="document.getElementById('iso-zone-info-modal').classList.remove('active')"><span data-i18n="bridge.close_2">Close</span></button>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -6958,286 +7470,384 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 </div>
 
 <!-- Node Details Modal -->
-<div class="assignment-modal-overlay" id="node-detail-modal">
-    <div class="assignment-modal node-detail-modal">
-        <div class="assignment-modal-header">
-            <div class="node-detail-header-info">
-                <span class="node-detail-status" id="node-detail-status"></span>
-                <h3 id="node-detail-title"><span data-i18n="bridge.node_details">Node Details</span></h3>
-            </div>
-            <button class="assignment-modal-close" onclick="closeNodeDetailModal()"><span data-i18n="bridge.times_5">&times;</span></button>
+<div class="bm-overlay" id="node-detail-modal" style="--bm-accent:#00ffff;--bm-accent-rgb:0,255,255;">
+    <div class="bm-shell node-detail-modal">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg cyan"></div>
+            <div class="bm-frame-seg dimmer"></div>
+            <div class="bm-frame-light cyan"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <div class="bm-header-title">
+                    <span class="node-detail-status" id="node-detail-status"></span>
+                    <span id="node-detail-title"><span data-i18n="bridge.node_details">NODE DETAILS</span></span>
+                </div>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeNodeDetailModal()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body node-detail-body">
+                <!-- Tabs -->
+                <div class="node-detail-tabs">
+                    <button class="node-tab active" data-tab="overview" onclick="switchNodeTab('overview')">
+                        <i data-lucide="info"></i> Overview
+                    </button>
+                    <button class="node-tab" data-tab="stations" onclick="switchNodeTab('stations')">
+                        <i data-lucide="git-branch"></i> Stations
+                    </button>
+                    <button class="node-tab" data-tab="models" onclick="switchNodeTab('models')">
+                        <i data-lucide="box"></i> Models
+                    </button>
+                    <button class="node-tab" data-tab="health" onclick="switchNodeTab('health')">
+                        <i data-lucide="activity"></i> Health
+                    </button>
+                    <button class="node-tab" data-tab="config" onclick="switchNodeTab('config')">
+                        <i data-lucide="settings"></i> Config
+                    </button>
+                </div>
 
-        <!-- Tabs -->
-        <div class="node-detail-tabs">
-            <button class="node-tab active" data-tab="overview" onclick="switchNodeTab('overview')">
-                <i data-lucide="info"></i> Overview
-            </button>
-            <button class="node-tab" data-tab="stations" onclick="switchNodeTab('stations')">
-                <i data-lucide="git-branch"></i> Stations
-            </button>
-            <button class="node-tab" data-tab="models" onclick="switchNodeTab('models')">
-                <i data-lucide="box"></i> Models
-            </button>
-            <button class="node-tab" data-tab="health" onclick="switchNodeTab('health')">
-                <i data-lucide="activity"></i> Health
-            </button>
-            <button class="node-tab" data-tab="config" onclick="switchNodeTab('config')">
-                <i data-lucide="settings"></i> Config
-            </button>
-        </div>
-
-        <div class="assignment-modal-body node-detail-body">
-            <!-- Overview Tab -->
-            <div class="node-tab-content active" id="tab-overview">
-                <div class="node-detail-grid">
-                    <div class="node-detail-section">
-                        <h4><i data-lucide="server"></i><span data-i18n="bridge.system_information"> System Information</span></h4>
-                        <div class="node-detail-info">
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.node_id">Node ID:</span></span><span class="value" id="nd-node-id">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.hostname">Hostname:</span></span><span class="value" id="nd-hostname">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.ip_address">IP Address:</span></span><span class="value" id="nd-ip">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.port">Port:</span></span><span class="value" id="nd-port">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.os">OS:</span></span><span class="value" id="nd-os">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.registered">Registered:</span></span><span class="value" id="nd-registered">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.last_heartbeat">Last Heartbeat:</span></span><span class="value" id="nd-heartbeat">--</span></div>
+                <!-- Overview Tab -->
+                <div class="node-tab-content active" id="tab-overview">
+                    <div class="node-detail-grid">
+                        <div class="node-detail-section">
+                            <h4><i data-lucide="server"></i><span data-i18n="bridge.system_information"> System Information</span></h4>
+                            <div class="node-detail-info">
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.node_id">Node ID:</span></span><span class="value" id="nd-node-id">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.hostname">Hostname:</span></span><span class="value" id="nd-hostname">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.ip_address">IP Address:</span></span><span class="value" id="nd-ip">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.port">Port:</span></span><span class="value" id="nd-port">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.os">OS:</span></span><span class="value" id="nd-os">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.registered">Registered:</span></span><span class="value" id="nd-registered">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.last_heartbeat">Last Heartbeat:</span></span><span class="value" id="nd-heartbeat">--</span></div>
+                            </div>
+                        </div>
+                        <div class="node-detail-section">
+                            <h4><i data-lucide="cpu"></i><span data-i18n="bridge.hardware_specs"> Hardware Specs</span></h4>
+                            <div class="node-detail-info">
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.cpu">CPU:</span></span><span class="value" id="nd-cpu">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.cpu_cores">CPU Cores:</span></span><span class="value" id="nd-cores">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.ram">RAM:</span></span><span class="value" id="nd-ram">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.disk">Disk:</span></span><span class="value" id="nd-disk">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.gpu">GPU:</span></span><span class="value" id="nd-gpu">--</span></div>
+                                <div class="info-row"><span class="label"><span data-i18n="bridge.gpu_vram">GPU VRAM:</span></span><span class="value" id="nd-vram">--</span></div>
+                            </div>
                         </div>
                     </div>
-                    <div class="node-detail-section">
-                        <h4><i data-lucide="cpu"></i><span data-i18n="bridge.hardware_specs"> Hardware Specs</span></h4>
-                        <div class="node-detail-info">
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.cpu">CPU:</span></span><span class="value" id="nd-cpu">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.cpu_cores">CPU Cores:</span></span><span class="value" id="nd-cores">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.ram">RAM:</span></span><span class="value" id="nd-ram">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.disk">Disk:</span></span><span class="value" id="nd-disk">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.gpu">GPU:</span></span><span class="value" id="nd-gpu">--</span></div>
-                            <div class="info-row"><span class="label"><span data-i18n="bridge.gpu_vram">GPU VRAM:</span></span><span class="value" id="nd-vram">--</span></div>
+                    <div class="node-detail-section full-width">
+                        <h4><i data-lucide="gauge"></i><span data-i18n="bridge.current_status"> Current Status</span></h4>
+                        <div class="node-status-cards">
+                            <div class="status-card">
+                                <div class="status-card-value" id="nd-status-load">0/5</div>
+                                <div class="status-card-label"><span data-i18n="bridge.active_tasks">Active Tasks</span></div>
+                            </div>
+                            <div class="status-card">
+                                <div class="status-card-value" id="nd-status-latency">--</div>
+                                <div class="status-card-label"><span data-i18n="bridge.avg_latency">Avg Latency</span></div>
+                            </div>
+                            <div class="status-card">
+                                <div class="status-card-value" id="nd-status-models">0</div>
+                                <div class="status-card-label"><span data-i18n="bridge.models">Models</span></div>
+                            </div>
+                            <div class="status-card">
+                                <div class="status-card-value" id="nd-status-stations">0</div>
+                                <div class="status-card-label"><span data-i18n="bridge.stations">Stations</span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="node-detail-section full-width">
-                    <h4><i data-lucide="gauge"></i><span data-i18n="bridge.current_status"> Current Status</span></h4>
-                    <div class="node-status-cards">
-                        <div class="status-card">
-                            <div class="status-card-value" id="nd-status-load">0/5</div>
-                            <div class="status-card-label"><span data-i18n="bridge.active_tasks">Active Tasks</span></div>
+
+                <!-- Stations Tab -->
+                <div class="node-tab-content" id="tab-stations">
+                    <div class="node-detail-section full-width">
+                        <h4><i data-lucide="git-branch"></i><span data-i18n="bridge.station_assignments"> Station Assignments</span></h4>
+                        <p style="font-size:0.7rem;color:var(--archie-text-muted);margin-bottom:12px;">
+                            Toggle stations on/off to assign this node. Select a role for active assignments.
+                        </p>
+                        <div id="node-stations-list" class="node-stations-toggle-list">
+                            <!-- Filled by JavaScript - shows ALL stations with toggles -->
                         </div>
-                        <div class="status-card">
-                            <div class="status-card-value" id="nd-status-latency">--</div>
-                            <div class="status-card-label"><span data-i18n="bridge.avg_latency">Avg Latency</span></div>
+                    </div>
+                </div>
+
+                <!-- Models/Services Tab -->
+                <div class="node-tab-content" id="tab-models">
+                    <div class="node-detail-section full-width">
+                        <h4><i data-lucide="cpu"></i><span data-i18n="bridge.ai_services"> AI Services</span></h4>
+                        <div id="node-services-grid" class="node-services-grid">
+                            <!-- Filled by JavaScript -->
                         </div>
-                        <div class="status-card">
-                            <div class="status-card-value" id="nd-status-models">0</div>
-                            <div class="status-card-label"><span data-i18n="bridge.models">Models</span></div>
+                    </div>
+                    <div class="node-detail-section full-width">
+                        <div class="section-header">
+                            <h4><i data-lucide="box"></i><span data-i18n="bridge.llm_models_ollama"> LLM Models (Ollama)</span></h4>
+                            <button class="btn-small" onclick="syncNodeModels(event)"><i data-lucide="refresh-cw"></i><span data-i18n="bridge.sync"> Sync</span></button>
                         </div>
-                        <div class="status-card">
-                            <div class="status-card-value" id="nd-status-stations">0</div>
-                            <div class="status-card-label"><span data-i18n="bridge.stations">Stations</span></div>
+                        <div id="node-models-list" class="node-models-grid">
+                            <!-- Filled by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Health Tab -->
+                <div class="node-tab-content" id="tab-health">
+                    <div class="node-detail-section full-width">
+                        <h4><i data-lucide="activity"></i><span data-i18n="bridge.health_history_last_50_heartbeats"> Health History (Last 50 Heartbeats)</span></h4>
+                        <div class="health-charts">
+                            <canvas id="health-chart" height="200"></canvas>
+                        </div>
+                        <div id="node-health-table" class="health-table">
+                            <!-- Filled by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Config Tab -->
+                <div class="node-tab-content" id="tab-config">
+                    <div class="node-detail-section full-width">
+                        <h4><i data-lucide="settings"></i><span data-i18n="bridge.node_configuration"> Node Configuration</span></h4>
+                        <div class="config-form">
+                            <div class="form-row">
+                                <label><span data-i18n="bridge.node_name">Node Name:</span></label>
+                                <input type="text" id="nd-config-name" placeholder="Node name">
+                            </div>
+                            <div class="form-row">
+                                <label><span data-i18n="bridge.description">Description:</span></label>
+                                <textarea id="nd-config-desc" rows="2" placeholder="Optional description"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <label><span data-i18n="bridge.max_concurrent_tasks">Max Concurrent Tasks:</span></label>
+                                <input type="number" id="nd-config-max" value="5" min="1" max="50">
+                                <span class="help-text"><span data-i18n="bridge.how_many_tasks_this_node_can_handle_simultaneously">How many tasks this node can handle simultaneously</span></span>
+                            </div>
+                            <div class="form-row">
+                                <label><span data-i18n="bridge.priority">Priority:</span></label>
+                                <input type="number" id="nd-config-priority" value="10" min="1" max="100">
+                                <span class="help-text"><span data-i18n="bridge.lower_higher_priority_for_task_assignment">Lower = higher priority for task assignment</span></span>
+                            </div>
+                            <div class="form-row">
+                                <label><span data-i18n="bridge.weight">Weight:</span></label>
+                                <input type="number" id="nd-config-weight" value="100" min="1" max="1000">
+                                <span class="help-text"><span data-i18n="bridge.load_balancing_weight_higher_more_tasks">Load balancing weight (higher = more tasks)</span></span>
+                            </div>
+                            <div class="form-row checkbox-row">
+                                <label>
+                                    <input type="checkbox" id="nd-config-bridge">
+                                    Enable Bridge LLM Sharing
+                                </label>
+                                <span class="help-text"><span data-i18n="bridge.allow_this_node_s_models_to_be_used_by_other_stati">Allow this node's models to be used by other stations</span></span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Stations Tab -->
-            <div class="node-tab-content" id="tab-stations">
-                <div class="node-detail-section full-width">
-                    <h4><i data-lucide="git-branch"></i><span data-i18n="bridge.station_assignments"> Station Assignments</span></h4>
-                    <p style="font-size:0.7rem;color:var(--archie-text-muted);margin-bottom:12px;">
-                        Toggle stations on/off to assign this node. Select a role for active assignments.
-                    </p>
-                    <div id="node-stations-list" class="node-stations-toggle-list">
-                        <!-- Filled by JavaScript - shows ALL stations with toggles -->
-                    </div>
+            <div class="bm-actions">
+                <button class="btn-danger" onclick="confirmDeleteNode()" style="margin-right:auto;">
+                    <i data-lucide="trash-2"></i> Delete Node
+                </button>
+                <button class="btn-cancel" onclick="closeNodeDetailModal()"><span data-i18n="bridge.close_3">Close</span></button>
+                <button class="btn-submit" onclick="saveNodeConfig()"><span data-i18n="bridge.save_changes">Save Changes</span></button>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot green"></span>
                 </div>
             </div>
-
-            <!-- Models/Services Tab -->
-            <div class="node-tab-content" id="tab-models">
-                <!-- AI Services Overview -->
-                <div class="node-detail-section full-width">
-                    <h4><i data-lucide="cpu"></i><span data-i18n="bridge.ai_services"> AI Services</span></h4>
-                    <div id="node-services-grid" class="node-services-grid">
-                        <!-- Filled by JavaScript -->
-                    </div>
-                </div>
-
-                <!-- LLM Models -->
-                <div class="node-detail-section full-width">
-                    <div class="section-header">
-                        <h4><i data-lucide="box"></i><span data-i18n="bridge.llm_models_ollama"> LLM Models (Ollama)</span></h4>
-                        <button class="btn-small" onclick="syncNodeModels(event)"><i data-lucide="refresh-cw"></i><span data-i18n="bridge.sync"> Sync</span></button>
-                    </div>
-                    <div id="node-models-list" class="node-models-grid">
-                        <!-- Filled by JavaScript -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Health Tab -->
-            <div class="node-tab-content" id="tab-health">
-                <div class="node-detail-section full-width">
-                    <h4><i data-lucide="activity"></i><span data-i18n="bridge.health_history_last_50_heartbeats"> Health History (Last 50 Heartbeats)</span></h4>
-                    <div class="health-charts">
-                        <canvas id="health-chart" height="200"></canvas>
-                    </div>
-                    <div id="node-health-table" class="health-table">
-                        <!-- Filled by JavaScript -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Config Tab -->
-            <div class="node-tab-content" id="tab-config">
-                <div class="node-detail-section full-width">
-                    <h4><i data-lucide="settings"></i><span data-i18n="bridge.node_configuration"> Node Configuration</span></h4>
-                    <div class="config-form">
-                        <div class="form-row">
-                            <label><span data-i18n="bridge.node_name">Node Name:</span></label>
-                            <input type="text" id="nd-config-name" placeholder="Node name">
-                        </div>
-                        <div class="form-row">
-                            <label><span data-i18n="bridge.description">Description:</span></label>
-                            <textarea id="nd-config-desc" rows="2" placeholder="Optional description"></textarea>
-                        </div>
-                        <div class="form-row">
-                            <label><span data-i18n="bridge.max_concurrent_tasks">Max Concurrent Tasks:</span></label>
-                            <input type="number" id="nd-config-max" value="5" min="1" max="50">
-                            <span class="help-text"><span data-i18n="bridge.how_many_tasks_this_node_can_handle_simultaneously">How many tasks this node can handle simultaneously</span></span>
-                        </div>
-                        <div class="form-row">
-                            <label><span data-i18n="bridge.priority">Priority:</span></label>
-                            <input type="number" id="nd-config-priority" value="10" min="1" max="100">
-                            <span class="help-text"><span data-i18n="bridge.lower_higher_priority_for_task_assignment">Lower = higher priority for task assignment</span></span>
-                        </div>
-                        <div class="form-row">
-                            <label><span data-i18n="bridge.weight">Weight:</span></label>
-                            <input type="number" id="nd-config-weight" value="100" min="1" max="1000">
-                            <span class="help-text"><span data-i18n="bridge.load_balancing_weight_higher_more_tasks">Load balancing weight (higher = more tasks)</span></span>
-                        </div>
-                        <div class="form-row checkbox-row">
-                            <label>
-                                <input type="checkbox" id="nd-config-bridge">
-                                Enable Bridge LLM Sharing
-                            </label>
-                            <span class="help-text"><span data-i18n="bridge.allow_this_node_s_models_to_be_used_by_other_stati">Allow this node's models to be used by other stations</span></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="assignment-modal-footer">
-            <button class="btn-danger" onclick="confirmDeleteNode()" style="margin-right:auto;">
-                <i data-lucide="trash-2"></i> Delete Node
-            </button>
-            <button class="btn-cancel" onclick="closeNodeDetailModal()"><span data-i18n="bridge.close_3">Close</span></button>
-            <button class="btn-submit" onclick="saveNodeConfig()"><span data-i18n="bridge.save_changes">Save Changes</span></button>
         </div>
     </div>
 </div>
 
 <!-- Agent Profile Modal -->
-<div class="assignment-modal-overlay" id="agent-profile-modal">
-    <div class="assignment-modal" style="width: 640px; max-height: 85vh; overflow-y: auto;">
-        <div class="assignment-modal-header">
-            <span id="agent-profile-title"><span data-i18n="bridge.agent_profile">Agent Profile</span></span>
-            <button class="assignment-modal-close" onclick="closeAgentProfile()"><span data-i18n="bridge.times_6">&times;</span></button>
+<div class="bm-overlay" id="agent-profile-modal" style="--bm-accent:#8b5cf6;--bm-accent-rgb:139,92,246;">
+    <div class="bm-shell" style="max-width:640px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg purple"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <div class="assignment-modal-body" id="agent-profile-body">
-            <span class="briefing-muted"><span data-i18n="bridge.loading_5">Loading...</span></span>
-        </div>
-        <div class="assignment-modal-footer" id="agent-profile-footer">
-            <button class="btn-danger" onclick="deleteAgentFromProfile()" style="margin-right:auto;font-size:0.7rem;"><span data-i18n="bridge.delete_2">Delete</span></button>
-            <button class="btn-cancel" onclick="toggleAgentFromProfile()" style="font-size:0.7rem;"><span data-i18n="bridge.toggle_status">Toggle Status</span></button>
-            <button class="btn-submit" onclick="editAgentFromProfile()" style="font-size:0.7rem;"><span data-i18n="bridge.edit">Edit</span></button>
-            <button class="btn-submit" onclick="viewPersonnelFile()" style="font-size:0.7rem;background:var(--archie-purple,#8b5cf6);" data-i18n="bridge.agent.view_personnel_file">Personnel File</button>
-            <button class="btn-cancel" onclick="closeAgentProfile()"><span data-i18n="bridge.close_4">Close</span></button>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="agent-profile-title"><span data-i18n="bridge.agent_profile">AGENT PROFILE</span></span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeAgentProfile()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" id="agent-profile-body">
+                <span class="briefing-muted"><span data-i18n="bridge.loading_5">Loading...</span></span>
+            </div>
+            <div class="bm-actions" id="agent-profile-footer" style="flex-wrap:wrap;gap:6px;">
+                <button class="btn-danger" onclick="deleteAgentFromProfile()" style="margin-right:auto;font-size:0.7rem;"><span data-i18n="bridge.delete_2">Delete</span></button>
+                <button class="btn-cancel" onclick="toggleAgentFromProfile()" style="font-size:0.7rem;"><span data-i18n="bridge.toggle_status">Toggle Status</span></button>
+                <button class="btn-submit" onclick="editAgentFromProfile()" style="font-size:0.7rem;"><span data-i18n="bridge.edit">Edit</span></button>
+                <button class="btn-submit" onclick="viewPersonnelFile()" style="font-size:0.7rem;" data-i18n="bridge.agent.view_personnel_file">Personnel File</button>
+                <button class="btn-cancel" onclick="closeAgentProfile()"><span data-i18n="bridge.close_4">Close</span></button>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot purple"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot cyan"></span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Agent Create/Edit Form Modal -->
-<div class="assignment-modal-overlay" id="agent-form-modal">
-    <div class="assignment-modal" style="width: 540px; max-height: 85vh; overflow-y: auto;">
-        <div class="assignment-modal-header">
-            <span id="agent-form-title"><span data-i18n="bridge.add_agent_2">Add Agent</span></span>
-            <button class="assignment-modal-close" onclick="closeAgentFormModal()"><span data-i18n="bridge.times_7">&times;</span></button>
+<div class="bm-overlay" id="agent-form-modal" style="--bm-accent:#8b5cf6;--bm-accent-rgb:139,92,246;">
+    <div class="bm-shell" style="max-width:540px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg purple"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <div class="assignment-modal-body">
-            <input type="hidden" id="agent-form-id" value="">
-            <div style="margin-bottom:8px;">
-                <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.codename">Codename</span></label>
-                <input type="text" id="agent-form-name" placeholder="e.g. Sentinel, Vigil" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.first_name">First Name</span></label>
-                    <input type="text" id="agent-form-first" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
-                </div>
-                <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.last_name">Last Name</span></label>
-                    <input type="text" id="agent-form-last" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
-                </div>
-                <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.title_2">Title</span></label>
-                    <input type="text" id="agent-form-title-input" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
-                </div>
-                <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.department">Department</span></label>
-                    <input type="text" id="agent-form-dept" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
-                </div>
-                <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.model">Model *</span></label>
-                    <input type="text" id="agent-form-model" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;" placeholder="e.g. dolphin3-8k:latest">
-                </div>
-                <div>
-                    <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.worker_type">Worker Type</span></label>
-                    <select id="agent-form-worker" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;">
-                        <option value="ai">AI</option>
-                        <option value="internal"><span data-i18n="bridge.internal">Internal</span></option>
-                        <option value="contractor"><span data-i18n="bridge.contractor">Contractor</span></option>
-                    </select>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="agent-form-title"><span data-i18n="bridge.add_agent_2">ADD AGENT</span></span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeAgentFormModal()">&times;</button>
                 </div>
             </div>
-            <div style="margin-top:8px;">
-                <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.bio">Bio</span></label>
-                <textarea id="agent-form-bio" rows="2" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;resize:vertical;"></textarea>
+            <div class="bm-body">
+                <input type="hidden" id="agent-form-id" value="">
+                <div style="margin-bottom:8px;">
+                    <label><span data-i18n="bridge.codename">Codename</span></label>
+                    <input type="text" id="agent-form-name" placeholder="e.g. Sentinel, Vigil">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div>
+                        <label><span data-i18n="bridge.first_name">First Name</span></label>
+                        <input type="text" id="agent-form-first">
+                    </div>
+                    <div>
+                        <label><span data-i18n="bridge.last_name">Last Name</span></label>
+                        <input type="text" id="agent-form-last">
+                    </div>
+                    <div>
+                        <label><span data-i18n="bridge.title_2">Title</span></label>
+                        <input type="text" id="agent-form-title-input">
+                    </div>
+                    <div>
+                        <label><span data-i18n="bridge.department">Department</span></label>
+                        <input type="text" id="agent-form-dept">
+                    </div>
+                    <div>
+                        <label><span data-i18n="bridge.model">Model *</span></label>
+                        <input type="text" id="agent-form-model" placeholder="e.g. dolphin3-8k:latest">
+                    </div>
+                    <div>
+                        <label><span data-i18n="bridge.worker_type">Worker Type</span></label>
+                        <select id="agent-form-worker">
+                            <option value="ai">AI</option>
+                            <option value="internal"><span data-i18n="bridge.internal">Internal</span></option>
+                            <option value="contractor"><span data-i18n="bridge.contractor">Contractor</span></option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top:8px;">
+                    <label><span data-i18n="bridge.bio">Bio</span></label>
+                    <textarea id="agent-form-bio" rows="2" style="resize:vertical;"></textarea>
+                </div>
+                <div style="margin-top:8px;">
+                    <label><span data-i18n="bridge.system_prompt">System Prompt</span></label>
+                    <textarea id="agent-form-prompt" rows="3" style="resize:vertical;"></textarea>
+                </div>
             </div>
-            <div style="margin-top:8px;">
-                <label style="font-size:0.7rem;color:var(--archie-text-muted);"><span data-i18n="bridge.system_prompt">System Prompt</span></label>
-                <textarea id="agent-form-prompt" rows="3" style="width:100%;padding:4px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:inherit;font-size:0.8rem;resize:vertical;"></textarea>
+            <div class="bm-actions">
+                <button class="btn-cancel" onclick="closeAgentFormModal()"><span data-i18n="bridge.cancel_2">Cancel</span></button>
+                <button class="btn-submit" onclick="saveAgent()"><span data-i18n="bridge.save_agent">Save Agent</span></button>
             </div>
-        </div>
-        <div class="assignment-modal-footer">
-            <button class="btn-cancel" onclick="closeAgentFormModal()"><span data-i18n="bridge.cancel_2">Cancel</span></button>
-            <button class="btn-submit" onclick="saveAgent()"><span data-i18n="bridge.save_agent">Save Agent</span></button>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot purple"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot cyan"></span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Vigil's Log Full Modal -->
-<div class="assignment-modal-overlay" id="vigil-log-modal">
-    <div class="assignment-modal" style="width: 700px;">
-        <div class="assignment-modal-header" style="background: linear-gradient(90deg, rgba(255, 107, 107, 0.2), transparent); border-color: rgba(255, 107, 107, 0.3);">
-            <h3 style="color: #ff6b6b; display:flex; align-items:center; gap:8px;"><i data-lucide="shield-alert" style="width:18px;height:18px;"></i><span data-i18n="bridge.vigil_s_log_2"> Vigil's Log</span></h3>
-            <button class="assignment-modal-close" onclick="closeVigilLogModal()"><span data-i18n="bridge.times_8">&times;</span></button>
+<div class="bm-overlay" id="vigil-log-modal" style="--bm-accent:#ff6b6b;--bm-accent-rgb:255,107,107;">
+    <div class="bm-shell" style="max-width:700px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-seg red"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
-        <!-- Filters -->
-        <div style="display:flex;gap:8px;padding:10px 1.5rem 0;flex-wrap:wrap;">
-            <button class="vigil-filter-btn active" data-filter="all" onclick="filterVigilLog('all')"><span data-i18n="bridge.all">All</span></button>
-            <button class="vigil-filter-btn" data-filter="dispatch" onclick="filterVigilLog('dispatch')"><span data-i18n="bridge.dispatch">Dispatch</span></button>
-            <button class="vigil-filter-btn" data-filter="welfare" onclick="filterVigilLog('welfare')"><span data-i18n="bridge.welfare">Welfare</span></button>
-            <button class="vigil-filter-btn" data-filter="governance" onclick="filterVigilLog('governance')"><span data-i18n="bridge.governance">Governance</span></button>
-            <button class="vigil-filter-btn" data-filter="archie_wellness" onclick="filterVigilLog('archie_wellness')"><span data-i18n="bridge.archie">ARCHIE</span></button>
-        </div>
-        <div class="assignment-modal-body" id="vigil-log-modal-body" style="max-height:55vh;overflow-y:auto;">
-            <div style="text-align:center;color:var(--archie-text-muted);padding:2rem;"><span data-i18n="bridge.loading_6">Loading...</span></div>
-        </div>
-        <div class="assignment-modal-footer" style="justify-content:space-between;align-items:center;">
-            <span id="vigil-log-page-info" style="font-size:0.7rem;color:var(--archie-text-muted);font-family:var(--archie-font-mono);"><span data-i18n="bridge.page_1">Page 1</span></span>
-            <div style="display:flex;gap:8px;">
-                <button class="btn-cancel" id="vigil-prev-btn" onclick="vigilLogPage(-1)" disabled><span data-i18n="bridge.larr_prev">&larr; Prev</span></button>
-                <button class="btn-cancel" id="vigil-next-btn" onclick="vigilLogPage(1)"><span data-i18n="bridge.next_rarr">Next &rarr;</span></button>
+        <div class="bm-content">
+            <div class="bm-header">
+                <div class="bm-header-title" style="gap:8px;">
+                    <i data-lucide="shield-alert" style="width:18px;height:18px;"></i>
+                    <span data-i18n="bridge.vigil_s_log_2">VIGIL'S LOG</span>
+                </div>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeVigilLogModal()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" style="padding-bottom:0;">
+                <!-- Filters -->
+                <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                    <button class="vigil-filter-btn active" data-filter="all" onclick="filterVigilLog('all')"><span data-i18n="bridge.all">All</span></button>
+                    <button class="vigil-filter-btn" data-filter="dispatch" onclick="filterVigilLog('dispatch')"><span data-i18n="bridge.dispatch">Dispatch</span></button>
+                    <button class="vigil-filter-btn" data-filter="welfare" onclick="filterVigilLog('welfare')"><span data-i18n="bridge.welfare">Welfare</span></button>
+                    <button class="vigil-filter-btn" data-filter="governance" onclick="filterVigilLog('governance')"><span data-i18n="bridge.governance">Governance</span></button>
+                    <button class="vigil-filter-btn" data-filter="archie_wellness" onclick="filterVigilLog('archie_wellness')"><span data-i18n="bridge.archie">ARCHIE</span></button>
+                </div>
+                <div id="vigil-log-modal-body" style="max-height:55vh;overflow-y:auto;">
+                    <div style="text-align:center;color:var(--archie-text-muted);padding:2rem;"><span data-i18n="bridge.loading_6">Loading...</span></div>
+                </div>
+            </div>
+            <div class="bm-actions" style="justify-content:space-between;align-items:center;">
+                <span id="vigil-log-page-info" style="font-size:0.7rem;color:var(--archie-text-muted);font-family:var(--archie-font-mono);"><span data-i18n="bridge.page_1">Page 1</span></span>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-cancel" id="vigil-prev-btn" onclick="vigilLogPage(-1)" disabled><span data-i18n="bridge.larr_prev">&larr; Prev</span></button>
+                    <button class="btn-cancel" id="vigil-next-btn" onclick="vigilLogPage(1)"><span data-i18n="bridge.next_rarr">Next &rarr;</span></button>
+                </div>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot red"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot cyan"></span>
+                </div>
             </div>
         </div>
     </div>
@@ -13243,25 +13853,12 @@ function removeSkill(agentId, skillId) {
 
 // === Training / Lounge Button UX ===
 function populateTrainingLoungeSelects(crew) {
-    var trainSel = document.getElementById('training-agent-select');
-    if (!trainSel) return;
-
-    // Keep first option, clear rest
-    while (trainSel.options.length > 1) trainSel.remove(1);
-
     // Separate agents by status
     var active = [], training = [], resting = [];
     (crew || []).forEach(function(a) {
         if (a.status === 'training') training.push(a);
         else if (a.status === 'resting') resting.push(a);
         else active.push(a);
-    });
-
-    // Populate training select with active agents only
-    active.forEach(function(a) {
-        var label = (a.full_name || a.name) + ' (' + a.station + ')';
-        var opt1 = new Option(label, a.id);
-        trainSel.add(opt1);
     });
 
     // Render training agents list
@@ -13273,7 +13870,7 @@ function populateTrainingLoungeSelects(crew) {
             var html = '';
             training.forEach(function(a) {
                 html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.75rem;">';
-                html += '<span>' + (a.full_name || a.name) + '</span>';
+                html += '<span>' + (a.full_name || a.name || '').split(' ')[0] + '</span>';
                 html += '<button onclick="returnFromLounge(' + parseInt(a.id) + ')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 6px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Return to Duty</button>';
                 html += '</div>';
             });
@@ -13295,6 +13892,8 @@ function sendToLounge() {
     }).then(function(r) { return r.json(); })
     .then(function() {
         sel.value = '';
+        var chipRow = document.getElementById('lounge-agent-chips');
+        if (chipRow) { var s = chipRow.querySelector('.training-chip.selected'); if (s) s.classList.remove('selected'); }
         if (reasonEl) reasonEl.value = '';
         loadCrewManifest();
         if (typeof loadLoungeTab === 'function') loadLoungeTab();
@@ -13339,59 +13938,188 @@ function loadTrainingTab() {
 }
 
 async function populateTrainingAgentSelect() {
-    var sel = document.getElementById('training-agent-select');
-    if (!sel) return;
+    var container = document.getElementById('training-agent-chips');
+    var hiddenInput = document.getElementById('training-agent-select');
+    if (!container || !hiddenInput) return;
     try {
         var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
         var data = await resp.json();
         if (!data.success) return;
-        sel.innerHTML = '<option value="">Select agent...</option>';
-        (data.crew || []).forEach(function(agent) {
-            var opt = document.createElement('option');
-            opt.value = agent.id;
-            opt.textContent = agent.full_name || agent.name;
-            sel.appendChild(opt);
+        container.textContent = '';
+        hiddenInput.value = '';
+        var crew = data.crew || [];
+        if (crew.length === 0) {
+            var empty = document.createElement('span');
+            empty.className = 'briefing-muted';
+            empty.style.fontSize = '0.75rem';
+            empty.textContent = 'No agents available';
+            container.appendChild(empty);
+            return;
+        }
+        crew.forEach(function(agent) {
+            var firstName = (agent.full_name || agent.name || 'agent').split(' ')[0];
+            var avatarSlug = firstName.toLowerCase();
+            var dicebearFallback = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + encodeURIComponent(firstName) + '&backgroundColor=transparent';
+
+            var chip = document.createElement('div');
+            chip.className = 'training-chip';
+            chip.dataset.agentId = agent.id;
+
+            var img = document.createElement('img');
+            img.className = 'training-chip-avatar';
+            img.src = '/static/avatars/' + avatarSlug + '.svg';
+            img.alt = firstName;
+            img.onerror = function() { this.onerror = null; this.src = dicebearFallback; };
+            chip.appendChild(img);
+
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'training-chip-name';
+            nameSpan.textContent = firstName;
+            chip.appendChild(nameSpan);
+
+            var stationSpan = document.createElement('span');
+            stationSpan.className = 'training-chip-station';
+            stationSpan.textContent = agent.station || '';
+            chip.appendChild(stationSpan);
+
+            chip.addEventListener('click', function() {
+                var wasSelected = chip.classList.contains('selected');
+                var prev = container.querySelector('.training-chip.selected');
+                if (prev) prev.classList.remove('selected');
+                if (wasSelected) {
+                    hiddenInput.value = '';
+                } else {
+                    chip.classList.add('selected');
+                    hiddenInput.value = agent.id;
+                }
+                hiddenInput.dispatchEvent(new Event('change'));
+            });
+
+            container.appendChild(chip);
         });
     } catch (e) {
         console.error('populateTrainingAgentSelect error:', e);
     }
 }
 
-// When agent is selected, populate skill dropdown with their current skills
+// When agent is selected, populate skill chips with their current skills
 document.addEventListener('DOMContentLoaded', function() {
     var agentSel = document.getElementById('training-agent-select');
     if (agentSel) {
         agentSel.addEventListener('change', async function() {
-            var skillSel = document.getElementById('training-skill-select');
-            if (!skillSel) return;
+            var skillContainer = document.getElementById('training-skill-chips');
+            var skillInput = document.getElementById('training-skill-select');
+            if (!skillContainer || !skillInput) return;
             var agentId = agentSel.value;
             if (!agentId) {
-                skillSel.innerHTML = '<option value="">Select skill...</option>';
-                skillSel.disabled = true;
+                skillContainer.textContent = '';
+                var emptySpan = document.createElement('span');
+                emptySpan.className = 'training-skill-empty';
+                emptySpan.textContent = 'Select an agent first';
+                skillContainer.appendChild(emptySpan);
+                skillInput.value = '';
+                _resetTrainingLevelPills();
                 return;
             }
             try {
+                skillContainer.textContent = '';
+                skillInput.value = '';
+                _resetTrainingLevelPills();
                 var resp = await fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/profile');
                 var data = await resp.json();
-                skillSel.innerHTML = '<option value="">Select skill...</option>';
                 var skills = (data.profile && data.profile.skills) || data.skills || [];
-                if (data.success && skills.length > 0) {
-                    skills.forEach(function(sk) {
-                        var opt = document.createElement('option');
-                        opt.value = sk.skill_name;
-                        opt.textContent = sk.skill_name + ' (Lv ' + (sk.proficiency_level || 1) + ')';
-                        opt.dataset.currentLevel = sk.proficiency_level || 1;
-                        skillSel.appendChild(opt);
-                    });
+                if (!data.success || skills.length === 0) {
+                    var noSkills = document.createElement('span');
+                    noSkills.className = 'training-skill-empty';
+                    noSkills.textContent = 'No skills found';
+                    skillContainer.appendChild(noSkills);
+                    return;
                 }
-                skillSel.disabled = false;
+                skills.forEach(function(sk) {
+                    var chip = document.createElement('div');
+                    chip.className = 'training-skill-chip';
+                    chip.dataset.skill = sk.skill_name;
+                    chip.dataset.currentLevel = sk.proficiency_level || 1;
+
+                    var nameSpan = document.createElement('span');
+                    nameSpan.textContent = sk.skill_name;
+                    chip.appendChild(nameSpan);
+
+                    var lvlBadge = document.createElement('span');
+                    lvlBadge.className = 'skill-chip-lvl';
+                    lvlBadge.textContent = 'Lv' + (sk.proficiency_level || 1);
+                    chip.appendChild(lvlBadge);
+
+                    chip.addEventListener('click', function() {
+                        var wasSelected = chip.classList.contains('selected');
+                        var prev = skillContainer.querySelector('.training-skill-chip.selected');
+                        if (prev) prev.classList.remove('selected');
+                        if (wasSelected) {
+                            skillInput.value = '';
+                            _resetTrainingLevelPills();
+                        } else {
+                            chip.classList.add('selected');
+                            skillInput.value = sk.skill_name;
+                            _updateTrainingLevelPills(parseInt(sk.proficiency_level) || 1);
+                        }
+                    });
+                    skillContainer.appendChild(chip);
+                });
             } catch (e) {
                 console.error('Load agent skills error:', e);
-                skillSel.innerHTML = '<option value="">Error loading skills</option>';
+                skillContainer.textContent = '';
+                var errSpan = document.createElement('span');
+                errSpan.className = 'training-skill-empty';
+                errSpan.textContent = 'Error loading skills';
+                skillContainer.appendChild(errSpan);
             }
         });
     }
+
+    // Level pill click handlers
+    var levelPills = document.querySelectorAll('.training-level-pill');
+    var targetInput = document.getElementById('training-target-select');
+    levelPills.forEach(function(pill) {
+        pill.addEventListener('click', function() {
+            if (pill.classList.contains('disabled')) return;
+            var wasSelected = pill.classList.contains('selected');
+            levelPills.forEach(function(p) { p.classList.remove('selected'); });
+            if (wasSelected) {
+                if (targetInput) targetInput.value = '';
+            } else {
+                pill.classList.add('selected');
+                if (targetInput) targetInput.value = pill.dataset.level;
+            }
+        });
+    });
 });
+
+// Reset all level pills to unselected + enabled
+function _resetTrainingLevelPills() {
+    var pills = document.querySelectorAll('.training-level-pill');
+    var targetInput = document.getElementById('training-target-select');
+    pills.forEach(function(p) { p.classList.remove('selected', 'disabled'); });
+    if (targetInput) targetInput.value = '';
+}
+
+// Update level pills based on current skill level — disable levels at or below current
+function _updateTrainingLevelPills(currentLevel) {
+    var pills = document.querySelectorAll('.training-level-pill');
+    var targetInput = document.getElementById('training-target-select');
+    var autoSelected = false;
+    pills.forEach(function(p) {
+        var lvl = parseInt(p.dataset.level);
+        p.classList.remove('selected', 'disabled');
+        if (lvl <= currentLevel) {
+            p.classList.add('disabled');
+        } else if (!autoSelected) {
+            // Auto-select the next level above current
+            p.classList.add('selected');
+            if (targetInput) targetInput.value = p.dataset.level;
+            autoSelected = true;
+        }
+    });
+}
 
 async function assignTraining() {
     var agentSel = document.getElementById('training-agent-select');
@@ -13414,8 +14142,14 @@ async function assignTraining() {
         var data = await resp.json();
         if (data.success) {
             agentSel.value = '';
-            skillSel.innerHTML = '<option value="">Select skill...</option>';
-            skillSel.disabled = true;
+            var chipRow = document.getElementById('training-agent-chips');
+            if (chipRow) { var sel = chipRow.querySelector('.training-chip.selected'); if (sel) sel.classList.remove('selected'); }
+            // Reset skill chips
+            var skillChips = document.getElementById('training-skill-chips');
+            if (skillChips) { skillChips.textContent = ''; var e = document.createElement('span'); e.className = 'training-skill-empty'; e.textContent = 'Select an agent first'; skillChips.appendChild(e); }
+            skillSel.value = '';
+            // Reset level pills
+            _resetTrainingLevelPills();
             loadActiveTraining();
             loadTrainingRecommendations();
         } else {
@@ -13500,9 +14234,17 @@ async function loadTrainingRecommendations() {
     if (!container) return;
 
     try {
-        var resp = await fetch('/tools/bridge/api/training/recommendations');
+        var [resp, crewResp] = await Promise.all([
+            fetch('/tools/bridge/api/training/recommendations'),
+            fetch('/tools/bridge/api/bridge/crew/manifest')
+        ]);
         var data = await resp.json();
         var recs = data.recommendations || [];
+        var nameMap = {};
+        try {
+            var crewData = await crewResp.json();
+            (crewData.crew || []).forEach(function(a) { nameMap[a.id] = (a.full_name || a.name || '').split(' ')[0]; });
+        } catch(e) {}
 
         if (countBadge) countBadge.textContent = recs.length;
 
@@ -13513,16 +14255,17 @@ async function loadTrainingRecommendations() {
 
         var html = '';
         recs.forEach(function(r) {
-            var displayName = r.full_name || r.agent_name || 'Unknown';
-            var currentLvl = r.current_level || 1;
+            var displayName = nameMap[r.agent_id] || r.full_name || r.agent_name || 'Unknown';
+            var skillName = r.skill_name || r.capability || 'Unknown';
+            var currentLvl = r.current_proficiency || r.current_level || 1;
             var targetLvl = Math.min(5, currentLvl + 1);
 
             html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">';
             html += '<div style="flex:1;">';
             html += '<div style="font-size:0.75rem;color:#ff6b6b;">' + displayName + '</div>';
-            html += '<div style="font-size:0.65rem;color:rgba(255,255,255,0.5);">' + (r.capability || 'Unknown') + ' &mdash; ' + (r.failure_count || 0) + ' failures, Lv ' + currentLvl + '</div>';
+            html += '<div style="font-size:0.65rem;color:rgba(255,255,255,0.5);">' + escapeHtml(skillName) + ' &mdash; ' + (r.failure_count || 0) + ' failures, Lv ' + currentLvl + '</div>';
             html += '</div>';
-            html += '<button onclick="quickAssignTraining(' + parseInt(r.agent_id) + ',\'' + (r.capability || '').replace(/'/g, "\\'") + '\',' + targetLvl + ')" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;white-space:nowrap;">Train &rarr; Lv ' + targetLvl + '</button>';
+            html += '<button onclick="quickAssignTraining(' + parseInt(r.agent_id) + ',\'' + skillName.replace(/'/g, "\\'") + '\',' + targetLvl + ')" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;white-space:nowrap;">Train &rarr; Lv ' + targetLvl + '</button>';
             html += '</div>';
         });
         container.innerHTML = html;
@@ -13620,18 +14363,63 @@ function loadLoungeTab() {
 }
 
 async function populateLoungeAgentSelect() {
-    var sel = document.getElementById('lounge-agent-select');
-    if (!sel) return;
+    var container = document.getElementById('lounge-agent-chips');
+    var hiddenInput = document.getElementById('lounge-agent-select');
+    if (!container || !hiddenInput) return;
     try {
         var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
         var data = await resp.json();
         if (!data.success) return;
-        sel.innerHTML = '<option value="">Select agent...</option>';
-        (data.crew || []).forEach(function(a) {
-            if (a.status !== 'resting') {
-                var opt = new Option((a.full_name || a.name) + ' (' + a.station + ')', a.id);
-                sel.add(opt);
-            }
+        container.textContent = '';
+        hiddenInput.value = '';
+        var crew = (data.crew || []).filter(function(a) { return a.status !== 'resting'; });
+        if (crew.length === 0) {
+            var empty = document.createElement('span');
+            empty.className = 'briefing-muted';
+            empty.style.fontSize = '0.75rem';
+            empty.textContent = 'No agents available';
+            container.appendChild(empty);
+            return;
+        }
+        crew.forEach(function(agent) {
+            var firstName = (agent.full_name || agent.name || 'agent').split(' ')[0];
+            var avatarSlug = firstName.toLowerCase();
+            var dicebearFallback = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + encodeURIComponent(firstName) + '&backgroundColor=transparent';
+
+            var chip = document.createElement('div');
+            chip.className = 'training-chip';
+            chip.dataset.agentId = agent.id;
+
+            var img = document.createElement('img');
+            img.className = 'training-chip-avatar';
+            img.src = '/static/avatars/' + avatarSlug + '.svg';
+            img.alt = firstName;
+            img.onerror = function() { this.onerror = null; this.src = dicebearFallback; };
+            chip.appendChild(img);
+
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'training-chip-name';
+            nameSpan.textContent = firstName;
+            chip.appendChild(nameSpan);
+
+            var stationSpan = document.createElement('span');
+            stationSpan.className = 'training-chip-station';
+            stationSpan.textContent = agent.station || '';
+            chip.appendChild(stationSpan);
+
+            chip.addEventListener('click', function() {
+                var wasSelected = chip.classList.contains('selected');
+                var prev = container.querySelector('.training-chip.selected');
+                if (prev) prev.classList.remove('selected');
+                if (wasSelected) {
+                    hiddenInput.value = '';
+                } else {
+                    chip.classList.add('selected');
+                    hiddenInput.value = agent.id;
+                }
+            });
+
+            container.appendChild(chip);
         });
     } catch (e) {
         console.error('populateLoungeAgentSelect error:', e);
@@ -13644,8 +14432,13 @@ async function loadWellnessSummary() {
     var restingEl = document.getElementById('wellness-resting');
     var alertsEl = document.getElementById('burnout-alerts');
     try {
-        var resp = await fetch('/tools/bridge/api/lounge/wellness');
+        var [resp, crewResp] = await Promise.all([
+            fetch('/tools/bridge/api/lounge/wellness'),
+            fetch('/tools/bridge/api/bridge/crew/manifest')
+        ]);
         var data = await resp.json();
+        var nameMap = {}, codeNameMap = {};
+        try { var cd = await crewResp.json(); (cd.crew || []).forEach(function(c) { var fn = (c.full_name || c.name || '').split(' ')[0]; nameMap[c.id] = fn; codeNameMap[c.name] = fn; }); } catch(e) {}
         if (!data.success) return;
 
         var s = data.summary || {};
@@ -13666,7 +14459,7 @@ async function loadWellnessSummary() {
             var energyColor = a.energy < 20 ? '#ef4444' : a.energy < 40 ? '#f59e0b' : '#00ff41';
             html += '<div style="padding:8px;margin-bottom:6px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:6px;">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-            html += '<span style="font-size:0.75rem;font-weight:600;color:#fbbf24;">' + (a.full_name || a.agent_name) + '</span>';
+            html += '<span style="font-size:0.75rem;font-weight:600;color:#fbbf24;">' + (nameMap[a.agent_id] || codeNameMap[a.agent_name] || a.full_name || a.agent_name) + '</span>';
             html += '<button onclick="sendToLoungeById(' + parseInt(a.agent_id) + ')" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#8b5cf6;padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Send to Rest</button>';
             html += '</div>';
             // Stress gauge
@@ -13715,12 +14508,13 @@ async function loadLoungeAgents() {
         }
         var html = '';
         agents.forEach(function(a) {
+            var displayName = a.display_name ? a.display_name.split(' ')[0] : (a.agent_name || 'Agent');
             var hours = a.hours_resting ? parseFloat(a.hours_resting).toFixed(1) : '0.0';
             var stressPct = Math.round(parseFloat(a.stress_at_start || 0) * 100);
             var stressColor = stressPct > 80 ? '#ef4444' : stressPct > 60 ? '#f59e0b' : '#00ff41';
             html += '<div style="padding:8px;margin-bottom:6px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:6px;">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-            html += '<span style="font-size:0.75rem;font-weight:600;color:#c4b5fd;">' + String.fromCodePoint(0x2615) + ' ' + (a.full_name || a.agent_name || a.name || 'Agent') + '</span>';
+            html += '<span style="font-size:0.75rem;font-weight:600;color:#c4b5fd;">' + String.fromCodePoint(0x2615) + ' ' + displayName + '</span>';
             html += '<button onclick="returnFromLounge(' + parseInt(a.agent_id) + ')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Return to Duty</button>';
             html += '</div>';
             html += '<div style="display:flex;gap:12px;font-size:0.65rem;color:rgba(255,255,255,0.5);">';
@@ -13890,10 +14684,24 @@ function renderContractors(providers, routingMode, iaaeData) {
                         (routingMode === 'local_cloud' && cloudProviders.indexOf(p.provider) === -1);
         var blockedStyle = isBlocked ? 'position:relative;opacity:0.4;pointer-events:none;' : '';
 
-        html += '<div class="contractor-firm' + (isEnabled ? ' expanded' : '') + '"' + (blockedStyle ? ' style="' + blockedStyle + '"' : '') + '>';
+        // Compute session/weekly totals for collapsed summary
+        var pSess = 0, pSessLim = 0, pWkly = 0, pWklyLim = 0;
+        (p.models || []).forEach(function(m) {
+            var mw = m.usage_windows || {};
+            pSess += (mw.session_2h != null ? mw.session_2h : 0);
+            pSessLim += (mw.session_limit || 0);
+            pWkly += (mw.weekly_7d != null ? mw.weekly_7d : 0);
+            pWklyLim += (mw.weekly_limit || 0);
+        });
+        var sPct = pSessLim > 0 ? Math.min(100, Math.round(pSess / pSessLim * 100)) + '%' : '\u221e';
+        var wPct = pWklyLim > 0 ? Math.min(100, Math.round(pWkly / pWklyLim * 100)) + '%' : '\u221e';
+        var headerSummary = (pSess > 0 || pWkly > 0 || pSessLim > 0 || pWklyLim > 0) ? 's=' + sPct + ' / w=' + wPct : '';
+
+        html += '<div class="contractor-firm"' + (blockedStyle ? ' style="' + blockedStyle + '"' : '') + '>';
         html += '<div class="contractor-firm-header" onclick="this.parentElement.classList.toggle(\'expanded\')">';
         html += '<i data-lucide="chevron-right" class="chevron-icon"></i>';
         html += '<span class="contractor-firm-name">' + providerName + '</span>';
+        if (headerSummary) html += '<span class="contractor-header-summary">' + headerSummary + '</span>';
         html += '<span class="contractor-tier-badge">Tier ' + escapeHtml(String(tierPos)) + '</span>';
         html += '<span style="font-size:0.6rem;padding:1px 6px;border-radius:3px;border:1px solid ' + tierColor + ';color:' + tierColor + ';text-transform:uppercase;letter-spacing:0.5px;">' + escapeHtml(tierLabel) + '</span>';
         html += '<span class="contractor-status-badge ' + statusClass + '">' + statusText + '</span>';
@@ -14047,7 +14855,7 @@ function toggleContractorModel(provider, model, enabled) {
 
 function openAddProviderModal(editProviderName) {
     // Remove existing modal if any
-    var existing = document.querySelector('.provider-modal-overlay');
+    var existing = document.querySelector('.bm-overlay.bm-provider-modal');
     if (existing) existing.remove();
 
     // Fetch both contractor-providers definitions AND current key data in parallel
@@ -14060,10 +14868,6 @@ function openAddProviderModal(editProviderName) {
         var contractorProviders = cpData.providers || [];
         var configuredProviders = epData.providers || [];
         var current = editProviderName ? configuredProviders.find(function(p) { return p.provider === editProviderName; }) : null;
-
-        var overlay = document.createElement('div');
-        overlay.className = 'provider-modal-overlay';
-        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 
         // Build provider options dynamically from contractor_providers table
         var providerOptions = contractorProviders.map(function(cp) {
@@ -14083,23 +14887,58 @@ function openAddProviderModal(editProviderName) {
             { value: 'max', label: 'Max' }
         ];
 
-        // Build modal using safe DOM construction
-        var modal = document.createElement('div');
-        modal.className = 'provider-modal';
+        // Helper to create elements
+        function el(tag, cls, style) {
+            var e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (style) e.style.cssText = style;
+            return e;
+        }
+
+        // --- Build LCARS tablet modal ---
+        var overlay = el('div', 'bm-overlay active bm-provider-modal', '--bm-accent:#a855f7;--bm-accent-rgb:168,85,247;');
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+        var shell = el('div', 'bm-shell', 'max-width:400px;');
+
+        // Left frame sidebar
+        var frame = el('div', 'bm-frame');
+        frame.appendChild(el('div', 'bm-frame-elbow-top'));
+        frame.appendChild(el('div', 'bm-frame-seg'));
+        frame.appendChild(el('div', 'bm-frame-seg dim'));
+        frame.appendChild(el('div', 'bm-frame-light on'));
+        frame.appendChild(el('div', 'bm-frame-light amber'));
+        frame.appendChild(el('div', 'bm-frame-seg purple'));
+        frame.appendChild(el('div', 'bm-frame-fill'));
+        frame.appendChild(el('div', 'bm-frame-elbow-bottom'));
+        shell.appendChild(frame);
+
+        // Right content column
+        var content = el('div', 'bm-content');
 
         // Header
-        var h3 = document.createElement('h3');
-        var icon = document.createElement('i');
-        icon.setAttribute('data-lucide', 'building-2');
-        icon.style.cssText = 'width:18px;height:18px;';
-        h3.appendChild(icon);
-        h3.appendChild(document.createTextNode(' ' + (editProviderName ? 'Edit' : 'Add') + ' Provider'));
-        modal.appendChild(h3);
+        var header = el('div', 'bm-header');
+        var title = el('span', 'bm-header-title');
+        title.textContent = (editProviderName ? 'EDIT' : 'ADD') + ' PROVIDER';
+        header.appendChild(title);
+        var strip = el('div', 'bm-header-strip');
+        strip.appendChild(el('span', 'bm-header-pip w1'));
+        strip.appendChild(el('span', 'bm-header-pip w2'));
+        strip.appendChild(el('span', 'bm-header-pip w3'));
+        var closeBtn = el('button', 'bm-close');
+        closeBtn.textContent = '\u00D7';
+        closeBtn.onclick = function() { overlay.remove(); };
+        strip.appendChild(closeBtn);
+        header.appendChild(strip);
+        content.appendChild(header);
+
+        // Body
+        var body = el('div', 'bm-body');
 
         // Provider select
         var lbl1 = document.createElement('label');
         lbl1.textContent = 'Provider';
-        modal.appendChild(lbl1);
+        body.appendChild(lbl1);
         var provSelect = document.createElement('select');
         provSelect.id = 'provider-modal-name';
         if (editProviderName) provSelect.disabled = true;
@@ -14114,7 +14953,7 @@ function openAddProviderModal(editProviderName) {
             if (editProviderName && editProviderName === opt.value) o.selected = true;
             provSelect.appendChild(o);
         });
-        modal.appendChild(provSelect);
+        body.appendChild(provSelect);
 
         // Auth note container
         var authNoteDiv = document.createElement('div');
@@ -14125,12 +14964,12 @@ function openAddProviderModal(editProviderName) {
             noteInner.textContent = 'Auth: OLLAMA_API_KEY env var (shared Ollama cloud proxy)';
             authNoteDiv.appendChild(noteInner);
         }
-        modal.appendChild(authNoteDiv);
+        body.appendChild(authNoteDiv);
 
         // Account tier select
         var lbl2 = document.createElement('label');
         lbl2.textContent = 'Account Tier';
-        modal.appendChild(lbl2);
+        body.appendChild(lbl2);
         var tierSelect = document.createElement('select');
         tierSelect.id = 'provider-modal-tier';
         tierOptions.forEach(function(opt) {
@@ -14140,46 +14979,55 @@ function openAddProviderModal(editProviderName) {
             if (opt.value === currentTier) o.selected = true;
             tierSelect.appendChild(o);
         });
-        modal.appendChild(tierSelect);
+        body.appendChild(tierSelect);
 
         // API key input
         var lbl3 = document.createElement('label');
         lbl3.textContent = 'API Key';
-        modal.appendChild(lbl3);
+        body.appendChild(lbl3);
         var keyInput = document.createElement('input');
         keyInput.type = 'password';
         keyInput.id = 'provider-modal-key';
         keyInput.placeholder = keyPlaceholder;
-        modal.appendChild(keyInput);
+        body.appendChild(keyInput);
 
         // Budget input
         var lbl4 = document.createElement('label');
         lbl4.textContent = 'Monthly Budget ($)';
-        modal.appendChild(lbl4);
+        body.appendChild(lbl4);
         var budgetInput = document.createElement('input');
         budgetInput.type = 'number';
         budgetInput.id = 'provider-modal-budget';
         budgetInput.value = budgetVal;
         budgetInput.min = '0';
         budgetInput.step = '1';
-        modal.appendChild(budgetInput);
+        body.appendChild(budgetInput);
 
-        // Buttons
-        var btnDiv = document.createElement('div');
-        btnDiv.className = 'provider-modal-buttons';
-        var cancelBtn = document.createElement('button');
-        cancelBtn.className = 'btn-cancel';
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.onclick = function() { overlay.remove(); };
-        var saveBtn = document.createElement('button');
-        saveBtn.className = 'btn-save';
+        content.appendChild(body);
+
+        // Actions bar
+        var actions = el('div', 'bm-actions');
+        var cancelBtn2 = el('button', 'btn-cancel');
+        cancelBtn2.textContent = 'Cancel';
+        cancelBtn2.onclick = function() { overlay.remove(); };
+        var saveBtn = el('button', 'btn-submit');
         saveBtn.textContent = 'Save';
         saveBtn.onclick = function() { saveProvider(); };
-        btnDiv.appendChild(cancelBtn);
-        btnDiv.appendChild(saveBtn);
-        modal.appendChild(btnDiv);
+        actions.appendChild(cancelBtn2);
+        actions.appendChild(saveBtn);
+        content.appendChild(actions);
 
-        overlay.appendChild(modal);
+        // Footer decorative strip
+        var footer = el('div', 'bm-footer');
+        var footerStrip = el('div', 'bm-footer-strip');
+        footerStrip.appendChild(el('span', 'bm-footer-dot purple'));
+        footerStrip.appendChild(el('span', 'bm-footer-dot gold'));
+        footerStrip.appendChild(el('span', 'bm-footer-dot cyan'));
+        footer.appendChild(footerStrip);
+        content.appendChild(footer);
+
+        shell.appendChild(content);
+        overlay.appendChild(shell);
         document.body.appendChild(overlay);
 
         // Dynamic auth note update when provider changes
@@ -14236,7 +15084,7 @@ function saveProvider() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         showToast(data.message || 'Provider saved', 'success');
-        var overlay = document.querySelector('.provider-modal-overlay');
+        var overlay = document.querySelector('.bm-overlay.bm-provider-modal');
         if (overlay) overlay.remove();
         loadContractors();
     })

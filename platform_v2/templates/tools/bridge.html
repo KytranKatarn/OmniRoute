@@ -14260,7 +14260,7 @@ async function loadActiveTraining() {
 
             html += '<div style="padding:8px;margin-bottom:6px;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:6px;">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-            html += '<span style="font-size:0.75rem;color:#ffaa00;font-weight:600;">' + displayName + '</span>';
+            html += '<span style="font-size:0.75rem;color:#ffaa00;font-weight:600;">' + escapeHtml(displayName) + '</span>';
             html += '<div style="display:flex;align-items:center;gap:4px;">';
             if (isDegraded) {
                 html += '<span class="training-degraded-badge">DEGRADED</span>';

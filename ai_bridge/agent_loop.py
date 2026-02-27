@@ -1850,7 +1850,7 @@ class AgentLoop:
                        COALESCE(a.display_name, a.first_name || ' ' || a.last_name) as display_name
                 FROM task_execution_log tel
                 JOIN agents a ON a.id = tel.agent_id
-                WHERE tel.created_at > NOW() - INTERVAL '%s days'
+                WHERE tel.created_at > NOW() - INTERVAL '1 day' * %s
                   AND tel.agent_id IS NOT NULL
                   AND tel.capability IS NOT NULL
                 GROUP BY tel.agent_id, tel.capability, a.name, a.display_name, a.first_name, a.last_name
@@ -1950,7 +1950,7 @@ class AgentLoop:
                         SELECT capability, error_message, module_source
                         FROM task_execution_log
                         WHERE agent_id = %s AND capability = %s AND success = FALSE
-                          AND created_at > NOW() - INTERVAL '%s days'
+                          AND created_at > NOW() - INTERVAL '1 day' * %s
                         ORDER BY created_at DESC LIMIT 10
                     """, (agent_id, capability, lookback_days))
                     recent_errors = cur.fetchall()
@@ -1978,17 +1978,16 @@ class AgentLoop:
                                 capability="summarize",
                                 prompt=prompt,
                                 module_id="training_system",
-                                skip_busy_refresh=True,
                             )
-                            if result and result.get("success"):
-                                failure_analysis = result.get("response", "")[:2000]
+                            if result and result.success:
+                                failure_analysis = (result.response or "")[:2000]
                 except Exception as e:
                     logger.debug(f"Failed to generate failure analysis for {agent_name}/{capability}: {e}")
 
                 # Calculate training duration from hours_per_level
                 target_level = current_level  # Restore to pre-degradation level
                 hours_key = str(target_level)
-                training_hours = hours_per_level.get(hours_key, hours_per_level.get(int(hours_key) if hours_key.isdigit() else 2, 2))
+                training_hours = int(hours_per_level.get(hours_key, hours_per_level.get(str(2), 2)))
 
                 # Create training assignment
                 cur.execute("""
@@ -1996,7 +1995,7 @@ class AgentLoop:
                     (agent_id, skill_name, target_proficiency, current_proficiency,
                      status, started_at, target_completion,
                      failure_analysis, degradation_triggered, failure_summary)
-                    VALUES (%s, %s, %s, %s, 'in_progress', NOW(), NOW() + INTERVAL '%s hours',
+                    VALUES (%s, %s, %s, %s, 'in_progress', NOW(), NOW() + INTERVAL '1 hour' * %s,
                             %s, TRUE, %s)
                 """, (
                     agent_id, capability, target_level, new_level,
@@ -2119,7 +2118,7 @@ class AgentLoop:
 
                 # Send Telegram notification for completions
                 try:
-                    gateway = getattr(self.flask_app, "_telegram_gateway", None)
+                    gateway = self.flask_app.config.get("TELEGRAM_GATEWAY")
                     if gateway and gateway.is_running:
                         cur.execute("""
                             SELECT telegram_id FROM telegram_users
@@ -2137,7 +2136,7 @@ class AgentLoop:
                                     f"now at Lv{t['target_proficiency']}."
                                 )
                                 asyncio.run_coroutine_threadsafe(
-                                    gateway.bot.send_message(
+                                    gateway._application.bot.send_message(
                                         chat_id=tg_user["telegram_id"],
                                         text=text, parse_mode="Markdown",
                                     ),

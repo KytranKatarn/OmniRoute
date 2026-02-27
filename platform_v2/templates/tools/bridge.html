@@ -6086,6 +6086,27 @@ body.light-mode .station-coverage-code,
     background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.3);
     color: #a855f7;
 }
+.training-degraded-badge {
+    display: inline-block; background: rgba(255,60,60,0.15); color: #ff3c3c;
+    border: 1px solid rgba(255,60,60,0.3); font-size: 0.55rem; font-weight: 700;
+    padding: 1px 6px; border-radius: 8px; text-transform: uppercase;
+    letter-spacing: 0.3px; vertical-align: middle; margin-left: 4px;
+}
+.training-failure-analysis {
+    font-size: 0.65rem; color: rgba(255,255,255,0.6); margin-top: 4px;
+    padding: 4px 6px; background: rgba(255,60,60,0.05); border-left: 2px solid rgba(255,60,60,0.3);
+    border-radius: 0 4px 4px 0; cursor: pointer; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.training-failure-analysis.expanded {
+    -webkit-line-clamp: unset; display: block;
+}
+.training-degradation-count {
+    display: inline-block; background: rgba(255,60,60,0.2); color: #ff6b6b;
+    font-size: 0.5rem; font-weight: 700; min-width: 14px; height: 14px;
+    line-height: 14px; text-align: center; border-radius: 7px; margin-left: 2px;
+    vertical-align: middle;
+}
 
 /* Light mode briefing cards */
 [data-theme="light"] .briefing-card,
@@ -14088,6 +14109,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     tierLabel.textContent = skTier.label;
                     chip.appendChild(tierLabel);
 
+                    if (sk.degradation_count && sk.degradation_count > 0) {
+                        var degBadge = document.createElement('span');
+                        degBadge.className = 'training-degradation-count';
+                        degBadge.title = sk.degradation_count + ' degradation(s)';
+                        degBadge.textContent = sk.degradation_count;
+                        chip.appendChild(degBadge);
+                    }
+
                     chip.addEventListener('click', function() {
                         var wasSelected = chip.classList.contains('selected');
                         var prev = skillContainer.querySelector('.training-skill-chip.selected');
@@ -14225,11 +14254,17 @@ async function loadActiveTraining() {
             var hoursLeft = Math.max(0, hoursNeeded - hoursElapsed);
             var displayName = t.first_name && t.last_name ? t.first_name + ' ' + t.last_name : (t.agent_name || 'Unknown');
             var tierInfo = _getTrainingTierInfo(target);
+            var isDegraded = t.degradation_triggered === true;
+            var borderColor = isDegraded ? 'rgba(255,60,60,0.25)' : 'rgba(255,170,0,0.15)';
+            var bgColor = isDegraded ? 'rgba(255,60,60,0.05)' : 'rgba(255,170,0,0.05)';
 
-            html += '<div style="padding:8px;margin-bottom:6px;background:rgba(255,170,0,0.05);border:1px solid rgba(255,170,0,0.15);border-radius:6px;">';
+            html += '<div style="padding:8px;margin-bottom:6px;background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:6px;">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
             html += '<span style="font-size:0.75rem;color:#ffaa00;font-weight:600;">' + displayName + '</span>';
             html += '<div style="display:flex;align-items:center;gap:4px;">';
+            if (isDegraded) {
+                html += '<span class="training-degraded-badge">DEGRADED</span>';
+            }
             html += '<span class="training-tier-badge" data-tier="' + tierInfo.tier + '" title="' + tierInfo.tooltip + '">' + tierInfo.label + '</span>';
             html += '<button onclick="cancelTraining(' + parseInt(t.training_id) + ')" style="background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);color:#ff6b6b;padding:1px 6px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Cancel</button>';
             html += '</div></div>';
@@ -14237,9 +14272,16 @@ async function loadActiveTraining() {
             html += '<span>' + (t.skill_name || 'Unknown skill') + '</span>';
             html += ' &mdash; Level ' + current + ' &rarr; ' + target;
             html += '</div>';
+            // Failure analysis (expandable, only for degradation-triggered training)
+            if (isDegraded && t.failure_analysis) {
+                var tId = parseInt(t.training_id);
+                html += '<div class="training-failure-analysis" id="tfa-' + tId + '" onclick="this.classList.toggle(\'expanded\')" title="Click to expand">';
+                html += escapeHtml(t.failure_analysis);
+                html += '</div>';
+            }
             // Progress bar
-            html += '<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-bottom:3px;">';
-            html += '<div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,#ffaa00,#ffcc00);border-radius:3px;transition:width 0.3s;"></div>';
+            html += '<div style="height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-bottom:3px;margin-top:4px;">';
+            html += '<div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,' + (isDegraded ? '#ff6b6b,#ff9999' : '#ffaa00,#ffcc00') + ');border-radius:3px;transition:width 0.3s;"></div>';
             html += '</div>';
             html += '<div style="display:flex;justify-content:space-between;font-size:0.65rem;color:rgba(255,255,255,0.5);">';
             html += '<span>' + pct + '% complete</span>';

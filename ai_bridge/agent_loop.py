@@ -350,8 +350,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._process_training_tick),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_training_tick",
+            name="Agent Loop: Training Progression Tick",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 15 jobs")
+        logger.info("Agent loop started with 16 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -371,6 +379,7 @@ class AgentLoop:
             "agent_reports",
             "agent_ethics_monitoring",
             "agent_stale_job_reaper",
+            "agent_training_tick",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -402,6 +411,7 @@ class AgentLoop:
             "agent_hr_tracker",
             "agent_stale_job_reaper",
             "agent_ethics_monitoring",
+            "agent_training_tick",
         ]:
             try:
                 job = self.scheduler.get_job(job_id)
@@ -1775,6 +1785,12 @@ class AgentLoop:
 
             conn.commit()
 
+            # 2d. Check proficiency degradation (fail too much → degrade → auto-train)
+            degraded = self._check_proficiency_degradation(cur, conn)
+            alerts_created += degraded
+
+            conn.commit()
+
             # 3. Send Telegram alerts for critical issues
             self._send_hr_telegram_alerts(cur, conn)
 
@@ -1796,6 +1812,351 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"HR tracker failed: {e}")
             self._log_cycle("hr_tracker", 0, 1, int((time.time() - start) * 1000),
+                            error_message=str(e))
+
+    def _check_proficiency_degradation(self, cur, conn):
+        """Check for agents with high failure rates and degrade their proficiency.
+
+        Closed loop: dispatch → fail → degrade → train (personalized) → complete → restore.
+        Returns count of degradations triggered.
+        """
+        degraded = 0
+        try:
+            # Load config thresholds
+            cur.execute(
+                "SELECT config_key, config_value FROM autonomy_config "
+                "WHERE config_key IN ('training_failure_threshold', 'training_min_tasks', "
+                "'training_lookback_days', 'training_hours_per_level')"
+            )
+            cfg = {}
+            for row in cur.fetchall():
+                val = row["config_value"]
+                cfg[row["config_key"]] = val if isinstance(val, str) else json.dumps(val)
+
+            failure_threshold = int(cfg.get("training_failure_threshold", "50"))
+            min_tasks = int(cfg.get("training_min_tasks", "5"))
+            lookback_days = int(cfg.get("training_lookback_days", "7"))
+            try:
+                hours_per_level = json.loads(cfg.get("training_hours_per_level", '{"2":1,"3":2,"4":4,"5":8}'))
+            except (json.JSONDecodeError, TypeError):
+                hours_per_level = {"2": 1, "3": 2, "4": 4, "5": 8}
+
+            # Find agents with high failure rates per capability
+            cur.execute("""
+                SELECT tel.agent_id, tel.capability,
+                       COUNT(*) as total,
+                       SUM(CASE WHEN tel.success = FALSE THEN 1 ELSE 0 END) as failures,
+                       a.name as agent_name,
+                       COALESCE(a.display_name, a.first_name || ' ' || a.last_name) as display_name
+                FROM task_execution_log tel
+                JOIN agents a ON a.id = tel.agent_id
+                WHERE tel.created_at > NOW() - INTERVAL '%s days'
+                  AND tel.agent_id IS NOT NULL
+                  AND tel.capability IS NOT NULL
+                GROUP BY tel.agent_id, tel.capability, a.name, a.display_name, a.first_name, a.last_name
+                HAVING COUNT(*) >= %s
+            """, (lookback_days, min_tasks))
+            candidates = cur.fetchall()
+
+            for row in candidates:
+                failure_rate = round((row["failures"] / row["total"]) * 100, 1)
+                if failure_rate < failure_threshold:
+                    continue
+
+                agent_id = row["agent_id"]
+                capability = row["capability"]
+                agent_name = row["agent_name"]
+                display_name = row["display_name"] or agent_name
+
+                # Get current proficiency from agent_learning_log
+                cur.execute("""
+                    SELECT id, confidence, last_degraded_at
+                    FROM agent_learning_log
+                    WHERE agent_id = %s AND skill_name = %s
+                    ORDER BY confidence DESC LIMIT 1
+                """, (agent_id, capability))
+                skill_row = cur.fetchone()
+
+                if not skill_row:
+                    continue
+
+                confidence = float(skill_row["confidence"])
+                # Map confidence to level: <0.3=1, <0.5=2, <0.7=3, <0.85=4, >=0.85=5
+                if confidence < 0.3:
+                    current_level = 1
+                elif confidence < 0.5:
+                    current_level = 2
+                elif confidence < 0.7:
+                    current_level = 3
+                elif confidence < 0.85:
+                    current_level = 4
+                else:
+                    current_level = 5
+
+                # Guard: skip if already at Lv1
+                if current_level <= 1:
+                    continue
+
+                # Guard: skip if degraded within last 24 hours
+                if skill_row["last_degraded_at"]:
+                    from datetime import timezone
+                    last_degraded = skill_row["last_degraded_at"]
+                    if hasattr(last_degraded, 'tzinfo') and last_degraded.tzinfo is None:
+                        last_degraded = last_degraded.replace(tzinfo=timezone.utc)
+                    now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
+                    if (now_utc - last_degraded).total_seconds() < 86400:
+                        continue
+
+                # Guard: skip if already in training for this skill
+                cur.execute("""
+                    SELECT id FROM training_assignments
+                    WHERE agent_id = %s AND skill_name = %s AND status IN ('pending', 'in_progress')
+                    LIMIT 1
+                """, (agent_id, capability))
+                if cur.fetchone():
+                    continue
+
+                # Degrade: reduce confidence by 0.2
+                new_confidence = max(0.1, confidence - 0.2)
+                cur.execute("""
+                    UPDATE agent_learning_log
+                    SET confidence = %s, last_degraded_at = NOW(),
+                        degradation_count = COALESCE(degradation_count, 0) + 1
+                    WHERE id = %s
+                """, (round(new_confidence, 2), skill_row["id"]))
+
+                # Recalculate level after degradation
+                if new_confidence < 0.3:
+                    new_level = 1
+                elif new_confidence < 0.5:
+                    new_level = 2
+                elif new_confidence < 0.7:
+                    new_level = 3
+                elif new_confidence < 0.85:
+                    new_level = 4
+                else:
+                    new_level = 5
+
+                # Generate failure analysis via local LLM
+                failure_analysis = None
+                failure_summary = {
+                    "capabilities": [capability],
+                    "task_count": row["total"],
+                    "failure_rate": failure_rate,
+                    "error_patterns": [],
+                }
+                try:
+                    cur.execute("""
+                        SELECT capability, error_message, module_source
+                        FROM task_execution_log
+                        WHERE agent_id = %s AND capability = %s AND success = FALSE
+                          AND created_at > NOW() - INTERVAL '%s days'
+                        ORDER BY created_at DESC LIMIT 10
+                    """, (agent_id, capability, lookback_days))
+                    recent_errors = cur.fetchall()
+
+                    error_texts = []
+                    for err in recent_errors:
+                        msg = err.get("error_message") or "No error message"
+                        mod = err.get("module_source") or "unknown"
+                        error_texts.append(f"- [{mod}] {msg[:200]}")
+                        if msg not in failure_summary["error_patterns"]:
+                            failure_summary["error_patterns"].append(msg[:100])
+
+                    if error_texts:
+                        from ai_bridge.bridge_dispatcher import get_dispatcher
+                        disp = get_dispatcher()
+                        if disp:
+                            prompt = (
+                                f"Agent '{display_name}' failed {failure_rate}% of '{capability}' tasks "
+                                f"({row['failures']}/{row['total']} in {lookback_days} days).\n\n"
+                                f"Recent errors:\n" + "\n".join(error_texts[:10]) + "\n\n"
+                                f"What specific patterns are causing failures? "
+                                f"Give 2-3 actionable corrections the agent should apply."
+                            )
+                            result = disp.request_work(
+                                capability="summarize",
+                                prompt=prompt,
+                                module_id="training_system",
+                                skip_busy_refresh=True,
+                            )
+                            if result and result.get("success"):
+                                failure_analysis = result.get("response", "")[:2000]
+                except Exception as e:
+                    logger.debug(f"Failed to generate failure analysis for {agent_name}/{capability}: {e}")
+
+                # Calculate training duration from hours_per_level
+                target_level = current_level  # Restore to pre-degradation level
+                hours_key = str(target_level)
+                training_hours = hours_per_level.get(hours_key, hours_per_level.get(int(hours_key) if hours_key.isdigit() else 2, 2))
+
+                # Create training assignment
+                cur.execute("""
+                    INSERT INTO training_assignments
+                    (agent_id, skill_name, target_proficiency, current_proficiency,
+                     status, started_at, target_completion,
+                     failure_analysis, degradation_triggered, failure_summary)
+                    VALUES (%s, %s, %s, %s, 'in_progress', NOW(), NOW() + INTERVAL '%s hours',
+                            %s, TRUE, %s)
+                """, (
+                    agent_id, capability, target_level, new_level,
+                    training_hours,
+                    failure_analysis,
+                    json.dumps(failure_summary),
+                ))
+
+                # Create HR alert
+                self._create_hr_alert(
+                    cur, agent_id,
+                    "proficiency_degradation", "warning",
+                    f"{display_name}: degraded to Lv{new_level} on {capability}",
+                    f"Agent {display_name} dropped from Lv{current_level} to Lv{new_level} "
+                    f"on {capability} ({failure_rate}% failure rate over {row['total']} tasks). "
+                    f"Auto-training started ({training_hours}h).",
+                    {"capability": capability, "failure_rate": failure_rate,
+                     "old_level": current_level, "new_level": new_level,
+                     "training_hours": training_hours},
+                )
+
+                degraded += 1
+                logger.info(
+                    f"Proficiency degradation: {display_name} Lv{current_level}→Lv{new_level} "
+                    f"on {capability} ({failure_rate}% failures). Training: {training_hours}h"
+                )
+
+            if degraded > 0:
+                conn.commit()
+
+        except Exception as e:
+            logger.error(f"Proficiency degradation check failed: {e}")
+
+        return degraded
+
+    def _process_training_tick(self):
+        """Check for completed training assignments and finalize them.
+
+        When target_completion is reached:
+        - Mark training as completed
+        - Restore/boost confidence in agent_learning_log
+        - Store failure_analysis as knowledge_base entry
+        - Nudge emotional state positively
+        - Send Telegram notification
+        """
+        start = time.time()
+        completed = 0
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Find training assignments that have reached their target_completion
+            cur.execute("""
+                SELECT ta.id, ta.agent_id, ta.skill_name, ta.target_proficiency,
+                       ta.current_proficiency, ta.failure_analysis, ta.degradation_triggered,
+                       a.name as agent_name,
+                       COALESCE(a.display_name, a.first_name || ' ' || a.last_name) as display_name
+                FROM training_assignments ta
+                JOIN agents a ON a.id = ta.agent_id
+                WHERE ta.status = 'in_progress'
+                  AND ta.target_completion IS NOT NULL
+                  AND ta.target_completion <= NOW()
+            """)
+            ready = cur.fetchall()
+
+            for t in ready:
+                agent_id = t["agent_id"]
+                skill_name = t["skill_name"]
+                target_level = t["target_proficiency"]
+                display_name = t["display_name"] or t["agent_name"]
+
+                # Mark training as completed
+                cur.execute("""
+                    UPDATE training_assignments
+                    SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+                    WHERE id = %s
+                """, (t["id"],))
+
+                # Boost confidence in agent_learning_log (cap at 1.0)
+                cur.execute("""
+                    UPDATE agent_learning_log
+                    SET confidence = LEAST(1.0, confidence + 0.15),
+                        successful_uses = successful_uses + 1,
+                        last_used_at = NOW()
+                    WHERE agent_id = %s AND skill_name = %s
+                """, (agent_id, skill_name))
+
+                # Store failure_analysis as knowledge_base entry for future reference
+                if t["failure_analysis"]:
+                    cur.execute("""
+                        INSERT INTO knowledge_base
+                        (title, content, source_type, tags, category, is_active, created_at)
+                        VALUES (%s, %s, 'agent_learning', %s, 'training', TRUE, NOW())
+                    """, (
+                        f"Training Completion: {display_name} - {skill_name} Lv{target_level}",
+                        f"Agent: {display_name}\nSkill: {skill_name}\nTarget Level: {target_level}\n\n"
+                        f"Failure Analysis & Corrections:\n{t['failure_analysis']}",
+                        json.dumps([t["agent_name"], skill_name, "training-completion"]),
+                    ))
+
+                # Nudge emotional state positively
+                cur.execute("""
+                    UPDATE agent_emotional_state
+                    SET energy_level = LEAST(1.0, energy_level + 0.1),
+                        stress_level = GREATEST(0.0, stress_level - 0.1),
+                        current_mood = 'accomplished',
+                        timestamp = NOW()
+                    WHERE agent_id = %s
+                """, (agent_id,))
+
+                completed += 1
+                logger.info(
+                    f"Training completed: {display_name} finished {skill_name} "
+                    f"training, now targeting Lv{target_level}"
+                )
+
+            if completed > 0:
+                conn.commit()
+
+                # Send Telegram notification for completions
+                try:
+                    gateway = getattr(self.flask_app, "_telegram_gateway", None)
+                    if gateway and gateway.is_running:
+                        cur.execute("""
+                            SELECT telegram_id FROM telegram_users
+                            WHERE is_authorized = TRUE AND user_id IS NOT NULL LIMIT 1
+                        """)
+                        tg_user = cur.fetchone()
+                        if tg_user:
+                            import asyncio
+                            loop = gateway._loop
+                            for t in ready:
+                                dn = t["display_name"] or t["agent_name"]
+                                text = (
+                                    f"\U0001f393 *Training Complete*\n\n"
+                                    f"{dn} finished {t['skill_name']} training, "
+                                    f"now at Lv{t['target_proficiency']}."
+                                )
+                                asyncio.run_coroutine_threadsafe(
+                                    gateway.bot.send_message(
+                                        chat_id=tg_user["telegram_id"],
+                                        text=text, parse_mode="Markdown",
+                                    ),
+                                    loop,
+                                )
+                except Exception as e:
+                    logger.debug(f"Training tick Telegram notification failed: {e}")
+
+            cur.close()
+            conn.close()
+
+            duration_ms = int((time.time() - start) * 1000)
+            if completed > 0:
+                logger.info(f"Training tick: {completed} trainings completed ({duration_ms}ms)")
+            self._log_cycle("training_tick", completed, 0, duration_ms)
+
+        except Exception as e:
+            logger.error(f"Training tick failed: {e}")
+            self._log_cycle("training_tick", 0, 1, int((time.time() - start) * 1000),
                             error_message=str(e))
 
     def _create_hr_alert(self, cur, agent_id, alert_type, severity, title, message, details=None):

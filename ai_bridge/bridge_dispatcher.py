@@ -1138,6 +1138,34 @@ class BridgeDispatcher:
                     f"tier='{tier}' model_override='{resolved_override}'"
                 )
 
+        # Check for active training with failure analysis — inject coaching context
+        try:
+            conn2 = get_db()
+            cur2 = conn2.cursor()
+            cur2.execute("""
+                SELECT failure_analysis FROM training_assignments
+                WHERE agent_id = (SELECT id FROM agents WHERE name = %s LIMIT 1)
+                  AND skill_name = %s AND status = 'in_progress'
+                  AND failure_analysis IS NOT NULL
+                ORDER BY created_at DESC LIMIT 1
+            """, (agent_name, capability))
+            training_row = cur2.fetchone()
+            cur2.close()
+            conn2.close()
+            if training_row and training_row[0]:
+                coaching = training_row[0][:1500]
+                if system_prompt:
+                    system_prompt += (
+                        "\n\n--- ACTIVE TRAINING: FAILURE CORRECTION ---\n"
+                        + coaching
+                        + "\nApply these corrections to improve your performance.\n"
+                        "--- END TRAINING CONTEXT ---"
+                    )
+                else:
+                    system_prompt = coaching
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Training context lookup error: {e}")
+
         return (system_prompt, resolved_override)
 
     def _check_agent_busy(

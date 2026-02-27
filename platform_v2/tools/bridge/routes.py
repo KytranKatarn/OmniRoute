@@ -6828,12 +6828,16 @@ def agent_profile(agent_id):
                 if agent.get(k):
                     agent[k] = agent[k].isoformat()
 
-            # Skills
+            # Skills (with degradation count from learning log)
             cur.execute(
                 """
-                SELECT id, skill_name, skill_category, proficiency_level, notes
-                FROM agent_skills WHERE agent_id = %s
-                ORDER BY proficiency_level DESC, skill_name
+                SELECT s.id, s.skill_name, s.skill_category, s.proficiency_level, s.notes,
+                       COALESCE(ll.degradation_count, 0) as degradation_count
+                FROM agent_skills s
+                LEFT JOIN agent_learning_log ll
+                    ON ll.agent_id = s.agent_id AND ll.skill_name = s.skill_name
+                WHERE s.agent_id = %s
+                ORDER BY s.proficiency_level DESC, s.skill_name
             """,
                 (agent_id,),
             )

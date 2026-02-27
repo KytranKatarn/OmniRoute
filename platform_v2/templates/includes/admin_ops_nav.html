@@ -62,19 +62,12 @@
                             <i data-lucide="brain"></i>
                             <span>Mind</span>
                         </a>
-                        <a href="{{ url_for('pool_management.index') }}"
-                           class="nav-module-btn {% if request.endpoint and 'pool_management' in request.endpoint %}active{% endif %}"
+                        <a href="{{ url_for('autonomy.index') }}"
+                           class="nav-module-btn {% if request.endpoint and 'autonomy' in request.endpoint %}active{% endif %}"
                            onclick="showTransition(event, this.href)"
-                           title="Pool Management">
-                            <i data-lucide="sliders"></i>
-                            <span>Pool</span>
-                        </a>
-                        <a href="{{ url_for('project_manager.dashboard') }}"
-                           class="nav-module-btn {% if request.endpoint and 'project_manager' in request.endpoint %}active{% endif %}"
-                           onclick="showTransition(event, this.href)"
-                           title="Project Manager">
-                            <i data-lucide="folder-kanban"></i>
-                            <span>Projects</span>
+                           title="Autonomy">
+                            <i data-lucide="bot"></i>
+                            <span>Autonomy</span>
                         </a>
                     </div>
                     <!-- Right Zone: Utils (matches Dashboard) -->

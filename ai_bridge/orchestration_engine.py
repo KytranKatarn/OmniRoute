@@ -259,7 +259,7 @@ class OrchestrationEngine:
             detected_lang = "en"
             user_lang_pref = "en"
             try:
-                conn = self._get_connection()
+                conn = get_db()
                 cur = conn.cursor(cursor_factory=RealDictCursor)
                 cur.execute(
                     "SELECT language, auto_detect FROM user_language_preferences WHERE user_id = %s",

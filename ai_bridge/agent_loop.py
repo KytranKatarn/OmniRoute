@@ -2197,7 +2197,7 @@ class AgentLoop:
             import asyncio
 
             # Find the running gateway instance
-            gateway = getattr(self.flask_app, "_telegram_gateway", None)
+            gateway = self.flask_app.config.get("TELEGRAM_GATEWAY")
             if not gateway or not gateway.is_running:
                 return
 

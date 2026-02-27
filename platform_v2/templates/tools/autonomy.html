@@ -1,182 +1,244 @@
 {% extends "base.html" %}
 
-{% block title %}Autonomy - Agent Loop{% endblock %}
+{% block title %}Autonomy — Agent Loop{% endblock %}
 
 {% block module_name %}autonomy{% endblock %}
 
-{% block styles %}
+{% block extra_css %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Orbitron:wght@400;600;700&display=swap">
 <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'JetBrains Mono', monospace; background: #010409; color: #c9d1d9; min-height: 100vh; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   Autonomy Dashboard — LCARS Gold Standard
+   Accent: Amber #FFAA00 (Admin Ops category)
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root { --au-accent: #FFAA00; --au-accent-rgb: 255,170,0; --au-cyan: #00FFFF; --au-green: #00ff41; --au-red: #ff4136; --au-bg: #010409; --au-card: #0d1117; --au-border: #21262d; --au-text: #c9d1d9; --au-muted: #8b949e; }
+body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); background: var(--au-bg); color: var(--au-text); }
 
-    .autonomy-container { min-height: 100vh; background: #010409; }
-    .container { max-width: 1400px; margin: 2rem auto; padding: 0 2rem; }
+/* ── Layout ── */
+.au-container { min-height: 100vh; background: var(--au-bg); padding: 0; }
+.au-body { max-width: 1400px; margin: 0 auto; padding: 1rem 2rem 2rem; }
 
-    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #21262d; }
-    .page-header h1 { color: #00FFFF; font-size: 1.5rem; }
-    .page-header .subtitle { color: #8b949e; font-size: 0.85rem; margin-top: 0.25rem; }
+/* ── Page Header (LCARS styled) ── */
+.au-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid rgba(var(--au-accent-rgb), 0.3); }
+.au-header h1 { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; font-weight: 600; color: var(--au-accent); letter-spacing: 2px; text-transform: uppercase; }
+.au-header .subtitle { font-family: 'Antonio', sans-serif; font-size: 0.85rem; color: var(--au-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 0.25rem; }
+.au-header-right { display: flex; align-items: center; gap: 1rem; }
 
-    .status-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
-    .status-badge.running { background: rgba(0, 255, 65, 0.1); color: #00ff41; border: 1px solid #00ff41; }
-    .status-badge.stopped { background: rgba(255, 65, 54, 0.1); color: #ff4136; border: 1px solid #ff4136; }
-    .status-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
-    .status-badge.running .dot { background: #00ff41; animation: pulse 2s infinite; }
-    .status-badge.stopped .dot { background: #ff4136; }
-    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid #21262d; }
-    .tab { padding: 0.75rem 1.25rem; background: transparent; border: none; color: #8b949e; font-family: inherit; cursor: pointer; font-size: 0.85rem; border-bottom: 2px solid transparent; transition: all 0.2s; }
-    .tab:hover { color: #c9d1d9; }
-    .tab.active { color: #00FFFF; border-bottom-color: #00FFFF; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
+/* ── Status Badge ── */
+.status-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem; border-radius: 2px 14px 14px 2px; font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+.status-badge.running { background: rgba(0,255,65,0.08); color: var(--au-green); border: 1px solid rgba(0,255,65,0.3); border-left: 3px solid var(--au-green); }
+.status-badge.stopped { background: rgba(255,65,54,0.08); color: var(--au-red); border: 1px solid rgba(255,65,54,0.3); border-left: 3px solid var(--au-red); }
+.status-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-badge.running .dot { background: var(--au-green); animation: lcars-pulse 2s infinite; }
+.status-badge.stopped .dot { background: var(--au-red); }
+@keyframes lcars-pulse { 0%,100% { opacity: 0.5; box-shadow: 0 0 4px currentColor; } 50% { opacity: 1; box-shadow: 0 0 12px currentColor; } }
 
-    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-    .card { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 1.25rem; }
-    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-    .card-title { color: #00FFFF; font-size: 0.9rem; font-weight: 600; }
-    .card-value { font-size: 2rem; font-weight: bold; color: #c9d1d9; }
-    .card-label { font-size: 0.75rem; color: #8b949e; margin-top: 0.25rem; }
+/* ── GlassNav Tabs ── */
+.au-tabs { display: inline-flex; gap: 4px; padding: 4px; background: rgba(255,255,255,0.03); border-radius: 20px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 1.5rem; }
+.au-tab { padding: 8px 22px; border-radius: 14px; border: none; background: transparent; color: var(--au-muted); font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all 0.25s ease; white-space: nowrap; }
+.au-tab:hover { color: var(--au-text); background: rgba(255,255,255,0.04); }
+.au-tab.active { color: var(--au-accent); background: rgba(var(--au-accent-rgb), 0.12); box-shadow: 0 0 12px rgba(var(--au-accent-rgb), 0.15), inset 0 0 8px rgba(var(--au-accent-rgb), 0.05); }
+.au-tab .badge { display: inline-block; background: rgba(var(--au-accent-rgb), 0.2); color: var(--au-accent); padding: 1px 7px; border-radius: 8px; font-size: 0.65rem; margin-left: 6px; vertical-align: middle; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
 
-    .btn { padding: 0.5rem 1rem; border: 1px solid #30363d; background: #21262d; color: #c9d1d9; font-family: inherit; cursor: pointer; border-radius: 6px; font-size: 0.8rem; transition: all 0.2s; }
-    .btn:hover { border-color: #8b949e; }
-    .btn-primary { border-color: #00FFFF; color: #00FFFF; background: rgba(0, 255, 255, 0.05); }
-    .btn-primary:hover { background: rgba(0, 255, 255, 0.15); }
-    .btn-success { border-color: #00ff41; color: #00ff41; background: rgba(0, 255, 65, 0.05); }
-    .btn-success:hover { background: rgba(0, 255, 65, 0.15); }
-    .btn-danger { border-color: #ff4136; color: #ff4136; background: rgba(255, 65, 54, 0.05); }
-    .btn-danger:hover { background: rgba(255, 65, 54, 0.15); }
-    .btn-warning { border-color: #FFAA00; color: #FFAA00; background: rgba(255, 170, 0, 0.05); }
-    .btn-warning:hover { background: rgba(255, 170, 0, 0.15); }
-    .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.75rem; }
-    .btn-group { display: flex; gap: 0.5rem; }
+/* ── LCARS Metric Cards ── */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.au-card { background: var(--au-card); border: 1px solid rgba(var(--au-accent-rgb), 0.12); border-radius: 2px 12px 12px 2px; padding: 1.25rem 1.25rem 1.25rem 1.5rem; position: relative; transition: border-color 0.2s, box-shadow 0.2s; }
+.au-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--card-accent, var(--au-accent)), transparent 90%); border-radius: 2px 0 0 2px; }
+.au-card:hover { border-color: rgba(var(--au-accent-rgb), 0.25); box-shadow: 0 0 20px rgba(var(--au-accent-rgb), 0.06); }
+.au-card-title { font-family: 'Antonio', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--au-accent); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 0.75rem; }
+.au-card-value { font-family: 'Orbitron', sans-serif; font-size: 1.8rem; font-weight: 700; color: var(--au-text); }
+.au-card-label { font-size: 0.7rem; color: var(--au-muted); margin-top: 0.25rem; }
+.au-card[data-accent="green"] { --card-accent: var(--au-green); }
+.au-card[data-accent="green"] .au-card-title { color: var(--au-green); }
+.au-card[data-accent="red"] { --card-accent: var(--au-red); }
+.au-card[data-accent="red"] .au-card-title { color: var(--au-red); }
+.au-card[data-accent="amber"] { --card-accent: var(--au-accent); }
 
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-    .data-table th { text-align: left; padding: 0.75rem; color: #8b949e; border-bottom: 1px solid #21262d; font-weight: 600; }
-    .data-table td { padding: 0.75rem; border-bottom: 1px solid #161b22; }
-    .data-table tr:hover { background: rgba(0, 255, 255, 0.02); }
+/* ── Section Headers ── */
+.au-section-title { font-family: 'Antonio', sans-serif; font-size: 0.9rem; font-weight: 600; color: var(--au-accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 1rem; padding-left: 12px; border-left: 3px solid var(--au-accent); }
 
-    .pill { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
-    .pill-success { background: rgba(0, 255, 65, 0.1); color: #00ff41; }
-    .pill-pending { background: rgba(255, 170, 0, 0.1); color: #FFAA00; }
-    .pill-error { background: rgba(255, 65, 54, 0.1); color: #ff4136; }
-    .pill-expired { background: rgba(139, 148, 158, 0.1); color: #8b949e; }
-    .pill-info { background: rgba(0, 255, 255, 0.1); color: #00FFFF; }
+/* ── Job Cards (all 15 jobs) ── */
+.job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
+.job-card { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; position: relative; transition: border-color 0.2s; }
+.job-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--job-color, var(--au-accent)), transparent 80%); border-radius: 2px 0 0 2px; }
+.job-card:hover { border-color: rgba(var(--au-accent-rgb), 0.2); }
+.job-info h3 { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 0.2rem; }
+.job-info .meta { font-size: 0.7rem; color: var(--au-muted); }
+.job-stats { display: flex; gap: 1.25rem; text-align: center; }
+.job-stat-value { font-family: 'Orbitron', sans-serif; font-size: 0.95rem; font-weight: 600; }
+.job-stat-label { font-size: 0.6rem; color: var(--au-muted); font-family: 'Antonio', sans-serif; letter-spacing: 0.5px; text-transform: uppercase; }
 
-    .job-card { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
-    .job-info h3 { color: #c9d1d9; font-size: 0.9rem; margin-bottom: 0.25rem; }
-    .job-info .meta { color: #8b949e; font-size: 0.75rem; }
-    .job-stats { display: flex; gap: 1.5rem; text-align: center; }
-    .job-stat-value { font-size: 1.1rem; font-weight: bold; }
-    .job-stat-label { font-size: 0.65rem; color: #8b949e; }
+/* ── LCARS Buttons ── */
+.btn { padding: 0.5rem 1.25rem; border: 1px solid var(--au-border); background: rgba(255,255,255,0.04); color: var(--au-text); font-family: 'Antonio', sans-serif; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; border-radius: 2px 10px 10px 2px; font-size: 0.8rem; transition: all 0.2s; }
+.btn:hover { border-color: var(--au-muted); background: rgba(255,255,255,0.08); }
+.btn-primary { border-color: rgba(0,255,255,0.3); color: var(--au-cyan); border-left: 3px solid var(--au-cyan); background: rgba(0,255,255,0.05); }
+.btn-primary:hover { background: rgba(0,255,255,0.12); box-shadow: 0 0 10px rgba(0,255,255,0.15); }
+.btn-success { border-color: rgba(0,255,65,0.3); color: var(--au-green); border-left: 3px solid var(--au-green); background: rgba(0,255,65,0.05); }
+.btn-success:hover { background: rgba(0,255,65,0.12); box-shadow: 0 0 10px rgba(0,255,65,0.15); }
+.btn-danger { border-color: rgba(255,65,54,0.3); color: var(--au-red); border-left: 3px solid var(--au-red); background: rgba(255,65,54,0.05); }
+.btn-danger:hover { background: rgba(255,65,54,0.12); box-shadow: 0 0 10px rgba(255,65,54,0.15); }
+.btn-warning { border-color: rgba(var(--au-accent-rgb),0.3); color: var(--au-accent); border-left: 3px solid var(--au-accent); background: rgba(var(--au-accent-rgb),0.05); }
+.btn-warning:hover { background: rgba(var(--au-accent-rgb),0.12); box-shadow: 0 0 10px rgba(var(--au-accent-rgb),0.15); }
+.btn-sm { padding: 0.35rem 0.9rem; font-size: 0.72rem; }
+.btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
-    .config-item { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; }
-    .config-label { font-size: 0.85rem; color: #c9d1d9; }
-    .config-desc { font-size: 0.7rem; color: #8b949e; margin-top: 0.25rem; }
-    .config-toggle { width: 48px; height: 24px; border-radius: 12px; background: #21262d; border: 1px solid #30363d; cursor: pointer; position: relative; transition: all 0.2s; }
-    .config-toggle.on { background: rgba(0, 255, 65, 0.2); border-color: #00ff41; }
-    .config-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #8b949e; transition: all 0.2s; }
-    .config-toggle.on::after { left: 26px; background: #00ff41; }
+/* ── Data Tables ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.data-table th { text-align: left; padding: 0.65rem 0.75rem; color: var(--au-accent); font-family: 'Antonio', sans-serif; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; font-size: 0.72rem; border-bottom: 2px solid rgba(var(--au-accent-rgb), 0.2); }
+.data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.data-table tr:hover { background: rgba(var(--au-accent-rgb), 0.03); }
+.data-table tbody tr { transition: background 0.15s; }
 
-    .approval-detail { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
-    .approval-detail .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
-    .approval-detail .action-type { color: #00FFFF; font-weight: 600; font-size: 0.95rem; }
-    .approval-detail .reason { color: #c9d1d9; font-size: 0.85rem; margin-bottom: 0.75rem; }
-    .approval-detail .meta { color: #8b949e; font-size: 0.75rem; }
-    .approval-detail .data-preview { background: #161b22; border-radius: 4px; padding: 0.75rem; font-size: 0.75rem; color: #8b949e; margin: 0.75rem 0; overflow-x: auto; max-height: 150px; overflow-y: auto; }
+/* ── Status Pills ── */
+.pill { display: inline-block; padding: 0.2rem 0.65rem; border-radius: 2px 8px 8px 2px; font-size: 0.65rem; font-weight: 600; font-family: 'Antonio', sans-serif; letter-spacing: 0.5px; text-transform: uppercase; }
+.pill-success { background: rgba(0,255,65,0.1); color: var(--au-green); border-left: 2px solid var(--au-green); }
+.pill-pending { background: rgba(var(--au-accent-rgb),0.1); color: var(--au-accent); border-left: 2px solid var(--au-accent); }
+.pill-error { background: rgba(255,65,54,0.1); color: var(--au-red); border-left: 2px solid var(--au-red); }
+.pill-expired { background: rgba(139,148,158,0.1); color: var(--au-muted); border-left: 2px solid var(--au-muted); }
+.pill-info { background: rgba(0,255,255,0.1); color: var(--au-cyan); border-left: 2px solid var(--au-cyan); }
 
-    .empty-state { text-align: center; padding: 3rem; color: #8b949e; }
-    .empty-state .icon { font-size: 2rem; margin-bottom: 1rem; }
+/* ── Config Items ── */
+.config-item { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; position: relative; }
+.config-item::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--au-cyan), transparent 80%); border-radius: 2px 0 0 2px; }
+.config-label { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; }
+.config-desc { font-size: 0.7rem; color: var(--au-muted); margin-top: 0.25rem; }
+.config-toggle { width: 48px; height: 24px; border-radius: 12px; background: #21262d; border: 1px solid #30363d; cursor: pointer; position: relative; transition: all 0.3s; }
+.config-toggle.on { background: rgba(0,255,65,0.15); border-color: var(--au-green); box-shadow: 0 0 8px rgba(0,255,65,0.2); }
+.config-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--au-muted); transition: all 0.3s; }
+.config-toggle.on::after { left: 26px; background: var(--au-green); box-shadow: 0 0 6px var(--au-green); }
+
+/* ── Approval Details ── */
+.approval-detail { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 12px 12px 2px; padding: 1.25rem 1.25rem 1.25rem 1.5rem; margin-bottom: 1rem; position: relative; }
+.approval-detail::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--au-accent), transparent 80%); border-radius: 2px 0 0 2px; }
+.approval-detail .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; }
+.approval-detail .action-type { font-family: 'Antonio', sans-serif; color: var(--au-accent); font-weight: 600; font-size: 1rem; letter-spacing: 1px; text-transform: uppercase; }
+.approval-detail .reason { color: var(--au-text); font-size: 0.82rem; margin-bottom: 0.75rem; }
+.approval-detail .meta { color: var(--au-muted); font-size: 0.72rem; }
+.approval-detail .data-preview { background: #161b22; border-radius: 2px 6px 6px 2px; border-left: 2px solid rgba(var(--au-accent-rgb), 0.2); padding: 0.75rem; font-size: 0.72rem; color: var(--au-muted); margin: 0.75rem 0; overflow-x: auto; max-height: 150px; overflow-y: auto; }
+
+/* ── Empty State ── */
+.empty-state { text-align: center; padding: 3rem; color: var(--au-muted); font-family: 'Antonio', sans-serif; font-size: 0.9rem; letter-spacing: 1px; }
+.empty-state .icon { font-size: 2rem; margin-bottom: 0.75rem; opacity: 0.4; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .au-body { padding: 0.75rem 1rem 1.5rem; }
+    .au-header { flex-direction: column; gap: 1rem; align-items: flex-start; }
+    .au-tabs { width: 100%; overflow-x: auto; }
+    .au-tab { padding: 6px 14px; font-size: 0.75rem; }
+    .job-grid { grid-template-columns: 1fr; }
+    .card-grid { grid-template-columns: 1fr 1fr; }
+    .job-card { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+}
+@media (max-width: 500px) {
+    .card-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Light Mode ── */
+[data-theme="light"] .au-container, [data-theme="light"] body { background: #f0f2f5; color: #1a1a2e; }
+[data-theme="light"] .au-card, [data-theme="light"] .job-card, [data-theme="light"] .config-item, [data-theme="light"] .approval-detail { background: #fff; border-color: #e0e0e0; }
+[data-theme="light"] .au-card-value, [data-theme="light"] .job-info h3 { color: #1a1a2e; }
+[data-theme="light"] .data-table td { border-bottom-color: #f0f0f0; }
+[data-theme="light"] .data-table th { border-bottom-color: rgba(var(--au-accent-rgb), 0.3); }
+[data-theme="light"] .data-table tr:hover { background: rgba(var(--au-accent-rgb), 0.04); }
+[data-theme="light"] .approval-detail .data-preview { background: #f8f9fa; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="autonomy-container">
-    <div class="container">
-        <div class="page-header">
+{% include 'includes/admin_ops_nav.html' %}
+
+<div class="au-container">
+    <div class="au-body">
+        <div class="au-header">
             <div>
-                <h1><span data-i18n="autonomy.autonomy_agent_loop">Autonomy — Agent Loop</span></h1>
-                <div class="subtitle"><span data-i18n="autonomy.proactive_queue_processing_approval_management_and">Proactive queue processing, approval management, and autonomous operations</span></div>
+                <h1>Autonomy</h1>
+                <div class="subtitle">Agent Loop — Proactive Queue Processing & Autonomous Operations</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 1rem;">
+            <div class="au-header-right">
                 <div id="loopStatus" class="status-badge stopped">
                     <span class="dot"></span>
-                    <span class="label"><span data-i18n="autonomy.stopped">Stopped</span></span>
+                    <span class="label">Stopped</span>
                 </div>
-                <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()"><span data-i18n="autonomy.start_loop">Start Loop</span></button>
+                <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()">Start Loop</button>
             </div>
         </div>
 
-        <div class="tabs">
-            <button class="tab active" onclick="switchTab('overview', this)"><span data-i18n="autonomy.overview">Overview</span></button>
-            <button class="tab" onclick="switchTab('approvals', this)"><span data-i18n="autonomy.approvals">Approvals </span><span id="approvalBadge" style="background:rgba(255,170,0,0.2);color:#FFAA00;padding:0.1rem 0.4rem;border-radius:8px;font-size:0.7rem;margin-left:0.25rem;display:none;">0</span></button>
-            <button class="tab" onclick="switchTab('history', this)"><span data-i18n="autonomy.history">History</span></button>
-            <button class="tab" onclick="switchTab('config', this)"><span data-i18n="autonomy.config">Config</span></button>
+        <div class="au-tabs">
+            <button class="au-tab active" onclick="switchTab('overview', this)">Overview</button>
+            <button class="au-tab" onclick="switchTab('approvals', this)">Approvals <span id="approvalBadge" class="badge" style="display:none;">0</span></button>
+            <button class="au-tab" onclick="switchTab('history', this)">History</button>
+            <button class="au-tab" onclick="switchTab('config', this)">Config</button>
         </div>
 
         <!-- Overview Tab -->
         <div id="tab-overview" class="tab-content active">
             <div class="card-grid">
-                <div class="card">
-                    <div class="card-header"><span class="card-title"><span data-i18n="autonomy.active_jobs">Active Jobs</span></span></div>
-                    <div class="card-value" id="activeJobCount">0</div>
-                    <div class="card-label"><span data-i18n="autonomy.scheduled_jobs_running">Scheduled jobs running</span></div>
+                <div class="au-card" data-accent="amber">
+                    <div class="au-card-title">Active Jobs</div>
+                    <div class="au-card-value" id="activeJobCount">0</div>
+                    <div class="au-card-label">Scheduled jobs running</div>
                 </div>
-                <div class="card">
-                    <div class="card-header"><span class="card-title"><span data-i18n="autonomy.processed_24h">Processed (24h)</span></span></div>
-                    <div class="card-value" id="processedCount" style="color: #00ff41;">0</div>
-                    <div class="card-label"><span data-i18n="autonomy.items_processed_successfully">Items processed successfully</span></div>
+                <div class="au-card" data-accent="green">
+                    <div class="au-card-title">Processed (24h)</div>
+                    <div class="au-card-value" id="processedCount" style="color:var(--au-green);">0</div>
+                    <div class="au-card-label">Items processed successfully</div>
                 </div>
-                <div class="card">
-                    <div class="card-header"><span class="card-title"><span data-i18n="autonomy.failed_24h">Failed (24h)</span></span></div>
-                    <div class="card-value" id="failedCount" style="color: #ff4136;">0</div>
-                    <div class="card-label"><span data-i18n="autonomy.items_that_failed_processing">Items that failed processing</span></div>
+                <div class="au-card" data-accent="red">
+                    <div class="au-card-title">Failed (24h)</div>
+                    <div class="au-card-value" id="failedCount" style="color:var(--au-red);">0</div>
+                    <div class="au-card-label">Items that failed processing</div>
                 </div>
-                <div class="card">
-                    <div class="card-header"><span class="card-title"><span data-i18n="autonomy.pending_approvals">Pending Approvals</span></span></div>
-                    <div class="card-value" id="pendingCount" style="color: #FFAA00;">0</div>
-                    <div class="card-label"><span data-i18n="autonomy.actions_awaiting_human_review">Actions awaiting human review</span></div>
+                <div class="au-card" data-accent="amber">
+                    <div class="au-card-title">Pending Approvals</div>
+                    <div class="au-card-value" id="pendingCount" style="color:var(--au-accent);">0</div>
+                    <div class="au-card-label">Actions awaiting human review</div>
                 </div>
             </div>
 
-            <h3 style="color:#c9d1d9; margin-bottom:1rem; font-size:0.95rem;"><span data-i18n="autonomy.job_status">Job Status</span></h3>
-            <div id="jobCards" style="display:grid; gap:0.75rem; margin-bottom:2rem;">
-                <div class="empty-state"><span data-i18n="autonomy.loading_job_data">Loading job data...</span></div>
+            <div class="au-section-title">Job Status</div>
+            <div id="jobCards" class="job-grid">
+                <div class="empty-state">Loading job data...</div>
             </div>
 
-            <h3 style="color:#c9d1d9; margin-bottom:1rem; font-size:0.95rem;"><span data-i18n="autonomy.recent_activity">Recent Activity</span></h3>
+            <div class="au-section-title">Recent Activity</div>
             <table class="data-table">
                 <thead>
-                    <tr><th><span data-i18n="autonomy.job">Job</span></th><th><span data-i18n="autonomy.status">Status</span></th><th><span data-i18n="autonomy.processed">Processed</span></th><th><span data-i18n="autonomy.failed">Failed</span></th><th><span data-i18n="autonomy.duration">Duration</span></th><th><span data-i18n="autonomy.time">Time</span></th></tr>
+                    <tr><th>Job</th><th>Status</th><th>Processed</th><th>Failed</th><th>Duration</th><th>Time</th></tr>
                 </thead>
                 <tbody id="recentLogs">
-                    <tr><td colspan="6" style="text-align:center; color:#8b949e;"><span data-i18n="autonomy.loading">Loading...</span></td></tr>
+                    <tr><td colspan="6" style="text-align:center;color:var(--au-muted);">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
 
         <!-- Approvals Tab -->
         <div id="tab-approvals" class="tab-content">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
                 <div class="btn-group">
-                    <button class="btn btn-sm btn-warning" onclick="loadApprovals('pending')"><span data-i18n="autonomy.pending">Pending</span></button>
-                    <button class="btn btn-sm btn-success" onclick="loadApprovals('approved')"><span data-i18n="autonomy.approved">Approved</span></button>
-                    <button class="btn btn-sm btn-danger" onclick="loadApprovals('rejected')"><span data-i18n="autonomy.rejected">Rejected</span></button>
-                    <button class="btn btn-sm" onclick="loadApprovals('all')"><span data-i18n="autonomy.all">All</span></button>
+                    <button class="btn btn-sm btn-warning" onclick="loadApprovals('pending')">Pending</button>
+                    <button class="btn btn-sm btn-success" onclick="loadApprovals('approved')">Approved</button>
+                    <button class="btn btn-sm btn-danger" onclick="loadApprovals('rejected')">Rejected</button>
+                    <button class="btn btn-sm" onclick="loadApprovals('all')">All</button>
                 </div>
             </div>
             <div id="approvalsList">
-                <div class="empty-state"><div class="icon">&#x2713;</div><span data-i18n="autonomy.no_pending_approvals">No pending approvals</span></div>
+                <div class="empty-state"><div class="icon">&#x2713;</div>No pending approvals</div>
             </div>
         </div>
 
         <!-- History Tab -->
         <div id="tab-history" class="tab-content">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
                 <div class="btn-group">
-                    <button class="btn btn-sm" onclick="loadHistory(null)"><span data-i18n="autonomy.all_jobs">All Jobs</span></button>
-                    <button class="btn btn-sm" onclick="loadHistory('email_queue')"><span data-i18n="autonomy.email">Email</span></button>
-                    <button class="btn btn-sm" onclick="loadHistory('scheduled_tasks')"><span data-i18n="autonomy.tasks">Tasks</span></button>
-                    <button class="btn btn-sm" onclick="loadHistory('reminders')"><span data-i18n="autonomy.reminders">Reminders</span></button>
-                    <button class="btn btn-sm" onclick="loadHistory('approvals')"><span data-i18n="autonomy.approvals_2">Approvals</span></button>
+                    <button class="btn btn-sm" onclick="loadHistory(null)">All Jobs</button>
+                    <button class="btn btn-sm" onclick="loadHistory('hr_tracker')">HR</button>
+                    <button class="btn btn-sm" onclick="loadHistory('email_inbox')">Email</button>
+                    <button class="btn btn-sm" onclick="loadHistory('anomaly_detection')">Anomaly</button>
+                    <button class="btn btn-sm" onclick="loadHistory('approvals')">Approvals</button>
+                    <button class="btn btn-sm" onclick="loadHistory('ethics_monitoring')">Ethics</button>
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-sm" onclick="loadHistory(currentHistoryJob, 6)">6h</button>
@@ -186,10 +248,10 @@
             </div>
             <table class="data-table">
                 <thead>
-                    <tr><th><span data-i18n="autonomy.job_2">Job</span></th><th><span data-i18n="autonomy.status_2">Status</span></th><th><span data-i18n="autonomy.processed_2">Processed</span></th><th><span data-i18n="autonomy.failed_2">Failed</span></th><th><span data-i18n="autonomy.duration_2">Duration</span></th><th><span data-i18n="autonomy.error">Error</span></th><th><span data-i18n="autonomy.time_2">Time</span></th></tr>
+                    <tr><th>Job</th><th>Status</th><th>Processed</th><th>Failed</th><th>Duration</th><th>Error</th><th>Time</th></tr>
                 </thead>
                 <tbody id="historyLogs">
-                    <tr><td colspan="7" style="text-align:center; color:#8b949e;"><span data-i18n="autonomy.select_a_filter_to_load_history">Select a filter to load history</span></td></tr>
+                    <tr><td colspan="7" style="text-align:center;color:var(--au-muted);">Select a filter to load history</td></tr>
                 </tbody>
             </table>
         </div>
@@ -197,22 +259,54 @@
         <!-- Config Tab -->
         <div id="tab-config" class="tab-content">
             <div id="configList">
-                <div class="empty-state"><span data-i18n="autonomy.loading_configuration">Loading configuration...</span></div>
+                <div class="empty-state">Loading configuration...</div>
             </div>
         </div>
     </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
-    const BASE = '/tools/autonomy/api';
-    let currentHistoryJob = null;
-    let refreshInterval = null;
+    var BASE = '/tools/autonomy/api';
+    var currentHistoryJob = null;
+    var refreshInterval = null;
+
+    /* Job metadata — human labels + color accents for all 15 jobs */
+    var JOB_META = {
+        'agent_email_queue':          {label:'Email Queue',          color:'#00FFFF',  group:'comms'},
+        'agent_email_inbox':          {label:'Email Inbox',          color:'#00FFFF',  group:'comms'},
+        'agent_email_analyze':        {label:'Email Analysis',       color:'#00FFFF',  group:'comms'},
+        'agent_email_telegram_notify':{label:'Email Telegram',       color:'#a78bfa',  group:'comms'},
+        'agent_telegram_notify':      {label:'Telegram Notify',      color:'#a78bfa',  group:'comms'},
+        'agent_scheduled_tasks':      {label:'Scheduled Tasks',      color:'#FFAA00',  group:'core'},
+        'agent_reminders':            {label:'Reminders',            color:'#FFAA00',  group:'core'},
+        'agent_approvals':            {label:'Approval Queue',       color:'#FFAA00',  group:'core'},
+        'agent_hr_tracker':           {label:'HR Tracker',           color:'#00ff41',  group:'ops'},
+        'agent_stale_job_reaper':     {label:'Stale Job Reaper',     color:'#00ff41',  group:'ops'},
+        'agent_ethics_monitoring':    {label:'Ethics Monitor',       color:'#00ff41',  group:'ops'},
+        'agent_anomaly_detection':    {label:'Anomaly Detection',    color:'#f59e0b',  group:'intel'},
+        'agent_briefings':            {label:'Briefings',            color:'#f59e0b',  group:'intel'},
+        'agent_reports':              {label:'Reports',              color:'#f59e0b',  group:'intel'},
+        'agent_browser_tasks':        {label:'Browser Tasks',        color:'#f59e0b',  group:'intel'}
+    };
+
+    /* Reverse lookup: log job_name -> scheduler job_id */
+    var LOG_TO_ID = {};
+    Object.keys(JOB_META).forEach(function(id) {
+        LOG_TO_ID[id.replace('agent_', '')] = id;
+    });
+
+    function getJobLabel(name) {
+        return (JOB_META[name] || {}).label || (JOB_META[LOG_TO_ID[name]] || {}).label || name;
+    }
+    function getJobColor(name) {
+        return (JOB_META[name] || {}).color || (JOB_META[LOG_TO_ID[name]] || {}).color || '#FFAA00';
+    }
 
     function switchTab(tab, btn) {
         document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
-        document.querySelectorAll('.tab').forEach(function(el) { el.classList.remove('active'); });
+        document.querySelectorAll('.au-tab').forEach(function(el) { el.classList.remove('active'); });
         document.getElementById('tab-' + tab).classList.add('active');
         btn.classList.add('active');
         if (tab === 'approvals') loadApprovals('pending');
@@ -222,16 +316,16 @@
 
     function statusPill(status) {
         var map = {
-            'success': 'pill-success', 'sent': 'pill-success', 'executed': 'pill-success', 'approved': 'pill-success',
-            'pending': 'pill-pending', 'processing': 'pill-pending',
-            'error': 'pill-error', 'failed': 'pill-error', 'rejected': 'pill-error',
-            'expired': 'pill-expired', 'skipped': 'pill-expired',
-            'partial': 'pill-info'
+            'success':'pill-success','sent':'pill-success','executed':'pill-success','approved':'pill-success',
+            'pending':'pill-pending','processing':'pill-pending',
+            'error':'pill-error','failed':'pill-error','rejected':'pill-error',
+            'expired':'pill-expired','skipped':'pill-expired',
+            'partial':'pill-info'
         };
-        var span = document.createElement('span');
-        span.className = 'pill ' + (map[status] || 'pill-info');
-        span.textContent = status;
-        return span.outerHTML;
+        var el = document.createElement('span');
+        el.className = 'pill ' + (map[status] || 'pill-info');
+        el.textContent = status;
+        return el.outerHTML;
     }
 
     function timeAgo(ts) {
@@ -249,6 +343,11 @@
         var div = document.createElement('div');
         div.textContent = text || '';
         return div.innerHTML;
+    }
+
+    function setPillHTML(td, html) {
+        /* Safe: statusPill generates from hardcoded map, no user input */
+        td.innerHTML = html;
     }
 
     // ========== Overview ==========
@@ -291,21 +390,13 @@
             document.getElementById('processedCount').textContent = totalProcessed;
             document.getElementById('failedCount').textContent = totalFailed;
 
-            // Job cards
+            // Build job cards for ALL registered jobs
             var jobCards = document.getElementById('jobCards');
             var stats = data.job_stats_24h || [];
             var jobs = data.loop.jobs || [];
-            var labels = {
-                'agent_email_queue': 'Email Queue', 'agent_scheduled_tasks': 'Scheduled Tasks',
-                'agent_reminders': 'Reminders', 'agent_approvals': 'Approval Queue',
-                'email_queue': 'Email Queue', 'scheduled_tasks': 'Scheduled Tasks',
-                'reminders': 'Reminders', 'approvals': 'Approval Queue'
-            };
-            var allNames = ['agent_email_queue', 'agent_scheduled_tasks', 'agent_reminders', 'agent_approvals'];
             var jobMap = {};
             jobs.forEach(function(j) { jobMap[j.id] = j; });
 
-            // Build job cards with safe DOM
             jobCards.textContent = '';
             if (jobs.length === 0 && stats.length === 0) {
                 var empty = document.createElement('div');
@@ -313,36 +404,43 @@
                 empty.textContent = 'No job data yet. Start the agent loop to begin processing.';
                 jobCards.appendChild(empty);
             } else {
-                allNames.forEach(function(name) {
-                    var shortName = name.replace('agent_', '');
+                var allJobIds = Object.keys(JOB_META);
+                allJobIds.forEach(function(jobId) {
+                    var meta = JOB_META[jobId];
+                    var shortName = jobId.replace('agent_', '');
                     var stat = stats.find(function(s) { return s.job_name === shortName; }) || {};
-                    var job = jobMap[name];
+                    var job = jobMap[jobId];
 
                     var card = document.createElement('div');
                     card.className = 'job-card';
+                    card.style.setProperty('--job-color', meta.color);
 
                     var info = document.createElement('div');
                     info.className = 'job-info';
                     var h3 = document.createElement('h3');
-                    h3.textContent = labels[name] || name;
+                    h3.textContent = meta.label;
                     info.appendChild(h3);
                     var meta1 = document.createElement('div');
                     meta1.className = 'meta';
-                    meta1.textContent = 'Next run: ' + (job && job.next_run ? new Date(job.next_run).toLocaleTimeString() : 'N/A');
+                    if (job) {
+                        meta1.textContent = 'Next: ' + (job.next_run ? new Date(job.next_run).toLocaleTimeString() : 'N/A');
+                    } else {
+                        meta1.textContent = 'Not registered';
+                        meta1.style.color = 'var(--au-red)';
+                    }
                     info.appendChild(meta1);
                     var meta2 = document.createElement('div');
                     meta2.className = 'meta';
-                    meta2.textContent = 'Last run: ' + (stat.last_run ? timeAgo(stat.last_run) : 'Never');
+                    meta2.textContent = 'Last: ' + (stat.last_run ? timeAgo(stat.last_run) : 'Never logged');
                     info.appendChild(meta2);
                     card.appendChild(info);
 
                     var statsDiv = document.createElement('div');
                     statsDiv.className = 'job-stats';
                     [
-                        {val: stat.total_processed || 0, label: 'Processed', color: '#00ff41'},
-                        {val: stat.total_failed || 0, label: 'Failed', color: '#ff4136'},
-                        {val: stat.cycles || 0, label: 'Cycles', color: '#c9d1d9'},
-                        {val: (stat.avg_duration_ms || 0) + 'ms', label: 'Avg Time', color: '#c9d1d9'}
+                        {val: stat.total_processed || 0, label: 'Proc', color: '#00ff41'},
+                        {val: stat.total_failed || 0, label: 'Fail', color: (stat.total_failed || 0) > 0 ? '#ff4136' : '#8b949e'},
+                        {val: stat.cycles || 0, label: 'Runs', color: '#c9d1d9'}
                     ].forEach(function(s) {
                         var d = document.createElement('div');
                         var v = document.createElement('div');
@@ -370,7 +468,7 @@
                 var td = document.createElement('td');
                 td.setAttribute('colspan', '6');
                 td.style.textAlign = 'center';
-                td.style.color = '#8b949e';
+                td.style.color = 'var(--au-muted)';
                 td.textContent = 'No recent activity';
                 tr.appendChild(td);
                 tbody.appendChild(tr);
@@ -378,8 +476,8 @@
                 logs.forEach(function(l) {
                     var tr = document.createElement('tr');
                     var cells = [
-                        {text: l.job_name},
-                        {html: statusPill(l.status)},
+                        {text: getJobLabel(l.job_name)},
+                        {pill: statusPill(l.status)},
                         {text: l.items_processed, color: '#00ff41'},
                         {text: l.items_failed, color: l.items_failed > 0 ? '#ff4136' : '#8b949e'},
                         {text: l.duration_ms + 'ms'},
@@ -387,7 +485,7 @@
                     ];
                     cells.forEach(function(c) {
                         var td = document.createElement('td');
-                        if (c.html) { td.innerHTML = c.html; }
+                        if (c.pill) { setPillHTML(td, c.pill); }
                         else { td.textContent = c.text; }
                         if (c.color) td.style.color = c.color;
                         tr.appendChild(td);
@@ -452,7 +550,7 @@
                 header.appendChild(left);
 
                 var pillEl = document.createElement('span');
-                pillEl.innerHTML = statusPill(item.status);
+                setPillHTML(pillEl, statusPill(item.status));
                 header.appendChild(pillEl);
                 detail.appendChild(header);
 
@@ -537,7 +635,7 @@
                 var td = document.createElement('td');
                 td.setAttribute('colspan', '7');
                 td.style.textAlign = 'center';
-                td.style.color = '#8b949e';
+                td.style.color = 'var(--au-muted)';
                 td.textContent = 'No history for this period';
                 tr.appendChild(td);
                 tbody.appendChild(tr);
@@ -547,8 +645,8 @@
             logs.forEach(function(l) {
                 var tr = document.createElement('tr');
                 var cells = [
-                    {text: l.job_name},
-                    {html: statusPill(l.status)},
+                    {text: getJobLabel(l.job_name)},
+                    {pill: statusPill(l.status)},
                     {text: String(l.items_processed), color: '#00ff41'},
                     {text: String(l.items_failed), color: l.items_failed > 0 ? '#ff4136' : '#8b949e'},
                     {text: l.duration_ms + 'ms'},
@@ -557,7 +655,7 @@
                 ];
                 cells.forEach(function(c) {
                     var td = document.createElement('td');
-                    if (c.html) { td.innerHTML = c.html; }
+                    if (c.pill) { setPillHTML(td, c.pill); }
                     else { td.textContent = c.text; }
                     if (c.color) td.style.color = c.color;
                     if (c.maxWidth) { td.style.maxWidth = c.maxWidth; td.style.overflow = 'hidden'; td.style.textOverflow = 'ellipsis'; td.style.whiteSpace = 'nowrap'; td.title = c.text; }

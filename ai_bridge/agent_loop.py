@@ -399,6 +399,8 @@ class AgentLoop:
             "agent_briefings",
             "agent_anomaly_detection",
             "agent_reports",
+            "agent_hr_tracker",
+            "agent_stale_job_reaper",
             "agent_ethics_monitoring",
         ]:
             try:
@@ -453,7 +455,7 @@ class AgentLoop:
                        body_html, variables, priority, attempts, max_attempts, metadata
                 FROM email_queue
                 WHERE status = 'pending'
-                  AND scheduled_for <= NOW()
+                  AND (scheduled_for IS NULL OR scheduled_for <= NOW())
                   AND attempts < max_attempts
                 ORDER BY priority ASC, scheduled_for ASC
                 LIMIT %s
@@ -860,6 +862,7 @@ class AgentLoop:
 
     def _auto_analyze_emails(self):
         """Auto-analyze unanalyzed emails in background (3 per batch, GPU-safe)."""
+        start = time.time()
         cur = None
         conn = None
         try:
@@ -887,6 +890,7 @@ class AgentLoop:
                     logger.error(f"Auto-analyze email {row['id']} failed: {e}")
                     break  # Stop batch on error (GPU may be overloaded)
 
+            duration_ms = int((time.time() - start) * 1000)
             if analyzed > 0:
                 log_governance_event(
                     "email_auto_analyze",
@@ -894,9 +898,11 @@ class AgentLoop:
                     "success",
                     {"analyzed": analyzed, "remaining": len(rows) - analyzed},
                 )
+                self._log_cycle("email_auto_analyze", analyzed, 0, duration_ms)
                 logger.info(f"Auto-analyzed {analyzed} emails")
         except Exception as e:
             logger.error(f"Auto-analyze job failed: {e}")
+            self._log_cycle("email_auto_analyze", 0, 1, 0, error_message=str(e))
         finally:
             try:
                 if cur:
@@ -912,12 +918,20 @@ class AgentLoop:
 
     def _forward_notifications_to_telegram(self):
         """Forward unread notifications to Telegram via the gateway."""
+        start = time.time()
         try:
             gateway = self.flask_app.config.get("TELEGRAM_GATEWAY")
-            if gateway and gateway.is_running:
-                gateway.forward_notifications()
+            if not gateway or not gateway.is_running:
+                return
+            forwarded = gateway.forward_notifications()
+            duration_ms = int((time.time() - start) * 1000)
+            count = forwarded if isinstance(forwarded, int) else 0
+            if count > 0:
+                self._log_cycle("telegram_notifications", count, 0, duration_ms)
         except Exception as e:
             logger.error(f"Telegram notification forwarding error: {e}")
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("telegram_notifications", 0, 1, duration_ms, error_message=str(e))
 
     # ------------------------------------------------------------------
     # Browser Task Processor (Phase 4)
@@ -1034,11 +1048,13 @@ class AgentLoop:
 
     def _notify_email_telegram(self):
         """Send Telegram notifications for newly analyzed emails."""
+        start = time.time()
         gateway = self.flask_app.config.get("TELEGRAM_GATEWAY")
         if not gateway or not gateway.is_running:
             return
         cur = None
         conn = None
+        notified = 0
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1091,6 +1107,7 @@ class AgentLoop:
                             "UPDATE email_inbox SET telegram_notified_at = NOW() WHERE id = %s",
                             (email["id"],),
                         )
+                        notified += 1
                     conn.commit()
 
                 # --- Digest for non-urgent emails ---
@@ -1118,6 +1135,7 @@ class AgentLoop:
                         self._send_email_telegram_digest(
                             gateway, user["telegram_id"], digest_emails
                         )
+                        notified += len(digest_emails)
                         ids = [e["id"] for e in digest_emails]
                         id_placeholders = ",".join(["%s"] * len(ids))
                         cur.execute(
@@ -1139,6 +1157,12 @@ class AgentLoop:
 
         except Exception as e:
             logger.error(f"Email Telegram notify failed: {e}")
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("email_telegram_notify", 0, 1, duration_ms, error_message=str(e))
+        else:
+            duration_ms = int((time.time() - start) * 1000)
+            if notified > 0:
+                self._log_cycle("email_telegram_notify", notified, 0, duration_ms)
         finally:
             try:
                 if cur:
@@ -1566,15 +1590,24 @@ class AgentLoop:
 
     def _run_ethics_monitoring(self):
         """Run IAAE ethics monitoring cycle (every 15 min)."""
+        start = time.time()
         try:
             from ai_bridge.ethics_monitor import EthicsMonitor
             monitor = EthicsMonitor()
             result = monitor.run_full_monitoring_cycle()
-            if result.issues_found > 0 or result.alerts_created > 0:
-                logger.info(f"Ethics monitoring: {result.agents_checked} checked, "
-                           f"{result.issues_found} issues, {result.alerts_created} alerts")
+            duration_ms = int((time.time() - start) * 1000)
+            checked = getattr(result, 'agents_checked', 0)
+            issues = getattr(result, 'issues_found', 0)
+            alerts = getattr(result, 'alerts_created', 0)
+            if checked > 0 or issues > 0 or alerts > 0:
+                logger.info(f"Ethics monitoring: {checked} checked, "
+                           f"{issues} issues, {alerts} alerts")
+                self._log_cycle("ethics_monitoring", checked, issues, duration_ms,
+                               details={"issues": issues, "alerts": alerts})
         except Exception as e:
             logger.error(f"Ethics monitoring failed: {e}")
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("ethics_monitoring", 0, 1, duration_ms, error_message=str(e))
 
     def _reap_stale_jobs(self):
         """Reap orphaned bridge jobs that stopped updating (every 2 min)."""

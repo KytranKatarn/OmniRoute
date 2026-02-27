@@ -70,6 +70,8 @@ def capture_learning(
             "external_provider": success_result.get("provider", "unknown"),
             "learning_type": "pattern_recognition",
             "module_id": module_id,
+            "error_message": (failed_result.get("error", "") or "")[:500],
+            "failed_model": failed_result.get("model", "unknown"),
         }
 
         from database import get_db
@@ -92,9 +94,18 @@ def capture_learning(
         logger.warning(f"[BridgeLearning] capture_learning failed: {e}")
 
 
-def inject_learnings(agent_name: str, capability: str, prompt: str, max_cards: int = 3) -> str:
+def inject_learnings(
+    agent_name: str,
+    capability: str,
+    prompt: str,
+    max_cards: int = 3,
+    proficiency_level: int = 3,
+) -> str:
     """
     Search knowledge_base for relevant learning cards and prepend to prompt.
+
+    proficiency_level scales max_cards: effective_max = max(1, proficiency_level).
+    Default proficiency_level=3 preserves backward-compatible max_cards=3.
 
     Returns the enhanced prompt with learning context prepended,
     or the original prompt if no learnings found.
@@ -102,6 +113,9 @@ def inject_learnings(agent_name: str, capability: str, prompt: str, max_cards: i
     try:
         from database import get_db
         from psycopg2.extras import RealDictCursor
+
+        # Proficiency scales how many learning cards are injected
+        effective_max = max(1, proficiency_level)
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -114,7 +128,7 @@ def inject_learnings(agent_name: str, capability: str, prompt: str, max_cards: i
               AND is_archived = FALSE
             ORDER BY importance_score DESC, updated_at DESC
             LIMIT %s
-        """, (agent_name, capability, max_cards))
+        """, (agent_name, capability, effective_max))
 
         cards = cur.fetchall()
         cur.close()

@@ -1981,6 +1981,63 @@ def get_training_recommendations():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/training/templates")
+@login_required
+def list_training_templates():
+    """List all skill training templates (proficiency-aware prompts)."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """SELECT skill_name, level_tier, system_prompt_addon,
+                          model_override, updated_at
+                   FROM skill_training_templates
+                   ORDER BY skill_name, level_tier"""
+            )
+            templates = cur.fetchall()
+            return jsonify({"success": True, "templates": templates})
+    except Exception as e:
+        logger.error(f"Error listing training templates: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/templates", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def upsert_training_template():
+    """Create or update a skill training template (admin only)."""
+    data = request.get_json() or {}
+    skill_name = (data.get("skill_name") or "").strip()
+    level_tier = (data.get("level_tier") or "").strip()
+    system_prompt_addon = (data.get("system_prompt_addon") or "").strip()
+    model_override = (data.get("model_override") or "").strip() or None
+
+    if not skill_name or not level_tier or not system_prompt_addon:
+        return jsonify({"success": False, "error": "skill_name, level_tier, and system_prompt_addon required"}), 400
+
+    if level_tier not in ("novice", "intermediate", "advanced"):
+        return jsonify({"success": False, "error": "level_tier must be novice, intermediate, or advanced"}), 400
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """INSERT INTO skill_training_templates
+                       (skill_name, level_tier, system_prompt_addon, model_override)
+                   VALUES (%s, %s, %s, %s)
+                   ON CONFLICT ON CONSTRAINT skill_training_templates_pkey DO UPDATE SET
+                       system_prompt_addon = EXCLUDED.system_prompt_addon,
+                       model_override = EXCLUDED.model_override,
+                       updated_at = NOW()
+                   RETURNING skill_name, level_tier, system_prompt_addon,
+                             model_override, updated_at""",
+                (skill_name, level_tier, system_prompt_addon, model_override),
+            )
+            result = cur.fetchone()
+            return jsonify({"success": True, "template": dict(result)})
+    except Exception as e:
+        logger.error(f"Error upserting training template: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # LOUNGE WELLNESS & HISTORY API
 # ============================================================================

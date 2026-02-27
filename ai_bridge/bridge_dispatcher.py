@@ -1057,6 +1057,89 @@ class BridgeDispatcher:
         "qwen3-coder-next:cloud",
     ]
 
+    # Proficiency tier mapping: level → tier name
+    _PROFICIENCY_TIERS = {1: "novice", 2: "novice", 3: "intermediate", 4: "advanced", 5: "advanced"}
+
+    def _augment_for_proficiency(
+        self,
+        agent_name: str,
+        capability: str,
+        proficiency_level: int,
+        system_prompt: Optional[str],
+        routing_mode: str,
+    ) -> tuple:
+        """Augment system prompt and optionally override model based on proficiency.
+
+        Returns (augmented_system_prompt, model_override_or_None).
+        """
+        tier = self._PROFICIENCY_TIERS.get(proficiency_level, "novice")
+
+        # Query skill_training_templates for this capability + tier
+        try:
+            from database import get_db
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT system_prompt_addon, model_override "
+                "FROM skill_training_templates WHERE skill_name = %s AND level_tier = %s",
+                (capability, tier),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] _augment_for_proficiency DB error: {e}")
+            return (system_prompt, None)
+
+        if not row:
+            return (system_prompt, None)
+
+        addon, model_override = row
+
+        # Append proficiency addon to system prompt
+        if addon and system_prompt:
+            system_prompt = system_prompt + "\n\n--- PROFICIENCY GUIDANCE (" + tier.upper() + ") ---\n" + addon + "\n--- END PROFICIENCY GUIDANCE ---"
+        elif addon:
+            system_prompt = addon
+
+        # Model override only for advanced tier + CAPABILITY_REQUIRES_SKILL tasks
+        resolved_override = None
+        if (
+            proficiency_level >= 4
+            and model_override
+            and capability in CAPABILITY_REQUIRES_SKILL
+        ):
+            is_cloud = ":cloud" in model_override or model_override in (
+                "minimax-m2.5",
+                "qwen3-coder-next",
+            )
+            is_paid = any(
+                model_override.startswith(p)
+                for p in ("gpt-4o", "llama-3.1-sonar", "grok", "claude")
+            )
+
+            if routing_mode == "local_only":
+                # Block all cloud/external overrides
+                resolved_override = None
+            elif routing_mode == "local_cloud" and is_paid:
+                # Block paid, allow free cloud
+                resolved_override = None
+            elif proficiency_level == 4 and is_paid:
+                # Lv4 only gets free cloud
+                resolved_override = None
+            else:
+                resolved_override = model_override
+
+            if resolved_override:
+                logger.info(
+                    f"[BridgeDispatcher] Proficiency override: agent='{agent_name}' "
+                    f"capability='{capability}' level={proficiency_level} "
+                    f"tier='{tier}' model_override='{resolved_override}'"
+                )
+
+        return (system_prompt, resolved_override)
+
     def _check_agent_busy(
         self, agent_name: str, exclude_job_id: int = None
     ) -> Optional[Dict]:
@@ -2295,10 +2378,22 @@ class BridgeDispatcher:
         if not agent_name:
             agent_name = "ARCHIE"
 
+        # 3.5 Proficiency-aware augmentation
+        skill_entry = agent.get("skills", {}).get(capability, {})
+        proficiency_level = skill_entry.get("level", 1) if skill_entry else 1
+
+        augmented_prompt, model_override = self._augment_for_proficiency(
+            agent_name, capability, proficiency_level,
+            system_prompt, self._get_routing_mode(),
+        )
+        system_prompt = augmented_prompt
+        if model_override:
+            model = model_override
+
         logger.info(
             f"[BridgeDispatcher] Dispatching: capability='{capability}' → "
             f"agent='{agent_name}' model='{model}' station='{station_code}' "
-            f"module='{module_id}'"
+            f"module='{module_id}' proficiency=Lv{proficiency_level}"
         )
 
         # 3a. Cross-station Telegram advisory
@@ -2312,11 +2407,14 @@ class BridgeDispatcher:
                 agent_name=agent_name,
             )
 
-        # 3b. Inject learnings if available
+        # 3b. Inject learnings if available (proficiency scales card count)
         try:
             from bridge_learning import inject_learnings
 
-            prompt = inject_learnings(agent_name, capability, prompt)
+            prompt = inject_learnings(
+                agent_name, capability, prompt,
+                proficiency_level=proficiency_level,
+            )
         except ImportError:
             pass
 

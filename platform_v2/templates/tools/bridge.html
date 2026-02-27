@@ -6064,6 +6064,29 @@ body.light-mode .station-coverage-code,
     opacity: 0.25; cursor: not-allowed; pointer-events: none;
 }
 
+/* Training — Proficiency Tier Badges */
+.training-tier-badge {
+    display: inline-block; font-size: 0.5rem; font-weight: 700;
+    padding: 1px 5px; border-radius: 6px; text-transform: uppercase;
+    letter-spacing: 0.3px; vertical-align: middle; margin-left: 4px;
+}
+.training-tier-badge[data-tier="novice"] {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.4);
+}
+.training-tier-badge[data-tier="intermediate"] {
+    background: rgba(0,217,255,0.1); border: 1px solid rgba(0,217,255,0.3);
+    color: #00d9ff;
+}
+.training-tier-badge[data-tier="advanced-cloud"] {
+    background: rgba(255,170,0,0.1); border: 1px solid rgba(255,170,0,0.3);
+    color: #ffaa00;
+}
+.training-tier-badge[data-tier="advanced-premium"] {
+    background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.3);
+    color: #a855f7;
+}
+
 /* Light mode briefing cards */
 [data-theme="light"] .briefing-card,
 body.light-mode .briefing-card {
@@ -6882,10 +6905,10 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
                                 <div class="training-level-row">
                                     <span class="training-level-label">TARGET</span>
-                                    <div class="training-level-pill" data-level="2">2</div>
-                                    <div class="training-level-pill" data-level="3">3</div>
-                                    <div class="training-level-pill" data-level="4">4</div>
-                                    <div class="training-level-pill" data-level="5">5</div>
+                                    <div class="training-level-pill" data-level="2" title="Lv2 — Basic instructions, 2 learning cards">2</div>
+                                    <div class="training-level-pill" data-level="3" title="Lv3 — Enhanced techniques, 3 learning cards">3</div>
+                                    <div class="training-level-pill" data-level="4" title="Lv4 — Expert strategies + free cloud model for complex tasks, 4 learning cards">4</div>
+                                    <div class="training-level-pill" data-level="5" title="Lv5 — Expert strategies + premium model for complex tasks, 5 learning cards">5</div>
                                 </div>
                                 <input type="hidden" id="training-target-select" value="">
                                 <button onclick="assignTraining()" style="margin-left:auto;background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;padding:4px 10px;border-radius:4px;font-size:0.7rem;cursor:pointer;white-space:nowrap;"><span data-i18n="bridge.assign_training">Assign Training</span></button>
@@ -13931,6 +13954,13 @@ function returnFromLounge(agentId) {
 var _trainingHoursPerLevel = {2: 1, 3: 2, 4: 4, 5: 8};
 var _trainingHistoryLoaded = false;
 
+function _getTrainingTierInfo(level) {
+    if (level <= 2) return {tier: 'novice', label: 'Basic', tooltip: 'Basic instructions — standard local model'};
+    if (level === 3) return {tier: 'intermediate', label: 'Enhanced', tooltip: 'Enhanced techniques — deeper context + 3 learning cards'};
+    if (level === 4) return {tier: 'advanced-cloud', label: 'Cloud Access', tooltip: 'Expert strategies — free cloud model for complex tasks + 4 learning cards'};
+    return {tier: 'advanced-premium', label: 'Premium', tooltip: 'Expert strategies — premium model for complex tasks + 5 learning cards'};
+}
+
 function loadTrainingTab() {
     loadTrainingRecommendations();
     loadActiveTraining();
@@ -14049,6 +14079,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     lvlBadge.className = 'skill-chip-lvl';
                     lvlBadge.textContent = 'Lv' + (sk.proficiency_level || 1);
                     chip.appendChild(lvlBadge);
+
+                    var skTier = _getTrainingTierInfo(sk.proficiency_level || 1);
+                    var tierLabel = document.createElement('span');
+                    tierLabel.className = 'training-tier-badge';
+                    tierLabel.dataset.tier = skTier.tier;
+                    tierLabel.title = skTier.tooltip;
+                    tierLabel.textContent = skTier.label;
+                    chip.appendChild(tierLabel);
 
                     chip.addEventListener('click', function() {
                         var wasSelected = chip.classList.contains('selected');
@@ -14186,12 +14224,15 @@ async function loadActiveTraining() {
             var pct = Math.min(100, Math.round((hoursElapsed / hoursNeeded) * 100));
             var hoursLeft = Math.max(0, hoursNeeded - hoursElapsed);
             var displayName = t.first_name && t.last_name ? t.first_name + ' ' + t.last_name : (t.agent_name || 'Unknown');
+            var tierInfo = _getTrainingTierInfo(target);
 
             html += '<div style="padding:8px;margin-bottom:6px;background:rgba(255,170,0,0.05);border:1px solid rgba(255,170,0,0.15);border-radius:6px;">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
             html += '<span style="font-size:0.75rem;color:#ffaa00;font-weight:600;">' + displayName + '</span>';
+            html += '<div style="display:flex;align-items:center;gap:4px;">';
+            html += '<span class="training-tier-badge" data-tier="' + tierInfo.tier + '" title="' + tierInfo.tooltip + '">' + tierInfo.label + '</span>';
             html += '<button onclick="cancelTraining(' + parseInt(t.training_id) + ')" style="background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);color:#ff6b6b;padding:1px 6px;border-radius:3px;font-size:0.6rem;cursor:pointer;">Cancel</button>';
-            html += '</div>';
+            html += '</div></div>';
             html += '<div style="font-size:0.7rem;color:rgba(255,255,255,0.7);margin-bottom:4px;">';
             html += '<span>' + (t.skill_name || 'Unknown skill') + '</span>';
             html += ' &mdash; Level ' + current + ' &rarr; ' + target;

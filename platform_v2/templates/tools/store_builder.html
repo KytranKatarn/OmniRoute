@@ -2,88 +2,15 @@
 
 {% block title %}Store Builder - A.R.C.H.I.E.{% endblock %}
 
-{% block styles %}
+{% block module_name %}store-builder{% endblock %}
+
+{% block extra_head %}
 <style>
 /* Main Container */
 .store-container {
-    min-height: 100vh;
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    max-width: 1600px;
+    margin: 0 auto;
     padding: 20px;
-}
-
-/* Header */
-.store-header {
-    background: white;
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
-
-.store-title {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.store-title h1 {
-    font-size: 2rem;
-    color: #1f2937;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.store-icon {
-    width: 48px;
-    height: 48px;
-    background: linear-gradient(135deg, #10b981, #059669);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 24px;
-}
-
-.store-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.btn-primary {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 600;
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
-}
-
-.btn-secondary {
-    background: white;
-    color: #10b981;
-    border: 2px solid #10b981;
-    padding: 10px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 1rem;
-    font-weight: 600;
-    transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-    background: #10b981;
-    color: white;
 }
 
 /* Stats Bar */
@@ -91,59 +18,36 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 15px;
-    margin-top: 20px;
+    margin-bottom: 20px;
 }
 
 .stat-card {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1));
-    padding: 15px;
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
-    border: 1px solid rgba(16, 185, 129, 0.2);
+    padding: 15px;
 }
 
 .stat-value {
     font-size: 2rem;
     font-weight: 700;
-    color: #10b981;
+    color: var(--archie-accent, #10b981);
     margin: 0;
 }
 
 .stat-label {
     font-size: 0.9rem;
-    color: #6b7280;
+    color: var(--archie-text-secondary, #8b949e);
     margin: 5px 0 0 0;
 }
 
-/* Tabs */
-.store-tabs {
-    display: flex;
-    gap: 5px;
-    margin-bottom: 20px;
-    background: white;
-    padding: 8px;
-    border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+/* Tab Content Visibility */
+.store-content {
+    display: none;
 }
 
-.tab-btn {
-    padding: 12px 24px;
-    border: none;
-    background: transparent;
-    color: #6b7280;
-    font-size: 1rem;
-    font-weight: 600;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.tab-btn.active {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
-}
-
-.tab-btn:hover:not(.active) {
-    background: #f3f4f6;
+.store-content.active {
+    display: block;
 }
 
 /* Stores Grid */
@@ -154,10 +58,10 @@
 }
 
 .store-card {
-    background: white;
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -176,7 +80,7 @@
 .store-name {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--archie-text-primary, #e6edf3);
     margin: 0;
 }
 
@@ -198,8 +102,8 @@
     gap: 10px;
     margin: 15px 0;
     padding: 15px 0;
-    border-top: 1px solid #e5e7eb;
-    border-bottom: 1px solid #e5e7eb;
+    border-top: 1px solid var(--archie-border-default);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .store-stat {
@@ -209,15 +113,15 @@
 .store-stat-value {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #10b981;
+    color: var(--archie-accent, #10b981);
 }
 
 .store-stat-label {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--archie-text-secondary, #8b949e);
 }
 
-.store-actions {
+.store-card .store-actions {
     display: flex;
     gap: 10px;
 }
@@ -234,18 +138,18 @@
 }
 
 .btn-manage {
-    background: #f3f4f6;
-    color: #374151;
+    background: var(--archie-bg-hover, #161b22);
+    color: var(--archie-text-primary, #e6edf3);
 }
 
-.btn-manage:hover { background: #e5e7eb; }
+.btn-manage:hover { background: var(--archie-border-default); }
 
 .btn-products {
-    background: #10b981;
+    background: var(--archie-accent, #10b981);
     color: white;
 }
 
-.btn-products:hover { background: #059669; }
+.btn-products:hover { opacity: 0.85; }
 
 .btn-orders {
     background: #3b82f6;
@@ -256,11 +160,11 @@
 
 /* Empty State */
 .empty-state {
-    background: white;
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 60px 40px;
     text-align: center;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
 .empty-icon {
@@ -270,23 +174,16 @@
 
 .empty-title {
     font-size: 1.5rem;
-    color: #1f2937;
+    color: var(--archie-text-primary, #e6edf3);
     margin-bottom: 10px;
 }
 
 .empty-text {
-    color: #6b7280;
+    color: var(--archie-text-secondary, #8b949e);
     margin-bottom: 25px;
 }
 
-/* Integrations Panel */
-.integrations-panel {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
+/* Integrations Grid */
 .integrations-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -299,19 +196,19 @@
     align-items: center;
     gap: 12px;
     padding: 15px;
-    border: 2px solid #e5e7eb;
+    border: 2px solid var(--archie-border-default);
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .integration-card:hover {
-    border-color: #10b981;
+    border-color: var(--archie-accent, #10b981);
 }
 
 .integration-card.connected {
-    border-color: #10b981;
-    background: rgba(16, 185, 129, 0.05);
+    border-color: var(--archie-accent, #10b981);
+    background: rgba(var(--archie-green-rgb, 16,185,129), 0.05);
 }
 
 .integration-icon {
@@ -320,26 +217,19 @@
 
 .integration-name {
     font-weight: 600;
-    color: #1f2937;
+    color: var(--archie-text-primary, #e6edf3);
 }
 
 .integration-status {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--archie-text-secondary, #8b949e);
 }
 
 .integration-status.connected {
-    color: #10b981;
+    color: var(--archie-accent, #10b981);
 }
 
 /* Orders Table */
-.orders-panel {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
 .orders-table {
     width: 100%;
     border-collapse: collapse;
@@ -350,12 +240,12 @@
 .orders-table td {
     padding: 12px;
     text-align: left;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .orders-table th {
     font-weight: 600;
-    color: #6b7280;
+    color: var(--archie-text-secondary, #8b949e);
     font-size: 0.85rem;
     text-transform: uppercase;
 }
@@ -372,53 +262,7 @@
 .order-shipped { background: #e0e7ff; color: #3730a3; }
 .order-delivered { background: #d1fae5; color: #065f46; }
 
-/* Modal */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-}
-
-.modal-overlay.active { display: flex; }
-
-.modal {
-    background: white;
-    border-radius: 12px;
-    padding: 30px;
-    width: 100%;
-    max-width: 500px;
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.modal-title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #1f2937;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #6b7280;
-}
-
+/* Form Elements (for modals) */
 .form-group {
     margin-bottom: 20px;
 }
@@ -426,22 +270,24 @@
 .form-label {
     display: block;
     font-weight: 600;
-    color: #374151;
+    color: var(--archie-text-primary, #e6edf3);
     margin-bottom: 8px;
 }
 
 .form-input, .form-textarea, .form-select {
     width: 100%;
     padding: 12px;
-    border: 2px solid #e5e7eb;
+    border: 2px solid var(--archie-border-default);
     border-radius: 8px;
     font-size: 1rem;
     outline: none;
     transition: border-color 0.2s;
+    background: var(--archie-bg-primary, #0d1117);
+    color: var(--archie-text-primary, #e6edf3);
 }
 
 .form-input:focus, .form-textarea:focus, .form-select:focus {
-    border-color: #10b981;
+    border-color: var(--archie-accent, #10b981);
 }
 
 /* Admin Badge */
@@ -455,10 +301,26 @@
     margin-left: 10px;
 }
 
+/* Primary/Secondary Buttons */
+.btn-primary {
+    background: var(--archie-accent, #10b981);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: opacity 0.2s;
+}
+
+.btn-primary:hover {
+    opacity: 0.85;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .store-container { padding: 10px; }
-    .store-title { flex-direction: column; gap: 15px; align-items: flex-start; }
     .stores-grid { grid-template-columns: 1fr; }
     .stats-bar { grid-template-columns: repeat(2, 1fr); }
 }
@@ -466,53 +328,44 @@
 {% endblock %}
 
 {% block content %}
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
 <div class="store-container">
-    <!-- Header -->
-    <div class="store-header">
-        <div class="store-title">
-            <h1>
-                <div class="store-icon">&#128722;</div>
-                Store Builder
-                {% if is_admin %}<span class="admin-badge">ADMIN</span>{% endif %}
-            </h1>
-            <div class="store-actions">
-                <button class="btn-primary" onclick="openNewStoreModal()">
-                    + New Store
-                </button>
-                {% include 'includes/theme_controls.html' %}
-            </div>
-        </div>
+    {{ page_header('STORE BUILDER', subtitle='E-Commerce Store Management', icon='shopping-cart') }}
 
-        <!-- Stats -->
-        <div class="stats-bar">
-            <div class="stat-card">
-                <p class="stat-value">{{ stores|length }}</p>
-                <p class="stat-label"><span data-i18n="store_builder.total_stores">Total Stores</span></p>
-            </div>
-            <div class="stat-card">
-                <p class="stat-value">{{ order_stats.pending or 0 }}</p>
-                <p class="stat-label"><span data-i18n="store_builder.pending_orders">Pending Orders</span></p>
-            </div>
-            <div class="stat-card">
-                <p class="stat-value">${{ "%.2f"|format(order_stats.revenue or 0) }}</p>
-                <p class="stat-label"><span data-i18n="store_builder.30_day_revenue">30-Day Revenue</span></p>
-            </div>
-            <div class="stat-card">
-                <p class="stat-value">{{ integrations|length }}/3</p>
-                <p class="stat-label"><span data-i18n="store_builder.payments_connected">Payments Connected</span></p>
-            </div>
+    <div style="display: flex; gap: 10px; margin: -16px 0 20px 0;">
+        <button class="btn-primary" onclick="openNewStoreModal()">+ New Store</button>
+        {% if is_admin %}<span class="admin-badge">ADMIN</span>{% endif %}
+        {% include 'includes/theme_controls.html' %}
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar">
+        <div class="stat-card">
+            <p class="stat-value">{{ stores|length }}</p>
+            <p class="stat-label"><span data-i18n="store_builder.total_stores">Total Stores</span></p>
+        </div>
+        <div class="stat-card">
+            <p class="stat-value">{{ order_stats.pending or 0 }}</p>
+            <p class="stat-label"><span data-i18n="store_builder.pending_orders">Pending Orders</span></p>
+        </div>
+        <div class="stat-card">
+            <p class="stat-value">${{ "%.2f"|format(order_stats.revenue or 0) }}</p>
+            <p class="stat-label"><span data-i18n="store_builder.30_day_revenue">30-Day Revenue</span></p>
+        </div>
+        <div class="stat-card">
+            <p class="stat-value">{{ integrations|length }}/3</p>
+            <p class="stat-label"><span data-i18n="store_builder.payments_connected">Payments Connected</span></p>
         </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="store-tabs">
-        <button class="tab-btn active" data-tab="stores"><span data-i18n="store_builder.my_stores">My Stores</span></button>
-        <button class="tab-btn" data-tab="orders"><span data-i18n="store_builder.recent_orders">Recent Orders</span></button>
-        <button class="tab-btn" data-tab="integrations"><span data-i18n="store_builder.payments">Payments</span></button>
-    </div>
+    {{ tab_nav(tabs=[
+        {'id': 'stores', 'label': 'My Stores'},
+        {'id': 'orders', 'label': 'Recent Orders'},
+        {'id': 'integrations', 'label': 'Payments'}
+    ], onswitch='showTab') }}
 
     <!-- Stores Tab -->
-    <div class="tab-content" id="tab-stores">
+    <div class="store-content active" id="tab-stores">
         {% if stores %}
         <div class="stores-grid">
             {% for store in stores %}
@@ -566,9 +419,8 @@
     </div>
 
     <!-- Orders Tab -->
-    <div class="tab-content" id="tab-orders" style="display: none;">
-        <div class="orders-panel">
-            <h3 style="margin: 0 0 15px 0;"><span data-i18n="store_builder.recent_orders_2">Recent Orders</span></h3>
+    <div class="store-content" id="tab-orders">
+        {% call panel(title='Recent Orders', icon='package') %}
             <table class="orders-table">
                 <thead>
                     <tr>
@@ -581,20 +433,19 @@
                 </thead>
                 <tbody id="ordersTableBody">
                     <tr>
-                        <td colspan="5" style="text-align: center; color: #6b7280; padding: 40px;">
+                        <td colspan="5" style="text-align: center; color: var(--archie-text-secondary, #6b7280); padding: 40px;">
                             Select a store to view orders
                         </td>
                     </tr>
                 </tbody>
             </table>
-        </div>
+        {% endcall %}
     </div>
 
     <!-- Integrations Tab -->
-    <div class="tab-content" id="tab-integrations" style="display: none;">
-        <div class="integrations-panel">
-            <h3 style="margin: 0;"><span data-i18n="store_builder.payment_providers">Payment Providers</span></h3>
-            <p style="color: #6b7280; margin: 5px 0 0 0;"><span data-i18n="store_builder.connect_your_payment_accounts_to_accept_payments">Connect your payment accounts to accept payments</span></p>
+    <div class="store-content" id="tab-integrations">
+        {% call panel(title='Payment Providers', icon='credit-card') %}
+            <p style="color: var(--archie-text-secondary, #8b949e); margin: 5px 0 0 0;"><span data-i18n="store_builder.connect_your_payment_accounts_to_accept_payments">Connect your payment accounts to accept payments</span></p>
 
             <div class="integrations-grid">
                 <div class="integration-card {% if integrations.get('stripe') %}connected{% endif %}"
@@ -630,87 +481,72 @@
                     </div>
                 </div>
             </div>
-        </div>
+        {% endcall %}
     </div>
 </div>
 
 <!-- New Store Modal -->
-<div class="modal-overlay" id="newStoreModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h2 class="modal-title"><span data-i18n="store_builder.create_new_store">Create New Store</span></h2>
-            <button class="modal-close" onclick="closeModal('newStoreModal')"><span data-i18n="store_builder.times">&times;</span></button>
+{% call modal('newStoreModal', 'Create New Store', icon='plus-circle') %}
+    <form id="newStoreForm" onsubmit="createStore(event)">
+        <div class="form-group">
+            <label class="form-label"><span data-i18n="store_builder.store_name">Store Name *</span></label>
+            <input type="text" class="form-input" name="name" required
+                   placeholder="My Awesome Store">
         </div>
-        <form id="newStoreForm" onsubmit="createStore(event)">
-            <div class="form-group">
-                <label class="form-label"><span data-i18n="store_builder.store_name">Store Name *</span></label>
-                <input type="text" class="form-input" name="name" required
-                       placeholder="My Awesome Store">
-            </div>
-            <div class="form-group">
-                <label class="form-label"><span data-i18n="store_builder.description">Description</span></label>
-                <textarea class="form-textarea" name="description"
-                          placeholder="Brief description of your store"></textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label"><span data-i18n="store_builder.contact_email">Contact Email</span></label>
-                <input type="email" class="form-input" name="contact_email"
-                       placeholder="store@example.com">
-            </div>
-            <button type="submit" class="btn-primary" style="width: 100%;">
-                Create Store
-            </button>
-        </form>
-    </div>
-</div>
+        <div class="form-group">
+            <label class="form-label"><span data-i18n="store_builder.description">Description</span></label>
+            <textarea class="form-textarea" name="description"
+                      placeholder="Brief description of your store"></textarea>
+        </div>
+        <div class="form-group">
+            <label class="form-label"><span data-i18n="store_builder.contact_email">Contact Email</span></label>
+            <input type="email" class="form-input" name="contact_email"
+                   placeholder="store@example.com">
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%;">
+            Create Store
+        </button>
+    </form>
+{% endcall %}
 
 <!-- Payment Integration Modal -->
-<div class="modal-overlay" id="paymentModal">
-    <div class="modal">
-        <div class="modal-header">
-            <h2 class="modal-title" id="paymentTitle"><span data-i18n="store_builder.connect_payment_provider">Connect Payment Provider</span></h2>
-            <button class="modal-close" onclick="closeModal('paymentModal')"><span data-i18n="store_builder.times_2">&times;</span></button>
+{% call modal('paymentModal', 'Connect Payment Provider', icon='link') %}
+    <form id="paymentForm" onsubmit="savePaymentIntegration(event)">
+        <input type="hidden" name="service" id="paymentService">
+        <div class="form-group">
+            <label class="form-label"><span data-i18n="store_builder.api_key_secret">API Key / Secret</span></label>
+            <input type="password" class="form-input" name="api_key"
+                   placeholder="Enter your API key">
         </div>
-        <form id="paymentForm" onsubmit="savePaymentIntegration(event)">
-            <input type="hidden" name="service" id="paymentService">
-            <div class="form-group">
-                <label class="form-label"><span data-i18n="store_builder.api_key_secret">API Key / Secret</span></label>
-                <input type="password" class="form-input" name="api_key"
-                       placeholder="Enter your API key">
-            </div>
-            <div class="form-group" id="webhookField">
-                <label class="form-label"><span data-i18n="store_builder.webhook_secret_optional">Webhook Secret (optional)</span></label>
-                <input type="password" class="form-input" name="webhook_secret"
-                       placeholder="Webhook signing secret">
-            </div>
-            <button type="submit" class="btn-primary" style="width: 100%;">
-                Connect
-            </button>
-        </form>
-    </div>
-</div>
+        <div class="form-group" id="webhookField">
+            <label class="form-label"><span data-i18n="store_builder.webhook_secret_optional">Webhook Secret (optional)</span></label>
+            <input type="password" class="form-input" name="webhook_secret"
+                   placeholder="Webhook signing secret">
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%;">
+            Connect
+        </button>
+    </form>
+{% endcall %}
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
-// Tab switching
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+// Tab switching — uses [data-tab] attribute from theme macros
+function showTab(tabName) {
+    document.querySelectorAll('.store-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+}
 
-        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-        document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
-    });
-});
-
-// Modal functions
+// Modal functions — theme macros use -backdrop suffix
 function openNewStoreModal() {
-    document.getElementById('newStoreModal').classList.add('active');
+    document.getElementById('newStoreModal-backdrop').style.display = 'flex';
 }
 
 function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
+    document.getElementById(id + '-backdrop').style.display = 'none';
 }
 
 // Store CRUD
@@ -748,37 +584,57 @@ function viewProducts(id) {
 
 async function viewOrders(storeId) {
     try {
-        const res = await fetch(`/tools/store-builder/api/stores/${storeId}/orders`);
+        const res = await fetch('/tools/store-builder/api/stores/' + storeId + '/orders');
         const result = await res.json();
 
         if (result.success) {
             const tbody = document.getElementById('ordersTableBody');
 
             if (result.orders.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: #6b7280; padding: 40px;">
-                            No orders yet
-                        </td>
-                    </tr>
-                `;
+                tbody.textContent = '';
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.style.textAlign = 'center';
+                td.style.color = 'var(--archie-text-secondary, #6b7280)';
+                td.style.padding = '40px';
+                td.textContent = 'No orders yet';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
             } else {
-                tbody.innerHTML = result.orders.map(order => `
-                    <tr>
-                        <td>${order.order_number}</td>
-                        <td>${order.customer_name || order.customer_email}</td>
-                        <td>$${parseFloat(order.total).toFixed(2)}</td>
-                        <td><span class="order-status order-${order.status}">${order.status}</span></td>
-                        <td>${new Date(order.created_at).toLocaleDateString()}</td>
-                    </tr>
-                `).join('');
+                tbody.textContent = '';
+                result.orders.forEach(function(order) {
+                    const tr = document.createElement('tr');
+
+                    const tdNum = document.createElement('td');
+                    tdNum.textContent = order.order_number;
+                    tr.appendChild(tdNum);
+
+                    const tdCust = document.createElement('td');
+                    tdCust.textContent = order.customer_name || order.customer_email;
+                    tr.appendChild(tdCust);
+
+                    const tdTotal = document.createElement('td');
+                    tdTotal.textContent = '$' + parseFloat(order.total).toFixed(2);
+                    tr.appendChild(tdTotal);
+
+                    const tdStatus = document.createElement('td');
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = 'order-status order-' + order.status;
+                    statusSpan.textContent = order.status;
+                    tdStatus.appendChild(statusSpan);
+                    tr.appendChild(tdStatus);
+
+                    const tdDate = document.createElement('td');
+                    tdDate.textContent = new Date(order.created_at).toLocaleDateString();
+                    tr.appendChild(tdDate);
+
+                    tbody.appendChild(tr);
+                });
             }
 
             // Switch to orders tab
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector('[data-tab="orders"]').classList.add('active');
-            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-            document.getElementById('tab-orders').style.display = 'block';
+            showTab('orders');
         }
     } catch (err) {
         alert('Error loading orders: ' + err.message);
@@ -788,17 +644,24 @@ async function viewOrders(storeId) {
 // Payment integrations
 function managePaymentIntegration(service) {
     document.getElementById('paymentService').value = service;
-    document.getElementById('paymentTitle').textContent = `Connect ${service.charAt(0).toUpperCase() + service.slice(1)}`;
-    document.getElementById('paymentModal').classList.add('active');
+    // Update title inside the modal panel
+    var titleEl = document.querySelector('#paymentModal .lcars-panel-title');
+    if (titleEl) {
+        var icon = titleEl.querySelector('i');
+        titleEl.textContent = '';
+        if (icon) titleEl.appendChild(icon);
+        titleEl.appendChild(document.createTextNode(' Connect ' + service.charAt(0).toUpperCase() + service.slice(1)));
+    }
+    document.getElementById('paymentModal-backdrop').style.display = 'flex';
 }
 
 async function savePaymentIntegration(e) {
     e.preventDefault();
-    const service = document.getElementById('paymentService').value;
-    const data = Object.fromEntries(new FormData(e.target));
+    var service = document.getElementById('paymentService').value;
+    var data = Object.fromEntries(new FormData(e.target));
 
     try {
-        const res = await fetch(`/tools/store-builder/api/integrations/${service}`, {
+        const res = await fetch('/tools/store-builder/api/integrations/' + service, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -811,7 +674,7 @@ async function savePaymentIntegration(e) {
         const result = await res.json();
 
         if (result.success) {
-            alert(`${service} connected!`);
+            alert(service + ' connected!');
             location.reload();
         } else {
             alert('Error: ' + result.error);
@@ -820,12 +683,5 @@ async function savePaymentIntegration(e) {
         alert('Error: ' + err.message);
     }
 }
-
-// Close modals on click outside
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) overlay.classList.remove('active');
-    });
-});
 </script>
 {% endblock %}

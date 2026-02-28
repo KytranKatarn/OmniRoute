@@ -30,6 +30,9 @@ body.theme-slate-pro {
     --archie-green-alpha-10:   rgba(100, 116, 139, 0.10);
     --archie-green-alpha-20:   rgba(100, 116, 139, 0.20);
     --archie-green-alpha-30:   rgba(100, 116, 139, 0.30);
+    --archie-green-rgb:        100, 116, 139;
+    --archie-cyan-rgb:         148, 163, 184;
+    --archie-orange-rgb:       245, 158, 11;
 
     /* ── SECONDARY (replaces cyan) ── */
     --archie-cyan:            #94a3b8;

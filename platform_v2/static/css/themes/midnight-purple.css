@@ -30,6 +30,9 @@ body.theme-midnight-purple {
     --archie-green-alpha-10:   rgba(139, 92, 246, 0.10);
     --archie-green-alpha-20:   rgba(139, 92, 246, 0.20);
     --archie-green-alpha-30:   rgba(139, 92, 246, 0.30);
+    --archie-green-rgb:        139, 92, 246;
+    --archie-cyan-rgb:         167, 139, 250;
+    --archie-orange-rgb:       245, 158, 11;
 
     /* ── SECONDARY (replaces cyan) ── */
     --archie-cyan:            #a78bfa;

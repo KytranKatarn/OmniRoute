@@ -30,6 +30,9 @@ body.theme-arctic-light {
     --archie-green-alpha-10:   rgba(6, 182, 212, 0.10);
     --archie-green-alpha-20:   rgba(6, 182, 212, 0.20);
     --archie-green-alpha-30:   rgba(6, 182, 212, 0.30);
+    --archie-green-rgb:        6, 182, 212;
+    --archie-cyan-rgb:         34, 211, 238;
+    --archie-orange-rgb:       245, 158, 11;
 
     /* ── SECONDARY (replaces cyan) ── */
     --archie-cyan:            #22d3ee;

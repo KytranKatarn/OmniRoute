@@ -31,6 +31,9 @@ body.theme-forest {
     --archie-green-alpha-10:   rgba(34, 197, 94, 0.10);
     --archie-green-alpha-20:   rgba(34, 197, 94, 0.20);
     --archie-green-alpha-30:   rgba(34, 197, 94, 0.30);
+    --archie-green-rgb:        34, 197, 94;
+    --archie-cyan-rgb:         74, 222, 128;
+    --archie-orange-rgb:       245, 158, 11;
 
     /* ── SECONDARY (replaces cyan) ── */
     --archie-cyan:            #4ade80;

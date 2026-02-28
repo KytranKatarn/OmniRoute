@@ -30,6 +30,9 @@ body.theme-rose-gold {
     --archie-green-alpha-10:   rgba(244, 63, 94, 0.10);
     --archie-green-alpha-20:   rgba(244, 63, 94, 0.20);
     --archie-green-alpha-30:   rgba(244, 63, 94, 0.30);
+    --archie-green-rgb:        244, 63, 94;
+    --archie-cyan-rgb:         251, 113, 133;
+    --archie-orange-rgb:       245, 158, 11;
 
     /* ── SECONDARY (replaces cyan) ── */
     --archie-cyan:            #fb7185;

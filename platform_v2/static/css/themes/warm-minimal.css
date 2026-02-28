@@ -31,6 +31,9 @@ body.theme-warm-minimal {
     --archie-green-alpha-10:   rgba(245, 158, 11, 0.10);
     --archie-green-alpha-20:   rgba(245, 158, 11, 0.20);
     --archie-green-alpha-30:   rgba(245, 158, 11, 0.30);
+    --archie-green-rgb:        245, 158, 11;
+    --archie-cyan-rgb:         251, 191, 36;
+    --archie-orange-rgb:       205, 127, 50;
 
     /* ── SECONDARY (replaces cyan) ── */
     --archie-cyan:            #fbbf24;

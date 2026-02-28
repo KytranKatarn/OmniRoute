@@ -9,21 +9,15 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-1">
-                <i class="bi bi-calendar3 me-2"></i>Scheduler
-            </h2>
-            <p class="text-muted mb-0"><span data-i18n="scheduler.calendar_subscriptions_and_task_scheduling">Calendar, subscriptions, and task scheduling</span></p>
-        </div>
-        <div class="d-flex gap-2 align-items-center">
-            <button class="btn btn-primary" onclick="showCreateEventModal()">
-                <i class="bi bi-plus-lg me-1"></i>New Event
-            </button>
-            {% include 'includes/theme_controls.html' %}
-        </div>
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
+<div class="scheduler-container">
+    {{ page_header('SCHEDULER', subtitle='Calendar, subscriptions, and task scheduling', icon='calendar') }}
+
+    <div style="display: flex; gap: 8px; margin: -16px 0 20px 0; align-items: center;">
+        <button class="btn btn-primary" onclick="showCreateEventModal()">
+            <i class="bi bi-plus-lg me-1"></i>New Event
+        </button>
+        {% include 'includes/theme_controls.html' %}
     </div>
 
     <!-- Stats Cards -->
@@ -108,249 +102,208 @@
         </div>
     </div>
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4" id="schedulerTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="calendar-tab" data-bs-toggle="tab" data-bs-target="#calendar" type="button">
-                <i class="bi bi-calendar3 me-1"></i>Calendar
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="subscriptions-tab" data-bs-toggle="tab" data-bs-target="#subscriptions" type="button">
-                <i class="bi bi-repeat me-1"></i>Subscriptions
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="reminders-tab" data-bs-toggle="tab" data-bs-target="#reminders" type="button">
-                <i class="bi bi-bell me-1"></i>Reminders
-                {% if stats.pending_reminders %}
-                <span class="badge bg-danger">{{ stats.pending_reminders }}</span>
-                {% endif %}
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" type="button">
-                <i class="bi bi-list-check me-1"></i>Tasks
-            </button>
-        </li>
-    </ul>
+    {{ tab_nav(tabs=[
+        {'id': 'calendar', 'label': 'Calendar', 'icon': 'calendar'},
+        {'id': 'subscriptions', 'label': 'Subscriptions', 'icon': 'repeat'},
+        {'id': 'reminders', 'label': 'Reminders', 'icon': 'bell'},
+        {'id': 'tasks', 'label': 'Tasks', 'icon': 'list-checks'}
+    ], onswitch='showTab') }}
 
-    <!-- Tab Content -->
-    <div class="tab-content" id="schedulerTabContent">
-        <!-- Calendar Tab -->
-        <div class="tab-pane fade show active" id="calendar" role="tabpanel">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div id="fullCalendar"></div>
-                </div>
+    <!-- Calendar Tab -->
+    <div id="tab-calendar" class="sched-content active">
+        {% call panel(title='Calendar', icon='calendar') %}
+            <div id="fullCalendar"></div>
+        {% endcall %}
+    </div>
+
+    <!-- Subscriptions Tab -->
+    <div id="tab-subscriptions" class="sched-content">
+        {% call panel(title='Subscription Schedules', icon='repeat') %}
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px;">
+                <select class="form-select form-select-sm d-inline-block w-auto" id="filterSubStatus">
+                    <option value="">All Status</option>
+                    <option value="active" selected>Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <button class="btn btn-sm btn-success" onclick="showCreateSubscriptionModal()">
+                    <i class="bi bi-plus-lg me-1"></i>Add
+                </button>
             </div>
-        </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="border-0 ps-4"><span data-i18n="scheduler.customer">Customer</span></th>
+                            <th class="border-0"><span data-i18n="scheduler.plan">Plan</span></th>
+                            <th class="border-0"><span data-i18n="scheduler.billing">Billing</span></th>
+                            <th class="border-0 text-end"><span data-i18n="scheduler.amount">Amount</span></th>
+                            <th class="border-0"><span data-i18n="scheduler.next_billing">Next Billing</span></th>
+                            <th class="border-0"><span data-i18n="scheduler.status">Status</span></th>
+                            <th class="border-0 text-end pe-4"><span data-i18n="scheduler.actions">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="subscriptionsTableBody">
+                        {% for sub in subscriptions %}
+                        <tr>
+                            <td class="ps-4">
+                                <div>{{ sub.customer_name or 'Unknown' }}</div>
+                                <small class="text-muted">{{ sub.customer_email }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ sub.tier|capitalize }}</span>
+                            </td>
+                            <td>{{ sub.billing_cycle|capitalize }}</td>
+                            <td class="text-end">${{ "%.2f"|format(sub.amount or 0) }}</td>
+                            <td>
+                                {% if sub.next_billing_date %}
+                                {{ sub.next_billing_date.strftime('%b %d, %Y') }}
+                                {% set days_until = (sub.next_billing_date - now().date()).days if sub.next_billing_date else 999 %}
+                                {% if days_until <= 7 %}
+                                <span class="badge bg-warning text-dark">{{ days_until }}d</span>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set sub_colors = {'active': 'success', 'paused': 'warning', 'cancelled': 'danger', 'trial': 'info'} %}
+                                <span class="badge bg-{{ sub_colors.get(sub.status, 'secondary') }}">
+                                    {{ sub.status|capitalize }}
+                                </span>
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group btn-group-sm">
+                                    {% if sub.status == 'active' %}
+                                    <button class="btn btn-outline-success" onclick="processRenewal({{ sub.id }})" title="Process Renewal">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
+                                    <button class="btn btn-outline-warning" onclick="pauseSubscription({{ sub.id }})" title="Pause">
+                                        <i class="bi bi-pause"></i>
+                                    </button>
+                                    {% elif sub.status == 'paused' %}
+                                    <button class="btn btn-outline-success" onclick="resumeSubscription({{ sub.id }})" title="Resume">
+                                        <i class="bi bi-play"></i>
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-outline-danger" onclick="cancelSubscription({{ sub.id }})" title="Cancel">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-repeat fs-1 d-block mb-2"></i>
+                                No subscription schedules found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endcall %}
+    </div>
 
-        <!-- Subscriptions Tab -->
-        <div class="tab-pane fade" id="subscriptions" role="tabpanel">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><span data-i18n="scheduler.subscription_schedules">Subscription Schedules</span></h5>
-                    <div>
-                        <select class="form-select form-select-sm d-inline-block w-auto me-2" id="filterSubStatus">
-                            <option value=""><span data-i18n="scheduler.all_status">All Status</span></option>
-                            <option value="active" selected><span data-i18n="scheduler.active">Active</span></option>
-                            <option value="paused"><span data-i18n="scheduler.paused">Paused</span></option>
-                            <option value="cancelled"><span data-i18n="scheduler.cancelled">Cancelled</span></option>
-                        </select>
-                        <button class="btn btn-sm btn-success" onclick="showCreateSubscriptionModal()">
-                            <i class="bi bi-plus-lg me-1"></i>Add
+    <!-- Reminders Tab -->
+    <div id="tab-reminders" class="sched-content">
+        <div class="row">
+            <div class="col-lg-8">
+                {% call panel(title='Pending Reminders', icon='bell') %}
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+                        <button class="btn btn-sm btn-primary" onclick="showCreateReminderModal()">
+                            <i class="bi bi-plus-lg me-1"></i>Add Reminder
                         </button>
                     </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="border-0 ps-4"><span data-i18n="scheduler.customer">Customer</span></th>
-                                    <th class="border-0"><span data-i18n="scheduler.plan">Plan</span></th>
-                                    <th class="border-0"><span data-i18n="scheduler.billing">Billing</span></th>
-                                    <th class="border-0 text-end"><span data-i18n="scheduler.amount">Amount</span></th>
-                                    <th class="border-0"><span data-i18n="scheduler.next_billing">Next Billing</span></th>
-                                    <th class="border-0"><span data-i18n="scheduler.status">Status</span></th>
-                                    <th class="border-0 text-end pe-4"><span data-i18n="scheduler.actions">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="subscriptionsTableBody">
-                                {% for sub in subscriptions %}
-                                <tr>
-                                    <td class="ps-4">
-                                        <div>{{ sub.customer_name or 'Unknown' }}</div>
-                                        <small class="text-muted">{{ sub.customer_email }}</small>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-primary">{{ sub.tier|capitalize }}</span>
-                                    </td>
-                                    <td>{{ sub.billing_cycle|capitalize }}</td>
-                                    <td class="text-end">${{ "%.2f"|format(sub.amount or 0) }}</td>
-                                    <td>
-                                        {% if sub.next_billing_date %}
-                                        {{ sub.next_billing_date.strftime('%b %d, %Y') }}
-                                        {% set days_until = (sub.next_billing_date - now().date()).days if sub.next_billing_date else 999 %}
-                                        {% if days_until <= 7 %}
-                                        <span class="badge bg-warning text-dark">{{ days_until }}d</span>
-                                        {% endif %}
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% set sub_colors = {'active': 'success', 'paused': 'warning', 'cancelled': 'danger', 'trial': 'info'} %}
-                                        <span class="badge bg-{{ sub_colors.get(sub.status, 'secondary') }}">
-                                            {{ sub.status|capitalize }}
-                                        </span>
-                                    </td>
-                                    <td class="text-end pe-4">
-                                        <div class="btn-group btn-group-sm">
-                                            {% if sub.status == 'active' %}
-                                            <button class="btn btn-outline-success" onclick="processRenewal({{ sub.id }})" title="Process Renewal">
-                                                <i class="bi bi-check-lg"></i>
-                                            </button>
-                                            <button class="btn btn-outline-warning" onclick="pauseSubscription({{ sub.id }})" title="Pause">
-                                                <i class="bi bi-pause"></i>
-                                            </button>
-                                            {% elif sub.status == 'paused' %}
-                                            <button class="btn btn-outline-success" onclick="resumeSubscription({{ sub.id }})" title="Resume">
-                                                <i class="bi bi-play"></i>
-                                            </button>
-                                            {% endif %}
-                                            <button class="btn btn-outline-danger" onclick="cancelSubscription({{ sub.id }})" title="Cancel">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
-                                        <i class="bi bi-repeat fs-1 d-block mb-2"></i>
-                                        No subscription schedules found.
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Reminders Tab -->
-        <div class="tab-pane fade" id="reminders" role="tabpanel">
-            <div class="row">
-                <div class="col-lg-8">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0"><span data-i18n="scheduler.pending_reminders">Pending Reminders</span></h5>
-                            <button class="btn btn-sm btn-primary" onclick="showCreateReminderModal()">
-                                <i class="bi bi-plus-lg me-1"></i>Add Reminder
-                            </button>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="list-group list-group-flush" id="remindersListBody">
-                                {% for reminder in reminders %}
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 class="mb-1">{{ reminder.title }}</h6>
-                                        <p class="mb-1 text-muted small">{{ reminder.message or '' }}</p>
-                                        <small class="text-muted">
-                                            <i class="bi bi-clock me-1"></i>{{ reminder.remind_at.strftime('%b %d, %Y %I:%M %p') if reminder.remind_at else '-' }}
-                                            {% if reminder.customer_name %}
-                                            <span class="mx-2">|</span>
-                                            <i class="bi bi-person me-1"></i>{{ reminder.customer_name }}
-                                            {% endif %}
-                                        </small>
-                                    </div>
-                                    <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-success" onclick="dismissReminder({{ reminder.id }})" title="Dismiss">
-                                            <i class="bi bi-check-lg"></i>
-                                        </button>
-                                        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="Snooze">
-                                            <i class="bi bi-clock"></i>
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 15)"><span data-i18n="scheduler.15_minutes">15 minutes</span></a></li>
-                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 30)"><span data-i18n="scheduler.30_minutes">30 minutes</span></a></li>
-                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 60)"><span data-i18n="scheduler.1_hour">1 hour</span></a></li>
-                                            <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 1440)"><span data-i18n="scheduler.tomorrow">Tomorrow</span></a></li>
-                                        </ul>
-                                    </div>
-                                </div>
-                                {% else %}
-                                <div class="list-group-item text-center py-5 text-muted">
-                                    <i class="bi bi-bell fs-1 d-block mb-2"></i>
-                                    No pending reminders.
-                                </div>
-                                {% endfor %}
+                    <div class="list-group list-group-flush" id="remindersListBody">
+                        {% for reminder in reminders %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ reminder.title }}</h6>
+                                <p class="mb-1 text-muted small">{{ reminder.message or '' }}</p>
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>{{ reminder.remind_at.strftime('%b %d, %Y %I:%M %p') if reminder.remind_at else '-' }}
+                                    {% if reminder.customer_name %}
+                                    <span class="mx-2">|</span>
+                                    <i class="bi bi-person me-1"></i>{{ reminder.customer_name }}
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-success" onclick="dismissReminder({{ reminder.id }})" title="Dismiss">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="Snooze">
+                                    <i class="bi bi-clock"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 15)"><span data-i18n="scheduler.15_minutes">15 minutes</span></a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 30)"><span data-i18n="scheduler.30_minutes">30 minutes</span></a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 60)"><span data-i18n="scheduler.1_hour">1 hour</span></a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="snoozeReminder({{ reminder.id }}, 1440)"><span data-i18n="scheduler.tomorrow">Tomorrow</span></a></li>
+                                </ul>
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div class="col-lg-4">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-header bg-white">
-                            <h5 class="mb-0"><span data-i18n="scheduler.quick_add_reminder">Quick Add Reminder</span></h5>
+                        {% else %}
+                        <div class="list-group-item text-center py-5 text-muted">
+                            <i class="bi bi-bell fs-1 d-block mb-2"></i>
+                            No pending reminders.
                         </div>
-                        <div class="card-body">
-                            <form id="quickReminderForm">
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="scheduler.title">Title</span></label>
-                                    <input type="text" class="form-control" id="quickReminderTitle" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="scheduler.message">Message</span></label>
-                                    <textarea class="form-control" id="quickReminderMessage" rows="2"></textarea>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="scheduler.remind_at">Remind At</span></label>
-                                    <input type="datetime-local" class="form-control" id="quickReminderTime" required>
-                                </div>
-                                <button type="submit" class="btn btn-primary w-100">
-                                    <i class="bi bi-plus-lg me-1"></i>Add Reminder
-                                </button>
-                            </form>
-                        </div>
+                        {% endfor %}
                     </div>
-                </div>
+                {% endcall %}
+            </div>
+            <div class="col-lg-4">
+                {% call panel(title='Quick Add Reminder', icon='plus-circle') %}
+                    <form id="quickReminderForm">
+                        <div class="mb-3">
+                            <label class="form-label"><span data-i18n="scheduler.title">Title</span></label>
+                            <input type="text" class="form-control" id="quickReminderTitle" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><span data-i18n="scheduler.message">Message</span></label>
+                            <textarea class="form-control" id="quickReminderMessage" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><span data-i18n="scheduler.remind_at">Remind At</span></label>
+                            <input type="datetime-local" class="form-control" id="quickReminderTime" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-plus-lg me-1"></i>Add Reminder
+                        </button>
+                    </form>
+                {% endcall %}
             </div>
         </div>
+    </div>
 
-        <!-- Tasks Tab -->
-        <div class="tab-pane fade" id="tasks" role="tabpanel">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><span data-i18n="scheduler.scheduled_tasks">Scheduled Tasks</span></h5>
-                    <button class="btn btn-sm btn-primary" onclick="showCreateTaskModal()">
-                        <i class="bi bi-plus-lg me-1"></i>Add Task
-                    </button>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="border-0 ps-4"><span data-i18n="scheduler.task">Task</span></th>
-                                    <th class="border-0"><span data-i18n="scheduler.type">Type</span></th>
-                                    <th class="border-0"><span data-i18n="scheduler.scheduled_for">Scheduled For</span></th>
-                                    <th class="border-0"><span data-i18n="scheduler.priority">Priority</span></th>
-                                    <th class="border-0"><span data-i18n="scheduler.status_2">Status</span></th>
-                                    <th class="border-0 text-end pe-4"><span data-i18n="scheduler.actions_2">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="tasksTableBody">
-                                <!-- Tasks loaded via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+    <!-- Tasks Tab -->
+    <div id="tab-tasks" class="sched-content">
+        {% call panel(title='Scheduled Tasks', icon='list-checks') %}
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+                <button class="btn btn-sm btn-primary" onclick="showCreateTaskModal()">
+                    <i class="bi bi-plus-lg me-1"></i>Add Task
+                </button>
             </div>
-        </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="border-0 ps-4"><span data-i18n="scheduler.task">Task</span></th>
+                            <th class="border-0"><span data-i18n="scheduler.type">Type</span></th>
+                            <th class="border-0"><span data-i18n="scheduler.scheduled_for">Scheduled For</span></th>
+                            <th class="border-0"><span data-i18n="scheduler.priority">Priority</span></th>
+                            <th class="border-0"><span data-i18n="scheduler.status_2">Status</span></th>
+                            <th class="border-0 text-end pe-4"><span data-i18n="scheduler.actions_2">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasksTableBody">
+                        <!-- Tasks loaded via JS -->
+                    </tbody>
+                </table>
+            </div>
+        {% endcall %}
     </div>
 </div>
 
@@ -506,19 +459,16 @@
 </div>
 
 <style>
-.nav-tabs .nav-link {
-    color: #6b7280;
-    border: none;
-    border-bottom: 2px solid transparent;
+.scheduler-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 20px;
 }
-.nav-tabs .nav-link:hover {
-    color: #3b82f6;
-    border-color: transparent;
+.sched-content {
+    display: none;
 }
-.nav-tabs .nav-link.active {
-    color: #3b82f6;
-    border-bottom-color: #3b82f6;
-    font-weight: 500;
+.sched-content.active {
+    display: block;
 }
 .fc .fc-toolbar-title {
     font-size: 1.25rem;
@@ -545,6 +495,23 @@ let calendar;
 let customers = [];
 let currentEvent = null;
 
+// Tab switching
+function showTab(tabName) {
+    document.querySelectorAll('.sched-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    const btn = document.querySelector('[data-tab="' + tabName + '"]');
+    if (btn) btn.classList.add('active');
+
+    // Load tab-specific data
+    if (tabName === 'subscriptions') loadSubscriptions();
+    if (tabName === 'tasks') loadTasks();
+    // Re-render calendar when switching back (FullCalendar needs visible container)
+    if (tabName === 'calendar' && calendar) {
+        setTimeout(() => calendar.updateSize(), 50);
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     initCalendar();
@@ -556,10 +523,6 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         saveQuickReminder();
     });
-
-    // Tab change handlers
-    document.getElementById('subscriptions-tab').addEventListener('shown.bs.tab', loadSubscriptions);
-    document.getElementById('tasks-tab').addEventListener('shown.bs.tab', loadTasks);
 });
 
 // Initialize FullCalendar

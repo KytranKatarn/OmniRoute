@@ -1,0 +1,139 @@
+{#
+  Corporate Layout Family
+  -----------------------
+  Clean, professional aesthetic: rectangles, subtle shadows,
+  standard nav with underline active, no accent bars.
+  Used by: corporate-blue, slate-pro
+#}
+
+
+{# ── Page Header ── #}
+{% macro page_header(title, subtitle='', icon='', actions='') %}
+<header class="corp-page-header">
+    <h1 class="corp-title">
+        {% if icon %}<i data-lucide="{{ icon }}"></i>{% endif %}
+        {{ title }}
+    </h1>
+    {% if subtitle %}
+    <p class="corp-subtitle">{{ subtitle }}</p>
+    {% endif %}
+    {% if actions %}
+    <div class="corp-header-actions">{{ actions }}</div>
+    {% endif %}
+</header>
+{% endmacro %}
+
+
+{# ── Stat Card ── #}
+{% macro stat_card(icon, value, label, variant='default', id='') %}
+<div class="corp-stat-card corp-stat--{{ variant }}" {% if id %}id="{{ id }}"{% endif %}>
+    <div class="corp-stat-icon">
+        <i data-lucide="{{ icon }}"></i>
+    </div>
+    <div class="corp-stat-content">
+        <div class="corp-stat-value">{{ value }}</div>
+        <div class="corp-stat-label">{{ label }}</div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ── Tab Navigation ── #}
+{% macro tab_nav(tabs, active_id='', onswitch='') %}
+<div class="corp-tab-nav">
+    {% for tab in tabs %}
+    <button class="corp-tab{% if (loop.first and not active_id) or tab.id == active_id %} active{% endif %}"
+            data-tab="{{ tab.id }}"
+            {% if onswitch %}onclick="{{ onswitch }}('{{ tab.id }}')"{% endif %}>
+        {% if tab.icon %}<i data-lucide="{{ tab.icon }}"></i>{% endif %}
+        <span>{{ tab.label }}</span>
+        {% if tab.badge_id %}
+        <span class="corp-tab-badge" id="{{ tab.badge_id }}" style="display: none;">0</span>
+        {% endif %}
+    </button>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ── Panel ── #}
+{% macro panel(title, icon='', accent='green', compact=false, id='') %}
+<div class="corp-panel{% if compact %} corp-panel--compact{% endif %}" {% if id %}id="{{ id }}"{% endif %}>
+    <div class="corp-panel-header">
+        <h2 class="corp-panel-title">
+            {% if icon %}<i data-lucide="{{ icon }}"></i>{% endif %}
+            {{ title }}
+        </h2>
+    </div>
+    <div class="corp-panel-body">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ── Data Table ── #}
+{% macro data_table(headers, tbody_id='', table_class='') %}
+<div class="corp-table-wrapper">
+    <table class="corp-table {{ table_class }}">
+        <thead>
+            <tr>
+                {% for h in headers %}
+                <th>{{ h }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody {% if tbody_id %}id="{{ tbody_id }}"{% endif %}>
+            {{ caller() }}
+        </tbody>
+    </table>
+</div>
+{% endmacro %}
+
+
+{# ── Card Grid ── #}
+{% macro card_grid(columns='repeat(auto-fit, minmax(280px, 1fr))', gap='16px', id='') %}
+<div class="corp-card-grid" {% if id %}id="{{ id }}"{% endif %} style="display: grid; grid-template-columns: {{ columns }}; gap: {{ gap }};">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ── Filter Bar ── #}
+{% macro filter_bar(search_placeholder='', search_id='', filters=[], oninput='') %}
+<div class="corp-filter-bar">
+    {% if search_placeholder %}
+    <div class="corp-search-wrap">
+        <i data-lucide="search"></i>
+        <input type="text" {% if search_id %}id="{{ search_id }}"{% endif %} class="corp-input" placeholder="{{ search_placeholder }}" {% if oninput %}oninput="{{ oninput }}()"{% endif %}>
+    </div>
+    {% endif %}
+    {% for f in filters %}
+    <select {% if f.id %}id="{{ f.id }}"{% endif %} class="corp-select" {% if oninput %}onchange="{{ oninput }}()"{% endif %}>
+        {% for opt in f.options %}
+        <option value="{{ opt.value }}">{{ opt.label }}</option>
+        {% endfor %}
+    </select>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ── Modal ── #}
+{% macro modal(modal_id, title, icon='', size='medium') %}
+{% set size_map = {'small': '400px', 'medium': '600px', 'large': '800px', 'xlarge': '1000px'} %}
+<div class="corp-modal-backdrop" id="{{ modal_id }}-backdrop" style="display: none;" onclick="if(event.target===this)document.getElementById('{{ modal_id }}-backdrop').style.display='none';">
+    <div class="corp-modal" id="{{ modal_id }}" style="width: {{ size_map.get(size, '600px') }};">
+        <div class="corp-modal-header">
+            <h2>
+                {% if icon %}<i data-lucide="{{ icon }}"></i>{% endif %}
+                {{ title }}
+            </h2>
+            <button class="corp-modal-close" onclick="document.getElementById('{{ modal_id }}-backdrop').style.display='none';">&times;</button>
+        </div>
+        <div class="corp-modal-body">
+            {{ caller() }}
+        </div>
+    </div>
+</div>
+{% endmacro %}

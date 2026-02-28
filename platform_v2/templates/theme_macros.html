@@ -1,0 +1,25 @@
+{#
+  Theme Macro Dispatcher
+  ----------------------
+  Auto-imports the correct layout family's macros based on layout_family
+  from the context processor. Modules import from this file and never
+  know which family is active.
+
+  Usage in module templates:
+    {% from 'theme_macros.html' import page_header, stat_card,
+       tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
+#}
+
+{% if layout_family == 'corporate' %}
+  {% from 'layouts/corporate.html' import page_header, stat_card,
+     tab_nav, panel, data_table, card_grid, filter_bar, modal %}
+{% elif layout_family == 'minimal' %}
+  {% from 'layouts/minimal.html' import page_header, stat_card,
+     tab_nav, panel, data_table, card_grid, filter_bar, modal %}
+{% elif layout_family == 'elegant' %}
+  {% from 'layouts/elegant.html' import page_header, stat_card,
+     tab_nav, panel, data_table, card_grid, filter_bar, modal %}
+{% else %}
+  {% from 'layouts/lcars.html' import page_header, stat_card,
+     tab_nav, panel, data_table, card_grid, filter_bar, modal %}
+{% endif %}

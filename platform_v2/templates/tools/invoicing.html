@@ -3,717 +3,753 @@
 {% block title %}Invoicing - A.R.C.H.I.E.{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-1">
-                <i class="bi bi-receipt me-2"></i>Invoicing
-            </h2>
-            <p class="text-muted mb-0"><span data-i18n="invoicing.subscription_billing_and_invoice_management">Subscription billing and invoice management</span></p>
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
+<div class="inv-container">
+    {{ page_header('INVOICING', subtitle='Subscription billing and invoice management', icon='receipt') }}
+
+    <!-- Stats Cards — JS targets inner IDs with .textContent, keep original HTML -->
+    <div class="inv-stats-grid">
+        <div class="inv-stat-card">
+            <div class="inv-stat-value" id="statTotal">{{ stats.total_invoices or 0 }}</div>
+            <div class="inv-stat-label">Total Invoices</div>
         </div>
-        <div class="d-flex gap-2 align-items-center">
-            <button class="btn btn-success" onclick="showCreateInvoiceModal()">
-                <i class="bi bi-plus-lg me-1"></i>New Invoice
-            </button>
-            {% include 'includes/theme_controls.html' %}
+        <div class="inv-stat-card">
+            <div class="inv-stat-value" id="statOutstanding">${{ "%.2f"|format(stats.outstanding or 0) }}</div>
+            <div class="inv-stat-label">Outstanding</div>
+            <div class="inv-stat-sub">{{ stats.sent or 0 }} sent, {{ stats.overdue or 0 }} overdue</div>
+        </div>
+        <div class="inv-stat-card">
+            <div class="inv-stat-value" id="statPaid">${{ "%.2f"|format(stats.paid_value or 0) }}</div>
+            <div class="inv-stat-label">Paid (90 days)</div>
+            <div class="inv-stat-sub">{{ stats.paid or 0 }} invoices</div>
+        </div>
+        <div class="inv-stat-card">
+            <div class="inv-stat-value" id="statDraft">{{ stats.draft or 0 }}</div>
+            <div class="inv-stat-label">Drafts</div>
+            <div class="inv-stat-sub">Pending review</div>
         </div>
     </div>
 
-    <!-- Stats Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-sm-6">
-            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                <div class="card-body text-white">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h6 class="text-white-50 mb-1"><span data-i18n="invoicing.total_invoices">Total Invoices</span></h6>
-                            <h3 class="mb-0" id="statTotal">{{ stats.total_invoices or 0 }}</h3>
-                        </div>
-                        <div class="bg-white bg-opacity-25 rounded-circle p-2">
-                            <i class="bi bi-receipt fs-4"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6">
-            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
-                <div class="card-body text-white">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h6 class="text-white-50 mb-1"><span data-i18n="invoicing.outstanding">Outstanding</span></h6>
-                            <h3 class="mb-0">$<span id="statOutstanding">{{ "%.2f"|format(stats.outstanding or 0) }}</span></h3>
-                        </div>
-                        <div class="bg-white bg-opacity-25 rounded-circle p-2">
-                            <i class="bi bi-clock-history fs-4"></i>
-                        </div>
-                    </div>
-                    <small class="text-white-50">{{ stats.sent or 0 }} sent, {{ stats.overdue or 0 }} overdue</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6">
-            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-                <div class="card-body text-white">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h6 class="text-white-50 mb-1"><span data-i18n="invoicing.paid_90_days">Paid (90 days)</span></h6>
-                            <h3 class="mb-0">$<span id="statPaid">{{ "%.2f"|format(stats.paid_value or 0) }}</span></h3>
-                        </div>
-                        <div class="bg-white bg-opacity-25 rounded-circle p-2">
-                            <i class="bi bi-check-circle fs-4"></i>
-                        </div>
-                    </div>
-                    <small class="text-white-50">{{ stats.paid or 0 }} invoices</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-sm-6">
-            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                <div class="card-body text-white">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h6 class="text-white-50 mb-1"><span data-i18n="invoicing.drafts">Drafts</span></h6>
-                            <h3 class="mb-0" id="statDraft">{{ stats.draft or 0 }}</h3>
-                        </div>
-                        <div class="bg-white bg-opacity-25 rounded-circle p-2">
-                            <i class="bi bi-pencil-square fs-4"></i>
-                        </div>
-                    </div>
-                    <small class="text-white-50"><span data-i18n="invoicing.pending_review">Pending review</span></small>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4" id="invoiceTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices" type="button">
-                <i class="bi bi-receipt me-1"></i>Invoices
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="recurring-tab" data-bs-toggle="tab" data-bs-target="#recurring" type="button">
-                <i class="bi bi-arrow-repeat me-1"></i>Recurring
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button">
-                <i class="bi bi-gear me-1"></i>Settings
-            </button>
-        </li>
-    </ul>
+    {{ tab_nav(tabs=[
+        {'id': 'invoices', 'label': 'Invoices', 'icon': 'receipt'},
+        {'id': 'recurring', 'label': 'Recurring', 'icon': 'repeat'},
+        {'id': 'settings', 'label': 'Settings', 'icon': 'settings'}
+    ], onswitch='showTab') }}
 
     <!-- Tab Content -->
-    <div class="tab-content" id="invoiceTabContent">
-        <!-- Invoices Tab -->
-        <div class="tab-pane fade show active" id="invoices" role="tabpanel">
-            <!-- Filters -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <div class="input-group">
-                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
-                                <input type="text" class="form-control border-start-0" id="searchInvoice" placeholder="Search invoices...">
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <select class="form-select" id="filterStatus">
-                                <option value=""><span data-i18n="invoicing.all_status">All Status</span></option>
-                                <option value="draft"><span data-i18n="invoicing.draft">Draft</span></option>
-                                <option value="sent"><span data-i18n="invoicing.sent">Sent</span></option>
-                                <option value="paid"><span data-i18n="invoicing.paid">Paid</span></option>
-                                <option value="overdue"><span data-i18n="invoicing.overdue">Overdue</span></option>
-                                <option value="void"><span data-i18n="invoicing.void">Void</span></option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <select class="form-select" id="filterPeriod">
-                                <option value="30"><span data-i18n="invoicing.last_30_days">Last 30 Days</span></option>
-                                <option value="90" selected><span data-i18n="invoicing.last_90_days">Last 90 Days</span></option>
-                                <option value="365"><span data-i18n="invoicing.last_year">Last Year</span></option>
-                                <option value=""><span data-i18n="invoicing.all_time">All Time</span></option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <button class="btn btn-outline-secondary w-100" onclick="loadInvoices()">
-                                <i class="bi bi-funnel me-1"></i>Filter
-                            </button>
-                        </div>
-                        <div class="col-md-2">
-                            <button class="btn btn-outline-primary w-100" onclick="exportInvoices()">
-                                <i class="bi bi-download me-1"></i>Export
-                            </button>
-                        </div>
-                    </div>
-                </div>
+    <!-- Invoices Tab -->
+    <div id="tab-invoices" class="inv-content active">
+            {{ filter_bar(
+                search_placeholder='Search invoices...',
+                search_id='searchInvoice',
+                filters=[
+                    {'id': 'filterStatus', 'options': [
+                        {'value': '', 'label': 'All Status'},
+                        {'value': 'draft', 'label': 'Draft'},
+                        {'value': 'sent', 'label': 'Sent'},
+                        {'value': 'paid', 'label': 'Paid'},
+                        {'value': 'overdue', 'label': 'Overdue'},
+                        {'value': 'void', 'label': 'Void'}
+                    ]},
+                    {'id': 'filterPeriod', 'options': [
+                        {'value': '30', 'label': 'Last 30 Days'},
+                        {'value': '90', 'label': 'Last 90 Days'},
+                        {'value': '365', 'label': 'Last Year'},
+                        {'value': '', 'label': 'All Time'}
+                    ]}
+                ],
+                oninput='filterInvoices'
+            ) }}
+            <div style="display: flex; gap: 8px; margin: -8px 0 16px 0;">
+                <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" onclick="loadInvoices()">
+                    <i data-lucide="filter" style="width: 14px; height: 14px; margin-right: 4px;"></i>Filter
+                </button>
+                <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" onclick="exportInvoices()">
+                    <i data-lucide="download" style="width: 14px; height: 14px; margin-right: 4px;"></i>Export
+                </button>
+                <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" onclick="showCreateInvoiceModal()">
+                    <i data-lucide="plus" style="width: 14px; height: 14px; margin-right: 4px;"></i>New Invoice
+                </button>
             </div>
 
-            <!-- Invoices Table -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0" id="invoicesTable">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="border-0 ps-4"><span data-i18n="invoicing.invoice">Invoice #</span></th>
-                                    <th class="border-0"><span data-i18n="invoicing.customer">Customer</span></th>
-                                    <th class="border-0"><span data-i18n="invoicing.issue_date">Issue Date</span></th>
-                                    <th class="border-0"><span data-i18n="invoicing.due_date">Due Date</span></th>
-                                    <th class="border-0 text-end"><span data-i18n="invoicing.amount">Amount</span></th>
-                                    <th class="border-0"><span data-i18n="invoicing.status">Status</span></th>
-                                    <th class="border-0 text-end pe-4"><span data-i18n="invoicing.actions">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="invoicesTableBody">
-                                {% for invoice in invoices %}
-                                <tr>
-                                    <td class="ps-4">
-                                        <a href="#" onclick="viewInvoice({{ invoice.id }})" class="text-decoration-none fw-medium">
-                                            {{ invoice.invoice_number or 'INV-' ~ invoice.id }}
-                                        </a>
-                                        {% if invoice.recurring %}
-                                        <span class="badge bg-info ms-1" title="Recurring"><i class="bi bi-arrow-repeat"></i></span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if invoice.customer_name %}
-                                        <div>{{ invoice.customer_name }}</div>
-                                        <small class="text-muted">{{ invoice.customer_email }}</small>
-                                        {% else %}
-                                        <span class="text-muted"><span data-i18n="invoicing.no_customer">No customer</span></span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ invoice.issue_date.strftime('%b %d, %Y') if invoice.issue_date else (invoice.created_at.strftime('%b %d, %Y') if invoice.created_at else '-') }}</td>
-                                    <td>
-                                        {% if invoice.due_date %}
-                                        {{ invoice.due_date.strftime('%b %d, %Y') }}
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">
-                                        <strong>${{ "%.2f"|format(invoice.total or invoice.amount_total or 0) }}</strong>
-                                        {% if invoice.balance_due and invoice.balance_due > 0 %}
-                                        <br><small class="text-danger">Due: ${{ "%.2f"|format(invoice.balance_due) }}</small>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% set status_colors = {
-                                            'draft': 'secondary',
-                                            'sent': 'primary',
-                                            'open': 'primary',
-                                            'paid': 'success',
-                                            'overdue': 'danger',
-                                            'void': 'dark',
-                                            'cancelled': 'dark',
-                                            'refunded': 'warning'
-                                        } %}
-                                        <span class="badge bg-{{ status_colors.get(invoice.status, 'secondary') }}">
-                                            {{ invoice.status|capitalize }}
-                                        </span>
-                                    </td>
-                                    <td class="text-end pe-4">
-                                        <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-secondary" onclick="viewInvoice({{ invoice.id }})" title="View">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            {% if invoice.status == 'draft' %}
-                                            <button class="btn btn-outline-primary" onclick="sendInvoice({{ invoice.id }})" title="Send">
-                                                <i class="bi bi-send"></i>
-                                            </button>
-                                            {% endif %}
-                                            {% if invoice.status in ['sent', 'open', 'overdue'] %}
-                                            <button class="btn btn-outline-success" onclick="markPaid({{ invoice.id }})" title="Mark Paid">
-                                                <i class="bi bi-check-lg"></i>
-                                            </button>
-                                            {% endif %}
-                                            <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="More">
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><a class="dropdown-item" href="#" onclick="editInvoice({{ invoice.id }})"><i class="bi bi-pencil me-2"></i><span data-i18n="invoicing.edit">Edit</span></a></li>
-                                                <li><a class="dropdown-item" href="#" onclick="duplicateInvoice({{ invoice.id }})"><i class="bi bi-copy me-2"></i><span data-i18n="invoicing.duplicate">Duplicate</span></a></li>
-                                                <li><a class="dropdown-item" href="#" onclick="downloadPdf({{ invoice.id }})"><i class="bi bi-file-pdf me-2"></i><span data-i18n="invoicing.download_pdf">Download PDF</span></a></li>
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li><a class="dropdown-item text-danger" href="#" onclick="voidInvoice({{ invoice.id }})"><i class="bi bi-x-circle me-2"></i><span data-i18n="invoicing.void_2">Void</span></a></li>
-                                            </ul>
-                                        </div>
-                                    </td>
-                                </tr>
+            {% call panel(title='Invoices', icon='receipt') %}
+                <table class="inv-table" id="invoicesTable">
+                    <thead>
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Customer</th>
+                            <th>Issue Date</th>
+                            <th>Due Date</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoicesTableBody">
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td>
+                                <a href="#" onclick="viewInvoice({{ invoice.id }})" style="color: var(--archie-accent); text-decoration: none;">
+                                    {{ invoice.invoice_number or 'INV-' ~ invoice.id }}
+                                </a>
+                                {% if invoice.recurring %}
+                                <span class="inv-badge inv-badge-info" title="Recurring"><i data-lucide="repeat" style="width: 12px; height: 12px;"></i></span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if invoice.customer_name %}
+                                <div>{{ invoice.customer_name }}</div>
+                                <small style="color: var(--archie-text-tertiary);">{{ invoice.customer_email }}</small>
                                 {% else %}
-                                <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
-                                        <i class="bi bi-receipt fs-1 d-block mb-2"></i>
-                                        No invoices found. Create your first invoice to get started.
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+                                <span style="color: var(--archie-text-tertiary);">No customer</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ invoice.issue_date.strftime('%b %d, %Y') if invoice.issue_date else (invoice.created_at.strftime('%b %d, %Y') if invoice.created_at else '-') }}</td>
+                            <td>
+                                {% if invoice.due_date %}
+                                {{ invoice.due_date.strftime('%b %d, %Y') }}
+                                {% else %}
+                                <span style="color: var(--archie-text-tertiary);">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>${{ "%.2f"|format(invoice.total or invoice.amount_total or 0) }}</strong>
+                                {% if invoice.balance_due and invoice.balance_due > 0 %}
+                                <br><small style="color: var(--archie-danger);">Due: ${{ "%.2f"|format(invoice.balance_due) }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% set status_classes = {
+                                    'draft': 'draft',
+                                    'sent': 'info',
+                                    'open': 'info',
+                                    'paid': 'success',
+                                    'overdue': 'danger',
+                                    'void': 'void',
+                                    'cancelled': 'void',
+                                    'refunded': 'warning'
+                                } %}
+                                <span class="inv-badge inv-badge-{{ status_classes.get(invoice.status, 'draft') }}">
+                                    {{ invoice.status|capitalize }}
+                                </span>
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: 4px;">
+                                    <button class="inv-action-btn" onclick="viewInvoice({{ invoice.id }})" title="View">
+                                        <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                    {% if invoice.status == 'draft' %}
+                                    <button class="inv-action-btn" onclick="sendInvoice({{ invoice.id }})" title="Send">
+                                        <i data-lucide="send" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if invoice.status in ['sent', 'open', 'overdue'] %}
+                                    <button class="inv-action-btn" onclick="markPaid({{ invoice.id }})" title="Mark Paid">
+                                        <i data-lucide="check" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                    {% endif %}
+                                    <button class="inv-action-btn" onclick="editInvoice({{ invoice.id }})" title="Edit">
+                                        <i data-lucide="pencil" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                    <button class="inv-action-btn" onclick="duplicateInvoice({{ invoice.id }})" title="Duplicate">
+                                        <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                    <button class="inv-action-btn" onclick="downloadPdf({{ invoice.id }})" title="PDF">
+                                        <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                    <button class="inv-action-btn inv-action-danger" onclick="voidInvoice({{ invoice.id }})" title="Void">
+                                        <i data-lucide="x-circle" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px; color: var(--archie-text-tertiary);">
+                                No invoices found. Create your first invoice to get started.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endcall %}
         </div>
 
         <!-- Recurring Tab -->
-        <div class="tab-pane fade" id="recurring" role="tabpanel">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><span data-i18n="invoicing.recurring_invoices">Recurring Invoices</span></h5>
-                    <button class="btn btn-sm btn-success" onclick="showCreateRecurringModal()">
-                        <i class="bi bi-plus-lg me-1"></i>New Schedule
-                    </button>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="border-0 ps-4"><span data-i18n="invoicing.customer_2">Customer</span></th>
-                                    <th class="border-0"><span data-i18n="invoicing.interval">Interval</span></th>
-                                    <th class="border-0"><span data-i18n="invoicing.amount_2">Amount</span></th>
-                                    <th class="border-0"><span data-i18n="invoicing.next_invoice">Next Invoice</span></th>
-                                    <th class="border-0"><span data-i18n="invoicing.status_2">Status</span></th>
-                                    <th class="border-0 text-end pe-4"><span data-i18n="invoicing.actions_2">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="recurringTableBody">
-                                {% for rec in recurring %}
-                                <tr>
-                                    <td class="ps-4">
-                                        <div>{{ rec.customer_name or 'Unknown' }}</div>
-                                        <small class="text-muted">{{ rec.customer_email }}</small>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light text-dark">{{ rec.interval|capitalize }}</span>
-                                    </td>
-                                    <td>${{ "%.2f"|format(rec.amount or 0) }}</td>
-                                    <td>{{ rec.next_invoice_date.strftime('%b %d, %Y') if rec.next_invoice_date else '-' }}</td>
-                                    <td>
-                                        {% set rec_status_colors = {'active': 'success', 'paused': 'warning', 'cancelled': 'danger'} %}
-                                        <span class="badge bg-{{ rec_status_colors.get(rec.status, 'secondary') }}">
-                                            {{ rec.status|capitalize }}
-                                        </span>
-                                    </td>
-                                    <td class="text-end pe-4">
-                                        <div class="btn-group btn-group-sm">
-                                            {% if rec.status == 'active' %}
-                                            <button class="btn btn-outline-warning" onclick="pauseRecurring({{ rec.id }})" title="Pause">
-                                                <i class="bi bi-pause"></i>
-                                            </button>
-                                            {% elif rec.status == 'paused' %}
-                                            <button class="btn btn-outline-success" onclick="resumeRecurring({{ rec.id }})" title="Resume">
-                                                <i class="bi bi-play"></i>
-                                            </button>
-                                            {% endif %}
-                                            <button class="btn btn-outline-danger" onclick="cancelRecurring({{ rec.id }})" title="Cancel">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="6" class="text-center py-5 text-muted">
-                                        <i class="bi bi-arrow-repeat fs-1 d-block mb-2"></i>
-                                        No recurring invoices set up yet.
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <div id="tab-recurring" class="inv-content">
+            <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" onclick="showCreateRecurringModal()">
+                    <i data-lucide="plus" style="width: 14px; height: 14px; margin-right: 4px;"></i>New Schedule
+                </button>
             </div>
+            {% call panel(title='Recurring Invoices', icon='repeat') %}
+                <table class="inv-table">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Interval</th>
+                            <th>Amount</th>
+                            <th>Next Invoice</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recurringTableBody">
+                        {% for rec in recurring %}
+                        <tr>
+                            <td>
+                                <div>{{ rec.customer_name or 'Unknown' }}</div>
+                                <small style="color: var(--archie-text-tertiary);">{{ rec.customer_email }}</small>
+                            </td>
+                            <td>
+                                <span class="inv-badge inv-badge-info">{{ rec.interval|capitalize }}</span>
+                            </td>
+                            <td>${{ "%.2f"|format(rec.amount or 0) }}</td>
+                            <td>{{ rec.next_invoice_date.strftime('%b %d, %Y') if rec.next_invoice_date else '-' }}</td>
+                            <td>
+                                {% set rec_status_classes = {'active': 'success', 'paused': 'warning', 'cancelled': 'danger'} %}
+                                <span class="inv-badge inv-badge-{{ rec_status_classes.get(rec.status, 'draft') }}">
+                                    {{ rec.status|capitalize }}
+                                </span>
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: 4px;">
+                                    {% if rec.status == 'active' %}
+                                    <button class="inv-action-btn" onclick="pauseRecurring({{ rec.id }})" title="Pause">
+                                        <i data-lucide="pause" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                    {% elif rec.status == 'paused' %}
+                                    <button class="inv-action-btn" onclick="resumeRecurring({{ rec.id }})" title="Resume">
+                                        <i data-lucide="play" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                    {% endif %}
+                                    <button class="inv-action-btn inv-action-danger" onclick="cancelRecurring({{ rec.id }})" title="Cancel">
+                                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 40px; color: var(--archie-text-tertiary);">
+                                No recurring invoices set up yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endcall %}
         </div>
 
         <!-- Settings Tab -->
-        <div class="tab-pane fade" id="settings" role="tabpanel">
-            <div class="row g-4">
-                <!-- Company Info -->
-                <div class="col-lg-6">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-header bg-white">
-                            <h5 class="mb-0"><i class="bi bi-building me-2"></i><span data-i18n="invoicing.company_information">Company Information</span></h5>
+        <div id="tab-settings" class="inv-content">
+            <div class="inv-settings-grid">
+                {% call panel(title='Company Information', icon='building') %}
+                    <form id="companySettingsForm">
+                        <div class="inv-form-group">
+                            <label class="inv-label">Company Name</label>
+                            <input type="text" class="lcars-input" id="settingCompanyName" value="{{ settings.company_name or '' }}">
                         </div>
-                        <div class="card-body">
-                            <form id="companySettingsForm">
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="invoicing.company_name">Company Name</span></label>
-                                    <input type="text" class="form-control" id="settingCompanyName" value="{{ settings.company_name or '' }}">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="invoicing.email">Email</span></label>
-                                    <input type="email" class="form-control" id="settingCompanyEmail" value="{{ settings.company_email or '' }}">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="invoicing.phone">Phone</span></label>
-                                    <input type="tel" class="form-control" id="settingCompanyPhone" value="{{ settings.company_phone or '' }}">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="invoicing.address">Address</span></label>
-                                    <textarea class="form-control" id="settingCompanyAddress" rows="3">{{ settings.company_address or '' }}</textarea>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="invoicing.logo_url">Logo URL</span></label>
-                                    <input type="url" class="form-control" id="settingLogoUrl" value="{{ settings.logo_url or '' }}" placeholder="https://...">
-                                </div>
-                            </form>
+                        <div class="inv-form-group">
+                            <label class="inv-label">Email</label>
+                            <input type="email" class="lcars-input" id="settingCompanyEmail" value="{{ settings.company_email or '' }}">
                         </div>
-                    </div>
-                </div>
+                        <div class="inv-form-group">
+                            <label class="inv-label">Phone</label>
+                            <input type="tel" class="lcars-input" id="settingCompanyPhone" value="{{ settings.company_phone or '' }}">
+                        </div>
+                        <div class="inv-form-group">
+                            <label class="inv-label">Address</label>
+                            <textarea class="lcars-input" id="settingCompanyAddress" rows="3">{{ settings.company_address or '' }}</textarea>
+                        </div>
+                        <div class="inv-form-group">
+                            <label class="inv-label">Logo URL</label>
+                            <input type="url" class="lcars-input" id="settingLogoUrl" value="{{ settings.logo_url or '' }}" placeholder="https://...">
+                        </div>
+                    </form>
+                {% endcall %}
 
-                <!-- Invoice Settings -->
-                <div class="col-lg-6">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-header bg-white">
-                            <h5 class="mb-0"><i class="bi bi-sliders me-2"></i><span data-i18n="invoicing.invoice_settings">Invoice Settings</span></h5>
+                {% call panel(title='Invoice Settings', icon='sliders-horizontal') %}
+                    <form id="invoiceSettingsForm">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="inv-form-group">
+                                <label class="inv-label">Invoice Prefix</label>
+                                <input type="text" class="lcars-input" id="settingPrefix" value="{{ settings.invoice_prefix or 'INV-' }}">
+                            </div>
+                            <div class="inv-form-group">
+                                <label class="inv-label">Next Number</label>
+                                <input type="number" class="lcars-input" id="settingNextNumber" value="{{ settings.next_invoice_number or 1001 }}">
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <form id="invoiceSettingsForm">
-                                <div class="row mb-3">
-                                    <div class="col-6">
-                                        <label class="form-label"><span data-i18n="invoicing.invoice_prefix">Invoice Prefix</span></label>
-                                        <input type="text" class="form-control" id="settingPrefix" value="{{ settings.invoice_prefix or 'INV-' }}">
-                                    </div>
-                                    <div class="col-6">
-                                        <label class="form-label"><span data-i18n="invoicing.next_number">Next Number</span></label>
-                                        <input type="number" class="form-control" id="settingNextNumber" value="{{ settings.next_invoice_number or 1001 }}">
-                                    </div>
-                                </div>
-                                <div class="row mb-3">
-                                    <div class="col-6">
-                                        <label class="form-label"><span data-i18n="invoicing.default_tax_rate">Default Tax Rate (%)</span></label>
-                                        <input type="number" class="form-control" id="settingTaxRate" step="0.01" value="{{ settings.default_tax_rate or 13 }}">
-                                    </div>
-                                    <div class="col-6">
-                                        <label class="form-label"><span data-i18n="invoicing.currency">Currency</span></label>
-                                        <select class="form-select" id="settingCurrency">
-                                            <option value="CAD" {{ 'selected' if settings.default_currency == 'CAD' }}><span data-i18n="invoicing.cad">CAD</span></option>
-                                            <option value="USD" {{ 'selected' if settings.default_currency == 'USD' }}><span data-i18n="invoicing.usd">USD</span></option>
-                                            <option value="EUR" {{ 'selected' if settings.default_currency == 'EUR' }}><span data-i18n="invoicing.eur">EUR</span></option>
-                                            <option value="GBP" {{ 'selected' if settings.default_currency == 'GBP' }}><span data-i18n="invoicing.gbp">GBP</span></option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="invoicing.default_terms">Default Terms</span></label>
-                                    <textarea class="form-control" id="settingTerms" rows="3">{{ settings.default_terms or 'Payment is due within 30 days of invoice date.' }}</textarea>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label"><span data-i18n="invoicing.default_notes">Default Notes</span></label>
-                                    <textarea class="form-control" id="settingNotes" rows="2">{{ settings.default_notes or 'Thank you for your business!' }}</textarea>
-                                </div>
-                            </form>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="inv-form-group">
+                                <label class="inv-label">Default Tax Rate (%)</label>
+                                <input type="number" class="lcars-input" id="settingTaxRate" step="0.01" value="{{ settings.default_tax_rate or 13 }}">
+                            </div>
+                            <div class="inv-form-group">
+                                <label class="inv-label">Currency</label>
+                                <select class="lcars-input" id="settingCurrency">
+                                    <option value="CAD" {{ 'selected' if settings.default_currency == 'CAD' }}>CAD</option>
+                                    <option value="USD" {{ 'selected' if settings.default_currency == 'USD' }}>USD</option>
+                                    <option value="EUR" {{ 'selected' if settings.default_currency == 'EUR' }}>EUR</option>
+                                    <option value="GBP" {{ 'selected' if settings.default_currency == 'GBP' }}>GBP</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                </div>
+                        <div class="inv-form-group">
+                            <label class="inv-label">Default Terms</label>
+                            <textarea class="lcars-input" id="settingTerms" rows="3">{{ settings.default_terms or 'Payment is due within 30 days of invoice date.' }}</textarea>
+                        </div>
+                        <div class="inv-form-group">
+                            <label class="inv-label">Default Notes</label>
+                            <textarea class="lcars-input" id="settingNotes" rows="2">{{ settings.default_notes or 'Thank you for your business!' }}</textarea>
+                        </div>
+                    </form>
+                {% endcall %}
 
-                <!-- Payment Methods -->
-                <div class="col-lg-6">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-header bg-white">
-                            <h5 class="mb-0"><i class="bi bi-credit-card me-2"></i><span data-i18n="invoicing.payment_methods">Payment Methods</span></h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" id="settingStripeEnabled" {{ 'checked' if settings.stripe_enabled }}>
-                                <label class="form-check-label" for="settingStripeEnabled">
-                                    <i class="bi bi-stripe me-1"></i>Stripe Payments
-                                </label>
-                            </div>
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" id="settingPaypalEnabled" {{ 'checked' if settings.paypal_enabled }}>
-                                <label class="form-check-label" for="settingPaypalEnabled">
-                                    <i class="bi bi-paypal me-1"></i>PayPal Payments
-                                </label>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label"><span data-i18n="invoicing.bank_transfer_details">Bank Transfer Details</span></label>
-                                <textarea class="form-control" id="settingBankDetails" rows="4" placeholder="Account Name:&#10;Bank:&#10;Account #:&#10;Routing #:">{{ settings.bank_details or '' }}</textarea>
-                            </div>
-                        </div>
+                {% call panel(title='Payment Methods', icon='credit-card') %}
+                    <div class="inv-form-group">
+                        <label class="inv-toggle-label">
+                            <input type="checkbox" id="settingStripeEnabled" {{ 'checked' if settings.stripe_enabled }}>
+                            <span>Stripe Payments</span>
+                        </label>
                     </div>
-                </div>
-
-                <!-- Footer & Branding -->
-                <div class="col-lg-6">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-header bg-white">
-                            <h5 class="mb-0"><i class="bi bi-palette me-2"></i><span data-i18n="invoicing.footer_branding">Footer & Branding</span></h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label class="form-label"><span data-i18n="invoicing.invoice_footer_text">Invoice Footer Text</span></label>
-                                <textarea class="form-control" id="settingFooter" rows="3">{{ settings.footer_text or '' }}</textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label"><span data-i18n="invoicing.payment_instructions">Payment Instructions</span></label>
-                                <textarea class="form-control" id="settingPaymentInstructions" rows="3">{{ settings.payment_instructions or '' }}</textarea>
-                            </div>
-                        </div>
+                    <div class="inv-form-group">
+                        <label class="inv-toggle-label">
+                            <input type="checkbox" id="settingPaypalEnabled" {{ 'checked' if settings.paypal_enabled }}>
+                            <span>PayPal Payments</span>
+                        </label>
                     </div>
-                </div>
+                    <div class="inv-form-group">
+                        <label class="inv-label">Bank Transfer Details</label>
+                        <textarea class="lcars-input" id="settingBankDetails" rows="4" placeholder="Account Name:&#10;Bank:&#10;Account #:&#10;Routing #:">{{ settings.bank_details or '' }}</textarea>
+                    </div>
+                {% endcall %}
 
-                <!-- Save Button -->
-                <div class="col-12 text-end">
-                    <button class="btn btn-success btn-lg" onclick="saveSettings()">
-                        <i class="bi bi-check-lg me-1"></i>Save All Settings
-                    </button>
-                </div>
+                {% call panel(title='Footer & Branding', icon='palette') %}
+                    <div class="inv-form-group">
+                        <label class="inv-label">Invoice Footer Text</label>
+                        <textarea class="lcars-input" id="settingFooter" rows="3">{{ settings.footer_text or '' }}</textarea>
+                    </div>
+                    <div class="inv-form-group">
+                        <label class="inv-label">Payment Instructions</label>
+                        <textarea class="lcars-input" id="settingPaymentInstructions" rows="3">{{ settings.payment_instructions or '' }}</textarea>
+                    </div>
+                {% endcall %}
+            </div>
+
+            <div style="text-align: right; margin-top: 16px;">
+                <button class="lcars-input" style="cursor: pointer; padding: 10px 24px; background: var(--archie-success); color: var(--archie-bg-primary); border: none; font-weight: 600;" onclick="saveSettings()">
+                    <i data-lucide="check" style="width: 14px; height: 14px; margin-right: 4px;"></i>Save All Settings
+                </button>
             </div>
         </div>
-    </div>
 </div>
 
 <!-- Create/Edit Invoice Modal -->
-<div class="modal fade" id="invoiceModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                <h5 class="modal-title text-white" id="invoiceModalTitle">
-                    <i class="bi bi-receipt me-2"></i>New Invoice
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+{% call modal('invoiceModal', 'New Invoice', icon='receipt', size='xlarge') %}
+    <form id="invoiceForm">
+        <input type="hidden" id="invoiceId">
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+            <div class="inv-form-group">
+                <label class="inv-label">Customer *</label>
+                <select class="lcars-input" id="invoiceCustomer" required>
+                    <option value="">Select customer...</option>
+                </select>
             </div>
-            <div class="modal-body">
-                <form id="invoiceForm">
-                    <input type="hidden" id="invoiceId">
-
-                    <div class="row g-3">
-                        <!-- Customer Selection -->
-                        <div class="col-md-6">
-                            <label class="form-label"><span data-i18n="invoicing.customer_3">Customer *</span></label>
-                            <select class="form-select" id="invoiceCustomer" required>
-                                <option value=""><span data-i18n="invoicing.select_customer">Select customer...</span></option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label"><span data-i18n="invoicing.issue_date_2">Issue Date</span></label>
-                            <input type="date" class="form-control" id="invoiceIssueDate">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label"><span data-i18n="invoicing.due_date_2">Due Date</span></label>
-                            <input type="date" class="form-control" id="invoiceDueDate">
-                        </div>
-
-                        <!-- Line Items -->
-                        <div class="col-12">
-                            <label class="form-label"><span data-i18n="invoicing.line_items">Line Items</span></label>
-                            <div class="table-responsive">
-                                <table class="table table-bordered" id="lineItemsTable">
-                                    <thead class="bg-light">
-                                        <tr>
-                                            <th style="width: 45%"><span data-i18n="invoicing.description">Description</span></th>
-                                            <th style="width: 15%"><span data-i18n="invoicing.quantity">Quantity</span></th>
-                                            <th style="width: 20%"><span data-i18n="invoicing.unit_price">Unit Price</span></th>
-                                            <th style="width: 15%"><span data-i18n="invoicing.amount_3">Amount</span></th>
-                                            <th style="width: 5%"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="lineItemsBody">
-                                        <tr class="line-item-row">
-                                            <td><input type="text" class="form-control form-control-sm item-desc" placeholder="Item description"></td>
-                                            <td><input type="number" class="form-control form-control-sm item-qty" value="1" min="1" onchange="calculateLineAmount(this)"></td>
-                                            <td><input type="number" class="form-control form-control-sm item-price" step="0.01" placeholder="0.00" onchange="calculateLineAmount(this)"></td>
-                                            <td><input type="text" class="form-control form-control-sm item-amount" readonly></td>
-                                            <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)"><i class="bi bi-x"></i></button></td>
-                                        </tr>
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td colspan="5">
-                                                <button type="button" class="btn btn-sm btn-outline-success" onclick="addLineItem()">
-                                                    <i class="bi bi-plus-lg me-1"></i>Add Line Item
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Totals -->
-                        <div class="col-md-6">
-                            <label class="form-label"><span data-i18n="invoicing.notes">Notes</span></label>
-                            <textarea class="form-control" id="invoiceNotes" rows="3"></textarea>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card bg-light">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span><span data-i18n="invoicing.subtotal">Subtotal:</span></span>
-                                        <strong>$<span id="invoiceSubtotal">0.00</span></strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span>
-                                            Discount:
-                                            <input type="number" class="form-control form-control-sm d-inline-block ms-2" id="invoiceDiscount" style="width: 80px" step="0.01" value="0" onchange="calculateTotals()">
-                                        </span>
-                                        <span>-$<span id="invoiceDiscountAmount">0.00</span></span>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span>
-                                            Tax (<span id="taxRateDisplay">13</span>%):
-                                        </span>
-                                        <span>$<span id="invoiceTaxAmount">0.00</span></span>
-                                    </div>
-                                    <hr>
-                                    <div class="d-flex justify-content-between">
-                                        <strong><span data-i18n="invoicing.total">Total:</span></strong>
-                                        <strong class="fs-5">$<span id="invoiceTotal">0.00</span></strong>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Recurring Option -->
-                        <div class="col-12">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="invoiceRecurring" onchange="toggleRecurringOptions()">
-                                <label class="form-check-label" for="invoiceRecurring">
-                                    Make this a recurring invoice
-                                </label>
-                            </div>
-                            <div id="recurringOptions" class="mt-2 d-none">
-                                <div class="row g-2">
-                                    <div class="col-md-4">
-                                        <select class="form-select form-select-sm" id="invoiceRecurringInterval">
-                                            <option value="weekly"><span data-i18n="invoicing.weekly">Weekly</span></option>
-                                            <option value="monthly" selected><span data-i18n="invoicing.monthly">Monthly</span></option>
-                                            <option value="yearly"><span data-i18n="invoicing.yearly">Yearly</span></option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <input type="date" class="form-control form-control-sm" id="invoiceNextDate" placeholder="Next invoice date">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </form>
+            <div class="inv-form-group">
+                <label class="inv-label">Issue Date</label>
+                <input type="date" class="lcars-input" id="invoiceIssueDate">
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="invoicing.cancel">Cancel</span></button>
-                <button type="button" class="btn btn-outline-success" onclick="saveInvoice('draft')">
-                    <i class="bi bi-file-earmark me-1"></i>Save as Draft
-                </button>
-                <button type="button" class="btn btn-success" onclick="saveInvoice('send')">
-                    <i class="bi bi-send me-1"></i>Save & Send
-                </button>
+            <div class="inv-form-group">
+                <label class="inv-label">Due Date</label>
+                <input type="date" class="lcars-input" id="invoiceDueDate">
             </div>
         </div>
+
+        <!-- Line Items -->
+        <div class="inv-form-group">
+            <label class="inv-label">Line Items</label>
+            <div style="overflow-x: auto;">
+                <table class="inv-table" id="lineItemsTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 45%">Description</th>
+                            <th style="width: 15%">Quantity</th>
+                            <th style="width: 20%">Unit Price</th>
+                            <th style="width: 15%">Amount</th>
+                            <th style="width: 5%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="lineItemsBody">
+                        <tr class="line-item-row">
+                            <td><input type="text" class="lcars-input item-desc" placeholder="Item description"></td>
+                            <td><input type="number" class="lcars-input item-qty" value="1" min="1" onchange="calculateLineAmount(this)"></td>
+                            <td><input type="number" class="lcars-input item-price" step="0.01" placeholder="0.00" onchange="calculateLineAmount(this)"></td>
+                            <td><input type="text" class="lcars-input item-amount" readonly></td>
+                            <td><button type="button" class="inv-action-btn inv-action-danger" onclick="removeLineItem(this)"><i data-lucide="x" style="width: 14px; height: 14px;"></i></button></td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="5">
+                                <button type="button" class="lcars-input" style="cursor: pointer; padding: 6px 12px;" onclick="addLineItem()">
+                                    <i data-lucide="plus" style="width: 14px; height: 14px; margin-right: 4px;"></i>Add Line Item
+                                </button>
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Totals -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px;">
+            <div class="inv-form-group">
+                <label class="inv-label">Notes</label>
+                <textarea class="lcars-input" id="invoiceNotes" rows="3"></textarea>
+            </div>
+            <div class="inv-totals-box">
+                <div class="inv-totals-row">
+                    <span>Subtotal:</span>
+                    <strong>$<span id="invoiceSubtotal">0.00</span></strong>
+                </div>
+                <div class="inv-totals-row">
+                    <span>
+                        Discount:
+                        <input type="number" class="lcars-input" id="invoiceDiscount" style="width: 80px; display: inline-block; margin-left: 8px;" step="0.01" value="0" onchange="calculateTotals()">
+                    </span>
+                    <span>-$<span id="invoiceDiscountAmount">0.00</span></span>
+                </div>
+                <div class="inv-totals-row">
+                    <span>Tax (<span id="taxRateDisplay">13</span>%):</span>
+                    <span>$<span id="invoiceTaxAmount">0.00</span></span>
+                </div>
+                <div class="inv-totals-divider"></div>
+                <div class="inv-totals-row">
+                    <strong>Total:</strong>
+                    <strong style="font-size: 1.2rem;">$<span id="invoiceTotal">0.00</span></strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recurring Option -->
+        <div class="inv-form-group" style="margin-top: 12px;">
+            <label class="inv-toggle-label">
+                <input type="checkbox" id="invoiceRecurring" onchange="toggleRecurringOptions()">
+                <span>Make this a recurring invoice</span>
+            </label>
+            <div id="recurringOptions" style="display: none; margin-top: 8px;">
+                <div style="display: flex; gap: 12px;">
+                    <select class="lcars-input" id="invoiceRecurringInterval" style="min-width: 140px;">
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly" selected>Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                    <input type="date" class="lcars-input" id="invoiceNextDate" placeholder="Next invoice date">
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--archie-border-default);">
+        <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" onclick="document.getElementById('invoiceModal-backdrop').style.display='none';">Cancel</button>
+        <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" onclick="saveInvoice('draft')">
+            <i data-lucide="file" style="width: 14px; height: 14px; margin-right: 4px;"></i>Save as Draft
+        </button>
+        <button class="lcars-input" style="cursor: pointer; padding: 8px 16px; background: var(--archie-success); color: var(--archie-bg-primary); border: none; font-weight: 600;" onclick="saveInvoice('send')">
+            <i data-lucide="send" style="width: 14px; height: 14px; margin-right: 4px;"></i>Save & Send
+        </button>
     </div>
-</div>
+{% endcall %}
 
 <!-- View Invoice Modal -->
-<div class="modal fade" id="viewInvoiceModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-light">
-                <h5 class="modal-title">
-                    <i class="bi bi-receipt me-2"></i><span data-i18n="invoicing.invoice_2">Invoice </span><span id="viewInvoiceNumber"></span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-4" id="viewInvoiceContent">
-                <!-- Invoice preview will be loaded here -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="invoicing.close">Close</span></button>
-                <button type="button" class="btn btn-outline-primary" id="btnDownloadPdf">
-                    <i class="bi bi-file-pdf me-1"></i>Download PDF
-                </button>
-                <button type="button" class="btn btn-primary" id="btnSendInvoice" style="display: none;">
-                    <i class="bi bi-send me-1"></i>Send to Customer
-                </button>
-            </div>
-        </div>
+{% call modal('viewInvoiceModal', 'Invoice', icon='receipt', size='large') %}
+    <div id="viewInvoiceNumber" style="display: none;"></div>
+    <div id="viewInvoiceContent">
+        <!-- Invoice preview will be loaded here -->
     </div>
-</div>
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--archie-border-default);">
+        <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" onclick="document.getElementById('viewInvoiceModal-backdrop').style.display='none';">Close</button>
+        <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" id="btnDownloadPdf">
+            <i data-lucide="file-text" style="width: 14px; height: 14px; margin-right: 4px;"></i>Download PDF
+        </button>
+        <button class="lcars-input" id="btnSendInvoice" style="display: none; cursor: pointer; padding: 8px 16px; background: var(--archie-accent); color: var(--archie-bg-primary); border: none;">
+            <i data-lucide="send" style="width: 14px; height: 14px; margin-right: 4px;"></i>Send to Customer
+        </button>
+    </div>
+{% endcall %}
 
 <!-- Record Payment Modal -->
-<div class="modal fade" id="paymentModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i><span data-i18n="invoicing.record_payment">Record Payment</span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+{% call modal('paymentModal', 'Record Payment', icon='banknote', size='medium') %}
+    <form id="paymentForm">
+        <input type="hidden" id="paymentInvoiceId">
+        <div class="inv-form-group">
+            <label class="inv-label">Amount</label>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="color: var(--archie-text-secondary);">$</span>
+                <input type="number" class="lcars-input" id="paymentAmount" step="0.01" required style="flex: 1;">
             </div>
-            <div class="modal-body">
-                <form id="paymentForm">
-                    <input type="hidden" id="paymentInvoiceId">
-                    <div class="mb-3">
-                        <label class="form-label"><span data-i18n="invoicing.amount_4">Amount</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input type="number" class="form-control" id="paymentAmount" step="0.01" required>
-                        </div>
-                        <small class="text-muted"><span data-i18n="invoicing.balance_due">Balance due: $</span><span id="paymentBalanceDue">0.00</span></small>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label"><span data-i18n="invoicing.payment_method">Payment Method</span></label>
-                        <select class="form-select" id="paymentMethod">
-                            <option value="stripe"><span data-i18n="invoicing.stripe">Stripe</span></option>
-                            <option value="paypal"><span data-i18n="invoicing.paypal">PayPal</span></option>
-                            <option value="bank_transfer"><span data-i18n="invoicing.bank_transfer">Bank Transfer</span></option>
-                            <option value="cash"><span data-i18n="invoicing.cash">Cash</span></option>
-                            <option value="check"><span data-i18n="invoicing.check">Check</span></option>
-                            <option value="other"><span data-i18n="invoicing.other">Other</span></option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label"><span data-i18n="invoicing.reference_transaction_id">Reference/Transaction ID</span></label>
-                        <input type="text" class="form-control" id="paymentReference" placeholder="Optional">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label"><span data-i18n="invoicing.payment_date">Payment Date</span></label>
-                        <input type="date" class="form-control" id="paymentDate">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label"><span data-i18n="invoicing.notes_2">Notes</span></label>
-                        <textarea class="form-control" id="paymentNotes" rows="2"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><span data-i18n="invoicing.cancel_2">Cancel</span></button>
-                <button type="button" class="btn btn-success" onclick="recordPayment()">
-                    <i class="bi bi-check-lg me-1"></i>Record Payment
-                </button>
-            </div>
+            <small style="color: var(--archie-text-tertiary);">Balance due: $<span id="paymentBalanceDue">0.00</span></small>
         </div>
+        <div class="inv-form-group">
+            <label class="inv-label">Payment Method</label>
+            <select class="lcars-input" id="paymentMethod">
+                <option value="stripe">Stripe</option>
+                <option value="paypal">PayPal</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cash">Cash</option>
+                <option value="check">Check</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        <div class="inv-form-group">
+            <label class="inv-label">Reference/Transaction ID</label>
+            <input type="text" class="lcars-input" id="paymentReference" placeholder="Optional">
+        </div>
+        <div class="inv-form-group">
+            <label class="inv-label">Payment Date</label>
+            <input type="date" class="lcars-input" id="paymentDate">
+        </div>
+        <div class="inv-form-group">
+            <label class="inv-label">Notes</label>
+            <textarea class="lcars-input" id="paymentNotes" rows="2"></textarea>
+        </div>
+    </form>
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--archie-border-default);">
+        <button class="lcars-input" style="cursor: pointer; padding: 8px 16px;" onclick="document.getElementById('paymentModal-backdrop').style.display='none';">Cancel</button>
+        <button class="lcars-input" style="cursor: pointer; padding: 8px 16px; background: var(--archie-success); color: var(--archie-bg-primary); border: none; font-weight: 600;" onclick="recordPayment()">
+            <i data-lucide="check" style="width: 14px; height: 14px; margin-right: 4px;"></i>Record Payment
+        </button>
     </div>
-</div>
+{% endcall %}
 
 <style>
-.nav-tabs .nav-link {
-    color: #6b7280;
-    border: none;
-    border-bottom: 2px solid transparent;
-}
-.nav-tabs .nav-link:hover {
-    color: #10b981;
-    border-color: transparent;
-}
-.nav-tabs .nav-link.active {
-    color: #10b981;
-    border-bottom-color: #10b981;
-    font-weight: 500;
-}
-.table > tbody > tr:hover {
-    background-color: #f0fdf4;
-}
-.badge {
-    font-weight: 500;
-}
-.form-check-input:checked {
-    background-color: #10b981;
-    border-color: #10b981;
-}
+    .inv-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .inv-content {
+        display: none;
+    }
+
+    .inv-content.active {
+        display: block;
+    }
+
+    /* Stats grid */
+    .inv-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .inv-stat-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 0 12px 12px 0;
+        padding: 20px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .inv-stat-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: linear-gradient(180deg, var(--archie-accent, #00ff41), transparent);
+    }
+
+    .inv-stat-value {
+        font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--archie-accent, #00ff41);
+        text-shadow: 0 0 8px rgba(var(--archie-green-rgb, 0,255,65), 0.3);
+    }
+
+    .inv-stat-label {
+        color: var(--archie-text-secondary, #8b949e);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 4px;
+    }
+
+    .inv-stat-sub {
+        color: var(--archie-text-tertiary, #6b7280);
+        font-size: 0.75rem;
+        margin-top: 4px;
+    }
+
+    /* Table */
+    .inv-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .inv-table th, .inv-table td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--archie-border-default);
+    }
+
+    .inv-table th {
+        font-family: var(--archie-font-heading, 'Antonio', sans-serif);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--archie-text-secondary);
+    }
+
+    .inv-table tr:hover {
+        background: rgba(var(--archie-green-rgb, 0,255,65), 0.05);
+    }
+
+    /* Badges */
+    .inv-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .inv-badge-success {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--archie-success, #10b981);
+        border: 1px solid var(--archie-success, #10b981);
+    }
+
+    .inv-badge-danger {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--archie-danger, #ef4444);
+        border: 1px solid var(--archie-danger, #ef4444);
+    }
+
+    .inv-badge-warning {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--archie-warning, #f59e0b);
+        border: 1px solid var(--archie-warning, #f59e0b);
+    }
+
+    .inv-badge-info {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--archie-cyan, #3b82f6);
+        border: 1px solid var(--archie-cyan, #3b82f6);
+    }
+
+    .inv-badge-draft {
+        background: rgba(107, 114, 128, 0.2);
+        color: var(--archie-text-secondary, #6b7280);
+        border: 1px solid var(--archie-text-secondary, #6b7280);
+    }
+
+    .inv-badge-void {
+        background: rgba(107, 114, 128, 0.15);
+        color: var(--archie-text-tertiary, #4b5563);
+        border: 1px solid var(--archie-text-tertiary, #4b5563);
+    }
+
+    /* Action buttons */
+    .inv-action-btn {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        color: var(--archie-text-secondary);
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+
+    .inv-action-btn:hover {
+        border-color: var(--archie-accent);
+        color: var(--archie-accent);
+    }
+
+    .inv-action-btn.inv-action-danger:hover {
+        border-color: var(--archie-danger);
+        color: var(--archie-danger);
+    }
+
+    /* Settings grid */
+    .inv-settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 16px;
+    }
+
+    /* Form styling */
+    .inv-form-group {
+        margin-bottom: 12px;
+    }
+
+    .inv-label {
+        display: block;
+        color: var(--archie-text-secondary, #8b949e);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+        font-family: var(--archie-font-heading, 'Antonio', sans-serif);
+    }
+
+    .inv-toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--archie-text-primary);
+        cursor: pointer;
+    }
+
+    /* Totals box */
+    .inv-totals-box {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 0 12px 12px 0;
+        padding: 16px;
+        position: relative;
+    }
+
+    .inv-totals-box::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--archie-accent, #00ff41);
+    }
+
+    .inv-totals-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        color: var(--archie-text-primary);
+    }
+
+    .inv-totals-divider {
+        height: 1px;
+        background: var(--archie-border-default);
+        margin: 8px 0;
+    }
+
+    @media (max-width: 768px) {
+        .inv-settings-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 <script>
@@ -721,6 +757,24 @@
 let currentInvoice = null;
 let customers = [];
 let defaultTaxRate = {{ settings.default_tax_rate or 13 }};
+
+// Tab switching
+function showTab(tabId) {
+    // Hide all tab content
+    document.querySelectorAll('.inv-content').forEach(el => el.classList.remove('active'));
+    // Show selected tab
+    const target = document.getElementById('tab-' + tabId);
+    if (target) target.classList.add('active');
+    // Update tab button active state
+    document.querySelectorAll('.lcars-tab-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector(`.lcars-tab-btn[data-tab="${tabId}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+}
+
+// Filter invoices (called by filter_bar oninput)
+function filterInvoices() {
+    debounce(loadInvoices, 300)();
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
@@ -735,8 +789,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('invoiceDueDate').value = dueDate.toISOString().split('T')[0];
     document.getElementById('paymentDate').value = today;
 
+    // Set default filter period to 90 days
+    document.getElementById('filterPeriod').value = '90';
+
     // Search functionality
     document.getElementById('searchInvoice').addEventListener('input', debounce(loadInvoices, 300));
+
+    // Re-initialize lucide icons for dynamically rendered icons
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 });
 
 // Debounce helper
@@ -867,20 +927,27 @@ function renderInvoicesTable(invoices) {
 // Show create invoice modal
 function showCreateInvoiceModal() {
     currentInvoice = null;
-    document.getElementById('invoiceModalTitle').innerHTML = '<i class="bi bi-receipt me-2"></i>New Invoice';
     document.getElementById('invoiceForm').reset();
     document.getElementById('invoiceId').value = '';
 
-    // Reset line items
-    document.getElementById('lineItemsBody').innerHTML = `
-        <tr class="line-item-row">
-            <td><input type="text" class="form-control form-control-sm item-desc" placeholder="Item description"></td>
-            <td><input type="number" class="form-control form-control-sm item-qty" value="1" min="1" onchange="calculateLineAmount(this)"></td>
-            <td><input type="number" class="form-control form-control-sm item-price" step="0.01" placeholder="0.00" onchange="calculateLineAmount(this)"></td>
-            <td><input type="text" class="form-control form-control-sm item-amount" readonly></td>
-            <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)"><i class="bi bi-x"></i></button></td>
-        </tr>
-    `;
+    // Reset line items — uses static trusted template strings only (no user input)
+    const lineItemsBody = document.getElementById('lineItemsBody');
+    lineItemsBody.textContent = '';
+    const row = document.createElement('tr');
+    row.className = 'line-item-row';
+    row.appendChild(createCell('input', 'text', 'lcars-input item-desc', 'Item description'));
+    row.appendChild(createCell('input', 'number', 'lcars-input item-qty', '', '1'));
+    row.appendChild(createCell('input', 'number', 'lcars-input item-price', '0.00'));
+    row.appendChild(createCell('input', 'text', 'lcars-input item-amount', '', '', true));
+    const delTd = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'inv-action-btn inv-action-danger';
+    delBtn.onclick = function() { removeLineItem(this); };
+    delBtn.textContent = 'X';
+    delTd.appendChild(delBtn);
+    row.appendChild(delTd);
+    lineItemsBody.appendChild(row);
 
     // Reset totals
     document.getElementById('invoiceSubtotal').textContent = '0.00';
@@ -889,10 +956,26 @@ function showCreateInvoiceModal() {
     document.getElementById('invoiceTotal').textContent = '0.00';
     document.getElementById('invoiceDiscount').value = '0';
 
-    document.getElementById('recurringOptions').classList.add('d-none');
+    document.getElementById('recurringOptions').style.display = 'none';
     document.getElementById('invoiceRecurring').checked = false;
 
-    new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+    document.getElementById('invoiceModal-backdrop').style.display = 'flex';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Helper to create table cells for line items
+function createCell(tag, type, className, placeholder, value, readOnly) {
+    const td = document.createElement('td');
+    const input = document.createElement(tag);
+    input.type = type;
+    input.className = className;
+    if (placeholder) input.placeholder = placeholder;
+    if (value) input.value = value;
+    if (readOnly) input.readOnly = true;
+    if (type === 'number' && className.includes('item-qty')) { input.min = '1'; input.onchange = function() { calculateLineAmount(this); }; }
+    if (type === 'number' && className.includes('item-price')) { input.step = '0.01'; input.onchange = function() { calculateLineAmount(this); }; }
+    td.appendChild(input);
+    return td;
 }
 
 // Add line item
@@ -900,13 +983,18 @@ function addLineItem() {
     const tbody = document.getElementById('lineItemsBody');
     const row = document.createElement('tr');
     row.className = 'line-item-row';
-    row.innerHTML = `
-        <td><input type="text" class="form-control form-control-sm item-desc" placeholder="Item description"></td>
-        <td><input type="number" class="form-control form-control-sm item-qty" value="1" min="1" onchange="calculateLineAmount(this)"></td>
-        <td><input type="number" class="form-control form-control-sm item-price" step="0.01" placeholder="0.00" onchange="calculateLineAmount(this)"></td>
-        <td><input type="text" class="form-control form-control-sm item-amount" readonly></td>
-        <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)"><i class="bi bi-x"></i></button></td>
-    `;
+    row.appendChild(createCell('input', 'text', 'lcars-input item-desc', 'Item description'));
+    row.appendChild(createCell('input', 'number', 'lcars-input item-qty', '', '1'));
+    row.appendChild(createCell('input', 'number', 'lcars-input item-price', '0.00'));
+    row.appendChild(createCell('input', 'text', 'lcars-input item-amount', '', '', true));
+    const delTd = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'inv-action-btn inv-action-danger';
+    delBtn.onclick = function() { removeLineItem(this); };
+    delBtn.textContent = 'X';
+    delTd.appendChild(delBtn);
+    row.appendChild(delTd);
     tbody.appendChild(row);
 }
 
@@ -952,7 +1040,7 @@ function calculateTotals() {
 // Toggle recurring options
 function toggleRecurringOptions() {
     const checked = document.getElementById('invoiceRecurring').checked;
-    document.getElementById('recurringOptions').classList.toggle('d-none', !checked);
+    document.getElementById('recurringOptions').style.display = checked ? 'block' : 'none';
 }
 
 // Save invoice
@@ -1011,7 +1099,7 @@ async function saveInvoice(action) {
         const data = await response.json();
 
         if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('invoiceModal')).hide();
+            document.getElementById('invoiceModal-backdrop').style.display = 'none';
             location.reload();
         } else {
             alert('Error: ' + (data.error || 'Failed to save invoice'));
@@ -1031,7 +1119,7 @@ async function viewInvoice(id) {
         if (data.success) {
             currentInvoice = data.invoice;
             renderInvoicePreview(data.invoice);
-            new bootstrap.Modal(document.getElementById('viewInvoiceModal')).show();
+            document.getElementById('viewInvoiceModal-backdrop').style.display = 'flex';
         }
     } catch (error) {
         console.error('Error loading invoice:', error);
@@ -1173,7 +1261,7 @@ function markPaid(id) {
                 document.getElementById('paymentInvoiceId').value = id;
                 document.getElementById('paymentAmount').value = data.invoice.balance_due || data.invoice.total || 0;
                 document.getElementById('paymentBalanceDue').textContent = (data.invoice.balance_due || data.invoice.total || 0).toFixed(2);
-                new bootstrap.Modal(document.getElementById('paymentModal')).show();
+                document.getElementById('paymentModal-backdrop').style.display = 'flex';
             }
         });
 }
@@ -1199,7 +1287,7 @@ async function recordPayment() {
         const data = await response.json();
 
         if (data.success) {
-            bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+            document.getElementById('paymentModal-backdrop').style.display = 'none';
             location.reload();
         } else {
             alert('Error: ' + (data.error || 'Failed to record payment'));
@@ -1262,7 +1350,6 @@ async function editInvoice(id) {
 
         if (data.success) {
             const inv = data.invoice;
-            document.getElementById('invoiceModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>Edit Invoice';
             document.getElementById('invoiceId').value = inv.id;
             document.getElementById('invoiceCustomer').value = inv.customer_id || '';
             document.getElementById('invoiceIssueDate').value = inv.issue_date ? inv.issue_date.split('T')[0] : '';
@@ -1270,19 +1357,24 @@ async function editInvoice(id) {
             document.getElementById('invoiceNotes').value = inv.notes || '';
             document.getElementById('invoiceDiscount').value = inv.discount_amount || 0;
 
-            // Populate line items
+            // Populate line items using DOM methods
             const tbody = document.getElementById('lineItemsBody');
-            tbody.innerHTML = '';
+            tbody.textContent = '';
             (inv.items || []).forEach(item => {
                 const row = document.createElement('tr');
                 row.className = 'line-item-row';
-                row.innerHTML = `
-                    <td><input type="text" class="form-control form-control-sm item-desc" value="${item.description || ''}"></td>
-                    <td><input type="number" class="form-control form-control-sm item-qty" value="${item.quantity || 1}" min="1" onchange="calculateLineAmount(this)"></td>
-                    <td><input type="number" class="form-control form-control-sm item-price" step="0.01" value="${item.unit_price || ''}" onchange="calculateLineAmount(this)"></td>
-                    <td><input type="text" class="form-control form-control-sm item-amount" value="${item.amount || ''}" readonly></td>
-                    <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)"><i class="bi bi-x"></i></button></td>
-                `;
+                row.appendChild(createCell('input', 'text', 'lcars-input item-desc', '', item.description || ''));
+                row.appendChild(createCell('input', 'number', 'lcars-input item-qty', '', String(item.quantity || 1)));
+                row.appendChild(createCell('input', 'number', 'lcars-input item-price', '', String(item.unit_price || '')));
+                row.appendChild(createCell('input', 'text', 'lcars-input item-amount', '', String(item.amount || ''), true));
+                const delTd = document.createElement('td');
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'inv-action-btn inv-action-danger';
+                delBtn.onclick = function() { removeLineItem(this); };
+                delBtn.textContent = 'X';
+                delTd.appendChild(delBtn);
+                row.appendChild(delTd);
                 tbody.appendChild(row);
             });
 
@@ -1291,7 +1383,8 @@ async function editInvoice(id) {
             }
 
             calculateTotals();
-            new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+            document.getElementById('invoiceModal-backdrop').style.display = 'flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     } catch (error) {
         console.error('Error loading invoice:', error);

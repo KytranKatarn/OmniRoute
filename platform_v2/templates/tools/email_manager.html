@@ -3,6 +3,7 @@
 {% block title %}Email Manager - A.R.C.H.I.E.{% endblock %}
 
 {% block content %}
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
 <div class="em-container">
     <!-- Business Tools Navigation -->
     {% include 'includes/business_tools_nav.html' %}
@@ -11,27 +12,17 @@
     <div class="em-scanlines"></div>
 
     <div class="em-content">
-        <!-- Header -->
-        <div class="em-header">
-            <div class="em-header-left">
-                <div class="em-icon">
-                    <i data-lucide="mail"></i>
-                </div>
-                <div class="em-title-group">
-                    <h1 class="em-title"><span data-i18n="email_manager.email_manager">EMAIL MANAGER</span></h1>
-                    <p class="em-subtitle"><span data-i18n="email_manager.automated_communications_campaigns">Automated communications & campaigns</span></p>
-                </div>
-            </div>
-            <div class="em-header-actions">
-                <button class="em-btn em-btn--outline" onclick="showCreateTemplateModal()">
-                    <i data-lucide="file-plus"></i>
-                    <span><span data-i18n="email_manager.template">Template</span></span>
-                </button>
-                <button class="em-btn em-btn--primary" onclick="showComposeModal()">
-                    <i data-lucide="send"></i>
-                    <span><span data-i18n="email_manager.compose">Compose</span></span>
-                </button>
-            </div>
+        {{ page_header('EMAIL MANAGER', subtitle='Automated communications & campaigns', icon='mail') }}
+
+        <div class="em-header-actions" style="display: flex; gap: 10px; flex-wrap: wrap; margin: -16px 0 24px 0;">
+            <button class="em-btn em-btn--outline" onclick="showCreateTemplateModal()">
+                <i data-lucide="file-plus"></i>
+                <span><span data-i18n="email_manager.template">Template</span></span>
+            </button>
+            <button class="em-btn em-btn--primary" onclick="showComposeModal()">
+                <i data-lucide="send"></i>
+                <span><span data-i18n="email_manager.compose">Compose</span></span>
+            </button>
         </div>
 
         <!-- Stats Grid -->
@@ -94,38 +85,17 @@
         {% endif %}
 
         <!-- Tab Navigation -->
-        <div class="em-tabs">
-            <button class="em-tab active" data-tab="inbox">
-                <i data-lucide="mail-open"></i>
-                <span><span data-i18n="email_manager.inbox">Inbox</span></span>
-                <span class="em-tab-badge" id="inbox-unread-badge" style="display: none;">0</span>
-            </button>
-            <button class="em-tab" data-tab="templates">
-                <i data-lucide="file-text"></i>
-                <span><span data-i18n="email_manager.templates">Templates</span></span>
-            </button>
-            <button class="em-tab" data-tab="sent">
-                <i data-lucide="send"></i>
-                <span><span data-i18n="email_manager.sent_emails">Sent Emails</span></span>
-            </button>
-            <button class="em-tab" data-tab="campaigns">
-                <i data-lucide="megaphone"></i>
-                <span><span data-i18n="email_manager.campaigns">Campaigns</span></span>
-            </button>
-            <button class="em-tab" data-tab="settings">
-                <i data-lucide="settings"></i>
-                <span><span data-i18n="email_manager.settings">Settings</span></span>
-            </button>
-        </div>
+        {{ tab_nav(tabs=[
+            {'id': 'inbox', 'label': 'Inbox', 'icon': 'mail-open', 'badge_id': 'inbox-unread-badge'},
+            {'id': 'templates', 'label': 'Templates', 'icon': 'file-text'},
+            {'id': 'sent', 'label': 'Sent Emails', 'icon': 'send'},
+            {'id': 'campaigns', 'label': 'Campaigns', 'icon': 'megaphone'},
+            {'id': 'settings', 'label': 'Settings', 'icon': 'settings'}
+        ], onswitch='switchTab') }}
 
         <!-- Inbox Tab -->
         <div class="em-tab-content active" id="tab-inbox">
-            <div class="em-panel">
-                <div class="em-panel-header">
-                    <h2 class="em-panel-title">
-                        <i data-lucide="mail-open"></i>
-                        Inbox
-                    </h2>
+            {% call panel(title='Inbox', icon='mail-open') %}
                     <div class="inbox-header-actions">
                         <select id="inbox-sort-select" class="em-select em-select--compact" onchange="sortInbox()">
                             <option value="date_desc"><span data-i18n="email_manager.newest_first">Newest First</span></option>
@@ -367,17 +337,13 @@
                         <i data-lucide="chevron-right"></i>
                     </button>
                 </div>
-            </div>
+            {% endcall %}
         </div>
 
         <!-- Templates Tab -->
         <div class="em-tab-content" id="tab-templates">
-            <div class="em-panel">
-                <div class="em-panel-header">
-                    <h2 class="em-panel-title">
-                        <i data-lucide="file-text"></i>
-                        Email Templates
-                    </h2>
+            {% call panel(title='Email Templates', icon='file-text') %}
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
                     <button class="em-btn em-btn--primary" onclick="showCreateTemplateModal()">
                         <i data-lucide="plus"></i>
                         Create Template
@@ -405,27 +371,21 @@
                     </div>
                     {% endfor %}
                 </div>
-            </div>
+            {% endcall %}
         </div>
 
         <!-- Sent Emails Tab -->
         <div class="em-tab-content" id="tab-sent">
-            <div class="em-panel">
-                <div class="em-panel-header">
-                    <h2 class="em-panel-title">
-                        <i data-lucide="inbox"></i>
-                        Sent Emails
-                    </h2>
-                    <div class="em-filter-group">
-                        <select id="status-filter" onchange="filterLogs()" class="em-select">
-                            <option value=""><span data-i18n="email_manager.all_status">All Status</span></option>
-                            <option value="sent"><span data-i18n="email_manager.sent">Sent</span></option>
-                            <option value="opened"><span data-i18n="email_manager.opened_2">Opened</span></option>
-                            <option value="clicked"><span data-i18n="email_manager.clicked_2">Clicked</span></option>
-                            <option value="failed"><span data-i18n="email_manager.failed_2">Failed</span></option>
-                            <option value="bounced"><span data-i18n="email_manager.bounced">Bounced</span></option>
-                        </select>
-                    </div>
+            {% call panel(title='Sent Emails', icon='inbox') %}
+                <div class="em-filter-group" style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                    <select id="status-filter" onchange="filterLogs()" class="em-select">
+                        <option value=""><span data-i18n="email_manager.all_status">All Status</span></option>
+                        <option value="sent"><span data-i18n="email_manager.sent">Sent</span></option>
+                        <option value="opened"><span data-i18n="email_manager.opened_2">Opened</span></option>
+                        <option value="clicked"><span data-i18n="email_manager.clicked_2">Clicked</span></option>
+                        <option value="failed"><span data-i18n="email_manager.failed_2">Failed</span></option>
+                        <option value="bounced"><span data-i18n="email_manager.bounced">Bounced</span></option>
+                    </select>
                 </div>
                 <div class="em-table-wrapper">
                     <table class="em-table">
@@ -467,17 +427,13 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
+            {% endcall %}
         </div>
 
         <!-- Campaigns Tab -->
         <div class="em-tab-content" id="tab-campaigns">
-            <div class="em-panel">
-                <div class="em-panel-header">
-                    <h2 class="em-panel-title">
-                        <i data-lucide="megaphone"></i>
-                        Email Campaigns
-                    </h2>
+            {% call panel(title='Email Campaigns', icon='megaphone') %}
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
                     <button class="em-btn em-btn--primary" onclick="showCreateCampaignModal()">
                         <i data-lucide="plus"></i>
                         Create Campaign
@@ -539,17 +495,13 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
+            {% endcall %}
         </div>
 
         <!-- Settings Tab -->
         <div class="em-tab-content" id="tab-settings">
-            <div class="em-panel">
-                <div class="em-panel-header">
-                    <h2 class="em-panel-title">
-                        <i data-lucide="mail"></i>
-                        Email Accounts
-                    </h2>
+            {% call panel(title='Email Accounts', icon='mail') %}
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
                     <button class="em-btn em-btn--primary" onclick="openWizard()">
                         <i data-lucide="plus"></i>
                         Add Account
@@ -561,7 +513,7 @@
                         <span><span data-i18n="email_manager.loading_accounts">Loading accounts...</span></span>
                     </div>
                 </div>
-            </div>
+            {% endcall %}
         </div>
     </div>
 </div>
@@ -924,62 +876,7 @@
     margin: 0 auto;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════
-   HEADER
-   ═══════════════════════════════════════════════════════════════════════════════ */
-.em-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    gap: 16px;
-}
-
-.em-header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.em-icon {
-    width: 56px;
-    height: 56px;
-    background: linear-gradient(135deg, var(--archie-pink), var(--archie-purple));
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 30px rgba(244, 114, 182, 0.3);
-}
-
-.em-icon i {
-    width: 28px;
-    height: 28px;
-    color: white;
-}
-
-.em-title {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--archie-text-secondary);
-    margin: 0;
-    text-shadow: 0 0 20px rgba(244, 114, 182, 0.3);
-}
-
-.em-subtitle {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-tertiary);
-    margin: 4px 0 0 0;
-}
-
-.em-header-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
+/* Header — now handled by page_header macro */
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    BUTTONS
@@ -1196,53 +1093,7 @@
     color: var(--archie-success);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════
-   TABS
-   ═══════════════════════════════════════════════════════════════════════════════ */
-.em-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 24px;
-    padding: 6px;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    overflow-x: auto;
-}
-
-.em-tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--archie-text-tertiary);
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.25s ease;
-    white-space: nowrap;
-}
-
-.em-tab i {
-    width: 18px;
-    height: 18px;
-}
-
-.em-tab:hover {
-    color: var(--archie-pink);
-    background: rgba(244, 114, 182, 0.05);
-}
-
-.em-tab.active {
-    color: white;
-    background: linear-gradient(135deg, var(--archie-pink), var(--archie-purple));
-    box-shadow: 0 0 15px rgba(244, 114, 182, 0.3);
-}
-
+/* Tabs — now handled by tab_nav macro */
 .em-tab-content {
     display: none;
 }
@@ -1252,42 +1103,7 @@
     animation: fadeIn 0.3s ease;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════
-   PANELS
-   ═══════════════════════════════════════════════════════════════════════════════ */
-.em-panel {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    overflow: hidden;
-}
-
-.em-panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid var(--archie-border-default);
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.em-panel-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--archie-text-secondary);
-    margin: 0;
-}
-
-.em-panel-title i {
-    width: 22px;
-    height: 22px;
-    color: var(--archie-pink);
-}
+/* Panels — now handled by panel macro */
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    TEMPLATES GRID
@@ -1849,27 +1665,7 @@
    INBOX TAB
    ═══════════════════════════════════════════════════════════════════════════════ */
 
-/* Tab Badge */
-.em-tab-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    font-weight: 700;
-    background: var(--archie-danger);
-    color: #fff;
-    border-radius: 10px;
-    margin-left: 4px;
-}
-
-.em-tab.active .em-tab-badge {
-    background: rgba(255, 255, 255, 0.3);
-    color: #fff;
-}
+/* Tab Badge — now handled by tab_nav macro (lcars-tab-badge) */
 
 /* Inbox Header Actions */
 .inbox-header-actions {
@@ -2848,13 +2644,7 @@ body.light-mode .em-scanlines {
     );
 }
 
-body.light-mode .em-icon {
-    box-shadow: 0 4px 20px rgba(204, 68, 145, 0.2);
-}
-
-body.light-mode .em-title {
-    text-shadow: none;
-}
+/* .em-icon and .em-title light overrides removed — handled by page_header macro */
 
 body.light-mode .em-btn--primary {
     box-shadow: 0 4px 15px rgba(204, 68, 145, 0.2);
@@ -2868,9 +2658,7 @@ body.light-mode .em-stat-card:hover {
     box-shadow: 0 4px 20px rgba(204, 68, 145, 0.1);
 }
 
-body.light-mode .em-tab.active {
-    box-shadow: 0 4px 15px rgba(204, 68, 145, 0.2);
-}
+/* .em-tab.active light override removed — handled by tab_nav macro */
 
 body.light-mode .em-template-card:hover {
     box-shadow: 0 4px 20px rgba(204, 68, 145, 0.1);
@@ -2905,28 +2693,10 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
         padding: 70px 16px 16px;
     }
 
-    .em-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .em-header-actions {
-        width: 100%;
-        justify-content: flex-start;
-    }
+    /* .em-header, .em-tabs responsive — handled by macros */
 
     .em-stats-grid {
         grid-template-columns: repeat(2, 1fr);
-    }
-
-    .em-tabs {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .em-tab span {
-        display: none;
     }
 
     .em-form-row {
@@ -2944,10 +2714,7 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
         text-align: center;
     }
 
-    .em-panel-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+    /* .em-panel-header responsive — handled by panel macro */
 
     .em-template-card {
         flex-direction: column;
@@ -2960,9 +2727,7 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
 }
 
 @media (max-width: 480px) {
-    .em-title {
-        font-size: 1.25rem;
-    }
+    /* .em-title responsive — handled by page_header macro */
 
     .em-stats-grid {
         grid-template-columns: 1fr;
@@ -3207,34 +2972,32 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB SWITCHING
+// TAB SWITCHING — uses [data-tab] attribute from theme macros
 // ═══════════════════════════════════════════════════════════════════════════════
-document.querySelectorAll('.em-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-        // Update tab buttons
-        document.querySelectorAll('.em-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
+function switchTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
+    document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
 
-        // Update tab content
-        document.querySelectorAll('.em-tab-content').forEach(c => c.classList.remove('active'));
-        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    // Update tab content
+    document.querySelectorAll('.em-tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
 
-        // Load settings when switching to settings tab
-        if (tab.dataset.tab === 'settings') {
-            loadUnifiedAccounts();
-        }
+    // Load settings when switching to settings tab
+    if (tabName === 'settings') {
+        loadUnifiedAccounts();
+    }
 
-        // Load inbox when switching to inbox tab
-        if (tab.dataset.tab === 'inbox') {
-            loadInbox();
-        }
+    // Load inbox when switching to inbox tab
+    if (tabName === 'inbox') {
+        loadInbox();
+    }
 
-        // Reinitialize icons
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    });
-});
+    // Reinitialize icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INBOX STATE

@@ -4,6 +4,7 @@
 {% block module_name %}system-operations{% endblock %}
 
 {% block styles %}
+<link rel="stylesheet" href="/static/css/lcars-frames.css">
 <style>
     /* ===== A.R.C.H.I.E. System Operations Theme ===== */
     /*
@@ -17,38 +18,18 @@
      */
 
     .sysops-container {
-        max-width: 1600px;
-        margin: 0 auto;
         padding: 20px;
         background: var(--archie-bg-void);
         min-height: 100vh;
         font-family: var(--archie-font-body);
+        --frame-color: #ef4444;
+        --frame-rgb: 239, 68, 68;
+        --lcars-accent-rgb: 239, 68, 68;
     }
-
-    /* Header */
-    .sysops-header {
-        text-align: center;
-        padding: 25px;
-        border: 2px solid var(--archie-accent);
-        border-radius: 12px;
-        margin-bottom: 25px;
-        background: linear-gradient(180deg, var(--archie-accent-alpha-10) 0%, transparent 100%);
-        box-shadow: 0 0 30px var(--archie-accent-alpha-20);
-    }
-
-    .sysops-header h1 {
-        font-family: var(--archie-font-heading);
-        font-size: 1.8rem;
-        color: var(--archie-accent);
-        text-shadow: 0 0 20px var(--archie-accent-alpha-30);
-        letter-spacing: 3px;
-        margin: 0;
-    }
-
-    .sysops-header .subtitle {
-        color: var(--archie-text-muted);
-        margin-top: 8px;
-        font-size: 0.9rem;
+    .sysops-container .lcars-frame,
+    .sysops-container .lcars-frame * {
+        --frame-color: #ef4444;
+        --frame-rgb: 239, 68, 68;
     }
 
     .header-controls {
@@ -2615,37 +2596,59 @@
 <div class="sysops-container" data-module="system-operations">
     {% include 'includes/admin_tools_nav.html' %}
 
-    <!-- Header -->
-    <div class="sysops-header">
-        <h1><span data-i18n="system_operations.system_operations">SYSTEM OPERATIONS</span></h1>
-        <div class="subtitle"><span data-i18n="system_operations.host_machine_administration">Host Machine Administration</span></div>
-        <div class="header-controls">
-            <div class="auto-refresh-toggle">
-                <input type="checkbox" id="autoRefresh" checked>
-                <label for="autoRefresh"><span data-i18n="system_operations.auto_refresh_5s">Auto-refresh (5s)</span></label>
-            </div>
-            <div class="live-indicator" id="liveIndicator" style="display: none;">
-                <span class="dot"></span>
-                <span><span data-i18n="system_operations.live">LIVE</span></span>
-            </div>
-            <button class="refresh-btn" onclick="refreshAll()">
-                <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
-                Refresh
-            </button>
+    <div class="lcars-frame">
+        <!-- LEFT SIDEBAR -->
+        <div class="lcars-sidebar">
+            <div class="lcars-elbow-top"></div>
+            <div class="lcars-seg" style="--seg-color: #ef4444"></div>
+            <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+            <div class="lcars-seg" style="--seg-color: #ef4444"></div>
+            <div class="lcars-seg" style="--seg-color: #dc2626"></div>
+            <div class="lcars-seg-fill"></div>
+            <div class="lcars-elbow-bottom"></div>
         </div>
 
-        <!-- Activity Status Bar -->
-        <div class="activity-status-bar" id="activityStatusBar">
-            <div class="activity-indicator" id="activityIndicator">
-                <span class="pulse-dot"></span>
-                <span class="activity-text" id="activityText"><span data-i18n="system_operations.processing">Processing...</span></span>
-                <span class="activity-timer" id="activityTimer">0s</span>
-                <span class="activity-stage" id="activityStage"></span>
+        <!-- RIGHT CONTENT -->
+        <div class="lcars-content">
+            <div class="lcars-bar">
+                <span class="lcars-bar-title" data-i18n="system_operations.system_operations">SYSTEM OPERATIONS</span>
+                <div class="lcars-bar-spacer"></div>
+                <div class="lcars-pips">
+                    <span class="lcars-pip" style="width:20px"></span>
+                    <span class="lcars-pip" style="width:35px"></span>
+                    <span class="lcars-pip" style="width:14px"></span>
+                </div>
+                <span class="lcars-bar-status">SYS OPS</span>
             </div>
-        </div>
-    </div>
 
-    <!-- Tab Navigation -->
+            <div class="lcars-body">
+                <!-- Controls -->
+                <div class="header-controls" style="justify-content: flex-start; margin-bottom: 16px; padding: 0; border: none;">
+                    <div class="auto-refresh-toggle">
+                        <input type="checkbox" id="autoRefresh" checked>
+                        <label for="autoRefresh"><span data-i18n="system_operations.auto_refresh_5s">Auto-refresh (5s)</span></label>
+                    </div>
+                    <div class="live-indicator" id="liveIndicator" style="display: none;">
+                        <span class="dot"></span>
+                        <span><span data-i18n="system_operations.live">LIVE</span></span>
+                    </div>
+                    <button class="refresh-btn" onclick="refreshAll()">
+                        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                        Refresh
+                    </button>
+                </div>
+
+                <!-- Activity Status Bar -->
+                <div class="activity-status-bar" id="activityStatusBar">
+                    <div class="activity-indicator" id="activityIndicator">
+                        <span class="pulse-dot"></span>
+                        <span class="activity-text" id="activityText"><span data-i18n="system_operations.processing">Processing...</span></span>
+                        <span class="activity-timer" id="activityTimer">0s</span>
+                        <span class="activity-stage" id="activityStage"></span>
+                    </div>
+                </div>
+
+                <!-- Tab Navigation -->
     <div class="tab-nav">
         <button class="tab-btn active" data-tab="dashboard">
             <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i>
@@ -3904,10 +3907,9 @@
             </div>
         </div>
     </div>
-</div>
 
-<!-- Tab: Firewall -->
-<div id="tab-firewall" class="tab-content">
+    <!-- Tab: Firewall -->
+    <div id="tab-firewall" class="tab-content">
     <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
         <span style="display: flex; align-items: center; gap: 8px;">
             <i data-lucide="shield" style="width: 18px; height: 18px;"></i>
@@ -3991,7 +3993,12 @@
             <p style="margin-top: 10px;"><span data-i18n="system_operations.no_firewall_rules_configured">No firewall rules configured.</span></p>
         </div>
     </div>
-</div>
+
+            </div><!-- /lcars-body -->
+            <div class="lcars-footer-bar"></div>
+        </div><!-- /lcars-content -->
+    </div><!-- /lcars-frame -->
+</div><!-- /sysops-container -->
 
 <!-- Firewall: Disable Confirmation Modal -->
 <div class="modal-overlay" id="firewallDisableModal">

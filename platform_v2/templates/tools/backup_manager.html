@@ -5,6 +5,7 @@
 {% block module_name %}backup-manager{% endblock %}
 
 {% block styles %}
+<link rel="stylesheet" href="/static/css/lcars-frames.css">
 <style>
     /* =========================================================================
      * A.R.C.H.I.E. BACKUP MANAGER - Admin Tools Module
@@ -18,32 +19,18 @@
     .backup-manager-container {
         min-height: 100vh;
         background: var(--archie-bg-deep);
+        --frame-color: #ef4444;
+        --frame-rgb: 239, 68, 68;
+        --lcars-accent-rgb: 239, 68, 68;
+    }
+    .backup-manager-container .lcars-frame,
+    .backup-manager-container .lcars-frame * {
+        --frame-color: #ef4444;
+        --frame-rgb: 239, 68, 68;
     }
 
     .backup-manager-content {
         padding-top: 70px;
-    }
-
-    .backup-manager-header {
-        padding: var(--archie-space-5) var(--archie-space-6);
-        border-bottom: 1px solid var(--archie-orange-alpha-20);
-        text-align: center;
-    }
-
-    .backup-manager-header h1 {
-        font-family: var(--archie-font-heading);
-        font-size: var(--archie-text-2xl);
-        color: var(--archie-orange);
-        text-shadow: 0 0 20px var(--archie-orange-alpha-30);
-        margin: 0;
-        letter-spacing: 0.08em;
-    }
-
-    .backup-manager-header p {
-        color: var(--archie-text-tertiary);
-        margin: var(--archie-space-2) 0 0 0;
-        font-size: var(--archie-text-sm);
-        letter-spacing: 0.04em;
     }
 
     /* ─── Hooks Grid ─── */
@@ -92,12 +79,7 @@
         align-items: center;
     }
 
-    /* Main Container */
-    .container {
-        max-width: 1600px;
-        margin: 0 auto;
-        padding: var(--archie-space-5) var(--archie-space-6);
-    }
+    /* Main Container — now handled by lcars-body */
 
     /* ─── Tab Navigation ─── */
     .tab-nav {
@@ -652,15 +634,6 @@
 
     /* ─── Responsive: Fold 5 front screen (374px) and small mobile ─── */
     @media (max-width: 420px) {
-        .container {
-            padding: var(--archie-space-3);
-        }
-        .backup-manager-header {
-            padding: var(--archie-space-3) var(--archie-space-3);
-        }
-        .backup-manager-header h1 {
-            font-size: var(--archie-text-lg);
-        }
         .stats-grid {
             grid-template-columns: 1fr;
             gap: var(--archie-space-2);
@@ -743,11 +716,6 @@
     body.light-mode .module-list,
     body.light-mode .retention-info {
         background: var(--archie-bg-surface);
-    }
-
-    body.light-mode .backup-manager-header h1 {
-        color: #ea580c;
-        text-shadow: none;
     }
 
     body.light-mode .stat-card .value,
@@ -956,15 +924,33 @@
     {% include 'includes/admin_tools_nav.html' %}
 
     <div class="backup-manager-content">
-        <!-- Page Header -->
-        <div class="backup-manager-header">
-            <h1><span data-i18n="backup_manager.backup_manager">BACKUP MANAGER</span></h1>
-            <p><span data-i18n="backup_manager.system_backups_restore_version_control">System backups, restore, version control</span></p>
-        </div>
+        <div class="lcars-frame">
+            <!-- LEFT SIDEBAR -->
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #ef4444"></div>
+                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+                <div class="lcars-seg" style="--seg-color: #ef4444"></div>
+                <div class="lcars-seg" style="--seg-color: #dc2626"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-elbow-bottom"></div>
+            </div>
 
-        <div class="toast-container" id="toastContainer"></div>
+            <!-- RIGHT CONTENT -->
+            <div class="lcars-content">
+                <div class="lcars-bar">
+                    <span class="lcars-bar-title" data-i18n="backup_manager.backup_manager">BACKUP MANAGER</span>
+                    <div class="lcars-bar-spacer"></div>
+                    <div class="lcars-pips">
+                        <span class="lcars-pip" style="width:20px"></span>
+                        <span class="lcars-pip" style="width:35px"></span>
+                        <span class="lcars-pip" style="width:14px"></span>
+                    </div>
+                    <span class="lcars-bar-status">ADMIN OPS</span>
+                </div>
 
-        <div class="container">
+                <div class="lcars-body">
+                    <div class="toast-container" id="toastContainer"></div>
             <!-- Stats -->
             <div class="stats-grid">
                 <div class="stat-card">
@@ -1280,9 +1266,13 @@
                     <div class="loading"><div class="spinner"></div><p><span data-i18n="backup_manager.loading_packages">Loading packages...</span></p></div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
+
+                </div><!-- /lcars-body -->
+                <div class="lcars-footer-bar"></div>
+            </div><!-- /lcars-content -->
+        </div><!-- /lcars-frame -->
+    </div><!-- /backup-manager-content -->
+</div><!-- /backup-manager-container -->
 
 <!-- Restore Preview Modal -->
 <div class="modal-overlay" id="restore-preview-modal" style="display: none;">

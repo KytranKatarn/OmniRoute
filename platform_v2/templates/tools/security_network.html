@@ -4,6 +4,7 @@
 {% block module_name %}security-network{% endblock %}
 
 {% block styles %}
+<link rel="stylesheet" href="/static/css/lcars-frames.css">
 <style>
     /* Security & Network Module — LCARS Design System */
     .security-container {
@@ -13,42 +14,23 @@
         --archie-accent-alpha-20: var(--archie-red-alpha-20);
         --archie-accent-alpha-30: var(--archie-red-alpha-30);
         --archie-glow-accent: var(--archie-glow-red);
-        max-width: 1600px;
-        margin: 0 auto;
+        --frame-color: #ef4444;
+        --frame-rgb: 239, 68, 68;
+        --lcars-accent-rgb: 239, 68, 68;
         padding: 20px;
         font-family: var(--archie-font-body);
     }
+    .security-container .lcars-frame,
+    .security-container .lcars-frame * {
+        --frame-color: #ef4444;
+        --frame-rgb: 239, 68, 68;
+    }
 
-    /* Header */
-    .sec-header {
-        text-align: center;
-        padding: 20px 25px;
-        border: 2px solid var(--archie-accent);
-        border-radius: 12px;
-        margin-bottom: 20px;
-        background: linear-gradient(180deg, var(--archie-accent-alpha-10) 0%, transparent 100%);
-        box-shadow: 0 0 30px var(--archie-accent-alpha-20);
-    }
-    .sec-header h1 {
-        font-family: var(--archie-font-heading);
-        font-size: 1.8rem;
-        color: var(--archie-accent);
-        text-shadow: 0 0 20px var(--archie-accent-alpha-30);
-        letter-spacing: 3px;
-        margin: 0;
-    }
-    .sec-header .subtitle {
-        color: var(--archie-text-muted);
-        margin-top: 6px;
-        font-size: 0.85rem;
-    }
+    /* Service Badges (inside lcars-body) */
     .header-services {
         display: flex;
-        justify-content: center;
-        gap: 16px;
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 1px solid var(--archie-border-default);
+        gap: 12px;
+        margin-bottom: 16px;
         flex-wrap: wrap;
     }
     .svc-badge {
@@ -712,20 +694,42 @@
 {% block content %}
 <div class="security-container">
 
-    <!-- Header -->
-    <div class="sec-header">
-        <h1><span data-i18n="security_network.security_network">SECURITY & NETWORK</span></h1>
-        <div class="subtitle"><span data-i18n="security_network.unified_security_operations_center">Unified security operations center</span></div>
-        <div class="header-services" id="service-badges">
-            <span class="svc-badge" id="svc-adguard"><span class="dot"></span><span data-i18n="security_network.adguard"> AdGuard</span></span>
-            <span class="svc-badge" id="svc-hostinger"><span class="dot"></span><span data-i18n="security_network.hostinger"> Hostinger</span></span>
-            <span class="svc-badge" id="svc-surveillance"><span class="dot"></span><span data-i18n="security_network.cameras"> Cameras</span></span>
-            <span class="svc-badge" id="svc-argus"><span class="dot"></span><span data-i18n="security_network.argus"> Argus</span></span>
-            <span class="svc-badge" id="svc-agent"><span class="dot"></span><span data-i18n="security_network.agent"> Agent</span></span>
+    <div class="lcars-frame">
+        <!-- LEFT SIDEBAR -->
+        <div class="lcars-sidebar">
+            <div class="lcars-elbow-top"></div>
+            <div class="lcars-seg" style="--seg-color: #ef4444"></div>
+            <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+            <div class="lcars-seg" style="--seg-color: #ef4444"></div>
+            <div class="lcars-seg" style="--seg-color: #dc2626"></div>
+            <div class="lcars-seg-fill"></div>
+            <div class="lcars-elbow-bottom"></div>
         </div>
-    </div>
 
-    <!-- Tab Navigation -->
+        <!-- RIGHT CONTENT -->
+        <div class="lcars-content">
+            <div class="lcars-bar">
+                <span class="lcars-bar-title" data-i18n="security_network.security_network">SECURITY & NETWORK</span>
+                <div class="lcars-bar-spacer"></div>
+                <div class="lcars-pips">
+                    <span class="lcars-pip" style="width:20px"></span>
+                    <span class="lcars-pip" style="width:35px"></span>
+                    <span class="lcars-pip" style="width:14px"></span>
+                </div>
+                <span class="lcars-bar-status">SEC OPS</span>
+            </div>
+
+            <div class="lcars-body">
+                <!-- Service Badges -->
+                <div class="header-services" id="service-badges">
+                    <span class="svc-badge" id="svc-adguard"><span class="dot"></span><span data-i18n="security_network.adguard"> AdGuard</span></span>
+                    <span class="svc-badge" id="svc-hostinger"><span class="dot"></span><span data-i18n="security_network.hostinger"> Hostinger</span></span>
+                    <span class="svc-badge" id="svc-surveillance"><span class="dot"></span><span data-i18n="security_network.cameras"> Cameras</span></span>
+                    <span class="svc-badge" id="svc-argus"><span class="dot"></span><span data-i18n="security_network.argus"> Argus</span></span>
+                    <span class="svc-badge" id="svc-agent"><span class="dot"></span><span data-i18n="security_network.agent"> Agent</span></span>
+                </div>
+
+                <!-- Tab Navigation -->
     <div class="tab-nav">
         <button class="tab-btn active" data-tab="dashboard">
             <i data-lucide="layout-dashboard" style="width:16px;height:16px"></i>
@@ -1235,6 +1239,11 @@
             <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_reports"> Loading reports...</span></div>
         </div>
     </div>
+
+            </div><!-- /lcars-body -->
+            <div class="lcars-footer-bar"></div>
+        </div><!-- /lcars-content -->
+    </div><!-- /lcars-frame -->
 
     <!-- ==================== AGENT AUTOMATION PANEL ==================== -->
     <button class="agent-fab" id="agent-fab" onclick="toggleAgentPanel()">

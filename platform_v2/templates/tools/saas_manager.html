@@ -6,16 +6,7 @@
 
 {% block styles %}
 <style>
-    /* Module-specific overrides only - uses shared theme.css and components.css
-     *
-     * DESIGN SYSTEM COMPLIANCE: HIGH
-     * - Modals: Using design system classes (modal-overlay, modal, modal-header/body/footer)
-     * - Buttons: Using design system classes (btn, btn-primary/danger/ghost, btn-sm)
-     * - Forms: Using design system classes (form-input, form-select, form-group, form-label)
-     * - Tables: Using design system class (data-table)
-     * - Stat Cards: Using design system classes (stat-card, stat-value, stat-label)
-     * - Tabs: Using design system classes (tab-nav, tab-btn, tab-content)
-     */
+    /* Module-specific styles — header and tabs now handled by theme macros */
     .saas-manager-container {
         min-height: 100vh;
         background: var(--archie-bg-deep);
@@ -25,36 +16,13 @@
         padding-top: 70px;
     }
 
-    .saas-manager-header {
-        padding: var(--archie-space-5) var(--archie-space-6);
-        border-bottom: 1px solid var(--archie-accent-alpha-20);
-        display: flex;
-        align-items: center;
-        gap: var(--archie-space-3);
+    /* Tab content show/hide */
+    .saas-tab-content {
+        display: none;
     }
 
-    .saas-manager-header h1 {
-        font-family: var(--archie-font-heading);
-        font-size: var(--archie-text-2xl);
-        color: var(--archie-accent);
-        text-shadow: var(--archie-text-glow-accent);
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: var(--archie-space-3);
-    }
-
-    .saas-manager-header .header-subtitle {
-        font-family: var(--archie-font-mono);
-        font-size: var(--archie-text-sm);
-        color: var(--archie-text-muted);
-        margin: var(--archie-space-1) 0 0 0;
-    }
-
-    .saas-manager-header .header-icon {
-        width: 32px;
-        height: 32px;
-        color: var(--archie-accent);
+    .saas-tab-content.active {
+        display: block;
     }
 
     /* Org Cards Grid */
@@ -481,22 +449,15 @@
 {% endblock %}
 
 {% block content %}
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
 <div class="saas-manager-container" data-module="saas-manager">
     {% include 'includes/admin_tools_nav.html' %}
 
     <div class="saas-manager-content">
-        <div class="saas-manager-header">
-            <div>
-                <h1>
-                    <i data-lucide="building-2" class="header-icon"></i>
-                    SAAS MANAGER
-                </h1>
-                <p class="header-subtitle"><span data-i18n="saas_manager.multi_tenant_organization_domain_management">Multi-tenant organization & domain management</span></p>
-            </div>
-        </div>
+        {{ page_header('SAAS MANAGER', subtitle='Multi-tenant organization & domain management', icon='building-2') }}
 
         <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-6);">
-            <!-- Stats Overview -->
+            <!-- Stats Cards — JS targets inner IDs with .textContent, keep original HTML -->
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label"><span data-i18n="saas_manager.total_orgs">TOTAL ORGS</span></div>
@@ -516,24 +477,14 @@
                 </div>
             </div>
 
-            <!-- Tabs -->
-            <div class="tab-nav" style="margin-bottom: var(--archie-space-6);">
-                <button class="tab-btn active" data-tab="organizations" onclick="switchTab('organizations')">
-                    <i data-lucide="building" style="width:16px;height:16px"></i>
-                    ORGANIZATIONS
-                </button>
-                <button class="tab-btn" data-tab="domains" onclick="switchTab('domains')">
-                    <i data-lucide="globe" style="width:16px;height:16px"></i>
-                    DOMAINS
-                </button>
-                <button class="tab-btn" data-tab="network" onclick="switchTab('network')">
-                    <i data-lucide="network" style="width:16px;height:16px"></i>
-                    NETWORK
-                </button>
-            </div>
+            {{ tab_nav(tabs=[
+                {'id': 'organizations', 'label': 'Organizations', 'icon': 'building'},
+                {'id': 'domains', 'label': 'Domains', 'icon': 'globe'},
+                {'id': 'network', 'label': 'Network', 'icon': 'network'}
+            ], onswitch='switchTab') }}
 
             <!-- ORGANIZATIONS Tab -->
-            <div class="tab-content active" id="tab-organizations">
+            <div class="saas-tab-content active" id="tab-organizations">
                 <div class="action-bar">
                     <div style="color: var(--archie-text-muted); font-size: var(--archie-text-sm);">
                         <span id="org-count">0</span> organizations
@@ -558,7 +509,7 @@
             </div>
 
             <!-- DOMAINS Tab -->
-            <div class="tab-content" id="tab-domains">
+            <div class="saas-tab-content" id="tab-domains">
                 <div class="action-bar">
                     <div style="color: var(--archie-text-muted); font-size: var(--archie-text-sm);">
                         All domains across organizations
@@ -597,7 +548,7 @@
             </div>
 
             <!-- NETWORK Tab -->
-            <div class="tab-content" id="tab-network">
+            <div class="saas-tab-content" id="tab-network">
                 <!-- Public IP -->
                 <div class="ip-display" id="ip-display">
                     <div class="ip-display-label"><span data-i18n="saas_manager.current_public_ip">Current Public IP</span></div>
@@ -828,10 +779,12 @@
     // ── Tab Switching ───────────────────────────────────────────────────────
 
     window.switchTab = function(tabName) {
-        document.querySelectorAll('.tab-btn').forEach(btn => {
+        // Update tab button active state (lcars-tab-btn from theme macro)
+        document.querySelectorAll('[data-tab]').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tabName);
         });
-        document.querySelectorAll('.tab-content').forEach(panel => {
+        // Show selected tab content
+        document.querySelectorAll('.saas-tab-content').forEach(panel => {
             panel.classList.toggle('active', panel.id === 'tab-' + tabName);
         });
 

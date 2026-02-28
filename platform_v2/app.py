@@ -2224,6 +2224,17 @@ VALID_THEMES = {
     "slate-pro",
 }
 
+THEME_TO_FAMILY = {
+    "lcars-classic": "lcars",
+    "corporate-blue": "corporate",
+    "slate-pro": "corporate",
+    "warm-minimal": "minimal",
+    "arctic-light": "minimal",
+    "midnight-purple": "elegant",
+    "rose-gold": "elegant",
+    "forest": "elegant",
+}
+
 ADMIN_CATEGORIES = {"admin_operations", "ai_command", "development_tools"}
 
 
@@ -2235,6 +2246,7 @@ def inject_theme_context():
     Admin modules always force LCARS.
     """
     theme_name = "lcars-classic"
+    layout_family = "lcars"
     is_admin_module = False
 
     if current_user.is_authenticated:
@@ -2275,8 +2287,16 @@ def inject_theme_context():
                     is_admin_module = True
                 break
 
+        # Resolve layout family from theme
+        layout_family = THEME_TO_FAMILY.get(theme_name, "lcars")
+
+        # Admin modules always use LCARS layout
+        if is_admin_module:
+            layout_family = "lcars"
+
     return {
         "theme_name": theme_name,
+        "layout_family": layout_family,
         "is_admin_module": is_admin_module,
     }
 

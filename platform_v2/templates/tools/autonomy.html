@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Orbitron:wght@400;600;700&display=swap">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   Autonomy Dashboard — LCARS Gold Standard
+   Autonomy Dashboard — Module-specific styles
    Accent: Amber #FFAA00 (Admin Ops category)
    ═══════════════════════════════════════════════════════════════════════════ */
 :root { --au-accent: #FFAA00; --au-accent-rgb: 255,170,0; --au-cyan: #00FFFF; --au-green: #00ff41; --au-red: #ff4136; --au-bg: #010409; --au-card: #0d1117; --au-border: #21262d; --au-text: #c9d1d9; --au-muted: #8b949e; }
@@ -18,12 +18,6 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .au-container { min-height: 100vh; background: var(--au-bg); padding: 0; }
 .au-body { max-width: 1400px; margin: 0 auto; padding: 1rem 2rem 2rem; }
 
-/* ── Page Header (LCARS styled) ── */
-.au-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid rgba(var(--au-accent-rgb), 0.3); }
-.au-header h1 { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; font-weight: 600; color: var(--au-accent); letter-spacing: 2px; text-transform: uppercase; }
-.au-header .subtitle { font-family: 'Antonio', sans-serif; font-size: 0.85rem; color: var(--au-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 0.25rem; }
-.au-header-right { display: flex; align-items: center; gap: 1rem; }
-
 /* ── Status Badge ── */
 .status-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem; border-radius: 2px 14px 14px 2px; font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
 .status-badge.running { background: rgba(0,255,65,0.08); color: var(--au-green); border: 1px solid rgba(0,255,65,0.3); border-left: 3px solid var(--au-green); }
@@ -32,15 +26,6 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .status-badge.running .dot { background: var(--au-green); animation: lcars-pulse 2s infinite; }
 .status-badge.stopped .dot { background: var(--au-red); }
 @keyframes lcars-pulse { 0%,100% { opacity: 0.5; box-shadow: 0 0 4px currentColor; } 50% { opacity: 1; box-shadow: 0 0 12px currentColor; } }
-
-/* ── GlassNav Tabs ── */
-.au-tabs { display: inline-flex; gap: 4px; padding: 4px; background: rgba(255,255,255,0.03); border-radius: 20px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 1.5rem; }
-.au-tab { padding: 8px 22px; border-radius: 14px; border: none; background: transparent; color: var(--au-muted); font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all 0.25s ease; white-space: nowrap; }
-.au-tab:hover { color: var(--au-text); background: rgba(255,255,255,0.04); }
-.au-tab.active { color: var(--au-accent); background: rgba(var(--au-accent-rgb), 0.12); box-shadow: 0 0 12px rgba(var(--au-accent-rgb), 0.15), inset 0 0 8px rgba(var(--au-accent-rgb), 0.05); }
-.au-tab .badge { display: inline-block; background: rgba(var(--au-accent-rgb), 0.2); color: var(--au-accent); padding: 1px 7px; border-radius: 8px; font-size: 0.65rem; margin-left: 6px; vertical-align: middle; }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
 
 /* ── LCARS Metric Cards ── */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
@@ -122,12 +107,13 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .empty-state { text-align: center; padding: 3rem; color: var(--au-muted); font-family: 'Antonio', sans-serif; font-size: 0.9rem; letter-spacing: 1px; }
 .empty-state .icon { font-size: 2rem; margin-bottom: 0.75rem; opacity: 0.4; }
 
+/* ── Tab Content Visibility ── */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .au-body { padding: 0.75rem 1rem 1.5rem; }
-    .au-header { flex-direction: column; gap: 1rem; align-items: flex-start; }
-    .au-tabs { width: 100%; overflow-x: auto; }
-    .au-tab { padding: 6px 14px; font-size: 0.75rem; }
     .job-grid { grid-template-columns: 1fr; }
     .card-grid { grid-template-columns: 1fr 1fr; }
     .job-card { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
@@ -148,30 +134,27 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 {% endblock %}
 
 {% block content %}
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
 {% include 'includes/admin_ops_nav.html' %}
 
 <div class="au-container">
     <div class="au-body">
-        <div class="au-header">
-            <div>
-                <h1>Autonomy</h1>
-                <div class="subtitle">Agent Loop — Proactive Queue Processing & Autonomous Operations</div>
+        {{ page_header('AUTONOMY', subtitle='Agent Loop — Proactive Queue Processing & Autonomous Operations', icon='bot') }}
+
+        <div style="display: flex; gap: 1rem; align-items: center; margin: -16px 0 20px 0;">
+            <div id="loopStatus" class="status-badge stopped">
+                <span class="dot"></span>
+                <span class="label">Stopped</span>
             </div>
-            <div class="au-header-right">
-                <div id="loopStatus" class="status-badge stopped">
-                    <span class="dot"></span>
-                    <span class="label">Stopped</span>
-                </div>
-                <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()">Start Loop</button>
-            </div>
+            <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()">Start Loop</button>
         </div>
 
-        <div class="au-tabs">
-            <button class="au-tab active" onclick="switchTab('overview', this)">Overview</button>
-            <button class="au-tab" onclick="switchTab('approvals', this)">Approvals <span id="approvalBadge" class="badge" style="display:none;">0</span></button>
-            <button class="au-tab" onclick="switchTab('history', this)">History</button>
-            <button class="au-tab" onclick="switchTab('config', this)">Config</button>
-        </div>
+        {{ tab_nav(tabs=[
+            {'id': 'overview', 'label': 'Overview'},
+            {'id': 'approvals', 'label': 'Approvals', 'badge_id': 'approvalBadge'},
+            {'id': 'history', 'label': 'History'},
+            {'id': 'config', 'label': 'Config'}
+        ], onswitch='switchTab') }}
 
         <!-- Overview Tab -->
         <div id="tab-overview" class="tab-content active">
@@ -272,7 +255,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
     var currentHistoryJob = null;
     var refreshInterval = null;
 
-    /* Job metadata — human labels + color accents for all 15 jobs */
+    /* Job metadata - human labels + color accents for all 15 jobs */
     var JOB_META = {
         'agent_email_queue':          {label:'Email Queue',          color:'#00FFFF',  group:'comms'},
         'agent_email_inbox':          {label:'Email Inbox',          color:'#00FFFF',  group:'comms'},
@@ -304,11 +287,12 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         return (JOB_META[name] || {}).color || (JOB_META[LOG_TO_ID[name]] || {}).color || '#FFAA00';
     }
 
-    function switchTab(tab, btn) {
+    /* Tab switching - uses [data-tab] attribute from theme macros */
+    function switchTab(tab) {
         document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
-        document.querySelectorAll('.au-tab').forEach(function(el) { el.classList.remove('active'); });
+        document.querySelectorAll('[data-tab]').forEach(function(el) { el.classList.remove('active'); });
         document.getElementById('tab-' + tab).classList.add('active');
-        btn.classList.add('active');
+        document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
         if (tab === 'approvals') loadApprovals('pending');
         if (tab === 'history') loadHistory(null, 24);
         if (tab === 'config') loadConfig();
@@ -345,9 +329,9 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         return div.innerHTML;
     }
 
-    function setPillHTML(td, html) {
-        /* Safe: statusPill generates from hardcoded map, no user input */
-        td.innerHTML = html;
+    function setPillHTML(td, statusHtml) {
+        /* Safe: statusPill generates from hardcoded class map, no user input in HTML */
+        td.innerHTML = statusHtml;
     }
 
     // ========== Overview ==========

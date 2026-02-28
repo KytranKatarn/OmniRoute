@@ -1,0 +1,139 @@
+{#
+  Elegant Layout Family
+  ---------------------
+  Floating rounded cards, gradient accents, glass effects,
+  decorative borders, pill-shaped nav.
+  Used by: midnight-purple, rose-gold, forest
+#}
+
+
+{# ── Page Header ── #}
+{% macro page_header(title, subtitle='', icon='', actions='') %}
+<header class="eleg-page-header">
+    <h1 class="eleg-title">
+        {% if icon %}<i data-lucide="{{ icon }}"></i>{% endif %}
+        {{ title }}
+    </h1>
+    <div class="eleg-title-accent"></div>
+    {% if subtitle %}
+    <p class="eleg-subtitle">{{ subtitle }}</p>
+    {% endif %}
+    {% if actions %}
+    <div class="eleg-header-actions">{{ actions }}</div>
+    {% endif %}
+</header>
+{% endmacro %}
+
+
+{# ── Stat Card ── #}
+{% macro stat_card(icon, value, label, variant='default', id='') %}
+<div class="eleg-stat-card eleg-stat--{{ variant }}" {% if id %}id="{{ id }}"{% endif %}>
+    <div class="eleg-stat-accent"></div>
+    <div class="eleg-stat-icon">
+        <i data-lucide="{{ icon }}"></i>
+    </div>
+    <div class="eleg-stat-value">{{ value }}</div>
+    <div class="eleg-stat-label">{{ label }}</div>
+</div>
+{% endmacro %}
+
+
+{# ── Tab Navigation ── #}
+{% macro tab_nav(tabs, active_id='', onswitch='') %}
+<div class="eleg-tab-nav">
+    {% for tab in tabs %}
+    <button class="eleg-tab{% if (loop.first and not active_id) or tab.id == active_id %} active{% endif %}"
+            data-tab="{{ tab.id }}"
+            {% if onswitch %}onclick="{{ onswitch }}('{{ tab.id }}')"{% endif %}>
+        {% if tab.icon %}<i data-lucide="{{ tab.icon }}"></i>{% endif %}
+        <span>{{ tab.label }}</span>
+        {% if tab.badge_id %}
+        <span class="eleg-tab-badge" id="{{ tab.badge_id }}" style="display: none;">0</span>
+        {% endif %}
+    </button>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ── Panel ── #}
+{% macro panel(title, icon='', accent='green', compact=false, id='') %}
+<div class="eleg-panel{% if compact %} eleg-panel--compact{% endif %}" {% if id %}id="{{ id }}"{% endif %}>
+    <div class="eleg-panel-header">
+        <h2 class="eleg-panel-title">
+            {% if icon %}<i data-lucide="{{ icon }}"></i>{% endif %}
+            {{ title }}
+        </h2>
+    </div>
+    <div class="eleg-panel-body">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ── Data Table ── #}
+{% macro data_table(headers, tbody_id='', table_class='') %}
+<div class="eleg-table-wrapper">
+    <table class="eleg-table {{ table_class }}">
+        <thead>
+            <tr>
+                {% for h in headers %}
+                <th>{{ h }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody {% if tbody_id %}id="{{ tbody_id }}"{% endif %}>
+            {{ caller() }}
+        </tbody>
+    </table>
+</div>
+{% endmacro %}
+
+
+{# ── Card Grid ── #}
+{% macro card_grid(columns='repeat(auto-fit, minmax(280px, 1fr))', gap='20px', id='') %}
+<div class="eleg-card-grid" {% if id %}id="{{ id }}"{% endif %} style="display: grid; grid-template-columns: {{ columns }}; gap: {{ gap }};">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ── Filter Bar ── #}
+{% macro filter_bar(search_placeholder='', search_id='', filters=[], oninput='') %}
+<div class="eleg-filter-bar">
+    {% if search_placeholder %}
+    <div class="eleg-search-wrap">
+        <i data-lucide="search"></i>
+        <input type="text" {% if search_id %}id="{{ search_id }}"{% endif %} class="eleg-input" placeholder="{{ search_placeholder }}" {% if oninput %}oninput="{{ oninput }}()"{% endif %}>
+    </div>
+    {% endif %}
+    {% for f in filters %}
+    <select {% if f.id %}id="{{ f.id }}"{% endif %} class="eleg-select" {% if oninput %}onchange="{{ oninput }}()"{% endif %}>
+        {% for opt in f.options %}
+        <option value="{{ opt.value }}">{{ opt.label }}</option>
+        {% endfor %}
+    </select>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ── Modal ── #}
+{% macro modal(modal_id, title, icon='', size='medium') %}
+{% set size_map = {'small': '420px', 'medium': '620px', 'large': '820px', 'xlarge': '1020px'} %}
+<div class="eleg-modal-backdrop" id="{{ modal_id }}-backdrop" style="display: none;" onclick="if(event.target===this)document.getElementById('{{ modal_id }}-backdrop').style.display='none';">
+    <div class="eleg-modal" id="{{ modal_id }}" style="width: {{ size_map.get(size, '620px') }};">
+        <div class="eleg-modal-header">
+            <h2>
+                {% if icon %}<i data-lucide="{{ icon }}"></i>{% endif %}
+                {{ title }}
+            </h2>
+            <button class="eleg-modal-close" onclick="document.getElementById('{{ modal_id }}-backdrop').style.display='none';">&times;</button>
+        </div>
+        <div class="eleg-modal-body">
+            {{ caller() }}
+        </div>
+    </div>
+</div>
+{% endmacro %}

@@ -1,0 +1,355 @@
+/*
+ * Elegant Layout Family — Floating cards, gradients, glass effects
+ * Used by: midnight-purple, rose-gold, forest themes
+ */
+
+/* ── Page Header ── */
+.eleg-page-header {
+    margin-bottom: 32px;
+}
+
+.eleg-title {
+    font-family: var(--archie-font-heading, 'Inter', sans-serif);
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--archie-text-primary, #e2e8f0);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.eleg-title i { width: 22px; height: 22px; color: var(--archie-accent, #8b5cf6); }
+
+.eleg-title-accent {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--archie-accent, #8b5cf6), transparent);
+    border-radius: 2px;
+    margin-top: 8px;
+}
+
+.eleg-subtitle {
+    color: var(--archie-text-secondary, #94a3b8);
+    font-size: 0.9rem;
+    margin: 8px 0 0 0;
+}
+
+.eleg-header-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* ── Stat Card ── */
+.eleg-stat-card {
+    background: var(--archie-bg-secondary, #1a1130);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    backdrop-filter: blur(8px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.eleg-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+.eleg-stat-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--archie-accent, #8b5cf6), var(--archie-cyan, #a78bfa));
+    border-radius: 16px 16px 0 0;
+}
+
+.eleg-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(var(--archie-green-rgb, 139,92,246), 0.15), rgba(var(--archie-green-rgb, 139,92,246), 0.05));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+}
+
+.eleg-stat-icon i { width: 24px; height: 24px; color: var(--archie-accent, #8b5cf6); }
+
+.eleg-stat--success .eleg-stat-accent { background: linear-gradient(90deg, var(--archie-success), transparent); }
+.eleg-stat--success .eleg-stat-icon i { color: var(--archie-success); }
+.eleg-stat--warning .eleg-stat-accent { background: linear-gradient(90deg, var(--archie-warning), transparent); }
+.eleg-stat--warning .eleg-stat-icon i { color: var(--archie-warning); }
+.eleg-stat--danger .eleg-stat-accent { background: linear-gradient(90deg, var(--archie-danger), transparent); }
+.eleg-stat--danger .eleg-stat-icon i { color: var(--archie-danger); }
+.eleg-stat--info .eleg-stat-accent { background: linear-gradient(90deg, var(--archie-cyan), transparent); }
+.eleg-stat--info .eleg-stat-icon i { color: var(--archie-cyan); }
+
+.eleg-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--archie-text-primary, #e2e8f0);
+    line-height: 1;
+}
+
+.eleg-stat-label {
+    font-size: 0.78rem;
+    color: var(--archie-text-secondary, #94a3b8);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 6px;
+}
+
+/* ── Tab Navigation ── */
+.eleg-tab-nav {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.eleg-tab {
+    padding: 9px 18px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    color: var(--archie-text-secondary, #94a3b8);
+    cursor: pointer;
+    font-family: var(--archie-font-heading, 'Inter', sans-serif);
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.25s ease;
+}
+
+.eleg-tab i { width: 15px; height: 15px; }
+
+.eleg-tab.active {
+    background: var(--archie-accent, #8b5cf6);
+    border-color: var(--archie-accent, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(var(--archie-green-rgb, 139,92,246), 0.3);
+}
+
+.eleg-tab:hover:not(.active) {
+    border-color: var(--archie-accent, #8b5cf6);
+    color: var(--archie-text-primary, #e2e8f0);
+    background: rgba(var(--archie-green-rgb, 139,92,246), 0.08);
+}
+
+.eleg-tab-badge {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border-radius: 8px;
+    padding: 1px 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+/* ── Panel ── */
+.eleg-panel {
+    background: var(--archie-bg-secondary, #1a1130);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    backdrop-filter: blur(8px);
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+
+.eleg-panel-header {
+    padding: 16px 24px;
+    background: linear-gradient(90deg, rgba(var(--archie-green-rgb, 139,92,246), 0.15), transparent);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.eleg-panel-title {
+    font-family: var(--archie-font-heading, 'Inter', sans-serif);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--archie-text-primary, #e2e8f0);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.eleg-panel-title i { width: 16px; height: 16px; color: var(--archie-accent, #8b5cf6); }
+
+.eleg-panel-body { padding: 24px; }
+
+.eleg-panel--compact .eleg-panel-body { padding: 16px 20px; }
+
+/* ── Data Table ── */
+.eleg-table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+}
+
+.eleg-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.eleg-table thead th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--archie-text-secondary, #94a3b8);
+    background: rgba(var(--archie-green-rgb, 139,92,246), 0.05);
+}
+
+.eleg-table tbody td {
+    padding: 14px 16px;
+    color: var(--archie-text-primary, #e2e8f0);
+    font-size: 0.88rem;
+}
+
+.eleg-table tbody tr {
+    transition: background 0.15s ease;
+}
+
+.eleg-table tbody tr:hover {
+    background: rgba(var(--archie-green-rgb, 139,92,246), 0.06);
+}
+
+.eleg-table tbody tr + tr td {
+    border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+/* ── Filter Bar ── */
+.eleg-filter-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.eleg-search-wrap {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+}
+
+.eleg-search-wrap i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: var(--archie-text-tertiary, #64748b);
+}
+
+.eleg-input, .eleg-select {
+    background: rgba(var(--archie-green-rgb, 139,92,246), 0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    color: var(--archie-text-primary, #e2e8f0);
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    transition: all 0.2s ease;
+}
+
+.eleg-input:focus, .eleg-select:focus {
+    border-color: var(--archie-accent, #8b5cf6);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(var(--archie-green-rgb, 139,92,246), 0.15);
+}
+
+.eleg-search-wrap .eleg-input {
+    width: 100%;
+    padding-left: 38px;
+}
+
+/* ── Modal ── */
+.eleg-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.eleg-modal {
+    background: var(--archie-bg-secondary, #1a1130);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    max-width: 95vw;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    overflow: hidden;
+}
+
+.eleg-modal-header {
+    padding: 18px 24px;
+    background: linear-gradient(90deg, rgba(var(--archie-green-rgb, 139,92,246), 0.15), transparent);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.eleg-modal-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--archie-text-primary, #e2e8f0);
+}
+
+.eleg-modal-header h2 i { width: 18px; height: 18px; color: var(--archie-accent, #8b5cf6); }
+
+.eleg-modal-close {
+    background: none;
+    border: none;
+    color: var(--archie-text-secondary, #94a3b8);
+    cursor: pointer;
+    font-size: 1.4rem;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: background 0.15s;
+}
+
+.eleg-modal-close:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+.eleg-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .eleg-stat-card { padding: 16px; border-radius: 12px; }
+    .eleg-tab-nav { overflow-x: auto; flex-wrap: nowrap; }
+    .eleg-tab { white-space: nowrap; padding: 8px 14px; }
+    .eleg-panel { border-radius: 12px; }
+    .eleg-panel-body { padding: 16px; }
+    .eleg-filter-bar { flex-direction: column; }
+    .eleg-search-wrap { min-width: 100%; }
+}

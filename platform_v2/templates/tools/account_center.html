@@ -6,6 +6,7 @@
 
 {% block styles %}
 <link rel="stylesheet" href="/static/css/lcars-panels.css">
+<link rel="stylesheet" href="/static/css/lcars-frames.css">
 <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
@@ -38,25 +39,20 @@
         padding-top: 52px;
     }
 
-    .account-center-header {
-        padding: var(--archie-space-3) var(--archie-space-6);
-        border-bottom: 1px solid var(--archie-accent-alpha-20);
-    }
-
-    .account-center-header h1 {
-        font-family: var(--archie-font-heading);
-        font-size: var(--archie-text-2xl);
-        color: var(--archie-accent);
-        text-shadow: var(--archie-text-glow-accent);
-        margin: 0;
-    }
-
     /* Stats Grid */
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: var(--archie-space-3);
         margin-bottom: var(--archie-space-5);
+    }
+
+    @media (max-width: 920px) {
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 480px) {
+        .stats-grid { grid-template-columns: 1fr; }
     }
 
     /* Pagination */
@@ -1775,7 +1771,8 @@
     /* Responsive - 920px */
     @media (max-width: 920px) {
         .saas-org-grid { grid-template-columns: 1fr; }
-        .saas-detail-panel { width: 100vw; max-width: 100vw; }
+        .saas-detail-panel { width: 100vw; max-width: 100vw; right: -100vw; }
+        .saas-detail-panel.open { right: 0; }
     }
 
     /* Responsive - Galaxy Fold 5 (344px folded) */
@@ -1796,7 +1793,8 @@
         .saas-sub-tab-btn i { width: 12px; height: 12px; }
 
         /* Detail panel full-width */
-        .saas-detail-panel { width: 100vw; max-width: 100vw; }
+        .saas-detail-panel { width: 100vw; max-width: 100vw; right: -100vw; }
+        .saas-detail-panel.open { right: 0; }
 
         /* Module checkboxes single column */
         .saas-module-check-list { grid-template-columns: 1fr; }
@@ -1822,43 +1820,16 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════════
-       LCARS OVERHAUL — Orange Accent (#f97316 / 245, 158, 11)
+       LCARS OVERHAUL — Red/Coral Accent (#ff6b6b / 255, 107, 107)
        Matching Admin Operations category & gold standard modules
        ═══════════════════════════════════════════════════════════════════ */
 
     .account-center-container {
-        --lcars-accent-rgb: 245, 158, 11;
-        --lcars-accent: #f59e0b;
-        --lcars-accent-dim: #d48a09;
-    }
-
-    /* ── LCARS Header ──────────────────────────────────────── */
-    .account-center-header {
-        text-align: center;
-        padding: 25px;
-        border: 2px solid rgba(var(--lcars-accent-rgb), 0.4);
-        border-radius: 12px;
-        background: linear-gradient(180deg, rgba(var(--lcars-accent-rgb), 0.08) 0%, transparent 100%);
-        box-shadow: 0 0 30px rgba(var(--lcars-accent-rgb), 0.15);
-        border-bottom: 2px solid rgba(var(--lcars-accent-rgb), 0.4);
-    }
-
-    .account-center-header h1 {
-        font-family: 'Orbitron', sans-serif !important;
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: rgba(var(--lcars-accent-rgb), 1);
-        text-shadow: 0 0 20px rgba(var(--lcars-accent-rgb), 0.4);
-        letter-spacing: 3px;
-    }
-
-    .account-center-header .lcars-subtitle {
-        font-family: 'Antonio', sans-serif;
-        font-size: 0.85rem;
-        color: rgba(255, 255, 255, 0.45);
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        margin-top: 6px;
+        --lcars-accent-rgb: 255, 107, 107;
+        --lcars-accent: #ff6b6b;
+        --lcars-accent-dim: #e05555;
+        --frame-color: #ff6b6b;
+        --frame-rgb: 255, 107, 107;
     }
 
     /* ── LCARS Stat Cards ──────────────────────────────────── */
@@ -1923,21 +1894,21 @@
     }
 
     /* Per-card accent colors for stat cards */
-    .stats-grid .stat-card:nth-child(1) { --lcars-accent-rgb: 245, 158, 11; }   /* Total=orange */
+    .stats-grid .stat-card:nth-child(1) { --lcars-accent-rgb: 255, 107, 107; }   /* Total=orange */
     .stats-grid .stat-card:nth-child(2) { --lcars-accent-rgb: 239, 68, 68; }    /* Admins=red */
-    .stats-grid .stat-card:nth-child(3) { --lcars-accent-rgb: 245, 158, 11; }   /* Premium=orange */
+    .stats-grid .stat-card:nth-child(3) { --lcars-accent-rgb: 255, 107, 107; }   /* Premium=orange */
     .stats-grid .stat-card:nth-child(4) { --lcars-accent-rgb: 160, 160, 170; }  /* Free=muted */
     .stats-grid .stat-card:nth-child(5) { --lcars-accent-rgb: 0, 255, 255; }    /* Active=cyan */
     .stats-grid .stat-card:nth-child(6) { --lcars-accent-rgb: 0, 255, 65; }     /* Sessions=green */
     .stats-grid .stat-card:nth-child(7) { --lcars-accent-rgb: 139, 92, 246; }   /* API Keys=purple */
-    .stats-grid .stat-card:nth-child(8) { --lcars-accent-rgb: 245, 158, 11; }   /* Orgs=accent */
+    .stats-grid .stat-card:nth-child(8) { --lcars-accent-rgb: 255, 107, 107; }   /* Orgs=accent */
 
     /* ── LCARS Tab Navigation ──────────────────────────────── */
     .account-center-container .tab-nav {
         background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(255, 107, 107, 0.12);
         border-radius: 0 12px 12px 0;
-        border-left: 3px solid rgba(245, 158, 11, 0.3);
+        border-left: 3px solid rgba(255, 107, 107, 0.3);
         padding: 6px;
         overflow-x: auto;
         flex-wrap: nowrap;
@@ -1952,7 +1923,7 @@
         background: transparent;
     }
     .account-center-container .tab-nav::-webkit-scrollbar-thumb {
-        background: rgba(245, 158, 11, 0.2);
+        background: rgba(255, 107, 107, 0.2);
         border-radius: 2px;
     }
 
@@ -1985,18 +1956,18 @@
     }
 
     .account-center-container .tab-btn:hover {
-        color: rgba(245, 158, 11, 0.8);
-        background: rgba(245, 158, 11, 0.06);
+        color: rgba(255, 107, 107, 0.8);
+        background: rgba(255, 107, 107, 0.06);
     }
 
     .account-center-container .tab-btn.active {
-        color: rgba(245, 158, 11, 1);
-        background: rgba(245, 158, 11, 0.12);
-        border-color: rgba(245, 158, 11, 0.25);
+        color: rgba(255, 107, 107, 1);
+        background: rgba(255, 107, 107, 0.12);
+        border-color: rgba(255, 107, 107, 0.25);
     }
 
     .account-center-container .tab-btn.active::before {
-        background: rgba(245, 158, 11, 0.7);
+        background: rgba(255, 107, 107, 0.7);
     }
 
     /* ── LCARS Section Headers ─────────────────────────────── */
@@ -2030,16 +2001,16 @@
         font-size: 0.7rem;
         font-weight: 500;
         letter-spacing: 1px;
-        color: rgba(245, 158, 11, 0.75);
-        border-bottom: 2px solid rgba(245, 158, 11, 0.25);
+        color: rgba(255, 107, 107, 0.75);
+        border-bottom: 2px solid rgba(255, 107, 107, 0.25);
     }
 
     .account-center-container .data-table thead {
-        border-top: 2px solid rgba(245, 158, 11, 0.3);
+        border-top: 2px solid rgba(255, 107, 107, 0.3);
     }
 
     .account-center-container .data-table tbody tr:hover td {
-        background: rgba(245, 158, 11, 0.04);
+        background: rgba(255, 107, 107, 0.04);
     }
 
     /* ── Permission Matrix Table LCARS ─────────────────────── */
@@ -2047,14 +2018,14 @@
         font-family: 'Orbitron', sans-serif !important;
         font-size: 0.68rem !important;
         letter-spacing: 0.8px;
-        color: rgba(245, 158, 11, 0.75) !important;
-        border-bottom: 2px solid rgba(245, 158, 11, 0.25) !important;
+        color: rgba(255, 107, 107, 0.75) !important;
+        border-bottom: 2px solid rgba(255, 107, 107, 0.25) !important;
     }
 
     .perm-matrix-table .category-row td {
         font-family: 'Antonio', sans-serif !important;
-        color: rgba(245, 158, 11, 0.85) !important;
-        border-bottom-color: rgba(245, 158, 11, 0.2) !important;
+        color: rgba(255, 107, 107, 0.85) !important;
+        border-bottom-color: rgba(255, 107, 107, 0.2) !important;
     }
 
     /* ── LCARS Panel Treatment for Cards ───────────────────── */
@@ -2203,9 +2174,9 @@
     }
 
     .saas-sub-tab-btn.active {
-        border-color: rgba(245, 158, 11, 0.4) !important;
-        background: rgba(245, 158, 11, 0.12) !important;
-        color: rgba(245, 158, 11, 1) !important;
+        border-color: rgba(255, 107, 107, 0.4) !important;
+        background: rgba(255, 107, 107, 0.12) !important;
+        color: rgba(255, 107, 107, 1) !important;
     }
 
     /* ── SaaS Org Cards LCARS ──────────────────────────────── */
@@ -2221,15 +2192,15 @@
 
     /* ── Modals LCARS Border ───────────────────────────────── */
     .account-center-container .modal {
-        border: 1px solid rgba(245, 158, 11, 0.2);
-        border-left: 3px solid rgba(245, 158, 11, 0.4);
+        border: 1px solid rgba(255, 107, 107, 0.2);
+        border-left: 3px solid rgba(255, 107, 107, 0.4);
         border-radius: 0 12px 12px 0;
     }
 
     .account-center-container .modal-header {
         font-family: 'Orbitron', sans-serif;
-        border-bottom: 1px solid rgba(245, 158, 11, 0.12);
-        background: rgba(245, 158, 11, 0.04);
+        border-bottom: 1px solid rgba(255, 107, 107, 0.12);
+        background: rgba(255, 107, 107, 0.04);
     }
 
     .account-center-container .modal-header h3,
@@ -2237,7 +2208,7 @@
         font-family: 'Orbitron', sans-serif !important;
         font-size: 0.85rem;
         letter-spacing: 1.5px;
-        color: rgba(245, 158, 11, 0.9);
+        color: rgba(255, 107, 107, 0.9);
     }
 
     /* ── Sessions Tab Live Indicator ───────────────────────── */
@@ -2257,8 +2228,8 @@
     .activity-chart-panel {
         position: relative;
         background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(245, 158, 11, 0.12);
-        border-left: 3px solid rgba(245, 158, 11, 0.4);
+        border: 1px solid rgba(255, 107, 107, 0.12);
+        border-left: 3px solid rgba(255, 107, 107, 0.4);
         border-radius: 0 12px 12px 0;
         padding: 16px;
         margin-bottom: 16px;
@@ -2273,9 +2244,9 @@
         height: 100%;
         background: linear-gradient(
             180deg,
-            rgba(245, 158, 11, 0.6) 0%,
-            rgba(245, 158, 11, 0.15) 50%,
-            rgba(245, 158, 11, 0.6) 100%
+            rgba(255, 107, 107, 0.6) 0%,
+            rgba(255, 107, 107, 0.15) 50%,
+            rgba(255, 107, 107, 0.6) 100%
         );
         pointer-events: none;
         z-index: 1;
@@ -2300,19 +2271,19 @@
     /* ── Form Borders LCARS ────────────────────────────────── */
     .account-center-container .form-input:focus,
     .account-center-container .form-select:focus {
-        border-color: rgba(245, 158, 11, 0.4);
-        box-shadow: 0 0 8px rgba(245, 158, 11, 0.12);
+        border-color: rgba(255, 107, 107, 0.4);
+        box-shadow: 0 0 8px rgba(255, 107, 107, 0.12);
     }
 
     /* ── Bulk Ops Form Borders ─────────────────────────────── */
     .account-center-container .file-upload-zone {
-        border-color: rgba(245, 158, 11, 0.2);
+        border-color: rgba(255, 107, 107, 0.2);
     }
 
     .account-center-container .file-upload-zone:hover,
     .account-center-container .file-upload-zone.dragover {
-        border-color: rgba(245, 158, 11, 0.5);
-        background: rgba(245, 158, 11, 0.05);
+        border-color: rgba(255, 107, 107, 0.5);
+        background: rgba(255, 107, 107, 0.05);
     }
 
     /* ── Profile Tab Buttons LCARS ─────────────────────────── */
@@ -2351,10 +2322,6 @@
 
     /* ── LCARS Responsive Overrides ─────────────────────────── */
     @media (max-width: 920px) {
-        .account-center-header h1 {
-            font-size: 1.3rem;
-            letter-spacing: 2px;
-        }
         .account-center-container .tab-btn {
             font-size: 0.72rem;
             letter-spacing: 1px;
@@ -2363,10 +2330,6 @@
     }
 
     @media (max-width: 600px) {
-        .account-center-header h1 {
-            font-size: 1.1rem;
-            letter-spacing: 1.5px;
-        }
         .account-center-container .tab-btn {
             font-size: 0.65rem;
             letter-spacing: 0.8px;
@@ -2384,21 +2347,41 @@
     {% include 'includes/admin_tools_nav.html' %}
 
     <div class="account-center-content">
-        <div class="account-center-header">
-            <h1><span data-i18n="account_center.account_center">ACCOUNT CENTER</span></h1>
-            <div class="lcars-subtitle">ADMIN OPERATIONS // USER MANAGEMENT INTERFACE</div>
-        </div>
+        <div class="lcars-frame">
+            <!-- LEFT SIDEBAR -->
+            <div class="lcars-sidebar">
+                <div class="lcars-elbow-top"></div>
+                <div class="lcars-seg" style="--seg-color: #ff6b6b"></div>
+                <div class="lcars-seg" style="--seg-color: #f59e0b"></div>
+                <div class="lcars-seg" style="--seg-color: #ff6b6b"></div>
+                <div class="lcars-seg" style="--seg-color: #ef4444"></div>
+                <div class="lcars-seg-fill"></div>
+                <div class="lcars-elbow-bottom"></div>
+            </div>
 
-        <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-4) var(--archie-space-5);">
+            <!-- RIGHT CONTENT -->
+            <div class="lcars-content">
+                <div class="lcars-bar">
+                    <span class="lcars-bar-title" data-i18n="account_center.account_center">ACCOUNT CENTER</span>
+                    <div class="lcars-bar-spacer"></div>
+                    <div class="lcars-pips">
+                        <span class="lcars-pip" style="width:20px"></span>
+                        <span class="lcars-pip" style="width:35px"></span>
+                        <span class="lcars-pip" style="width:14px"></span>
+                    </div>
+                    <span class="lcars-bar-status">ADMIN OPS</span>
+                </div>
+
+                <div class="lcars-body">
             <!-- Stats Overview -->
             <div class="lcars-section-label" style="margin-top: 0;">
-                <div class="lcars-section-cap" style="--lcars-accent-rgb: 245, 158, 11;"></div>
-                <div class="lcars-section-title" style="--lcars-accent-rgb: 245, 158, 11;">SYSTEM METRICS</div>
+                <div class="lcars-section-cap" style="--lcars-accent-rgb: 255, 107, 107;"></div>
+                <div class="lcars-section-title" style="--lcars-accent-rgb: 255, 107, 107;">SYSTEM METRICS</div>
             </div>
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.total_users">TOTAL USERS</span></div>
-                    <div class="stat-value" id="stat-total" style="color: rgb(245, 158, 11);">{{ stats.total_users }}</div>
+                    <div class="stat-value" id="stat-total" style="color: rgb(255, 107, 107);">{{ stats.total_users }}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.admins">ADMINS</span></div>
@@ -2406,7 +2389,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.premium">PREMIUM</span></div>
-                    <div class="stat-value" id="stat-premium" style="color: rgb(245, 158, 11);">{{ stats.premium }}</div>
+                    <div class="stat-value" id="stat-premium" style="color: rgb(255, 107, 107);">{{ stats.premium }}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.free">FREE</span></div>
@@ -2426,7 +2409,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.orgs">ORGS</span></div>
-                    <div class="stat-value" id="stat-orgs" style="color: rgb(245, 158, 11);">{{ stats.organizations }}</div>
+                    <div class="stat-value" id="stat-orgs" style="color: rgb(255, 107, 107);">{{ stats.organizations }}</div>
                 </div>
             </div>
 
@@ -3147,7 +3130,7 @@
                     </div>
                     <div class="stat-card">
                         <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.modules">MODULES</span></div>
-                        <div class="stat-value" id="saas-stat-modules" style="color: rgb(245, 158, 11);">-</div>
+                        <div class="stat-value" id="saas-stat-modules" style="color: rgb(255, 107, 107);">-</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label"><span class="lcars-light"></span><span data-i18n="account_center.public_ip">PUBLIC IP</span></div>
@@ -3303,9 +3286,13 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
+                </div><!-- /lcars-body -->
+
+                <div class="lcars-footer-bar"></div>
+            </div><!-- /lcars-content -->
+        </div><!-- /lcars-frame -->
+    </div><!-- /account-center-content -->
+</div><!-- /account-center-container -->
 
 <!-- SaaS Detail Panel (Slide-in for org details) -->
 <div class="saas-detail-panel-overlay" id="saas-detail-overlay" onclick="saasCloseDetailPanel()"></div>
@@ -4064,7 +4051,7 @@ function buildProfileHeader(container, user, subscription) {
     const crmLink = document.createElement('a');
     crmLink.href = '/tools/crm/';
     crmLink.className = 'badge';
-    crmLink.style.cssText = 'border: 1px solid #f59e0b; color: #f59e0b; text-decoration: none; padding: 3px 10px; cursor: pointer; font-size: 0.7rem;';
+    crmLink.style.cssText = 'border: 1px solid #ff6b6b; color: #ff6b6b; text-decoration: none; padding: 3px 10px; cursor: pointer; font-size: 0.7rem;';
     crmLink.textContent = 'CRM \u2192';
     crosslinks.appendChild(crmLink);
 

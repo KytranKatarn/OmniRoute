@@ -22,6 +22,7 @@
     .account-center-container {
         min-height: 100vh;
         background: var(--archie-bg-deep);
+        overflow-x: hidden;
     }
 
     /* Fix card header contrast - shared components.css lacks explicit color */
@@ -34,11 +35,11 @@
     }
 
     .account-center-content {
-        padding-top: 70px;
+        padding-top: 52px;
     }
 
     .account-center-header {
-        padding: var(--archie-space-5) var(--archie-space-6);
+        padding: var(--archie-space-3) var(--archie-space-6);
         border-bottom: 1px solid var(--archie-accent-alpha-20);
     }
 
@@ -53,9 +54,9 @@
     /* Stats Grid */
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: var(--archie-space-4);
-        margin-bottom: var(--archie-space-6);
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--archie-space-3);
+        margin-bottom: var(--archie-space-5);
     }
 
     /* Pagination */
@@ -225,15 +226,20 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        flex-wrap: wrap;
-        gap: var(--archie-space-4);
+        gap: var(--archie-space-3);
         margin-bottom: var(--archie-space-4);
     }
 
     .filters {
         display: flex;
         gap: var(--archie-space-2);
-        flex-wrap: wrap;
+        flex: 1;
+        min-width: 0;
+        align-items: center;
+    }
+
+    .filters .form-select {
+        max-width: 160px;
     }
 
     /* Role Overview Cards */
@@ -1240,14 +1246,12 @@
     .table-responsive {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        margin: 0 calc(-1 * var(--archie-space-4));
-        padding: 0 var(--archie-space-4);
     }
 
     @media (max-width: 920px) {
         .table-responsive {
-            margin: 0 calc(-1 * var(--archie-space-3));
-            padding: 0 var(--archie-space-3);
+            margin: 0;
+            padding: 0;
         }
 
         /* Data table mobile adjustments */
@@ -1866,6 +1870,7 @@
         border-radius: 0 12px 12px 0;
         overflow: hidden;
         animation: lcarsCardIn 0.4s ease-out both;
+        padding: var(--archie-space-3) var(--archie-space-4);
     }
 
     .stats-grid .stat-card::before {
@@ -1934,6 +1939,21 @@
         border-radius: 0 12px 12px 0;
         border-left: 3px solid rgba(245, 158, 11, 0.3);
         padding: 6px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .account-center-container .tab-nav::-webkit-scrollbar {
+        height: 3px;
+    }
+    .account-center-container .tab-nav::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .account-center-container .tab-nav::-webkit-scrollbar-thumb {
+        background: rgba(245, 158, 11, 0.2);
+        border-radius: 2px;
     }
 
     .account-center-container .tab-btn {
@@ -1948,6 +1968,8 @@
         padding: 8px 16px;
         position: relative;
         transition: all 0.2s ease;
+        flex-shrink: 0;
+        white-space: nowrap;
     }
 
     .account-center-container .tab-btn::before {
@@ -2365,25 +2387,11 @@
         <div class="account-center-header">
             <h1><span data-i18n="account_center.account_center">ACCOUNT CENTER</span></h1>
             <div class="lcars-subtitle">ADMIN OPERATIONS // USER MANAGEMENT INTERFACE</div>
-            <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                <a href="/tools/my-profile/" style="font-family: Antonio, sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(59,130,246,0.8); border: 1px solid rgba(59,130,246,0.3); border-radius: 2px 12px 12px 2px; padding: 5px 14px; text-decoration: none; transition: all 0.2s;">
-                    MY PROFILE
-                </a>
-                <a href="/tools/crm/" style="font-family: Antonio, sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(245,158,11,0.8); border: 1px solid rgba(245,158,11,0.3); border-radius: 2px 12px 12px 2px; padding: 5px 14px; text-decoration: none; transition: all 0.2s;">
-                    CRM
-                </a>
-                <a href="/tools/store-builder/" style="font-family: Antonio, sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(34,197,94,0.8); border: 1px solid rgba(34,197,94,0.3); border-radius: 2px 12px 12px 2px; padding: 5px 14px; text-decoration: none; transition: all 0.2s;">
-                    STORE
-                </a>
-                <a href="/tools/email-manager/" style="font-family: Antonio, sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(139,92,246,0.8); border: 1px solid rgba(139,92,246,0.3); border-radius: 2px 12px 12px 2px; padding: 5px 14px; text-decoration: none; transition: all 0.2s;">
-                    EMAIL
-                </a>
-            </div>
         </div>
 
-        <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-6);">
+        <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-4) var(--archie-space-5);">
             <!-- Stats Overview -->
-            <div class="lcars-section-label" style="margin-top: 4px;">
+            <div class="lcars-section-label" style="margin-top: 0;">
                 <div class="lcars-section-cap" style="--lcars-accent-rgb: 245, 158, 11;"></div>
                 <div class="lcars-section-title" style="--lcars-accent-rgb: 245, 158, 11;">SYSTEM METRICS</div>
             </div>
@@ -2423,7 +2431,7 @@
             </div>
 
             <!-- Tabs -->
-            <div class="tab-nav" style="margin-bottom: var(--archie-space-6);">
+            <div class="tab-nav" style="margin-bottom: var(--archie-space-4);">
                 <button class="tab-btn active" data-tab="list"><span data-i18n="account_center.users">USERS</span></button>
                 <button class="tab-btn" data-tab="permissions"><span data-i18n="account_center.permissions">PERMISSIONS</span></button>
                 <button class="tab-btn" data-tab="subscriptions"><span data-i18n="account_center.subscriptions">SUBSCRIPTIONS</span></button>
@@ -2459,9 +2467,9 @@
                             <option value="kytran"><span data-i18n="account_center.kytran_staff">Kytran Staff</span></option>
                             <option value="vip"><span data-i18n="account_center.vip">VIP</span></option>
                         </select>
-                        <input type="text" id="search-users" class="form-input" placeholder="Search users...">
+                        <input type="text" id="search-users" class="form-input" placeholder="Search users..." style="flex: 1; min-width: 120px;">
                     </div>
-                    <button class="btn btn-primary" onclick="showAddUserModal()"><span data-i18n="account_center.add_user">+ ADD USER</span></button>
+                    <button class="btn btn-primary btn-sm" onclick="showAddUserModal()" style="white-space: nowrap;"><span data-i18n="account_center.add_user">+ ADD USER</span></button>
                 </div>
 
                 <div class="table-responsive">

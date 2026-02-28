@@ -487,17 +487,17 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="archie_chat",
         name="A.R.C.H.I.E.",
-        description="Your AI assistant<br>Text & voice chat • Image analysis • Long-term memory",
+        description="Direct AI command interface<br>Text & voice chat • Image analysis • Long-term memory",
         icon="bot",
-        category=ModuleCategory.SAAS_SERVICES,
+        category=ModuleCategory.AI_COMMAND,
         route="/tools/archie-chat",
         blueprint_import="tools.archie_core.routes:archie_chat_bp",
         required_permissions=["archie:chat"],
-        minimum_role="USER",
+        minimum_role="ADMIN",
         enabled=True,
         health_check=archie_chat_health_check,
         priority=1,
-        tags=["ai", "assistant", "chat", "voice", "vision", "saas"],
+        tags=["ai", "assistant", "chat", "voice", "vision", "ai-command"],
     ),
     # ============================================
     # DEVELOPMENT TOOLS (3 modules)
@@ -736,7 +736,7 @@ MODULES: List[ModuleDefinition] = [
         blueprint_import="tools.project_manager.routes:project_manager_bp",
         required_permissions=["admin:projects"],
         minimum_role="ADMIN",
-        enabled=True,
+        enabled=False,  # Deprecated — Dev HQ handles all project/task management
         coming_soon=False,
         health_check=lambda: check_service_health("project_manager", "/tools/project-manager/api/status"),
         priority=1,

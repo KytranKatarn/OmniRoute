@@ -144,7 +144,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.PUBLIC_VIEW,
         Permission.DIRECTORY_VIEW,
         # USER specific
-        Permission.USER_CHAT,
         Permission.CODE_EDITOR_READ,
         Permission.CODE_EDITOR_WRITE,
         Permission.USER_SETTINGS,
@@ -173,7 +172,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # Inherit USER
         Permission.PUBLIC_VIEW,
         Permission.DIRECTORY_VIEW,
-        Permission.USER_CHAT,
         Permission.CODE_EDITOR_READ,
         Permission.CODE_EDITOR_WRITE,
         Permission.USER_SETTINGS,

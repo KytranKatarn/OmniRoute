@@ -151,9 +151,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.WRITE_OWN,
         # App Builder (limited: 1 project/month for FREE users)
         Permission.APP_BUILDER_CREATE,
-        # Automation Services (Bronze tier for free users)
-        Permission.AUTOMATION_CREATE,
-        Permission.AUTOMATION_MANAGE,
+        # Automations: admin-only (N8N global proxy, not multi-tenant yet)
         # Task Planner (basic scheduling)
         Permission.TASK_PLANNER_SCHEDULE,
         Permission.TASK_PLANNER_CALENDAR,
@@ -178,8 +176,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.READ_OWN,
         Permission.WRITE_OWN,
         Permission.APP_BUILDER_CREATE,
-        Permission.AUTOMATION_CREATE,
-        Permission.AUTOMATION_MANAGE,
         Permission.TASK_PLANNER_SCHEDULE,
         Permission.TASK_PLANNER_CALENDAR,
         Permission.GOOGLE_EMAIL,

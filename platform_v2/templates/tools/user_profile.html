@@ -332,6 +332,7 @@
     <div class="profile-header">
         <h1>My Profile</h1>
         <div class="subtitle">Personnel File &mdash; A.R.C.H.I.E. Platform</div>
+        <div class="profile-crosslinks" id="profileCrosslinks" style="margin-top: 12px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;"></div>
     </div>
 
     <div class="profile-grid">
@@ -479,6 +480,9 @@
 
                 // Render modules
                 renderModules(data.modules || []);
+
+                // Render cross-links based on role and accessible modules
+                renderCrosslinks(p, data.modules || []);
             })
             .catch(function(e) {
                 console.error('[Profile] Load failed:', e);
@@ -638,6 +642,53 @@
 
         return false;
     };
+
+    // ── Cross-links ──────────────────────────────────────
+    function renderCrosslinks(profile, modules) {
+        var container = document.getElementById('profileCrosslinks');
+        if (!container) return;
+        container.textContent = '';
+
+        var links = [];
+
+        // Admin-only links
+        if (profile.role === 'admin') {
+            links.push({ url: '/tools/account-center/', label: 'Account Center', icon: 'shield' });
+        }
+
+        // CRM link (if user has access)
+        var hasCrm = modules.some(function(m) { return m.url && m.url.indexOf('/crm') !== -1; });
+        if (hasCrm) {
+            links.push({ url: '/tools/crm/', label: 'My CRM', icon: 'users' });
+        }
+
+        // Store link (if user has access)
+        var hasStore = modules.some(function(m) { return m.url && m.url.indexOf('/store') !== -1; });
+        if (hasStore) {
+            links.push({ url: '/tools/store-builder/', label: 'My Store', icon: 'shopping-bag' });
+        }
+
+        // Email link (if user has access)
+        var hasEmail = modules.some(function(m) { return m.url && m.url.indexOf('/email') !== -1; });
+        if (hasEmail) {
+            links.push({ url: '/tools/email-manager/', label: 'My Email', icon: 'mail' });
+        }
+
+        links.forEach(function(link) {
+            var a = document.createElement('a');
+            a.href = link.url;
+            a.className = 'lcars-btn';
+            a.style.cssText = 'font-size: 0.72rem; padding: 6px 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;';
+            var i = document.createElement('i');
+            i.setAttribute('data-lucide', link.icon);
+            i.style.cssText = 'width: 14px; height: 14px;';
+            a.appendChild(i);
+            a.appendChild(document.createTextNode(link.label));
+            container.appendChild(a);
+        });
+
+        if (window.lucide) lucide.createIcons();
+    }
 
     // ── Init ──────────────────────────────────────────
     loadProfile();

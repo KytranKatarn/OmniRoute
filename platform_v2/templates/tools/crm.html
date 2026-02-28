@@ -21,6 +21,16 @@
             </h1>
             <p class="crm-subtitle"><span data-i18n="crm.intelligent_customer_management_system">Intelligent Customer Management System</span></p>
             <div class="crm-header-actions">
+                <a href="/tools/my-profile/" class="crm-btn crm-btn--outline" style="text-decoration: none;">
+                    <i data-lucide="user"></i>
+                    My Profile
+                </a>
+                {% if is_admin %}
+                <a href="/tools/account-center/" class="crm-btn crm-btn--outline" style="text-decoration: none;">
+                    <i data-lucide="shield"></i>
+                    Account Center
+                </a>
+                {% endif %}
                 <button class="crm-btn crm-btn--outline" onclick="showImportModal()">
                     <i data-lucide="upload"></i>
                     Import

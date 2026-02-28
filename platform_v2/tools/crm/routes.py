@@ -72,8 +72,9 @@ def index():
                 COALESCE(SUM(lifetime_value), 0) as total_lifetime_value,
                 COALESCE(AVG(lifetime_value), 0) as avg_lifetime_value
             FROM crm_customers
-            WHERE is_active = true
-        """
+            WHERE is_active = true AND created_by = %s
+        """,
+            (current_user.id,),
         )
         stats = cur.fetchone()
 
@@ -84,10 +85,11 @@ def index():
                    subscription_tier, subscription_status, total_orders,
                    total_spent, created_at
             FROM crm_customers
-            WHERE is_active = true
+            WHERE is_active = true AND created_by = %s
             ORDER BY created_at DESC
             LIMIT 10
-        """
+        """,
+            (current_user.id,),
         )
         recent_customers = cur.fetchall()
 
@@ -96,20 +98,24 @@ def index():
             """
             SELECT id, name, description, customer_count, is_dynamic
             FROM crm_segments
+            WHERE created_by = %s
             ORDER BY name
-        """
+        """,
+            (current_user.id,),
         )
         segments = cur.fetchall()
 
         # Get interaction counts by type (last 30 days)
         cur.execute(
             """
-            SELECT interaction_type, COUNT(*) as count
-            FROM crm_interactions
-            WHERE created_at > NOW() - INTERVAL '30 days'
-            GROUP BY interaction_type
+            SELECT i.interaction_type, COUNT(*) as count
+            FROM crm_interactions i
+            JOIN crm_customers c ON i.customer_id = c.id
+            WHERE i.created_at > NOW() - INTERVAL '30 days' AND c.created_by = %s
+            GROUP BY i.interaction_type
             ORDER BY count DESC
-        """
+        """,
+            (current_user.id,),
         )
         interaction_stats = cur.fetchall()
 
@@ -118,10 +124,11 @@ def index():
             """
             SELECT source, COUNT(*) as count
             FROM crm_customers
-            WHERE is_active = true
+            WHERE is_active = true AND created_by = %s
             GROUP BY source
             ORDER BY count DESC
-        """
+        """,
+            (current_user.id,),
         )
         source_breakdown = cur.fetchall()
 
@@ -182,8 +189,8 @@ def get_customers():
         offset = (page - 1) * per_page
 
         # Build query
-        where_clauses = ["is_active = true"]
-        params = []
+        where_clauses = ["is_active = true", "created_by = %s"]
+        params = [current_user.id]
 
         if search:
             where_clauses.append(
@@ -266,8 +273,11 @@ def create_customer():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Check for duplicate email
-        cur.execute("SELECT id FROM crm_customers WHERE email = %s", (data["email"],))
+        # Check for duplicate email (per-user)
+        cur.execute(
+            "SELECT id FROM crm_customers WHERE email = %s AND created_by = %s",
+            (data["email"], current_user.id),
+        )
         if cur.fetchone():
             cur.close()
             conn.close()
@@ -352,8 +362,11 @@ def get_customer(customer_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Get customer
-        cur.execute("SELECT * FROM crm_customers WHERE id = %s", (customer_id,))
+        # Get customer (ownership check)
+        cur.execute(
+            "SELECT * FROM crm_customers WHERE id = %s AND created_by = %s",
+            (customer_id, current_user.id),
+        )
         customer = cur.fetchone()
 
         if not customer:
@@ -423,6 +436,16 @@ def update_customer(customer_id):
             conn.close()
             return jsonify({"success": False, "error": "Customer not found"}), 404
 
+        # Verify ownership
+        cur.execute(
+            "SELECT id FROM crm_customers WHERE id = %s AND created_by = %s",
+            (customer_id, current_user.id),
+        )
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Customer not found"}), 404
+
         # Build update query dynamically
         allowed_fields = [
             "email",
@@ -455,13 +478,13 @@ def update_customer(customer_id):
             return jsonify({"success": False, "error": "No fields to update"}), 400
 
         updates.append("updated_at = NOW()")
-        params.append(customer_id)
+        params.extend([customer_id, current_user.id])
 
         cur.execute(
             f"""
             UPDATE crm_customers
             SET {', '.join(updates)}
-            WHERE id = %s
+            WHERE id = %s AND created_by = %s
             RETURNING *
         """,
             params,
@@ -500,10 +523,10 @@ def delete_customer(customer_id):
             """
             UPDATE crm_customers
             SET is_active = false, updated_at = NOW()
-            WHERE id = %s
+            WHERE id = %s AND created_by = %s
             RETURNING id, email
         """,
-            (customer_id,),
+            (customer_id, current_user.id),
         )
         customer = cur.fetchone()
 
@@ -538,6 +561,16 @@ def get_interactions(customer_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Verify customer ownership
+        cur.execute(
+            "SELECT id FROM crm_customers WHERE id = %s AND created_by = %s",
+            (customer_id, current_user.id),
+        )
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Customer not found"}), 404
 
         cur.execute(
             """
@@ -578,8 +611,11 @@ def add_interaction(customer_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Check customer exists
-        cur.execute("SELECT id FROM crm_customers WHERE id = %s", (customer_id,))
+        # Check customer exists (ownership check)
+        cur.execute(
+            "SELECT id FROM crm_customers WHERE id = %s AND created_by = %s",
+            (customer_id, current_user.id),
+        )
         if not cur.fetchone():
             cur.close()
             conn.close()
@@ -642,8 +678,10 @@ def get_segments():
             SELECT s.*, u.username as created_by_name
             FROM crm_segments s
             LEFT JOIN users u ON s.created_by = u.id
+            WHERE s.created_by = %s
             ORDER BY s.name
-        """
+        """,
+            (current_user.id,),
         )
         segments = cur.fetchall()
 
@@ -720,7 +758,7 @@ def update_segment(segment_id):
                 filter_criteria = COALESCE(%s, filter_criteria),
                 is_dynamic = COALESCE(%s, is_dynamic),
                 updated_at = NOW()
-            WHERE id = %s
+            WHERE id = %s AND created_by = %s
             RETURNING *
         """,
             (
@@ -729,6 +767,7 @@ def update_segment(segment_id):
                 (json.dumps(data["filter_criteria"]) if "filter_criteria" in data else None),
                 data.get("is_dynamic"),
                 segment_id,
+                current_user.id,
             ),
         )
         segment = cur.fetchone()
@@ -759,7 +798,10 @@ def delete_segment(segment_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("DELETE FROM crm_segments WHERE id = %s RETURNING name", (segment_id,))
+        cur.execute(
+            "DELETE FROM crm_segments WHERE id = %s AND created_by = %s RETURNING name",
+            (segment_id, current_user.id),
+        )
         segment = cur.fetchone()
 
         if not segment:
@@ -788,8 +830,11 @@ def get_segment_customers(segment_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Get segment
-        cur.execute("SELECT * FROM crm_segments WHERE id = %s", (segment_id,))
+        # Get segment (ownership check)
+        cur.execute(
+            "SELECT * FROM crm_segments WHERE id = %s AND created_by = %s",
+            (segment_id, current_user.id),
+        )
         segment = cur.fetchone()
 
         if not segment:
@@ -799,8 +844,8 @@ def get_segment_customers(segment_id):
 
         # Build query based on filter criteria
         filter_criteria = segment["filter_criteria"] or {}
-        where_clauses = ["is_active = true"]
-        params = []
+        where_clauses = ["is_active = true", "created_by = %s"]
+        params = [current_user.id]
 
         # Apply dynamic filters
         if filter_criteria.get("subscription_status"):
@@ -970,6 +1015,7 @@ def import_customers():
                         phone = COALESCE(EXCLUDED.phone, crm_customers.phone),
                         company = COALESCE(EXCLUDED.company, crm_customers.company),
                         updated_at = NOW()
+                    WHERE crm_customers.created_by = %s
                 """,
                     (
                         email,
@@ -978,6 +1024,7 @@ def import_customers():
                         row.get("phone", ""),
                         row.get("company", ""),
                         row.get("city", ""),
+                        current_user.id,
                         current_user.id,
                     ),
                 )
@@ -1035,18 +1082,19 @@ def export_customers():
                 """
                 SELECT c.* FROM crm_customers c
                 JOIN crm_segment_members sm ON c.id = sm.customer_id
-                WHERE sm.segment_id = %s AND c.is_active = true
+                WHERE sm.segment_id = %s AND c.is_active = true AND c.created_by = %s
                 ORDER BY c.email
             """,
-                (segment_id,),
+                (segment_id, current_user.id),
             )
         else:
             cur.execute(
                 """
                 SELECT * FROM crm_customers
-                WHERE is_active = true
+                WHERE is_active = true AND created_by = %s
                 ORDER BY email
-            """
+            """,
+                (current_user.id,),
             )
         customers = cur.fetchall()
 
@@ -1117,8 +1165,9 @@ def get_stats():
                 COALESCE(SUM(total_orders), 0) as total_orders,
                 COALESCE(AVG(total_orders), 0) as avg_orders_per_customer
             FROM crm_customers
-            WHERE is_active = true
-        """
+            WHERE is_active = true AND created_by = %s
+        """,
+            (current_user.id,),
         )
         stats = cur.fetchone()
 
@@ -1127,10 +1176,11 @@ def get_stats():
             """
             SELECT DATE(created_at) as date, COUNT(*) as count
             FROM crm_customers
-            WHERE created_at > NOW() - INTERVAL '30 days'
+            WHERE created_at > NOW() - INTERVAL '30 days' AND created_by = %s
             GROUP BY DATE(created_at)
             ORDER BY date
-        """
+        """,
+            (current_user.id,),
         )
         growth_trend = cur.fetchall()
 
@@ -1139,10 +1189,11 @@ def get_stats():
             """
             SELECT source, COUNT(*) as count
             FROM crm_customers
-            WHERE is_active = true
+            WHERE is_active = true AND created_by = %s
             GROUP BY source
             ORDER BY count DESC
-        """
+        """,
+            (current_user.id,),
         )
         source_breakdown = cur.fetchall()
 
@@ -1151,22 +1202,25 @@ def get_stats():
             """
             SELECT subscription_status, COUNT(*) as count
             FROM crm_customers
-            WHERE is_active = true
+            WHERE is_active = true AND created_by = %s
             GROUP BY subscription_status
             ORDER BY count DESC
-        """
+        """,
+            (current_user.id,),
         )
         subscription_breakdown = cur.fetchall()
 
         # Interaction stats (last 30 days)
         cur.execute(
             """
-            SELECT interaction_type, COUNT(*) as count
-            FROM crm_interactions
-            WHERE created_at > NOW() - INTERVAL '30 days'
-            GROUP BY interaction_type
+            SELECT i.interaction_type, COUNT(*) as count
+            FROM crm_interactions i
+            JOIN crm_customers c ON i.customer_id = c.id
+            WHERE i.created_at > NOW() - INTERVAL '30 days' AND c.created_by = %s
+            GROUP BY i.interaction_type
             ORDER BY count DESC
-        """
+        """,
+            (current_user.id,),
         )
         interaction_stats = cur.fetchall()
 
@@ -1212,7 +1266,7 @@ def search_customers():
             """
             SELECT id, email, first_name, last_name, company, phone
             FROM crm_customers
-            WHERE is_active = true
+            WHERE is_active = true AND created_by = %s
               AND (email ILIKE %s OR first_name ILIKE %s OR last_name ILIKE %s
                    OR company ILIKE %s OR phone ILIKE %s)
             ORDER BY
@@ -1220,7 +1274,7 @@ def search_customers():
                 created_at DESC
             LIMIT 10
         """,
-            (f"%{query}%",) * 5 + (f"{query}%",),
+            (current_user.id,) + (f"%{query}%",) * 5 + (f"{query}%",),
         )
         results = cur.fetchall()
 
@@ -1250,8 +1304,11 @@ def quick_create_customer():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Check if exists
-        cur.execute("SELECT id, email FROM crm_customers WHERE email = %s", (email,))
+        # Check if exists (per-user)
+        cur.execute(
+            "SELECT id, email FROM crm_customers WHERE email = %s AND created_by = %s",
+            (email, current_user.id),
+        )
         existing = cur.fetchone()
 
         if existing:
@@ -1328,6 +1385,7 @@ def create_from_order():
                 last_order_date = NOW(),
                 lifetime_value = crm_customers.lifetime_value + EXCLUDED.total_spent,
                 updated_at = NOW()
+            WHERE crm_customers.created_by = %s
             RETURNING id
         """,
             (
@@ -1341,6 +1399,7 @@ def create_from_order():
                 data.get("postal_code", ""),
                 data.get("country", "Canada"),
                 data.get("total", 0),
+                current_user.id,
                 current_user.id,
             ),
         )
@@ -1393,10 +1452,10 @@ def create_from_call():
         cur.execute(
             """
             SELECT id FROM crm_customers
-            WHERE (phone = %s AND phone != '') OR (email = %s AND email != '')
+            WHERE created_by = %s AND ((phone = %s AND phone != '') OR (email = %s AND email != ''))
             LIMIT 1
         """,
-            (phone, email),
+            (current_user.id, phone, email),
         )
         existing = cur.fetchone()
 
@@ -1496,10 +1555,10 @@ def update_subscription():
                 subscription_status = %s,
                 subscription_id = %s,
                 updated_at = NOW()
-            WHERE {where}
+            WHERE {where} AND created_by = %s
             RETURNING id
         """,
-            (data.get("tier"), data.get("status"), data.get("subscription_id"), param),
+            (data.get("tier"), data.get("status"), data.get("subscription_id"), param, current_user.id),
         )
         result = cur.fetchone()
 
@@ -1658,7 +1717,9 @@ def analytics_dashboard():
                 COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as new_customers_7d,
                 COUNT(*) FILTER (WHERE last_activity >= NOW() - INTERVAL '30 days') as active_customers
             FROM crm_customers
-        """
+            WHERE created_by = %s
+        """,
+            (current_user.id,),
         )
         customers = cur.fetchone() or {}
         metrics.update(customers)
@@ -1754,10 +1815,11 @@ def analytics_dashboard():
                 created_at::DATE as date,
                 COUNT(*) as count
             FROM crm_customers
-            WHERE created_at >= NOW() - INTERVAL '30 days'
+            WHERE created_at >= NOW() - INTERVAL '30 days' AND created_by = %s
             GROUP BY created_at::DATE
             ORDER BY date
-        """
+        """,
+            (current_user.id,),
         )
         customer_trend = cur.fetchall()
 
@@ -1768,9 +1830,11 @@ def analytics_dashboard():
                 c.id, c.first_name, c.last_name, c.email, c.company,
                 c.total_spent, c.subscription_tier, c.total_orders
             FROM crm_customers c
+            WHERE c.created_by = %s
             ORDER BY c.total_spent DESC NULLS LAST
             LIMIT 10
-        """
+        """,
+            (current_user.id,),
         )
         top_customers = cur.fetchall()
 
@@ -1887,15 +1951,18 @@ def get_analytics_metrics():
         metrics["revenue_change"] = calculate_change(metrics["revenue"], prev_revenue)
 
         # Customers
-        cur.execute("SELECT COUNT(*) as value FROM crm_customers")
+        cur.execute(
+            "SELECT COUNT(*) as value FROM crm_customers WHERE created_by = %s",
+            (current_user.id,),
+        )
         metrics["customers"] = cur.fetchone()["value"]
 
         cur.execute(
             """
             SELECT COUNT(*) as value FROM crm_customers
-            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day') AND created_by = %s
         """,
-            (days,),
+            (days, current_user.id),
         )
         metrics["new_customers"] = cur.fetchone()["value"]
 
@@ -2089,11 +2156,11 @@ def get_customers_chart():
                 COUNT(*) as new_customers,
                 SUM(COUNT(*)) OVER (ORDER BY created_at::DATE) as cumulative
             FROM crm_customers
-            WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+            WHERE created_at >= NOW() - (%s * INTERVAL '1 day') AND created_by = %s
             GROUP BY created_at::DATE
             ORDER BY date
         """,
-            (days,),
+            (days, current_user.id),
         )
 
         data = cur.fetchall()

@@ -2365,6 +2365,20 @@
         <div class="account-center-header">
             <h1><span data-i18n="account_center.account_center">ACCOUNT CENTER</span></h1>
             <div class="lcars-subtitle">ADMIN OPERATIONS // USER MANAGEMENT INTERFACE</div>
+            <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                <a href="/tools/my-profile/" style="font-family: Antonio, sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(59,130,246,0.8); border: 1px solid rgba(59,130,246,0.3); border-radius: 2px 12px 12px 2px; padding: 5px 14px; text-decoration: none; transition: all 0.2s;">
+                    MY PROFILE
+                </a>
+                <a href="/tools/crm/" style="font-family: Antonio, sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(245,158,11,0.8); border: 1px solid rgba(245,158,11,0.3); border-radius: 2px 12px 12px 2px; padding: 5px 14px; text-decoration: none; transition: all 0.2s;">
+                    CRM
+                </a>
+                <a href="/tools/store-builder/" style="font-family: Antonio, sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(34,197,94,0.8); border: 1px solid rgba(34,197,94,0.3); border-radius: 2px 12px 12px 2px; padding: 5px 14px; text-decoration: none; transition: all 0.2s;">
+                    STORE
+                </a>
+                <a href="/tools/email-manager/" style="font-family: Antonio, sans-serif; font-size: 0.72rem; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(139,92,246,0.8); border: 1px solid rgba(139,92,246,0.3); border-radius: 2px 12px 12px 2px; padding: 5px 14px; text-decoration: none; transition: all 0.2s;">
+                    EMAIL
+                </a>
+            </div>
         </div>
 
         <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-6);">
@@ -4034,6 +4048,33 @@ function buildProfileHeader(container, user, subscription) {
     const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
     meta.textContent = 'Joined ' + created + '  \u00b7  Last login ' + lastLogin;
     info.appendChild(meta);
+
+    // Cross-link buttons
+    const crosslinks = document.createElement('div');
+    crosslinks.style.cssText = 'display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;';
+
+    const crmLink = document.createElement('a');
+    crmLink.href = '/tools/crm/';
+    crmLink.className = 'badge';
+    crmLink.style.cssText = 'border: 1px solid #f59e0b; color: #f59e0b; text-decoration: none; padding: 3px 10px; cursor: pointer; font-size: 0.7rem;';
+    crmLink.textContent = 'CRM \u2192';
+    crosslinks.appendChild(crmLink);
+
+    const storeLink = document.createElement('a');
+    storeLink.href = '/tools/store-builder/';
+    storeLink.className = 'badge';
+    storeLink.style.cssText = 'border: 1px solid #22c55e; color: #22c55e; text-decoration: none; padding: 3px 10px; cursor: pointer; font-size: 0.7rem;';
+    storeLink.textContent = 'Store \u2192';
+    crosslinks.appendChild(storeLink);
+
+    const emailLink = document.createElement('a');
+    emailLink.href = '/tools/email-manager/';
+    emailLink.className = 'badge';
+    emailLink.style.cssText = 'border: 1px solid #3b82f6; color: #3b82f6; text-decoration: none; padding: 3px 10px; cursor: pointer; font-size: 0.7rem;';
+    emailLink.textContent = 'Email \u2192';
+    crosslinks.appendChild(emailLink);
+
+    info.appendChild(crosslinks);
 
     header.appendChild(info);
     container.appendChild(header);

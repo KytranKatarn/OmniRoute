@@ -14,34 +14,6 @@
         padding: 20px;
     }
 
-    .hr-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px;
-        background: linear-gradient(135deg, var(--archie-bg-secondary), rgba(16, 185, 129, 0.1));
-        border: 1px solid var(--archie-green);
-        border-radius: 8px;
-        margin-bottom: 20px;
-    }
-
-    .hr-title {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-    }
-
-    .hr-title h1 {
-        color: var(--archie-green);
-        font-size: 1.8rem;
-        margin: 0;
-    }
-
-    .hr-status {
-        display: flex;
-        gap: 20px;
-    }
-
     .status-badge {
         padding: 8px 16px;
         border-radius: 20px;
@@ -59,29 +31,6 @@
         background: rgba(255, 170, 0, 0.2);
         color: #FFAA00;
         border: 1px solid #FFAA00;
-    }
-
-    .hr-tabs {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-    }
-
-    .hr-tab {
-        padding: 12px 24px;
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-border-default);
-        border-radius: 6px;
-        color: var(--archie-text-secondary);
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-
-    .hr-tab:hover, .hr-tab.active {
-        background: var(--archie-green);
-        color: #000;
-        border-color: var(--archie-green);
     }
 
     .hr-content {
@@ -117,21 +66,6 @@
         color: #8b949e;
         font-size: 0.85rem;
         margin-top: 5px;
-    }
-
-    .hr-panel {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-border-default);
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 20px;
-    }
-
-    .hr-panel h3 {
-        color: var(--archie-green);
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid var(--archie-border-default);
     }
 
     .hr-table {
@@ -176,31 +110,25 @@
 {% endblock %}
 
 {% block content %}
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
 <div class="hr-container">
-    <div class="hr-header">
-        <div class="hr-title">
-            <span style="font-size: 2rem;">👥</span>
-            <div>
-                <h1>HR MANAGEMENT</h1>
-                <span style="color: #8b949e; font-size: 0.9rem;">Performance, Skills, Scheduling, Compliance</span>
-            </div>
-        </div>
-        <div class="hr-status">
-            <span class="status-badge" id="staffingStatus">Loading...</span>
-            <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981;">
-                LOCAL LLM: <span id="localCount">0</span>
-            </span>
-        </div>
+    {{ page_header('HR MANAGEMENT', subtitle='Performance, Skills, Scheduling, Compliance', icon='users') }}
+
+    <div style="display: flex; gap: 12px; margin: -16px 0 20px 0;">
+        <span class="status-badge" id="staffingStatus">Loading...</span>
+        <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981;">
+            LOCAL LLM: <span id="localCount">0</span>
+        </span>
     </div>
 
-    <div class="hr-tabs">
-        <button class="hr-tab active" onclick="showTab('dashboard')">Dashboard</button>
-        <button class="hr-tab" onclick="showTab('performance')">Performance</button>
-        <button class="hr-tab" onclick="showTab('skills')">Skills Matrix</button>
-        <button class="hr-tab" onclick="showTab('scheduling')">Scheduling</button>
-        <button class="hr-tab" onclick="showTab('compliance')">IAAE Compliance</button>
-        <button class="hr-tab" onclick="showTab('wellness')">Wellness</button>
-    </div>
+    {{ tab_nav(tabs=[
+        {'id': 'dashboard', 'label': 'Dashboard'},
+        {'id': 'performance', 'label': 'Performance'},
+        {'id': 'skills', 'label': 'Skills Matrix'},
+        {'id': 'scheduling', 'label': 'Scheduling'},
+        {'id': 'compliance', 'label': 'IAAE Compliance'},
+        {'id': 'wellness', 'label': 'Wellness'}
+    ], onswitch='showTab') }}
 
     <!-- Dashboard Tab -->
     <div id="tab-dashboard" class="hr-content active">
@@ -227,8 +155,7 @@
             </div>
         </div>
 
-        <div class="hr-panel">
-            <h3>Department Breakdown</h3>
+        {% call panel(title='Department Breakdown', icon='building') %}
             <table class="hr-table" id="departmentTable">
                 <thead>
                     <tr>
@@ -240,10 +167,9 @@
                 </thead>
                 <tbody></tbody>
             </table>
-        </div>
+        {% endcall %}
 
-        <div class="hr-panel">
-            <h3>LLM Model Distribution</h3>
+        {% call panel(title='LLM Model Distribution', icon='cpu') %}
             <table class="hr-table" id="modelTable">
                 <thead>
                     <tr>
@@ -254,13 +180,12 @@
                 </thead>
                 <tbody></tbody>
             </table>
-        </div>
+        {% endcall %}
     </div>
 
     <!-- Performance Tab -->
     <div id="tab-performance" class="hr-content">
-        <div class="hr-panel">
-            <h3>Performance Leaderboard</h3>
+        {% call panel(title='Performance Leaderboard', icon='trophy') %}
             <table class="hr-table" id="leaderboardTable">
                 <thead>
                     <tr>
@@ -275,22 +200,20 @@
                 </thead>
                 <tbody></tbody>
             </table>
-        </div>
+        {% endcall %}
     </div>
 
     <!-- Skills Tab -->
     <div id="tab-skills" class="hr-content">
-        <div class="hr-panel">
-            <h3>Skills Matrix</h3>
+        {% call panel(title='Skills Matrix', icon='grid-3x3') %}
             <p style="color: #8b949e;">Agent skills and proficiency levels</p>
             <div id="skillsMatrix">Loading skills matrix...</div>
-        </div>
+        {% endcall %}
     </div>
 
     <!-- Scheduling Tab -->
     <div id="tab-scheduling" class="hr-content">
-        <div class="hr-panel">
-            <h3>Agents On Shift</h3>
+        {% call panel(title='Agents On Shift', icon='clock') %}
             <table class="hr-table" id="onShiftTable">
                 <thead>
                     <tr>
@@ -302,7 +225,7 @@
                 </thead>
                 <tbody></tbody>
             </table>
-        </div>
+        {% endcall %}
     </div>
 
     <!-- Compliance Tab -->
@@ -321,21 +244,19 @@
                 <div class="hr-stat-label">Contractors (Escalation Only)</div>
             </div>
         </div>
-        <div class="hr-panel">
-            <h3>IAAE Governance Status</h3>
+        {% call panel(title='IAAE Governance Status', icon='shield-check') %}
             <p style="color: #10B981; font-size: 1.1rem; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 6px;">
                 ✓ All internal agents use LOCAL Ollama LLMs<br>
                 ✓ 7 contractors available for escalation only<br>
                 ✓ Local-first routing enforced via archie_bridge<br>
                 ✓ All 16 stations have Primary + Backup assignments
             </p>
-        </div>
+        {% endcall %}
     </div>
 
     <!-- Wellness Tab -->
     <div id="tab-wellness" class="hr-content">
-        <div class="hr-panel">
-            <h3>Agent Wellness Status</h3>
+        {% call panel(title='Agent Wellness Status', icon='heart-pulse') %}
             <table class="hr-table" id="wellnessTable">
                 <thead>
                     <tr>
@@ -347,19 +268,19 @@
                 </thead>
                 <tbody></tbody>
             </table>
-        </div>
+        {% endcall %}
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Tab switching
+    // Tab switching — uses [data-tab] attribute from theme macros
     function showTab(tabName) {
         document.querySelectorAll('.hr-content').forEach(c => c.classList.remove('active'));
-        document.querySelectorAll('.hr-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
         document.getElementById('tab-' + tabName).classList.add('active');
-        event.target.classList.add('active');
+        document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
 
         // Load tab-specific data
         if (tabName === 'performance') loadLeaderboard();

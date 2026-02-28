@@ -215,10 +215,13 @@ def update_org(org_id):
             "isolation_type",
         ):
             if key in data:
-                fields.append(f"{key} = %s")
                 val = data[key]
                 if key in ("settings", "ai_config"):
+                    # Merge into existing JSONB rather than replacing
+                    fields.append(f"{key} = COALESCE({key}, '{{}}'::jsonb) || %s::jsonb")
                     val = json.dumps(val)
+                else:
+                    fields.append(f"{key} = %s")
                 values.append(val)
 
         if not fields:

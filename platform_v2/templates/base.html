@@ -25,6 +25,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-ops.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/light-mode.css') }}">
+
+    <!-- SaaS Theme Override (non-LCARS themes on non-admin modules) -->
+    {% if theme_name is defined and theme_name != 'lcars-classic' and not is_admin_module %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes/' + theme_name + '.css') }}">
+    {% endif %}
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/agent-badge.css') }}">
 
@@ -249,7 +255,7 @@
         }
     </style>
 </head>
-<body data-module="{% block module_name %}default{% endblock %}">
+<body class="{% if theme_name is defined %}theme-{{ theme_name }}{% else %}theme-lcars-classic{% endif %}" data-module="{% block module_name %}default{% endblock %}">
     <!-- Global Admin Notification Bar (Admin users only) -->
     {% if current_user.is_authenticated and current_user.is_admin %}
     <div id="adminNotificationBar" class="admin-notification-bar">

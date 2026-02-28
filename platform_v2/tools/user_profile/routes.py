@@ -117,3 +117,81 @@ def change_password():
             conn.commit()
 
     return jsonify({"success": True, "message": "Password updated successfully"})
+
+
+# ============================================================================
+# THEME PREFERENCE API
+# ============================================================================
+
+VALID_THEMES = [
+    "lcars-classic",
+    "corporate-blue",
+    "midnight-purple",
+    "warm-minimal",
+    "arctic-light",
+    "rose-gold",
+    "forest",
+    "slate-pro",
+]
+
+
+@user_profile_bp.route("/api/user/theme")
+@login_required
+def get_user_theme():
+    """Get the resolved theme for current user (matches context processor logic)"""
+    user_theme = getattr(current_user, "theme_preference", None)
+    if user_theme and user_theme in [t for t in VALID_THEMES]:
+        theme = user_theme
+    else:
+        # Org default fallback
+        theme = "lcars-classic"
+        try:
+            with get_db_connection(cursor_factory=RealDictCursor) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT o.settings->>'default_theme' as default_theme
+                           FROM organizations o JOIN org_users ou ON ou.org_id = o.id
+                           WHERE ou.user_id = %s LIMIT 1""",
+                        (current_user.id,),
+                    )
+                    row = cur.fetchone()
+                    if row and row["default_theme"] in [t for t in VALID_THEMES]:
+                        theme = row["default_theme"]
+        except Exception:
+            pass
+    return jsonify({"success": True, "theme": theme, "available_themes": VALID_THEMES})
+
+
+@user_profile_bp.route("/api/user/theme", methods=["PUT"])
+@login_required
+def set_user_theme():
+    """Set user's theme preference"""
+    data = request.get_json()
+    if not data or "theme" not in data:
+        return jsonify({"success": False, "error": "Missing 'theme' field"}), 400
+
+    theme = data["theme"]
+    if theme not in VALID_THEMES:
+        return (
+            jsonify({"success": False, "error": f"Invalid theme: {theme}"}),
+            400,
+        )
+
+    with get_db_connection(cursor_factory=RealDictCursor) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE users
+                   SET metadata = jsonb_set(
+                       COALESCE(metadata, '{}'::jsonb),
+                       '{theme_preference}',
+                       %s::jsonb
+                   )
+                   WHERE id = %s""",
+                (f'"{theme}"', current_user.id),
+            )
+            conn.commit()
+
+    # Update in-memory user object
+    current_user.theme_preference = theme
+
+    return jsonify({"success": True, "theme": theme})

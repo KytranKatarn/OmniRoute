@@ -1,0 +1,91 @@
+/*
+ * A.R.C.H.I.E. Theme: Warm Minimal
+ * Style: Soft earthy amber — cozy, muted warmth with organic tones
+ * Accent: #f59e0b (Amber 500) | Secondary: #fbbf24 (Amber 400)
+ * Note: --archie-orange overridden to copper (#cd7f32) to avoid clash
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body.theme-warm-minimal {
+
+    /* ── BACKGROUNDS ── */
+    --archie-bg-void:       #0f0a02;
+    --archie-bg-primary:    #1a1408;
+    --archie-bg-secondary:  #2d2410;
+    --archie-bg-tertiary:   #44371a;
+    --archie-bg-elevated:   #2d2410;
+    --archie-bg-hover:      #44371a;
+
+    /* ── TEXT ── */
+    --archie-text-primary:    #f0e6d0;
+    --archie-text-secondary:  #c0b090;
+    --archie-text-tertiary:   #908060;
+    --archie-text-muted:      #706040;
+
+    /* ── PRIMARY ACCENT (replaces green) ── */
+    --archie-accent:           #f59e0b;
+    --archie-green:            #f59e0b;
+    --archie-green-dim:        #d97706;
+    --archie-green-bright:     #fbbf24;
+    --archie-green-alpha-10:   rgba(245, 158, 11, 0.10);
+    --archie-green-alpha-20:   rgba(245, 158, 11, 0.20);
+    --archie-green-alpha-30:   rgba(245, 158, 11, 0.30);
+
+    /* ── SECONDARY (replaces cyan) ── */
+    --archie-cyan:            #fbbf24;
+    --archie-cyan-dim:        #f59e0b;
+    --archie-cyan-bright:     #fde68a;
+    --archie-cyan-alpha-10:   rgba(251, 191, 36, 0.10);
+    --archie-cyan-alpha-20:   rgba(251, 191, 36, 0.20);
+    --archie-cyan-alpha-30:   rgba(251, 191, 36, 0.30);
+
+    /* ── ORANGE (copper to avoid clash with amber accent) ── */
+    --archie-orange:          #cd7f32;
+    --archie-orange-dim:      #a0622a;
+    --archie-orange-bright:   #daa060;
+    --archie-orange-alpha-10: rgba(205, 127, 50, 0.10);
+    --archie-orange-alpha-20: rgba(205, 127, 50, 0.20);
+
+    /* ── STATUS COLORS ── */
+    --archie-success:  #22c55e;
+    --archie-warning:  #f59e0b;
+    --archie-danger:   #ef4444;
+    --archie-info:     #f59e0b;
+
+    /* ── BORDERS ── */
+    --archie-border-default:   rgba(245, 158, 11, 0.25);
+    --archie-border-muted:     rgba(245, 158, 11, 0.15);
+    --archie-border-subtle:    rgba(245, 158, 11, 0.08);
+    --archie-border-emphasis:  rgba(245, 158, 11, 0.50);
+
+    /* ── GLOWS ── */
+    --archie-glow-green-sm:    0 0 4px rgba(245, 158, 11, 0.20);
+    --archie-glow-green-md:    0 0 8px rgba(245, 158, 11, 0.25);
+    --archie-glow-green-lg:    0 0 16px rgba(245, 158, 11, 0.30);
+    --archie-glow-cyan-sm:     0 0 4px rgba(251, 191, 36, 0.20);
+    --archie-glow-cyan-md:     0 0 8px rgba(251, 191, 36, 0.25);
+    --archie-text-glow-green:  0 0 6px rgba(245, 158, 11, 0.30);
+    --archie-text-glow-cyan:   0 0 6px rgba(251, 191, 36, 0.30);
+
+    /* ── SHADOWS ── */
+    --archie-shadow-sm:  0 1px 3px rgba(15, 10, 2, 0.40);
+    --archie-shadow-md:  0 4px 12px rgba(15, 10, 2, 0.50);
+    --archie-shadow-lg:  0 8px 24px rgba(15, 10, 2, 0.60);
+
+    /* ── STRUCTURAL ── */
+    --archie-radius-sm:  6px;
+    --archie-radius-md:  8px;
+    --archie-radius-lg:  12px;
+    --archie-radius-xl:  16px;
+
+    /* ── FONTS ── */
+    --archie-font-heading: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --archie-font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Disable LCARS scanlines ── */
+body.theme-warm-minimal .scanlines,
+body.theme-warm-minimal .lcars-scanline {
+    display: none !important;
+}

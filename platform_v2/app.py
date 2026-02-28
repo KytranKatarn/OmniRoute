@@ -166,6 +166,7 @@ class User(UserMixin):
         is_super_admin=False,
         subscription_tier=None,
         subscription_expires_at=None,
+        theme_preference=None,
     ):
         self.id = id
         self.username = username
@@ -175,6 +176,7 @@ class User(UserMixin):
         self.is_super_admin = is_super_admin
         self.subscription_tier = subscription_tier or "free"
         self.subscription_expires_at = subscription_expires_at
+        self.theme_preference = theme_preference  # None = no explicit choice
         # Note: is_authenticated, is_active, is_anonymous are provided by UserMixin
 
 
@@ -190,6 +192,10 @@ def load_user(user_id):
         conn.close()
 
         if user_data:
+            # Extract theme from metadata JSONB (None = no explicit choice)
+            metadata = user_data.get("metadata") or {}
+            theme_pref = metadata.get("theme_preference") if isinstance(metadata, dict) else None
+
             return User(
                 id=user_data["id"],
                 username=user_data["username"],
@@ -199,6 +205,7 @@ def load_user(user_id):
                 is_super_admin=user_data.get("is_super_admin", False),
                 subscription_tier=user_data.get("subscription_tier", "free"),
                 subscription_expires_at=user_data.get("subscription_expires_at"),
+                theme_preference=theme_pref,
             )
     except Exception as e:
         print(f"Error loading user: {e}")
@@ -1012,6 +1019,8 @@ def api_dashboard_system_stats():
     """System stats for dashboard HUD vitals"""
     import psutil
 
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
     try:
         uptime_seconds = int(time.time() - start_time)
         hours, remainder = divmod(uptime_seconds, 3600)
@@ -1042,6 +1051,8 @@ def api_dashboard_system_stats():
 @login_required
 def api_dashboard_ai_status():
     """AI bridge status for dashboard HUD"""
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1082,6 +1093,8 @@ def api_dashboard_ai_status():
 @login_required
 def api_dashboard_recent_activity():
     """Blended recent activity from multiple sources for mission briefing."""
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
 
     def _friendly_action(action):
         """Convert raw action codes to human-readable labels."""
@@ -1271,6 +1284,8 @@ def api_dashboard_recent_activity():
 @login_required
 def api_dashboard_alerts():
     """Blended system alerts for mission briefing — services, failed jobs, notifications."""
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2191,6 +2206,78 @@ def inject_module_registry():
         "get_user_modules": get_user_modules,
         "all_modules": get_all_modules,
         "enabled_modules": get_enabled_modules,
+    }
+
+
+# ============================================================================
+# THEME CONTEXT PROCESSOR
+# ============================================================================
+
+VALID_THEMES = {
+    "lcars-classic",
+    "corporate-blue",
+    "midnight-purple",
+    "warm-minimal",
+    "arctic-light",
+    "rose-gold",
+    "forest",
+    "slate-pro",
+}
+
+ADMIN_CATEGORIES = {"admin_operations", "ai_command", "development_tools"}
+
+
+@app.context_processor
+def inject_theme_context():
+    """
+    Inject theme variables into all templates.
+    Resolves: user preference -> org default -> lcars-classic fallback.
+    Admin modules always force LCARS.
+    """
+    theme_name = "lcars-classic"
+    is_admin_module = False
+
+    if current_user.is_authenticated:
+        # 1. User preference (None = no explicit choice)
+        user_theme = getattr(current_user, "theme_preference", None)
+        if user_theme and user_theme in VALID_THEMES:
+            theme_name = user_theme
+        elif user_theme is None:
+            # 2. Org default fallback (only when user has no explicit choice)
+            try:
+                conn = get_db()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT o.settings->>'default_theme' as default_theme
+                    FROM organizations o
+                    JOIN org_users ou ON ou.org_id = o.id
+                    WHERE ou.user_id = %s
+                    LIMIT 1
+                    """,
+                    (current_user.id,),
+                )
+                row = cur.fetchone()
+                cur.close()
+                conn.close()
+                if row and row["default_theme"] in VALID_THEMES:
+                    theme_name = row["default_theme"]
+            except Exception:
+                pass
+
+        # Detect admin module from request path
+        from module_registry import get_all_modules
+
+        path = request.path
+        for mod in get_all_modules():
+            if mod.route and path.startswith(mod.route):
+                if mod.category and mod.category.value in ADMIN_CATEGORIES:
+                    is_admin_module = True
+                break
+
+    return {
+        "theme_name": theme_name,
+        "is_admin_module": is_admin_module,
     }
 
 

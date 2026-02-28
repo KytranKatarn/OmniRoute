@@ -1,0 +1,90 @@
+/*
+ * A.R.C.H.I.E. Theme: Rose Gold
+ * Style: Elegant warm pink — refined, luxurious dark rose tones
+ * Accent: #f43f5e (Rose 500) | Secondary: #fb7185 (Rose 400)
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body.theme-rose-gold {
+
+    /* ── BACKGROUNDS ── */
+    --archie-bg-void:       #0f0205;
+    --archie-bg-primary:    #1a0a10;
+    --archie-bg-secondary:  #2d1420;
+    --archie-bg-tertiary:   #4a1f35;
+    --archie-bg-elevated:   #2d1420;
+    --archie-bg-hover:      #4a1f35;
+
+    /* ── TEXT ── */
+    --archie-text-primary:    #fce7f3;
+    --archie-text-secondary:  #f9a8d4;
+    --archie-text-tertiary:   #ec4899;
+    --archie-text-muted:      #be185d;
+
+    /* ── PRIMARY ACCENT (replaces green) ── */
+    --archie-accent:           #f43f5e;
+    --archie-green:            #f43f5e;
+    --archie-green-dim:        #e11d48;
+    --archie-green-bright:     #fb7185;
+    --archie-green-alpha-10:   rgba(244, 63, 94, 0.10);
+    --archie-green-alpha-20:   rgba(244, 63, 94, 0.20);
+    --archie-green-alpha-30:   rgba(244, 63, 94, 0.30);
+
+    /* ── SECONDARY (replaces cyan) ── */
+    --archie-cyan:            #fb7185;
+    --archie-cyan-dim:        #f43f5e;
+    --archie-cyan-bright:     #fda4af;
+    --archie-cyan-alpha-10:   rgba(251, 113, 133, 0.10);
+    --archie-cyan-alpha-20:   rgba(251, 113, 133, 0.20);
+    --archie-cyan-alpha-30:   rgba(251, 113, 133, 0.30);
+
+    /* ── ORANGE (warm accent) ── */
+    --archie-orange:          #f59e0b;
+    --archie-orange-dim:      #d97706;
+    --archie-orange-bright:   #fbbf24;
+    --archie-orange-alpha-10: rgba(245, 158, 11, 0.10);
+    --archie-orange-alpha-20: rgba(245, 158, 11, 0.20);
+
+    /* ── STATUS COLORS ── */
+    --archie-success:  #22c55e;
+    --archie-warning:  #f59e0b;
+    --archie-danger:   #ef4444;
+    --archie-info:     #f43f5e;
+
+    /* ── BORDERS ── */
+    --archie-border-default:   rgba(244, 63, 94, 0.25);
+    --archie-border-muted:     rgba(244, 63, 94, 0.15);
+    --archie-border-subtle:    rgba(244, 63, 94, 0.08);
+    --archie-border-emphasis:  rgba(244, 63, 94, 0.50);
+
+    /* ── GLOWS ── */
+    --archie-glow-green-sm:    0 0 4px rgba(244, 63, 94, 0.20);
+    --archie-glow-green-md:    0 0 8px rgba(244, 63, 94, 0.25);
+    --archie-glow-green-lg:    0 0 16px rgba(244, 63, 94, 0.30);
+    --archie-glow-cyan-sm:     0 0 4px rgba(251, 113, 133, 0.20);
+    --archie-glow-cyan-md:     0 0 8px rgba(251, 113, 133, 0.25);
+    --archie-text-glow-green:  0 0 6px rgba(244, 63, 94, 0.30);
+    --archie-text-glow-cyan:   0 0 6px rgba(251, 113, 133, 0.30);
+
+    /* ── SHADOWS ── */
+    --archie-shadow-sm:  0 1px 3px rgba(15, 2, 5, 0.40);
+    --archie-shadow-md:  0 4px 12px rgba(15, 2, 5, 0.50);
+    --archie-shadow-lg:  0 8px 24px rgba(15, 2, 5, 0.60);
+
+    /* ── STRUCTURAL ── */
+    --archie-radius-sm:  6px;
+    --archie-radius-md:  8px;
+    --archie-radius-lg:  12px;
+    --archie-radius-xl:  16px;
+
+    /* ── FONTS ── */
+    --archie-font-heading: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --archie-font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Disable LCARS scanlines ── */
+body.theme-rose-gold .scanlines,
+body.theme-rose-gold .lcars-scanline {
+    display: none !important;
+}

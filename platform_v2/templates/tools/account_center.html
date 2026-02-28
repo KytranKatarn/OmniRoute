@@ -3337,6 +3337,29 @@
                 </div>
                 <div id="saas-detail-node"></div>
             </div>
+            <div class="saas-detail-section">
+                <div class="saas-detail-section-title">
+                    <i data-lucide="palette" style="width:16px;height:16px"></i>
+                    DEFAULT THEME
+                </div>
+                <div id="saas-detail-theme">
+                    <div class="form-group" style="margin:0;">
+                        <select class="form-select" id="saas-org-theme-select" onchange="saasUpdateOrgTheme(this.value)" style="background:rgba(var(--frame-rgb,255,107,107),0.06);border:1px solid rgba(var(--frame-rgb,255,107,107),0.2);color:var(--archie-text);font-family:'Antonio',sans-serif;letter-spacing:0.5px;">
+                            <option value="lcars-classic">LCARS Classic</option>
+                            <option value="corporate-blue">Corporate Blue</option>
+                            <option value="midnight-purple">Midnight Purple</option>
+                            <option value="warm-minimal">Warm Minimal</option>
+                            <option value="arctic-light">Arctic Light</option>
+                            <option value="rose-gold">Rose Gold</option>
+                            <option value="forest">Forest</option>
+                            <option value="slate-pro">Slate Pro</option>
+                        </select>
+                        <div style="font-size:11px;color:var(--archie-text-muted);margin-top:6px;">
+                            Fallback theme for users who haven't chosen their own.
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -7214,6 +7237,11 @@ async function executeImport() {
                 saasRenderDetailModules(data.modules || [], orgId);
                 saasRenderDetailDomains(data.domains || [], orgId);
                 saasRenderDetailNode(data.node, data.org, orgId);
+                // Set org default theme dropdown
+                var orgSettings = data.org.settings || {};
+                var orgTheme = (typeof orgSettings === 'string' ? JSON.parse(orgSettings) : orgSettings).default_theme || 'lcars-classic';
+                var themeSelect = document.getElementById('saas-org-theme-select');
+                if (themeSelect) themeSelect.value = orgTheme;
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             })
             .catch(function(err) {
@@ -7226,6 +7254,24 @@ async function executeImport() {
         document.getElementById('saas-detail-overlay').classList.remove('active');
         document.getElementById('saas-detail-panel').classList.remove('open');
         saasCurrentOrgId = null;
+    };
+
+    window.saasUpdateOrgTheme = function(theme) {
+        if (!saasCurrentOrgId) return;
+        fetch(SAAS_API + '/orgs/' + saasCurrentOrgId, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({settings: {default_theme: theme}})
+        })
+        .then(function(r) { return r.json(); })
+        .catch(function() { return {success: false}; })
+        .then(function(data) {
+            if (data.success) {
+                saasShowToast('Default theme updated', 'success');
+            } else {
+                saasShowToast('Failed to update theme', 'error');
+            }
+        });
     };
 
     function saasRenderDetailUsers(users) {

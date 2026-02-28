@@ -1,0 +1,90 @@
+/*
+ * A.R.C.H.I.E. Theme: Arctic Light
+ * Style: Bright clinical teal — crisp, high-contrast oceanic palette
+ * Accent: #06b6d4 (Cyan 500) | Secondary: #22d3ee (Cyan 400)
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body.theme-arctic-light {
+
+    /* ── BACKGROUNDS ── */
+    --archie-bg-void:       #020d1a;
+    --archie-bg-primary:    #0a1929;
+    --archie-bg-secondary:  #132f4c;
+    --archie-bg-tertiary:   #1e4976;
+    --archie-bg-elevated:   #132f4c;
+    --archie-bg-hover:      #1e4976;
+
+    /* ── TEXT ── */
+    --archie-text-primary:    #e0f2fe;
+    --archie-text-secondary:  #7dd3fc;
+    --archie-text-tertiary:   #38bdf8;
+    --archie-text-muted:      #0284c7;
+
+    /* ── PRIMARY ACCENT (replaces green) ── */
+    --archie-accent:           #06b6d4;
+    --archie-green:            #06b6d4;
+    --archie-green-dim:        #0891b2;
+    --archie-green-bright:     #22d3ee;
+    --archie-green-alpha-10:   rgba(6, 182, 212, 0.10);
+    --archie-green-alpha-20:   rgba(6, 182, 212, 0.20);
+    --archie-green-alpha-30:   rgba(6, 182, 212, 0.30);
+
+    /* ── SECONDARY (replaces cyan) ── */
+    --archie-cyan:            #22d3ee;
+    --archie-cyan-dim:        #06b6d4;
+    --archie-cyan-bright:     #67e8f9;
+    --archie-cyan-alpha-10:   rgba(34, 211, 238, 0.10);
+    --archie-cyan-alpha-20:   rgba(34, 211, 238, 0.20);
+    --archie-cyan-alpha-30:   rgba(34, 211, 238, 0.30);
+
+    /* ── ORANGE (warm accent) ── */
+    --archie-orange:          #f59e0b;
+    --archie-orange-dim:      #d97706;
+    --archie-orange-bright:   #fbbf24;
+    --archie-orange-alpha-10: rgba(245, 158, 11, 0.10);
+    --archie-orange-alpha-20: rgba(245, 158, 11, 0.20);
+
+    /* ── STATUS COLORS ── */
+    --archie-success:  #22c55e;
+    --archie-warning:  #f59e0b;
+    --archie-danger:   #ef4444;
+    --archie-info:     #06b6d4;
+
+    /* ── BORDERS ── */
+    --archie-border-default:   rgba(6, 182, 212, 0.25);
+    --archie-border-muted:     rgba(6, 182, 212, 0.15);
+    --archie-border-subtle:    rgba(6, 182, 212, 0.08);
+    --archie-border-emphasis:  rgba(6, 182, 212, 0.50);
+
+    /* ── GLOWS ── */
+    --archie-glow-green-sm:    0 0 4px rgba(6, 182, 212, 0.20);
+    --archie-glow-green-md:    0 0 8px rgba(6, 182, 212, 0.25);
+    --archie-glow-green-lg:    0 0 16px rgba(6, 182, 212, 0.30);
+    --archie-glow-cyan-sm:     0 0 4px rgba(34, 211, 238, 0.20);
+    --archie-glow-cyan-md:     0 0 8px rgba(34, 211, 238, 0.25);
+    --archie-text-glow-green:  0 0 6px rgba(6, 182, 212, 0.30);
+    --archie-text-glow-cyan:   0 0 6px rgba(34, 211, 238, 0.30);
+
+    /* ── SHADOWS ── */
+    --archie-shadow-sm:  0 1px 3px rgba(2, 13, 26, 0.40);
+    --archie-shadow-md:  0 4px 12px rgba(2, 13, 26, 0.50);
+    --archie-shadow-lg:  0 8px 24px rgba(2, 13, 26, 0.60);
+
+    /* ── STRUCTURAL ── */
+    --archie-radius-sm:  6px;
+    --archie-radius-md:  8px;
+    --archie-radius-lg:  12px;
+    --archie-radius-xl:  16px;
+
+    /* ── FONTS ── */
+    --archie-font-heading: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --archie-font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Disable LCARS scanlines ── */
+body.theme-arctic-light .scanlines,
+body.theme-arctic-light .lcars-scanline {
+    display: none !important;
+}

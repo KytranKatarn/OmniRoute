@@ -1,0 +1,91 @@
+/*
+ * A.R.C.H.I.E. Theme: Forest
+ * Style: Natural calm green — organic, leafy tones (not LCARS neon)
+ * Accent: #22c55e (Green 500) | Secondary: #4ade80 (Green 400)
+ * Note: Uses natural green (#22c55e) instead of LCARS neon (#00ff41)
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body.theme-forest {
+
+    /* ── BACKGROUNDS ── */
+    --archie-bg-void:       #020f05;
+    --archie-bg-primary:    #0a1a0e;
+    --archie-bg-secondary:  #142d18;
+    --archie-bg-tertiary:   #1f4a26;
+    --archie-bg-elevated:   #142d18;
+    --archie-bg-hover:      #1f4a26;
+
+    /* ── TEXT ── */
+    --archie-text-primary:    #dcfce7;
+    --archie-text-secondary:  #86efac;
+    --archie-text-tertiary:   #4ade80;
+    --archie-text-muted:      #16a34a;
+
+    /* ── PRIMARY ACCENT (replaces green) ── */
+    --archie-accent:           #22c55e;
+    --archie-green:            #22c55e;
+    --archie-green-dim:        #16a34a;
+    --archie-green-bright:     #4ade80;
+    --archie-green-alpha-10:   rgba(34, 197, 94, 0.10);
+    --archie-green-alpha-20:   rgba(34, 197, 94, 0.20);
+    --archie-green-alpha-30:   rgba(34, 197, 94, 0.30);
+
+    /* ── SECONDARY (replaces cyan) ── */
+    --archie-cyan:            #4ade80;
+    --archie-cyan-dim:        #22c55e;
+    --archie-cyan-bright:     #86efac;
+    --archie-cyan-alpha-10:   rgba(74, 222, 128, 0.10);
+    --archie-cyan-alpha-20:   rgba(74, 222, 128, 0.20);
+    --archie-cyan-alpha-30:   rgba(74, 222, 128, 0.30);
+
+    /* ── ORANGE (warm accent) ── */
+    --archie-orange:          #f59e0b;
+    --archie-orange-dim:      #d97706;
+    --archie-orange-bright:   #fbbf24;
+    --archie-orange-alpha-10: rgba(245, 158, 11, 0.10);
+    --archie-orange-alpha-20: rgba(245, 158, 11, 0.20);
+
+    /* ── STATUS COLORS ── */
+    --archie-success:  #22c55e;
+    --archie-warning:  #f59e0b;
+    --archie-danger:   #ef4444;
+    --archie-info:     #22c55e;
+
+    /* ── BORDERS ── */
+    --archie-border-default:   rgba(34, 197, 94, 0.25);
+    --archie-border-muted:     rgba(34, 197, 94, 0.15);
+    --archie-border-subtle:    rgba(34, 197, 94, 0.08);
+    --archie-border-emphasis:  rgba(34, 197, 94, 0.50);
+
+    /* ── GLOWS ── */
+    --archie-glow-green-sm:    0 0 4px rgba(34, 197, 94, 0.20);
+    --archie-glow-green-md:    0 0 8px rgba(34, 197, 94, 0.25);
+    --archie-glow-green-lg:    0 0 16px rgba(34, 197, 94, 0.30);
+    --archie-glow-cyan-sm:     0 0 4px rgba(74, 222, 128, 0.20);
+    --archie-glow-cyan-md:     0 0 8px rgba(74, 222, 128, 0.25);
+    --archie-text-glow-green:  0 0 6px rgba(34, 197, 94, 0.30);
+    --archie-text-glow-cyan:   0 0 6px rgba(74, 222, 128, 0.30);
+
+    /* ── SHADOWS ── */
+    --archie-shadow-sm:  0 1px 3px rgba(2, 15, 5, 0.40);
+    --archie-shadow-md:  0 4px 12px rgba(2, 15, 5, 0.50);
+    --archie-shadow-lg:  0 8px 24px rgba(2, 15, 5, 0.60);
+
+    /* ── STRUCTURAL ── */
+    --archie-radius-sm:  6px;
+    --archie-radius-md:  8px;
+    --archie-radius-lg:  12px;
+    --archie-radius-xl:  16px;
+
+    /* ── FONTS ── */
+    --archie-font-heading: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --archie-font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Disable LCARS scanlines ── */
+body.theme-forest .scanlines,
+body.theme-forest .lcars-scanline {
+    display: none !important;
+}

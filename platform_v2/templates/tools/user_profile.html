@@ -299,6 +299,78 @@
         max-height: none;
     }
 
+    /* ── Theme Selector Grid ──────────────────────────── */
+    .theme-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+    }
+
+    .theme-card {
+        position: relative;
+        cursor: pointer;
+        padding: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        transition: border-color 0.2s, background 0.2s, transform 0.15s;
+    }
+
+    .theme-card:hover {
+        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.05);
+        transform: translateY(-2px);
+    }
+
+    .theme-card.active {
+        border-color: rgba(var(--lcars-accent-rgb), 0.7);
+        background: rgba(var(--lcars-accent-rgb), 0.06);
+    }
+
+    .theme-swatches {
+        display: flex;
+        gap: 3px;
+        height: 28px;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+
+    .theme-name {
+        font-family: 'Antonio', sans-serif;
+        font-size: 0.68rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.6);
+        text-align: center;
+    }
+
+    .theme-card.active .theme-name {
+        color: rgba(var(--lcars-accent-rgb), 0.9);
+    }
+
+    .theme-check {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        font-size: 14px;
+        color: rgba(var(--lcars-accent-rgb), 0.9);
+        display: none;
+    }
+
+    .theme-card.active .theme-check {
+        display: block;
+    }
+
+    .theme-scope-note {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.62rem;
+        color: rgba(255, 255, 255, 0.25);
+        text-align: center;
+        margin-top: 10px;
+        letter-spacing: 0.5px;
+    }
+
     /* ── Responsive ─────────────────────────────────── */
     @media (max-width: 768px) {
         .profile-grid {
@@ -307,6 +379,10 @@
 
         .modules-grid {
             grid-template-columns: 1fr 1fr;
+        }
+
+        .theme-grid {
+            grid-template-columns: repeat(2, 1fr);
         }
 
         .profile-header h1 {
@@ -321,6 +397,10 @@
 
         .modules-grid {
             grid-template-columns: 1fr;
+        }
+
+        .theme-grid {
+            grid-template-columns: repeat(2, 1fr);
         }
     }
 </style>
@@ -394,6 +474,108 @@
             </div>
         </div>
 
+        <!-- Appearance / Theme Selector Panel -->
+        <div class="lcars-panel full-width" style="animation-delay: 0.25s;">
+            <div class="lcars-panel-header">
+                <div class="lcars-panel-cap"></div>
+                <span class="lcars-panel-title">Appearance</span>
+                <div class="lcars-panel-light"></div>
+            </div>
+            <div class="lcars-panel-body no-scroll">
+                <div class="theme-grid" id="themeGrid">
+                    <!-- LCARS Classic -->
+                    <div class="theme-card" data-theme="lcars-classic" onclick="selectTheme('lcars-classic')">
+                        <div class="theme-swatches">
+                            <div style="flex:3; background:#010409;"></div>
+                            <div style="flex:1; background:#00ff41;"></div>
+                            <div style="flex:1; background:#00ffff;"></div>
+                            <div style="flex:1; background:#ffaa00;"></div>
+                        </div>
+                        <div class="theme-name">LCARS Classic</div>
+                        <div class="theme-check">&#10003;</div>
+                    </div>
+                    <!-- Corporate Blue -->
+                    <div class="theme-card" data-theme="corporate-blue" onclick="selectTheme('corporate-blue')">
+                        <div class="theme-swatches">
+                            <div style="flex:3; background:#0f172a;"></div>
+                            <div style="flex:1; background:#3b82f6;"></div>
+                            <div style="flex:1; background:#60a5fa;"></div>
+                            <div style="flex:1; background:#f59e0b;"></div>
+                        </div>
+                        <div class="theme-name">Corporate Blue</div>
+                        <div class="theme-check">&#10003;</div>
+                    </div>
+                    <!-- Midnight Purple -->
+                    <div class="theme-card" data-theme="midnight-purple" onclick="selectTheme('midnight-purple')">
+                        <div class="theme-swatches">
+                            <div style="flex:3; background:#0f0a1a;"></div>
+                            <div style="flex:1; background:#8b5cf6;"></div>
+                            <div style="flex:1; background:#a78bfa;"></div>
+                            <div style="flex:1; background:#f59e0b;"></div>
+                        </div>
+                        <div class="theme-name">Midnight Purple</div>
+                        <div class="theme-check">&#10003;</div>
+                    </div>
+                    <!-- Warm Minimal -->
+                    <div class="theme-card" data-theme="warm-minimal" onclick="selectTheme('warm-minimal')">
+                        <div class="theme-swatches">
+                            <div style="flex:3; background:#1a1408;"></div>
+                            <div style="flex:1; background:#f59e0b;"></div>
+                            <div style="flex:1; background:#fbbf24;"></div>
+                            <div style="flex:1; background:#78716c;"></div>
+                        </div>
+                        <div class="theme-name">Warm Minimal</div>
+                        <div class="theme-check">&#10003;</div>
+                    </div>
+                    <!-- Arctic Light -->
+                    <div class="theme-card" data-theme="arctic-light" onclick="selectTheme('arctic-light')">
+                        <div class="theme-swatches">
+                            <div style="flex:3; background:#0a1929;"></div>
+                            <div style="flex:1; background:#06b6d4;"></div>
+                            <div style="flex:1; background:#22d3ee;"></div>
+                            <div style="flex:1; background:#f59e0b;"></div>
+                        </div>
+                        <div class="theme-name">Arctic Light</div>
+                        <div class="theme-check">&#10003;</div>
+                    </div>
+                    <!-- Rose Gold -->
+                    <div class="theme-card" data-theme="rose-gold" onclick="selectTheme('rose-gold')">
+                        <div class="theme-swatches">
+                            <div style="flex:3; background:#1a0a10;"></div>
+                            <div style="flex:1; background:#f43f5e;"></div>
+                            <div style="flex:1; background:#fb7185;"></div>
+                            <div style="flex:1; background:#f59e0b;"></div>
+                        </div>
+                        <div class="theme-name">Rose Gold</div>
+                        <div class="theme-check">&#10003;</div>
+                    </div>
+                    <!-- Forest -->
+                    <div class="theme-card" data-theme="forest" onclick="selectTheme('forest')">
+                        <div class="theme-swatches">
+                            <div style="flex:3; background:#0a1a0e;"></div>
+                            <div style="flex:1; background:#22c55e;"></div>
+                            <div style="flex:1; background:#4ade80;"></div>
+                            <div style="flex:1; background:#f59e0b;"></div>
+                        </div>
+                        <div class="theme-name">Forest</div>
+                        <div class="theme-check">&#10003;</div>
+                    </div>
+                    <!-- Slate Pro -->
+                    <div class="theme-card" data-theme="slate-pro" onclick="selectTheme('slate-pro')">
+                        <div class="theme-swatches">
+                            <div style="flex:3; background:#0f1218;"></div>
+                            <div style="flex:1; background:#64748b;"></div>
+                            <div style="flex:1; background:#94a3b8;"></div>
+                            <div style="flex:1; background:#f59e0b;"></div>
+                        </div>
+                        <div class="theme-name">Slate Pro</div>
+                        <div class="theme-check">&#10003;</div>
+                    </div>
+                </div>
+                <div class="theme-scope-note">Themes apply to SaaS Services and Dashboard. Admin modules always use LCARS Classic.</div>
+            </div>
+        </div>
+
         <!-- My Modules Panel -->
         <div class="lcars-panel full-width" style="animation-delay: 0.3s;">
             <div class="lcars-panel-header">
@@ -425,7 +607,7 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
 (function() {
     'use strict';
@@ -690,9 +872,54 @@
         if (window.lucide) lucide.createIcons();
     }
 
+    // ── Theme Selection ─────────────────────────────────
+    function loadActiveTheme() {
+        fetch('/tools/my-profile/api/user/theme')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var cards = document.querySelectorAll('.theme-card');
+                cards.forEach(function(card) {
+                    if (card.dataset.theme === data.theme) {
+                        card.classList.add('active');
+                    } else {
+                        card.classList.remove('active');
+                    }
+                });
+            })
+            .catch(function(e) {
+                console.error('[Profile] Theme load failed:', e);
+            });
+    }
+
+    window.selectTheme = function(themeId) {
+        // Optimistic UI update
+        var cards = document.querySelectorAll('.theme-card');
+        cards.forEach(function(card) {
+            card.classList.toggle('active', card.dataset.theme === themeId);
+        });
+
+        fetch('/tools/my-profile/api/user/theme', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ theme: themeId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                // Reload to apply theme via server-side rendering
+                window.location.reload();
+            }
+        })
+        .catch(function(e) {
+            console.error('[Profile] Theme set failed:', e);
+        });
+    };
+
     // ── Init ──────────────────────────────────────────
     loadProfile();
     loadNotifications();
+    loadActiveTheme();
 })();
 </script>
 {% endblock %}

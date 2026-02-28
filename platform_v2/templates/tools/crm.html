@@ -4,6 +4,7 @@
 {% block module_name %}crm{% endblock %}
 
 {% block content %}
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
 <div class="crm-container">
     {% include 'includes/business_tools_nav.html' %}
 
@@ -13,38 +14,32 @@
     <!-- Main Content -->
     <div class="crm-content">
         <!-- Header -->
-        <header class="crm-header">
-            <div class="crm-header-glow"></div>
-            <h1 class="crm-title">
-                <i data-lucide="users"></i>
-                CUSTOMER RELATIONS
-            </h1>
-            <p class="crm-subtitle"><span data-i18n="crm.intelligent_customer_management_system">Intelligent Customer Management System</span></p>
-            <div class="crm-header-actions">
-                <a href="/tools/my-profile/" class="crm-btn crm-btn--outline" style="text-decoration: none;">
-                    <i data-lucide="user"></i>
-                    My Profile
-                </a>
-                {% if is_admin %}
-                <a href="/tools/account-center/" class="crm-btn crm-btn--outline" style="text-decoration: none;">
-                    <i data-lucide="shield"></i>
-                    Account Center
-                </a>
-                {% endif %}
-                <button class="crm-btn crm-btn--outline" onclick="showImportModal()">
-                    <i data-lucide="upload"></i>
-                    Import
-                </button>
-                <button class="crm-btn crm-btn--outline" onclick="exportCustomers()">
-                    <i data-lucide="download"></i>
-                    Export
-                </button>
-                <button class="crm-btn crm-btn--primary" onclick="showAddCustomerModal()">
-                    <i data-lucide="user-plus"></i>
-                    Add Customer
-                </button>
-            </div>
-        </header>
+        {{ page_header('CUSTOMER RELATIONS', subtitle='Intelligent Customer Management System', icon='users') }}
+
+        <div class="crm-header-actions">
+            <a href="/tools/my-profile/" class="crm-btn crm-btn--outline" style="text-decoration: none;">
+                <i data-lucide="user"></i>
+                My Profile
+            </a>
+            {% if is_admin %}
+            <a href="/tools/account-center/" class="crm-btn crm-btn--outline" style="text-decoration: none;">
+                <i data-lucide="shield"></i>
+                Account Center
+            </a>
+            {% endif %}
+            <button class="crm-btn crm-btn--outline" onclick="showImportModal()">
+                <i data-lucide="upload"></i>
+                Import
+            </button>
+            <button class="crm-btn crm-btn--outline" onclick="exportCustomers()">
+                <i data-lucide="download"></i>
+                Export
+            </button>
+            <button class="crm-btn crm-btn--primary" onclick="showAddCustomerModal()">
+                <i data-lucide="user-plus"></i>
+                Add Customer
+            </button>
+        </div>
 
         <!-- Stats Grid -->
         <div class="crm-stats-grid">
@@ -75,24 +70,12 @@
         {% endif %}
 
         <!-- Tab Navigation -->
-        <div class="crm-tabs">
-            <button class="crm-tab active" data-tab="customers">
-                <i data-lucide="users"></i>
-                <span><span data-i18n="crm.customers">Customers</span></span>
-            </button>
-            <button class="crm-tab" data-tab="segments">
-                <i data-lucide="layers"></i>
-                <span><span data-i18n="crm.segments">Segments</span></span>
-            </button>
-            <button class="crm-tab" data-tab="interactions">
-                <i data-lucide="activity"></i>
-                <span><span data-i18n="crm.activity">Activity</span></span>
-            </button>
-            <button class="crm-tab" data-tab="analytics">
-                <i data-lucide="bar-chart-2"></i>
-                <span><span data-i18n="crm.analytics">Analytics</span></span>
-            </button>
-        </div>
+        {{ tab_nav(tabs=[
+            {'id': 'customers', 'label': 'Customers', 'icon': 'users'},
+            {'id': 'segments', 'label': 'Segments', 'icon': 'layers'},
+            {'id': 'interactions', 'label': 'Activity', 'icon': 'activity'},
+            {'id': 'analytics', 'label': 'Analytics', 'icon': 'bar-chart-2'}
+        ], active_id='customers', onswitch='switchCRMTab') }}
 
         <!-- Customers Tab -->
         <div class="crm-tab-content active" id="tab-customers">
@@ -507,57 +490,7 @@
     z-index: 1;
 }
 
-/* Header */
-.crm-header {
-    text-align: center;
-    padding: 40px 20px;
-    margin-bottom: 30px;
-    background: linear-gradient(180deg, rgba(255, 105, 180, 0.1) 0%, transparent 100%);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    position: relative;
-    overflow: hidden;
-}
-
-.crm-header-glow {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 300px;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--archie-pink), transparent);
-    animation: headerGlow 3s ease-in-out infinite;
-}
-
-@keyframes headerGlow {
-    0%, 100% { opacity: 0.5; width: 200px; }
-    50% { opacity: 1; width: 400px; }
-}
-
-.crm-title {
-    font-family: 'Orbitron', monospace;
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--archie-pink);
-    text-shadow: 0 0 20px rgba(255, 105, 180, 0.5);
-    letter-spacing: 4px;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 15px;
-}
-
-.crm-title i { width: 40px; height: 40px; }
-
-.crm-subtitle {
-    color: var(--archie-text-tertiary);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    letter-spacing: 2px;
-    margin-top: 10px;
-}
+/* Header Actions (below macro header) */
 
 .crm-header-actions {
     display: flex;
@@ -638,60 +571,7 @@
     text-transform: uppercase;
 }
 
-/* Tabs */
-.crm-tabs {
-    display: flex;
-    gap: 5px;
-    background: var(--archie-bg-secondary);
-    padding: 8px;
-    border-radius: 12px;
-    border: 1px solid var(--archie-border-default);
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-
-.crm-tab {
-    flex: 1;
-    min-width: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 20px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    color: var(--archie-text-tertiary);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-}
-
-.crm-tab i { width: 18px; height: 18px; }
-
-.crm-tab:hover {
-    color: var(--archie-pink);
-    background: rgba(255, 105, 180, 0.05);
-}
-
-.crm-tab.active {
-    color: var(--archie-pink);
-    background: rgba(255, 105, 180, 0.1);
-    border-color: var(--archie-border-emphasis);
-}
-
-.crm-tab.active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 20%;
-    right: 20%;
-    height: 2px;
-    background: var(--archie-pink);
-    border-radius: 1px;
-}
+/* Tabs — now handled by theme macro (tab_nav) */
 
 /* Tab Content */
 .crm-tab-content {
@@ -1449,18 +1329,10 @@ body.light-mode .crm-scanlines {
     );
 }
 
-body.light-mode .crm-header {
-    background: linear-gradient(180deg, rgba(204, 68, 145, 0.08) 0%, transparent 100%);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-}
-
-body.light-mode .crm-title { text-shadow: none; }
-
 body.light-mode .crm-stat-card,
 body.light-mode .crm-panel,
 body.light-mode .crm-segment-card,
-body.light-mode .crm-analytics-card,
-body.light-mode .crm-tabs {
+body.light-mode .crm-analytics-card {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
@@ -1488,9 +1360,7 @@ body.light-mode .crm-toast {
         padding-top: 70px;
     }
 
-    .crm-title { font-size: 1.5rem; }
     .crm-stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .crm-tab span { display: none; }
     .crm-form-row { grid-template-columns: 1fr; }
     .crm-quick-stats { grid-template-columns: repeat(2, 1fr); }
     .crm-detail-grid { grid-template-columns: 1fr; }
@@ -1508,17 +1378,15 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ============================================================================
-// TAB SWITCHING
+// TAB SWITCHING — uses [data-tab] attribute from theme macros
 // ============================================================================
-document.querySelectorAll('.crm-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.crm-tab').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.crm-tab-content').forEach(c => c.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    });
-});
+function switchCRMTab(tabName) {
+    document.querySelectorAll('.crm-tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
 
 // ============================================================================
 // MODAL FUNCTIONS

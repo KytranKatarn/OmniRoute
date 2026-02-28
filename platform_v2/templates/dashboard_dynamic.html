@@ -2630,6 +2630,7 @@ body.light-mode .module-card-accent {
 {% endblock %}
 
 {% block content %}
+{% from 'theme_macros.html' import page_header, stat_card, tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
 <!-- Sandbox Mode Banner (if in sandbox mode) -->
 {% include 'sandbox_banner.html' %}
 

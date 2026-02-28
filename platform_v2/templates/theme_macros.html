@@ -8,18 +8,139 @@
   Usage in module templates:
     {% from 'theme_macros.html' import page_header, stat_card,
        tab_nav, panel, data_table, card_grid, filter_bar, modal with context %}
+
+  Note: Jinja2 cannot re-export conditional imports, so we use wrapper
+  macros that delegate to the correct family file.
 #}
 
+
+{# ── Page Header ── #}
+{% macro page_header(title, subtitle='', icon='', actions='') %}
 {% if layout_family == 'corporate' %}
-  {% from 'layouts/corporate.html' import page_header, stat_card,
-     tab_nav, panel, data_table, card_grid, filter_bar, modal %}
+  {% from 'layouts/corporate.html' import page_header as _ph %}
 {% elif layout_family == 'minimal' %}
-  {% from 'layouts/minimal.html' import page_header, stat_card,
-     tab_nav, panel, data_table, card_grid, filter_bar, modal %}
+  {% from 'layouts/minimal.html' import page_header as _ph %}
 {% elif layout_family == 'elegant' %}
-  {% from 'layouts/elegant.html' import page_header, stat_card,
-     tab_nav, panel, data_table, card_grid, filter_bar, modal %}
+  {% from 'layouts/elegant.html' import page_header as _ph %}
 {% else %}
-  {% from 'layouts/lcars.html' import page_header, stat_card,
-     tab_nav, panel, data_table, card_grid, filter_bar, modal %}
+  {% from 'layouts/lcars.html' import page_header as _ph %}
 {% endif %}
+{{ _ph(title, subtitle, icon, actions) }}
+{% endmacro %}
+
+
+{# ── Stat Card ── #}
+{% macro stat_card(icon, value, label, variant='default', id='') %}
+{% if layout_family == 'corporate' %}
+  {% from 'layouts/corporate.html' import stat_card as _sc %}
+{% elif layout_family == 'minimal' %}
+  {% from 'layouts/minimal.html' import stat_card as _sc %}
+{% elif layout_family == 'elegant' %}
+  {% from 'layouts/elegant.html' import stat_card as _sc %}
+{% else %}
+  {% from 'layouts/lcars.html' import stat_card as _sc %}
+{% endif %}
+{{ _sc(icon, value, label, variant, id) }}
+{% endmacro %}
+
+
+{# ── Tab Navigation ── #}
+{% macro tab_nav(tabs, active_id='', onswitch='') %}
+{% if layout_family == 'corporate' %}
+  {% from 'layouts/corporate.html' import tab_nav as _tn %}
+{% elif layout_family == 'minimal' %}
+  {% from 'layouts/minimal.html' import tab_nav as _tn %}
+{% elif layout_family == 'elegant' %}
+  {% from 'layouts/elegant.html' import tab_nav as _tn %}
+{% else %}
+  {% from 'layouts/lcars.html' import tab_nav as _tn %}
+{% endif %}
+{{ _tn(tabs, active_id, onswitch) }}
+{% endmacro %}
+
+
+{# ── Panel (callable — content goes in caller()) ── #}
+{% macro panel(title, icon='', accent='green', compact=false, id='') %}
+{% if layout_family == 'corporate' %}
+  {% from 'layouts/corporate.html' import panel as _pn %}
+{% elif layout_family == 'minimal' %}
+  {% from 'layouts/minimal.html' import panel as _pn %}
+{% elif layout_family == 'elegant' %}
+  {% from 'layouts/elegant.html' import panel as _pn %}
+{% else %}
+  {% from 'layouts/lcars.html' import panel as _pn %}
+{% endif %}
+{% set content = caller() %}
+{% call _pn(title, icon, accent, compact, id) %}
+  {{ content }}
+{% endcall %}
+{% endmacro %}
+
+
+{# ── Data Table (callable — rows in caller()) ── #}
+{% macro data_table(headers, tbody_id='', table_class='') %}
+{% if layout_family == 'corporate' %}
+  {% from 'layouts/corporate.html' import data_table as _dt %}
+{% elif layout_family == 'minimal' %}
+  {% from 'layouts/minimal.html' import data_table as _dt %}
+{% elif layout_family == 'elegant' %}
+  {% from 'layouts/elegant.html' import data_table as _dt %}
+{% else %}
+  {% from 'layouts/lcars.html' import data_table as _dt %}
+{% endif %}
+{% set content = caller() %}
+{% call _dt(headers, tbody_id, table_class) %}
+  {{ content }}
+{% endcall %}
+{% endmacro %}
+
+
+{# ── Card Grid (callable — items in caller()) ── #}
+{% macro card_grid(columns='repeat(auto-fit, minmax(280px, 1fr))', gap='16px', id='') %}
+{% if layout_family == 'corporate' %}
+  {% from 'layouts/corporate.html' import card_grid as _cg %}
+{% elif layout_family == 'minimal' %}
+  {% from 'layouts/minimal.html' import card_grid as _cg %}
+{% elif layout_family == 'elegant' %}
+  {% from 'layouts/elegant.html' import card_grid as _cg %}
+{% else %}
+  {% from 'layouts/lcars.html' import card_grid as _cg %}
+{% endif %}
+{% set content = caller() %}
+{% call _cg(columns, gap, id) %}
+  {{ content }}
+{% endcall %}
+{% endmacro %}
+
+
+{# ── Filter Bar ── #}
+{% macro filter_bar(search_placeholder='', search_id='', filters=[], oninput='') %}
+{% if layout_family == 'corporate' %}
+  {% from 'layouts/corporate.html' import filter_bar as _fb %}
+{% elif layout_family == 'minimal' %}
+  {% from 'layouts/minimal.html' import filter_bar as _fb %}
+{% elif layout_family == 'elegant' %}
+  {% from 'layouts/elegant.html' import filter_bar as _fb %}
+{% else %}
+  {% from 'layouts/lcars.html' import filter_bar as _fb %}
+{% endif %}
+{{ _fb(search_placeholder, search_id, filters, oninput) }}
+{% endmacro %}
+
+
+{# ── Modal (callable — body + actions in caller()) ── #}
+{% macro modal(modal_id, title, icon='', size='medium') %}
+{% if layout_family == 'corporate' %}
+  {% from 'layouts/corporate.html' import modal as _md %}
+{% elif layout_family == 'minimal' %}
+  {% from 'layouts/minimal.html' import modal as _md %}
+{% elif layout_family == 'elegant' %}
+  {% from 'layouts/elegant.html' import modal as _md %}
+{% else %}
+  {% from 'layouts/lcars.html' import modal as _md %}
+{% endif %}
+{% set content = caller() %}
+{% call _md(modal_id, title, icon, size) %}
+  {{ content }}
+{% endcall %}
+{% endmacro %}

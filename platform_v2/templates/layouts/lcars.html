@@ -1,0 +1,167 @@
+{#
+  LCARS Layout Family
+  --------------------
+  Sci-fi aesthetic: pill shapes, sidebar segments, glow borders,
+  scanlines, asymmetric border-radius, footer bars.
+
+  Uses existing CSS from: theme.css, lcars-panels.css, lcars-frames.css
+#}
+
+
+{# ── Page Header ── #}
+{% macro page_header(title, subtitle='', icon='', actions='') %}
+<header class="lcars-page-header" style="margin-bottom: 24px;">
+    <div class="lcars-header-glow" style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 200px; height: 2px; background: var(--archie-accent, #00ff41); box-shadow: var(--archie-glow-green-lg); border-radius: 1px;"></div>
+    <h1 style="font-family: var(--archie-font-display, 'Orbitron', sans-serif); font-size: 1.8rem; color: var(--archie-accent, #00ff41); text-transform: uppercase; letter-spacing: 2px; margin: 0; text-shadow: var(--archie-text-glow-green);">
+        {% if icon %}<i data-lucide="{{ icon }}" style="width: 24px; height: 24px; margin-right: 8px;"></i>{% endif %}
+        {{ title }}
+    </h1>
+    {% if subtitle %}
+    <p style="color: var(--archie-text-secondary, #8b949e); font-size: 0.85rem; margin: 6px 0 0 0; letter-spacing: 1px;">{{ subtitle }}</p>
+    {% endif %}
+    {% if actions %}
+    <div class="lcars-header-actions" style="display: flex; gap: 8px; margin-top: 12px;">
+        {{ actions }}
+    </div>
+    {% endif %}
+</header>
+{% endmacro %}
+
+
+{# ── Stat Card ── #}
+{% macro stat_card(icon, value, label, variant='default', id='') %}
+{% set variant_colors = {
+    'default': '--archie-accent',
+    'success': '--archie-success',
+    'warning': '--archie-warning',
+    'danger': '--archie-danger',
+    'info': '--archie-cyan'
+} %}
+{% set color_var = variant_colors.get(variant, '--archie-accent') %}
+<div class="lcars-stat-card" {% if id %}id="{{ id }}"{% endif %} style="background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default); border-radius: 0 12px 12px 0; padding: 20px; text-align: center; position: relative; overflow: hidden;">
+    <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var({{ color_var }}), transparent);"></div>
+    <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(var(--archie-green-rgb, 0,255,65), 0.1); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+        <i data-lucide="{{ icon }}" style="width: 24px; height: 24px; color: var({{ color_var }});"></i>
+    </div>
+    <div class="lcars-stat-value" style="font-family: var(--archie-font-display, 'Orbitron', sans-serif); font-size: 2rem; font-weight: 700; color: var({{ color_var }}); text-shadow: 0 0 8px rgba(var(--archie-green-rgb, 0,255,65), 0.3);">{{ value }}</div>
+    <div class="lcars-stat-label" style="color: var(--archie-text-secondary, #8b949e); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px;">{{ label }}</div>
+</div>
+{% endmacro %}
+
+
+{# ── Tab Navigation ── #}
+{% macro tab_nav(tabs, active_id='', onswitch='') %}
+<div class="lcars-tab-nav" style="display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap;">
+    {% for tab in tabs %}
+    <button class="lcars-tab-btn{% if (loop.first and not active_id) or tab.id == active_id %} active{% endif %}"
+            data-tab="{{ tab.id }}"
+            {% if onswitch %}onclick="{{ onswitch }}('{{ tab.id }}')"{% endif %}
+            style="padding: 10px 20px; border: 1px solid var(--archie-border-default); background: var(--archie-bg-secondary); color: var(--archie-text-secondary); border-radius: 0 10px 10px 0; cursor: pointer; font-family: var(--archie-font-heading, 'Antonio', sans-serif); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s ease; display: flex; align-items: center; gap: 8px;">
+        {% if tab.icon %}<i data-lucide="{{ tab.icon }}" style="width: 16px; height: 16px;"></i>{% endif %}
+        <span>{{ tab.label }}</span>
+        {% if tab.badge_id %}
+        <span class="lcars-tab-badge" id="{{ tab.badge_id }}" style="display: none; background: var(--archie-accent); color: var(--archie-bg-primary); border-radius: 10px; padding: 1px 8px; font-size: 0.75rem; font-weight: 700;">0</span>
+        {% endif %}
+    </button>
+    {% endfor %}
+</div>
+<style>
+    .lcars-tab-btn.active {
+        background: rgba(var(--archie-green-rgb, 0,255,65), 0.15) !important;
+        border-color: var(--archie-accent, #00ff41) !important;
+        color: var(--archie-accent, #00ff41) !important;
+        box-shadow: var(--archie-glow-green-sm);
+    }
+    .lcars-tab-btn:hover:not(.active) {
+        background: var(--archie-bg-hover) !important;
+        border-color: var(--archie-border-emphasis) !important;
+        color: var(--archie-text-primary) !important;
+    }
+</style>
+{% endmacro %}
+
+
+{# ── Panel (callable — content goes in caller()) ── #}
+{% macro panel(title, icon='', accent='green', compact=false, id='') %}
+<div class="lcars-panel {% if accent != 'green' %}accent-{{ accent }}{% endif %}" {% if id %}id="{{ id }}"{% endif %} style="{% if compact %}padding: 10px;{% endif %}">
+    <div class="lcars-panel-header">
+        <div class="lcars-panel-cap"></div>
+        <h2 class="lcars-panel-title">
+            {% if icon %}<i data-lucide="{{ icon }}" style="width: 16px; height: 16px;"></i>{% endif %}
+            {{ title }}
+        </h2>
+        <div class="lcars-panel-light"></div>
+    </div>
+    <div class="lcars-panel-body">
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ── Data Table ── #}
+{% macro data_table(headers, tbody_id='', table_class='') %}
+<div class="lcars-table-wrapper" style="overflow-x: auto;">
+    <table class="lcars-data-table {{ table_class }}" style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr>
+                {% for h in headers %}
+                <th style="padding: 10px 12px; text-align: left; font-family: var(--archie-font-heading, 'Antonio', sans-serif); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--archie-text-secondary); border-bottom: 1px solid var(--archie-border-default);">{{ h }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody {% if tbody_id %}id="{{ tbody_id }}"{% endif %}>
+            {{ caller() }}
+        </tbody>
+    </table>
+</div>
+{% endmacro %}
+
+
+{# ── Card Grid (callable — each item rendered by caller()) ── #}
+{% macro card_grid(columns='repeat(auto-fit, minmax(280px, 1fr))', gap='16px', id='') %}
+<div class="lcars-card-grid" {% if id %}id="{{ id }}"{% endif %} style="display: grid; grid-template-columns: {{ columns }}; gap: {{ gap }};">
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{# ── Filter Bar ── #}
+{% macro filter_bar(search_placeholder='', search_id='', filters=[], oninput='') %}
+<div class="lcars-filter-bar" style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
+    {% if search_placeholder %}
+    <div style="flex: 1; min-width: 200px; position: relative;">
+        <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--archie-text-tertiary);"></i>
+        <input type="text" {% if search_id %}id="{{ search_id }}"{% endif %} class="lcars-input" placeholder="{{ search_placeholder }}" {% if oninput %}oninput="{{ oninput }}()"{% endif %} style="width: 100%; padding-left: 36px;">
+    </div>
+    {% endif %}
+    {% for f in filters %}
+    <select {% if f.id %}id="{{ f.id }}"{% endif %} class="lcars-input" {% if oninput %}onchange="{{ oninput }}()"{% endif %} style="min-width: 140px;">
+        {% for opt in f.options %}
+        <option value="{{ opt.value }}">{{ opt.label }}</option>
+        {% endfor %}
+    </select>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+
+{# ── Modal (callable — body + actions in caller()) ── #}
+{% macro modal(modal_id, title, icon='', size='medium') %}
+{% set size_map = {'small': '400px', 'medium': '600px', 'large': '800px', 'xlarge': '1000px'} %}
+<div class="lcars-modal-backdrop" id="{{ modal_id }}-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center;" onclick="if(event.target===this)document.getElementById('{{ modal_id }}-backdrop').style.display='none';">
+    <div class="lcars-panel" id="{{ modal_id }}" style="width: {{ size_map.get(size, '600px') }}; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="lcars-panel-header" style="flex-shrink: 0;">
+            <div class="lcars-panel-cap"></div>
+            <h2 class="lcars-panel-title">
+                {% if icon %}<i data-lucide="{{ icon }}" style="width: 16px; height: 16px;"></i>{% endif %}
+                {{ title }}
+            </h2>
+            <button onclick="document.getElementById('{{ modal_id }}-backdrop').style.display='none';" style="background: none; border: none; color: var(--archie-text-secondary); cursor: pointer; font-size: 1.4rem; padding: 4px 8px;">&times;</button>
+        </div>
+        <div class="lcars-panel-body" style="overflow-y: auto; flex: 1;">
+            {{ caller() }}
+        </div>
+    </div>
+</div>
+{% endmacro %}

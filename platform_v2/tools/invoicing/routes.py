@@ -62,6 +62,11 @@ def json_serial(obj):
     raise TypeError(f"Type {type(obj)} not serializable")
 
 
+def _serialize(data):
+    """Pre-serialize data with json_serial for use with jsonify"""
+    return json.loads(json.dumps(data, default=json_serial))
+
+
 # ============================================================================
 # MAIN PAGE
 # ============================================================================
@@ -88,8 +93,9 @@ def index():
                 COALESCE(SUM(total) FILTER (WHERE status = 'paid'), 0) as paid_value,
                 COALESCE(SUM(balance_due) FILTER (WHERE status IN ('sent', 'overdue')), 0) as outstanding
             FROM invoices
-            WHERE created_at > NOW() - INTERVAL '90 days'
-        """
+            WHERE created_at > NOW() - INTERVAL '90 days' AND user_id = %s
+        """,
+            (current_user.id,),
         )
         stats = cur.fetchone()
 
@@ -101,9 +107,11 @@ def index():
                    c.company as customer_company
             FROM invoices i
             LEFT JOIN crm_customers c ON i.customer_id = c.id
+            WHERE i.user_id = %s
             ORDER BY i.created_at DESC
             LIMIT 10
-        """
+        """,
+            (current_user.id,),
         )
         recent_invoices = cur.fetchall()
 
@@ -118,10 +126,11 @@ def index():
                    c.first_name || ' ' || c.last_name as customer_name
             FROM invoices i
             LEFT JOIN crm_customers c ON i.customer_id = c.id
-            WHERE i.status = 'sent' AND i.due_date < CURRENT_DATE
+            WHERE i.status = 'sent' AND i.due_date < CURRENT_DATE AND i.user_id = %s
             ORDER BY i.due_date
             LIMIT 5
-        """
+        """,
+            (current_user.id,),
         )
         overdue_invoices = cur.fetchall()
 
@@ -130,8 +139,9 @@ def index():
             """
             UPDATE invoices
             SET status = 'overdue', updated_at = NOW()
-            WHERE status = 'sent' AND due_date < CURRENT_DATE
-        """
+            WHERE status = 'sent' AND due_date < CURRENT_DATE AND user_id = %s
+        """,
+            (current_user.id,),
         )
         conn.commit()
 
@@ -189,8 +199,8 @@ def get_invoices():
         per_page = int(request.args.get("per_page", 50))
         offset = (page - 1) * per_page
 
-        where_clauses = ["1=1"]
-        params = []
+        where_clauses = ["i.user_id = %s"]
+        params = [current_user.id]
 
         if status:
             where_clauses.append("i.status = %s")
@@ -225,12 +235,11 @@ def get_invoices():
         return jsonify(
             {
                 "success": True,
-                "invoices": [dict(i) for i in invoices],
+                "invoices": _serialize([dict(i) for i in invoices]),
                 "total": total,
                 "page": page,
                 "pages": (total + per_page - 1) // per_page,
             },
-            default=json_serial,
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -270,8 +279,8 @@ def create_invoice():
             INSERT INTO invoices
             (invoice_number, customer_id, order_id, subscription_id, status,
              issue_date, due_date, tax_rate, discount_amount, discount_description,
-             notes, terms, currency, recurring, recurring_interval, created_by)
-            VALUES (%s, %s, %s, %s, 'draft', CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             notes, terms, currency, recurring, recurring_interval, created_by, user_id)
+            VALUES (%s, %s, %s, %s, 'draft', CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """,
             (
@@ -288,6 +297,7 @@ def create_invoice():
                 data.get("currency", "CAD"),
                 data.get("recurring", False),
                 data.get("recurring_interval"),
+                current_user.id,
                 current_user.id,
             ),
         )
@@ -330,11 +340,10 @@ def create_invoice():
         return jsonify(
             {
                 "success": True,
-                "invoice": dict(invoice),
+                "invoice": _serialize(dict(invoice)),
                 "invoice_number": invoice_number,
                 "message": f"Invoice {invoice_number} created",
             },
-            default=json_serial,
         )
     except Exception as e:
         current_app.logger.error(f"[Invoicing] Error creating invoice: {e}")
@@ -363,9 +372,9 @@ def get_invoice(invoice_id):
                    c.address_line1, c.city, c.state, c.postal_code, c.country, c.phone
             FROM invoices i
             LEFT JOIN crm_customers c ON i.customer_id = c.id
-            WHERE i.id = %s
+            WHERE i.id = %s AND i.user_id = %s
         """,
-            (invoice_id,),
+            (invoice_id, current_user.id),
         )
         invoice = cur.fetchone()
 
@@ -419,13 +428,12 @@ def get_invoice(invoice_id):
         return jsonify(
             {
                 "success": True,
-                "invoice": dict(invoice),
-                "items": [dict(i) for i in items],
-                "payments": [dict(p) for p in payments],
-                "activities": [dict(a) for a in activities],
-                "settings": dict(settings) if settings else None,
+                "invoice": _serialize(dict(invoice)),
+                "items": _serialize([dict(i) for i in items]),
+                "payments": _serialize([dict(p) for p in payments]),
+                "activities": _serialize([dict(a) for a in activities]),
+                "settings": _serialize(dict(settings)) if settings else None,
             },
-            default=json_serial,
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -447,8 +455,8 @@ def update_invoice(invoice_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Check invoice exists and is editable
-        cur.execute("SELECT status FROM invoices WHERE id = %s", (invoice_id,))
+        # Check invoice exists, is editable, and belongs to user
+        cur.execute("SELECT status FROM invoices WHERE id = %s AND user_id = %s", (invoice_id, current_user.id))
         invoice = cur.fetchone()
 
         if not invoice:
@@ -480,13 +488,13 @@ def update_invoice(invoice_id):
 
         if updates:
             updates.append("updated_at = NOW()")
-            params.append(invoice_id)
+            params.extend([invoice_id, current_user.id])
 
             cur.execute(
                 f"""
                 UPDATE invoices
                 SET {', '.join(updates)}
-                WHERE id = %s
+                WHERE id = %s AND user_id = %s
                 RETURNING *
             """,
                 params,
@@ -530,8 +538,7 @@ def update_invoice(invoice_id):
         conn.commit()
 
         return jsonify(
-            {"success": True, "invoice": dict(invoice), "message": "Invoice updated"},
-            default=json_serial,
+            {"success": True, "invoice": _serialize(dict(invoice)), "message": "Invoice updated"},
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -551,7 +558,9 @@ def delete_invoice(invoice_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("SELECT status, invoice_number FROM invoices WHERE id = %s", (invoice_id,))
+        cur.execute(
+            "SELECT status, invoice_number FROM invoices WHERE id = %s AND user_id = %s", (invoice_id, current_user.id)
+        )
         invoice = cur.fetchone()
 
         if not invoice:
@@ -565,7 +574,7 @@ def delete_invoice(invoice_id):
                 400,
             )
 
-        cur.execute("DELETE FROM invoices WHERE id = %s", (invoice_id,))
+        cur.execute("DELETE FROM invoices WHERE id = %s AND user_id = %s", (invoice_id, current_user.id))
         conn.commit()
 
         return jsonify({"success": True, "message": f"Invoice {invoice['invoice_number']} deleted"})
@@ -594,6 +603,13 @@ def add_item(invoice_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # Verify invoice ownership
+        cur.execute("SELECT id FROM invoices WHERE id = %s AND user_id = %s", (invoice_id, current_user.id))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
+
         amount = float(data.get("quantity", 1)) * float(data.get("unit_price", 0))
 
         cur.execute(
@@ -615,7 +631,7 @@ def add_item(invoice_id):
 
         conn.commit()
 
-        return jsonify({"success": True, "item": dict(item)}, default=json_serial)
+        return jsonify({"success": True, "item": _serialize(dict(item))})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
@@ -633,6 +649,13 @@ def delete_item(invoice_id, item_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # Verify invoice ownership
+        cur.execute("SELECT id FROM invoices WHERE id = %s AND user_id = %s", (invoice_id, current_user.id))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
 
         cur.execute(
             "DELETE FROM invoice_items WHERE id = %s AND invoice_id = %s",
@@ -670,9 +693,9 @@ def send_invoice(invoice_id):
             SELECT i.*, c.email as customer_email, c.first_name
             FROM invoices i
             LEFT JOIN crm_customers c ON i.customer_id = c.id
-            WHERE i.id = %s
+            WHERE i.id = %s AND i.user_id = %s
         """,
-            (invoice_id,),
+            (invoice_id, current_user.id),
         )
         invoice = cur.fetchone()
 
@@ -738,7 +761,7 @@ def mark_paid(invoice_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get invoice
-        cur.execute("SELECT * FROM invoices WHERE id = %s", (invoice_id,))
+        cur.execute("SELECT * FROM invoices WHERE id = %s AND user_id = %s", (invoice_id, current_user.id))
         invoice = cur.fetchone()
 
         if not invoice:
@@ -844,10 +867,10 @@ def void_invoice(invoice_id):
             """
             UPDATE invoices
             SET status = 'cancelled', updated_at = NOW()
-            WHERE id = %s AND status != 'paid'
+            WHERE id = %s AND user_id = %s AND status != 'paid'
             RETURNING invoice_number
         """,
-            (invoice_id,),
+            (invoice_id, current_user.id),
         )
         invoice = cur.fetchone()
 
@@ -895,7 +918,7 @@ def duplicate_invoice(invoice_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get original invoice
-        cur.execute("SELECT * FROM invoices WHERE id = %s", (invoice_id,))
+        cur.execute("SELECT * FROM invoices WHERE id = %s AND user_id = %s", (invoice_id, current_user.id))
         original = cur.fetchone()
 
         if not original:
@@ -912,9 +935,9 @@ def duplicate_invoice(invoice_id):
             """
             INSERT INTO invoices
             (invoice_number, customer_id, status, issue_date, due_date,
-             tax_rate, discount_amount, notes, terms, currency, created_by)
+             tax_rate, discount_amount, notes, terms, currency, created_by, user_id)
             VALUES (%s, %s, 'draft', CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days',
-                    %s, %s, %s, %s, %s, %s)
+                    %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
             (
@@ -925,6 +948,7 @@ def duplicate_invoice(invoice_id):
                 original["notes"],
                 original["terms"],
                 original["currency"],
+                current_user.id,
                 current_user.id,
             ),
         )
@@ -1066,15 +1090,15 @@ def get_recurring():
                    c.first_name || ' ' || c.last_name as customer_name
             FROM recurring_invoices r
             LEFT JOIN crm_customers c ON r.customer_id = c.id
-            WHERE r.status = 'active'
+            WHERE r.status = 'active' AND r.created_by = %s
             ORDER BY r.next_invoice_date
-        """
+        """,
+            (current_user.id,),
         )
         recurring = cur.fetchall()
 
         return jsonify(
             {"success": True, "recurring": [dict(r) for r in recurring]},
-            default=json_serial,
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1122,10 +1146,9 @@ def create_recurring():
         return jsonify(
             {
                 "success": True,
-                "recurring": dict(recurring),
+                "recurring": _serialize(dict(recurring)),
                 "message": "Recurring invoice schedule created",
             },
-            default=json_serial,
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1161,9 +1184,9 @@ def create_from_order():
             """
             INSERT INTO invoices
             (invoice_number, customer_id, order_id, status, issue_date, due_date,
-             tax_rate, subtotal, tax_amount, total, balance_due, notes, created_by)
+             tax_rate, subtotal, tax_amount, total, balance_due, notes, created_by, user_id)
             VALUES (%s, %s, %s, 'sent', CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days',
-                    %s, %s, %s, %s, %s, %s, %s)
+                    %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
             (
@@ -1176,6 +1199,7 @@ def create_from_order():
                 data.get("total", 0),
                 data.get("total", 0),
                 f"Order #{data.get('order_id')}",
+                current_user.id,
                 current_user.id,
             ),
         )
@@ -1249,9 +1273,9 @@ def create_from_subscription():
             INSERT INTO invoices
             (invoice_number, customer_id, subscription_id, status, issue_date, due_date,
              tax_rate, subtotal, tax_amount, total, balance_due, recurring, recurring_interval,
-             notes, created_by)
+             notes, created_by, user_id)
             VALUES (%s, %s, %s, 'sent', CURRENT_DATE, CURRENT_DATE,
-                    %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
+                    %s, %s, %s, %s, %s, TRUE, %s, %s, %s, %s)
             RETURNING id
         """,
             (
@@ -1265,6 +1289,7 @@ def create_from_subscription():
                 total,
                 data.get("interval", "monthly"),
                 f"Subscription renewal - {data.get('tier', 'Standard')}",
+                current_user.id,
                 current_user.id,
             ),
         )
@@ -1332,7 +1357,9 @@ def get_stats():
                 COALESCE(SUM(total) FILTER (WHERE status = 'paid'), 0) as total_collected,
                 COALESCE(SUM(balance_due) FILTER (WHERE status IN ('sent', 'overdue')), 0) as total_outstanding
             FROM invoices
-        """
+            WHERE user_id = %s
+        """,
+            (current_user.id,),
         )
         stats = cur.fetchone()
 
@@ -1343,20 +1370,20 @@ def get_stats():
                 DATE_TRUNC('month', paid_at) as month,
                 SUM(total) as revenue
             FROM invoices
-            WHERE status = 'paid' AND paid_at > NOW() - INTERVAL '12 months'
+            WHERE status = 'paid' AND paid_at > NOW() - INTERVAL '12 months' AND user_id = %s
             GROUP BY DATE_TRUNC('month', paid_at)
             ORDER BY month
-        """
+        """,
+            (current_user.id,),
         )
         monthly_revenue = cur.fetchall()
 
         return jsonify(
             {
                 "success": True,
-                "stats": dict(stats),
-                "monthly_revenue": [dict(m) for m in monthly_revenue],
+                "stats": _serialize(dict(stats)),
+                "monthly_revenue": _serialize([dict(m) for m in monthly_revenue]),
             },
-            default=json_serial,
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

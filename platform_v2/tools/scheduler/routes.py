@@ -86,8 +86,9 @@ def index():
                 COUNT(*) FILTER (WHERE start_time >= NOW() AND start_time < NOW() + INTERVAL '1 day') as today,
                 COUNT(*) FILTER (WHERE status = 'completed') as completed
             FROM calendar_events
-            WHERE start_time >= NOW() - INTERVAL '30 days'
-        """
+            WHERE start_time >= NOW() - INTERVAL '30 days' AND user_id = %s
+        """,
+            (current_user.id,),
         )
         event_stats = cur.fetchone() or {}
 
@@ -100,7 +101,9 @@ def index():
                 COUNT(*) FILTER (WHERE next_billing_date <= NOW() + INTERVAL '7 days' AND status = 'active') as renewing_soon,
                 COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0) as monthly_revenue
             FROM subscription_schedules
-        """
+            WHERE user_id = %s
+        """,
+            (current_user.id,),
         )
         sub_stats = cur.fetchone() or {}
 
@@ -109,8 +112,9 @@ def index():
             """
             SELECT COUNT(*) as pending
             FROM reminders
-            WHERE status = 'pending' AND remind_at <= NOW() + INTERVAL '1 day'
-        """
+            WHERE status = 'pending' AND remind_at <= NOW() + INTERVAL '1 day' AND user_id = %s
+        """,
+            (current_user.id,),
         )
         reminder_stats = cur.fetchone() or {}
 
@@ -119,8 +123,9 @@ def index():
             """
             SELECT COUNT(*) as pending
             FROM scheduled_tasks
-            WHERE status = 'pending' AND scheduled_for <= NOW() + INTERVAL '7 days'
-        """
+            WHERE status = 'pending' AND scheduled_for <= NOW() + INTERVAL '7 days' AND created_by = %s
+        """,
+            (current_user.id,),
         )
         task_stats = cur.fetchone() or {}
 
@@ -146,10 +151,10 @@ def index():
             SELECT e.*, c.first_name || ' ' || c.last_name as customer_name
             FROM calendar_events e
             LEFT JOIN crm_customers c ON e.customer_id = c.id
-            WHERE e.start_time >= %s AND e.start_time < %s
+            WHERE e.start_time >= %s AND e.start_time < %s AND e.user_id = %s
             ORDER BY e.start_time
         """,
-            (month_start, month_end),
+            (month_start, month_end, current_user.id),
         )
         events = cur.fetchall()
 
@@ -159,10 +164,11 @@ def index():
             SELECT s.*, c.first_name || ' ' || c.last_name as customer_name, c.email as customer_email
             FROM subscription_schedules s
             LEFT JOIN crm_customers c ON s.customer_id = c.id
-            WHERE s.status = 'active'
+            WHERE s.status = 'active' AND s.user_id = %s
             ORDER BY s.next_billing_date
             LIMIT 10
-        """
+        """,
+            (current_user.id,),
         )
         subscriptions = cur.fetchall()
 
@@ -172,10 +178,11 @@ def index():
             SELECT r.*, c.first_name || ' ' || c.last_name as customer_name
             FROM reminders r
             LEFT JOIN crm_customers c ON r.customer_id = c.id
-            WHERE r.status = 'pending'
+            WHERE r.status = 'pending' AND r.user_id = %s
             ORDER BY r.remind_at
             LIMIT 10
-        """
+        """,
+            (current_user.id,),
         )
         reminders = cur.fetchall()
 
@@ -229,9 +236,9 @@ def get_events():
             FROM calendar_events e
             LEFT JOIN crm_customers c ON e.customer_id = c.id
             LEFT JOIN users u ON e.assigned_to = u.id
-            WHERE 1=1
+            WHERE e.user_id = %s
         """
-        params = []
+        params = [current_user.id]
 
         if start:
             query += " AND e.start_time >= %s"
@@ -364,9 +371,9 @@ def get_event(event_id):
             FROM calendar_events e
             LEFT JOIN crm_customers c ON e.customer_id = c.id
             LEFT JOIN users u ON e.assigned_to = u.id
-            WHERE e.id = %s
+            WHERE e.id = %s AND e.user_id = %s
         """,
-            (event_id,),
+            (event_id, current_user.id),
         )
 
         event = cur.fetchone()
@@ -417,7 +424,7 @@ def update_event(event_id):
                 status = COALESCE(%s, status),
                 color = COALESCE(%s, color),
                 updated_at = NOW()
-            WHERE id = %s
+            WHERE id = %s AND user_id = %s
             RETURNING *
         """,
             (
@@ -434,6 +441,7 @@ def update_event(event_id):
                 data.get("status"),
                 data.get("color"),
                 event_id,
+                current_user.id,
             ),
         )
 
@@ -468,7 +476,7 @@ def delete_event(event_id):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("DELETE FROM calendar_events WHERE id = %s", (event_id,))
+        cur.execute("DELETE FROM calendar_events WHERE id = %s AND user_id = %s", (event_id, current_user.id))
         deleted = cur.rowcount > 0
         conn.commit()
 
@@ -498,9 +506,9 @@ def complete_event(event_id):
         cur.execute(
             """
             UPDATE calendar_events SET status = 'completed', updated_at = NOW()
-            WHERE id = %s
+            WHERE id = %s AND user_id = %s
         """,
-            (event_id,),
+            (event_id, current_user.id),
         )
         conn.commit()
 
@@ -537,9 +545,9 @@ def get_subscriptions():
                    c.email as customer_email, c.company as customer_company
             FROM subscription_schedules s
             LEFT JOIN crm_customers c ON s.customer_id = c.id
-            WHERE 1=1
+            WHERE s.user_id = %s
         """
-        params = []
+        params = [current_user.id]
 
         if status:
             query += " AND s.status = %s"
@@ -652,7 +660,7 @@ def update_subscription_schedule(schedule_id):
                 next_billing_date = COALESCE(%s, next_billing_date),
                 end_date = CASE WHEN %s = 'cancelled' THEN CURRENT_DATE ELSE end_date END,
                 updated_at = NOW()
-            WHERE id = %s
+            WHERE id = %s AND user_id = %s
             RETURNING *
         """,
             (
@@ -664,6 +672,7 @@ def update_subscription_schedule(schedule_id):
                 data.get("next_billing_date"),
                 status,
                 schedule_id,
+                current_user.id,
             ),
         )
 
@@ -699,7 +708,9 @@ def process_renewal(schedule_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get current schedule
-        cur.execute("SELECT * FROM subscription_schedules WHERE id = %s", (schedule_id,))
+        cur.execute(
+            "SELECT * FROM subscription_schedules WHERE id = %s AND user_id = %s", (schedule_id, current_user.id)
+        )
         schedule = cur.fetchone()
 
         if not schedule:
@@ -724,10 +735,10 @@ def process_renewal(schedule_id):
                 last_billed_date = CURRENT_DATE,
                 billing_history = %s,
                 updated_at = NOW()
-            WHERE id = %s
+            WHERE id = %s AND user_id = %s
             RETURNING *
         """,
-            (json.dumps(history), schedule_id),
+            (json.dumps(history), schedule_id, current_user.id),
         )
 
         updated = cur.fetchone()
@@ -770,9 +781,9 @@ def get_scheduled_tasks():
             SELECT t.*, u.username as created_by_name
             FROM scheduled_tasks t
             LEFT JOIN users u ON t.created_by = u.id
-            WHERE 1=1
+            WHERE t.created_by = %s
         """
-        params = []
+        params = [current_user.id]
 
         if status:
             query += " AND t.status = %s"
@@ -879,7 +890,7 @@ def update_scheduled_task(task_id):
                 status = COALESCE(%s, status),
                 priority = COALESCE(%s, priority),
                 updated_at = NOW()
-            WHERE id = %s
+            WHERE id = %s AND created_by = %s
             RETURNING *
         """,
             (
@@ -889,6 +900,7 @@ def update_scheduled_task(task_id):
                 data.get("status"),
                 data.get("priority"),
                 task_id,
+                current_user.id,
             ),
         )
 
@@ -923,7 +935,7 @@ def delete_scheduled_task(task_id):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("DELETE FROM scheduled_tasks WHERE id = %s", (task_id,))
+        cur.execute("DELETE FROM scheduled_tasks WHERE id = %s AND created_by = %s", (task_id, current_user.id))
         deleted = cur.rowcount > 0
         conn.commit()
 
@@ -962,10 +974,10 @@ def get_reminders():
             SELECT r.*, c.first_name || ' ' || c.last_name as customer_name
             FROM reminders r
             LEFT JOIN crm_customers c ON r.customer_id = c.id
-            WHERE r.status = %s
+            WHERE r.status = %s AND r.user_id = %s
             ORDER BY r.remind_at
         """,
-            (status,),
+            (status, current_user.id),
         )
 
         reminders = cur.fetchall()
@@ -1049,9 +1061,9 @@ def dismiss_reminder(reminder_id):
         cur.execute(
             """
             UPDATE reminders SET status = 'dismissed'
-            WHERE id = %s
+            WHERE id = %s AND user_id = %s
         """,
-            (reminder_id,),
+            (reminder_id, current_user.id),
         )
         conn.commit()
 
@@ -1084,9 +1096,9 @@ def snooze_reminder(reminder_id):
                 status = 'snoozed',
                 snoozed_until = NOW() + (%s * INTERVAL '1 minute'),
                 remind_at = NOW() + (%s * INTERVAL '1 minute')
-            WHERE id = %s
+            WHERE id = %s AND user_id = %s
         """,
-            (minutes, minutes, reminder_id),
+            (minutes, minutes, reminder_id, current_user.id),
         )
         conn.commit()
 

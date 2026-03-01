@@ -135,6 +135,34 @@
     --archie-border-glow-purple: var(--archie-purple);
 
     /* ─────────────────────────────────────────────────────────────────────────
+       1.4b CONVENIENCE ALIASES - Shorthand tokens used across modules
+       ───────────────────────────────────────────────────────────────────────── */
+
+    /* Background aliases */
+    --archie-primary: var(--archie-bg-primary);
+    --archie-bg-deep: var(--archie-bg-void);
+    --archie-bg-surface: var(--archie-bg-tertiary);
+    --archie-bg-card: var(--archie-bg-tertiary);
+    --archie-bg-input: var(--archie-bg-elevated);
+    --archie-card-bg: var(--archie-bg-tertiary);
+    --archie-surface: var(--archie-bg-tertiary);
+
+    /* Text/border aliases */
+    --archie-text: var(--archie-text-secondary);
+    --archie-muted: var(--archie-text-muted);
+    --archie-border: var(--archie-border-default);
+
+    /* Color aliases */
+    --archie-accent-blue: var(--archie-blue);
+    --archie-accent-gold: var(--archie-gold);
+    --archie-accent-amber: var(--archie-orange);
+    --archie-amber: var(--archie-orange);
+    --archie-yellow: var(--archie-warning);
+
+    /* Alpha alias */
+    --archie-accent-alpha-5: rgba(0, 255, 255, 0.05);
+
+    /* ─────────────────────────────────────────────────────────────────────────
        1.5 SHADOW SYSTEM - Dimensional Depth & Neon Glows
        ───────────────────────────────────────────────────────────────────────── */
 

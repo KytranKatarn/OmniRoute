@@ -2087,6 +2087,14 @@ class AgentLoop:
                     WHERE id = %s
                 """, (t["id"],))
 
+                # Advance agent's proficiency level to target
+                cur.execute("""
+                    UPDATE agent_skills
+                    SET proficiency_level = %s, updated_at = NOW()
+                    WHERE agent_id = %s AND skill_name = %s
+                      AND proficiency_level < %s
+                """, (target_level, agent_id, skill_name, target_level))
+
                 # Boost confidence in agent_learning_log (cap at 1.0)
                 cur.execute("""
                     UPDATE agent_learning_log
@@ -2122,7 +2130,7 @@ class AgentLoop:
                 completed += 1
                 logger.info(
                     f"Training completed: {display_name} finished {skill_name} "
-                    f"training, now targeting Lv{target_level}"
+                    f"training, advanced to Lv{target_level}"
                 )
 
             if completed > 0:

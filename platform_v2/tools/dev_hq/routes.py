@@ -9,6 +9,7 @@ from flask import render_template, jsonify, request, abort
 from flask_login import login_required, current_user
 from psycopg2.extras import RealDictCursor, Json
 from database import get_db_connection
+from services import knowledge_service
 from . import dev_hq_bp
 
 # DB Schema and API Docs - reuse Blueprint intelligence functions
@@ -101,19 +102,9 @@ def api_overview():
             active_projects = [dict(row) for row in cur.fetchall()]
 
             # Knowledge stats
-            cur.execute(
-                """
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(*) FILTER (WHERE embedding IS NOT NULL) as embedded
-                FROM knowledge_base
-                WHERE knowledge_type != 'archie_v1'
-            """
-            )
-            kb_row = cur.fetchone()
-            knowledge_count = kb_row["total"] if kb_row else 0
-            embedded_count = kb_row["embedded"] if kb_row else 0
-            embedding_coverage = round((embedded_count / knowledge_count) * 100, 1) if knowledge_count > 0 else 0
+            kb_stats = knowledge_service.get_knowledge_stats()
+            knowledge_count = kb_stats["total"]
+            embedding_coverage = kb_stats["coverage"]
 
             return jsonify(
                 {
@@ -405,78 +396,33 @@ def api_delete_task(task_id):
 def api_knowledge():
     search = request.args.get("search", "")
     category = request.args.get("category", "")
+    knowledge_type = request.args.get("knowledge_type", "")
     limit = min(int(request.args.get("limit", 50)), 200)
     offset = int(request.args.get("offset", 0))
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            where_clauses = []
-            params = []
-            knowledge_type = request.args.get("knowledge_type", "")
-            if search:
-                where_clauses.append("(content ILIKE %s OR file_name ILIKE %s OR tags::text ILIKE %s)")
-                params.extend(["%" + search + "%"] * 3)
-            if knowledge_type:
-                where_clauses.append("knowledge_type = %s")
-                params.append(knowledge_type)
-            if category:
-                where_clauses.append("primary_category = %s")
-                params.append(category)
-            where_sql = (" AND " + " AND ".join(where_clauses)) if where_clauses else ""
-
-            cur.execute(
-                f"SELECT COUNT(*) as count FROM knowledge_base WHERE 1=1{where_sql}",
-                params,
-            )
-            total = cur.fetchone()["count"]
-
-            cur.execute(
-                f"""SELECT id, file_name, file_path, primary_category,
-                sub_category, tags, knowledge_type, importance_score,
-                is_documentation, created_at, updated_at,
-                LEFT(content, 300) as snippet
-                FROM knowledge_base WHERE 1=1{where_sql}
-                ORDER BY importance_score DESC, updated_at DESC
-                LIMIT %s OFFSET %s""",
-                params + [limit, offset],
-            )
-            entries = [dict(r) for r in cur.fetchall()]
-
-            cur.execute(
-                "SELECT DISTINCT primary_category FROM knowledge_base" " WHERE primary_category IS NOT NULL ORDER BY 1"
-            )
-            categories = [r["primary_category"] for r in cur.fetchall()]
-
-            return jsonify(
-                {
-                    "success": True,
-                    "entries": entries,
-                    "total": total,
-                    "categories": categories,
-                }
-            )
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            cur.close()
+    try:
+        result = knowledge_service.search_knowledge(
+            search=search,
+            category=category,
+            knowledge_type=knowledge_type,
+            limit=limit,
+            offset=offset,
+        )
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @dev_hq_bp.route("/api/knowledge/<int:entry_id>")
 @login_required
 @admin_hub_only
 def api_knowledge_detail(entry_id):
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute("SELECT * FROM knowledge_base WHERE id = %s", (entry_id,))
-            entry = cur.fetchone()
-            if not entry:
-                return jsonify({"success": False, "error": "Not found"}), 404
-            return jsonify({"success": True, "entry": dict(entry)})
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            cur.close()
+    try:
+        entry = knowledge_service.get_entry(entry_id)
+        if not entry:
+            return jsonify({"success": False, "error": "Not found"}), 404
+        return jsonify({"success": True, "entry": entry})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -803,93 +749,34 @@ def api_claude_config():
 @admin_hub_only
 def api_docs_modules():
     """Return list of modules that have documentation, with doc counts."""
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute(
-                """
-                SELECT memory_metadata->>'module' as module,
-                       memory_metadata->>'doc_type' as doc_type,
-                       COUNT(*) as count
-                FROM knowledge_base
-                WHERE knowledge_type = 'vault_note'
-                  AND memory_metadata->>'doc_type' IS NOT NULL
-                  AND memory_metadata->>'module' IS NOT NULL
-                GROUP BY 1, 2
-                ORDER BY 1, 2
-            """
-            )
-            rows = cur.fetchall()
-            modules = {}
-            for row in rows:
-                mod = row["module"]
-                if mod not in modules:
-                    modules[mod] = {"coder": 0, "user": 0}
-                modules[mod][row["doc_type"]] = row["count"]
-            return jsonify({"success": True, "modules": modules})
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            cur.close()
+    try:
+        modules = knowledge_service.get_doc_modules()
+        return jsonify({"success": True, "modules": modules})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @dev_hq_bp.route("/api/docs/list")
 @login_required
 @admin_hub_only
 def api_docs_list():
-    """List module documentation entries from knowledge_base.
-
-    Uses memory_metadata->>'doc_type' to distinguish user vs coder docs
-    (tags column is overwritten by the auto_categorize trigger).
-    """
+    """List module documentation entries from knowledge_base."""
     search = request.args.get("search", "")
-    doc_type = request.args.get("doc_type", "")  # 'user' or 'coder'
+    doc_type = request.args.get("doc_type", "")
     module = request.args.get("module", "")
     limit = min(int(request.args.get("limit", 50)), 200)
     offset = int(request.args.get("offset", 0))
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            where_clauses = [
-                "knowledge_type = 'vault_note'",
-                "memory_metadata->>'doc_type' IS NOT NULL",
-            ]
-            params = []
-            if search:
-                where_clauses.append("(content ILIKE %s OR file_name ILIKE %s OR title ILIKE %s)")
-                params.extend(["%" + search + "%"] * 3)
-            if doc_type == "user":
-                where_clauses.append("memory_metadata->>'doc_type' = 'user'")
-            elif doc_type == "coder":
-                where_clauses.append("memory_metadata->>'doc_type' = 'coder'")
-            if module:
-                where_clauses.append("memory_metadata->>'module' = %s")
-                params.append(module)
-            where_sql = " AND ".join(where_clauses)
-
-            cur.execute(
-                f"SELECT COUNT(*) as count FROM knowledge_base WHERE {where_sql}",
-                params,
-            )
-            total = cur.fetchone()["count"]
-
-            cur.execute(
-                f"""SELECT id, file_name, title, primary_category, sub_category,
-                tags, knowledge_type, importance_score, memory_metadata,
-                created_at, updated_at,
-                LEFT(content, 200) as snippet
-                FROM knowledge_base WHERE {where_sql}
-                ORDER BY importance_score DESC, updated_at DESC
-                LIMIT %s OFFSET %s""",
-                params + [limit, offset],
-            )
-            entries = [dict(r) for r in cur.fetchall()]
-
-            return jsonify({"success": True, "entries": entries, "total": total})
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            cur.close()
+    try:
+        result = knowledge_service.search_docs(
+            search=search,
+            doc_type=doc_type,
+            module=module,
+            limit=limit,
+            offset=offset,
+        )
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @dev_hq_bp.route("/api/docs/<int:doc_id>")
@@ -897,18 +784,13 @@ def api_docs_list():
 @admin_hub_only
 def api_docs_detail(doc_id):
     """Get full content of a documentation entry."""
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute("SELECT * FROM knowledge_base WHERE id = %s", (doc_id,))
-            entry = cur.fetchone()
-            if not entry:
-                return jsonify({"success": False, "error": "Not found"}), 404
-            return jsonify({"success": True, "entry": dict(entry)})
-        except Exception as e:
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            cur.close()
+    try:
+        entry = knowledge_service.get_entry(doc_id)
+        if not entry:
+            return jsonify({"success": False, "error": "Not found"}), 404
+        return jsonify({"success": True, "entry": entry})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @dev_hq_bp.route("/api/docs", methods=["POST"])
@@ -919,37 +801,17 @@ def api_docs_create():
     data = request.get_json()
     if not data or not data.get("content"):
         return jsonify({"success": False, "error": "Content is required"}), 400
-    title = data.get("title", "Untitled Document")
-    content = data["content"]
-    doc_type = data.get("doc_type", "coder")  # 'user' or 'coder'
-    category = data.get("category", "")
-    module = data.get("module", "")
-    importance = 0.95 if doc_type == "coder" else 0.90
-    meta_dict = {"doc_type": doc_type}
-    if module:
-        meta_dict["module"] = module
-    metadata = json_module.dumps(meta_dict)
-
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute(
-                """INSERT INTO knowledge_base
-                (content, file_name, knowledge_type, importance_score,
-                 is_documentation, primary_category, title,
-                 memory_metadata, created_at, updated_at)
-                VALUES (%s, %s, 'vault_note', %s, true, %s, %s, %s::jsonb, NOW(), NOW())
-                RETURNING id""",
-                (content, title, importance, category, title, metadata),
-            )
-            new_id = cur.fetchone()["id"]
-            conn.commit()
-            return jsonify({"success": True, "id": new_id})
-        except Exception as e:
-            conn.rollback()
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            cur.close()
+    try:
+        new_id = knowledge_service.create_doc(
+            title=data.get("title", "Untitled Document"),
+            content=data["content"],
+            doc_type=data.get("doc_type", "coder"),
+            category=data.get("category", ""),
+            module=data.get("module", ""),
+        )
+        return jsonify({"success": True, "id": new_id})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @dev_hq_bp.route("/api/docs/<int:doc_id>", methods=["PUT"])
@@ -960,48 +822,19 @@ def api_docs_update(doc_id):
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "No data provided"}), 400
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            sets = []
-            params = []
-            if "content" in data:
-                sets.append("content = %s")
-                params.append(data["content"])
-            if "title" in data:
-                sets.append("title = %s")
-                params.append(data["title"])
-                sets.append("file_name = %s")
-                params.append(data["title"])
-            if "category" in data:
-                sets.append("primary_category = %s")
-                params.append(data["category"])
-            if "doc_type" in data or "module" in data:
-                # Merge doc_type/module into existing memory_metadata
-                meta_update = {}
-                if "doc_type" in data:
-                    meta_update["doc_type"] = data["doc_type"]
-                if "module" in data:
-                    meta_update["module"] = data["module"]
-                sets.append("memory_metadata = COALESCE(memory_metadata, '{}'::jsonb) || %s::jsonb")
-                params.append(json_module.dumps(meta_update))
-            if not sets:
-                return jsonify({"success": False, "error": "No valid fields"}), 400
-            sets.append("updated_at = NOW()")
-            params.append(doc_id)
-            cur.execute(
-                f"UPDATE knowledge_base SET {', '.join(sets)} WHERE id = %s",
-                params,
-            )
-            conn.commit()
-            if cur.rowcount == 0:
-                return jsonify({"success": False, "error": "Not found"}), 404
-            return jsonify({"success": True})
-        except Exception as e:
-            conn.rollback()
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            cur.close()
+    try:
+        fields = {}
+        for key in ("content", "title", "category", "doc_type", "module"):
+            if key in data:
+                fields[key] = data[key]
+        if not fields:
+            return jsonify({"success": False, "error": "No valid fields"}), 400
+        affected = knowledge_service.update_doc(doc_id, **fields)
+        if affected == 0:
+            return jsonify({"success": False, "error": "Not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @dev_hq_bp.route("/api/docs/<int:doc_id>", methods=["DELETE"])
@@ -1009,19 +842,13 @@ def api_docs_update(doc_id):
 @admin_hub_only
 def api_docs_delete(doc_id):
     """Delete a documentation entry."""
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute("DELETE FROM knowledge_base WHERE id = %s", (doc_id,))
-            conn.commit()
-            if cur.rowcount == 0:
-                return jsonify({"success": False, "error": "Not found"}), 404
-            return jsonify({"success": True})
-        except Exception as e:
-            conn.rollback()
-            return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            cur.close()
+    try:
+        affected = knowledge_service.delete_entry(doc_id)
+        if affected == 0:
+            return jsonify({"success": False, "error": "Not found"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------

@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from rbac import require_permission, Permission, has_permission
 from logging_config import audit_log
+from services import project_service
 
 from . import consciousness_bp
 
@@ -139,56 +140,14 @@ def api_dashboard_summary():
         )
         wellness = cur.fetchone()
 
-        # Projects (from Dev HQ)
-        cur.execute(
-            """
-            SELECT
-                count(*) FILTER (WHERE status = 'active') as active,
-                count(*) FILTER (WHERE status = 'completed') as completed
-            FROM unified_projects
-        """
-        )
-        projects = cur.fetchone()
+        # Projects (from Dev HQ) — via shared service
+        projects = project_service.get_project_stats()
 
-        # Tasks
-        cur.execute(
-            """
-            SELECT
-                count(*) FILTER (WHERE status = 'in_progress') as in_progress,
-                count(*) FILTER (WHERE status = 'completed') as done,
-                count(*) as total
-            FROM unified_tasks
-        """
-        )
-        tasks = cur.fetchone()
+        # Tasks — via shared service
+        tasks = project_service.get_task_stats()
 
-        # Recent activity (blended feed — last 24h)
-        cur.execute(
-            """
-            (SELECT 'knowledge' as source,
-                    COALESCE(NULLIF(title, ''), 'Untitled entry') as description,
-                    created_at, 'book-open' as icon
-             FROM knowledge_base
-             WHERE knowledge_type != 'archie_v1'
-             ORDER BY created_at DESC LIMIT 5)
-            UNION ALL
-            (SELECT 'bridge' as source,
-                    COALESCE(NULLIF(task_description, ''),
-                             'Bridge task #' || id) as description,
-                    created_at, 'radio' as icon
-             FROM task_execution_log
-             ORDER BY created_at DESC LIMIT 5)
-            UNION ALL
-            (SELECT 'project' as source,
-                    COALESCE(NULLIF(title, ''), 'Completed task') as description,
-                    created_at, 'folder-kanban' as icon
-             FROM unified_tasks
-             WHERE status = 'completed'
-             ORDER BY created_at DESC LIMIT 5)
-            ORDER BY created_at DESC LIMIT 15
-        """
-        )
-        activity = cur.fetchall()
+        # Recent activity (blended feed) — via shared service
+        activity = project_service.get_recent_activity()
 
         # Integration health
         cur.execute("SELECT count(*) as cnt FROM bridge_stations WHERE is_active = true")
@@ -260,7 +219,7 @@ def api_dashboard_summary():
                     "tasks_done": tasks["done"],
                     "tasks_total": tasks["total"],
                 },
-                "activity": [dict(r) for r in activity],
+                "activity": activity,
                 "stations_active": stations["cnt"],
                 "translations": trans["total_translations"],
             }

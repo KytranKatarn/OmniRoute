@@ -16,6 +16,8 @@ from psycopg2.extras import RealDictCursor
 from flask import jsonify, request
 from flask_login import login_required
 
+from services import project_service
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,8 +42,7 @@ def register_integration_routes(bp, admin_required):
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
-            cur.execute("SELECT count(*) as cnt FROM unified_projects WHERE status = 'active'")
-            devhq = cur.fetchone()
+            active_count = project_service.get_active_project_count()
             cur.execute("SELECT count(*) as cnt FROM bridge_stations WHERE is_active = true")
             bridge = cur.fetchone()
             ollama_ok = False
@@ -59,7 +60,7 @@ def register_integration_routes(bp, admin_required):
                 {
                     "success": True,
                     "systems": {
-                        "devhq": {"status": "online", "projects": devhq["cnt"]},
+                        "devhq": {"status": "online", "projects": active_count},
                         "bridge": {"status": "online", "stations": bridge["cnt"]},
                         "ollama": {"status": "online" if ollama_ok else "offline"},
                         "github": {"status": "online", "repos": github["cnt"]},
@@ -153,29 +154,14 @@ def register_integration_routes(bp, admin_required):
     @admin_required
     def api_devhq_summary():
         """Latest Dev HQ data for cross-module view."""
-        conn = _get_db()
-        cur = None
         try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT id, name, status, priority, created_at
-                FROM unified_projects ORDER BY created_at DESC LIMIT 5
-            """
-            )
-            projects = cur.fetchall()
-            cur.execute(
-                """
-                SELECT title, decision, context, created_at
-                FROM project_decisions ORDER BY created_at DESC LIMIT 5
-            """
-            )
-            decisions = cur.fetchall()
+            projects = project_service.get_recent_projects(5)
+            decisions = project_service.get_recent_decisions(5)
             return jsonify(
                 {
                     "success": True,
-                    "projects": [dict(p) for p in projects],
-                    "decisions": [dict(d) for d in decisions],
+                    "projects": projects,
+                    "decisions": decisions,
                 }
             )
         except Exception as e:
@@ -183,7 +169,3 @@ def register_integration_routes(bp, admin_required):
 
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
-        finally:
-            if cur:
-                cur.close()
-            conn.close()

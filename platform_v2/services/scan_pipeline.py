@@ -144,6 +144,40 @@ def _create_proposal_for_issue(scan_id, issue, file_path):
             proposal_id = cur.fetchone()["id"]
             conn.commit()
             logger.info(f"Created proposal #{proposal_id} for {severity} {issue_type} in {file_path}")
+
+            # Route through autonomy approval queue
+            try:
+                import sys
+
+                sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+                from agent_loop import request_approval
+
+                # Low/medium risk → Tier 1 (auto-approve)
+                # High/critical risk → Tier 2 (human via Telegram)
+                is_low_risk = risk_level in ("low", "medium") and priority in (
+                    "low",
+                    "medium",
+                )
+                approval_tier = 1 if is_low_risk else 2
+                approval_priority = 3 if priority == "critical" else 5 if priority == "high" else 7
+
+                request_approval(
+                    action_type="improvement_approve",
+                    action_data={
+                        "proposal_id": proposal_id,
+                        "title": title,
+                        "file_path": file_path,
+                        "severity": severity,
+                        "risk_level": risk_level,
+                    },
+                    reason=f"Auto-generated from Code Sentinel scan: {message[:100]}",
+                    requested_by="scan_pipeline",
+                    priority=approval_priority,
+                    tier=approval_tier,
+                )
+            except Exception as approval_err:
+                logger.warning(f"Approval queue submission failed for proposal #{proposal_id}: {approval_err}")
+
             return proposal_id
         except Exception:
             conn.rollback()

@@ -358,8 +358,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._run_proactive_scan),
+            trigger=IntervalTrigger(hours=6),
+            id="agent_proactive_scan",
+            name="Agent Loop: Proactive Code Scan",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 16 jobs")
+        logger.info("Agent loop started with 17 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -380,6 +388,7 @@ class AgentLoop:
             "agent_ethics_monitoring",
             "agent_stale_job_reaper",
             "agent_training_tick",
+            "agent_proactive_scan",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -1602,9 +1611,223 @@ class AgentLoop:
                 logger.error(f"Agent creation from approval failed: {create_err}")
                 return {"executed": False, "error": str(create_err)}
 
+        elif action_type == "improvement_approve":
+            # Approved improvement proposal — trigger auto-execution pipeline
+            proposal_id = data.get("proposal_id")
+            if not proposal_id:
+                return {"executed": False, "error": "No proposal_id in action_data"}
+
+            try:
+                # Update proposal status to approved
+                cur.execute(
+                    """
+                    UPDATE improvement_proposals
+                    SET status = 'approved',
+                        approved_at = NOW(),
+                        reviewed_at = NOW()
+                    WHERE id = %s AND status IN ('pending', 'proposed', 'pending_approval')
+                    RETURNING id
+                    """,
+                    (proposal_id,),
+                )
+                result = cur.fetchone()
+                conn.commit()
+
+                if not result:
+                    return {
+                        "executed": False,
+                        "error": f"Proposal #{proposal_id} not found or already processed",
+                    }
+
+                # Trigger Phase 4 auto-execution in background thread
+                import threading
+                import importlib
+
+                def _run_auto_execute():
+                    try:
+                        import sys
+
+                        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                        mod = importlib.import_module("tools.improvements.routes")
+                        mod._auto_execute_proposal(proposal_id)
+                    except Exception as exec_err:
+                        logger.error(
+                            f"Auto-execution failed for proposal #{proposal_id}: {exec_err}"
+                        )
+
+                thread = threading.Thread(target=_run_auto_execute, daemon=True)
+                thread.start()
+
+                logger.info(
+                    f"Improvement proposal #{proposal_id} approved via autonomy queue, "
+                    f"auto-execution started"
+                )
+                return {"executed": True, "proposal_id": proposal_id}
+
+            except Exception as imp_err:
+                logger.error(f"Improvement approval execution failed: {imp_err}")
+                return {"executed": False, "error": str(imp_err)}
+
         else:
             logger.warning(f"Unknown approved action type: {action_type}")
             return {"skipped": True, "reason": f"Unknown action type: {action_type}"}
+
+    # ------------------------------------------------------------------
+    # Proactive Code Sentinel (Phase 5 — Task 3)
+    # ------------------------------------------------------------------
+
+    def _run_proactive_scan(self):
+        """Proactive Code Sentinel scan — runs every 6h.
+
+        Scans recently changed files, falls back to key platform files.
+        Phase 4 hooks auto-create proposals from findings.
+        """
+        start = time.time()
+        try:
+            import subprocess
+
+            # Get recently changed Python files (last 5 commits)
+            try:
+                result = subprocess.run(
+                    ["git", "diff", "--name-only", "HEAD~5"],
+                    capture_output=True,
+                    text=True,
+                    cwd="/mnt/archie_brain",
+                    timeout=10,
+                )
+                changed_files = [
+                    f
+                    for f in result.stdout.strip().split("\n")
+                    if f.endswith(".py")
+                    and f.startswith("platform_v2/")
+                    and not f.startswith("platform_v2/tools/_deprecated")
+                ]
+            except Exception:
+                changed_files = []
+
+            # Fallback: key platform files on rotation
+            if not changed_files:
+                import hashlib
+                from datetime import datetime
+
+                key_files = [
+                    "platform_v2/app.py",
+                    "ai_bridge/bridge_dispatcher.py",
+                    "ai_bridge/agent_loop.py",
+                    "platform_v2/tools/consciousness/routes.py",
+                    "platform_v2/tools/dev_hq/routes.py",
+                    "platform_v2/tools/improvements/routes.py",
+                    "ai_bridge/code_generation_engine.py",
+                    "ai_bridge/improvement_chat.py",
+                ]
+                # Rotate: pick 2 files based on current day
+                day_hash = int(
+                    hashlib.md5(
+                        datetime.now().strftime("%Y-%m-%d").encode()
+                    ).hexdigest()[:8],
+                    16,
+                )
+                start_idx = day_hash % len(key_files)
+                changed_files = [
+                    key_files[start_idx % len(key_files)],
+                    key_files[(start_idx + 1) % len(key_files)],
+                ]
+
+            # Limit to 3 files per run
+            scan_files = changed_files[:3]
+
+            scanned = 0
+            for file_path in scan_files:
+                try:
+                    full_path = f"/mnt/archie_brain/{file_path}"
+                    import os
+
+                    if not os.path.exists(full_path):
+                        continue
+
+                    with open(full_path, "r") as f:
+                        code_content = f.read()
+
+                    # Use Code Sentinel's static analysis
+                    import sys
+
+                    sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                    from tools.code_sentinel.routes import basic_static_analysis
+
+                    analysis = basic_static_analysis(code_content, file_path)
+                    issues = analysis.get("issues", [])
+
+                    if not issues:
+                        continue
+
+                    # Store scan + issues in DB
+                    conn = get_db()
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+                    cur.execute(
+                        """
+                        INSERT INTO code_scans (file_path, scan_type, issues_found,
+                            security_issues, quality_score, scan_result, scanned_by)
+                        VALUES (%s, 'proactive_scan', %s, %s, %s, %s, 'agent_loop')
+                        RETURNING id
+                        """,
+                        (
+                            file_path,
+                            len(issues),
+                            len(
+                                [
+                                    i
+                                    for i in issues
+                                    if i.get("type") == "security"
+                                ]
+                            ),
+                            analysis.get("quality_score", 0),
+                            json.dumps(analysis),
+                        ),
+                    )
+                    scan_id = cur.fetchone()["id"]
+
+                    for issue in issues:
+                        cur.execute(
+                            """
+                            INSERT INTO code_issues (scan_id, file_path, line_number,
+                                issue_type, severity, message, suggestion)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """,
+                            (
+                                scan_id,
+                                file_path,
+                                issue.get("line"),
+                                issue.get("type", "quality"),
+                                issue.get("severity", "medium"),
+                                issue.get("message", ""),
+                                issue.get("suggestion", ""),
+                            ),
+                        )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+
+                    # Phase 4 pipeline hook
+                    from services.scan_pipeline import process_scan_results
+
+                    process_scan_results(scan_id, issues, file_path)
+                    scanned += 1
+
+                except Exception as scan_err:
+                    logger.warning(
+                        f"Proactive scan failed for {file_path}: {scan_err}"
+                    )
+
+            duration_ms = int((time.time() - start) * 1000)
+            if scanned > 0:
+                logger.info(
+                    f"Proactive scan: {scanned}/{len(scan_files)} files scanned "
+                    f"({duration_ms}ms)"
+                )
+
+        except Exception as e:
+            logger.error(f"Proactive scan job failed: {e}")
 
     # ------------------------------------------------------------------
     # HR Tracker (Project #91 — Phase 7)

@@ -502,20 +502,30 @@ Respond with ONLY a JSON object in this exact format:
 JSON:"""
 
         try:
-            response = requests.post(
-                f"{self.ollama_url}/api/generate",
-                json={
-                    "model": self.classification_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.1},
-                },
-                timeout=30,
-            )
+            if _dispatcher:
+                dr = _dispatcher.request_work(
+                    capability="classify",
+                    prompt=prompt,
+                    module_id="intent_parser",
+                    json_mode=True,
+                    timeout=30,
+                )
+                result_text = dr.response.strip() if dr.success else ""
+            else:
+                # Fallback: direct Ollama only if dispatcher unavailable
+                response = requests.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={
+                        "model": self.classification_model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {"temperature": 0.1},
+                    },
+                    timeout=30,
+                )
+                result_text = response.json().get("response", "").strip() if response.status_code == 200 else ""
 
-            if response.status_code == 200:
-                result_text = response.json().get("response", "").strip()
-                # Extract JSON from response
+            if result_text:
                 json_match = re.search(r"\{[^{}]+\}", result_text)
                 if json_match:
                     result = json.loads(json_match.group())

@@ -1793,7 +1793,13 @@ def api_clear_bridge_cache():
 @login_required
 @admin_hub_only
 def api_restart_warmup():
-    """Trigger Ollama model warmup."""
+    """Trigger Ollama model warmup.
+
+    NOTE: Intentional direct Ollama call (ADR-013 exception).
+    Warmup sends dummy prompts to pre-load models into GPU RAM.
+    Not routed through Bridge because there's no real inference work —
+    no agent assignment, governance, or cost tracking needed.
+    """
     ollama_host = os.getenv("OLLAMA_HOST", "host.docker.internal:11434")
     if not ollama_host.startswith("http"):
         ollama_host = "http://" + ollama_host

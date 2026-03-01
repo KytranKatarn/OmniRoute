@@ -960,12 +960,66 @@ In the meantime, would you like me to try handling it with our local models? I m
             }
 
     def _call_ollama(self, model: str, system_prompt: str, user_message: str) -> dict:
-        """Call Ollama API with detailed error handling"""
-        endpoint = f"{self.ollama_url}/api/chat"
+        """Route LLM calls through Bridge dispatcher (ADR-013).
+
+        Falls back to direct Ollama only if dispatcher is unavailable.
+        Returns same dict shape for all callers: {success, content, model, tokens, duration_ms}.
+        """
         start_time = datetime.now()
 
+        # Primary path: route through Bridge for agent tracking, IAAE governance, smart routing
+        if _dispatcher:
+            try:
+                # Map model name to capability for bridge routing
+                capability = "conversation"
+                for cap, mod in self.model_map.items():
+                    if mod == model:
+                        capability = {
+                            "fast": "conversation",
+                            "standard": "conversation",
+                            "powerful": "code_analysis",
+                            "code": "code",
+                        }.get(cap, "conversation")
+                        break
+
+                dr = _dispatcher.request_work(
+                    capability=capability,
+                    prompt=user_message,
+                    module_id="command_router",
+                    system_prompt=system_prompt,
+                    timeout=120,
+                )
+                duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+
+                if dr.success:
+                    logger.info(
+                        f"Bridge dispatch success: capability={capability}, model={dr.model_used}, duration={duration_ms}ms"
+                    )
+                    return {
+                        "success": True,
+                        "content": dr.response,
+                        "model": dr.model_used,
+                        "tokens": dr.completion_tokens,
+                        "duration_ms": duration_ms,
+                    }
+                else:
+                    logger.error(f"Bridge dispatch failed: {dr.error}")
+                    return {
+                        "success": False,
+                        "error": dr.error or "Bridge dispatch failed",
+                        "error_type": "bridge_error",
+                        "model": model,
+                        "content": "",
+                        "fallback_available": True,
+                        "suggested_modules": ["improvements_lab", "blueprint", "sandbox"],
+                    }
+            except Exception as e:
+                logger.warning(f"Bridge dispatcher error, falling back to direct Ollama: {e}")
+
+        # Fallback: direct Ollama only if dispatcher unavailable
+        endpoint = f"{self.ollama_url}/api/chat"
         try:
-            logger.debug(f"Calling Ollama: model={model}, endpoint={endpoint}")
+            logger.debug(f"Calling Ollama directly (no dispatcher): model={model}, endpoint={endpoint}")
 
             response = requests.post(
                 endpoint,

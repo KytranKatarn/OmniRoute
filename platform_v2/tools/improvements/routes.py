@@ -94,6 +94,130 @@ def admin_required(f):
     return decorated_function
 
 
+def _auto_execute_proposal(proposal_id):
+    """Background thread: auto-execute approved proposal through code gen → sandbox → test.
+
+    Status transitions: approved → code_generating → testing → tested / fix_requested
+    """
+    logger.info(f"[AutoExec] Starting auto-execution for proposal #{proposal_id}")
+
+    try:
+        # Step 1: Generate code
+        _update_proposal_status(proposal_id, "code_generating")
+
+        try:
+            from ai_bridge.code_generation_engine import CodeGenerationEngine
+
+            engine = CodeGenerationEngine()
+            gen_result = engine.generate_code(proposal_id)
+        except Exception as e:
+            logger.error(f"[AutoExec] Code generation failed for #{proposal_id}: {e}")
+            _update_proposal_status(proposal_id, "fix_requested", error=str(e))
+            _notify_admin(proposal_id, "error", f"Code generation failed: {e}")
+            return
+
+        if not gen_result or not gen_result.get("success", True):
+            error_msg = gen_result.get("error", "Code generation returned no results") if gen_result else "No result"
+            _update_proposal_status(proposal_id, "fix_requested", error=error_msg)
+            _notify_admin(proposal_id, "warning", f"Code generation issue: {error_msg}")
+            return
+
+        # Step 2: Run tests in sandbox
+        _update_proposal_status(proposal_id, "testing")
+
+        try:
+            from sandbox_manager import SandboxManager
+
+            manager = SandboxManager()
+            test_result = manager.run_tests_for_proposal(proposal_id)
+        except Exception as e:
+            logger.warning(f"[AutoExec] Sandbox testing failed for #{proposal_id}: {e}")
+            _update_proposal_status(proposal_id, "tested", error=f"Tests unavailable: {e}")
+            _notify_admin(
+                proposal_id,
+                "info",
+                f"Proposal #{proposal_id} approved — sandbox tests unavailable, ready for manual review",
+            )
+            return
+
+        # Step 3: Check results and update status
+        if test_result and test_result.get("overall_status") == "passed":
+            _update_proposal_status(proposal_id, "tested")
+            _notify_admin(
+                proposal_id,
+                "success",
+                f"Proposal #{proposal_id} passed all tests — ready for deployment",
+            )
+        else:
+            error_detail = test_result.get("summary", "Tests failed") if test_result else "No test results"
+            _update_proposal_status(proposal_id, "fix_requested", error=str(error_detail))
+            _notify_admin(
+                proposal_id,
+                "warning",
+                f"Proposal #{proposal_id} failed tests: {error_detail}",
+            )
+
+    except Exception as e:
+        logger.error(f"[AutoExec] Unexpected error for #{proposal_id}: {e}")
+        _update_proposal_status(proposal_id, "fix_requested", error=str(e))
+        _notify_admin(proposal_id, "error", f"Auto-execution failed: {e}")
+
+
+def _update_proposal_status(proposal_id, status, error=None):
+    """Update proposal status and optionally log error to metadata."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        if error:
+            cur.execute(
+                """
+                UPDATE improvement_proposals
+                SET status = %s,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                WHERE id = %s
+                """,
+                (
+                    status,
+                    json.dumps({"execution_log": error, "last_status_change": status}),
+                    proposal_id,
+                ),
+            )
+        else:
+            cur.execute(
+                "UPDATE improvement_proposals SET status = %s WHERE id = %s",
+                (status, proposal_id),
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to update proposal #{proposal_id} status to {status}: {e}")
+
+
+def _notify_admin(proposal_id, notif_type, message):
+    """Insert a system notification for the admin."""
+    type_map = {"success": "success", "warning": "warning", "error": "error", "info": "info"}
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO system_notifications (type, title, message, source, visibility)
+            VALUES (%s, %s, %s, 'improvement_pipeline', 'admin')
+            """,
+            (
+                type_map.get(notif_type, "info"),
+                f"Improvement #{proposal_id}",
+                message,
+            ),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to create notification for proposal #{proposal_id}: {e}")
+
+
 # ============================================================================
 # MAIN PAGES
 # ============================================================================
@@ -1331,14 +1455,28 @@ def improvements_approve_proposal(proposal_id):
             logger.warning(f"Could not auto-create sandbox for proposal {proposal_id}: {sandbox_error}")
             sandbox_info = {"sandbox_created": False, "error": str(sandbox_error)}
 
+        # =====================================================================
+        # AUTO-EXECUTE: Run code gen → sandbox → test in background (Phase 4)
+        # =====================================================================
+        import threading
+
+        auto_exec_thread = threading.Thread(
+            target=_auto_execute_proposal,
+            args=(proposal_id,),
+            daemon=True,
+        )
+        auto_exec_thread.start()
+        logger.info(f"Auto-execution thread started for proposal #{proposal_id}")
+
         return jsonify(
             {
                 "success": True,
-                "message": "Proposal approved with execution plan",
+                "message": "Proposal approved — auto-execution started",
                 "proposal_id": proposal_id,
                 "plan_generated": existing_plan is None,
                 "steps_count": len(plan_steps) if plan_steps else 0,
                 "sandbox": sandbox_info,
+                "auto_execution": True,
             }
         )
 

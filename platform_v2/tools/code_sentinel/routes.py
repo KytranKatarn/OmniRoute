@@ -579,6 +579,14 @@ Only return valid JSON, no other text."""
         cur.close()
         conn.close()
 
+        # --- Pipeline hook: auto-create proposals for critical/high issues ---
+        try:
+            from services.scan_pipeline import process_scan_results
+
+            process_scan_results(scan_id, issues, file_path)
+        except Exception as pipeline_err:
+            logger.warning(f"Scan pipeline hook failed: {pipeline_err}")
+
         return jsonify(
             {
                 "success": True,
@@ -668,6 +676,34 @@ def batch_scan_files():
             )
             scan_id = cur.fetchone()["id"]
             conn.commit()
+
+            # Insert individual issues (matching single scan pattern)
+            for issue in issues:
+                cur.execute(
+                    """
+                    INSERT INTO code_issues (scan_id, file_path, line_number, issue_type,
+                                            severity, message, suggestion)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                    (
+                        scan_id,
+                        file_path,
+                        issue.get("line"),
+                        issue.get("type", "quality"),
+                        issue.get("severity", "medium"),
+                        issue.get("message", ""),
+                        issue.get("suggestion", ""),
+                    ),
+                )
+            conn.commit()
+
+            # Pipeline hook
+            try:
+                from services.scan_pipeline import process_scan_results
+
+                process_scan_results(scan_id, issues, file_path)
+            except Exception as pipeline_err:
+                logger.warning(f"Batch scan pipeline hook failed for {file_path}: {pipeline_err}")
 
             return {
                 "file_path": file_path,

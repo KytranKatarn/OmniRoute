@@ -3306,6 +3306,7 @@ def init_consciousness_scheduler(flask_app):
             weekly_memory_consolidation,
         )
         from tools.consciousness.log_ingestor import batch_ingest_logs
+        from services.scan_pipeline import batch_medium_issues
 
         scheduler = BackgroundScheduler()
 
@@ -3342,6 +3343,15 @@ def init_consciousness_scheduler(flask_app):
             trigger=CronTrigger(day_of_week="sun", hour=3, minute=0),
             id="weekly_memory_consolidation",
             name="Weekly Memory Consolidation",
+            replace_existing=True,
+        )
+
+        # Weekly medium-issue batch (Sundays at 2 AM)
+        scheduler.add_job(
+            batch_medium_issues,
+            trigger=CronTrigger(day_of_week="sun", hour=2, minute=0),
+            id="batch_medium_issues",
+            name="Weekly Code Issue Batch",
             replace_existing=True,
         )
 

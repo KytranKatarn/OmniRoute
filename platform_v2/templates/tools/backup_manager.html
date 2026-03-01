@@ -946,7 +946,7 @@
                         <span class="lcars-pip" style="width:35px"></span>
                         <span class="lcars-pip" style="width:14px"></span>
                     </div>
-                    <span class="lcars-bar-status">ADMIN OPS</span>
+                    <span class="lcars-bar-status"><span data-i18n="backup_manager.admin_ops">ADMIN OPS</span></span>
                 </div>
 
                 <div class="lcars-body">
@@ -1001,22 +1001,22 @@
                     <div class="backup-buttons">
                         <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')">
                             <div class="icon">&#x1F535;</div>
-                            FULL BACKUP
+                            <span data-i18n="backup_manager.full_backup">FULL BACKUP</span>
                             <div class="size"><span data-i18n="backup_manager.all_components_100_200_mb">All components (~100-200 MB)</span></div>
                         </button>
                         <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')">
                             <div class="icon">&#x1F7E2;</div>
-                            CRITICAL ONLY
+                            <span data-i18n="backup_manager.critical_only">CRITICAL ONLY</span>
                             <div class="size"><span data-i18n="backup_manager.essential_only_30_50_mb">Essential only (~30-50 MB)</span></div>
                         </button>
                         <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')">
                             <div class="icon">&#x1F7E1;</div>
-                            DATABASE ONLY
+                            <span data-i18n="backup_manager.database_only">DATABASE ONLY</span>
                             <div class="size"><span data-i18n="backup_manager.database_dump_5_20_mb">Database dump (~5-20 MB)</span></div>
                         </button>
                     </div>
                     <div class="input-row">
-                        <input type="text" id="backupDescription" placeholder="Backup description (optional)">
+                        <input type="text" id="backupDescription" placeholder="Backup description (optional)" data-i18n-placeholder="backup_manager.backup_description_placeholder">
                         <button class="btn" onclick="loadBackups()"><span data-i18n="backup_manager.refresh">Refresh</span></button>
                     </div>
                 </div>
@@ -1044,10 +1044,10 @@
                     <div class="retention-info" style="border-color: #60a5fa;">
                         <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.encryption_passphrase">Encryption Passphrase</span></h4>
                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary); margin-bottom: var(--archie-space-2);">
-                            Required for uploading and downloading cloud backups. AES-256-GCM encryption.
+                            <span data-i18n="backup_manager.encryption_passphrase_description">Required for uploading and downloading cloud backups. AES-256-GCM encryption.</span>
                         </p>
                         <div class="cloud-passphrase-input">
-                            <input type="password" id="cloudPassphrase" placeholder="Enter encryption passphrase" autocomplete="off">
+                            <input type="password" id="cloudPassphrase" placeholder="Enter encryption passphrase" autocomplete="off" data-i18n-placeholder="backup_manager.enter_encryption_passphrase">
                             <button class="btn btn-blue" onclick="verifyCloudPassphrase()"><span data-i18n="backup_manager.verify">Verify</span></button>
                         </div>
                         <div id="cloudPassphraseStatus" style="font-size: var(--archie-text-sm); margin-top: var(--archie-space-1);"></div>
@@ -1105,7 +1105,7 @@
                     <div class="retention-info" style="border-color: #22c55e;">
                         <h4 style="color: #22c55e; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.pre_backup_hooks">Pre-Backup Hooks</span></h4>
                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
-                            Run before backup starts. If any hook fails, the backup is aborted.
+                            <span data-i18n="backup_manager.pre_hooks_description">Run before backup starts. If any hook fails, the backup is aborted.</span>
                         </p>
                         <div id="preHooksList" style="min-height: 60px;">
                             <div class="loading"><span data-i18n="backup_manager.loading">Loading...</span></div>
@@ -1116,7 +1116,7 @@
                     <div class="retention-info" style="border-color: #fb923c;">
                         <h4 style="color: #fb923c; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.post_backup_hooks">Post-Backup Hooks</span></h4>
                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
-                            Run after backup completes. Failures are logged but don't fail the backup.
+                            <span data-i18n="backup_manager.post_hooks_description">Run after backup completes. Failures are logged but don't fail the backup.</span>
                         </p>
                         <div id="postHooksList" style="min-height: 60px;">
                             <div class="loading"><span data-i18n="backup_manager.loading_2">Loading...</span></div>
@@ -1127,9 +1127,9 @@
                 <div style="margin-top: var(--archie-space-5); padding: var(--archie-space-4); background: rgba(0,0,0,0.2); border-radius: var(--archie-radius-lg);">
                     <h4 style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-2);"><span data-i18n="backup_manager.hook_environment_variables">Hook Environment Variables</span></h4>
                     <div style="font-family: var(--archie-font-mono); font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">
-                        <code>ARCHIE_BACKUP_NAME</code> - Name of the backup<br>
-                        <code>ARCHIE_BACKUP_DIR</code> - Backup directory path<br>
-                        <code>ARCHIE_BACKUP_METADATA</code> - JSON metadata (post hooks only)
+                        <code>ARCHIE_BACKUP_NAME</code> - <span data-i18n="backup_manager.env_backup_name_desc">Name of the backup</span><br>
+                        <code>ARCHIE_BACKUP_DIR</code> - <span data-i18n="backup_manager.env_backup_dir_desc">Backup directory path</span><br>
+                        <code>ARCHIE_BACKUP_METADATA</code> - <span data-i18n="backup_manager.env_backup_metadata_desc">JSON metadata (post hooks only)</span>
                     </div>
                 </div>
 
@@ -1185,7 +1185,7 @@
                 </div>
 
                 <div class="input-row" style="margin-top: var(--archie-space-3);">
-                    <input type="text" id="moduleBackupDescription" placeholder="Backup description (optional)" style="border-color: #a855f7;">
+                    <input type="text" id="moduleBackupDescription" placeholder="Backup description (optional)" style="border-color: #a855f7;" data-i18n-placeholder="backup_manager.backup_description_placeholder">
                 </div>
             </div>
 
@@ -1228,8 +1228,7 @@
                 <div style="margin-bottom: var(--archie-space-5);">
                     <h3 class="section-header" style="color: #22d3ee;"><span data-i18n="backup_manager.deployment_packages">Deployment Packages</span></h3>
                     <p class="section-description">
-                        Create self-contained deployment packages for migrating A.R.C.H.I.E. to new machines.
-                        Each package includes all code, database, and a deploy.sh script for one-command installation.
+                        <span data-i18n="backup_manager.deployment_packages_description">Create self-contained deployment packages for migrating A.R.C.H.I.E. to new machines. Each package includes all code, database, and a deploy.sh script for one-command installation.</span>
                     </p>
                 </div>
 
@@ -1239,7 +1238,7 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-4); margin-bottom: var(--archie-space-4);">
                         <div>
                             <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.version_tag">Version Tag</span></label>
-                            <input type="text" id="packageVersion" placeholder="e.g., v5.33.0" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
+                            <input type="text" id="packageVersion" placeholder="e.g., v5.33.0" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);" data-i18n-placeholder="backup_manager.version_tag_placeholder">
                         </div>
                         <div>
                             <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.target_platform">Target Platform</span></label>
@@ -1252,7 +1251,7 @@
                     </div>
                     <div style="margin-bottom: var(--archie-space-4);">
                         <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);"><span data-i18n="backup_manager.description">Description</span></label>
-                        <input type="text" id="packageDescription" placeholder="e.g., Production release with Phase 31 features" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
+                        <input type="text" id="packageDescription" placeholder="e.g., Production release with Phase 31 features" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);" data-i18n-placeholder="backup_manager.package_description_placeholder">
                     </div>
                     <div style="display: flex; gap: var(--archie-space-2);">
                         <button class="btn btn-cyan" onclick="createDeploymentPackage()"><span data-i18n="backup_manager.create_package">Create Package</span></button>
@@ -1300,7 +1299,7 @@
         </div>
         <div class="modal-body">
             <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
-                Select which components you want to restore from this backup:
+                <span data-i18n="backup_manager.select_components_description">Select which components you want to restore from this backup:</span>
             </p>
             <div id="component-checkboxes" style="display: flex; flex-direction: column; gap: var(--archie-space-2);">
                 <!-- Checkboxes populated by JavaScript -->
@@ -1331,7 +1330,7 @@
                 <!-- Message populated by JavaScript -->
             </p>
             <p style="color: #ef4444; font-weight: 500;">
-                This will overwrite current files and cannot be undone!
+                <span data-i18n="backup_manager.overwrite_warning">This will overwrite current files and cannot be undone!</span>
             </p>
         </div>
         <div class="modal-footer">

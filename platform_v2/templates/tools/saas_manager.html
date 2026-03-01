@@ -487,17 +487,17 @@
             <div class="saas-tab-content active" id="tab-organizations">
                 <div class="action-bar">
                     <div style="color: var(--archie-text-muted); font-size: var(--archie-text-sm);">
-                        <span id="org-count">0</span> organizations
+                        <span id="org-count">0</span> <span data-i18n="saas_manager.organizations">organizations</span>
                     </div>
                     <button class="btn btn-primary" onclick="showNewOrgModal()">
                         <i data-lucide="plus" style="width:16px;height:16px"></i>
-                        New Organization
+                        <span data-i18n="saas_manager.new_organization">New Organization</span>
                     </button>
                 </div>
 
                 <div id="orgs-loading" class="loading-spinner">
                     <div class="spinner"></div>
-                    Loading organizations...
+                    <span data-i18n="saas_manager.loading_organizations">Loading organizations...</span>
                 </div>
 
                 <div id="orgs-grid" class="org-grid" style="display:none;"></div>
@@ -512,17 +512,17 @@
             <div class="saas-tab-content" id="tab-domains">
                 <div class="action-bar">
                     <div style="color: var(--archie-text-muted); font-size: var(--archie-text-sm);">
-                        All domains across organizations
+                        <span data-i18n="saas_manager.all_domains_across_organizations">All domains across organizations</span>
                     </div>
                     <button class="btn btn-primary" onclick="showAddDomainModal()">
                         <i data-lucide="plus" style="width:16px;height:16px"></i>
-                        Add Domain
+                        <span data-i18n="saas_manager.add_domain">Add Domain</span>
                     </button>
                 </div>
 
                 <div id="domains-loading" class="loading-spinner">
                     <div class="spinner"></div>
-                    Loading domains...
+                    <span data-i18n="saas_manager.loading_domains">Loading domains...</span>
                 </div>
 
                 <div id="domains-table-wrap" style="display:none;">
@@ -554,7 +554,7 @@
                     <div class="ip-display-label"><span data-i18n="saas_manager.current_public_ip">Current Public IP</span></div>
                     <div class="ip-display-value" id="network-public-ip"><span data-i18n="saas_manager.loading">Loading...</span></div>
                     <div class="ip-display-changed" id="ip-changed-notice" style="display:none;">
-                        IP address has changed since last check
+                        <span data-i18n="saas_manager.ip_changed_notice">IP address has changed since last check</span>
                     </div>
                 </div>
 
@@ -562,10 +562,10 @@
                 <div class="detail-section">
                     <div class="detail-section-title">
                         <i data-lucide="shield" style="width:16px;height:16px"></i>
-                        PORT FORWARDING STATUS
+                        <span data-i18n="saas_manager.port_forwarding_status">PORT FORWARDING STATUS</span>
                         <button class="btn btn-ghost btn-sm" onclick="checkPorts()" id="btn-check-ports" style="margin-left: auto;">
                             <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
-                            Check Ports
+                            <span data-i18n="saas_manager.check_ports">Check Ports</span>
                         </button>
                     </div>
                     <div class="port-grid" id="port-grid">
@@ -584,7 +584,7 @@
                 <div class="detail-section">
                     <div class="detail-section-title">
                         <i data-lucide="history" style="width:16px;height:16px"></i>
-                        IP CHANGE HISTORY
+                        <span data-i18n="saas_manager.ip_change_history">IP CHANGE HISTORY</span>
                     </div>
                     <table class="data-table" id="ip-history-table">
                         <thead>
@@ -603,7 +603,7 @@
                 <div class="detail-section">
                     <div class="detail-section-title">
                         <i data-lucide="server" style="width:16px;height:16px"></i>
-                        SERVER INFORMATION
+                        <span data-i18n="saas_manager.server_information">SERVER INFORMATION</span>
                     </div>
                     <div class="server-info-grid">
                         <div class="server-info-item">
@@ -640,14 +640,14 @@
         <div class="detail-panel-body">
             <div id="detail-loading" class="loading-spinner">
                 <div class="spinner"></div>
-                Loading details...
+                <span data-i18n="saas_manager.loading_details">Loading details...</span>
             </div>
             <div id="detail-content" style="display:none;">
                 <!-- Users Section -->
                 <div class="detail-section">
                     <div class="detail-section-title">
                         <i data-lucide="users" style="width:16px;height:16px"></i>
-                        USERS
+                        <span data-i18n="saas_manager.users">USERS</span>
                     </div>
                     <div id="detail-users"></div>
                 </div>
@@ -656,7 +656,7 @@
                 <div class="detail-section">
                     <div class="detail-section-title">
                         <i data-lucide="layout-grid" style="width:16px;height:16px"></i>
-                        ENABLED MODULES
+                        <span data-i18n="saas_manager.enabled_modules">ENABLED MODULES</span>
                     </div>
                     <div id="detail-modules" class="module-check-list"></div>
                 </div>
@@ -665,7 +665,7 @@
                 <div class="detail-section">
                     <div class="detail-section-title">
                         <i data-lucide="globe" style="width:16px;height:16px"></i>
-                        DOMAINS
+                        <span data-i18n="saas_manager.domains">DOMAINS</span>
                     </div>
                     <div id="detail-domains"></div>
                 </div>
@@ -679,7 +679,7 @@
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i data-lucide="building-2" style="width:18px;height:18px"></i>
-                    New Organization
+                    <span data-i18n="saas_manager.new_organization_title">New Organization</span>
                 </h3>
                 <button class="modal-close" onclick="closeNewOrgModal()">
                     <i data-lucide="x" style="width:18px;height:18px"></i>
@@ -688,7 +688,7 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label class="form-label"><span data-i18n="saas_manager.organization_name">Organization Name</span></label>
-                    <input type="text" class="form-input" id="new-org-name" placeholder="e.g., Acme Corp">
+                    <input type="text" class="form-input" id="new-org-name" placeholder="e.g., Acme Corp" data-i18n-placeholder="saas_manager.org_name_placeholder">
                 </div>
                 <div class="form-group">
                     <label class="form-label"><span data-i18n="saas_manager.owner">Owner</span></label>
@@ -705,7 +705,7 @@
                 <button class="btn btn-ghost" onclick="closeNewOrgModal()"><span data-i18n="saas_manager.cancel">Cancel</span></button>
                 <button class="btn btn-primary" onclick="createOrg()" id="btn-create-org">
                     <i data-lucide="plus" style="width:16px;height:16px"></i>
-                    Create Organization
+                    <span data-i18n="saas_manager.create_organization">Create Organization</span>
                 </button>
             </div>
         </div>
@@ -717,7 +717,7 @@
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i data-lucide="globe" style="width:18px;height:18px"></i>
-                    Add Domain
+                    <span data-i18n="saas_manager.add_domain_title">Add Domain</span>
                 </h3>
                 <button class="modal-close" onclick="closeAddDomainModal()">
                     <i data-lucide="x" style="width:18px;height:18px"></i>
@@ -732,7 +732,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label"><span data-i18n="saas_manager.domain_2">Domain</span></label>
-                    <input type="text" class="form-input" id="domain-name" placeholder="e.g., app.example.com">
+                    <input type="text" class="form-input" id="domain-name" placeholder="e.g., app.example.com" data-i18n-placeholder="saas_manager.domain_name_placeholder">
                 </div>
                 <div class="form-group">
                     <label class="form-label"><span data-i18n="saas_manager.target_module_2">Target Module</span></label>
@@ -745,7 +745,7 @@
                 <button class="btn btn-ghost" onclick="closeAddDomainModal()"><span data-i18n="saas_manager.cancel_2">Cancel</span></button>
                 <button class="btn btn-primary" onclick="addDomain()" id="btn-add-domain">
                     <i data-lucide="plus" style="width:16px;height:16px"></i>
-                    Add Domain
+                    <span data-i18n="saas_manager.add_domain_btn">Add Domain</span>
                 </button>
             </div>
         </div>

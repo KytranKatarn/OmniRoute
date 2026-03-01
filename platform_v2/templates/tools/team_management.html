@@ -392,7 +392,7 @@
         var grid = clearEl('rosterGrid');
         if (!grid) return;
         var agents = Array.isArray(data) ? data : (data && data.agents ? data.agents : []);
-        if (!agents.length) { grid.appendChild(el('div', 'tm-empty', 'No agents found')); return; }
+        if (!agents.length) { var _e = el('div', 'tm-empty', 'No agents found'); _e.setAttribute('data-i18n', 'team_management.no_agents_found'); grid.appendChild(_e); return; }
 
         agents.forEach(function(a) {
             var card = el('div', 'tm-card tm-agent');
@@ -405,14 +405,15 @@
 
             var meta = el('div', 'meta');
             var lines = [
-                ['Station', a.station || a.station_name || 'Unassigned'],
-                ['Model', a.model || a.default_model || '--'],
-                ['Tier', a.tier || a.agent_tier || '--']
+                ['Station', a.station || a.station_name || 'Unassigned', 'team_management.station'],
+                ['Model', a.model || a.default_model || '--', 'team_management.model_label'],
+                ['Tier', a.tier || a.agent_tier || '--', 'team_management.tier']
             ];
             lines.forEach(function(pair) {
                 var row = el('div');
                 var lbl = el('span', '', pair[0] + ': ');
                 lbl.style.color = 'var(--archie-text-muted)';
+                if (pair[2]) lbl.setAttribute('data-i18n', pair[2]);
                 row.appendChild(lbl);
                 row.appendChild(document.createTextNode(pair[1]));
                 meta.appendChild(row);
@@ -445,7 +446,7 @@
         var grid = clearEl('stationGrid');
         if (!grid) return;
         var stations = Array.isArray(data) ? data : (data && data.stations ? data.stations : []);
-        if (!stations.length) { grid.appendChild(el('div', 'tm-empty', 'No station data')); return; }
+        if (!stations.length) { var _e = el('div', 'tm-empty', 'No station data'); _e.setAttribute('data-i18n', 'team_management.no_station_data'); grid.appendChild(_e); return; }
 
         stations.forEach(function(s) {
             var card = el('div', 'tm-card tm-station');
@@ -465,7 +466,9 @@
             var stats = el('div', 'tm-stats');
             var agentCount = el('div', 'tm-stat');
             agentCount.appendChild(el('b', '', String(s.agent_count || 0)));
-            agentCount.appendChild(document.createTextNode(' agents'));
+            var _agentsLbl = el('span', '', ' agents');
+            _agentsLbl.setAttribute('data-i18n', 'team_management.agents_count_label');
+            agentCount.appendChild(_agentsLbl);
             stats.appendChild(agentCount);
             if (s.default_llm || s.default_model) {
                 var llm = el('div', 'tm-stat');
@@ -482,7 +485,10 @@
 
             if (s.modules && s.modules.length) {
                 var ml = el('div', 'modules');
-                ml.textContent = 'Modules: ' + s.modules.join(', ');
+                var _modLbl = el('span', '', 'Modules: ');
+                _modLbl.setAttribute('data-i18n', 'team_management.modules_label');
+                ml.appendChild(_modLbl);
+                ml.appendChild(document.createTextNode(s.modules.join(', ')));
                 card.appendChild(ml);
             }
 
@@ -499,6 +505,7 @@
         if (!items.length) {
             var tr = el('tr');
             var td = el('td', 'tm-empty', 'No recent tasks');
+            td.setAttribute('data-i18n', 'team_management.no_recent_tasks');
             td.setAttribute('colspan', '7');
             tr.appendChild(td);
             tbody.appendChild(tr);
@@ -536,7 +543,7 @@
         var grid = clearEl('hrGrid');
         if (!grid) return;
         var agents = Array.isArray(data) ? data : (data && data.agents ? data.agents : (data && data.summary ? data.summary : []));
-        if (!agents.length) { grid.appendChild(el('div', 'tm-empty', 'No HR data available')); return; }
+        if (!agents.length) { var _e = el('div', 'tm-empty', 'No HR data available'); _e.setAttribute('data-i18n', 'team_management.no_hr_data_available'); grid.appendChild(_e); return; }
 
         agents.forEach(function(a) {
             var card = el('div', 'tm-card tm-card-top');
@@ -546,21 +553,26 @@
 
             var stats = el('div', 'tm-stats');
             var pairs = [
-                ['Tasks', a.total_tasks || a.task_count || 0],
-                ['Avg', fmtMs(a.avg_duration_ms || a.avg_duration)],
-                ['Rate', pct(a.success_count || a.successes || 0, a.total_tasks || a.task_count || 1) + '%']
+                ['Tasks', a.total_tasks || a.task_count || 0, 'team_management.tasks_label'],
+                ['Avg', fmtMs(a.avg_duration_ms || a.avg_duration), 'team_management.avg_label'],
+                ['Rate', pct(a.success_count || a.successes || 0, a.total_tasks || a.task_count || 1) + '%', 'team_management.rate_label']
             ];
             pairs.forEach(function(p) {
                 var s = el('div', 'tm-stat');
                 s.appendChild(el('b', '', String(p[1])));
-                s.appendChild(document.createTextNode(' ' + p[0]));
+                var _lbl = el('span', '', ' ' + p[0]);
+                if (p[2]) _lbl.setAttribute('data-i18n', p[2]);
+                s.appendChild(_lbl);
                 stats.appendChild(s);
             });
             card.appendChild(stats);
 
             var lastLine = el('div');
             lastLine.style.cssText = 'font-size:0.7rem;color:var(--archie-text-muted);margin-top:0.5rem;';
-            lastLine.textContent = 'Last active: ' + timeAgo(a.last_active || a.last_task_at);
+            var _lastActiveLbl = el('span', '', 'Last active: ');
+            _lastActiveLbl.setAttribute('data-i18n', 'team_management.last_active');
+            lastLine.appendChild(_lastActiveLbl);
+            lastLine.appendChild(document.createTextNode(timeAgo(a.last_active || a.last_task_at)));
             card.appendChild(lastLine);
 
             grid.appendChild(card);
@@ -590,7 +602,7 @@
         var list = clearEl('welfareList');
         if (!list) return;
         var agents = welfare ? (Array.isArray(welfare) ? welfare : (welfare.agents || welfare.welfare || [])) : [];
-        if (!agents.length) { list.appendChild(el('div', 'tm-empty', 'No welfare data')); return; }
+        if (!agents.length) { var _e = el('div', 'tm-empty', 'No welfare data'); _e.setAttribute('data-i18n', 'team_management.no_welfare_data'); list.appendChild(_e); return; }
 
         agents.forEach(function(a) {
             var row = el('div', 'tm-welfare');
@@ -723,14 +735,14 @@
         if (!wrap || !m) return;
         clearEl('mc-metrics');
         var items = [
-            {val: (m.active_agents || 0) + ' / ' + (m.total_agents || 0), label: 'Active Agents'},
-            {val: String(m.tasks_this_hour || 0), label: 'Tasks This Hour'},
-            {val: (m.avg_duration_ms || 0) + 'ms', label: 'Avg Duration'},
-            {val: (m.error_rate || 0) + '%', label: 'Error Rate'},
-            {val: m.gpu_model || 'None', label: 'GPU Model'},
+            {val: (m.active_agents || 0) + ' / ' + (m.total_agents || 0), label: 'Active Agents', i18n: 'team_management.active_agents'},
+            {val: String(m.tasks_this_hour || 0), label: 'Tasks This Hour', i18n: 'team_management.tasks_this_hour'},
+            {val: (m.avg_duration_ms || 0) + 'ms', label: 'Avg Duration', i18n: 'team_management.avg_duration'},
+            {val: (m.error_rate || 0) + '%', label: 'Error Rate', i18n: 'team_management.error_rate'},
+            {val: m.gpu_model || 'None', label: 'GPU Model', i18n: 'team_management.gpu_model'},
         ];
         if (m.top_agent) {
-            items.push({val: (m.top_agent.display_name || m.top_agent.agent_name) + ' (' + m.top_agent.task_count + ')', label: 'Top Agent Today'});
+            items.push({val: (m.top_agent.display_name || m.top_agent.agent_name) + ' (' + m.top_agent.task_count + ')', label: 'Top Agent Today', i18n: 'team_management.top_agent_today'});
         }
         items.forEach(function(it) {
             var card = el('div', 'mc-metric-card');
@@ -738,6 +750,7 @@
             valEl.textContent = it.val;
             var labEl = el('div', 'mc-label');
             labEl.textContent = it.label;
+            if (it.i18n) labEl.setAttribute('data-i18n', it.i18n);
             card.appendChild(valEl);
             card.appendChild(labEl);
             wrap.appendChild(card);
@@ -752,6 +765,7 @@
         if (!events || events.length === 0) {
             var empty = el('div', 'mc-empty');
             empty.textContent = 'No activity events yet. Events appear as agents process tasks.';
+            empty.setAttribute('data-i18n', 'team_management.no_activity_events');
             feed.appendChild(empty);
             return;
         }
@@ -854,6 +868,7 @@
     async function loadAgentDrawer(agentId, drawer) {
         var loadingMsg = el('div');
         loadingMsg.textContent = 'Loading...';
+        loadingMsg.setAttribute('data-i18n', 'team_management.loading');
         loadingMsg.style.cssText = 'padding:10px;color:var(--archie-muted)';
         drawer.textContent = '';
         drawer.appendChild(loadingMsg);
@@ -870,16 +885,21 @@
         var emoSection = el('div', 'drawer-section');
         var emoTitle = el('h4');
         emoTitle.textContent = 'Emotional State';
+        emoTitle.setAttribute('data-i18n', 'team_management.emotional_state');
         emoSection.appendChild(emoTitle);
         var es = emo && emo.emotional_state;
         if (es) {
             var moodWrap = el('div', 'drawer-mood');
             var moodText = el('span');
-            moodText.textContent = 'Mood: ' + (es.current_mood || 'neutral');
+            var _moodLbl = el('span', '', 'Mood: ');
+            _moodLbl.setAttribute('data-i18n', 'team_management.mood_label');
+            moodText.appendChild(_moodLbl);
+            moodText.appendChild(document.createTextNode(es.current_mood || 'neutral'));
             moodWrap.appendChild(moodText);
             // Stress bar
             var stressLabel = el('span');
             stressLabel.textContent = 'Stress:';
+            stressLabel.setAttribute('data-i18n', 'team_management.stress_label');
             moodWrap.appendChild(stressLabel);
             var stressBar = el('div', 'drawer-bar');
             var stressFill = el('div', 'drawer-bar-fill');
@@ -891,6 +911,7 @@
             // Energy bar
             var energyLabel = el('span');
             energyLabel.textContent = 'Energy:';
+            energyLabel.setAttribute('data-i18n', 'team_management.energy_label');
             moodWrap.appendChild(energyLabel);
             var energyBar = el('div', 'drawer-bar');
             var energyFill = el('div', 'drawer-bar-fill');
@@ -903,12 +924,16 @@
             if (emo.last_rest) {
                 var restInfo = el('div');
                 restInfo.style.cssText = 'font-size:.75rem;color:var(--archie-muted);margin-top:4px';
-                restInfo.textContent = 'Last rest: ' + timeAgo(emo.last_rest.started_at);
+                var _lastRestLbl = el('span', '', 'Last rest: ');
+                _lastRestLbl.setAttribute('data-i18n', 'team_management.last_rest');
+                restInfo.appendChild(_lastRestLbl);
+                restInfo.appendChild(document.createTextNode(timeAgo(emo.last_rest.started_at)));
                 emoSection.appendChild(restInfo);
             }
         } else {
             var noData = el('span');
             noData.textContent = 'No data';
+            noData.setAttribute('data-i18n', 'team_management.no_data');
             noData.style.color = 'var(--archie-muted)';
             emoSection.appendChild(noData);
         }
@@ -918,14 +943,22 @@
         var execSection = el('div', 'drawer-section');
         var execTitle = el('h4');
         execTitle.textContent = 'Recent Executions';
+        execTitle.setAttribute('data-i18n', 'team_management.recent_executions');
         execSection.appendChild(execTitle);
         if (execs && execs.length > 0) {
             var table = el('table', 'drawer-exec-table');
             var thead = el('thead');
             var headRow = el('tr');
-            ['Time', 'Model', 'Duration', 'Status'].forEach(function(h) {
+            var _drawerHeaders = [
+                {text: 'Time', i18n: 'team_management.drawer_time'},
+                {text: 'Model', i18n: 'team_management.drawer_model'},
+                {text: 'Duration', i18n: 'team_management.drawer_duration'},
+                {text: 'Status', i18n: 'team_management.drawer_status'}
+            ];
+            _drawerHeaders.forEach(function(h) {
                 var th = el('th');
-                th.textContent = h;
+                th.textContent = h.text;
+                th.setAttribute('data-i18n', h.i18n);
                 headRow.appendChild(th);
             });
             thead.appendChild(headRow);
@@ -954,6 +987,7 @@
         } else {
             var noExec = el('span');
             noExec.textContent = 'No executions yet';
+            noExec.setAttribute('data-i18n', 'team_management.no_executions_yet');
             noExec.style.color = 'var(--archie-muted)';
             execSection.appendChild(noExec);
         }
@@ -963,10 +997,12 @@
         var actSection = el('div', 'drawer-section');
         var actTitle = el('h4');
         actTitle.textContent = 'Quick Actions';
+        actTitle.setAttribute('data-i18n', 'team_management.quick_actions');
         actSection.appendChild(actTitle);
         var actWrap = el('div', 'drawer-actions');
         var btnLounge = el('button');
         btnLounge.textContent = 'Send to Lounge';
+        btnLounge.setAttribute('data-i18n', 'team_management.send_to_lounge');
         btnLounge.onclick = function(e) { e.stopPropagation(); };
         actWrap.appendChild(btnLounge);
         actSection.appendChild(actWrap);
@@ -984,6 +1020,7 @@
         if (!data || !data.sessions || data.sessions.length === 0) {
             var empty = el('div', 'ma-empty');
             empty.textContent = 'No multi-agent sessions yet';
+            empty.setAttribute('data-i18n', 'team_management.no_multi_agent_sessions');
             list.appendChild(empty);
             return;
         }
@@ -995,7 +1032,10 @@
             msg.textContent = (s.user_message || 'Session #' + s.id).substring(0, 60);
             var meta = el('div', 'ma-meta');
             var agentBadge = el('span', 'ma-agent-count');
-            agentBadge.textContent = (s.agent_count || 0) + ' agents';
+            agentBadge.appendChild(document.createTextNode(String(s.agent_count || 0)));
+            var _agLbl = el('span', '', ' agents');
+            _agLbl.setAttribute('data-i18n', 'team_management.agents_suffix');
+            agentBadge.appendChild(_agLbl);
             var st = s.status || 'unknown';
             var stCls = st === 'completed' ? 'tm-pill-green' : st === 'failed' ? 'tm-pill-red' : 'tm-pill-amber';
             meta.appendChild(agentBadge);
@@ -1024,6 +1064,7 @@
         detail.textContent = '';
         var loadMsg = el('div', 'ma-empty');
         loadMsg.textContent = 'Loading...';
+        loadMsg.setAttribute('data-i18n', 'team_management.loading');
         detail.appendChild(loadMsg);
 
         var data = await apiFetch('/tools/bridge/api/dispatch/multi-agent-sessions/' + sessionId);
@@ -1031,6 +1072,7 @@
         if (!data || !data.session) {
             var errMsg = el('div', 'ma-empty');
             errMsg.textContent = 'Failed to load session';
+            errMsg.setAttribute('data-i18n', 'team_management.failed_to_load_session');
             detail.appendChild(errMsg);
             return;
         }
@@ -1040,17 +1082,32 @@
         var infoDiv = el('div', 'drawer-section');
         var infoTitle = el('h4');
         infoTitle.textContent = 'Session Details';
+        infoTitle.setAttribute('data-i18n', 'team_management.session_details');
         infoDiv.appendChild(infoTitle);
         var infoText = el('div');
         infoText.style.cssText = 'font-size:.85rem;color:var(--archie-text-secondary,#94a3b8)';
-        infoText.textContent = 'Status: ' + (s.status || '?') + ' | Duration: ' + fmtMs(s.total_duration_ms) + ' | Steps: ' + (s.total_steps || 0);
+        var _statusLbl = el('span', '', 'Status: ');
+        _statusLbl.setAttribute('data-i18n', 'team_management.status_label');
+        infoText.appendChild(_statusLbl);
+        infoText.appendChild(document.createTextNode((s.status || '?') + ' | '));
+        var _durationLbl = el('span', '', 'Duration: ');
+        _durationLbl.setAttribute('data-i18n', 'team_management.duration_label');
+        infoText.appendChild(_durationLbl);
+        infoText.appendChild(document.createTextNode(fmtMs(s.total_duration_ms) + ' | '));
+        var _stepsLbl = el('span', '', 'Steps: ');
+        _stepsLbl.setAttribute('data-i18n', 'team_management.steps_label');
+        infoText.appendChild(_stepsLbl);
+        infoText.appendChild(document.createTextNode(String(s.total_steps || 0)));
         infoDiv.appendChild(infoText);
         detail.appendChild(infoDiv);
 
         // Steps
         var stepsSection = el('div', 'drawer-section');
         var stepsTitle = el('h4');
-        stepsTitle.textContent = 'Pipeline Steps (' + (data.steps || []).length + ')';
+        var _pipelineLbl = el('span', '', 'Pipeline Steps');
+        _pipelineLbl.setAttribute('data-i18n', 'team_management.pipeline_steps');
+        stepsTitle.appendChild(_pipelineLbl);
+        stepsTitle.appendChild(document.createTextNode(' (' + (data.steps || []).length + ')'));
         stepsSection.appendChild(stepsTitle);
         (data.steps || []).forEach(function(st) {
             var stepType = st.step_type || 'unknown';

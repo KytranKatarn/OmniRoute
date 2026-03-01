@@ -144,9 +144,9 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         <div style="display: flex; gap: 1rem; align-items: center; margin: -16px 0 20px 0;">
             <div id="loopStatus" class="status-badge stopped">
                 <span class="dot"></span>
-                <span class="label">Stopped</span>
+                <span class="label" data-i18n="autonomy.stopped">Stopped</span>
             </div>
-            <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()">Start Loop</button>
+            <button id="toggleBtn" class="btn btn-primary" onclick="toggleLoop()" data-i18n="autonomy.start_loop">Start Loop</button>
         </div>
 
         {{ tab_nav(tabs=[
@@ -160,39 +160,39 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         <div id="tab-overview" class="tab-content active">
             <div class="card-grid">
                 <div class="au-card" data-accent="amber">
-                    <div class="au-card-title">Active Jobs</div>
+                    <div class="au-card-title" data-i18n="autonomy.active_jobs">Active Jobs</div>
                     <div class="au-card-value" id="activeJobCount">0</div>
-                    <div class="au-card-label">Scheduled jobs running</div>
+                    <div class="au-card-label" data-i18n="autonomy.scheduled_jobs_running">Scheduled jobs running</div>
                 </div>
                 <div class="au-card" data-accent="green">
-                    <div class="au-card-title">Processed (24h)</div>
+                    <div class="au-card-title" data-i18n="autonomy.processed_24h">Processed (24h)</div>
                     <div class="au-card-value" id="processedCount" style="color:var(--au-green);">0</div>
-                    <div class="au-card-label">Items processed successfully</div>
+                    <div class="au-card-label" data-i18n="autonomy.items_processed_successfully">Items processed successfully</div>
                 </div>
                 <div class="au-card" data-accent="red">
-                    <div class="au-card-title">Failed (24h)</div>
+                    <div class="au-card-title" data-i18n="autonomy.failed_24h">Failed (24h)</div>
                     <div class="au-card-value" id="failedCount" style="color:var(--au-red);">0</div>
-                    <div class="au-card-label">Items that failed processing</div>
+                    <div class="au-card-label" data-i18n="autonomy.items_that_failed_processing">Items that failed processing</div>
                 </div>
                 <div class="au-card" data-accent="amber">
-                    <div class="au-card-title">Pending Approvals</div>
+                    <div class="au-card-title" data-i18n="autonomy.pending_approvals">Pending Approvals</div>
                     <div class="au-card-value" id="pendingCount" style="color:var(--au-accent);">0</div>
-                    <div class="au-card-label">Actions awaiting human review</div>
+                    <div class="au-card-label" data-i18n="autonomy.actions_awaiting_human_review">Actions awaiting human review</div>
                 </div>
             </div>
 
-            <div class="au-section-title">Job Status</div>
+            <div class="au-section-title" data-i18n="autonomy.job_status">Job Status</div>
             <div id="jobCards" class="job-grid">
-                <div class="empty-state">Loading job data...</div>
+                <div class="empty-state" data-i18n="autonomy.loading_job_data">Loading job data...</div>
             </div>
 
-            <div class="au-section-title">Recent Activity</div>
+            <div class="au-section-title" data-i18n="autonomy.recent_activity">Recent Activity</div>
             <table class="data-table">
                 <thead>
-                    <tr><th>Job</th><th>Status</th><th>Processed</th><th>Failed</th><th>Duration</th><th>Time</th></tr>
+                    <tr><th data-i18n="autonomy.th_job">Job</th><th data-i18n="autonomy.th_status">Status</th><th data-i18n="autonomy.th_processed">Processed</th><th data-i18n="autonomy.th_failed">Failed</th><th data-i18n="autonomy.th_duration">Duration</th><th data-i18n="autonomy.th_time">Time</th></tr>
                 </thead>
                 <tbody id="recentLogs">
-                    <tr><td colspan="6" style="text-align:center;color:var(--au-muted);">Loading...</td></tr>
+                    <tr><td colspan="6" style="text-align:center;color:var(--au-muted);" data-i18n="autonomy.loading">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -201,14 +201,14 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         <div id="tab-approvals" class="tab-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
                 <div class="btn-group">
-                    <button class="btn btn-sm btn-warning" onclick="loadApprovals('pending')">Pending</button>
-                    <button class="btn btn-sm btn-success" onclick="loadApprovals('approved')">Approved</button>
-                    <button class="btn btn-sm btn-danger" onclick="loadApprovals('rejected')">Rejected</button>
-                    <button class="btn btn-sm" onclick="loadApprovals('all')">All</button>
+                    <button class="btn btn-sm btn-warning" onclick="loadApprovals('pending')" data-i18n="autonomy.pending">Pending</button>
+                    <button class="btn btn-sm btn-success" onclick="loadApprovals('approved')" data-i18n="autonomy.approved">Approved</button>
+                    <button class="btn btn-sm btn-danger" onclick="loadApprovals('rejected')" data-i18n="autonomy.rejected">Rejected</button>
+                    <button class="btn btn-sm" onclick="loadApprovals('all')" data-i18n="autonomy.all">All</button>
                 </div>
             </div>
             <div id="approvalsList">
-                <div class="empty-state"><div class="icon">&#x2713;</div>No pending approvals</div>
+                <div class="empty-state"><div class="icon">&#x2713;</div><span data-i18n="autonomy.no_pending_approvals">No pending approvals</span></div>
             </div>
         </div>
 
@@ -216,25 +216,25 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         <div id="tab-history" class="tab-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
                 <div class="btn-group">
-                    <button class="btn btn-sm" onclick="loadHistory(null)">All Jobs</button>
-                    <button class="btn btn-sm" onclick="loadHistory('hr_tracker')">HR</button>
-                    <button class="btn btn-sm" onclick="loadHistory('email_inbox')">Email</button>
-                    <button class="btn btn-sm" onclick="loadHistory('anomaly_detection')">Anomaly</button>
-                    <button class="btn btn-sm" onclick="loadHistory('approvals')">Approvals</button>
-                    <button class="btn btn-sm" onclick="loadHistory('ethics_monitoring')">Ethics</button>
+                    <button class="btn btn-sm" onclick="loadHistory(null)" data-i18n="autonomy.all_jobs">All Jobs</button>
+                    <button class="btn btn-sm" onclick="loadHistory('hr_tracker')" data-i18n="autonomy.hr">HR</button>
+                    <button class="btn btn-sm" onclick="loadHistory('email_inbox')" data-i18n="autonomy.email">Email</button>
+                    <button class="btn btn-sm" onclick="loadHistory('anomaly_detection')" data-i18n="autonomy.anomaly">Anomaly</button>
+                    <button class="btn btn-sm" onclick="loadHistory('approvals')" data-i18n="autonomy.approvals">Approvals</button>
+                    <button class="btn btn-sm" onclick="loadHistory('ethics_monitoring')" data-i18n="autonomy.ethics">Ethics</button>
                 </div>
                 <div class="btn-group">
-                    <button class="btn btn-sm" onclick="loadHistory(currentHistoryJob, 6)">6h</button>
-                    <button class="btn btn-sm btn-primary" onclick="loadHistory(currentHistoryJob, 24)">24h</button>
-                    <button class="btn btn-sm" onclick="loadHistory(currentHistoryJob, 168)">7d</button>
+                    <button class="btn btn-sm" onclick="loadHistory(currentHistoryJob, 6)" data-i18n="autonomy.range_6h">6h</button>
+                    <button class="btn btn-sm btn-primary" onclick="loadHistory(currentHistoryJob, 24)" data-i18n="autonomy.range_24h">24h</button>
+                    <button class="btn btn-sm" onclick="loadHistory(currentHistoryJob, 168)" data-i18n="autonomy.range_7d">7d</button>
                 </div>
             </div>
             <table class="data-table">
                 <thead>
-                    <tr><th>Job</th><th>Status</th><th>Processed</th><th>Failed</th><th>Duration</th><th>Error</th><th>Time</th></tr>
+                    <tr><th data-i18n="autonomy.th_job">Job</th><th data-i18n="autonomy.th_status">Status</th><th data-i18n="autonomy.th_processed">Processed</th><th data-i18n="autonomy.th_failed">Failed</th><th data-i18n="autonomy.th_duration">Duration</th><th data-i18n="autonomy.th_error">Error</th><th data-i18n="autonomy.th_time">Time</th></tr>
                 </thead>
                 <tbody id="historyLogs">
-                    <tr><td colspan="7" style="text-align:center;color:var(--au-muted);">Select a filter to load history</td></tr>
+                    <tr><td colspan="7" style="text-align:center;color:var(--au-muted);" data-i18n="autonomy.select_filter_to_load_history">Select a filter to load history</td></tr>
                 </tbody>
             </table>
         </div>
@@ -242,7 +242,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         <!-- Config Tab -->
         <div id="tab-config" class="tab-content">
             <div id="configList">
-                <div class="empty-state">Loading configuration...</div>
+                <div class="empty-state" data-i18n="autonomy.loading_configuration">Loading configuration...</div>
             </div>
         </div>
     </div>

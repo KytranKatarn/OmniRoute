@@ -27,18 +27,15 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
-# Import Bridge routing functions for proper team member routing
+# Bridge Command dispatcher — all AI work routes through here
 try:
-    from ai_bridge.archie_bridge import (
-        route_task_to_station,
-        execute_agent_task,
-        get_available_agent_for_station,
-    )
+    from ai_bridge.bridge_dispatcher import get_dispatcher
 
+    _dispatcher = get_dispatcher()
     BRIDGE_ROUTING_AVAILABLE = True
-except ImportError:
+except Exception:
+    _dispatcher = None
     BRIDGE_ROUTING_AVAILABLE = False
-    logger.warning("Bridge routing not available, falling back to direct calls")
 
 # Ollama configuration
 OLLAMA_PRIMARY = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
@@ -452,72 +449,12 @@ def scan_file():
         static_result = basic_static_analysis(code_content, file_path)
         analysis_type = "static"
 
-        # STEP 2: Try AI analysis via Bridge routing
+        # STEP 2: Try AI analysis via Bridge Command dispatcher
         ai_result = None
         agent_used = None
-        ollama_status = check_ollama_status()
 
-        if BRIDGE_ROUTING_AVAILABLE:
+        if BRIDGE_ROUTING_AVAILABLE and _dispatcher:
             try:
-                routing = route_task_to_station("code_review", f"Review code in {file_path}")
-                agent = routing.get("agent")
-
-                if agent:
-                    agent_used = {
-                        "id": agent.get("id"),
-                        "name": agent.get("name"),
-                        "station": routing.get("station"),
-                        "model": agent.get("model"),
-                    }
-                    logger.info(f"Code Sentinel scan routed to {agent.get('name')} at {routing.get('station')} station")
-
-                    ai_content = (
-                        code_content[:10000] + "\n... (truncated)" if len(code_content) > 10000 else code_content
-                    )
-
-                    task = f"""Analyze this code for issues. Return a JSON object with:
-{{
-    "quality_score": 0-100,
-    "issues": [
-        {{
-            "line": line_number or null,
-            "type": "security|quality|style|performance",
-            "severity": "critical|high|medium|low",
-            "message": "description of issue",
-            "suggestion": "how to fix it"
-        }}
-    ],
-    "summary": "brief summary"
-}}
-
-File: {file_path}
-```
-{ai_content}
-```
-
-Only return valid JSON, no other text."""
-
-                    result = execute_agent_task(agent_id=agent["id"], task=task, user_id=user_id, stream=False)
-
-                    if result.get("success"):
-                        response_text = result.get("response", "{}")
-                        if "```json" in response_text:
-                            response_text = response_text.split("```json")[1].split("```")[0]
-                        elif "```" in response_text:
-                            response_text = response_text.split("```")[1].split("```")[0]
-
-                        ai_result = json.loads(response_text.strip())
-                        analysis_type = "ai_powered"
-                        logger.info(f"AI analysis completed for {file_path} via {agent.get('name')}")
-
-            except Exception as e:
-                logger.warning(f"Bridge routing failed, trying direct: {e}")
-
-        # Fallback: Direct archie_bridge call
-        if not ai_result and ollama_status["available"]:
-            try:
-                from ai_bridge.archie_bridge import archie_bridge
-
                 ai_content = code_content[:10000] + "\n... (truncated)" if len(code_content) > 10000 else code_content
 
                 prompt = f"""Analyze this code for issues. Return a JSON object with:
@@ -542,20 +479,36 @@ File: {file_path}
 
 Only return valid JSON, no other text."""
 
-                ai_response = archie_bridge(prompt, try_local_first=True)
+                result = _dispatcher.request_work(
+                    capability="code_review",
+                    prompt=prompt,
+                    module_id="code_sentinel",
+                    json_mode=True,
+                    user_id=user_id,
+                )
 
-                response_text = ai_response.get("response", "{}")
-                if "```json" in response_text:
-                    response_text = response_text.split("```json")[1].split("```")[0]
-                elif "```" in response_text:
-                    response_text = response_text.split("```")[1].split("```")[0]
+                if result.success:
+                    response_text = result.response
+                    if "```json" in response_text:
+                        response_text = response_text.split("```json")[1].split("```")[0]
+                    elif "```" in response_text:
+                        response_text = response_text.split("```")[1].split("```")[0]
 
-                ai_result = json.loads(response_text.strip())
-                analysis_type = "ai_powered"
-                agent_used = {"name": "Direct Ollama", "station": "Fallback"}
+                    ai_result = json.loads(response_text.strip())
+                    analysis_type = "ai_powered"
+                    agent_used = {
+                        "name": result.agent_name,
+                        "station": result.station_code,
+                        "model": result.model_used,
+                    }
+                    logger.info(f"AI analysis completed for {file_path} via {result.agent_name} ({result.model_used})")
+                else:
+                    logger.warning(f"Dispatcher returned failure for {file_path}: {result.error}")
 
+            except json.JSONDecodeError as e:
+                logger.warning(f"AI returned invalid JSON for {file_path}: {e}")
             except Exception as e:
-                logger.warning(f"AI analysis failed, using static: {e}")
+                logger.warning(f"AI analysis failed for {file_path}: {e}")
 
         # STEP 3: Combine results
         if ai_result and ai_result.get("issues"):
@@ -572,7 +525,7 @@ Only return valid JSON, no other text."""
         else:
             analysis = static_result
             analysis["analysis_type"] = "static"
-            if ollama_status["available"]:
+            if BRIDGE_ROUTING_AVAILABLE:
                 analysis["summary"] = "AI parsing failed - showing static analysis"
             else:
                 analysis["summary"] = f"Static analysis ({len(static_result['issues'])} issues found)"
@@ -637,7 +590,7 @@ Only return valid JSON, no other text."""
                 "issues": issues,
                 "summary": analysis.get("summary", ""),
                 "analysis_type": analysis.get("analysis_type", "unknown"),
-                "ollama_available": ollama_status["available"],
+                "ollama_available": BRIDGE_ROUTING_AVAILABLE,
                 "bridge_routing": BRIDGE_ROUTING_AVAILABLE,
                 "agent_used": agent_used,
                 "scanned_by": scanned_by,
@@ -1446,9 +1399,6 @@ def _run_multi_agent_review(review_id: str, code: str, file_path: str, agents: l
     review = multi_agent_reviews[review_id]
 
     try:
-        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from archie_bridge import archie_bridge
-
         team_agents = get_review_agents_from_team_management(limit=10)
         all_issues = []
         review_lock = threading.Lock()
@@ -1466,10 +1416,6 @@ def _run_multi_agent_review(review_id: str, code: str, file_path: str, agents: l
                 else:
                     return None
 
-            from ai_bridge.bridge_dispatcher import get_dispatcher
-
-            _dispatcher = get_dispatcher()
-            model = agent_config.get("model") or _dispatcher.get_model_for_capability("code_review")
             agent_name = agent_config.get("name", "Unknown Agent")
 
             prompt_prefix = agent_config.get("prompt_prefix", "You are reviewing code. Focus on: ")
@@ -1503,39 +1449,38 @@ File: {file_path}
 Return only valid JSON."""
 
             try:
-                response = archie_bridge(prompt, try_local_first=True, model=model)
-                # Log to dispatcher for HR tracking
-                try:
-                    _dispatcher.log_external_call(
-                        capability="code_review",
-                        module_id="code_sentinel",
-                        model_used=model,
-                        success=bool(response.get("response")),
-                    )
-                except Exception:
-                    pass
-                response_text = response.get("response", "{}")
+                dispatch_result = _dispatcher.request_work(
+                    capability="code_review",
+                    prompt=prompt,
+                    module_id="code_sentinel",
+                    system_prompt=prompt_prefix,
+                    json_mode=True,
+                )
 
+                if not dispatch_result.success:
+                    raise RuntimeError(f"Dispatch failed: {dispatch_result.error}")
+
+                response_text = dispatch_result.response
                 if "```json" in response_text:
                     response_text = response_text.split("```json")[1].split("```")[0]
                 elif "```" in response_text:
                     response_text = response_text.split("```")[1].split("```")[0]
 
-                result = json.loads(response_text.strip())
+                parsed = json.loads(response_text.strip())
 
                 with review_lock:
                     review["agent_reviews"][agent_key] = {
                         "agent_name": agent_name,
-                        "model": model,
-                        "issues": result.get("issues", []),
-                        "summary": result.get("summary", ""),
-                        "quality_score": result.get("quality_score", 0),
+                        "model": dispatch_result.model_used,
+                        "issues": parsed.get("issues", []),
+                        "summary": parsed.get("summary", ""),
+                        "quality_score": parsed.get("quality_score", 0),
                         "completed_at": datetime.now().isoformat(),
                     }
-                    for issue in result.get("issues", []):
+                    for issue in parsed.get("issues", []):
                         all_issues.append({**issue, "found_by": agent_name})
 
-                return result
+                return parsed
 
             except Exception as e:
                 logger.error(f"Agent {agent_name} review failed: {e}")

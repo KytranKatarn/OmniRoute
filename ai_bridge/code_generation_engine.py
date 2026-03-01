@@ -14,13 +14,22 @@ Date: 2026-01-15 (V2 refactor)
 """
 
 import os
-import sys
 import json
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-from archie_bridge import archie_bridge
+_dispatcher = None
+
+
+def _get_dispatcher():
+    global _dispatcher
+    if _dispatcher is None:
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+            _dispatcher = get_dispatcher()
+        except Exception:
+            pass
+    return _dispatcher
 
 # Import V2 validators
 try:
@@ -44,9 +53,8 @@ class CodeGenerationEngine:
     def _get_code_model(cls):
         """Get the code model from BridgeDispatcher."""
         try:
-            from bridge_dispatcher import get_dispatcher
-            model = get_dispatcher().get_model_for_capability("code")
-            return model or "qwen3-coder-cpu:latest"
+            disp = _get_dispatcher()
+            return disp.get_model_for_capability("code") if disp else "qwen3-coder-cpu:latest"
         except Exception:
             return "qwen3-coder-cpu:latest"
 
@@ -506,17 +514,17 @@ NEW_CONTENT:
             end_line=end_line,
         )
 
-        architect_result = archie_bridge(
+        architect_result = _get_dispatcher().request_work(
+            capability="code_analysis",
             prompt=architect_prompt,
-            user_id=4,  # admin user
-            enable_memory=True,
-            force_model=model,
+            module_id="improvement_labs",
+            user_id=4,
         )
 
-        if not architect_result.get("success"):
+        if not architect_result.success:
             return None
 
-        architect_output = architect_result["response"]
+        architect_output = architect_result.response
 
         # Phase 2: Editor - generate actual code
         editor_prompt = self.EDITOR_PROMPT.format(
@@ -528,19 +536,19 @@ NEW_CONTENT:
             focused_context=focused_context,
         )
 
-        editor_result = archie_bridge(
+        editor_result = _get_dispatcher().request_work(
+            capability="code",
             prompt=editor_prompt,
-            user_id=4,  # admin user
-            enable_memory=True,
-            force_model=model,
+            module_id="improvement_labs",
+            user_id=4,
         )
 
-        if not editor_result.get("success"):
+        if not editor_result.success:
             return None
 
         # Parse the editor response
         changes = self._parse_code_changes_from_response(
-            editor_result["response"], category="general"
+            editor_result.response, category="general"
         )
 
         return changes[0] if changes else None
@@ -578,18 +586,18 @@ NEW_CONTENT:
             file_path=file_path,
         )
 
-        result = archie_bridge(
+        result = _get_dispatcher().request_work(
+            capability="code",
             prompt=retry_prompt,
-            user_id=4,  # admin user
-            enable_memory=True,
-            force_model=model,
+            module_id="improvement_labs",
+            user_id=4,
         )
 
-        if not result.get("success"):
+        if not result.success:
             return None
 
         changes = self._parse_code_changes_from_response(
-            result["response"], category="general"
+            result.response, category="general"
         )
 
         return changes[0] if changes else None
@@ -926,21 +934,21 @@ NEW_CONTENT:
         )
 
         # Use AI to generate code changes
-        result = archie_bridge(
+        result = _get_dispatcher().request_work(
+            capability="code",
             prompt=prompt,
-            user_id=4,  # admin user
-            enable_memory=True,
-            force_model=self._get_code_model(),
+            module_id="improvement_labs",
+            user_id=4,
         )
 
-        if not result.get("success"):
+        if not result.success:
             return {
                 "success": False,
-                "error": result.get("error", "Code generation failed"),
+                "error": result.error or "Code generation failed",
             }
 
         # Parse AI response to extract code changes
-        ai_response = result["response"]
+        ai_response = result.response
         changes = self._parse_code_changes_from_response(ai_response, category)
 
         return {
@@ -948,7 +956,7 @@ NEW_CONTENT:
             "changes": changes,
             "metadata": {
                 "generated_at": datetime.now().isoformat(),
-                "model_used": result.get("model", "unknown"),
+                "model_used": result.model_used or "unknown",
                 "proposal_id": proposal_id,
                 "ai_response": ai_response,
             },

@@ -15,7 +15,7 @@
 
 .command-interface {
     display: flex;
-    height: 100vh;
+    height: calc(100vh - 70px);
     background: var(--archie-bg-primary);
     font-family: var(--archie-font-body);
     color: var(--archie-text-secondary);
@@ -2828,6 +2828,7 @@ body.font-large .messages-container{font-size:1.05rem}
 {% endblock %}
 
 {% block content %}
+{% include 'includes/admin_ops_nav.html' %}
 <!-- Toast Container -->
 <div class="toast-container" id="toastContainer"></div>
 <div class="command-interface">

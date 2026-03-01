@@ -15,7 +15,18 @@ from typing import Dict, List, Optional
 sys.path.insert(0, "/app/ai_bridge")
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
-from archie_bridge import archie_bridge
+_dispatcher = None
+
+
+def _get_dispatcher():
+    global _dispatcher
+    if _dispatcher is None:
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+            _dispatcher = get_dispatcher()
+        except Exception:
+            pass
+    return _dispatcher
 
 
 def _default_conversation_model():
@@ -82,18 +93,37 @@ try:
 except ImportError:
 
     def execute_with_delegation(task, user_id=None, **kwargs):
-        result = archie_bridge(task, user_id=user_id, enable_memory=True)
+        disp = _get_dispatcher()
+        if disp:
+            dr = disp.request_work(
+                capability="conversation",
+                prompt=task,
+                module_id="improvement_labs",
+                user_id=user_id,
+            )
+            return {
+                "success": dr.success,
+                "response": dr.response or "",
+                "delegation": {
+                    "employee_name": dr.agent_name or "A.R.C.H.I.E.",
+                    "department": "Operations",
+                    "worker_type": "internal",
+                    "model": dr.model_used or "unknown",
+                },
+                "execution_record": {},
+                "raw_result": {"success": dr.success, "response": dr.response, "model": dr.model_used},
+            }
         return {
-            "success": result.get("success", False),
-            "response": result.get("response", ""),
+            "success": False,
+            "response": "Dispatcher unavailable",
             "delegation": {
                 "employee_name": "A.R.C.H.I.E.",
                 "department": "Operations",
                 "worker_type": "internal",
-                "model": result.get("model", "unknown"),
+                "model": "unknown",
             },
             "execution_record": {},
-            "raw_result": result,
+            "raw_result": {},
         }
 
     def get_agent_directory():
@@ -704,11 +734,24 @@ The user says: {user_message}
 
 Respond thoughtfully about this specific improvement. If they're asking questions, answer them. If they're providing feedback, acknowledge it and discuss next steps."""
 
-    # Get AI response
-    result = archie_bridge(prompt=context_prompt, user_id=user_id, enable_memory=True)
+    # Get AI response via Bridge Command dispatcher
+    disp = _get_dispatcher()
+    if not disp:
+        cur.close()
+        conn.close()
+        return {"success": False, "error": "Dispatcher unavailable"}
 
-    if not result.get("success"):
-        return result
+    result = disp.request_work(
+        capability="conversation",
+        prompt=context_prompt,
+        module_id="improvement_labs",
+        user_id=user_id,
+    )
+
+    if not result.success:
+        cur.close()
+        conn.close()
+        return {"success": False, "error": result.error or "Dispatch failed"}
 
     # Store conversation linked to proposal
     cur.execute(
@@ -721,7 +764,7 @@ Respond thoughtfully about this specific improvement. If they're asking question
         (
             user_id,
             user_message,
-            result["response"],
+            result.response,
             json.dumps({"proposal_id": proposal_id}),
         ),
     )
@@ -758,11 +801,11 @@ Respond thoughtfully about this specific improvement. If they're asking question
 
     return {
         "success": True,
-        "response": result["response"],
+        "response": result.response,
         "proposal_id": proposal_id,
         "conversation_id": conversation_id,
         "proposal": dict(proposal),
-        "model_used": result.get("model"),
+        "model_used": result.model_used,
     }
 
 
@@ -814,16 +857,20 @@ Reflect on:
 
 Be honest and specific."""
 
-    # Get AI self-reflection
-    result = archie_bridge(
+    # Get AI self-reflection via Bridge Command dispatcher
+    disp = _get_dispatcher()
+    if not disp:
+        return {"success": False, "error": "Dispatcher unavailable"}
+
+    result = disp.request_work(
+        capability="conversation",
         prompt=reflection_prompt,
+        module_id="improvement_labs",
         user_id=user_id,
-        enable_memory=True,
-        force_model=_default_conversation_model(),  # Use local model for reflection
     )
 
-    if not result.get("success"):
-        return result
+    if not result.success:
+        return {"success": False, "error": result.error or "Dispatch failed"}
 
     # Store self-reflection
     conn = get_db()
@@ -839,7 +886,7 @@ Be honest and specific."""
         (
             user_id,
             f"Self-reflection on: {topic or 'general performance'}",
-            result["response"],
+            result.response,
             json.dumps(
                 {
                     "type": "self_reflection",
@@ -858,7 +905,7 @@ Be honest and specific."""
 
     return {
         "success": True,
-        "reflection": result["response"],
+        "reflection": result.response,
         "conversation_id": conversation_id,
         "personality": personality,
         "opportunities_count": len(opportunities),

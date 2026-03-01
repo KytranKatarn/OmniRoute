@@ -241,7 +241,7 @@ class TeamConsensusOrchestrator:
         self, agent_id: int, proposal_id: int, proposal_data: Dict, user_id: int = None
     ) -> Dict:
         """
-        Get REAL evaluation from agent via archie_bridge
+        Get REAL evaluation from agent via Bridge dispatcher
 
         Args:
             agent_id: ID of the evaluating agent
@@ -253,8 +253,9 @@ class TeamConsensusOrchestrator:
             Dictionary with evaluation data from real AI response
         """
         try:
-            # Import archie_bridge here to avoid circular imports
-            from ai_bridge.archie_bridge import archie_bridge
+            # Import dispatcher here to avoid circular imports
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+            _dispatcher = get_dispatcher()
 
             conn = get_db()
             cur = conn.cursor()
@@ -347,32 +348,30 @@ Please evaluate this proposal from your perspective as {title} in {department}. 
 
 Provide your evaluation in JSON format."""
 
-            # Call archie_bridge with agent's assigned model
+            # Call Bridge dispatcher with agent's assigned model
             logger.info(
                 f"Getting real evaluation from {agent_name} (ID: {agent_id}) using model: {model}"
             )
 
-            result = archie_bridge(
+            result = _dispatcher.request_work(
+                capability="code_review",
                 prompt=eval_prompt,
+                module_id="improvement_labs",
                 system_prompt=eval_system_prompt,
-                agent_id=agent_id,
                 user_id=user_id,
-                force_model=model,  # Use agent's assigned model
-                try_local_first=True,  # Check knowledge base first
-                task_type="evaluation",
-                enable_memory=False,  # Don't pollute memory with evaluations
+                prefer_agent=agent_name,
             )
 
-            if not result.get("success"):
+            if not result.success:
                 logger.warning(
-                    f"archie_bridge failed for agent {agent_id}, falling back to simulation"
+                    f"Dispatcher failed for agent {agent_id}, falling back to simulation"
                 )
                 return self.simulate_agent_evaluation(
                     agent_id, proposal_id, proposal_data
                 )
 
             # Parse the response
-            response_text = result.get("response", "")
+            response_text = result.response or ""
             evaluation = self._parse_evaluation_response(
                 response_text, agent_id, agent_name, department, tier
             )
@@ -403,7 +402,7 @@ Provide your evaluation in JSON format."""
         Parse the JSON evaluation response from an agent
 
         Args:
-            response_text: Raw response from archie_bridge
+            response_text: Raw response from Bridge dispatcher
             agent_id: Agent ID
             agent_name: Agent name
             department: Agent department
@@ -550,7 +549,7 @@ Provide your evaluation in JSON format."""
             proposal_id: ID of the proposal to evaluate
             auto_generate_report: Automatically generate collaborative report
             auto_notify_admin: Automatically notify admin of consensus
-            use_real_ai: Use real AI evaluations via archie_bridge (default: True)
+            use_real_ai: Use real AI evaluations via Bridge dispatcher (default: True)
             user_id: User ID for tracking (optional)
 
         Returns:
@@ -560,7 +559,7 @@ Provide your evaluation in JSON format."""
             1. Get proposal details
             2. Select evaluation team
             3. Start discussion
-            4. Collect agent evaluations (REAL AI via archie_bridge or simulated)
+            4. Collect agent evaluations (REAL AI via Bridge dispatcher or simulated)
             5. Calculate consensus
             6. Create team consensus record
             7. Generate reports (optional)
@@ -815,7 +814,7 @@ def auto_evaluate_proposal(
         proposal_id: ID of the proposal to evaluate
         generate_report: Generate collaborative report
         notify_admin: Notify admin of results
-        use_real_ai: Use real AI evaluations via archie_bridge (default: True)
+        use_real_ai: Use real AI evaluations via Bridge dispatcher (default: True)
         user_id: User ID for tracking
 
     Returns:

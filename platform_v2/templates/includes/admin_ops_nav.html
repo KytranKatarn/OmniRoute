@@ -69,6 +69,13 @@
                             <i data-lucide="bot"></i>
                             <span>Autonomy</span>
                         </a>
+                        <a href="{{ url_for('archie_chat.index') }}"
+                           class="nav-module-btn {% if request.endpoint and 'archie_chat' in request.endpoint %}active{% endif %}"
+                           onclick="showTransition(event, this.href)"
+                           title="A.R.C.H.I.E. Chat">
+                            <i data-lucide="message-circle"></i>
+                            <span>Chat</span>
+                        </a>
                     </div>
                     <!-- Right Zone: Utils (matches Dashboard) -->
                     <div class="cn-zone cn-zone-right">

@@ -1,19 +1,17 @@
-"""
-Sandbox Manager Module
-Per-module sandbox testing environments for safe code deployment
+"""Sandbox Manager — DEPRECATED.
 
-DEPRECATED: UI consolidated into Dev Pipeline module (/tools/dev-pipeline#sandbox).
-API routes remain active for proxy layer compatibility.
+Consolidated into Dev Pipeline (/tools/dev-pipeline#sandbox).
+This stub provides redirects for bookmarks and old links.
 """
 
-from flask import Blueprint
+from flask import Blueprint, redirect
 
 sandbox_manager_bp = Blueprint("sandbox_manager", __name__, url_prefix="/tools/sandbox-manager")
 
-from . import routes  # noqa: F401, E402
 
-# Redirect index to Dev Pipeline Sandbox tab
-from flask import redirect  # noqa: E402
+@sandbox_manager_bp.route("/")
+def index():
+    return redirect("/tools/dev-pipeline#sandbox", code=302)
 
 
 @sandbox_manager_bp.route("/redirect-to-pipeline")

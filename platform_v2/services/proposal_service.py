@@ -676,14 +676,103 @@ def archive_proposal(proposal_id):
 
 
 def deploy_to_production(proposal_id):
-    try:
-        from tools.improvements.manager import ImprovementManager
+    """Deploy an approved proposal with backup.
 
-        mgr = ImprovementManager()
-        return mgr.deploy_proposal(proposal_id)
+    Inlined from ImprovementManager.deploy_proposal (Phase 5 cleanup).
+    """
+    import hashlib
+    import tarfile
+    from pathlib import Path
+
+    base_path = Path("/mnt/archie_brain")
+
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Fetch proposal
+        cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        proposal = cur.fetchone()
+        if not proposal:
+            return {"success": False, "error": "Proposal not found"}
+        if proposal["status"] != "approved":
+            return {"success": False, "error": "Proposal not approved"}
+
+        # --- Create backup ---
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dir = base_path / "backups" / f"proposal_{proposal_id}"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        metadata = {
+            "proposal_id": proposal_id,
+            "title": proposal["title"],
+            "category": proposal.get("category", ""),
+            "created_at": timestamp,
+            "code_changes": proposal.get("code_changes", ""),
+        }
+        with open(backup_dir / f"metadata_{timestamp}.json", "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        backup_files = []
+        for dirname in ("ai_bridge", "platform_v2"):
+            source = base_path / dirname
+            if source.exists():
+                archive = backup_dir / f"{dirname}_backup_{timestamp}.tar.gz"
+                with tarfile.open(archive, "w:gz") as tar:
+                    tar.add(source, arcname=dirname)
+                backup_files.append(dirname)
+
+        # --- Deployment log ---
+        code_changes = proposal.get("code_changes", "")
+        deployment_log = [
+            f"Backup created at: {backup_dir}",
+            f"Code changes ready to apply: {len(code_changes)} characters",
+            "Manual deployment required - automatic code application disabled for safety",
+        ]
+
+        # --- Mark as deployed ---
+        cur.execute(
+            """UPDATE improvement_proposals
+               SET status = 'deployed',
+                   deployed_at = %s,
+                   metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+               WHERE id = %s""",
+            (
+                datetime.now(),
+                json.dumps(
+                    {
+                        "backup": {
+                            "backup_dir": str(backup_dir),
+                            "timestamp": timestamp,
+                            "files_backed_up": backup_files,
+                        },
+                        "deployment_log": deployment_log,
+                        "deployed_timestamp": datetime.now().isoformat(),
+                    }
+                ),
+                proposal_id,
+            ),
+        )
+        conn.commit()
+
+        return {
+            "success": True,
+            "message": "Proposal deployed with backup",
+            "backup": {"backup_dir": str(backup_dir), "timestamp": timestamp, "files_backed_up": backup_files},
+            "deployment_log": deployment_log,
+        }
     except Exception as e:
         logger.error(f"deploy_to_production: {e}")
+        if conn:
+            conn.rollback()
         return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def restore_proposal(proposal_id):

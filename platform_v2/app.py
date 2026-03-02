@@ -1706,7 +1706,6 @@ app.config["MODULE_REGISTRY_FAILED"] = failed_modules
 
 # Import additional blueprints not yet in module registry
 # NOTE: consciousness_bp and backup_manager_bp are now loaded via module_registry
-from tools.improvements.routes import improvements_bp  # noqa: E402
 from tools.archie_core.api import archie_api_bp  # noqa: E402
 from tools.github_integration.github_routes import github_bp  # noqa: E402
 from sandbox_routes import sandbox_bp  # noqa: E402
@@ -1725,7 +1724,7 @@ logger.info("OAuth initialized with Google provider")
 
 # Register additional blueprints
 # Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp loaded via module_registry
-app.register_blueprint(improvements_bp)
+# NOTE: improvements_bp now loaded via module_registry (stub redirect)
 app.register_blueprint(archie_api_bp)
 app.register_blueprint(github_bp)
 app.register_blueprint(sandbox_bp)  # Sandbox environment for testing proposals

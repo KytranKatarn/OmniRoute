@@ -198,14 +198,14 @@
 .devhq-stats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: 10px;
+    margin-bottom: 16px;
 }
 .devhq-stat {
     background: var(--archie-bg-secondary);
     border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 20px;
+    border-radius: 10px;
+    padding: 12px 10px;
     text-align: center;
     transition: border-color 0.2s, box-shadow 0.2s;
     position: relative;
@@ -227,12 +227,13 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 .devhq-stat-icon {
-    width: 40px; height: 40px;
-    margin: 0 auto 12px;
+    width: 28px; height: 28px;
+    margin: 0 auto 6px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 10px;
+    border-radius: 7px;
     opacity: 0.8;
 }
+.devhq-stat-icon svg { width: 16px; height: 16px; }
 .devhq-stat.green .devhq-stat-icon  { background: rgba(0,255,65,0.1); color: var(--archie-green); }
 .devhq-stat.orange .devhq-stat-icon { background: rgba(255,170,0,0.1); color: var(--archie-orange); }
 .devhq-stat.cyan .devhq-stat-icon   { background: rgba(0,255,255,0.1); color: var(--archie-cyan); }
@@ -240,9 +241,9 @@
 .devhq-stat.purple .devhq-stat-icon { background: rgba(139,92,246,0.1); color: var(--archie-purple); }
 .devhq-stat-value {
     font-family: 'Orbitron', sans-serif;
-    font-size: 2rem;
+    font-size: 1.4rem;
     font-weight: 700;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 .devhq-stat.green .devhq-stat-value  { color: var(--archie-green); }
 .devhq-stat.orange .devhq-stat-value { color: var(--archie-orange); }
@@ -250,10 +251,10 @@
 .devhq-stat.red .devhq-stat-value    { color: var(--archie-red); }
 .devhq-stat.purple .devhq-stat-value { color: var(--archie-purple); }
 .devhq-stat-label {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     color: var(--archie-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
 }
 
 /* --- Briefing Cards (section containers) --- */
@@ -948,8 +949,8 @@ body.light-mode .devhq-md-content h3 { color: #d4820a; }
 }
 @media (max-width: 374px) {
     .devhq-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
-    .devhq-stat { padding: 14px 12px; }
-    .devhq-stat-value { font-size: 1.5rem; }
+    .devhq-stat { padding: 10px 8px; }
+    .devhq-stat-value { font-size: 1.2rem; }
     .devhq-quick-actions { grid-template-columns: 1fr 1fr; gap: 8px; }
 }
 </style>
@@ -1338,6 +1339,30 @@ body.light-mode .devhq-md-content h3 { color: #d4820a; }
                 </div>
                 <div id="apiDocsContainer">
                     <div class="devhq-loading" data-i18n="devhq.loading.api_documentation">Loading API documentation</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Module Docs Section -->
+        <div class="devhq-card" id="systemModuleDocs">
+            <div class="devhq-card-header" onclick="toggleSystemSection('systemModuleDocsBody')" style="cursor:pointer;">
+                <span><i data-lucide="book-open" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i><span data-i18n="devhq.system.module_docs">Module Documentation</span> <span id="moduleDocsCount" style="font-size:0.65rem;color:var(--archie-text-muted);font-weight:400;"></span></span>
+                <i data-lucide="chevron-down" id="systemModuleDocsChevron" style="width:16px;height:16px;transition:transform 0.2s;"></i>
+            </div>
+            <div class="devhq-card-body" id="systemModuleDocsBody" style="display:none;">
+                <div class="devhq-filters" style="margin-bottom:12px;">
+                    <select id="moduleDocsModule" style="min-width:140px;">
+                        <option value="">All Modules</option>
+                    </select>
+                    <select id="moduleDocsType" style="min-width:120px;">
+                        <option value="">All Types</option>
+                        <option value="user">User Guide</option>
+                        <option value="coder">Coder Doc</option>
+                    </select>
+                    <input type="text" id="moduleDocsSearch" placeholder="Search docs..." style="flex:1;" data-i18n-placeholder="devhq.system.search_module_docs">
+                </div>
+                <div id="moduleDocsContainer">
+                    <div class="devhq-loading">Loading module docs</div>
                 </div>
             </div>
         </div>

@@ -1305,6 +1305,7 @@
     loadIntegrations();
     loadSchema();
     loadApiDocs();
+    loadModuleDocs();
   }
 
   function toggleSystemSection(bodyId) {
@@ -1746,6 +1747,134 @@
   }
 
   /* ========================================================================
+     MODULE DOCS (System sub-section)
+     ======================================================================== */
+
+  var _moduleDocsState = { page: 0, limit: 30, total: 0, modulesLoaded: false };
+
+  function loadModuleDocs() {
+    // Populate module dropdown on first load
+    if (!_moduleDocsState.modulesLoaded) {
+      api("/api/docs/modules").then(function (data) {
+        if (!data.success || !data.modules) return;
+        var sel = document.getElementById("moduleDocsModule");
+        var moduleNames = Object.keys(data.modules).sort();
+        var totalDocs = 0;
+        moduleNames.forEach(function (mod) {
+          var counts = data.modules[mod];
+          var ct = (counts.user || 0) + (counts.coder || 0);
+          totalDocs += ct;
+          var opt = document.createElement("option");
+          opt.value = mod;
+          opt.textContent = mod + " (" + ct + ")";
+          sel.appendChild(opt);
+        });
+        var countEl = document.getElementById("moduleDocsCount");
+        if (countEl) countEl.textContent = "(" + totalDocs + " docs)";
+        _moduleDocsState.modulesLoaded = true;
+      }).catch(function () {});
+    }
+    // Fetch docs list
+    var module = document.getElementById("moduleDocsModule").value;
+    var docType = document.getElementById("moduleDocsType").value;
+    var search = document.getElementById("moduleDocsSearch").value;
+    var params = new URLSearchParams();
+    if (module) params.set("module", module);
+    if (docType) params.set("doc_type", docType);
+    if (search) params.set("search", search);
+    params.set("limit", _moduleDocsState.limit);
+    params.set("offset", _moduleDocsState.page * _moduleDocsState.limit);
+
+    api("/api/docs/list?" + params.toString()).then(function (data) {
+      if (!data.success) {
+        setHtml("moduleDocsContainer", '<div class="devhq-empty">Error loading module docs</div>');
+        return;
+      }
+      _moduleDocsState.total = data.total;
+      renderModuleDocs(data.entries, data.total);
+    }).catch(function () {
+      setHtml("moduleDocsContainer", '<div class="devhq-empty">Error loading module docs</div>');
+    });
+  }
+
+  function renderModuleDocs(entries, total) {
+    if (!entries.length) {
+      setHtml("moduleDocsContainer", '<div class="devhq-empty">No module docs found</div>');
+      return;
+    }
+    var html = '<div class="devhq-kb-list">';
+    entries.forEach(function (e) {
+      var meta = e.memory_metadata || {};
+      var docType = meta.doc_type || "note";
+      var moduleName = meta.module || "unknown";
+      var badgeClass = docType === "user" ? "green" : docType === "coder" ? "cyan" : "";
+      var tags = "";
+      if (e.tags && Array.isArray(e.tags)) {
+        tags = e.tags.slice(0, 3).map(function (t) {
+          return '<span class="devhq-tag">' + escHtml(t) + "</span>";
+        }).join(" ");
+      }
+      html +=
+        '<div class="devhq-kb-item" onclick="toggleModuleDocDetail(this,' + e.id + ')">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">' +
+        '<div style="font-size:0.8rem;font-weight:500;color:var(--archie-text-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+        escHtml(e.file_name || e.title || "Untitled") + "</div>" +
+        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">' +
+        '<span class="devhq-badge ' + escHtml(badgeClass) + '">' + escHtml(docType) + "</span>" +
+        '<span style="font-size:0.62rem;color:var(--archie-text-muted);background:var(--archie-bg-primary);padding:2px 6px;border-radius:4px;">' + escHtml(moduleName) + "</span>" +
+        "</div></div>" +
+        '<div style="font-size:0.68rem;color:var(--archie-text-muted);margin-bottom:4px;">' +
+        escHtml(e.primary_category || "uncategorized") + " \u00B7 Score: " + (e.importance_score || 0) + " \u00B7 " + escHtml(formatAge(e.updated_at)) +
+        "</div>" +
+        (tags ? '<div style="margin-bottom:4px;">' + tags + "</div>" : "") +
+        (e.snippet ? '<div style="font-size:0.72rem;color:var(--archie-text-muted);max-height:40px;overflow:hidden;">' + escHtml(e.snippet.substring(0, 200)) + "</div>" : "") +
+        '<div class="kb-detail-expand" style="display:none;margin-top:10px;"></div>' +
+        "</div>";
+    });
+    html += "</div>";
+
+    var totalPages = Math.ceil(total / _moduleDocsState.limit);
+    if (totalPages > 1) {
+      html += '<div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 0;">' +
+        '<button class="devhq-btn small secondary" onclick="moduleDocsPage(-1)"' + (_moduleDocsState.page === 0 ? " disabled" : "") + '>Prev</button>' +
+        '<span style="font-size:0.72rem;color:var(--archie-text-muted);">Page ' + (_moduleDocsState.page + 1) + ' of ' + totalPages + '</span>' +
+        '<button class="devhq-btn small secondary" onclick="moduleDocsPage(1)"' + (_moduleDocsState.page >= totalPages - 1 ? " disabled" : "") + '>Next</button>' +
+        '</div>';
+    }
+
+    setHtml("moduleDocsContainer", html);
+    refreshIcons();
+  }
+
+  function toggleModuleDocDetail(el, id) {
+    var detail = el.querySelector(".kb-detail-expand");
+    if (!detail) return;
+    if (detail.style.display !== "none") {
+      detail.style.display = "none";
+      return;
+    }
+    detail.style.display = "block";
+    if (detail.dataset.loaded === "true") return;
+    setHtml(detail, '<div class="devhq-loading">Loading</div>');
+    api("/api/docs/" + id).then(function (data) {
+      if (!data.success || !data.entry) {
+        setHtml(detail, '<div class="devhq-empty">Error loading detail</div>');
+        return;
+      }
+      detail.dataset.loaded = "true";
+      setHtml(detail, '<div class="devhq-md-content">' + renderMd(data.entry.content || "No content") + "</div>");
+    }).catch(function () {
+      setHtml(detail, '<div class="devhq-empty">Error loading detail</div>');
+    });
+  }
+
+  function moduleDocsPage(dir) {
+    _moduleDocsState.page += dir;
+    if (_moduleDocsState.page < 0) _moduleDocsState.page = 0;
+    loadModuleDocs();
+  }
+
+  /* ========================================================================
      PROJECT DOC MODAL
      ======================================================================== */
 
@@ -1874,6 +2003,8 @@
   window.decisionPage = decisionPage;
   window.showTableColumns = showTableColumns;
   window.toggleSystemSection = toggleSystemSection;
+  window.toggleModuleDocDetail = toggleModuleDocDetail;
+  window.moduleDocsPage = moduleDocsPage;
   window.openProjectDocModal = openProjectDocModal;
   window.submitProjectDoc = submitProjectDoc;
   window.deleteProjectDoc = deleteProjectDoc;
@@ -1935,5 +2066,10 @@
       if (!_apiData) return;
       renderApiDocs(_apiData);
     });
+
+    // Module docs filters
+    document.getElementById("moduleDocsModule").addEventListener("change", function () { _moduleDocsState.page = 0; loadModuleDocs(); });
+    document.getElementById("moduleDocsType").addEventListener("change", function () { _moduleDocsState.page = 0; loadModuleDocs(); });
+    document.getElementById("moduleDocsSearch").addEventListener("input", function () { _moduleDocsState.page = 0; debounceReload("moduleDocs", loadModuleDocs); });
   });
 })();

@@ -276,9 +276,11 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
     candidates = candidates[:effective_cap]
 
     # 5. Delete old entries for this repo (and their embeddings)
-    conn = _get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    conn = None
+    cur = None
     try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             """DELETE FROM memory_embeddings WHERE source_type = 'knowledge_base'
                AND source_id IN (
@@ -435,8 +437,10 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
         conn.commit()
 
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
     return indexed_count, errors, skipped_count, total_candidates, capped, effective_cap
 
@@ -1639,9 +1643,11 @@ def register_github_routes(bp, admin_required):
     @admin_required
     def api_github_repos():
         """Simple repos listing for integration/dashboard use"""
-        conn = _get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        conn = None
+        cur = None
         try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
                 """
                 SELECT id, repo_name, repo_type, local_path, status,
@@ -1654,5 +1660,7 @@ def register_github_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-            cur.close()
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()

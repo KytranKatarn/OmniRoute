@@ -474,6 +474,8 @@ def start_processing():
         batch_id = str(uuid.uuid4())
 
         # Get items to process
+        conn = None
+        cur = None
         conn = get_db()
         cur = conn.cursor()
 
@@ -546,10 +548,10 @@ def start_processing():
         logger.error(f"Processing failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def _update_source_analysis(item_id: int, result, batch_id: str):
@@ -700,6 +702,8 @@ def generate_embeddings():
         data = request.get_json() or {}
         batch_size = min(int(data.get("batch_size", 50)), 200)
 
+        conn = None
+        cur = None
         conn = get_db()
         cur = conn.cursor()
 
@@ -765,10 +769,10 @@ def generate_embeddings():
         logger.error(f"Embedding generation failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 @processing_bp.route("/embedding-coverage", methods=["GET"])

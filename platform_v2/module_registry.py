@@ -500,9 +500,32 @@ MODULES: List[ModuleDefinition] = [
         tags=["ai", "assistant", "chat", "voice", "vision", "ai-command"],
     ),
     # ============================================
-    # DEVELOPMENT TOOLS (3 modules)
+    # DEVELOPMENT TOOLS (4 modules — dev_pipeline is the consolidated replacement)
     # ============================================
-    # code_sentinel, sandbox_manager, improvements_lab
+    # dev_pipeline (new unified), code_sentinel, sandbox_manager, improvements_lab
+    ModuleDefinition(
+        id="dev_pipeline",
+        name="Dev Pipeline",
+        description="Unified development tools<br>Scan \u2022 Proposals \u2022 Sandbox \u2022 Deploy",
+        icon="git-branch",
+        category=ModuleCategory.DEVELOPMENT_TOOLS,
+        route="/tools/dev-pipeline",
+        blueprint_import="tools.dev_pipeline:dev_pipeline_bp",
+        required_permissions=[],
+        minimum_role="ADMIN",
+        enabled=True,
+        coming_soon=False,
+        health_check=lambda: check_service_health("dev_pipeline", "/tools/dev-pipeline/api/status"),
+        priority=0,
+        tags=[
+            "development",
+            "pipeline",
+            "scanning",
+            "testing",
+            "deployment",
+            "development-tools",
+        ],
+    ),
     ModuleDefinition(
         id="code_sentinel",
         name="Code Sentinel",

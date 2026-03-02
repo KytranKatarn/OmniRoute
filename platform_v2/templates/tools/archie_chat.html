@@ -3,7 +3,7 @@
 {% block title %}A.R.C.H.I.E. Command Interface{% endblock %}
 
 {% block styles %}
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* Theme tokens inherited from theme.css */
 
@@ -31,8 +31,8 @@
     right: 0;
     bottom: 0;
     background-image:
-        linear-gradient(rgba(102, 126, 234, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(102, 126, 234, 0.03) 1px, transparent 1px);
+        linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
     background-size: 50px 50px;
     pointer-events: none;
     z-index: 0;
@@ -89,9 +89,11 @@
 }
 
 .archie-info h1 {
+    font-family: 'Orbitron', var(--archie-font-mono), monospace;
     font-size: 1.1rem;
     font-weight: 600;
-    letter-spacing: -0.02em;
+    letter-spacing: 1px;
+    text-transform: uppercase;
 }
 
 .archie-info .subtitle {
@@ -139,10 +141,11 @@
 }
 
 .status-metrics h3 {
-    font-size: 0.7rem;
+    font-family: 'Antonio', var(--archie-font-mono), monospace;
+    font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.15em;
     color: var(--archie-text-muted);
     margin-bottom: 12px;
 }
@@ -307,10 +310,12 @@
    ============================================ */
 .chat-main {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     position: relative;
     z-index: 1;
+    overflow: hidden;
 }
 
 /* Top Status Bar */
@@ -327,6 +332,9 @@
     display: flex;
     align-items: center;
     gap: 16px;
+    min-width: 0;
+    flex: 1;
+    flex-wrap: wrap;
 }
 
 .workflow-indicator {
@@ -358,6 +366,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 /* Activity badge */
@@ -810,7 +820,7 @@
 
 .suggestion-chip:hover {
     background: var(--archie-bg-elevated);
-    border-color: var(--archie-purple);
+    border-color: var(--archie-cyan, #00d4ff);
     color: var(--archie-text-secondary);
     transform: translateY(-2px);
 }
@@ -818,7 +828,7 @@
 .suggestion-chip i {
     width: 14px;
     height: 14px;
-    color: var(--archie-purple);
+    color: var(--archie-cyan, #00d4ff);
 }
 
 /* Input Form */
@@ -895,21 +905,22 @@
 .welcome-message {
     text-align: center;
     padding: 40px 20px;
-    max-width: 600px;
+    max-width: min(600px, 100%);
     margin: 0 auto;
+    box-sizing: border-box;
 }
 
 .welcome-icon {
     width: 80px;
     height: 80px;
     margin: 0 auto 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--archie-cyan, #00d4ff) 0%, var(--archie-purple, #8b5cf6) 100%);
     border-radius: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 36px;
-    box-shadow: 0 0 30px rgba(102, 126, 234, 0.15);
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.15);
     position: relative;
 }
 
@@ -918,17 +929,19 @@
     position: absolute;
     inset: -4px;
     border-radius: 28px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--archie-cyan, #00d4ff) 0%, var(--archie-purple, #8b5cf6) 100%);
     opacity: 0.3;
     filter: blur(15px);
     z-index: -1;
 }
 
 .welcome-message h2 {
+    font-family: 'Orbitron', var(--archie-font-mono), monospace;
     font-size: 1.5rem;
     font-weight: 600;
     margin-bottom: 12px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    letter-spacing: 1px;
+    background: linear-gradient(135deg, var(--archie-cyan, #00d4ff) 0%, var(--archie-purple, #8b5cf6) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -963,7 +976,7 @@
 .capability-tag i {
     width: 14px;
     height: 14px;
-    color: var(--archie-purple);
+    color: var(--archie-cyan, #00d4ff);
 }
 
 /* ============================================
@@ -2446,85 +2459,145 @@
 }
 
 /* ============================================
-   RESPONSIVE
+   LCARS FRAME INTEGRATION
    ============================================ */
-@media (max-width: 900px) {
-    .sidebar-hamburger{display:inline-flex;align-items:center}
-    .sidebar-close{display:block}
-    .sidebar{position:fixed;top:0;left:0;bottom:0;width:280px;z-index:999;transform:translateX(-100%);transition:transform .3s ease;overflow-y:auto}
-    .sidebar.drawer-open{transform:translateX(0)}
-
-    #voice-sidebar {
-        width: 100%;
-        right: -100%;
-    }
-
-    #collab-history-sidebar {
-        display: none;
-    }
-
-    #work-products-panel {
-        display: none;
-    }
-
-    #dual-chat-container {
-        flex-direction: column;
-    }
-
-    .chat-panel:first-child {
-        border-right: none;
-        border-bottom: 1px solid var(--archie-border-default);
-    }
-
-    .resize-handle {
-        width: auto;
-        height: 6px;
-        cursor: row-resize;
-        border-left: none;
-        border-right: none;
-        border-top: 1px solid var(--archie-border-default);
-        border-bottom: 1px solid var(--archie-border-default);
-    }
-
-    .collab-message {
-        max-width: 95%;
-    }
+.chat-lcars-frame {
+    display: flex;
+    height: calc(100vh - 52px);
+    overflow: hidden;
 }
 
-@media (max-width: 600px) {
-    .messages-container {
-        padding: 16px;
-    }
+.chat-lcars-frame .lcars-sidebar {
+    width: 48px;
+    min-width: 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 0;
+    background: var(--archie-bg-primary);
+    flex-shrink: 0;
+}
 
-    .message {
-        max-width: 95%;
-    }
+.chat-lcars-frame .lcars-elbow-top,
+.chat-lcars-frame .lcars-elbow-bottom {
+    width: 48px;
+    height: 32px;
+    background: var(--archie-cyan, #00d4ff);
+    flex-shrink: 0;
+}
 
-    .input-area {
-        padding: 12px 16px 16px;
-    }
+.chat-lcars-frame .lcars-elbow-top {
+    border-radius: 0 0 24px 0;
+}
 
-    .suggestions-row {
-        display: none;
-    }
+.chat-lcars-frame .lcars-elbow-bottom {
+    border-radius: 0 24px 0 0;
+}
 
-    #collab-templates {
-        grid-template-columns: 1fr;
-    }
+.chat-lcars-frame .lcars-segment {
+    border-radius: 0 8px 8px 0;
+}
 
-    .mode-tabs {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
+.chat-lcars-frame .lcars-content {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
 
-    .collab-toolbar {
-        padding: 8px 12px;
-    }
+.chat-lcars-frame .command-interface {
+    height: 100%;
+}
 
-    .collab-btn {
-        padding: 5px 10px;
-        font-size: 0.7rem;
+/* ============================================
+   RESPONSIVE: Tablet (Fold5 open @ 717px)
+   ============================================ */
+@media (max-width: 768px) {
+    .chat-lcars-frame .lcars-sidebar { width: 32px; min-width: 32px; }
+    .chat-lcars-frame .lcars-elbow-top,
+    .chat-lcars-frame .lcars-elbow-bottom { width: 32px; height: 24px; }
+    .chat-lcars-frame .lcars-elbow-top { border-radius: 0 0 16px 0; }
+    .chat-lcars-frame .lcars-elbow-bottom { border-radius: 0 16px 0 0; }
+
+    .sidebar-hamburger { display: inline-flex; align-items: center; }
+    .sidebar-close { display: block; }
+    .sidebar {
+        position: fixed; top: 0; left: 0; bottom: 0;
+        width: 280px; z-index: 999;
+        transform: translateX(-100%);
+        transition: transform .3s ease;
+        overflow-y: auto;
     }
+    .sidebar.drawer-open { transform: translateX(0); }
+
+    #voice-sidebar { width: 100%; right: -100%; }
+    #collab-history-sidebar { display: none; }
+    #work-products-panel { display: none; }
+    #dual-chat-container { flex-direction: column; }
+    .chat-panel:first-child { border-right: none; border-bottom: 1px solid var(--archie-border-default); }
+    .resize-handle { width: auto; height: 6px; cursor: row-resize; border-left: none; border-right: none; border-top: 1px solid var(--archie-border-default); border-bottom: 1px solid var(--archie-border-default); }
+    .collab-message { max-width: 95%; }
+
+    .welcome-message { padding: 24px 16px; }
+    .welcome-message h2 { font-size: 1.25rem; }
+    .welcome-message p { font-size: 0.85rem; }
+    .welcome-capabilities { gap: 6px; }
+    .capability-tag { padding: 6px 10px; font-size: 0.75rem; }
+
+    .suggestions-row { gap: 6px; }
+    .suggestion-chip { padding: 6px 10px; font-size: 0.75rem; white-space: nowrap; }
+
+    .mode-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .mode-tabs::-webkit-scrollbar { display: none; }
+    .chat-mode-btn { padding: 6px 12px; font-size: 0.75rem; white-space: nowrap; }
+
+    .top-status-bar { flex-wrap: wrap; gap: 6px; }
+    .status-right { gap: 4px; }
+    .status-right button, .status-right a { padding: 6px; }
+}
+
+/* ============================================
+   RESPONSIVE: Mobile (Fold5 closed @ 374px)
+   ============================================ */
+@media (max-width: 500px) {
+    .chat-lcars-frame .lcars-sidebar { width: 20px; min-width: 20px; }
+    .chat-lcars-frame .lcars-elbow-top,
+    .chat-lcars-frame .lcars-elbow-bottom { width: 20px; height: 16px; }
+    .chat-lcars-frame .lcars-elbow-top { border-radius: 0 0 10px 0; }
+    .chat-lcars-frame .lcars-elbow-bottom { border-radius: 0 10px 0 0; }
+
+    .messages-container { padding: 12px; }
+    .message { max-width: 95%; }
+    .input-area { padding: 8px 12px 12px; }
+
+    .welcome-message { padding: 16px 8px; }
+    .welcome-icon { width: 56px; height: 56px; font-size: 24px; border-radius: 16px; }
+    .welcome-icon::after { border-radius: 20px; }
+    .welcome-message h2 { font-size: 1.1rem; }
+    .welcome-message p { font-size: 0.8rem; line-height: 1.5; }
+    .welcome-capabilities { gap: 4px; }
+    .capability-tag { padding: 5px 8px; font-size: 0.7rem; }
+
+    .suggestions-row { gap: 4px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px; scrollbar-width: none; }
+    .suggestions-row::-webkit-scrollbar { display: none; }
+    .suggestion-chip { flex-shrink: 0; padding: 5px 10px; font-size: 0.7rem; }
+
+    .mode-tabs { padding: 6px 8px; gap: 2px; }
+    .chat-mode-btn { padding: 5px 8px; font-size: 0.7rem; }
+    .chat-mode-btn i { display: none; }
+
+    .top-status-bar { padding: 4px 8px; }
+    .status-left { gap: 4px; }
+    .workflow-indicator { font-size: 0.7rem; padding: 4px 6px; }
+    .status-right button, .status-right a { padding: 4px; }
+    .status-right button i, .status-right a i { width: 16px; height: 16px; }
+
+    .chat-input { font-size: 0.85rem; }
+
+    #collab-templates { grid-template-columns: 1fr; }
+    .collab-toolbar { padding: 6px 8px; }
+    .collab-btn { padding: 4px 8px; font-size: 0.65rem; }
 }
 
 /* Toast Notifications */
@@ -2545,7 +2618,7 @@
     border-radius: 12px;
     color: var(--archie-text-secondary);
     font-size: 0.9rem;
-    box-shadow: 0 0 30px rgba(102, 126, 234, 0.15);
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.15);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -2831,6 +2904,15 @@ body.font-large .messages-container{font-size:1.05rem}
 {% include 'includes/admin_ops_nav.html' %}
 <!-- Toast Container -->
 <div class="toast-container" id="toastContainer"></div>
+<div class="lcars-frame chat-lcars-frame">
+    <div class="lcars-sidebar">
+        <div class="lcars-elbow-top"></div>
+        <div class="lcars-segment" style="background: var(--archie-cyan, #00d4ff); flex: 2;"></div>
+        <div class="lcars-segment" style="background: var(--archie-orange, #f59e0b); flex: 1;"></div>
+        <div class="lcars-segment" style="background: var(--archie-purple, #8b5cf6); flex: 1.5;"></div>
+        <div class="lcars-elbow-bottom"></div>
+    </div>
+    <div class="lcars-content">
 <div class="command-interface">
     <!-- Left Sidebar -->
     <aside class="sidebar">
@@ -3430,7 +3512,9 @@ body.font-large .messages-container{font-size:1.05rem}
     </div>
 
     </main>
-</div>
+</div><!-- .command-interface -->
+    </div><!-- .lcars-content -->
+</div><!-- .lcars-frame -->
 
 <script>
 // Initialize Lucide icons

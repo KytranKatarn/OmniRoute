@@ -334,6 +334,98 @@
 .dp-history-score { font-family: 'Orbitron', monospace; font-weight: 600; min-width: 40px; text-align: right; }
 .dp-history-time { color: var(--archie-text-muted); font-size: 0.7rem; min-width: 80px; text-align: right; }
 
+/* Proposal list */
+.dp-proposal-list { display: flex; flex-direction: column; gap: 8px; }
+
+.dp-proposal-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 2px 8px 8px 2px;
+    border-left: 3px solid var(--prop-accent, var(--archie-cyan));
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.dp-proposal-card:hover { background: var(--archie-bg-hover); }
+
+.dp-proposal-info { flex: 1; min-width: 0; }
+
+.dp-proposal-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--archie-text-secondary);
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dp-proposal-meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 0.7rem;
+}
+
+.dp-proposal-id {
+    font-family: var(--archie-font-mono);
+    color: var(--archie-text-muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+/* Detail panel */
+.dp-detail-panel {
+    margin-top: 16px;
+    border: 1px solid var(--archie-border-default);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.dp-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--archie-bg-secondary);
+    border-bottom: 1px solid var(--archie-border-default);
+}
+
+.dp-detail-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.95rem;
+    color: var(--archie-text-primary);
+}
+
+.dp-detail-meta {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.dp-detail-desc {
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    color: var(--archie-text-tertiary);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.dp-detail-actions {
+    display: flex;
+    gap: 6px;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    border-top: 1px solid rgba(255,255,255,0.03);
+}
+
 /* Responsive: Fold5 open (717px) */
 @media (max-width: 768px) {
     .dp-container { padding: 12px; }
@@ -463,10 +555,35 @@
 
     <!-- Proposals Tab -->
     <div id="tab-proposals" class="tab-content">
-        <div class="dp-empty">
-            <div class="dp-empty-icon"><i data-lucide="wrench" style="width:48px;height:48px;"></i></div>
-            <div class="dp-empty-title">Improvement Proposals</div>
-            <div class="dp-empty-desc">Track proposals from detection through approval, testing, and deployment.<br>Auto-generated from scans or created manually.</div>
+        <!-- Status filter -->
+        <div class="dp-filter-row" id="proposalFilters">
+            <button class="dp-filter active" data-pfilter="all" onclick="filterProposals('all')">All</button>
+            <button class="dp-filter" data-pfilter="pending" onclick="filterProposals('pending')">Pending</button>
+            <button class="dp-filter" data-pfilter="approved" onclick="filterProposals('approved')">Approved</button>
+            <button class="dp-filter" data-pfilter="testing" onclick="filterProposals('testing')">Testing</button>
+            <button class="dp-filter" data-pfilter="tested" onclick="filterProposals('tested')">Tested</button>
+            <button class="dp-filter" data-pfilter="deployed" onclick="filterProposals('deployed')">Deployed</button>
+            <button class="dp-filter" data-pfilter="fix_requested" onclick="filterProposals('fix_requested')">Fix Req</button>
+        </div>
+
+        <!-- Proposal list -->
+        <div id="proposalList" class="dp-proposal-list">
+            <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading proposals...</div></div>
+        </div>
+
+        <!-- Detail panel (hidden by default) -->
+        <div id="proposalDetail" class="dp-detail-panel" style="display:none;">
+            <div class="dp-detail-header">
+                <span id="detailTitle" class="dp-detail-title">—</span>
+                <button class="dp-btn" onclick="closeDetail()">Close</button>
+            </div>
+            <div class="dp-detail-meta">
+                <span class="dp-severity" id="detailStatus">—</span>
+                <span class="dp-severity" id="detailPriority">—</span>
+                <span class="dp-severity" id="detailRisk">—</span>
+            </div>
+            <div id="detailDescription" class="dp-detail-desc"></div>
+            <div class="dp-detail-actions" id="detailActions"></div>
         </div>
     </div>
 
@@ -739,6 +856,187 @@ function loadStats() {
     }).catch(function() {});
 }
 
+// ---- Proposals Tab ----
+var _proposalFilter = 'all';
+var _proposalsData = [];
+
+function loadProposals() {
+    var url = API + '/proposals';
+    if (_proposalFilter !== 'all') url += '?status=' + _proposalFilter;
+    fetch(url).then(function(r) { return r.json(); }).then(function(d) {
+        var proposals = d.proposals || d || [];
+        if (!Array.isArray(proposals)) proposals = [];
+        _proposalsData = proposals;
+        renderProposals(proposals);
+        // Update stat card
+        var pending = proposals.filter(function(p) { return p.status === 'pending' || p.status === 'proposed'; }).length;
+        document.getElementById('statProposals').textContent = proposals.length;
+    }).catch(function() {
+        var el = document.getElementById('proposalList');
+        el.textContent = '';
+        var err = document.createElement('div');
+        err.className = 'dp-empty';
+        err.style.padding = '40px';
+        err.textContent = 'Error loading proposals';
+        el.appendChild(err);
+    });
+}
+
+function renderProposals(proposals) {
+    var el = document.getElementById('proposalList');
+    el.textContent = '';
+    if (!proposals.length) {
+        var empty = document.createElement('div');
+        empty.className = 'dp-empty';
+        empty.style.padding = '40px';
+        empty.textContent = 'No proposals found';
+        el.appendChild(empty);
+        return;
+    }
+    var statusColors = {
+        pending: '#f59e0b', proposed: '#f59e0b', pending_approval: '#f59e0b',
+        approved: '#00d4ff', code_generating: '#8b5cf6', testing: '#8b5cf6',
+        tested: '#00ff41', deployed: '#00ff41', implemented: '#00ff41',
+        rejected: '#ef4444', failed: '#ef4444', fix_requested: '#ef4444',
+    };
+    proposals.forEach(function(p) {
+        var card = document.createElement('div');
+        card.className = 'dp-proposal-card';
+        card.style.setProperty('--prop-accent', statusColors[p.status] || '#6b7280');
+        card.onclick = function() { showProposalDetail(p.id); };
+
+        var id = document.createElement('span');
+        id.className = 'dp-proposal-id';
+        id.textContent = '#' + p.id;
+
+        var info = document.createElement('div');
+        info.className = 'dp-proposal-info';
+
+        var title = document.createElement('div');
+        title.className = 'dp-proposal-title';
+        title.textContent = p.title || 'Untitled';
+
+        var meta = document.createElement('div');
+        meta.className = 'dp-proposal-meta';
+
+        var statusBadge = document.createElement('span');
+        statusBadge.className = 'dp-severity ' + (p.status === 'failed' || p.status === 'rejected' ? 'high' : p.status === 'tested' || p.status === 'deployed' ? 'low' : 'medium');
+        statusBadge.textContent = p.status || '?';
+        meta.appendChild(statusBadge);
+
+        if (p.category) {
+            var cat = document.createElement('span');
+            cat.className = 'dp-severity low';
+            cat.textContent = p.category;
+            meta.appendChild(cat);
+        }
+
+        if (p.priority) {
+            var pri = document.createElement('span');
+            pri.className = 'dp-severity ' + (p.priority === 'critical' ? 'critical' : p.priority === 'high' ? 'high' : 'low');
+            pri.textContent = p.priority;
+            meta.appendChild(pri);
+        }
+
+        info.appendChild(title);
+        info.appendChild(meta);
+        card.appendChild(id);
+        card.appendChild(info);
+        el.appendChild(card);
+    });
+}
+
+function filterProposals(f) {
+    _proposalFilter = f;
+    document.querySelectorAll('#proposalFilters .dp-filter').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.pfilter === f);
+    });
+    loadProposals();
+}
+
+function showProposalDetail(id) {
+    fetch(API + '/proposals/' + id).then(function(r) { return r.json(); }).then(function(d) {
+        var p = d.proposal || d;
+        var panel = document.getElementById('proposalDetail');
+        panel.style.display = 'block';
+        document.getElementById('detailTitle').textContent = (p.title || 'Proposal #' + id);
+
+        var statusEl = document.getElementById('detailStatus');
+        statusEl.textContent = p.status || '?';
+        statusEl.className = 'dp-severity medium';
+
+        var priEl = document.getElementById('detailPriority');
+        priEl.textContent = p.priority || '—';
+        priEl.className = 'dp-severity ' + (p.priority === 'critical' ? 'critical' : p.priority === 'high' ? 'high' : 'low');
+
+        var riskEl = document.getElementById('detailRisk');
+        riskEl.textContent = 'Risk: ' + (p.risk_level || '—');
+        riskEl.className = 'dp-severity low';
+
+        document.getElementById('detailDescription').textContent = p.description || 'No description';
+
+        // Action buttons based on status
+        var actions = document.getElementById('detailActions');
+        actions.textContent = '';
+
+        if (['pending', 'proposed', 'pending_approval'].indexOf(p.status) >= 0) {
+            var approveBtn = document.createElement('button');
+            approveBtn.className = 'dp-btn dp-btn-accent';
+            approveBtn.textContent = 'Approve';
+            approveBtn.onclick = function() { proposalAction(id, 'approve'); };
+            actions.appendChild(approveBtn);
+
+            var rejectBtn = document.createElement('button');
+            rejectBtn.className = 'dp-btn';
+            rejectBtn.style.borderColor = '#ef4444';
+            rejectBtn.style.color = '#ef4444';
+            rejectBtn.textContent = 'Reject';
+            rejectBtn.onclick = function() { proposalAction(id, 'reject'); };
+            actions.appendChild(rejectBtn);
+        }
+
+        if (p.status === 'approved') {
+            var execBtn = document.createElement('button');
+            execBtn.className = 'dp-btn dp-btn-primary';
+            execBtn.textContent = 'Execute';
+            execBtn.onclick = function() { proposalAction(id, 'execute'); };
+            actions.appendChild(execBtn);
+        }
+
+        if (p.status === 'tested') {
+            var deployBtn = document.createElement('button');
+            deployBtn.className = 'dp-btn dp-btn-accent';
+            deployBtn.textContent = 'Deploy to Production';
+            deployBtn.onclick = function() { proposalAction(id, 'deploy-to-production'); };
+            actions.appendChild(deployBtn);
+        }
+
+        if (p.status === 'fix_requested' || p.status === 'failed') {
+            var retryBtn = document.createElement('button');
+            retryBtn.className = 'dp-btn dp-btn-primary';
+            retryBtn.textContent = 'Retry';
+            retryBtn.onclick = function() { proposalAction(id, 'retry'); };
+            actions.appendChild(retryBtn);
+        }
+    }).catch(function() {});
+}
+
+function proposalAction(id, action) {
+    fetch(API + '/proposals/' + id + '/' + action, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.success || d.executed) {
+                loadProposals();
+                showProposalDetail(id);
+            }
+        })
+        .catch(function() {});
+}
+
+function closeDetail() {
+    document.getElementById('proposalDetail').style.display = 'none';
+}
+
 // Tab switching with hash navigation
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(function(el) {
@@ -752,6 +1050,9 @@ function switchTab(tabId) {
     var btn = document.querySelector('.lcars-tab-btn[data-tab="' + tabId + '"]');
     if (btn) btn.classList.add('active');
     window.location.hash = '#' + tabId;
+    // Auto-load data when switching tabs
+    if (tabId === 'proposals') loadProposals();
+    if (tabId === 'scan') checkScanAi();
 }
 
 // Hash navigation on load

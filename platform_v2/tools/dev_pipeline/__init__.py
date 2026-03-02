@@ -19,6 +19,10 @@ dev_pipeline_bp = Blueprint(
 from . import routes  # noqa: F401, E402
 from .routes import admin_required  # noqa: E402
 from .scan_routes import register_scan_routes  # noqa: E402
+from .proposal_routes import register_proposal_routes  # noqa: E402
 
 # Register scan routes (Code Sentinel proxy)
 register_scan_routes(dev_pipeline_bp, admin_required)
+
+# Register proposal routes (Improvements Lab proxy)
+register_proposal_routes(dev_pipeline_bp, admin_required)

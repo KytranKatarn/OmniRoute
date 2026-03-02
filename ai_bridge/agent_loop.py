@@ -1748,13 +1748,13 @@ class AgentLoop:
                     with open(full_path, "r") as f:
                         code_content = f.read()
 
-                    # Use Code Sentinel's static analysis
+                    # Use scan service's static analysis
                     import sys
 
                     sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-                    from tools.code_sentinel.routes import basic_static_analysis
+                    from services.scan_service import static_analysis
 
-                    analysis = basic_static_analysis(code_content, file_path)
+                    analysis = static_analysis(code_content, file_path)
                     issues = analysis.get("issues", [])
 
                     if not issues:

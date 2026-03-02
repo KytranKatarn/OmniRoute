@@ -1,0 +1,1379 @@
+"""Scan Service — Code scanning, analysis, and multi-agent review.
+
+Migrated from tools/code_sentinel/routes.py (Project #103, Phase 1).
+All business logic lives here; route files are thin HTTP wrappers.
+"""
+
+import json
+import logging
+import os
+import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+
+import psycopg2
+import requests
+from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Bridge dispatcher (all AI work routes through here)
+# ---------------------------------------------------------------------------
+try:
+    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    _dispatcher = get_dispatcher()
+    BRIDGE_ROUTING_AVAILABLE = True
+except Exception:
+    _dispatcher = None
+    BRIDGE_ROUTING_AVAILABLE = False
+
+# ---------------------------------------------------------------------------
+# Node router (optional — for multi-agent distributed review)
+# ---------------------------------------------------------------------------
+try:
+    from ai_bridge.node_router import get_nodes_with_model
+
+    NODE_ROUTING_AVAILABLE = True
+except ImportError:
+    NODE_ROUTING_AVAILABLE = False
+
+    def get_nodes_with_model(_model):
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+OLLAMA_PRIMARY = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
+OLLAMA_SECONDARY = os.getenv("OLLAMA_SECONDARY", "")
+
+# In-memory store for multi-agent reviews (ephemeral, cleared on restart)
+_multi_agent_reviews: dict = {}
+
+# Skill -> specialty mapping for multi-agent reviews
+REVIEW_SKILL_MAPPING = {
+    "security": {
+        "skills": ["security", "cybersecurity", "penetration_testing"],
+        "focus": [
+            "SQL injection",
+            "XSS",
+            "auth bypass",
+            "secrets exposure",
+            "OWASP top 10",
+        ],
+        "prompt_prefix": "You are a security expert reviewing code for vulnerabilities. Focus on: ",
+    },
+    "code_review": {
+        "skills": ["code_review", "code_quality", "best_practices"],
+        "focus": [
+            "SOLID principles",
+            "DRY violations",
+            "code smells",
+            "naming conventions",
+            "documentation",
+        ],
+        "prompt_prefix": "You are a senior developer reviewing code quality. Focus on: ",
+    },
+    "architecture": {
+        "skills": ["architecture", "system_design", "api_design"],
+        "focus": [
+            "design patterns",
+            "separation of concerns",
+            "modularity",
+            "dependencies",
+            "scalability",
+        ],
+        "prompt_prefix": "You are a software architect reviewing code structure. Focus on: ",
+    },
+    "bug_fixing": {
+        "skills": ["bug_fixing", "debugging", "testing"],
+        "focus": [
+            "edge cases",
+            "error handling",
+            "null checks",
+            "race conditions",
+            "memory leaks",
+        ],
+        "prompt_prefix": "You are a QA engineer reviewing code for potential bugs. Focus on: ",
+    },
+}
+
+# Fallback review agents (used when team management agents unavailable)
+FALLBACK_REVIEW_AGENTS = {
+    "security_expert": {
+        "name": "Security Expert",
+        "specialty": "security",
+        "focus": ["SQL injection", "XSS", "auth bypass", "secrets exposure"],
+        "prompt_prefix": "You are a security expert. Analyze this code for security vulnerabilities. Focus on: ",
+    },
+    "code_quality": {
+        "name": "Code Quality Reviewer",
+        "specialty": "code_review",
+        "focus": [
+            "SOLID principles",
+            "DRY violations",
+            "code smells",
+            "maintainability",
+        ],
+        "prompt_prefix": "You are a senior developer reviewing code quality. Focus on: ",
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Database helpers
+# ---------------------------------------------------------------------------
+def _get_db():
+    """Get database connection."""
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", 5432),
+        dbname=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
+    )
+
+
+def init_tables():
+    """Create code health tables if they don't exist."""
+    conn = _get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS code_scans (
+                id SERIAL PRIMARY KEY,
+                file_path VARCHAR(500) NOT NULL,
+                scan_type VARCHAR(50) DEFAULT 'manual',
+                issues_found INTEGER DEFAULT 0,
+                security_issues INTEGER DEFAULT 0,
+                quality_score DECIMAL(5,2),
+                scan_result JSONB,
+                scanned_by VARCHAR(100),
+                scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS code_issues (
+                id SERIAL PRIMARY KEY,
+                scan_id INTEGER REFERENCES code_scans(id),
+                file_path VARCHAR(500) NOT NULL,
+                line_number INTEGER,
+                issue_type VARCHAR(50),
+                severity VARCHAR(20),
+                message TEXT,
+                suggestion TEXT,
+                status VARCHAR(20) DEFAULT 'open',
+                proposal_id INTEGER,
+                fixed_by VARCHAR(100),
+                fixed_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS code_fixes (
+                id SERIAL PRIMARY KEY,
+                issue_id INTEGER REFERENCES code_issues(id),
+                file_path VARCHAR(500) NOT NULL,
+                fixed_by VARCHAR(100) NOT NULL,
+                fix_description TEXT,
+                pr_number INTEGER,
+                pr_url VARCHAR(500),
+                commit_sha VARCHAR(100),
+                fixed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_code_scans_file ON code_scans(file_path);
+            CREATE INDEX IF NOT EXISTS idx_code_issues_status ON code_issues(status);
+            CREATE INDEX IF NOT EXISTS idx_code_fixes_file ON code_fixes(file_path);
+        """
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error initializing tables: {e}")
+        return False
+    finally:
+        cur.close()
+        conn.close()
+
+
+# Ensure tables exist on import
+init_tables()
+
+
+# ===================================================================
+# CORE ANALYSIS
+# ===================================================================
+
+
+def check_ai_status():
+    """Check Ollama/Bridge availability and return status dict."""
+    for host in [OLLAMA_PRIMARY, OLLAMA_SECONDARY]:
+        if not host:
+            continue
+        try:
+            r = requests.get(f"http://{host}/api/tags", timeout=2)
+            if r.status_code == 200:
+                models = [m["name"] for m in r.json().get("models", [])]
+                return {
+                    "available": True,
+                    "host": host,
+                    "models": models[:5],
+                    "model_count": len(models),
+                }
+        except Exception:
+            continue
+    return {"available": False, "host": None, "models": [], "model_count": 0}
+
+
+def static_analysis(code_content, file_path):
+    """Regex-based static analysis (Python, JS, HTML). No AI required.
+
+    Returns dict with quality_score (0-100), issues list, summary, analysis_type.
+    """
+    issues = []
+    lines = code_content.split("\n")
+    file_ext = os.path.splitext(file_path)[1].lower()
+
+    if file_ext == ".py":
+        for i, line in enumerate(lines, 1):
+            # Security: Hardcoded passwords/secrets
+            if re.search(
+                r'(password|secret|api_key|token)\s*=\s*["\'][^"\']+["\']',
+                line,
+                re.I,
+            ):
+                if "getenv" not in line and "environ" not in line:
+                    issues.append(
+                        {
+                            "line": i,
+                            "type": "security",
+                            "severity": "high",
+                            "message": "Potential hardcoded secret detected",
+                            "suggestion": "Use environment variables instead",
+                        }
+                    )
+
+            # Security: SQL injection risk
+            if re.search(r'execute\s*\(\s*["\'].*%s|execute\s*\(\s*f["\']', line):
+                if "parameterized" not in line.lower():
+                    issues.append(
+                        {
+                            "line": i,
+                            "type": "security",
+                            "severity": "high",
+                            "message": "Potential SQL injection vulnerability",
+                            "suggestion": "Use parameterized queries",
+                        }
+                    )
+
+            # Quality: Bare except
+            if re.search(r"except\s*:", line):
+                issues.append(
+                    {
+                        "line": i,
+                        "type": "quality",
+                        "severity": "medium",
+                        "message": "Bare except clause catches all exceptions",
+                        "suggestion": "Specify exception type (e.g., except ValueError:)",
+                    }
+                )
+
+            # Quality: TODO/FIXME comments
+            if re.search(r"#\s*(TODO|FIXME|XXX|HACK)", line, re.I):
+                issues.append(
+                    {
+                        "line": i,
+                        "type": "quality",
+                        "severity": "low",
+                        "message": "TODO/FIXME comment found",
+                        "suggestion": "Address or track this item",
+                    }
+                )
+
+            # Style: Line too long
+            if len(line) > 120:
+                issues.append(
+                    {
+                        "line": i,
+                        "type": "style",
+                        "severity": "low",
+                        "message": f"Line exceeds 120 characters ({len(line)})",
+                        "suggestion": "Break into multiple lines",
+                    }
+                )
+
+            # Performance: Print statements in production code
+            if re.search(r"^\s*print\s*\(", line) and "debug" not in file_path.lower():
+                issues.append(
+                    {
+                        "line": i,
+                        "type": "performance",
+                        "severity": "low",
+                        "message": "Print statement found (use logging instead)",
+                        "suggestion": "Replace with logger.info() or logger.debug()",
+                    }
+                )
+
+    elif file_ext in [".js", ".html"]:
+        for i, line in enumerate(lines, 1):
+            if "innerHTML" in line and "=" in line:
+                issues.append(
+                    {
+                        "line": i,
+                        "type": "security",
+                        "severity": "medium",
+                        "message": "innerHTML usage may be XSS vulnerable",
+                        "suggestion": "Use textContent or sanitize input",
+                    }
+                )
+            # Security: dangerous code execution patterns
+            if re.search(r"\beval\s*\(", line):
+                issues.append(
+                    {
+                        "line": i,
+                        "type": "security",
+                        "severity": "critical",
+                        "message": "Dangerous code execution pattern detected",
+                        "suggestion": "Use JSON.parse() or safer alternatives",
+                    }
+                )
+            if "console.log" in line:
+                issues.append(
+                    {
+                        "line": i,
+                        "type": "quality",
+                        "severity": "low",
+                        "message": "console.log found",
+                        "suggestion": "Remove or use proper logging",
+                    }
+                )
+
+    # Scoring
+    critical = len([i for i in issues if i["severity"] == "critical"])
+    high = len([i for i in issues if i["severity"] == "high"])
+    medium = len([i for i in issues if i["severity"] == "medium"])
+    low = len([i for i in issues if i["severity"] == "low"])
+    score = max(0, min(100, 100 - (critical * 25) - (high * 15) - (medium * 5) - (low * 2)))
+
+    return {
+        "quality_score": score,
+        "issues": issues,
+        "summary": (f"Static analysis found {len(issues)} issues" if issues else "No issues found"),
+        "analysis_type": "static",
+    }
+
+
+# ===================================================================
+# FILE PATH HELPERS
+# ===================================================================
+
+_PATH_MAP = {
+    "platform_v2": "/app",
+    "ai_bridge": "/mnt/archie_brain/ai_bridge",
+    "docs": "/mnt/archie_brain/docs",
+}
+
+
+def _resolve_path(file_path=None, full_path=None):
+    """Resolve relative file_path or absolute full_path to an actual filesystem path."""
+    if full_path and os.path.exists(full_path):
+        return full_path
+    if not file_path:
+        return None
+    if file_path.startswith("platform_v2/"):
+        return f"/app/{file_path[len('platform_v2/'):]}"
+    elif file_path.startswith("ai_bridge/"):
+        return f"/mnt/archie_brain/{file_path}"
+    return f"/mnt/archie_brain/{file_path}"
+
+
+# ===================================================================
+# SCAN OPERATIONS
+# ===================================================================
+
+
+def scan_file(file_path, full_path=None, scanned_by="system", user_id=4):
+    """Scan a single file with AI + static analysis.
+
+    Returns dict with scan_id, quality_score, issues, analysis_type, agent_used.
+    """
+    resolved = _resolve_path(file_path, full_path)
+    if not resolved or not os.path.exists(resolved):
+        return {"success": False, "error": f"File not found: {file_path}"}
+
+    with open(resolved, "r") as f:
+        code_content = f.read()
+
+    # Step 1: Static analysis (always runs)
+    static_result = static_analysis(code_content, file_path)
+    ai_result = None
+    agent_used = None
+
+    # Step 2: AI analysis via Bridge dispatcher
+    if BRIDGE_ROUTING_AVAILABLE and _dispatcher:
+        try:
+            ai_content = code_content[:10000] + "\n... (truncated)" if len(code_content) > 10000 else code_content
+            prompt = f"""Analyze this code for issues. Return a JSON object with:
+{{
+    "quality_score": 0-100,
+    "issues": [
+        {{
+            "line": line_number or null,
+            "type": "security|quality|style|performance",
+            "severity": "critical|high|medium|low",
+            "message": "description of issue",
+            "suggestion": "how to fix it"
+        }}
+    ],
+    "summary": "brief summary"
+}}
+
+File: {file_path}
+```
+{ai_content}
+```
+
+Only return valid JSON, no other text."""
+
+            result = _dispatcher.request_work(
+                capability="code_review",
+                prompt=prompt,
+                module_id="dev_pipeline",
+                json_mode=True,
+                user_id=user_id,
+            )
+
+            if result.success:
+                response_text = result.response
+                if "```json" in response_text:
+                    response_text = response_text.split("```json")[1].split("```")[0]
+                elif "```" in response_text:
+                    response_text = response_text.split("```")[1].split("```")[0]
+
+                ai_result = json.loads(response_text.strip())
+                agent_used = {
+                    "name": result.agent_name,
+                    "station": result.station_code,
+                    "model": result.model_used,
+                }
+                logger.info(f"AI analysis completed for {file_path} via " f"{result.agent_name} ({result.model_used})")
+            else:
+                logger.warning(f"Dispatcher returned failure for {file_path}: {result.error}")
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"AI returned invalid JSON for {file_path}: {e}")
+        except Exception as e:
+            logger.warning(f"AI analysis failed for {file_path}: {e}")
+
+    # Step 3: Merge results
+    if ai_result and ai_result.get("issues"):
+        analysis = {
+            "quality_score": ai_result.get("quality_score", static_result["quality_score"]),
+            "issues": ai_result.get("issues", []),
+            "summary": ai_result.get("summary", ""),
+            "analysis_type": "ai_powered",
+        }
+        ai_lines = {i.get("line") for i in analysis["issues"] if i.get("line")}
+        for static_issue in static_result.get("issues", []):
+            if static_issue.get("line") not in ai_lines:
+                analysis["issues"].append({**static_issue, "source": "static"})
+    else:
+        analysis = static_result
+        analysis["analysis_type"] = "static"
+        if BRIDGE_ROUTING_AVAILABLE:
+            analysis["summary"] = "AI parsing failed - showing static analysis"
+        else:
+            analysis["summary"] = f"Static analysis ({len(static_result['issues'])} issues found)"
+
+    # Step 4: Store in database
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        issues = analysis.get("issues", [])
+        security_issues = len([i for i in issues if i.get("type") == "security"])
+
+        cur.execute(
+            """
+            INSERT INTO code_scans (file_path, scan_type, issues_found, security_issues,
+                                   quality_score, scan_result, scanned_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """,
+            (
+                file_path,
+                "ai_scan",
+                len(issues),
+                security_issues,
+                analysis.get("quality_score", 0),
+                json.dumps(analysis),
+                scanned_by,
+            ),
+        )
+        scan_id = cur.fetchone()["id"]
+
+        for issue in issues:
+            cur.execute(
+                """
+                INSERT INTO code_issues (scan_id, file_path, line_number, issue_type,
+                                        severity, message, suggestion)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+                (
+                    scan_id,
+                    file_path,
+                    issue.get("line"),
+                    issue.get("type", "quality"),
+                    issue.get("severity", "medium"),
+                    issue.get("message", ""),
+                    issue.get("suggestion", ""),
+                ),
+            )
+        conn.commit()
+
+        # Pipeline hook: auto-create proposals for critical/high issues
+        try:
+            from services.scan_pipeline import process_scan_results
+
+            process_scan_results(scan_id, issues, file_path)
+        except Exception as pipeline_err:
+            logger.warning(f"Scan pipeline hook failed: {pipeline_err}")
+
+        return {
+            "success": True,
+            "scan_id": scan_id,
+            "file_path": file_path,
+            "quality_score": analysis.get("quality_score", 0),
+            "issues_found": len(issues),
+            "security_issues": security_issues,
+            "issues": issues,
+            "summary": analysis.get("summary", ""),
+            "analysis_type": analysis.get("analysis_type", "unknown"),
+            "bridge_routing": BRIDGE_ROUTING_AVAILABLE,
+            "agent_used": agent_used,
+            "scanned_by": scanned_by,
+            "scanned_at": datetime.now().isoformat(),
+        }
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+def batch_scan(file_paths, scanned_by="system", max_workers=4):
+    """Scan multiple files in parallel (static analysis only).
+
+    Returns dict with total_files, scanned, failed, results, errors, summary.
+    """
+    max_workers = min(max_workers, 8)
+    if not file_paths:
+        return {"success": False, "error": "No files provided"}
+    if len(file_paths) > 50:
+        return {"success": False, "error": "Maximum 50 files per batch"}
+
+    results = []
+    errors = []
+
+    def _scan_single(fp):
+        conn = None
+        cur = None
+        try:
+            resolved = _resolve_path(fp)
+            if not resolved or not os.path.exists(resolved):
+                return {"file_path": fp, "error": "File not found", "success": False}
+
+            with open(resolved, "r") as f:
+                code_content = f.read()
+
+            analysis = static_analysis(code_content, fp)
+            analysis["analysis_type"] = "static"
+
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            issues = analysis.get("issues", [])
+            security_count = len([i for i in issues if i.get("type") == "security"])
+
+            cur.execute(
+                """
+                INSERT INTO code_scans (file_path, scan_type, issues_found, security_issues,
+                                       quality_score, scan_result, scanned_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """,
+                (
+                    fp,
+                    "batch_scan",
+                    len(issues),
+                    security_count,
+                    analysis.get("quality_score", 0),
+                    json.dumps(analysis),
+                    scanned_by,
+                ),
+            )
+            scan_id = cur.fetchone()["id"]
+
+            for issue in issues:
+                cur.execute(
+                    """
+                    INSERT INTO code_issues (scan_id, file_path, line_number, issue_type,
+                                            severity, message, suggestion)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                    (
+                        scan_id,
+                        fp,
+                        issue.get("line"),
+                        issue.get("type", "quality"),
+                        issue.get("severity", "medium"),
+                        issue.get("message", ""),
+                        issue.get("suggestion", ""),
+                    ),
+                )
+            conn.commit()
+
+            # Pipeline hook
+            try:
+                from services.scan_pipeline import process_scan_results
+
+                process_scan_results(scan_id, issues, fp)
+            except Exception as pe:
+                logger.warning(f"Batch scan pipeline hook failed for {fp}: {pe}")
+
+            return {
+                "file_path": fp,
+                "success": True,
+                "scan_id": scan_id,
+                "quality_score": analysis.get("quality_score", 0),
+                "issues_found": len(issues),
+                "security_issues": security_count,
+                "analysis_type": "static",
+            }
+        except Exception as e:
+            return {"file_path": fp, "error": str(e), "success": False}
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {executor.submit(_scan_single, fp): fp for fp in file_paths}
+        for future in as_completed(future_map):
+            result = future.result()
+            if result.get("success"):
+                results.append(result)
+            else:
+                errors.append(result)
+
+    return {
+        "success": True,
+        "total_files": len(file_paths),
+        "scanned": len(results),
+        "failed": len(errors),
+        "results": results,
+        "errors": errors,
+        "summary": {
+            "avg_quality": sum(r.get("quality_score", 0) for r in results) / max(len(results), 1),
+            "total_issues": sum(r.get("issues_found", 0) for r in results),
+            "security_issues": sum(r.get("security_issues", 0) for r in results),
+        },
+    }
+
+
+# ===================================================================
+# QUERY OPERATIONS
+# ===================================================================
+
+
+def get_stats():
+    """Get scan/issue/fixer statistics."""
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            """
+            SELECT COUNT(*) as total_scans,
+                   COUNT(DISTINCT file_path) as files_scanned,
+                   SUM(issues_found) as total_issues,
+                   SUM(security_issues) as security_issues,
+                   AVG(quality_score) as avg_quality_score
+            FROM code_scans
+        """
+        )
+        scan_stats = cur.fetchone()
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'open') as open_issues,
+                COUNT(*) FILTER (WHERE status = 'fixed') as fixed_issues,
+                COUNT(*) FILTER (WHERE severity = 'critical') as critical_issues,
+                COUNT(*) FILTER (WHERE severity = 'high') as high_issues,
+                COUNT(*) FILTER (WHERE severity = 'medium') as medium_issues,
+                COUNT(*) FILTER (WHERE severity = 'low') as low_issues
+            FROM code_issues
+        """
+        )
+        issue_stats = cur.fetchone()
+
+        cur.execute(
+            """
+            SELECT fixed_by, COUNT(*) as fix_count
+            FROM code_fixes
+            WHERE fixed_at > NOW() - INTERVAL '30 days'
+            GROUP BY fixed_by
+            ORDER BY fix_count DESC
+            LIMIT 5
+        """
+        )
+        top_fixers = cur.fetchall()
+
+        return {
+            "success": True,
+            "scan_stats": {
+                "total_scans": scan_stats["total_scans"] or 0,
+                "files_scanned": scan_stats["files_scanned"] or 0,
+                "total_issues": scan_stats["total_issues"] or 0,
+                "security_issues": scan_stats["security_issues"] or 0,
+                "avg_quality_score": float(scan_stats["avg_quality_score"] or 0),
+            },
+            "issue_stats": {
+                "open": issue_stats["open_issues"] or 0,
+                "fixed": issue_stats["fixed_issues"] or 0,
+                "critical": issue_stats["critical_issues"] or 0,
+                "high": issue_stats["high_issues"] or 0,
+                "medium": issue_stats["medium_issues"] or 0,
+                "low": issue_stats["low_issues"] or 0,
+            },
+            "top_fixers": [dict(f) for f in top_fixers],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_history(limit=20):
+    """Get recent scan history."""
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            """
+            SELECT id, file_path, scan_type, issues_found, security_issues,
+                   quality_score, scanned_by, scanned_at, scan_result
+            FROM code_scans
+            ORDER BY scanned_at DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
+        scans = cur.fetchall()
+        return {
+            "success": True,
+            "scans": [
+                {
+                    **dict(s),
+                    "scanned_at": s["scanned_at"].isoformat() if s["scanned_at"] else None,
+                    "quality_score": float(s["quality_score"]) if s["quality_score"] else None,
+                    "scan_result": s["scan_result"] if s["scan_result"] else {},
+                }
+                for s in scans
+            ],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_issues(status="all", limit=50):
+    """Get code issues with optional status filter."""
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        base = """
+            SELECT i.*, s.scanned_by, s.scanned_at
+            FROM code_issues i
+            JOIN code_scans s ON i.scan_id = s.id
+        """
+        order = """
+            ORDER BY
+                CASE i.severity
+                    WHEN 'critical' THEN 1
+                    WHEN 'high' THEN 2
+                    WHEN 'medium' THEN 3
+                    ELSE 4
+                END,
+                i.created_at DESC
+            LIMIT %s
+        """
+        if status == "all":
+            cur.execute(base + order, (limit,))
+        else:
+            cur.execute(base + " WHERE i.status = %s " + order, (status, limit))
+
+        issues = cur.fetchall()
+        return {
+            "success": True,
+            "issues": [
+                {
+                    **dict(i),
+                    "created_at": i["created_at"].isoformat() if i["created_at"] else None,
+                    "fixed_at": i["fixed_at"].isoformat() if i["fixed_at"] else None,
+                    "scanned_at": i["scanned_at"].isoformat() if i["scanned_at"] else None,
+                }
+                for i in issues
+            ],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def mark_fixed(issue_id, fixed_by="unknown", description=""):
+    """Mark an issue as fixed and create a code_fixes record."""
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT file_path FROM code_issues WHERE id = %s", (issue_id,))
+        issue = cur.fetchone()
+        if not issue:
+            return {"success": False, "error": "Issue not found"}
+
+        cur.execute(
+            "UPDATE code_issues SET status = 'fixed', fixed_by = %s, fixed_at = NOW() WHERE id = %s",
+            (fixed_by, issue_id),
+        )
+        cur.execute(
+            """
+            INSERT INTO code_fixes (issue_id, file_path, fixed_by, fix_description)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id
+        """,
+            (issue_id, issue["file_path"], fixed_by, description),
+        )
+        fix_id = cur.fetchone()["id"]
+        conn.commit()
+
+        return {
+            "success": True,
+            "fix_id": fix_id,
+            "issue_id": issue_id,
+            "fixed_by": fixed_by,
+            "message": "Issue marked as fixed",
+        }
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+
+def get_fixes(limit=30):
+    """Get fix history."""
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            """
+            SELECT f.*, i.issue_type, i.severity, i.message as issue_message
+            FROM code_fixes f
+            JOIN code_issues i ON f.issue_id = i.id
+            ORDER BY f.fixed_at DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
+        fixes = cur.fetchall()
+        return {
+            "success": True,
+            "fixes": [{**dict(f), "fixed_at": f["fixed_at"].isoformat() if f["fixed_at"] else None} for f in fixes],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_file_health():
+    """Get per-file health status (latest scan + open issue count)."""
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            """
+            SELECT DISTINCT ON (file_path)
+                file_path, quality_score, issues_found, security_issues,
+                scanned_by, scanned_at
+            FROM code_scans
+            ORDER BY file_path, scanned_at DESC
+        """
+        )
+        files = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT file_path, COUNT(*) as open_issues
+            FROM code_issues WHERE status = 'open'
+            GROUP BY file_path
+        """
+        )
+        open_map = {r["file_path"]: r["open_issues"] for r in cur.fetchall()}
+
+        return {
+            "success": True,
+            "files": [
+                {
+                    **dict(f),
+                    "open_issues": open_map.get(f["file_path"], 0),
+                    "quality_score": float(f["quality_score"]) if f["quality_score"] else None,
+                    "scanned_at": f["scanned_at"].isoformat() if f["scanned_at"] else None,
+                }
+                for f in files
+            ],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_directory_files(path="platform_v2", extensions=None):
+    """List files in a directory for the scan browser UI."""
+    if extensions is None:
+        extensions = [".py", ".js", ".html"]
+
+    base_path = _PATH_MAP.get(path, f"/mnt/archie_brain/{path}")
+
+    if not os.path.exists(base_path):
+        return {"success": False, "error": f"Directory not found: {path}"}
+
+    files = []
+    for root, dirs, filenames in os.walk(base_path):
+        dirs[:] = [
+            d
+            for d in dirs
+            if not d.startswith(".")
+            and d != "__pycache__"
+            and d != "node_modules"
+            and d != "_deprecated"
+            and "deprecated" not in d.lower()
+        ]
+        for filename in filenames:
+            if filename == "__init__.py":
+                continue
+            if any(filename.endswith(ext) for ext in extensions):
+                full = os.path.join(root, filename)
+                if base_path == "/app":
+                    rel_path = f"platform_v2/{os.path.relpath(full, '/app')}"
+                    folder = os.path.dirname(os.path.relpath(full, "/app"))
+                else:
+                    rel_path = os.path.relpath(full, "/mnt/archie_brain")
+                    folder = os.path.dirname(rel_path)
+                stat = os.stat(full)
+                files.append(
+                    {
+                        "path": rel_path,
+                        "name": filename,
+                        "size": stat.st_size,
+                        "full_path": full,
+                        "extension": os.path.splitext(filename)[1],
+                        "folder": folder or "root",
+                        "mtime": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    }
+                )
+
+    return {
+        "success": True,
+        "directory": path,
+        "file_count": len(files),
+        "files": sorted(files, key=lambda x: x["path"]),
+    }
+
+
+# ===================================================================
+# MULTI-AGENT REVIEW
+# ===================================================================
+
+
+def get_review_agents(specialty=None, limit=8):
+    """Get code review agents from Team Management + check model availability."""
+    team_agents = _get_team_review_agents(specialty=specialty, limit=limit)
+
+    agents = []
+    for agent_key, config in team_agents.items():
+        model_available = False
+        if NODE_ROUTING_AVAILABLE:
+            try:
+                nodes = get_nodes_with_model(config["model"])
+                model_available = len(nodes) > 0
+            except Exception:
+                pass
+
+        agents.append(
+            {
+                "id": agent_key,
+                "agent_id": config.get("id"),
+                "name": config["name"],
+                "model": config["model"],
+                "specialty": config["specialty"],
+                "skill": config.get("skill"),
+                "proficiency": config.get("proficiency", 0),
+                "focus_areas": config["focus"],
+                "model_available": model_available,
+            }
+        )
+
+    return {
+        "success": True,
+        "agents": agents,
+        "agent_count": len(agents),
+        "specialties": list(REVIEW_SKILL_MAPPING.keys()),
+        "source": "team_management",
+        "node_routing": NODE_ROUTING_AVAILABLE,
+    }
+
+
+def get_review_nodes():
+    """Get available remote nodes and their models for code review."""
+    nodes = _get_available_nodes()
+
+    total_models = set()
+    for node in nodes:
+        for model in node.get("models", []):
+            if model.get("is_available"):
+                total_models.add(model["model_name"])
+
+    return {
+        "success": True,
+        "nodes": [dict(n) for n in nodes],
+        "node_count": len(nodes),
+        "total_models": len(total_models),
+        "model_list": sorted(list(total_models)),
+        "node_routing_available": NODE_ROUTING_AVAILABLE,
+    }
+
+
+def start_multi_agent_review(code, file_path="unknown", agents=None, context=""):
+    """Start an async multi-agent code review. Returns review_id immediately."""
+    if not code:
+        return {"success": False, "error": "No code provided"}
+
+    if agents is None:
+        agents = list(FALLBACK_REVIEW_AGENTS.keys())
+
+    review_id = f"mar_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+
+    review = {
+        "id": review_id,
+        "file_path": file_path,
+        "status": "running",
+        "started_at": datetime.now().isoformat(),
+        "agents_selected": agents,
+        "agent_reviews": {},
+        "consensus": None,
+        "final_issues": [],
+    }
+    _multi_agent_reviews[review_id] = review
+
+    thread = threading.Thread(
+        target=_run_multi_agent_review,
+        args=(review_id, code, file_path, agents, context),
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "success": True,
+        "review_id": review_id,
+        "message": f"Multi-agent review started with {len(agents)} agents",
+    }
+
+
+def get_review_status(review_id):
+    """Get status/results of a multi-agent review."""
+    if review_id in _multi_agent_reviews:
+        return {"success": True, "review": _multi_agent_reviews[review_id]}
+    return {"success": False, "error": "Review not found"}
+
+
+# ===================================================================
+# PRIVATE HELPERS
+# ===================================================================
+
+
+def _get_team_review_agents(specialty=None, limit=4):
+    """Query agents table for review-capable agents."""
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        if specialty and specialty in REVIEW_SKILL_MAPPING:
+            skills = REVIEW_SKILL_MAPPING[specialty]["skills"]
+        else:
+            skills = []
+            for spec in REVIEW_SKILL_MAPPING.values():
+                skills.extend(spec["skills"])
+            skills = list(set(skills))
+
+        cur.execute(
+            """
+            SELECT DISTINCT
+                a.id, a.name, a.first_name, a.last_name, a.model,
+                a.system_prompt, a.title,
+                s.skill_name, s.proficiency_level, s.skill_category
+            FROM agents a
+            JOIN agent_skills s ON a.id = s.agent_id
+            WHERE a.status = 'active'
+              AND a.model IS NOT NULL
+              AND s.skill_name = ANY(%s)
+            ORDER BY s.proficiency_level DESC, a.name
+            LIMIT %s
+        """,
+            [skills, limit],
+        )
+
+        agents = cur.fetchall()
+        review_agents = {}
+        for agent in agents:
+            agent_key = f"agent_{agent['id']}"
+            skill = agent["skill_name"]
+
+            spec_config = None
+            for spec_data in REVIEW_SKILL_MAPPING.values():
+                if skill in spec_data["skills"]:
+                    spec_config = spec_data
+                    break
+            if not spec_config:
+                spec_config = REVIEW_SKILL_MAPPING.get("code_review", {})
+
+            review_agents[agent_key] = {
+                "id": agent["id"],
+                "name": agent["name"] or f"{agent['first_name']} {agent['last_name']}",
+                "model": agent["model"],
+                "specialty": agent["skill_category"] or "general",
+                "skill": skill,
+                "proficiency": agent["proficiency_level"],
+                "focus": spec_config.get("focus", []),
+                "prompt_prefix": spec_config.get("prompt_prefix", "You are reviewing code. Focus on: "),
+                "system_prompt": agent["system_prompt"],
+            }
+
+        return review_agents
+    except Exception as e:
+        logger.error(f"Error getting review agents: {e}")
+        return {}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _get_available_nodes():
+    """Query remote_nodes for online, approved, bridge-enabled nodes."""
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT
+                n.node_id, n.node_name, n.vpn_ip, n.status,
+                n.current_load, n.bridge_priority, n.gpu_available, n.gpu_model,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'model_name', m.model_name,
+                            'is_available', m.is_available,
+                            'avg_response_ms', m.avg_response_ms
+                        )
+                    ) FILTER (WHERE m.model_name IS NOT NULL),
+                    '[]'
+                ) as models
+            FROM remote_nodes n
+            LEFT JOIN node_ollama_models m ON n.node_id = m.node_id AND m.is_available = true
+            WHERE n.bridge_enabled = true
+              AND n.status = 'online'
+              AND n.approval_status = 'approved'
+            GROUP BY n.node_id, n.node_name, n.vpn_ip, n.status, n.current_load,
+                     n.bridge_priority, n.gpu_available, n.gpu_model
+            ORDER BY n.current_load ASC, n.bridge_priority DESC
+        """
+        )
+        return cur.fetchall()
+    except Exception as e:
+        logger.error(f"Error getting available nodes: {e}")
+        return []
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _run_multi_agent_review(review_id, code, file_path, agents, context):
+    """Background thread: execute parallel agent reviews, build consensus."""
+    review = _multi_agent_reviews[review_id]
+
+    try:
+        team_agents = _get_team_review_agents(limit=10)
+        all_issues = []
+        review_lock = threading.Lock()
+
+        def run_single(agent_key):
+            if agent_key in team_agents:
+                config = team_agents[agent_key]
+            elif agent_key in FALLBACK_REVIEW_AGENTS:
+                config = FALLBACK_REVIEW_AGENTS[agent_key]
+            else:
+                matching = [a for a in team_agents.values() if str(a.get("id")) == agent_key.replace("agent_", "")]
+                config = matching[0] if matching else None
+
+            if not config:
+                return None
+
+            agent_name = config.get("name", "Unknown Agent")
+            prompt_prefix = config.get("prompt_prefix", "You are reviewing code. Focus on: ")
+            focus_areas = config.get("focus", [])
+
+            prompt = f"""{prompt_prefix}
+{', '.join(focus_areas)}
+
+Analyze this code and return a JSON object with:
+{{
+    "issues": [
+        {{
+            "line": line_number or null,
+            "type": "security|quality|style|performance",
+            "severity": "critical|high|medium|low",
+            "message": "description",
+            "suggestion": "fix recommendation"
+        }}
+    ],
+    "summary": "brief summary",
+    "quality_score": 0-100
+}}
+
+{context}
+
+File: {file_path}
+```
+{code[:8000]}
+```
+
+Return only valid JSON."""
+
+            try:
+                dispatch_result = _dispatcher.request_work(
+                    capability="code_review",
+                    prompt=prompt,
+                    module_id="dev_pipeline",
+                    system_prompt=prompt_prefix,
+                    json_mode=True,
+                )
+
+                if not dispatch_result.success:
+                    raise RuntimeError(f"Dispatch failed: {dispatch_result.error}")
+
+                response_text = dispatch_result.response
+                if "```json" in response_text:
+                    response_text = response_text.split("```json")[1].split("```")[0]
+                elif "```" in response_text:
+                    response_text = response_text.split("```")[1].split("```")[0]
+
+                parsed = json.loads(response_text.strip())
+
+                with review_lock:
+                    review["agent_reviews"][agent_key] = {
+                        "agent_name": agent_name,
+                        "model": dispatch_result.model_used,
+                        "issues": parsed.get("issues", []),
+                        "summary": parsed.get("summary", ""),
+                        "quality_score": parsed.get("quality_score", 0),
+                        "completed_at": datetime.now().isoformat(),
+                    }
+                    for issue in parsed.get("issues", []):
+                        all_issues.append({**issue, "found_by": agent_name})
+
+                return parsed
+
+            except Exception as e:
+                logger.error(f"Agent {agent_name} review failed: {e}")
+                with review_lock:
+                    review["agent_reviews"][agent_key] = {
+                        "agent_name": agent_name,
+                        "error": str(e),
+                        "completed_at": datetime.now().isoformat(),
+                    }
+                return None
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(run_single, a): a for a in agents}
+            for future in as_completed(futures):
+                future.result()
+
+        # Build consensus
+        review["final_issues"] = all_issues
+        review["consensus"] = {
+            "total_issues": len(all_issues),
+            "by_severity": {
+                sev: len([i for i in all_issues if i.get("severity") == sev])
+                for sev in ["critical", "high", "medium", "low"]
+            },
+            "agents_completed": len([r for r in review["agent_reviews"].values() if "error" not in r]),
+        }
+        review["status"] = "completed"
+        review["completed_at"] = datetime.now().isoformat()
+
+    except Exception as e:
+        logger.error(f"Multi-agent review failed: {e}")
+        review["status"] = "failed"
+        review["error"] = str(e)

@@ -13,7 +13,8 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from rbac import Permission, has_permission, audit_log
+from rbac import Permission, has_permission
+from logging_config import audit_log
 
 logger = logging.getLogger(__name__)
 

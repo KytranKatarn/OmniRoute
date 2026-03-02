@@ -975,7 +975,15 @@ def get_directory_files(path="platform_v2", extensions=None):
     if extensions is None:
         extensions = [".py", ".js", ".html"]
 
-    base_path = _PATH_MAP.get(path, f"/mnt/archie_brain/{path}")
+    # Resolve sub-paths through _PATH_MAP (e.g. "platform_v2/tools" -> "/app/tools")
+    base_path = _PATH_MAP.get(path)
+    if not base_path:
+        for prefix, mapped in _PATH_MAP.items():
+            if path.startswith(prefix + "/"):
+                base_path = mapped + path[len(prefix) :]
+                break
+        if not base_path:
+            base_path = f"/mnt/archie_brain/{path}"
 
     if not os.path.exists(base_path):
         return {"success": False, "error": f"Directory not found: {path}"}

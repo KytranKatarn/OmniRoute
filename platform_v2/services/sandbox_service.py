@@ -1063,6 +1063,23 @@ def cancel_run(run_id):
 # ===================================================================
 
 
+def _ensure_test_runs_table(cur):
+    """Create test_runs table if it doesn't exist yet."""
+    cur.execute(
+        """CREATE TABLE IF NOT EXISTS test_runs (
+            id VARCHAR(100) PRIMARY KEY,
+            run_type VARCHAR(50),
+            status VARCHAR(50),
+            started_at TIMESTAMP,
+            completed_at TIMESTAMP,
+            summary JSONB,
+            results JSONB,
+            error TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )"""
+    )
+
+
 def get_test_history(limit=50, offset=0):
     """Get test run history from DB."""
     conn = None
@@ -1070,6 +1087,7 @@ def get_test_history(limit=50, offset=0):
     try:
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_test_runs_table(cur)
 
         cur.execute(
             """SELECT id, run_type, status, started_at, completed_at, summary, error
@@ -1111,6 +1129,7 @@ def get_run_details(run_id):
     try:
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_test_runs_table(cur)
 
         cur.execute("SELECT * FROM test_runs WHERE id = %s", (run_id,))
         run = cur.fetchone()
@@ -1141,6 +1160,7 @@ def get_test_trends(days=30):
     try:
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        _ensure_test_runs_table(cur)
 
         cur.execute(
             """SELECT

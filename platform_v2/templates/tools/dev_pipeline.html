@@ -1589,14 +1589,18 @@ window.addEventListener('hashchange', function() {
 // ============================================================
 var _activeJobPolls = {};
 var _stationPollInterval = null;
+var _stationFailCount = 0;
+var _stationMaxFails = 3;
 
 function loadStationCrew() {
     // Fetch directly from Bridge API (browser carries auth cookie)
     fetch('/tools/bridge/api/stations').then(function(r) {
+        if (!r.ok) return Promise.reject('http ' + r.status);
         var ct = r.headers.get('content-type') || '';
         if (ct.indexOf('application/json') === -1) return Promise.reject('not json');
         return r.json();
     }).then(function(data) {
+        _stationFailCount = 0;
         var dot = document.getElementById('stationStatusDot');
         var el = document.getElementById('stationCrew');
         if (!data.success) {
@@ -1636,10 +1640,16 @@ function loadStationCrew() {
         // After loading crew, check for active jobs
         checkStationJobs();
     }).catch(function() {
+        _stationFailCount++;
         var dot = document.getElementById('stationStatusDot');
         if (dot) dot.className = 'dp-station-status offline';
         var el = document.getElementById('stationCrew');
         if (el) _setStationMsg(el, 'Bridge unavailable');
+        // Stop polling after repeated failures to avoid console spam
+        if (_stationFailCount >= _stationMaxFails && _stationPollInterval) {
+            clearInterval(_stationPollInterval);
+            _stationPollInterval = null;
+        }
     });
 }
 
@@ -1722,10 +1732,12 @@ function _renderCrewPanel(el, crew, maxPrimary, maxAux, assists, busyMap) {
 function checkStationJobs() {
     // Fetch running jobs directly from Bridge API (browser carries auth cookie)
     fetch('/tools/bridge/api/bridge/jobs?status=running').then(function(r) {
+        if (!r.ok) return Promise.reject('http ' + r.status);
         var ct = r.headers.get('content-type') || '';
         if (ct.indexOf('application/json') === -1) return Promise.reject('not json');
         return r.json();
     }).then(function(data) {
+        _stationFailCount = 0;
         if (!data.success) return;
 
         // Filter to dev_pipeline module jobs
@@ -1784,15 +1796,20 @@ function checkStationJobs() {
             jobsEl.appendChild(prog);
         });
     }).catch(function() {
-        // Silently fail — don't break UI
+        // Silently fail — stop polling after repeated failures
+        _stationFailCount++;
+        if (_stationFailCount >= _stationMaxFails && _stationPollInterval) {
+            clearInterval(_stationPollInterval);
+            _stationPollInterval = null;
+        }
     });
 }
 
-// Poll station every 5s
+// Poll station every 15s (stops after 3 consecutive failures)
 function startStationPolling() {
     if (_stationPollInterval) return;
     loadStationCrew();
-    _stationPollInterval = setInterval(checkStationJobs, 5000);
+    _stationPollInterval = setInterval(checkStationJobs, 15000);
 }
 
 // Start station polling on load

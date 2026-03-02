@@ -1648,8 +1648,9 @@ class AgentLoop:
                         import sys
 
                         sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-                        mod = importlib.import_module("tools.improvements.routes")
-                        mod._auto_execute_proposal(proposal_id)
+                        from services.proposal_service import auto_run
+
+                        auto_run(proposal_id)
                     except Exception as exec_err:
                         logger.error(
                             f"Auto-execution failed for proposal #{proposal_id}: {exec_err}"

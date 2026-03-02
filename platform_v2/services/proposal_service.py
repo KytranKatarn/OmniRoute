@@ -1,0 +1,955 @@
+"""Proposal Service — Improvement proposal lifecycle management.
+
+Migrated from tools/improvements/routes.py (Project #103, Phase 2).
+Core CRUD, approval, execution, deployment, and stats.
+"""
+
+import json
+import logging
+import os
+import sys
+import threading
+import traceback
+from datetime import datetime
+
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger(__name__)
+
+# Ensure ai_bridge is importable
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+
+# ---------------------------------------------------------------------------
+# Database helpers
+# ---------------------------------------------------------------------------
+def _get_db():
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
+    )
+
+
+# ===================================================================
+# QUERY OPERATIONS
+# ===================================================================
+
+
+def list_proposals(status=None):
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        if status:
+            cur.execute(
+                """SELECT id, title, description, category, priority, status,
+                       proposed_at, proposed_by, plan_steps, metadata
+                FROM improvement_proposals WHERE status = %s
+                ORDER BY proposed_at DESC""",
+                (status,),
+            )
+        else:
+            cur.execute(
+                """SELECT id, title, description, category, priority, status,
+                       proposed_at, proposed_by, plan_steps, metadata
+                FROM improvement_proposals ORDER BY proposed_at DESC"""
+            )
+        proposals = cur.fetchall()
+        out = []
+        for p in proposals:
+            d = dict(p)
+            if d.get("proposed_at"):
+                d["proposed_at"] = d["proposed_at"].isoformat()
+            out.append(d)
+        return {"success": True, "proposals": out, "count": len(out)}
+    except Exception as e:
+        logger.error(f"list_proposals: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def get_proposal(proposal_id):
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        proposal = cur.fetchone()
+        if not proposal:
+            return {"success": False, "error": "Proposal not found"}
+        d = dict(proposal)
+        for f in ["proposed_at", "reviewed_at", "implemented_at", "approved_at"]:
+            if d.get(f):
+                d[f] = d[f].isoformat()
+        return {"success": True, "proposal": d}
+    except Exception as e:
+        logger.error(f"get_proposal: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def delete_proposal(proposal_id):
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, status, title FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        proposal = cur.fetchone()
+        if not proposal:
+            return {"success": False, "error": "Proposal not found"}
+        deletable = ["proposed", "failed", "archived", "rejected", "pending", "pending_approval"]
+        if proposal[1] not in deletable:
+            return {
+                "success": False,
+                "error": f'Cannot delete proposal with status "{proposal[1]}". '
+                f"Only: {', '.join(deletable)} can be deleted.",
+            }
+        cur.execute("UPDATE code_issues SET proposal_id = NULL WHERE proposal_id = %s", (proposal_id,))
+        cur.execute("DELETE FROM sandbox_instances WHERE proposal_id = %s", (proposal_id,))
+        cur.execute("DELETE FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        conn.commit()
+        return {"success": True, "message": f'Proposal #{proposal_id} "{proposal[2]}" deleted permanently'}
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"delete_proposal: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ===================================================================
+# APPROVAL / REJECTION
+# ===================================================================
+
+
+def approve_proposal(proposal_id, user_id):
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT id, title, description, metadata, plan_steps, category
+            FROM improvement_proposals
+            WHERE id = %s AND status IN ('pending_approval', 'pending', 'proposed')""",
+            (proposal_id,),
+        )
+        proposal = cur.fetchone()
+        if not proposal:
+            return {"success": False, "error": "Proposal not found or already processed"}
+        prop_id, title, description, metadata, existing_plan, category = proposal
+
+        plan_steps = existing_plan
+        if not plan_steps:
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except Exception:
+                    metadata = {}
+            fp = metadata.get("file_path") if metadata else None
+            ln = metadata.get("line_number") if metadata else None
+            it = metadata.get("issue_type", category) if metadata else category
+            if fp:
+                plan_steps = [
+                    {
+                        "step": 1,
+                        "description": "Read and analyze the target file",
+                        "action": "read_file",
+                        "target": fp,
+                        "details": f"Read file around line {ln or 'N/A'}",
+                    },
+                    {
+                        "step": 2,
+                        "description": f"Apply the fix: {title}",
+                        "action": "edit_file",
+                        "target": fp,
+                        "details": f"{description}\n\nLine {ln or 'relevant section'}. Issue type: {it}",
+                    },
+                ]
+            else:
+                plan_steps = [
+                    {
+                        "step": 1,
+                        "description": "Analyze and implement",
+                        "action": "edit_file",
+                        "target": "TBD",
+                        "details": description or title,
+                    }
+                ]
+
+        cur.execute(
+            """UPDATE improvement_proposals
+            SET status = 'approved', approved_by = %s, approved_at = NOW(), reviewed_at = NOW(), plan_steps = %s
+            WHERE id = %s RETURNING id""",
+            (user_id, json.dumps(plan_steps), proposal_id),
+        )
+        cur.fetchone()
+        conn.commit()
+
+        # Auto-sandbox
+        sandbox_info = None
+        try:
+            from sandbox_manager import SandboxManager
+
+            fp = None
+            if metadata:
+                if isinstance(metadata, str):
+                    try:
+                        metadata = json.loads(metadata)
+                    except Exception:
+                        metadata = {}
+                fp = metadata.get("file_path")
+            mgr = SandboxManager()
+            mid = "platform"
+            if fp:
+                mid = mgr.detect_module_from_filepath(fp)
+            sr = mgr.create_module_sandbox(mid, proposal_id)
+            if sr:
+                sandbox_info = {
+                    "module_id": mid,
+                    "sandbox_created": True,
+                    "schema_name": sr.get("schema_name"),
+                    "message": f"Sandbox created for module: {mid}",
+                }
+                logger.info(f"Auto-created sandbox for proposal {proposal_id}: {mid}")
+        except Exception as se:
+            logger.warning(f"Could not auto-create sandbox for proposal {proposal_id}: {se}")
+            sandbox_info = {"sandbox_created": False, "error": str(se)}
+
+        # Auto-run in background
+        threading.Thread(target=auto_run, args=(proposal_id,), daemon=True).start()
+        logger.info(f"Auto-run thread started for proposal #{proposal_id}")
+
+        return {
+            "success": True,
+            "message": "Proposal approved -- auto-execution started",
+            "proposal_id": proposal_id,
+            "plan_generated": existing_plan is None,
+            "steps_count": len(plan_steps) if plan_steps else 0,
+            "sandbox": sandbox_info,
+            "auto_execution": True,
+        }
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"approve_proposal: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def reject_proposal(proposal_id, reason="Rejected by user"):
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """UPDATE improvement_proposals
+            SET status = 'rejected', reviewed_at = NOW(),
+                metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{rejection_reason}', to_jsonb(%s::text))
+            WHERE id = %s AND status IN ('pending_approval', 'pending', 'proposed')
+            RETURNING id""",
+            (reason, proposal_id),
+        )
+        result = cur.fetchone()
+        conn.commit()
+        if not result:
+            return {"success": False, "error": "Proposal not found or already processed"}
+        return {"success": True, "message": "Proposal rejected", "proposal_id": proposal_id}
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"reject_proposal: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ===================================================================
+# EXECUTION
+# ===================================================================
+
+
+def run_proposal(proposal_id, user_id, skip_backup=False, use_orchestrator=True, steps=None):
+    """Run an approved proposal using WorkflowOrchestrator with retry support."""
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT id, status, plan_steps, title FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        proposal = cur.fetchone()
+        cur.close()
+        conn.close()
+        conn = None
+        cur = None
+
+        if not proposal:
+            return {"success": False, "error": "Proposal not found"}
+        if not proposal.get("plan_steps") or len(proposal.get("plan_steps", [])) == 0:
+            return {
+                "success": False,
+                "error": 'No implementation plan found. Click "Regenerate Plan" first.',
+                "legacy": True,
+            }
+
+        # Step 1: Backup
+        backup_result = None
+        if not skip_backup:
+            try:
+                from tools.backup_manager import create_backup
+
+                backup_result = create_backup(
+                    description=f"pre_improvement_{proposal_id}", created_by_username="system", proposal_id=proposal_id
+                )
+                if backup_result and backup_result.get("success"):
+                    c = _get_db()
+                    cu = c.cursor()
+                    cu.execute(
+                        "UPDATE improvement_proposals SET backup_name = %s, backup_created_at = NOW() WHERE id = %s",
+                        (backup_result["backup_name"], proposal_id),
+                    )
+                    c.commit()
+                    cu.close()
+                    c.close()
+            except Exception as be:
+                logger.warning(f"Backup error (non-fatal): {be}")
+
+        # Step 2: Run
+        if use_orchestrator:
+            try:
+                from workflow_orchestrator import run_workflow
+
+                result = run_workflow(proposal_id)
+                if result.get("success") and not result.get("test_passed", True):
+                    from test_retry_handler import handle_test_failure
+
+                    retry_result = handle_test_failure(proposal_id, result.get("test_results", {}))
+                    result["retry_info"] = retry_result
+                    result["message"] = f"Tests failed. {retry_result.get('message', 'Retry initiated.')}"
+            except ImportError:
+                from ai_bridge.archie_bridge import execute_proposal as _ep
+
+                result = _ep(proposal_id=proposal_id, user_id=user_id, approved_steps=steps)
+        else:
+            from ai_bridge.archie_bridge import execute_proposal as _ep
+
+            result = _ep(proposal_id=proposal_id, user_id=user_id, approved_steps=steps)
+
+        if backup_result and backup_result.get("success"):
+            result["backup_created"] = True
+            result["backup_name"] = backup_result["backup_name"]
+            result["backup_path"] = backup_result.get("backup_path")
+        return result
+
+    except Exception as e:
+        logger.error(f"run_proposal: {e}")
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def regenerate_plan(proposal_id):
+    conn = None
+    cur = None
+    try:
+        from code_generation_engine import generate_code_for_proposal
+
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT id, title, description, category, priority, metadata FROM improvement_proposals WHERE id = %s",
+            (proposal_id,),
+        )
+        proposal = cur.fetchone()
+        if not proposal:
+            return {"success": False, "error": "Proposal not found"}
+
+        title = proposal["title"]
+        description = proposal["description"] or title
+        category = proposal["category"] or "general"
+        metadata = proposal["metadata"] or {}
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except Exception:
+                metadata = {}
+
+        file_path = metadata.get("file_path")
+        target_files = [file_path] if file_path else None
+        line_number = metadata.get("line_number")
+        issue_context = None
+        if metadata.get("issue_type") or metadata.get("severity"):
+            issue_context = {
+                "issue_type": metadata.get("issue_type"),
+                "severity": metadata.get("severity"),
+                "line_number": line_number,
+                "message": metadata.get("message", description),
+                "suggestion": metadata.get("suggestion", metadata.get("fix_suggestion", "")),
+            }
+
+        code_result = generate_code_for_proposal(
+            proposal_id=proposal_id,
+            proposal_title=title,
+            proposal_description=description,
+            category=category,
+            target_files=target_files,
+            line_number=line_number,
+            issue_context=issue_context,
+        )
+        if not code_result.get("success"):
+            return {
+                "success": False,
+                "error": f"AI code generation failed: {code_result.get('error', 'Unknown error')}",
+            }
+
+        changes = code_result.get("changes", [])
+        plan_steps = []
+        for i, change in enumerate(changes, 1):
+            plan_steps.append(
+                {
+                    "step": i,
+                    "description": change.get("description", f"Change {i}"),
+                    "action": change.get("action", "edit_file"),
+                    "target": change.get("file_path", "unknown"),
+                    "details": change.get("diff", change.get("new_content", "")),
+                    "old_content": change.get("old_content", ""),
+                    "new_content": change.get("new_content", ""),
+                }
+            )
+
+        if not plan_steps:
+            if file_path:
+                plan_steps = [
+                    {
+                        "step": 1,
+                        "description": "Read and analyze the target file",
+                        "action": "read_file",
+                        "target": file_path,
+                        "details": f"Read file around line {line_number or 'N/A'}",
+                    },
+                    {
+                        "step": 2,
+                        "description": f"Apply the fix: {title}",
+                        "action": "edit_file",
+                        "target": file_path,
+                        "details": description,
+                    },
+                ]
+            else:
+                search_term = title.split(":")[-1].strip() if ":" in title else title
+                plan_steps = [
+                    {
+                        "step": 1,
+                        "description": "Search for relevant code",
+                        "action": "search_code",
+                        "target": search_term[:50],
+                        "details": f"Find files related to: {title}",
+                    },
+                    {
+                        "step": 2,
+                        "description": f"Implement: {title}",
+                        "action": "edit_file",
+                        "target": "TBD",
+                        "details": description,
+                    },
+                ]
+
+        cur.execute(
+            """UPDATE improvement_proposals
+            SET plan_steps = %s, metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb, test_retry_count = 0
+            WHERE id = %s RETURNING id""",
+            (
+                json.dumps(plan_steps),
+                json.dumps(
+                    {
+                        "ai_generated_plan": True,
+                        "plan_generated_at": datetime.now().isoformat(),
+                        "model_used": code_result.get("metadata", {}).get("model_used", "unknown"),
+                        "changes_count": len(changes),
+                    }
+                ),
+                proposal_id,
+            ),
+        )
+        result = cur.fetchone()
+        conn.commit()
+        if not result:
+            return {"success": False, "error": "Failed to update proposal"}
+
+        return {
+            "success": True,
+            "message": f"AI-generated plan with {len(plan_steps)} executable steps",
+            "steps_count": len(plan_steps),
+            "proposal_id": proposal_id,
+            "ai_generated": True,
+            "has_file_target": bool(file_path),
+            "model_used": code_result.get("metadata", {}).get("model_used", "unknown"),
+        }
+    except Exception as e:
+        logger.error(f"regenerate_plan: {e}")
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def retry_proposal(proposal_id, user_id):
+    try:
+        from improvement_conversation_engine import retry_proposal_with_escalation
+
+        result = retry_proposal_with_escalation(proposal_id=proposal_id, user_id=user_id)
+        if result["success"]:
+            return {
+                "success": True,
+                "escalated": result.get("escalated", False),
+                "attempt_number": result.get("attempt_number", 1),
+                "assigned_agent": result.get("assigned_agent", "Internal Team"),
+                "agent_type": result.get("agent_type", "internal"),
+                "message": result.get("response", "Retry started successfully"),
+                "proposal_id": proposal_id,
+            }
+        else:
+            return {"success": False, "error": result.get("response", "Failed to retry proposal")}
+    except Exception as e:
+        logger.error(f"retry_proposal: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ===================================================================
+# ESCALATION / ARCHIVE
+# ===================================================================
+
+
+def escalate_proposal(proposal_id):
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        proposal = cur.fetchone()
+        if not proposal:
+            return {"success": False, "error": "Proposal not found"}
+        cur.execute(
+            "UPDATE improvement_proposals SET status = 'escalated', escalated_at = NOW() WHERE id = %s", (proposal_id,)
+        )
+        cur.execute(
+            "INSERT INTO notifications (user_id, type, title, message, is_read) VALUES (%s, %s, %s, %s, FALSE)",
+            (
+                2,
+                "task_escalated",
+                f"Failed Task Escalated: Proposal #{proposal_id}",
+                f'Proposal "{proposal["title"]}" has failed and needs senior developer attention.',
+            ),
+        )
+        conn.commit()
+        return {"success": True, "message": "Proposal escalated to senior developers"}
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"escalate_proposal: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def archive_proposal(proposal_id):
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE improvement_proposals SET status = 'archived', archived_at = NOW() WHERE id = %s", (proposal_id,)
+        )
+        if cur.rowcount == 0:
+            return {"success": False, "error": "Proposal not found"}
+        conn.commit()
+        return {"success": True, "message": "Proposal archived"}
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"archive_proposal: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ===================================================================
+# DEPLOY / RESTORE / BACKUPS
+# ===================================================================
+
+
+def deploy_to_production(proposal_id):
+    try:
+        from tools.improvements.manager import ImprovementManager
+
+        mgr = ImprovementManager()
+        return mgr.deploy_proposal(proposal_id)
+    except Exception as e:
+        logger.error(f"deploy_to_production: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def restore_proposal(proposal_id):
+    try:
+        from ai_bridge.archie_bridge import restore_from_backups, get_proposal_backups
+
+        backups_result = get_proposal_backups(proposal_id)
+        if not backups_result["success"]:
+            return backups_result
+        if backups_result["count"] == 0:
+            return {"success": False, "error": "No backups found for this proposal"}
+        return restore_from_backups(proposal_id, backups_result["backups"])
+    except Exception as e:
+        logger.error(f"restore_proposal: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def get_backups(proposal_id):
+    try:
+        from ai_bridge.archie_bridge import get_proposal_backups
+
+        return get_proposal_backups(proposal_id)
+    except Exception as e:
+        logger.error(f"get_backups: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ===================================================================
+# STATS
+# ===================================================================
+
+
+def get_stats():
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """SELECT COUNT(*) as total,
+                COUNT(*) FILTER (WHERE status = 'pending' OR status = 'proposed') as pending,
+                COUNT(*) FILTER (WHERE status = 'approved') as approved,
+                COUNT(*) FILTER (WHERE status = 'deployed' OR status = 'implemented') as deployed,
+                COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
+                COUNT(*) FILTER (WHERE status = 'testing') as testing,
+                COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
+            FROM improvement_proposals"""
+        )
+        stats = cur.fetchone()
+        cur.execute(
+            "SELECT id, title, status, proposed_at FROM improvement_proposals ORDER BY proposed_at DESC LIMIT 5"
+        )
+        recent = cur.fetchall()
+        return {"success": True, "stats": dict(stats) if stats else {}, "recent": [dict(r) for r in recent]}
+    except Exception as e:
+        logger.error(f"get_stats: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def get_stuck():
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """SELECT id, title, description, category, priority, status, proposed_at,
+                EXTRACT(EPOCH FROM (NOW() - proposed_at))/3600 as hours_stuck
+            FROM improvement_proposals
+            WHERE status IN ('pending', 'pending_approval', 'proposed')
+            AND proposed_at < NOW() - INTERVAL '48 hours'
+            ORDER BY proposed_at ASC"""
+        )
+        stuck = cur.fetchall()
+        return {"success": True, "stuck_proposals": stuck, "count": len(stuck)}
+    except Exception as e:
+        logger.error(f"get_stuck: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ===================================================================
+# DEPLOY HISTORY (absorbed from deploy_routes.py)
+# ===================================================================
+
+
+def get_deploy_history():
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """SELECT id, title, category, priority, risk_level, status, deployed_at, approved_at, backup_name, metadata
+            FROM improvement_proposals WHERE status IN ('deployed', 'implemented')
+            ORDER BY deployed_at DESC NULLS LAST LIMIT 50"""
+        )
+        deployments = [dict(r) for r in cur.fetchall()]
+        cur.execute(
+            """SELECT
+                COUNT(*) FILTER (WHERE status IN ('deployed', 'implemented')) as total_deployed,
+                COUNT(*) FILTER (WHERE status = 'tested') as ready_to_deploy,
+                COUNT(*) FILTER (WHERE status = 'fix_requested') as failed
+            FROM improvement_proposals"""
+        )
+        deploy_stats = dict(cur.fetchone())
+        return {"success": True, "deployments": deployments, "stats": deploy_stats}
+    except Exception as e:
+        logger.error(f"get_deploy_history: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def get_deploy_ready():
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """SELECT id, title, category, priority, risk_level, status, approved_at, metadata
+            FROM improvement_proposals WHERE status = 'tested'
+            ORDER BY priority DESC, approved_at ASC"""
+        )
+        return {"success": True, "proposals": [dict(r) for r in cur.fetchall()]}
+    except Exception as e:
+        logger.error(f"get_deploy_ready: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# ===================================================================
+# BACKGROUND AUTO-RUN (used by agent_loop.py + approve_proposal)
+# ===================================================================
+
+
+def auto_run(proposal_id):
+    """Background thread: auto-run approved proposal through code gen, sandbox, test.
+
+    Status transitions: approved -> code_generating -> testing -> tested / fix_requested
+    """
+    logger.info(f"[AutoRun] Starting for proposal #{proposal_id}")
+    try:
+        _update_status(proposal_id, "code_generating")
+        try:
+            from ai_bridge.code_generation_engine import CodeGenerationEngine
+
+            engine = CodeGenerationEngine()
+            gen_result = engine.generate_code(proposal_id)
+        except Exception as e:
+            logger.error(f"[AutoRun] Code generation failed for #{proposal_id}: {e}")
+            _update_status(proposal_id, "fix_requested", error=str(e))
+            _notify_admin(proposal_id, "error", f"Code generation failed: {e}")
+            return
+
+        if not gen_result or not gen_result.get("success", True):
+            error_msg = gen_result.get("error", "Code generation returned no results") if gen_result else "No result"
+            _update_status(proposal_id, "fix_requested", error=error_msg)
+            _notify_admin(proposal_id, "warning", f"Code generation issue: {error_msg}")
+            return
+
+        _update_status(proposal_id, "testing")
+        try:
+            from sandbox_manager import SandboxManager
+
+            mgr = SandboxManager()
+            test_result = mgr.run_tests_for_proposal(proposal_id)
+        except Exception as e:
+            logger.warning(f"[AutoRun] Sandbox testing failed for #{proposal_id}: {e}")
+            _update_status(proposal_id, "tested", error=f"Tests unavailable: {e}")
+            _notify_admin(
+                proposal_id,
+                "info",
+                f"Proposal #{proposal_id} approved -- sandbox tests unavailable, ready for manual review",
+            )
+            return
+
+        if test_result and test_result.get("overall_status") == "passed":
+            _update_status(proposal_id, "tested")
+            _notify_admin(proposal_id, "success", f"Proposal #{proposal_id} passed all tests -- ready for deployment")
+        else:
+            error_detail = test_result.get("summary", "Tests failed") if test_result else "No test results"
+            _update_status(proposal_id, "fix_requested", error=str(error_detail))
+            _notify_admin(proposal_id, "warning", f"Proposal #{proposal_id} failed tests: {error_detail}")
+
+    except Exception as e:
+        logger.error(f"[AutoRun] Unexpected error for #{proposal_id}: {e}")
+        _update_status(proposal_id, "fix_requested", error=str(e))
+        _notify_admin(proposal_id, "error", f"Auto-run failed: {e}")
+
+
+# ===================================================================
+# PRIVATE HELPERS
+# ===================================================================
+
+
+def _update_status(proposal_id, status, error=None):
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        if error:
+            cur.execute(
+                "UPDATE improvement_proposals SET status = %s, metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb WHERE id = %s",
+                (status, json.dumps({"execution_log": error, "last_status_change": status}), proposal_id),
+            )
+        else:
+            cur.execute("UPDATE improvement_proposals SET status = %s WHERE id = %s", (status, proposal_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to update proposal #{proposal_id} status to {status}: {e}")
+
+
+def _notify_admin(proposal_id, notif_type, message):
+    type_map = {"success": "success", "warning": "warning", "error": "error", "info": "info"}
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO system_notifications (type, title, message, source, visibility) VALUES (%s, %s, %s, 'improvement_pipeline', 'admin')",
+            (type_map.get(notif_type, "info"), f"Improvement #{proposal_id}", message),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to create notification for proposal #{proposal_id}: {e}")

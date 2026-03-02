@@ -427,86 +427,114 @@
 }
 
 /* Station Crew Panel */
+/* Station panel — matches Consciousness ops terminal layout */
 .dp-station-panel {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-left: 3px solid var(--archie-cyan, #00d4ff);
-    border-radius: 6px;
-    padding: 10px 14px;
+    background: rgba(255,255,255,0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-left: 3px solid rgba(0,212,255,0.4);
+    border-radius: 2px 10px 10px 2px;
     margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    min-height: 42px;
+    overflow: hidden;
 }
 .dp-station-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(0,212,255,0.12);
 }
 .dp-station-label {
     font-family: 'Orbitron', var(--archie-font-mono), monospace;
-    font-size: 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
     color: var(--archie-cyan, #00d4ff);
     letter-spacing: 2px;
     text-transform: uppercase;
-    white-space: nowrap;
+    text-shadow: 0 0 12px rgba(0,212,255,0.3);
 }
 .dp-station-status {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: #6b7280;
-    flex-shrink: 0;
-}
-.dp-station-status.online { background: #00ff41; box-shadow: 0 0 6px rgba(0,255,65,0.4); }
-.dp-station-status.offline { background: #ef4444; }
-.dp-station-crew {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: center;
-    flex: 1;
-}
-.dp-station-loading {
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    font-style: italic;
-}
-.dp-crew-agent {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.72rem;
-    color: var(--archie-text-secondary);
-}
-.dp-crew-dot {
     width: 6px; height: 6px;
     border-radius: 50%;
     background: #6b7280;
     flex-shrink: 0;
+    margin-left: auto;
 }
-.dp-crew-dot.working { background: #00ff41; box-shadow: 0 0 4px rgba(0,255,65,0.3); }
-.dp-crew-dot.idle { background: #f59e0b; }
-.dp-crew-badge {
-    font-size: 0.6rem;
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: rgba(139,92,246,0.15);
-    color: #8b5cf6;
+.dp-station-status.online { background: #22c55e; box-shadow: 0 0 4px #22c55e; }
+.dp-station-status.offline { background: #ef4444; }
+.dp-station-crew {
+    padding: 12px 16px;
+}
+.dp-station-loading {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.3);
+    font-style: italic;
+    padding: 3px 8px;
+}
+.dp-section-label {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 6px;
+}
+.dp-crew-agent {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border-left: 3px solid var(--archie-cyan, #00d4ff);
+    background: rgba(255,255,255,0.02);
+    margin-bottom: 4px;
+}
+.dp-crew-name {
+    font-family: 'Antonio', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.9);
+}
+.dp-crew-badge {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
 }
 .dp-crew-badge.working {
-    background: rgba(0,255,65,0.1);
-    color: #00ff41;
+    background: rgba(16,185,129,0.15);
+    color: #10b981;
+}
+.dp-crew-role {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0,212,255,0.2);
+    color: var(--archie-cyan, #00d4ff);
+    margin-left: auto;
+}
+.dp-aux-agent {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border-left: 3px solid #facc15;
+    background: rgba(255,255,255,0.02);
+    margin-bottom: 4px;
 }
 .dp-station-jobs {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-shrink: 0;
+    padding: 0 16px 12px;
 }
 .dp-job-progress {
     display: flex;
@@ -1573,18 +1601,18 @@ function loadStationCrew() {
         var el = document.getElementById('stationCrew');
         if (!data.success) {
             dot.className = 'dp-station-status offline';
-            el.textContent = '';
-            var msg = document.createElement('span');
-            msg.className = 'dp-station-loading';
-            msg.textContent = 'Bridge unavailable';
-            el.appendChild(msg);
+            _setStationMsg(el, 'Bridge unavailable');
             return;
         }
         // Find ENGINEERING station
         var crew = [];
+        var maxPrimary = 2;
+        var maxAux = 1;
         var stations = data.stations || [];
         for (var i = 0; i < stations.length; i++) {
             if (stations[i].code !== 'ENGINEERING') continue;
+            maxPrimary = stations[i].max_primary || 2;
+            maxAux = stations[i].max_auxiliary || 1;
             (stations[i].assigned_agents || []).forEach(function(a) {
                 crew.push({
                     name: (a.first_name && a.last_name) ? a.first_name + ' ' + a.last_name : (a.name || 'Agent'),
@@ -1593,48 +1621,102 @@ function loadStationCrew() {
                 });
             });
         }
+        // Store for checkStationJobs to use
+        window._dpCrew = crew;
+        window._dpMaxPrimary = maxPrimary;
+        window._dpMaxAux = maxAux;
+
         if (!crew.length) {
             dot.className = 'dp-station-status offline';
-            el.textContent = '';
-            var msg2 = document.createElement('span');
-            msg2.className = 'dp-station-loading';
-            msg2.textContent = 'No agents assigned';
-            el.appendChild(msg2);
+            _setStationMsg(el, 'No agents assigned');
             return;
         }
         dot.className = 'dp-station-status online';
-        el.textContent = '';
-        crew.forEach(function(a) {
-            var agent = document.createElement('span');
-            agent.className = 'dp-crew-agent';
-            var adot = document.createElement('span');
-            adot.className = 'dp-crew-dot idle';
-            adot.id = 'crewDot-' + a.codeName;
-            agent.appendChild(adot);
-            var name = document.createElement('span');
-            name.textContent = a.name;
-            agent.appendChild(name);
-            var badge = document.createElement('span');
-            badge.className = 'dp-crew-badge';
-            badge.id = 'crewBadge-' + a.codeName;
-            badge.textContent = 'IDLE';
-            agent.appendChild(badge);
-            el.appendChild(agent);
-        });
+        _renderCrewPanel(el, crew, maxPrimary, maxAux, [], []);
         // After loading crew, check for active jobs
         checkStationJobs();
     }).catch(function() {
         var dot = document.getElementById('stationStatusDot');
         if (dot) dot.className = 'dp-station-status offline';
         var el = document.getElementById('stationCrew');
-        if (el) {
-            el.textContent = '';
-            var msg3 = document.createElement('span');
-            msg3.className = 'dp-station-loading';
-            msg3.textContent = 'Bridge unavailable';
-            el.appendChild(msg3);
-        }
+        if (el) _setStationMsg(el, 'Bridge unavailable');
     });
+}
+
+function _setStationMsg(el, msg) {
+    el.textContent = '';
+    var span = document.createElement('span');
+    span.className = 'dp-station-loading';
+    span.textContent = msg;
+    el.appendChild(span);
+}
+
+function _renderCrewPanel(el, crew, maxPrimary, maxAux, assists, busyMap) {
+    el.textContent = '';
+
+    // STATION CREW section
+    var label = document.createElement('div');
+    label.className = 'dp-section-label';
+    label.textContent = 'STATION CREW (' + crew.length + '/' + maxPrimary + ')';
+    el.appendChild(label);
+
+    crew.forEach(function(a) {
+        var row = document.createElement('div');
+        row.className = 'dp-crew-agent';
+        var name = document.createElement('span');
+        name.className = 'dp-crew-name';
+        name.textContent = a.name;
+        row.appendChild(name);
+        // Working badge (hidden by default, shown by checkStationJobs)
+        var badge = document.createElement('span');
+        badge.className = 'dp-crew-badge';
+        badge.id = 'crewBadge-' + a.codeName;
+        if (busyMap[a.codeName]) {
+            badge.className = 'dp-crew-badge working';
+            badge.textContent = 'WORKING';
+        }
+        row.appendChild(badge);
+        // Role
+        var role = document.createElement('span');
+        role.className = 'dp-crew-role';
+        role.textContent = a.title;
+        row.appendChild(role);
+        el.appendChild(row);
+    });
+
+    // AUXILIARY section
+    var auxLabel = document.createElement('div');
+    auxLabel.className = 'dp-section-label';
+    auxLabel.style.marginTop = '8px';
+    auxLabel.textContent = 'AUXILIARY (' + assists.length + '/' + maxAux + ')';
+    el.appendChild(auxLabel);
+
+    if (assists.length) {
+        assists.forEach(function(a) {
+            var row = document.createElement('div');
+            row.className = 'dp-aux-agent';
+            var name = document.createElement('span');
+            name.className = 'dp-crew-name';
+            name.textContent = a.name;
+            row.appendChild(name);
+            var badge = document.createElement('span');
+            badge.className = 'dp-crew-badge working';
+            badge.textContent = 'HELPING';
+            row.appendChild(badge);
+            var role = document.createElement('span');
+            role.className = 'dp-crew-role';
+            role.style.color = '#facc15';
+            role.style.background = 'rgba(250,204,21,0.15)';
+            role.textContent = a.station + ' \u2022 ' + a.cap;
+            row.appendChild(role);
+            el.appendChild(row);
+        });
+    } else {
+        var empty = document.createElement('div');
+        empty.className = 'dp-station-loading';
+        empty.textContent = 'Slot available';
+        el.appendChild(empty);
+    }
 }
 
 function checkStationJobs() {
@@ -1644,9 +1726,6 @@ function checkStationJobs() {
         if (ct.indexOf('application/json') === -1) return Promise.reject('not json');
         return r.json();
     }).then(function(data) {
-        var jobsEl = document.getElementById('stationJobs');
-        jobsEl.textContent = '';
-
         if (!data.success) return;
 
         // Filter to dev_pipeline module jobs
@@ -1654,40 +1733,43 @@ function checkStationJobs() {
             return j.module_source === 'dev_pipeline';
         });
 
-        if (!myJobs.length) {
-            // Reset all crew dots to idle
-            document.querySelectorAll('.dp-crew-dot').forEach(function(el) { el.className = 'dp-crew-dot idle'; });
-            document.querySelectorAll('.dp-crew-badge').forEach(function(el) { el.className = 'dp-crew-badge'; el.textContent = 'IDLE'; });
-            return;
-        }
-
-        // Build busy map
+        // Build busy map from active jobs
         var busyMap = {};
         myJobs.forEach(function(j) {
-            if (j.agent_name) busyMap[j.agent_name] = j;
-        });
-
-        // Update crew dots
-        document.querySelectorAll('[id^="crewDot-"]').forEach(function(el) {
-            var codeName = el.id.replace('crewDot-', '');
-            if (busyMap[codeName]) {
-                el.className = 'dp-crew-dot working';
-                var badge = document.getElementById('crewBadge-' + codeName);
-                if (badge) { badge.className = 'dp-crew-badge working'; badge.textContent = 'WORKING'; }
-            } else {
-                el.className = 'dp-crew-dot idle';
-                var badge2 = document.getElementById('crewBadge-' + codeName);
-                if (badge2) { badge2.className = 'dp-crew-badge'; badge2.textContent = 'IDLE'; }
+            if (j.agent_name && j.status === 'running') {
+                busyMap[j.agent_name] = j.description || j.job_type || 'task';
             }
         });
 
-        // Show job progress bars
+        // Extract cross-station assists and contractors
+        var assists = [];
+        myJobs.forEach(function(j) {
+            var meta = j.metadata || {};
+            if (meta.is_cross_station && meta.agent_station && meta.agent_station !== 'ENGINEERING') {
+                var aname = j.agent_name || 'Cross-station agent';
+                var already = assists.some(function(a) { return a.name === aname; });
+                if (!already) {
+                    assists.push({ name: aname, station: meta.agent_station, cap: meta.capability || 'assist' });
+                }
+            }
+        });
+
+        // Re-render crew panel with busy state
+        var crew = window._dpCrew || [];
+        var crewEl = document.getElementById('stationCrew');
+        if (crewEl && crew.length) {
+            _renderCrewPanel(crewEl, crew, window._dpMaxPrimary || 2, window._dpMaxAux || 1, assists, busyMap);
+        }
+
+        // Render job progress bars
+        var jobsEl = document.getElementById('stationJobs');
+        jobsEl.textContent = '';
         myJobs.forEach(function(j) {
             var pct = j.progress_pct || (j.total_steps > 0 ? Math.round((j.completed_steps / j.total_steps) * 100) : 0);
             var prog = document.createElement('div');
             prog.className = 'dp-job-progress';
             var desc = document.createElement('span');
-            desc.textContent = (j.description || j.job_type || 'Working').substring(0, 30);
+            desc.textContent = (j.description || j.job_type || 'Working').substring(0, 40);
             prog.appendChild(desc);
             var bar = document.createElement('div');
             bar.className = 'dp-job-bar';

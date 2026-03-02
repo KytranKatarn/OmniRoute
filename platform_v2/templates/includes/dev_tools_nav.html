@@ -22,9 +22,7 @@
                     </div>
                     <div class="cn-zone cn-zone-center">
                         <span class="cn-category-label"><i data-lucide="code-2"></i> DEV TOOLS</span>
-                        <a href="{{ url_for('code_sentinel.index') }}" class="nav-module-btn {% if request.endpoint and 'code_sentinel' in request.endpoint %}active{% endif %}" onclick="showTransition(event, this.href)" title="Code Sentinel"><i data-lucide="shield-check"></i><span>Sentinel</span></a>
-                        <a href="{{ url_for('improvements.index') }}" class="nav-module-btn {% if request.endpoint and 'improvements' in request.endpoint %}active{% endif %}" onclick="showTransition(event, this.href)" title="Improvements Lab"><i data-lucide="wrench"></i><span>Improve</span></a>
-                        <a href="{{ url_for('sandbox_manager.index') }}" class="nav-module-btn {% if request.endpoint and 'sandbox_manager' in request.endpoint %}active{% endif %}" onclick="showTransition(event, this.href)" title="Sandbox Manager"><i data-lucide="test-tube-2"></i><span>Sandbox</span></a>
+                        <a href="{{ url_for('dev_pipeline.index') }}" class="nav-module-btn {% if request.endpoint and 'dev_pipeline' in request.endpoint %}active{% endif %}" onclick="showTransition(event, this.href)" title="Dev Pipeline"><i data-lucide="workflow"></i><span>Pipeline</span></a>
                     </div>
                     <div class="cn-zone cn-zone-right">
                         <button class="cn-icon-btn" data-accent="cyan" onclick="toggleTheme()" title="Toggle Light/Dark Mode"><svg id="navThemeIconSun" viewBox="0 0 24 24" fill="currentColor" style="display:none;"><circle cx="12" cy="12" r="5"/><rect x="11" y="1" width="2" height="4" rx="1"/><rect x="11" y="19" width="2" height="4" rx="1"/><rect x="1" y="11" width="4" height="2" rx="1"/><rect x="19" y="11" width="4" height="2" rx="1"/></svg><svg id="navThemeIconMoon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg></button>

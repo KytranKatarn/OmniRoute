@@ -147,7 +147,7 @@ STATIONS_FALLBACK = {
         "color": "#FF00FF",
         "icon": "📊",
         "default_llm": "qwen25-classify",
-        "modules": ["consciousness", "knowledge_base", "analytics", "improvements_lab"],
+        "modules": ["consciousness", "knowledge_base", "analytics"],
     },
     "RESEARCH": {
         "station_name": "Research",
@@ -179,7 +179,7 @@ STATIONS_FALLBACK = {
         "color": "#0EA5E9",
         "icon": "⚙️",
         "default_llm": "qwen3-coder-cpu:latest",
-        "modules": ["code_sentinel", "sandbox_manager", "project_manager", "website_studio", "store_builder"],
+        "modules": ["dev_pipeline", "project_manager", "website_studio", "store_builder"],
     },
     "CREATIVE": {
         "station_name": "Creative",

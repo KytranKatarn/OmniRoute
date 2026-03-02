@@ -222,10 +222,8 @@ def categorize_endpoint(rule_str):
         return "Media Studio"
     elif "/tools/content-studio" in rule_str:
         return "Content Studio"
-    elif "/tools/code_sentinel" in rule_str:
-        return "Code Sentinel"
-    elif "/tools/improvements" in rule_str:
-        return "Improvements Lab"
+    elif "/tools/dev-pipeline" in rule_str:
+        return "Dev Pipeline"
     elif "/tools/backup-manager" in rule_str:
         return "Backup Manager"
     elif "/tools/sandbox" in rule_str:

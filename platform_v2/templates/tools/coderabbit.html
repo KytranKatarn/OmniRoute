@@ -2547,7 +2547,7 @@
             const truncatedTitle = title.length > 30 ? title.substring(0, 27) + '...' : title;
 
             return `
-                <a href="/tools/improvements-lab?proposal=${proposalId}"
+                <a href="/tools/dev-pipeline#proposals"
                    class="proposal-badge"
                    style="background: ${style.bg};
                           color: white; padding: 5px 12px; border-radius: 4px;
@@ -3800,8 +3800,8 @@
 
                     // Show link to Improvements Lab
                     setTimeout(() => {
-                        if (confirm(`${data.proposals.length} proposal(s) created. Open Improvements Lab?`)) {
-                            window.open('/tools/improvements-lab', '_blank');
+                        if (confirm(`${data.proposals.length} proposal(s) created. Open Dev Pipeline?`)) {
+                            window.open('/tools/dev-pipeline#proposals', '_blank');
                         }
                     }, 500);
                 } else {

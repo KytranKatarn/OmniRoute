@@ -39,7 +39,7 @@ class ModuleCategory(Enum):
     # New category structure from consolidation plan (2026-02-03)
     ADMIN_OPERATIONS = "admin_operations"  # backup_manager, security_network, account_center, system_ops
     AI_COMMAND = "ai_command"  # blueprint, consciousness, team_management, bridge, archie_core
-    DEVELOPMENT_TOOLS = "development_tools"  # code_sentinel, sandbox_manager, improvements_lab
+    DEVELOPMENT_TOOLS = "development_tools"  # dev_pipeline
     SAAS_SERVICES = "saas_services"  # crm, website_studio, store_builder, call_center, etc.
     PROJECT_KNOWLEDGE = "project_knowledge"  # project_manager, obsidian_vault, api_docs
     MEDIA_HOME = "media_home"  # media_hub
@@ -500,9 +500,9 @@ MODULES: List[ModuleDefinition] = [
         tags=["ai", "assistant", "chat", "voice", "vision", "ai-command"],
     ),
     # ============================================
-    # DEVELOPMENT TOOLS (4 modules — dev_pipeline is the consolidated replacement)
+    # DEVELOPMENT TOOLS (1 module)
     # ============================================
-    # dev_pipeline (new unified), code_sentinel, sandbox_manager, improvements_lab
+    # dev_pipeline (consolidated from code_sentinel + sandbox_manager + improvements_lab)
     ModuleDefinition(
         id="dev_pipeline",
         name="Dev Pipeline",
@@ -525,69 +525,6 @@ MODULES: List[ModuleDefinition] = [
             "deployment",
             "development-tools",
         ],
-    ),
-    ModuleDefinition(
-        id="code_sentinel",
-        name="Code Sentinel",
-        description="→ Merged into Dev Pipeline Scan tab",
-        icon="shield-check",
-        category=ModuleCategory.DEVELOPMENT_TOOLS,
-        route="/tools/dev-pipeline#scan",
-        blueprint_import="tools.code_sentinel:code_sentinel_bp",
-        required_permissions=[],
-        minimum_role="ADMIN",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: default_health_check("code_sentinel"),
-        priority=1,
-        tags=[
-            "code-health",
-            "security",
-            "ai",
-            "development",
-            "quality",
-            "scanner",
-            "development-tools",
-        ],
-    ),
-    ModuleDefinition(
-        id="sandbox_manager",
-        name="Sandbox Manager",
-        description="→ Merged into Dev Pipeline Sandbox tab",
-        icon="test-tube-2",
-        category=ModuleCategory.DEVELOPMENT_TOOLS,
-        route="/tools/dev-pipeline#sandbox",
-        blueprint_import="tools.sandbox_manager:sandbox_manager_bp",
-        required_permissions=["admin:sandbox"],
-        minimum_role="ADMIN",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: default_health_check("sandbox_manager"),
-        priority=2,
-        tags=[
-            "sandbox",
-            "testing",
-            "development",
-            "deployment",
-            "regression",
-            "benchmarks",
-            "development-tools",
-        ],
-    ),
-    ModuleDefinition(
-        id="improvements_lab",
-        name="Improvements Lab",
-        description="→ Merged into Dev Pipeline Proposals tab",
-        icon="wrench",
-        category=ModuleCategory.DEVELOPMENT_TOOLS,
-        route="/tools/dev-pipeline#proposals",
-        blueprint_import="tools.improvements:improvements_bp",
-        required_permissions=["admin:improvements"],
-        minimum_role="ADMIN",
-        enabled=True,
-        health_check=lambda: default_health_check("improvements_lab"),
-        priority=3,
-        tags=["improvements", "ai", "workflow", "chat", "development-tools"],
     ),
     # ============================================
     # SAAS SERVICES (10 modules)

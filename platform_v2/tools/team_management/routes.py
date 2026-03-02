@@ -10019,7 +10019,7 @@ AGENT_TEMPLATES = [
         "last_name": "Sharma",
         "role": "Code Quality Analyst",
         "department": "Development Tools",
-        "module_id": "code_sentinel",
+        "module_id": "dev_pipeline",
         "category": "development_tools",
         "icon": "code",
         "system_prompt": (
@@ -10042,7 +10042,7 @@ AGENT_TEMPLATES = [
         "last_name": "Lindqvist",
         "role": "Testing & Sandbox Specialist",
         "department": "Development Tools",
-        "module_id": "sandbox_manager",
+        "module_id": "dev_pipeline",
         "category": "development_tools",
         "icon": "flask-conical",
         "system_prompt": (
@@ -10065,7 +10065,7 @@ AGENT_TEMPLATES = [
         "last_name": "Al-Rashid",
         "role": "Platform Improvement Analyst",
         "department": "Development Tools",
-        "module_id": "improvements_lab",
+        "module_id": "dev_pipeline",
         "category": "development_tools",
         "icon": "lightbulb",
         "system_prompt": (

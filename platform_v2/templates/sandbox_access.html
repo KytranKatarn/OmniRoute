@@ -172,7 +172,7 @@
             resultsDiv.innerHTML = '<p style="color: #FFA500;">Testing connection to sandbox schema...</p>';
 
             try {
-                const response = await fetch('/tools/improvements-lab/sandboxes/{{ sandbox_id }}/test-connection');
+                const response = await fetch('/tools/dev-pipeline/api/sandboxes/{{ sandbox_id }}/test-connection');
                 const data = await response.json();
 
                 if (data.success) {

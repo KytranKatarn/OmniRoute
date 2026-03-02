@@ -3750,17 +3750,15 @@ function addMultiAgentMessage(data, meta = {}) {
 
 // Module action button configuration
 const moduleActions = {
-    'improvements_lab': { icon: 'lightbulb', label: 'Create Proposal', color: '#f59e0b' },
-    'blueprint': { icon: 'clipboard-list', label: 'Blueprint Tasks', color: '#3b82f6' },
-    'sandbox': { icon: 'flask-conical', label: 'Test in Sandbox', color: '#10b981' }
+    'dev_pipeline': { icon: 'workflow', label: 'Dev Pipeline', color: '#00FFFF' },
+    'blueprint': { icon: 'clipboard-list', label: 'Blueprint Tasks', color: '#3b82f6' }
 };
 
 // Open a module in a new tab or navigate to it
 function openModule(moduleName) {
     const moduleUrls = {
-        'improvements_lab': '/tools/improvements-lab',
-        'blueprint': '/tools/blueprint',
-        'sandbox': '/tools/sandbox'
+        'dev_pipeline': '/tools/dev-pipeline',
+        'blueprint': '/tools/blueprint'
     };
     const url = moduleUrls[moduleName];
     if (url) {
@@ -3916,7 +3914,7 @@ async function sendMessage(message) {
         // Network errors show default action buttons
         addMessageWithActions(
             'Sorry, I had trouble connecting. Please try again.',
-            ['improvements_lab', 'blueprint', 'sandbox']
+            ['dev_pipeline', 'blueprint']
         );
     } finally {
         showTyping(false);

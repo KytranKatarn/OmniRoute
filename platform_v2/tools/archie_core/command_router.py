@@ -343,7 +343,7 @@ Keep your synthesis concise but comprehensive."""
                 "intent_type": intent_type,
                 "duration_ms": int((datetime.now() - start_time).total_seconds() * 1000),
                 "fallback_available": True,
-                "suggested_modules": ["improvements_lab", "blueprint", "sandbox"],
+                "suggested_modules": ["dev_pipeline", "blueprint"],
             }
 
     async def _handle_code_task(self, intent: dict, context: dict, user_id: int) -> dict:
@@ -402,7 +402,7 @@ Guidelines:
                 "error_type": response.get("error_type", "unknown"),
                 "escalation_available": True,
                 "fallback_available": True,
-                "suggested_modules": response.get("suggested_modules", ["improvements_lab", "blueprint", "sandbox"]),
+                "suggested_modules": response.get("suggested_modules", ["dev_pipeline", "blueprint"]),
                 "suggested_action": "Try creating a proposal or using the Blueprint to break this into smaller tasks.",
             }
 
@@ -1011,7 +1011,7 @@ In the meantime, would you like me to try handling it with our local models? I m
                         "model": model,
                         "content": "",
                         "fallback_available": True,
-                        "suggested_modules": ["improvements_lab", "blueprint", "sandbox"],
+                        "suggested_modules": ["dev_pipeline", "blueprint"],
                     }
             except Exception as e:
                 logger.warning(f"Bridge dispatcher error, falling back to direct Ollama: {e}")
@@ -1065,7 +1065,7 @@ In the meantime, would you like me to try handling it with our local models? I m
                     "endpoint": endpoint,
                     "content": "",
                     "fallback_available": True,
-                    "suggested_modules": ["improvements_lab", "blueprint", "sandbox"],
+                    "suggested_modules": ["dev_pipeline", "blueprint"],
                 }
 
         except requests.exceptions.Timeout:
@@ -1078,7 +1078,7 @@ In the meantime, would you like me to try handling it with our local models? I m
                 "endpoint": endpoint,
                 "content": "",
                 "fallback_available": True,
-                "suggested_modules": ["improvements_lab", "blueprint", "sandbox"],
+                "suggested_modules": ["dev_pipeline", "blueprint"],
             }
 
         except requests.exceptions.ConnectionError as e:
@@ -1091,7 +1091,7 @@ In the meantime, would you like me to try handling it with our local models? I m
                 "endpoint": endpoint,
                 "content": "",
                 "fallback_available": True,
-                "suggested_modules": ["improvements_lab", "blueprint", "sandbox"],
+                "suggested_modules": ["dev_pipeline", "blueprint"],
             }
 
         except Exception as e:
@@ -1103,7 +1103,7 @@ In the meantime, would you like me to try handling it with our local models? I m
                 "model": model,
                 "content": "",
                 "fallback_available": True,
-                "suggested_modules": ["improvements_lab", "blueprint", "sandbox"],
+                "suggested_modules": ["dev_pipeline", "blueprint"],
             }
 
     async def _ask_for_clarification(self, question: str, context: dict) -> str:

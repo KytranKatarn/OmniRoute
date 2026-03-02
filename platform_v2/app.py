@@ -1710,7 +1710,6 @@ from tools.archie_core.api import archie_api_bp  # noqa: E402
 from tools.github_integration.github_routes import github_bp  # noqa: E402
 from sandbox_routes import sandbox_bp  # noqa: E402
 
-# NOTE: sandbox_manager_bp is loaded via module_registry (ModuleCategory.DEVELOPMENT)
 from cursor_api import cursor_bp  # noqa: E402
 
 # OAuth authentication (Phase 6.5 - User Management & Subscription System)
@@ -1723,12 +1722,10 @@ init_oauth(app)
 logger.info("OAuth initialized with Google provider")
 
 # Register additional blueprints
-# Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp loaded via module_registry
-# NOTE: improvements_bp now loaded via module_registry (stub redirect)
+# Note: app_builder_bp, archie_chat_bp, consciousness_bp, backup_manager_bp, dev_pipeline_bp loaded via module_registry
 app.register_blueprint(archie_api_bp)
 app.register_blueprint(github_bp)
 app.register_blueprint(sandbox_bp)  # Sandbox environment for testing proposals
-# NOTE: sandbox_manager_bp is loaded via module_registry
 app.register_blueprint(cursor_bp)  # Cursor IDE integration API
 app.register_blueprint(triage_bp)  # Phase 42: Conversation triage pipeline
 # OAuth authentication (Phase 6.5)

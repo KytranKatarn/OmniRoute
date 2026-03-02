@@ -1563,29 +1563,60 @@ var _activeJobPolls = {};
 var _stationPollInterval = null;
 
 function loadStationCrew() {
-    fetch(API + '/station/crew').then(function(r) { return r.json(); }).then(function(d) {
+    // Fetch directly from Bridge API (browser carries auth cookie)
+    fetch('/tools/bridge/api/stations').then(function(r) {
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') === -1) return Promise.reject('not json');
+        return r.json();
+    }).then(function(data) {
         var dot = document.getElementById('stationStatusDot');
         var el = document.getElementById('stationCrew');
-        if (!d.success || !d.crew.length) {
+        if (!data.success) {
             dot.className = 'dp-station-status offline';
-            el.innerHTML = '<span class="dp-station-loading">No agents assigned</span>';
+            el.textContent = '';
+            var msg = document.createElement('span');
+            msg.className = 'dp-station-loading';
+            msg.textContent = 'Bridge unavailable';
+            el.appendChild(msg);
+            return;
+        }
+        // Find ENGINEERING station
+        var crew = [];
+        var stations = data.stations || [];
+        for (var i = 0; i < stations.length; i++) {
+            if (stations[i].code !== 'ENGINEERING') continue;
+            (stations[i].assigned_agents || []).forEach(function(a) {
+                crew.push({
+                    name: (a.first_name && a.last_name) ? a.first_name + ' ' + a.last_name : (a.name || 'Agent'),
+                    codeName: a.name || '',
+                    title: a.title || a.assignment_type || 'agent'
+                });
+            });
+        }
+        if (!crew.length) {
+            dot.className = 'dp-station-status offline';
+            el.textContent = '';
+            var msg2 = document.createElement('span');
+            msg2.className = 'dp-station-loading';
+            msg2.textContent = 'No agents assigned';
+            el.appendChild(msg2);
             return;
         }
         dot.className = 'dp-station-status online';
         el.textContent = '';
-        d.crew.forEach(function(a) {
+        crew.forEach(function(a) {
             var agent = document.createElement('span');
             agent.className = 'dp-crew-agent';
             var adot = document.createElement('span');
             adot.className = 'dp-crew-dot idle';
-            adot.id = 'crewDot-' + (a.code_name || a.id);
+            adot.id = 'crewDot-' + a.codeName;
             agent.appendChild(adot);
             var name = document.createElement('span');
             name.textContent = a.name;
             agent.appendChild(name);
             var badge = document.createElement('span');
             badge.className = 'dp-crew-badge';
-            badge.id = 'crewBadge-' + (a.code_name || a.id);
+            badge.id = 'crewBadge-' + a.codeName;
             badge.textContent = 'IDLE';
             agent.appendChild(badge);
             el.appendChild(agent);
@@ -1596,16 +1627,34 @@ function loadStationCrew() {
         var dot = document.getElementById('stationStatusDot');
         if (dot) dot.className = 'dp-station-status offline';
         var el = document.getElementById('stationCrew');
-        if (el) el.innerHTML = '<span class="dp-station-loading">Bridge unavailable</span>';
+        if (el) {
+            el.textContent = '';
+            var msg3 = document.createElement('span');
+            msg3.className = 'dp-station-loading';
+            msg3.textContent = 'Bridge unavailable';
+            el.appendChild(msg3);
+        }
     });
 }
 
 function checkStationJobs() {
-    fetch(API + '/station/jobs').then(function(r) { return r.json(); }).then(function(d) {
+    // Fetch running jobs directly from Bridge API (browser carries auth cookie)
+    fetch('/tools/bridge/api/bridge/jobs?status=running').then(function(r) {
+        var ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') === -1) return Promise.reject('not json');
+        return r.json();
+    }).then(function(data) {
         var jobsEl = document.getElementById('stationJobs');
         jobsEl.textContent = '';
 
-        if (!d.jobs || !d.jobs.length) {
+        if (!data.success) return;
+
+        // Filter to dev_pipeline module jobs
+        var myJobs = (data.jobs || []).filter(function(j) {
+            return j.module_source === 'dev_pipeline';
+        });
+
+        if (!myJobs.length) {
             // Reset all crew dots to idle
             document.querySelectorAll('.dp-crew-dot').forEach(function(el) { el.className = 'dp-crew-dot idle'; });
             document.querySelectorAll('.dp-crew-badge').forEach(function(el) { el.className = 'dp-crew-badge'; el.textContent = 'IDLE'; });
@@ -1614,7 +1663,7 @@ function checkStationJobs() {
 
         // Build busy map
         var busyMap = {};
-        d.jobs.forEach(function(j) {
+        myJobs.forEach(function(j) {
             if (j.agent_name) busyMap[j.agent_name] = j;
         });
 
@@ -1633,8 +1682,8 @@ function checkStationJobs() {
         });
 
         // Show job progress bars
-        d.jobs.forEach(function(j) {
-            var pct = j.total_steps > 0 ? Math.round((j.completed_steps / j.total_steps) * 100) : 0;
+        myJobs.forEach(function(j) {
+            var pct = j.progress_pct || (j.total_steps > 0 ? Math.round((j.completed_steps / j.total_steps) * 100) : 0);
             var prog = document.createElement('div');
             prog.className = 'dp-job-progress';
             var desc = document.createElement('span');

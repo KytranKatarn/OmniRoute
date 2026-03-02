@@ -589,10 +589,38 @@
 
     <!-- Sandbox Tab -->
     <div id="tab-sandbox" class="tab-content">
-        <div class="dp-empty">
-            <div class="dp-empty-icon"><i data-lucide="test-tube-2" style="width:48px;height:48px;"></i></div>
-            <div class="dp-empty-title">Sandbox Environments</div>
-            <div class="dp-empty-desc">Isolated testing environments for validating code changes.<br>Docker containers or PostgreSQL schema sandboxes.</div>
+        <!-- Sub-tabs: Environments | Test Runs | Suites -->
+        <div class="dp-subtabs">
+            <button class="dp-subtab active" data-subtab="environments" onclick="switchSubTab('sandbox', 'environments')">Environments</button>
+            <button class="dp-subtab" data-subtab="runs" onclick="switchSubTab('sandbox', 'runs')">Test Runs</button>
+            <button class="dp-subtab" data-subtab="suites" onclick="switchSubTab('sandbox', 'suites')">Suites</button>
+        </div>
+
+        <!-- Environments sub-tab -->
+        <div id="sandbox-subtab-environments" class="dp-subtab-content active">
+            <div class="dp-scan-actions" style="margin-bottom:12px;">
+                <button class="dp-btn dp-btn-primary" onclick="loadSandboxes()">Refresh</button>
+            </div>
+            <div id="sandboxList" class="dp-proposal-list">
+                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading sandboxes...</div></div>
+            </div>
+        </div>
+
+        <!-- Test Runs sub-tab -->
+        <div id="sandbox-subtab-runs" class="dp-subtab-content">
+            <div class="dp-scan-actions" style="margin-bottom:12px;">
+                <button class="dp-btn dp-btn-accent" onclick="runNewTest()">Run Tests</button>
+            </div>
+            <div id="testRunsList" class="dp-history-list">
+                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading test history...</div></div>
+            </div>
+        </div>
+
+        <!-- Suites sub-tab -->
+        <div id="sandbox-subtab-suites" class="dp-subtab-content">
+            <div id="suitesList" class="dp-proposal-list">
+                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading test suites...</div></div>
+            </div>
         </div>
     </div>
 
@@ -623,6 +651,9 @@ function switchSubTab(parentTab, subId) {
     if (btn) btn.classList.add('active');
     if (subId === 'issues') loadIssues();
     if (subId === 'history') loadScanHistory();
+    if (subId === 'environments') loadSandboxes();
+    if (subId === 'runs') loadTestRuns();
+    if (subId === 'suites') loadTestSuites();
 }
 
 function checkScanAi() {
@@ -1037,6 +1068,174 @@ function closeDetail() {
     document.getElementById('proposalDetail').style.display = 'none';
 }
 
+// ---- Sandbox Tab ----
+
+function loadSandboxes() {
+    fetch(API + '/sandbox/list').then(function(r) { return r.json(); }).then(function(d) {
+        var sandboxes = d.sandboxes || d || [];
+        if (!Array.isArray(sandboxes)) sandboxes = [];
+        var el = document.getElementById('sandboxList');
+        el.textContent = '';
+        if (!sandboxes.length) {
+            var empty = document.createElement('div');
+            empty.className = 'dp-empty';
+            empty.style.padding = '40px';
+            empty.textContent = 'No sandboxes found';
+            el.appendChild(empty);
+            return;
+        }
+        document.getElementById('statSandboxes').textContent = sandboxes.length;
+        var statusColors = { active: '#00ff41', ready: '#00d4ff', creating: '#f59e0b', testing: '#8b5cf6', destroyed: '#6b7280' };
+        sandboxes.forEach(function(s) {
+            var card = document.createElement('div');
+            card.className = 'dp-proposal-card';
+            card.style.setProperty('--prop-accent', statusColors[s.status] || '#6b7280');
+
+            var id = document.createElement('span');
+            id.className = 'dp-proposal-id';
+            id.textContent = s.module_id || s.id || '?';
+
+            var info = document.createElement('div');
+            info.className = 'dp-proposal-info';
+
+            var title = document.createElement('div');
+            title.className = 'dp-proposal-title';
+            title.textContent = (s.module_id || 'Sandbox') + ' (' + (s.sandbox_type || s.type || 'schema') + ')';
+
+            var meta = document.createElement('div');
+            meta.className = 'dp-proposal-meta';
+            var badge = document.createElement('span');
+            badge.className = 'dp-severity ' + (s.status === 'active' || s.status === 'ready' ? 'low' : s.status === 'testing' ? 'medium' : 'high');
+            badge.textContent = s.status || '?';
+            meta.appendChild(badge);
+
+            info.appendChild(title);
+            info.appendChild(meta);
+            card.appendChild(id);
+            card.appendChild(info);
+            el.appendChild(card);
+        });
+    }).catch(function() {
+        var el = document.getElementById('sandboxList');
+        el.textContent = '';
+        var err = document.createElement('div');
+        err.className = 'dp-empty';
+        err.style.padding = '40px';
+        err.textContent = 'Error loading sandboxes';
+        el.appendChild(err);
+    });
+}
+
+function loadTestRuns() {
+    fetch(API + '/sandbox/history').then(function(r) { return r.json(); }).then(function(d) {
+        var runs = d.runs || d.history || d || [];
+        if (!Array.isArray(runs)) runs = [];
+        var el = document.getElementById('testRunsList');
+        el.textContent = '';
+        if (!runs.length) {
+            var empty = document.createElement('div');
+            empty.className = 'dp-empty';
+            empty.style.padding = '40px';
+            empty.textContent = 'No test runs yet';
+            el.appendChild(empty);
+            return;
+        }
+        runs.slice(0, 30).forEach(function(r) {
+            var row = document.createElement('div');
+            row.className = 'dp-history-item';
+
+            var name = document.createElement('span');
+            name.className = 'dp-history-file';
+            name.textContent = r.suite_name || r.run_type || r.id || '\u2014';
+
+            var status = document.createElement('span');
+            var passed = r.status === 'passed' || r.status === 'completed';
+            status.className = 'dp-severity ' + (passed ? 'low' : r.status === 'running' ? 'medium' : 'high');
+            status.textContent = r.status || '?';
+
+            var time = document.createElement('span');
+            time.className = 'dp-history-time';
+            time.textContent = r.started_at ? new Date(r.started_at).toLocaleString() : '\u2014';
+
+            row.appendChild(name);
+            row.appendChild(status);
+            row.appendChild(time);
+            el.appendChild(row);
+        });
+    }).catch(function() {
+        var el = document.getElementById('testRunsList');
+        el.textContent = '';
+        var err = document.createElement('div');
+        err.className = 'dp-empty';
+        err.style.padding = '40px';
+        err.textContent = 'Error loading test runs';
+        el.appendChild(err);
+    });
+}
+
+function loadTestSuites() {
+    fetch(API + '/sandbox/suites').then(function(r) { return r.json(); }).then(function(d) {
+        var suites = d.suites || d || [];
+        if (!Array.isArray(suites)) suites = [];
+        var el = document.getElementById('suitesList');
+        el.textContent = '';
+        if (!suites.length) {
+            var empty = document.createElement('div');
+            empty.className = 'dp-empty';
+            empty.style.padding = '40px';
+            empty.textContent = 'No test suites configured';
+            el.appendChild(empty);
+            return;
+        }
+        suites.forEach(function(s) {
+            var card = document.createElement('div');
+            card.className = 'dp-proposal-card';
+            card.style.setProperty('--prop-accent', '#8b5cf6');
+
+            var id = document.createElement('span');
+            id.className = 'dp-proposal-id';
+            id.textContent = '#' + (s.id || '?');
+
+            var info = document.createElement('div');
+            info.className = 'dp-proposal-info';
+
+            var title = document.createElement('div');
+            title.className = 'dp-proposal-title';
+            title.textContent = s.name || 'Unnamed Suite';
+
+            var meta = document.createElement('div');
+            meta.className = 'dp-proposal-meta';
+            if (s.test_count) {
+                var cnt = document.createElement('span');
+                cnt.className = 'dp-severity low';
+                cnt.textContent = s.test_count + ' tests';
+                meta.appendChild(cnt);
+            }
+
+            info.appendChild(title);
+            info.appendChild(meta);
+            card.appendChild(id);
+            card.appendChild(info);
+            el.appendChild(card);
+        });
+    }).catch(function() {
+        var el = document.getElementById('suitesList');
+        el.textContent = '';
+        var err = document.createElement('div');
+        err.className = 'dp-empty';
+        err.style.padding = '40px';
+        err.textContent = 'Error loading suites';
+        el.appendChild(err);
+    });
+}
+
+function runNewTest() {
+    fetch(API + '/sandbox/run', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { loadTestRuns(); })
+        .catch(function() {});
+}
+
 // Tab switching with hash navigation
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(function(el) {
@@ -1053,6 +1252,7 @@ function switchTab(tabId) {
     // Auto-load data when switching tabs
     if (tabId === 'proposals') loadProposals();
     if (tabId === 'scan') checkScanAi();
+    if (tabId === 'sandbox') loadSandboxes();
 }
 
 // Hash navigation on load

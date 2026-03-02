@@ -2,19 +2,8 @@
 Sandbox Manager Module
 Per-module sandbox testing environments for safe code deployment
 
-Features:
-- Dashboard showing all module sandboxes with status
-- Create/destroy module sandboxes
-- Run tests in sandboxes
-- Visual access to sandbox environments
-- Configuration management
-- Integration with Code Sentinel and Improvements Lab
-- Test discovery across codebase (Python, JavaScript, Shell)
-- Automated regression testing with live progress
-- Test history and trends visualization
-- Performance benchmarking (API, database, module)
-
-Note: Testing Suite features were merged into this module on 2026-02-03
+DEPRECATED: UI consolidated into Dev Pipeline module (/tools/dev-pipeline#sandbox).
+API routes remain active for proxy layer compatibility.
 """
 
 from flask import Blueprint
@@ -22,3 +11,11 @@ from flask import Blueprint
 sandbox_manager_bp = Blueprint("sandbox_manager", __name__, url_prefix="/tools/sandbox-manager")
 
 from . import routes  # noqa: F401, E402
+
+# Redirect index to Dev Pipeline Sandbox tab
+from flask import redirect  # noqa: E402
+
+
+@sandbox_manager_bp.route("/redirect-to-pipeline")
+def redirect_to_pipeline():
+    return redirect("/tools/dev-pipeline#sandbox", code=302)

@@ -5,7 +5,7 @@ Renders the Improvements Lab standalone dashboard.
 API endpoints remain in admin/routes.py for compatibility.
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash
+from flask import Blueprint, redirect, url_for, flash
 from flask_login import login_required, current_user
 from functools import wraps
 
@@ -31,16 +31,5 @@ def admin_required(f):
 @login_required
 @admin_required
 def index():
-    """
-    Improvements Lab Dashboard
-
-    Renders the standalone improvements interface with:
-    - Chat with A.R.C.H.I.E.
-    - Workflow Automation
-    - Proposal Management
-    - Team Assignments
-    - Deployment Tracking
-
-    All API calls go to /tools/admin/improvements/... endpoints
-    """
-    return render_template("tools/improvements_lab.html")
+    """DEPRECATED: Redirect to Dev Pipeline Proposals tab."""
+    return redirect("/tools/dev-pipeline#proposals", code=302)

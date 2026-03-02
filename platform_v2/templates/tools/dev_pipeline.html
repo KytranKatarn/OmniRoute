@@ -426,6 +426,113 @@
     border-top: 1px solid rgba(255,255,255,0.03);
 }
 
+/* Station Crew Panel */
+.dp-station-panel {
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    border-left: 3px solid var(--archie-cyan, #00d4ff);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    min-height: 42px;
+}
+.dp-station-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.dp-station-label {
+    font-family: 'Orbitron', var(--archie-font-mono), monospace;
+    font-size: 0.65rem;
+    color: var(--archie-cyan, #00d4ff);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.dp-station-status {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #6b7280;
+    flex-shrink: 0;
+}
+.dp-station-status.online { background: #00ff41; box-shadow: 0 0 6px rgba(0,255,65,0.4); }
+.dp-station-status.offline { background: #ef4444; }
+.dp-station-crew {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    flex: 1;
+}
+.dp-station-loading {
+    font-size: 0.7rem;
+    color: var(--archie-text-muted);
+    font-style: italic;
+}
+.dp-crew-agent {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: var(--archie-text-secondary);
+}
+.dp-crew-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #6b7280;
+    flex-shrink: 0;
+}
+.dp-crew-dot.working { background: #00ff41; box-shadow: 0 0 4px rgba(0,255,65,0.3); }
+.dp-crew-dot.idle { background: #f59e0b; }
+.dp-crew-badge {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(139,92,246,0.15);
+    color: #8b5cf6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.dp-crew-badge.working {
+    background: rgba(0,255,65,0.1);
+    color: #00ff41;
+}
+.dp-station-jobs {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+.dp-job-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.68rem;
+    color: var(--archie-text-secondary);
+    background: rgba(139,92,246,0.08);
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+.dp-job-bar {
+    width: 60px; height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.dp-job-bar-fill {
+    height: 100%;
+    background: #8b5cf6;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+.dp-job-bar-fill.done { background: #00ff41; }
+.dp-job-bar-fill.failed { background: #ef4444; }
+
 /* Responsive: Fold5 open (717px) */
 @media (max-width: 768px) {
     .dp-container { padding: 12px; }
@@ -478,6 +585,18 @@
             <div class="dp-stat-label">Deployed</div>
             <div class="dp-stat-value" id="statDeployed">0</div>
         </div>
+    </div>
+
+    <!-- Station Crew Panel -->
+    <div class="dp-station-panel" id="stationPanel">
+        <div class="dp-station-header">
+            <span class="dp-station-label">ENGINEERING STATION</span>
+            <span class="dp-station-status" id="stationStatusDot"></span>
+        </div>
+        <div class="dp-station-crew" id="stationCrew">
+            <span class="dp-station-loading">Connecting to Bridge...</span>
+        </div>
+        <div class="dp-station-jobs" id="stationJobs"></div>
     </div>
 
     <!-- Tab Navigation -->
@@ -1435,6 +1554,119 @@ window.addEventListener('hashchange', function() {
     if (hash && document.getElementById('tab-' + hash)) {
         switchTab(hash);
     }
+});
+
+// ============================================================
+// STATION INTEGRATION
+// ============================================================
+var _activeJobPolls = {};
+var _stationPollInterval = null;
+
+function loadStationCrew() {
+    fetch(API + '/station/crew').then(function(r) { return r.json(); }).then(function(d) {
+        var dot = document.getElementById('stationStatusDot');
+        var el = document.getElementById('stationCrew');
+        if (!d.success || !d.crew.length) {
+            dot.className = 'dp-station-status offline';
+            el.innerHTML = '<span class="dp-station-loading">No agents assigned</span>';
+            return;
+        }
+        dot.className = 'dp-station-status online';
+        el.textContent = '';
+        d.crew.forEach(function(a) {
+            var agent = document.createElement('span');
+            agent.className = 'dp-crew-agent';
+            var adot = document.createElement('span');
+            adot.className = 'dp-crew-dot idle';
+            adot.id = 'crewDot-' + (a.code_name || a.id);
+            agent.appendChild(adot);
+            var name = document.createElement('span');
+            name.textContent = a.name;
+            agent.appendChild(name);
+            var badge = document.createElement('span');
+            badge.className = 'dp-crew-badge';
+            badge.id = 'crewBadge-' + (a.code_name || a.id);
+            badge.textContent = 'IDLE';
+            agent.appendChild(badge);
+            el.appendChild(agent);
+        });
+        // After loading crew, check for active jobs
+        checkStationJobs();
+    }).catch(function() {
+        var dot = document.getElementById('stationStatusDot');
+        if (dot) dot.className = 'dp-station-status offline';
+        var el = document.getElementById('stationCrew');
+        if (el) el.innerHTML = '<span class="dp-station-loading">Bridge unavailable</span>';
+    });
+}
+
+function checkStationJobs() {
+    fetch(API + '/station/jobs').then(function(r) { return r.json(); }).then(function(d) {
+        var jobsEl = document.getElementById('stationJobs');
+        jobsEl.textContent = '';
+
+        if (!d.jobs || !d.jobs.length) {
+            // Reset all crew dots to idle
+            document.querySelectorAll('.dp-crew-dot').forEach(function(el) { el.className = 'dp-crew-dot idle'; });
+            document.querySelectorAll('.dp-crew-badge').forEach(function(el) { el.className = 'dp-crew-badge'; el.textContent = 'IDLE'; });
+            return;
+        }
+
+        // Build busy map
+        var busyMap = {};
+        d.jobs.forEach(function(j) {
+            if (j.agent_name) busyMap[j.agent_name] = j;
+        });
+
+        // Update crew dots
+        document.querySelectorAll('[id^="crewDot-"]').forEach(function(el) {
+            var codeName = el.id.replace('crewDot-', '');
+            if (busyMap[codeName]) {
+                el.className = 'dp-crew-dot working';
+                var badge = document.getElementById('crewBadge-' + codeName);
+                if (badge) { badge.className = 'dp-crew-badge working'; badge.textContent = 'WORKING'; }
+            } else {
+                el.className = 'dp-crew-dot idle';
+                var badge2 = document.getElementById('crewBadge-' + codeName);
+                if (badge2) { badge2.className = 'dp-crew-badge'; badge2.textContent = 'IDLE'; }
+            }
+        });
+
+        // Show job progress bars
+        d.jobs.forEach(function(j) {
+            var pct = j.total_steps > 0 ? Math.round((j.completed_steps / j.total_steps) * 100) : 0;
+            var prog = document.createElement('div');
+            prog.className = 'dp-job-progress';
+            var desc = document.createElement('span');
+            desc.textContent = (j.description || j.job_type || 'Working').substring(0, 30);
+            prog.appendChild(desc);
+            var bar = document.createElement('div');
+            bar.className = 'dp-job-bar';
+            var fill = document.createElement('div');
+            fill.className = 'dp-job-bar-fill' + (j.status === 'completed' ? ' done' : j.status === 'failed' ? ' failed' : '');
+            fill.style.width = pct + '%';
+            bar.appendChild(fill);
+            prog.appendChild(bar);
+            var pctText = document.createElement('span');
+            pctText.textContent = pct + '%';
+            prog.appendChild(pctText);
+            jobsEl.appendChild(prog);
+        });
+    }).catch(function() {
+        // Silently fail — don't break UI
+    });
+}
+
+// Poll station every 5s
+function startStationPolling() {
+    if (_stationPollInterval) return;
+    loadStationCrew();
+    _stationPollInterval = setInterval(checkStationJobs, 5000);
+}
+
+// Start station polling on load
+document.addEventListener('DOMContentLoaded', function() {
+    startStationPolling();
 });
 </script>
 {% endblock %}

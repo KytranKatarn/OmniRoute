@@ -22,15 +22,11 @@ from .scan_routes import register_scan_routes  # noqa: E402
 from .proposal_routes import register_proposal_routes  # noqa: E402
 from .sandbox_routes import register_sandbox_routes  # noqa: E402
 from .deploy_routes import register_deploy_routes  # noqa: E402
+from .station_routes import register_station_routes  # noqa: E402
 
-# Register scan routes (Code Sentinel proxy)
+# Register all route groups (service layer — no more proxy imports)
 register_scan_routes(dev_pipeline_bp, admin_required)
-
-# Register proposal routes (Improvements Lab proxy)
 register_proposal_routes(dev_pipeline_bp, admin_required)
-
-# Register sandbox routes (Sandbox Manager proxy)
 register_sandbox_routes(dev_pipeline_bp, admin_required)
-
-# Register deploy routes (unified deployment view)
 register_deploy_routes(dev_pipeline_bp, admin_required)
+register_station_routes(dev_pipeline_bp, admin_required)

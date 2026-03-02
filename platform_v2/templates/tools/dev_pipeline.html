@@ -626,10 +626,40 @@
 
     <!-- Deploy Tab -->
     <div id="tab-deploy" class="tab-content">
-        <div class="dp-empty">
-            <div class="dp-empty-icon"><i data-lucide="rocket" style="width:48px;height:48px;"></i></div>
-            <div class="dp-empty-title">Deployments</div>
-            <div class="dp-empty-desc">Deployment history, health monitoring, and rollback controls.<br>Safety-first: backup, test, deploy, monitor.</div>
+        <!-- Deploy stats -->
+        <div class="dp-stats" id="deployStats" style="margin-bottom:16px;">
+            <div class="dp-stat-card" style="--card-accent: #00ff41;">
+                <div class="dp-stat-label">Deployed</div>
+                <div class="dp-stat-value" id="deployTotalCount">0</div>
+            </div>
+            <div class="dp-stat-card" style="--card-accent: var(--archie-cyan, #00d4ff);">
+                <div class="dp-stat-label">Ready to Deploy</div>
+                <div class="dp-stat-value" id="deployReadyCount">0</div>
+            </div>
+            <div class="dp-stat-card" style="--card-accent: #ef4444;">
+                <div class="dp-stat-label">Failed</div>
+                <div class="dp-stat-value" id="deployFailedCount">0</div>
+            </div>
+        </div>
+
+        <!-- Sub-tabs: Ready | History -->
+        <div class="dp-subtabs">
+            <button class="dp-subtab active" data-subtab="ready" onclick="switchSubTab('deploy', 'ready')">Ready to Deploy</button>
+            <button class="dp-subtab" data-subtab="deployed" onclick="switchSubTab('deploy', 'deployed')">Deployment History</button>
+        </div>
+
+        <!-- Ready sub-tab -->
+        <div id="deploy-subtab-ready" class="dp-subtab-content active">
+            <div id="deployReadyList" class="dp-proposal-list">
+                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- History sub-tab -->
+        <div id="deploy-subtab-deployed" class="dp-subtab-content">
+            <div id="deployHistoryList" class="dp-history-list">
+                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading deployment history...</div></div>
+            </div>
         </div>
     </div>
 </div>
@@ -654,6 +684,8 @@ function switchSubTab(parentTab, subId) {
     if (subId === 'environments') loadSandboxes();
     if (subId === 'runs') loadTestRuns();
     if (subId === 'suites') loadTestSuites();
+    if (subId === 'ready') loadDeployReady();
+    if (subId === 'deployed') loadDeployHistory();
 }
 
 function checkScanAi() {
@@ -1236,6 +1268,136 @@ function runNewTest() {
         .catch(function() {});
 }
 
+// ---- Deploy Tab ----
+
+function loadDeployReady() {
+    fetch(API + '/deploy/ready').then(function(r) { return r.json(); }).then(function(d) {
+        var proposals = d.proposals || [];
+        var el = document.getElementById('deployReadyList');
+        el.textContent = '';
+        document.getElementById('deployReadyCount').textContent = proposals.length;
+        if (!proposals.length) {
+            var empty = document.createElement('div');
+            empty.className = 'dp-empty';
+            empty.style.padding = '40px';
+            empty.textContent = 'No proposals ready for deployment';
+            el.appendChild(empty);
+            return;
+        }
+        proposals.forEach(function(p) {
+            var card = document.createElement('div');
+            card.className = 'dp-proposal-card';
+            card.style.setProperty('--prop-accent', '#00ff41');
+
+            var id = document.createElement('span');
+            id.className = 'dp-proposal-id';
+            id.textContent = '#' + p.id;
+
+            var info = document.createElement('div');
+            info.className = 'dp-proposal-info';
+
+            var title = document.createElement('div');
+            title.className = 'dp-proposal-title';
+            title.textContent = p.title || 'Untitled';
+
+            var meta = document.createElement('div');
+            meta.className = 'dp-proposal-meta';
+
+            var badge = document.createElement('span');
+            badge.className = 'dp-severity low';
+            badge.textContent = 'tested';
+            meta.appendChild(badge);
+
+            if (p.priority) {
+                var pri = document.createElement('span');
+                pri.className = 'dp-severity ' + (p.priority === 'critical' ? 'critical' : p.priority === 'high' ? 'high' : 'low');
+                pri.textContent = p.priority;
+                meta.appendChild(pri);
+            }
+
+            var deployBtn = document.createElement('button');
+            deployBtn.className = 'dp-btn dp-btn-accent';
+            deployBtn.textContent = 'Deploy';
+            deployBtn.style.marginLeft = 'auto';
+            deployBtn.style.flexShrink = '0';
+            deployBtn.onclick = function(e) {
+                e.stopPropagation();
+                if (confirm('Deploy proposal #' + p.id + ' to production?')) {
+                    fetch(API + '/proposals/' + p.id + '/deploy-to-production', { method: 'POST' })
+                        .then(function(r) { return r.json(); })
+                        .then(function() { loadDeployReady(); loadDeployHistory(); })
+                        .catch(function() {});
+                }
+            };
+
+            info.appendChild(title);
+            info.appendChild(meta);
+            card.appendChild(id);
+            card.appendChild(info);
+            card.appendChild(deployBtn);
+            el.appendChild(card);
+        });
+    }).catch(function() {
+        var el = document.getElementById('deployReadyList');
+        el.textContent = '';
+        var err = document.createElement('div');
+        err.className = 'dp-empty';
+        err.style.padding = '40px';
+        err.textContent = 'Error loading ready proposals';
+        el.appendChild(err);
+    });
+}
+
+function loadDeployHistory() {
+    fetch(API + '/deploy/history').then(function(r) { return r.json(); }).then(function(d) {
+        var deployments = d.deployments || [];
+        var stats = d.stats || {};
+        document.getElementById('deployTotalCount').textContent = stats.total_deployed || 0;
+        document.getElementById('deployFailedCount').textContent = stats.failed || 0;
+        document.getElementById('statDeployed').textContent = stats.total_deployed || 0;
+
+        var el = document.getElementById('deployHistoryList');
+        el.textContent = '';
+        if (!deployments.length) {
+            var empty = document.createElement('div');
+            empty.className = 'dp-empty';
+            empty.style.padding = '40px';
+            empty.textContent = 'No deployments yet';
+            el.appendChild(empty);
+            return;
+        }
+        deployments.forEach(function(dep) {
+            var row = document.createElement('div');
+            row.className = 'dp-history-item';
+
+            var title = document.createElement('span');
+            title.className = 'dp-history-file';
+            title.textContent = dep.title || 'Proposal #' + dep.id;
+
+            var badge = document.createElement('span');
+            badge.className = 'dp-severity low';
+            badge.textContent = dep.status || 'deployed';
+
+            var time = document.createElement('span');
+            time.className = 'dp-history-time';
+            time.textContent = dep.deployed_at ? new Date(dep.deployed_at).toLocaleString() : '\u2014';
+
+            row.appendChild(title);
+            row.appendChild(badge);
+            row.appendChild(time);
+            el.appendChild(row);
+        });
+    }).catch(function() {
+        var el = document.getElementById('deployHistoryList');
+        el.textContent = '';
+        var err = document.createElement('div');
+        err.className = 'dp-empty';
+        err.style.padding = '40px';
+        err.textContent = 'Error loading deployment history';
+        el.appendChild(err);
+    });
+}
+
 // Tab switching with hash navigation
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(function(el) {
@@ -1253,6 +1415,7 @@ function switchTab(tabId) {
     if (tabId === 'proposals') loadProposals();
     if (tabId === 'scan') checkScanAi();
     if (tabId === 'sandbox') loadSandboxes();
+    if (tabId === 'deploy') { loadDeployReady(); loadDeployHistory(); }
 }
 
 // Hash navigation on load

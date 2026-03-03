@@ -15,7 +15,7 @@ from datetime import datetime
 class GitBranchManager:
     """Manages Git branches for sandbox isolation"""
 
-    def __init__(self, repo_path: str = "/mnt/archie_brain/platform_v2"):
+    def __init__(self, repo_path: str = "/mnt/archie_brain"):
         self.repo_path = repo_path
         self.production_branch = "main"
         self.sandbox_prefix = "sandbox-proposal-"

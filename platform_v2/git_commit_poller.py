@@ -25,7 +25,7 @@ class GitCommitPoller:
 
     def __init__(
         self,
-        repo_path: str = "/mnt/archie_brain/platform_v2",
+        repo_path: str = "/mnt/archie_brain",
         poll_interval: int = 30,
         enabled: bool = True,
     ):

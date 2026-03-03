@@ -1387,12 +1387,7 @@
 
     function formatDate(isoStr) {
         if (!isoStr) return '-';
-        try {
-            const d = new Date(isoStr);
-            return d.toLocaleString();
-        } catch (e) {
-            return isoStr;
-        }
+        return ArchieTime.format(isoStr, 'datetime');
     }
 
     function showToast(message, type) {

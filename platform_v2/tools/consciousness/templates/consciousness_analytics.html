@@ -82,7 +82,7 @@ function loadAnalytics() {
             data.growth_data.forEach(item => {
                 const row = tbody.insertRow();
                 row.innerHTML = `
-                    <td>${new Date(item.date).toLocaleDateString()}</td>
+                    <td>${ArchieTime.date(item.date)}</td>
                     <td>${item.knowledge_type}</td>
                     <td>${item.entries_added}</td>
                 `;

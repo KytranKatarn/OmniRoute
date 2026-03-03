@@ -314,13 +314,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 
     function timeAgo(ts) {
         if (!ts) return 'Never';
-        var diff = Date.now() - new Date(ts).getTime();
-        var mins = Math.floor(diff / 60000);
-        if (mins < 1) return 'Just now';
-        if (mins < 60) return mins + 'm ago';
-        var hrs = Math.floor(mins / 60);
-        if (hrs < 24) return hrs + 'h ago';
-        return Math.floor(hrs / 24) + 'd ago';
+        return ArchieTime.age(ts);
     }
 
     function escapeHtml(text) {
@@ -407,7 +401,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                     var meta1 = document.createElement('div');
                     meta1.className = 'meta';
                     if (job) {
-                        meta1.textContent = 'Next: ' + (job.next_run ? new Date(job.next_run).toLocaleTimeString() : 'N/A');
+                        meta1.textContent = 'Next: ' + (job.next_run ? ArchieTime.time(job.next_run) : 'N/A');
                     } else {
                         meta1.textContent = 'Not registered';
                         meta1.style.color = 'var(--au-red)';
@@ -554,8 +548,8 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 footer.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;';
                 var footerMeta = document.createElement('div');
                 footerMeta.className = 'meta';
-                footerMeta.textContent = 'Created: ' + new Date(item.created_at).toLocaleString() +
-                    ' \u2022 Expires: ' + (item.expires_at ? new Date(item.expires_at).toLocaleString() : 'N/A');
+                footerMeta.textContent = 'Created: ' + ArchieTime.format(item.created_at, 'short') +
+                    ' \u2022 Expires: ' + (item.expires_at ? ArchieTime.format(item.expires_at, 'short') : 'N/A');
                 footer.appendChild(footerMeta);
 
                 if (item.status === 'pending') {
@@ -635,7 +629,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                     {text: String(l.items_failed), color: l.items_failed > 0 ? '#ff4136' : '#8b949e'},
                     {text: l.duration_ms + 'ms'},
                     {text: l.error_message || '-', color: l.error_message ? '#ff4136' : null, maxWidth: '200px'},
-                    {text: new Date(l.created_at).toLocaleString()}
+                    {text: ArchieTime.format(l.created_at, 'short')}
                 ];
                 cells.forEach(function(c) {
                     var td = document.createElement('td');

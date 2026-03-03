@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/category-nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-ops.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/light-mode.css') }}">
 
     <!-- SaaS Theme Override (non-LCARS themes on non-admin modules) -->
@@ -44,6 +45,9 @@
 
     <!-- A.R.C.H.I.E. i18n Engine (must load before inline t() calls) -->
     <script src="{{ url_for('static', filename='js/archie-i18n.js') }}"></script>
+
+    <!-- A.R.C.H.I.E. Timezone-Aware Timestamp Formatter -->
+    <script src="{{ url_for('static', filename='js/archie-time.js') }}"></script>
 
     <style>
         /* Legacy Flash Messages - Override with theme */

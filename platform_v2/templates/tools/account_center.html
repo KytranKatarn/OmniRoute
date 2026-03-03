@@ -3810,7 +3810,7 @@ function renderUsersTable(userList) {
 
         const tdLogin = document.createElement('td');
         tdLogin.className = 'hide-mobile';
-        tdLogin.textContent = user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never';
+        tdLogin.textContent = user.last_login ? ArchieTime.date(user.last_login) : 'Never';
 
         const tdActions = document.createElement('td');
         const actionsDiv = document.createElement('div');
@@ -4062,8 +4062,8 @@ function buildProfileHeader(container, user, subscription) {
     // Meta line
     const meta = document.createElement('div');
     meta.className = 'profile-header-meta';
-    const created = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown';
-    const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
+    const created = user.created_at ? ArchieTime.date(user.created_at) : 'Unknown';
+    const lastLogin = user.last_login ? ArchieTime.format(user.last_login, 'datetime') : 'Never';
     meta.textContent = 'Joined ' + created + '  \u00b7  Last login ' + lastLogin;
     info.appendChild(meta);
 
@@ -4121,7 +4121,7 @@ function buildOverviewTab(container, user, stats) {
     createdLabel.textContent = 'Created';
     const createdVal = document.createElement('div');
     createdVal.className = 'inline-field-value';
-    createdVal.textContent = user.created_at ? new Date(user.created_at).toLocaleDateString() : '-';
+    createdVal.textContent = user.created_at ? ArchieTime.date(user.created_at) : '-';
     createdField.appendChild(createdLabel);
     createdField.appendChild(createdVal);
     leftCol.appendChild(createdField);
@@ -4133,7 +4133,7 @@ function buildOverviewTab(container, user, stats) {
     loginLabel.textContent = 'Last Login';
     const loginVal = document.createElement('div');
     loginVal.className = 'inline-field-value';
-    loginVal.textContent = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
+    loginVal.textContent = user.last_login ? ArchieTime.format(user.last_login, 'datetime') : 'Never';
     loginField.appendChild(loginLabel);
     loginField.appendChild(loginVal);
     leftCol.appendChild(loginField);
@@ -4204,12 +4204,12 @@ function buildSubscriptionTab(container, user, subscription, usage, availableTie
 
     if (subscription.started_at) {
         const startSpan = document.createElement('span');
-        startSpan.textContent = 'Started: ' + new Date(subscription.started_at).toLocaleDateString();
+        startSpan.textContent = 'Started: ' + ArchieTime.date(subscription.started_at);
         detailsDiv.appendChild(startSpan);
     }
     if (subscription.expires_at) {
         const expSpan = document.createElement('span');
-        expSpan.textContent = 'Expires: ' + new Date(subscription.expires_at).toLocaleDateString();
+        expSpan.textContent = 'Expires: ' + ArchieTime.date(subscription.expires_at);
         detailsDiv.appendChild(expSpan);
     }
 
@@ -4305,7 +4305,7 @@ function buildSecurityTab(container, user, failedLogins) {
     if (user.totp_verified_at) {
         const verifiedAt = document.createElement('span');
         verifiedAt.style.cssText = 'font-size: var(--archie-text-xs); color: var(--archie-text-tertiary);';
-        verifiedAt.textContent = 'Verified: ' + new Date(user.totp_verified_at).toLocaleString();
+        verifiedAt.textContent = 'Verified: ' + ArchieTime.format(user.totp_verified_at, 'datetime');
         statusRow.appendChild(verifiedAt);
     }
     sec2fa.appendChild(statusRow);
@@ -4457,7 +4457,7 @@ function buildSecurityTab(container, user, failedLogins) {
 
             const tdTime = document.createElement('td');
             tdTime.style.cssText = 'padding: var(--archie-space-2); border-bottom: 1px solid var(--archie-border-default); color: var(--archie-text-tertiary);';
-            tdTime.textContent = f.attempted_at ? new Date(f.attempted_at).toLocaleString() : '-';
+            tdTime.textContent = f.attempted_at ? ArchieTime.format(f.attempted_at, 'short') : '-';
 
             tr.appendChild(tdIp);
             tr.appendChild(tdReason);
@@ -4500,7 +4500,7 @@ function buildActivityTab(container, recentActivity) {
 
             const time = document.createElement('span');
             time.className = 'activity-list-time';
-            time.textContent = a.created_at ? new Date(a.created_at).toLocaleString() : '';
+            time.textContent = a.created_at ? ArchieTime.format(a.created_at, 'short') : '';
             item.appendChild(time);
 
             container.appendChild(item);
@@ -5382,8 +5382,8 @@ function renderSubscriptionManagement(container, data, userId) {
     const subStatus = sub.status || 'active';
     const statusColor = subStatus === 'active' ? '#22c55e' : subStatus === 'cancelled' ? '#ef4444' : '#f59e0b';
     addDetail('Status', subStatus.charAt(0).toUpperCase() + subStatus.slice(1), statusColor);
-    addDetail('Started', sub.started_at ? new Date(sub.started_at).toLocaleDateString() : 'N/A');
-    addDetail('Expires', sub.expires_at ? new Date(sub.expires_at).toLocaleDateString() : 'Never');
+    addDetail('Started', sub.started_at ? ArchieTime.date(sub.started_at) : 'N/A');
+    addDetail('Expires', sub.expires_at ? ArchieTime.date(sub.expires_at) : 'Never');
 
     tierCard.appendChild(detailsGrid);
     currentSection.appendChild(tierCard);
@@ -5854,7 +5854,7 @@ async function loadActivity() {
 
                 const meta = document.createElement('div');
                 meta.className = 'activity-meta';
-                meta.textContent = (a.user_name || 'System') + ' - ' + (a.module || '') + ' - ' + new Date(a.created_at).toLocaleString();
+                meta.textContent = (a.user_name || 'System') + ' - ' + (a.module || '') + ' - ' + ArchieTime.format(a.created_at, 'short');
 
                 details.appendChild(actionDiv);
                 details.appendChild(meta);
@@ -5882,7 +5882,7 @@ function renderActivityChart(data) {
     activityChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.map(d => new Date(d.date).toLocaleDateString()),
+            labels: data.map(d => ArchieTime.date(d.date)),
             datasets: [{ label: 'Activity', data: data.map(d => d.count), borderColor: accentColor, backgroundColor: accentColor + '20', fill: true, tension: 0.4 }]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#333' }, ticks: { color: '#888' } }, y: { grid: { color: '#333' }, ticks: { color: '#888' } } } }
@@ -6075,18 +6075,18 @@ function renderSessionsTable(sessions) {
 
         const tdCreated = document.createElement('td');
         tdCreated.className = 'hide-mobile';
-        tdCreated.textContent = s.created_at ? new Date(s.created_at).toLocaleString() : '-';
+        tdCreated.textContent = s.created_at ? ArchieTime.format(s.created_at, 'short') : '-';
 
         const tdActivity = document.createElement('td');
         tdActivity.className = 'hide-fold';
-        tdActivity.textContent = s.last_activity ? new Date(s.last_activity).toLocaleString() : '-';
+        tdActivity.textContent = s.last_activity ? ArchieTime.format(s.last_activity, 'short') : '-';
 
         const tdExpires = document.createElement('td');
         tdExpires.className = 'hide-mobile';
         if (s.expires_at) {
             const expires = new Date(s.expires_at);
             const isExpired = expires < new Date();
-            tdExpires.textContent = expires.toLocaleString();
+            tdExpires.textContent = ArchieTime.format(expires.toISOString(), 'short');
             if (isExpired) tdExpires.style.color = 'var(--archie-red)';
         } else {
             tdExpires.textContent = 'Never';
@@ -6288,14 +6288,14 @@ function renderApiKeysTable(keys) {
 
         const tdLastUsed = document.createElement('td');
         tdLastUsed.className = 'hide-fold';
-        tdLastUsed.textContent = k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never';
+        tdLastUsed.textContent = k.last_used_at ? ArchieTime.date(k.last_used_at) : 'Never';
 
         const tdExpires = document.createElement('td');
         tdExpires.className = 'hide-mobile';
         if (k.expires_at) {
             const expires = new Date(k.expires_at);
             const isExpired = expires < new Date();
-            tdExpires.textContent = expires.toLocaleDateString();
+            tdExpires.textContent = ArchieTime.date(expires.toISOString());
             if (isExpired) tdExpires.style.color = 'var(--archie-red)';
         } else {
             tdExpires.textContent = 'Never';
@@ -6662,7 +6662,7 @@ async function loadFailedLogins() {
                 tdReason.textContent = l.reason || 'Invalid credentials';
 
                 const tdTime = document.createElement('td');
-                tdTime.textContent = new Date(l.attempted_at).toLocaleString();
+                tdTime.textContent = ArchieTime.format(l.attempted_at, 'short');
 
                 tr.appendChild(tdUser);
                 tr.appendChild(tdIp);
@@ -6750,7 +6750,7 @@ function renderTotpPage() {
 
         const tdSince = document.createElement('td');
         tdSince.className = 'hide-mobile';
-        tdSince.textContent = u.totp_verified_at ? new Date(u.totp_verified_at).toLocaleDateString() : '-';
+        tdSince.textContent = u.totp_verified_at ? ArchieTime.date(u.totp_verified_at) : '-';
 
         const tdActions = document.createElement('td');
         const actionsDiv = document.createElement('div');
@@ -7482,7 +7482,7 @@ async function executeImport() {
         if (node.last_heartbeat) {
             var hbDiv = document.createElement('div');
             hbDiv.style.cssText = 'margin-top:8px;font-size:11px;color:var(--archie-text-muted);opacity:0.6;';
-            hbDiv.textContent = 'Last heartbeat: ' + new Date(node.last_heartbeat).toLocaleString();
+            hbDiv.textContent = 'Last heartbeat: ' + ArchieTime.format(node.last_heartbeat, 'short');
             card.appendChild(hbDiv);
         }
 
@@ -8021,11 +8021,7 @@ async function executeImport() {
 
     function saasFormatDate(isoStr) {
         if (!isoStr) return '-';
-        try {
-            return new Date(isoStr).toLocaleString();
-        } catch (e) {
-            return isoStr;
-        }
+        return ArchieTime.format(isoStr, 'datetime');
     }
 
     function saasShowToast(message, type) {

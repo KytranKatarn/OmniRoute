@@ -50,6 +50,41 @@ app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
 app.json_encoder = DateTimeEncoder
 
+
+# ============================================================================
+# JINJA2 TEMPLATE FILTERS — TIMEZONE-AWARE TIMESTAMPS
+# ============================================================================
+
+
+@app.template_filter("localtime")
+def localtime_filter(dt, fmt="datetime"):
+    """Wrap a datetime in a <span data-utc="..."> for client-side local timezone display.
+
+    Usage in templates:
+      {{ row.created_at|localtime }}              → datetime format
+      {{ row.created_at|localtime('date') }}      → date only
+      {{ row.created_at|localtime('age') }}       → "3d ago"
+      {{ row.created_at|localtime('time') }}      → "3:45 PM"
+      {{ row.created_at|localtime('short') }}     → "Jan 15, 3:45 PM"
+
+    The server-side strftime value is the fallback (shown before JS runs).
+    archie-time.js auto-converts to the user's browser timezone on load.
+    """
+    if dt is None:
+        return "\u2014"
+    from markupsafe import Markup
+
+    iso = dt.isoformat()
+    if not iso.endswith("Z") and "+" not in iso:
+        iso += "Z"
+    # Server-side fallback (container runs in America/Toronto)
+    try:
+        fallback = dt.strftime("%b %d, %Y, %I:%M %p")
+    except Exception:
+        fallback = iso
+    return Markup('<span data-utc="{}" data-fmt="{}">{}</span>'.format(iso, fmt, fallback))
+
+
 # Track application start time for uptime
 start_time = time.time()
 

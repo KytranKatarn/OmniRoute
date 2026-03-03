@@ -58,7 +58,7 @@ function loadMemories(viewType) {
                     <div class="memory-meta">
                         <span>Type: ${memory.knowledge_type}</span>
                         <span>Importance: ${memory.importance_score}</span>
-                        <span>Created: ${new Date(memory.created_at).toLocaleDateString()}</span>
+                        <span>Created: ${ArchieTime.date(memory.created_at)}</span>
                     </div>
                 `;
                 memoryList.appendChild(card);

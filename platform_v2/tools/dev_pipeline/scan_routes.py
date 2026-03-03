@@ -72,10 +72,9 @@ def register_scan_routes(bp, admin_required):
     @login_required
     @admin_required
     def scan_batch():
-        """Batch scan files."""
-        data = request.get_json() or {}
-        file_paths = data.get("files", [])
-        max_workers = min(data.get("max_workers", 4), 8)
+        """Start batch scan as a tracked Bridge job (async)."""
+        data = request.get_json(force=True, silent=True) or {}
+        file_paths = data.get("file_paths") or data.get("files", [])
 
         if not file_paths:
             return jsonify({"error": "No files provided"}), 400
@@ -83,13 +82,31 @@ def register_scan_routes(bp, admin_required):
             return jsonify({"error": "Maximum 50 files per batch"}), 400
 
         scanned_by = session.get("username", "system")
+        user_id = session.get("user_id", 4)
+        if not isinstance(user_id, int):
+            user_id = 4
+
         result = scan_service.batch_scan(
             file_paths=file_paths,
             scanned_by=scanned_by,
-            max_workers=max_workers,
+            user_id=user_id,
         )
         if not result.get("success"):
-            return jsonify(result), 500
+            code = 409 if "already running" in result.get("error", "") else 500
+            return jsonify(result), code
+        return jsonify(result)
+
+    @bp.route("/api/scan/report")
+    @login_required
+    @admin_required
+    def scan_file_report():
+        """Get latest scan report for a specific file."""
+        file_path = request.args.get("file")
+        if not file_path:
+            return jsonify({"error": "file parameter required"}), 400
+        result = scan_service.get_file_report(file_path=file_path)
+        if not result.get("success"):
+            return jsonify(result), 404
         return jsonify(result)
 
     @bp.route("/api/scan/history")
@@ -166,6 +183,53 @@ def register_scan_routes(bp, admin_required):
         if not result.get("success"):
             code = 404 if "not found" in result.get("error", "").lower() else 500
             return jsonify(result), code
+        return jsonify(result)
+
+    @bp.route("/api/scan/changed")
+    @login_required
+    @admin_required
+    def scan_changed():
+        """Get files modified since their last scan."""
+        ext_str = request.args.get("ext", ".py,.js,.html")
+        extensions = ext_str.split(",")
+        result = scan_service.get_changed_files(extensions=extensions)
+        if not result.get("success"):
+            return jsonify(result), 500
+        return jsonify(result)
+
+    @bp.route("/api/scan/modules")
+    @login_required
+    @admin_required
+    def scan_modules():
+        """List scannable modules with file counts."""
+        result = scan_service.get_module_list()
+        if not result.get("success"):
+            return jsonify(result), 500
+        return jsonify(result)
+
+    @bp.route("/api/scan/module/<module_id>")
+    @login_required
+    @admin_required
+    def scan_module_files(module_id):
+        """Get files for a specific module."""
+        ext_str = request.args.get("ext", ".py,.js,.html")
+        extensions = ext_str.split(",")
+        result = scan_service.get_module_files(module_id=module_id, extensions=extensions)
+        if not result.get("success"):
+            code = 404 if "not found" in result.get("error", "").lower() else 500
+            return jsonify(result), code
+        return jsonify(result)
+
+    @bp.route("/api/scan/rescan")
+    @login_required
+    @admin_required
+    def scan_rescan_list():
+        """Get previously scanned files for rescan mode."""
+        ext_str = request.args.get("ext", ".py,.js,.html")
+        extensions = ext_str.split(",")
+        result = scan_service.get_previously_scanned(extensions=extensions)
+        if not result.get("success"):
+            return jsonify(result), 500
         return jsonify(result)
 
     @bp.route("/api/scan/multi-agent/nodes")

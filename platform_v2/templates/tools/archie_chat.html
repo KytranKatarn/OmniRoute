@@ -4293,8 +4293,7 @@ async function loadVoiceSidebarData() {
 
                 if (item.created_at) {
                     var time = document.createElement('span');
-                    var d = new Date(item.created_at);
-                    time.textContent = d.toLocaleTimeString();
+                    time.textContent = ArchieTime.time(item.created_at);
                     meta.appendChild(time);
                 }
 
@@ -5181,8 +5180,7 @@ function renderSearchResults(results, query) {
         if (r.matched_in) metaParts.push('in ' + r.matched_in);
         if (r.model) metaParts.push(r.model);
         if (r.created_at) {
-            var d = new Date(r.created_at);
-            metaParts.push(d.toLocaleDateString());
+            metaParts.push(ArchieTime.date(r.created_at));
         }
         meta.textContent = metaParts.join(' \u00B7 ');
         item.appendChild(title);

@@ -168,6 +168,49 @@
     font-weight: 700;
 }
 
+/* Scan mode selector */
+.dp-scan-modes {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    padding: 4px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 2px 10px 10px 2px;
+    border-left: 3px solid var(--archie-cyan, #00d4ff);
+}
+
+.dp-mode-btn {
+    padding: 6px 14px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 2px 8px 8px 2px;
+    color: var(--archie-text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.dp-mode-btn:hover { color: var(--archie-text-secondary); background: rgba(255,255,255,0.04); }
+.dp-mode-btn.active {
+    background: rgba(0, 212, 255, 0.15);
+    border-color: var(--archie-cyan, #00d4ff);
+    color: var(--archie-cyan, #00d4ff);
+    border-left: 2px solid var(--archie-cyan, #00d4ff);
+}
+
+.dp-mode-btn .dp-mode-count {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    margin-left: 4px;
+    opacity: 0.8;
+}
+
 /* Scan controls */
 .dp-scan-controls {
     display: flex;
@@ -185,29 +228,46 @@
     min-width: 200px;
 }
 
-.dp-scan-actions { display: flex; gap: 6px; }
+.dp-scan-actions { display: flex; gap: 6px; align-items: center; }
 
 .dp-input, .dp-select {
     padding: 6px 10px;
     background: var(--archie-bg-tertiary);
     border: 1px solid var(--archie-border-default);
-    border-radius: 4px;
+    border-radius: 2px 6px 6px 2px;
     color: var(--archie-text-secondary);
     font-size: 0.8rem;
-    font-family: var(--archie-font-mono);
+    font-family: 'IBM Plex Mono', var(--archie-font-mono), monospace;
 }
 
 .dp-input { flex: 1; min-width: 120px; }
+.dp-input:focus { outline: none; border-color: var(--archie-cyan, #00d4ff); box-shadow: 0 0 8px rgba(0,212,255,0.15); }
 .dp-select { min-width: 70px; }
+
+/* Module dropdown for By Module mode */
+.dp-module-select {
+    padding: 6px 10px;
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: 2px 6px 6px 2px;
+    color: var(--archie-text-secondary);
+    font-size: 0.8rem;
+    font-family: 'IBM Plex Mono', var(--archie-font-mono), monospace;
+    flex: 1;
+    min-width: 180px;
+}
+.dp-module-select:focus { outline: none; border-color: var(--archie-cyan, #00d4ff); }
 
 .dp-btn {
     padding: 6px 14px;
     background: var(--archie-bg-secondary);
     border: 1px solid var(--archie-border-default);
-    border-radius: 4px;
+    border-radius: 2px 8px 8px 2px;
     color: var(--archie-text-secondary);
     cursor: pointer;
     font-size: 0.8rem;
+    font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.5px;
     transition: all 0.2s;
     white-space: nowrap;
 }
@@ -219,29 +279,107 @@
 
 /* File list */
 .dp-file-list {
-    max-height: 300px;
+    max-height: 350px;
     overflow-y: auto;
     border: 1px solid var(--archie-border-default);
-    border-radius: 4px;
+    border-radius: 2px 8px 8px 2px;
+    border-left: 3px solid rgba(0, 212, 255, 0.2);
     margin-bottom: 12px;
 }
 
+.dp-folder-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    font-family: 'IBM Plex Mono', var(--archie-font-mono), monospace;
+    color: var(--archie-cyan, #00d4ff);
+    background: rgba(0, 212, 255, 0.05);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.15);
+    border-left: 2px solid var(--archie-cyan, #00d4ff);
+    letter-spacing: 0.03em;
+    margin-top: 2px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.dp-folder-hdr:hover { background: rgba(0, 212, 255, 0.1); }
+.dp-folder-count {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: rgba(0, 212, 255, 0.6);
+    flex-shrink: 0;
+}
 .dp-file-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 5px 10px 5px 22px;
     border-bottom: 1px solid rgba(255,255,255,0.03);
     font-size: 0.8rem;
-    font-family: var(--archie-font-mono);
+    font-family: 'IBM Plex Mono', var(--archie-font-mono), monospace;
     color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: background 0.15s;
 }
+.dp-file-name { flex: 1; }
+.dp-file-size { font-size: 0.7rem; color: var(--archie-text-muted, #666); flex-shrink: 0; }
+.dp-file-score {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    flex-shrink: 0;
+    min-width: 24px;
+    text-align: right;
+}
+.dp-file-score.good { color: #00ff41; }
+.dp-file-score.warn { color: #f59e0b; }
+.dp-file-score.bad { color: #ef4444; }
 
 .dp-file-item:hover { background: var(--archie-bg-hover); }
 .dp-file-item.selected { background: rgba(0, 212, 255, 0.1); color: var(--archie-cyan, #00d4ff); }
-.dp-file-item input[type="checkbox"] { flex-shrink: 0; }
+.dp-file-item input[type="checkbox"] { flex-shrink: 0; accent-color: var(--archie-cyan, #00d4ff); }
+
+/* Select All bar */
+.dp-select-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 10px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--archie-border-default);
+    font-size: 0.72rem;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--archie-text-muted);
+}
+.dp-select-toggle {
+    background: none; border: none; color: var(--archie-cyan, #00d4ff);
+    cursor: pointer; font-size: 0.72rem; font-family: 'Antonio', sans-serif;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    padding: 2px 6px; border-radius: 4px;
+    transition: background 0.15s;
+}
+.dp-select-toggle:hover { background: rgba(0,212,255,0.1); }
+
+/* Scan progress bar */
+.dp-progress-bar {
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    display: none;
+}
+.dp-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--archie-cyan, #00d4ff), #00ff41);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
 
 /* Result panel */
 .dp-result-panel {
@@ -266,9 +404,24 @@
     font-size: 1.1rem;
 }
 
-.dp-score.good { color: #00ff41; }
-.dp-score.warn { color: #f59e0b; }
-.dp-score.bad { color: #ef4444; }
+.dp-score.good { color: #00ff41; text-shadow: 0 0 8px rgba(0,255,65,0.3); }
+.dp-score.warn { color: #f59e0b; text-shadow: 0 0 8px rgba(245,158,11,0.3); }
+.dp-score.bad { color: #ef4444; text-shadow: 0 0 8px rgba(239,68,68,0.3); }
+
+/* Per-file scan result rows */
+.dp-scan-file-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.8rem;
+    font-family: var(--archie-font-mono);
+}
+.dp-scan-file-row:hover { background: var(--archie-bg-hover); }
+.dp-scan-file-err { opacity: 0.6; }
+.dp-scan-file-path { flex: 1; color: var(--archie-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-scan-file-issues { font-size: 0.75rem; color: var(--archie-text-muted); flex-shrink: 0; white-space: nowrap; }
 
 /* Issue list */
 .dp-issue-list { padding: 0; }
@@ -426,116 +579,13 @@
     border-top: 1px solid rgba(255,255,255,0.03);
 }
 
-/* Station Crew Panel */
-/* Station panel — matches Consciousness ops terminal layout */
-.dp-station-panel {
-    background: rgba(255,255,255,0.03);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(0,212,255,0.15);
-    border-left: 3px solid rgba(0,212,255,0.4);
-    border-radius: 2px 10px 10px 2px;
-    margin-bottom: 16px;
-    overflow: hidden;
+/* Station Crew Panel — now uses shared station-ops.css */
+/* ENGINEERING station accent override */
+#engOpsTerminal {
+    --stn-accent: #00d4ff;
+    --stn-accent-rgb: 0,212,255;
 }
-.dp-station-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    border-bottom: 1px solid rgba(0,212,255,0.12);
-}
-.dp-station-label {
-    font-family: 'Orbitron', var(--archie-font-mono), monospace;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--archie-cyan, #00d4ff);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-shadow: 0 0 12px rgba(0,212,255,0.3);
-}
-.dp-station-status {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #6b7280;
-    flex-shrink: 0;
-    margin-left: auto;
-}
-.dp-station-status.online { background: #22c55e; box-shadow: 0 0 4px #22c55e; }
-.dp-station-status.offline { background: #ef4444; }
-.dp-station-crew {
-    padding: 12px 16px;
-}
-.dp-station-loading {
-    font-size: 0.72rem;
-    color: rgba(255,255,255,0.3);
-    font-style: italic;
-    padding: 3px 8px;
-}
-.dp-section-label {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.35);
-    margin-bottom: 6px;
-}
-.dp-crew-agent {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 8px;
-    border-radius: 6px;
-    border-left: 3px solid var(--archie-cyan, #00d4ff);
-    background: rgba(255,255,255,0.02);
-    margin-bottom: 4px;
-}
-.dp-crew-name {
-    font-family: 'Antonio', sans-serif;
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: rgba(255,255,255,0.9);
-}
-.dp-crew-badge {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.58rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 1px 6px;
-    border-radius: 3px;
-    flex-shrink: 0;
-}
-.dp-crew-badge.working {
-    background: rgba(16,185,129,0.15);
-    color: #10b981;
-}
-.dp-crew-role {
-    font-family: 'Antonio', sans-serif;
-    font-size: 0.6rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 2px 6px;
-    border-radius: 3px;
-    background: rgba(0,212,255,0.2);
-    color: var(--archie-cyan, #00d4ff);
-    margin-left: auto;
-}
-.dp-aux-agent {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 8px;
-    border-radius: 6px;
-    border-left: 3px solid #facc15;
-    background: rgba(255,255,255,0.02);
-    margin-bottom: 4px;
-}
-.dp-station-jobs {
-    padding: 0 16px 12px;
-}
+/* Keep dp-job-progress for scan-complete flash messages */
 .dp-job-progress {
     display: flex;
     align-items: center;
@@ -546,20 +596,15 @@
     padding: 3px 8px;
     border-radius: 4px;
 }
-.dp-job-bar {
-    width: 60px; height: 4px;
-    background: rgba(255,255,255,0.06);
-    border-radius: 2px;
-    overflow: hidden;
+.dp-section-label {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 6px;
 }
-.dp-job-bar-fill {
-    height: 100%;
-    background: #8b5cf6;
-    border-radius: 2px;
-    transition: width 0.3s ease;
-}
-.dp-job-bar-fill.done { background: #00ff41; }
-.dp-job-bar-fill.failed { background: #ef4444; }
 
 /* Responsive: Fold5 open (717px) */
 @media (max-width: 768px) {
@@ -579,6 +624,78 @@
     .dp-stat-label { font-size: 0.6rem; }
     .dp-stat-value { font-size: 1rem; }
     .dp-empty { padding: 40px 12px; }
+}
+
+/* ---- LCARS Report Modal ---- */
+.dp-modal-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+}
+.dp-modal {
+    --lcars-accent-rgb: 0, 212, 255;
+    width: 100%; max-width: 660px; max-height: 85vh;
+    display: flex; flex-direction: column;
+    /* LCARS panel standard */
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(var(--lcars-accent-rgb), 0.12);
+    border-left: 3px solid rgba(var(--lcars-accent-rgb), 0.4);
+    border-radius: 0 12px 12px 0;
+    overflow: hidden;
+    animation: lcarsCardIn 0.3s ease-out both;
+    box-shadow: 0 8px 48px rgba(0,0,0,0.5), 0 0 30px rgba(0,212,255,0.08);
+}
+.dp-modal-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; flex-shrink: 0;
+    background: rgba(var(--lcars-accent-rgb), 0.06);
+    border-bottom: 1px solid rgba(var(--lcars-accent-rgb), 0.08);
+}
+.dp-modal-cap {
+    width: 6px; height: 20px; border-radius: 2px;
+    background: rgba(var(--lcars-accent-rgb), 0.5); flex-shrink: 0;
+}
+.dp-modal-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem; font-weight: 500;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: rgba(var(--lcars-accent-rgb), 0.8);
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dp-modal-close {
+    background: none; border: none; color: var(--archie-text-muted);
+    font-size: 1.3rem; cursor: pointer; padding: 0 4px;
+    transition: color 0.2s;
+}
+.dp-modal-close:hover { color: #ef4444; }
+.dp-modal-score-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(var(--lcars-accent-rgb), 0.03);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.dp-modal-score-bar .dp-modal-analysis {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--archie-text-muted);
+}
+.dp-modal-score-bar .dp-modal-agent {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem; color: var(--archie-cyan, #00d4ff); opacity: 0.7;
+    margin-left: 8px;
+}
+.dp-modal-summary {
+    padding: 8px 16px;
+    font-size: 0.8rem; color: var(--archie-text-muted);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-family: 'IBM Plex Mono', monospace;
+}
+.dp-modal-issues {
+    overflow-y: auto; flex: 1; max-height: 55vh;
+    padding: 4px 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--lcars-accent-rgb), 0.2) transparent;
 }
 
 {% endblock %}
@@ -615,16 +732,20 @@
         </div>
     </div>
 
-    <!-- Station Crew Panel -->
-    <div class="dp-station-panel" id="stationPanel">
-        <div class="dp-station-header">
-            <span class="dp-station-label">ENGINEERING STATION</span>
-            <span class="dp-station-status" id="stationStatusDot"></span>
+    <!-- Station Crew Panel (shared station-ops component) -->
+    <div class="stn-ops-terminal cs-ops-terminal" id="engOpsTerminal">
+        <div class="stn-ops-header cs-ops-header">
+            <div class="stn-ops-elbow cs-ops-elbow"></div>
+            <div class="stn-ops-title cs-ops-title">ENGINEERING STATION</div>
+            <div class="stn-ops-status cs-ops-status" id="engOpsOnline">
+                <span class="stn-ops-dot cs-ops-dot"></span> ONLINE
+            </div>
         </div>
-        <div class="dp-station-crew" id="stationCrew">
-            <span class="dp-station-loading">Connecting to Bridge...</span>
+        <div class="stn-ops-body cs-ops-body">
+            <div id="engOpsAgents"></div>
+            <div id="engOpsJobs"></div>
+            <div id="stationJobs"></div>
         </div>
-        <div class="dp-station-jobs" id="stationJobs"></div>
     </div>
 
     <!-- Tab Navigation -->
@@ -652,31 +773,65 @@
 
         <!-- Scanner sub-tab -->
         <div id="scan-subtab-scanner" class="dp-subtab-content active">
-            <div class="dp-scan-controls">
+            <!-- Scan Mode Selector -->
+            <div class="dp-scan-modes" id="scanModes">
+                <button class="dp-mode-btn active" data-mode="browse" onclick="setScanMode('browse')">Browse</button>
+                <button class="dp-mode-btn" data-mode="changed" onclick="setScanMode('changed')">Changed<span class="dp-mode-count" id="changedCount"></span></button>
+                <button class="dp-mode-btn" data-mode="module" onclick="setScanMode('module')">By Module</button>
+            </div>
+
+            <!-- Browse Mode Controls -->
+            <div class="dp-scan-controls" id="browseControls">
                 <div class="dp-scan-path">
-                    <input type="text" id="scanPath" placeholder="platform_v2/" value="platform_v2/" class="dp-input">
-                    <select id="scanExt" class="dp-select">
+                    <select id="scanArea" class="dp-module-select" onchange="loadScanFiles()">
+                        <option value="platform_v2">All Platform</option>
+                        <option value="platform_v2/tools">Modules</option>
+                        <option value="platform_v2/services">Services</option>
+                        <option value="platform_v2/templates">Templates</option>
+                        <option value="platform_v2/static">Static Assets</option>
+                        <option value="ai_bridge">AI Bridge</option>
+                    </select>
+                    <select id="scanExt" class="dp-select" onchange="loadScanFiles()">
                         <option value=".py">.py</option>
                         <option value=".js">.js</option>
                         <option value=".html">.html</option>
+                        <option value=".py,.js,.html">All</option>
                     </select>
-                    <button class="dp-btn dp-btn-primary" onclick="loadScanFiles()">Browse</button>
                 </div>
                 <div class="dp-scan-actions">
                     <button class="dp-btn dp-btn-accent" id="scanSelectedBtn" onclick="scanSelected()" disabled>Scan Selected</button>
                     <button class="dp-btn" onclick="scanAll()">Scan All</button>
                 </div>
             </div>
-            <div class="dp-file-list" id="scanFileList">
-                <div class="dp-empty" style="padding:30px;"><div class="dp-empty-desc">Click Browse to load files</div></div>
-            </div>
-            <!-- Scan results appear here -->
-            <div id="scanResultPanel" style="display:none;" class="dp-result-panel">
-                <div class="dp-result-header">
-                    <span id="scanResultFile">—</span>
-                    <span class="dp-score" id="scanResultScore">—</span>
+
+            <!-- Module Mode Controls -->
+            <div class="dp-scan-controls" id="moduleControls" style="display:none;">
+                <div class="dp-scan-path">
+                    <select id="moduleSelect" class="dp-module-select" onchange="loadModuleFiles()">
+                        <option value="">Select a module...</option>
+                    </select>
                 </div>
-                <div id="scanResultIssues" class="dp-issue-list"></div>
+                <div class="dp-scan-actions">
+                    <button class="dp-btn dp-btn-accent" id="scanModuleBtn" onclick="scanSelected()" disabled>Scan Selected</button>
+                    <button class="dp-btn" onclick="scanAll()">Scan All</button>
+                </div>
+            </div>
+
+            <!-- Changed Mode Controls -->
+            <div class="dp-scan-controls" id="changedControls" style="display:none;">
+                <div class="dp-scan-actions">
+                    <button class="dp-btn dp-btn-accent" id="scanAutoBtn" onclick="scanSelected()" disabled>Scan Selected</button>
+                    <button class="dp-btn" onclick="scanAll()">Scan All</button>
+                </div>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="dp-progress-bar" id="scanProgress">
+                <div class="dp-progress-fill" id="scanProgressFill"></div>
+            </div>
+
+            <div class="dp-file-list" id="scanFileList">
+                <div class="dp-empty" style="padding:30px;"><div class="dp-empty-desc">Loading files...</div></div>
             </div>
         </div>
 
@@ -697,6 +852,26 @@
             <div id="scanHistory" class="dp-history-list">
                 <div class="dp-empty" style="padding:30px;"><div class="dp-empty-desc">Loading scan history...</div></div>
             </div>
+        </div>
+    </div>
+
+    <!-- Scan Report Modal (LCARS Panel) -->
+    <div id="reportModal" class="dp-modal-overlay" style="display:none;" onclick="if(event.target===this)closeReportModal()">
+        <div class="dp-modal">
+            <div class="dp-modal-header">
+                <div class="dp-modal-cap"></div>
+                <span class="dp-modal-title" id="reportModalTitle">Scan Report</span>
+                <button class="dp-modal-close" onclick="closeReportModal()">&times;</button>
+            </div>
+            <div class="dp-modal-score-bar">
+                <div>
+                    <span class="dp-modal-analysis" id="reportModalAnalysis">—</span>
+                    <span class="dp-modal-agent" id="reportModalAgent"></span>
+                </div>
+                <span class="dp-score" id="reportModalScore">—</span>
+            </div>
+            <div class="dp-modal-summary" id="reportModalSummary"></div>
+            <div class="dp-modal-issues" id="reportModalIssues"></div>
         </div>
     </div>
 
@@ -811,10 +986,35 @@
     </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
 <script>
 var API = '/tools/dev-pipeline/api';
 var _selectedFiles = [];
 var _currentIssueFilter = 'open';
+var _scanMode = 'browse';
+var _moduleList = null;
+var _scanCache = {};   // file_path -> {quality_score, issues, summary, analysis_type, ...}
+var _allFiles = [];    // persisted file list across re-renders
+
+/* ---- localStorage persistence ---- */
+function _savePrefs() {
+    try {
+        localStorage.setItem('dp_scan_prefs', JSON.stringify({
+            mode: _scanMode,
+            area: document.getElementById('scanArea').value,
+            ext: document.getElementById('scanExt').value
+        }));
+    } catch(e) {}
+}
+function _loadPrefs() {
+    try {
+        var p = JSON.parse(localStorage.getItem('dp_scan_prefs'));
+        if (!p) return;
+        if (p.area) document.getElementById('scanArea').value = p.area;
+        if (p.ext) document.getElementById('scanExt').value = p.ext;
+        if (p.mode) setScanMode(p.mode, true);
+    } catch(e) {}
+}
 
 function switchSubTab(parentTab, subId) {
     var prefix = parentTab + '-subtab-';
@@ -852,8 +1052,317 @@ function checkScanAi() {
     });
 }
 
+/* ---- Scan Mode Switching ---- */
+function setScanMode(mode, skipSave) {
+    _scanMode = mode;
+    document.querySelectorAll('.dp-mode-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    // Toggle control panels
+    document.getElementById('browseControls').style.display = mode === 'browse' ? 'flex' : 'none';
+    document.getElementById('moduleControls').style.display = mode === 'module' ? 'flex' : 'none';
+    document.getElementById('changedControls').style.display = mode === 'changed' ? 'flex' : 'none';
+
+    // Auto-load files for the selected mode
+    if (mode === 'changed') loadChangedFiles();
+    else if (mode === 'module') { loadModuleList(); _clearFileList('Select a module to see files'); }
+    else loadScanFiles();
+
+    if (!skipSave) _savePrefs();
+}
+
+function _clearFileList(msg) {
+    var list = document.getElementById('scanFileList');
+    list.textContent = '';
+    _selectedFiles = [];
+    var empty = document.createElement('div');
+    empty.className = 'dp-empty';
+    empty.style.padding = '30px';
+    var desc = document.createElement('div');
+    desc.className = 'dp-empty-desc';
+    desc.textContent = msg || '';
+    empty.appendChild(desc);
+    list.appendChild(empty);
+    _updateScanBtns();
+}
+
+function _updateScanBtns() {
+    var btns = ['scanSelectedBtn', 'scanModuleBtn', 'scanAutoBtn'];
+    btns.forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) {
+            btn.disabled = _selectedFiles.length === 0;
+            btn.textContent = _selectedFiles.length ? 'Scan Selected (' + _selectedFiles.length + ')' : 'Scan Selected';
+        }
+    });
+}
+
+/* ---- Render File List (shared) ---- */
+function _renderFileList(files, opts) {
+    var list = document.getElementById('scanFileList');
+    list.textContent = '';
+    _selectedFiles = [];
+    if (files && files.length) _allFiles = files;
+    if (!files || !files.length) {
+        _clearFileList(opts && opts.emptyMsg || 'No files found');
+        return;
+    }
+
+    // Select All bar
+    var selectBar = document.createElement('div');
+    selectBar.className = 'dp-select-bar';
+    var countSpan = document.createElement('span');
+    countSpan.id = 'fileCountLabel';
+    countSpan.textContent = files.length + ' files';
+    selectBar.appendChild(countSpan);
+    var toggleBtn = document.createElement('button');
+    toggleBtn.className = 'dp-select-toggle';
+    toggleBtn.textContent = 'Select All';
+    toggleBtn.onclick = function() { _toggleSelectAll(); };
+    toggleBtn.id = 'selectAllBtn';
+    selectBar.appendChild(toggleBtn);
+    list.appendChild(selectBar);
+
+    // Group by folder
+    var folders = {};
+    files.forEach(function(f) {
+        var folder = f.folder || 'root';
+        if (!folders[folder]) folders[folder] = [];
+        folders[folder].push(f);
+    });
+
+    Object.keys(folders).sort().forEach(function(folder) {
+        var folderFiles = folders[folder];
+        var hdr = document.createElement('div');
+        hdr.className = 'dp-folder-hdr';
+        hdr.dataset.folder = folder;
+
+        var nameSpan = document.createElement('span');
+        nameSpan.textContent = _cleanPath(folder) + '/';
+        hdr.appendChild(nameSpan);
+
+        var countBadge = document.createElement('span');
+        countBadge.className = 'dp-folder-count';
+        countBadge.textContent = folderFiles.length;
+        hdr.appendChild(countBadge);
+
+        hdr.onclick = function() { _toggleFolderSelect(folder); };
+        list.appendChild(hdr);
+
+        folderFiles.forEach(function(f) {
+            var row = document.createElement('div');
+            row.className = 'dp-file-item';
+            row.dataset.folder = folder;
+            row.dataset.path = f.path;
+
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = f.path;
+            cb.onclick = function(e) { e.stopPropagation(); };
+            cb.onchange = function() { toggleFile(cb); };
+            row.appendChild(cb);
+
+            var name = document.createElement('span');
+            name.className = 'dp-file-name';
+            name.textContent = f.name;
+            // Red name if file modified since last scan
+            if (f.modified_since_scan) {
+                name.style.color = '#ef4444';
+                name.title = 'Modified since last scan — needs rescan';
+            }
+            row.appendChild(name);
+
+            // Show cached score or last_score from API — clickable for report
+            var cached = _scanCache[f.path];
+            var scoreVal = cached ? cached.quality_score : (f.last_score !== undefined && f.last_score !== null ? f.last_score : null);
+            if (scoreVal !== null) {
+                var sc = document.createElement('span');
+                var scInt = Math.round(scoreVal);
+                sc.className = 'dp-file-score ' + (scInt >= 80 ? 'good' : scInt >= 50 ? 'warn' : 'bad');
+                sc.textContent = scInt;
+                sc.title = 'Click to view report';
+                sc.style.cursor = 'pointer';
+                sc.onclick = (function(path) { return function(e) { e.stopPropagation(); _openReportModal(path); }; })(f.path);
+                row.appendChild(sc);
+            }
+
+            var sizeSpan = document.createElement('span');
+            sizeSpan.className = 'dp-file-size';
+            sizeSpan.textContent = f.size < 1024 ? f.size + ' B' : (f.size / 1024).toFixed(1) + ' KB';
+            row.appendChild(sizeSpan);
+
+            // Click row to view report
+            row.onclick = function() { _openReportModal(f.path); };
+            list.appendChild(row);
+        });
+    });
+    _updateScanBtns();
+}
+
+/* ---- LCARS Report Modal ---- */
+function _openReportModal(filePath) {
+    var cached = _scanCache[filePath];
+    if (cached) {
+        _renderReportModal(filePath, cached);
+        return;
+    }
+    // Not in session cache — fetch from DB
+    var modal = document.getElementById('reportModal');
+    document.getElementById('reportModalTitle').textContent = _cleanPath(filePath);
+    document.getElementById('reportModalScore').textContent = '...';
+    document.getElementById('reportModalScore').className = 'dp-score';
+    document.getElementById('reportModalAnalysis').textContent = 'LOADING...';
+    document.getElementById('reportModalAgent').textContent = '';
+    document.getElementById('reportModalSummary').textContent = '';
+    document.getElementById('reportModalIssues').textContent = '';
+    modal.style.display = 'flex';
+
+    fetch(API + '/scan/report?file=' + encodeURIComponent(filePath))
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.success) {
+                _scanCache[filePath] = {
+                    quality_score: d.quality_score,
+                    issues: d.issues || [],
+                    summary: d.summary || '',
+                    analysis_type: d.analysis_type || 'static',
+                    agent_used: d.agent_used || null,
+                    scanned_by: d.scanned_by || null,
+                    scanned_at: d.scanned_at
+                };
+                _renderReportModal(filePath, _scanCache[filePath]);
+            } else {
+                document.getElementById('reportModalScore').textContent = '--';
+                document.getElementById('reportModalAnalysis').textContent = 'NOT SCANNED';
+                document.getElementById('reportModalSummary').textContent = 'Select this file and run a scan to generate a report.';
+            }
+        })
+        .catch(function() {
+            document.getElementById('reportModalAnalysis').textContent = 'ERROR LOADING REPORT';
+        });
+}
+
+function _cleanPath(p) {
+    // Strip platform_v2/ prefix for display
+    return (p || '').replace(/^platform_v2\//, '');
+}
+
+function _renderReportModal(filePath, data) {
+    var modal = document.getElementById('reportModal');
+    var titleEl = document.getElementById('reportModalTitle');
+    var scoreEl = document.getElementById('reportModalScore');
+    var analysisEl = document.getElementById('reportModalAnalysis');
+    var agentEl = document.getElementById('reportModalAgent');
+    var summaryEl = document.getElementById('reportModalSummary');
+    var issuesEl = document.getElementById('reportModalIssues');
+
+    titleEl.textContent = _cleanPath(filePath);
+    issuesEl.textContent = '';
+
+    var score = Math.round(data.quality_score || 0);
+    scoreEl.textContent = score + '/100';
+    scoreEl.className = 'dp-score ' + (score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad');
+    analysisEl.textContent = data.analysis_type === 'ai_powered' ? 'AI ANALYSIS' : 'STATIC ANALYSIS';
+
+    // Show agent info — who did the work
+    if (data.agent_used && data.agent_used.name) {
+        var agentLine = data.agent_used.name;
+        if (data.agent_used.title) agentLine += ', ' + data.agent_used.title;
+        if (data.agent_used.station) agentLine += ' \u2022 ' + data.agent_used.station;
+        agentEl.textContent = agentLine;
+    } else if (data.scanned_by) {
+        agentEl.textContent = 'triggered by ' + data.scanned_by;
+    } else {
+        agentEl.textContent = '';
+    }
+    // Clean up legacy summary text from old scans
+    var summary = data.summary || '';
+    summary = summary.replace(/AI parsing failed.*?[-—]\s*/i, '');
+    summaryEl.textContent = summary;
+
+    // Show scan timestamp if available
+    if (data.scanned_at) {
+        var ts = document.createElement('span');
+        ts.style.cssText = 'float:right;font-size:0.7rem;opacity:0.5;';
+        ts.textContent = ArchieTime.format(data.scanned_at, 'short');
+        summaryEl.appendChild(ts);
+    }
+
+    var issues = data.issues || [];
+    if (!issues.length) {
+        var ok = document.createElement('div');
+        ok.style.cssText = 'text-align:center;padding:24px;color:#00ff41;font-family:Orbitron,monospace;font-size:0.9rem;';
+        ok.textContent = 'No issues found';
+        issuesEl.appendChild(ok);
+    } else {
+        issues.forEach(function(issue) {
+            var row = document.createElement('div');
+            row.className = 'dp-issue-item';
+
+            var sev = document.createElement('span');
+            sev.className = 'dp-severity ' + (issue.severity || 'low');
+            sev.textContent = issue.severity || '?';
+            row.appendChild(sev);
+
+            var msgWrap = document.createElement('div');
+            msgWrap.style.cssText = 'flex:1;min-width:0;';
+            var msg = document.createElement('div');
+            msg.className = 'dp-issue-msg';
+            msg.textContent = issue.message || '';
+            msgWrap.appendChild(msg);
+            if (issue.suggestion) {
+                var sug = document.createElement('div');
+                sug.style.cssText = 'font-size:0.75rem;color:#00ff41;margin-top:3px;';
+                sug.textContent = issue.suggestion;
+                msgWrap.appendChild(sug);
+            }
+            row.appendChild(msgWrap);
+
+            var line = document.createElement('span');
+            line.className = 'dp-issue-line';
+            line.textContent = (issue.type || '') + (issue.line ? ':' + issue.line : '');
+            row.appendChild(line);
+            issuesEl.appendChild(row);
+        });
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closeReportModal() {
+    document.getElementById('reportModal').style.display = 'none';
+}
+
+function _toggleSelectAll() {
+    var cbs = document.querySelectorAll('#scanFileList input[type=checkbox]');
+    var allChecked = _selectedFiles.length === cbs.length && cbs.length > 0;
+    _selectedFiles = [];
+    cbs.forEach(function(cb) {
+        cb.checked = !allChecked;
+        if (!allChecked) _selectedFiles.push(cb.value);
+        cb.closest('.dp-file-item').classList.toggle('selected', !allChecked);
+    });
+    var btn = document.getElementById('selectAllBtn');
+    if (btn) btn.textContent = allChecked ? 'Select All' : 'Deselect All';
+    _updateScanBtns();
+}
+
+function _toggleFolderSelect(folder) {
+    var items = document.querySelectorAll('#scanFileList .dp-file-item[data-folder="' + folder + '"] input[type=checkbox]');
+    var allChecked = true;
+    items.forEach(function(cb) { if (!cb.checked) allChecked = false; });
+    items.forEach(function(cb) {
+        cb.checked = !allChecked;
+        if (!allChecked) { if (_selectedFiles.indexOf(cb.value) === -1) _selectedFiles.push(cb.value); }
+        else { _selectedFiles = _selectedFiles.filter(function(f) { return f !== cb.value; }); }
+        cb.closest('.dp-file-item').classList.toggle('selected', !allChecked);
+    });
+    _updateScanBtns();
+}
+
+/* ---- Browse Mode ---- */
 function loadScanFiles() {
-    var path = document.getElementById('scanPath').value || 'platform_v2/';
+    var path = document.getElementById('scanArea').value || 'platform_v2';
     var ext = document.getElementById('scanExt').value;
     var list = document.getElementById('scanFileList');
     list.textContent = '';
@@ -862,100 +1371,291 @@ function loadScanFiles() {
     loading.style.padding = '20px';
     loading.textContent = 'Loading...';
     list.appendChild(loading);
-    fetch(API + '/scan/directory?path=' + encodeURIComponent(path) + '&ext=' + encodeURIComponent(ext))
+    _savePrefs();
+
+    // Fetch directory files AND scan history in parallel, then merge
+    Promise.all([
+        fetch(API + '/scan/directory?path=' + encodeURIComponent(path) + '&ext=' + encodeURIComponent(ext)).then(function(r) { return r.json(); }),
+        fetch(API + '/scan/rescan?ext=' + encodeURIComponent(ext)).then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var dirData = results[0];
+        var scanData = results[1];
+        var files = dirData.files || [];
+
+        // Build lookup of scan history by file path
+        var scanMap = {};
+        (scanData.files || []).forEach(function(s) {
+            scanMap[s.path] = { last_score: s.last_score, last_scanned: s.last_scanned };
+        });
+
+        // Merge scan data into file list
+        files.forEach(function(f) {
+            var cached = _scanCache[f.path];
+            var history = scanMap[f.path];
+            if (cached) {
+                f.last_score = cached.quality_score;
+                f.last_scanned = cached.scanned_at;
+            } else if (history) {
+                f.last_score = history.last_score;
+                f.last_scanned = history.last_scanned;
+            }
+            // Mark as modified if file mtime > last scan time
+            if (f.last_scanned && f.mtime) {
+                f.modified_since_scan = new Date(f.mtime) > new Date(f.last_scanned);
+            }
+        });
+
+        _renderFileList(files);
+    }).catch(function() { _clearFileList('Error loading files'); });
+}
+
+/* ---- Changed Files Mode ---- */
+function loadChangedFiles() {
+    var list = document.getElementById('scanFileList');
+    list.textContent = '';
+    var loading = document.createElement('div');
+    loading.className = 'dp-empty';
+    loading.style.padding = '20px';
+    loading.textContent = 'Detecting changed files...';
+    list.appendChild(loading);
+    fetch(API + '/scan/changed')
         .then(function(r) { return r.json(); })
         .then(function(d) {
-            var files = d.files || [];
-            list.textContent = '';
-            if (!files.length) {
-                var empty = document.createElement('div');
-                empty.className = 'dp-empty';
-                empty.style.padding = '20px';
-                empty.textContent = 'No files found';
-                list.appendChild(empty);
-                return;
-            }
-            _selectedFiles = [];
-            files.forEach(function(f) {
-                var label = document.createElement('label');
-                label.className = 'dp-file-item';
-                var cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.value = f;
-                cb.onchange = function() { toggleFile(cb); };
-                label.appendChild(cb);
-                label.appendChild(document.createTextNode(f));
-                list.appendChild(label);
-            });
-            document.getElementById('scanSelectedBtn').disabled = true;
+            var files = d.changed || [];
+            var countEl = document.getElementById('changedCount');
+            if (countEl) countEl.textContent = files.length ? ' ' + files.length : '';
+            _renderFileList(files, { emptyMsg: d.message || 'No files changed since last scan' });
         })
-        .catch(function() {
-            list.textContent = '';
-            var err = document.createElement('div');
-            err.className = 'dp-empty';
-            err.style.padding = '20px';
-            err.textContent = 'Error loading files';
-            list.appendChild(err);
-        });
+        .catch(function() { _clearFileList('Error detecting changes'); });
+}
+
+/* ---- Module Mode ---- */
+function loadModuleList() {
+    if (_moduleList) { _populateModuleSelect(_moduleList); return; }
+    fetch(API + '/scan/modules')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            _moduleList = d.modules || [];
+            _populateModuleSelect(_moduleList);
+        })
+        .catch(function() { _moduleList = []; });
+}
+
+function _populateModuleSelect(modules) {
+    var sel = document.getElementById('moduleSelect');
+    sel.textContent = '';
+    var def = document.createElement('option');
+    def.value = '';
+    def.textContent = 'Select a module... (' + modules.length + ')';
+    sel.appendChild(def);
+    var curCat = '';
+    modules.forEach(function(m) {
+        if (m.category !== curCat) {
+            curCat = m.category;
+            var group = document.createElement('optgroup');
+            group.label = curCat;
+            sel.appendChild(group);
+        }
+        var opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name + ' (' + m.file_count + ')';
+        sel.appendChild(opt);
+    });
+}
+
+function loadModuleFiles() {
+    var modId = document.getElementById('moduleSelect').value;
+    if (!modId) { _clearFileList('Select a module to see files'); return; }
+    var list = document.getElementById('scanFileList');
+    list.textContent = '';
+    var loading = document.createElement('div');
+    loading.className = 'dp-empty';
+    loading.style.padding = '20px';
+    loading.textContent = 'Loading module files...';
+    list.appendChild(loading);
+    fetch(API + '/scan/module/' + encodeURIComponent(modId))
+        .then(function(r) { return r.json(); })
+        .then(function(d) { _renderFileList(d.files || []); })
+        .catch(function() { _clearFileList('Error loading module files'); });
 }
 
 function toggleFile(cb) {
     if (cb.checked) { _selectedFiles.push(cb.value); cb.closest('.dp-file-item').classList.add('selected'); }
     else { _selectedFiles = _selectedFiles.filter(function(f) { return f !== cb.value; }); cb.closest('.dp-file-item').classList.remove('selected'); }
-    document.getElementById('scanSelectedBtn').disabled = _selectedFiles.length === 0;
-    document.getElementById('scanSelectedBtn').textContent = 'Scan Selected (' + _selectedFiles.length + ')';
+    _updateScanBtns();
 }
 
-function scanSelected() { if (_selectedFiles.length) runBatchScan(_selectedFiles); }
+function scanSelected() {
+    if (!_selectedFiles.length) { _flashStationMsg('Select files first'); return; }
+    runBatchScan(_selectedFiles);
+}
 function scanAll() {
     var cbs = document.querySelectorAll('#scanFileList input[type=checkbox]');
     var all = []; cbs.forEach(function(cb) { all.push(cb.value); });
-    if (all.length) runBatchScan(all);
+    if (!all.length) { _flashStationMsg('Load files first'); return; }
+    runBatchScan(all);
+}
+function _flashStationMsg(msg) {
+    var el = document.getElementById('stationJobs');
+    if (!el) return;
+    el.textContent = '';
+    var m = document.createElement('div');
+    m.className = 'dp-job-progress';
+    m.style.color = '#f59e0b';
+    m.textContent = msg;
+    el.appendChild(m);
+    setTimeout(function() { el.textContent = ''; }, 3000);
 }
 
+
+var _scanJobId = null;
+
 function runBatchScan(files) {
-    var panel = document.getElementById('scanResultPanel');
-    panel.style.display = 'block';
-    document.getElementById('scanResultFile').textContent = 'Scanning ' + files.length + ' files...';
-    document.getElementById('scanResultScore').textContent = '...';
-    document.getElementById('scanResultScore').className = 'dp-score';
-    document.getElementById('scanResultIssues').textContent = '';
+    if (_completedTimer) { clearTimeout(_completedTimer); _completedTimer = null; }
+
+    // Submit batch to backend — creates a real Bridge job
     fetch(API + '/scan/batch', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({file_paths: files})
     }).then(function(r) { return r.json(); }).then(function(d) {
-        if (d.success) {
-            var avg = d.summary ? Math.round(d.summary.avg_quality) : 0;
-            var scoreEl = document.getElementById('scanResultScore');
-            scoreEl.textContent = avg + '/100';
-            scoreEl.className = 'dp-score ' + (avg >= 80 ? 'good' : avg >= 50 ? 'warn' : 'bad');
-            document.getElementById('scanResultFile').textContent = d.scanned + '/' + d.total_files + ' files scanned';
-            var total = d.summary ? d.summary.total_issues : 0;
-            var sec = d.summary ? d.summary.security_issues : 0;
-            var msg = document.createElement('div');
-            msg.className = 'dp-issue-item';
-            var span = document.createElement('span');
-            span.className = 'dp-issue-msg';
-            span.textContent = total + ' issues found, ' + sec + ' security';
-            msg.appendChild(span);
-            document.getElementById('scanResultIssues').appendChild(msg);
-            loadStats();
+        if (d.success && d.job_id) {
+            _scanJobId = d.job_id;
+            // Speed up station polling during scan (every 3s instead of 15s)
+            _startFastPolling();
+            // Immediately check for the new job
+            checkStationJobs();
         } else {
-            document.getElementById('scanResultFile').textContent = 'Scan failed';
-            var errDiv = document.createElement('div');
-            errDiv.className = 'dp-issue-item';
-            var errSpan = document.createElement('span');
-            errSpan.className = 'dp-issue-msg';
-            errSpan.style.color = '#ef4444';
-            errSpan.textContent = d.error || 'Unknown error';
-            errDiv.appendChild(errSpan);
-            document.getElementById('scanResultIssues').appendChild(errDiv);
+            _flashStationMsg(d.error || 'Failed to start scan');
         }
-    }).catch(function(e) {
-        document.getElementById('scanResultFile').textContent = 'Scan error';
+    }).catch(function() {
+        _flashStationMsg('Error starting scan');
     });
 }
+
+function _startFastPolling() {
+    // Switch to 3s polling during active scan
+    if (_stationPollInterval) clearInterval(_stationPollInterval);
+    _stationPollInterval = setInterval(function() {
+        checkStationJobs();
+        // Check if our scan job completed
+        if (_scanJobId) {
+            fetch('/tools/bridge/api/bridge/jobs/' + _scanJobId).then(function(r) {
+                return r.json();
+            }).then(function(data) {
+                if (!data.success) return;
+                var j = data.job;
+                if (j.status === 'completed' || j.status === 'failed') {
+                    _scanJobId = null;
+                    _showStationScanComplete(
+                        j.completed_steps || 0,
+                        j.total_steps || 0,
+                        0,
+                        j.failed_steps || 0
+                    );
+                    // Back to normal 15s polling
+                    _startNormalPolling();
+                    // Refresh file list with new scores from DB
+                    loadScanFiles();
+                    loadStats();
+                }
+            }).catch(function() {});
+        }
+    }, 3000);
+}
+
+function _startNormalPolling() {
+    if (_stationPollInterval) clearInterval(_stationPollInterval);
+    _stationPollInterval = setInterval(checkStationJobs, 15000);
+}
+
+/* ---- Station Panel: Scan Job Progress (Consciousness-matching pattern) ---- */
+function _buildStationJobDOM(labelText, descText, countText, pct, barColor, bottomLeft, bottomRight) {
+    var frag = document.createDocumentFragment();
+    var label = document.createElement('div');
+    label.className = 'dp-section-label';
+    label.style.padding = '0 0 4px 0';
+    label.textContent = labelText;
+    frag.appendChild(label);
+
+    var prog = document.createElement('div');
+    prog.className = 'dp-job-progress';
+    prog.style.cssText = 'flex-direction:column;align-items:stretch;padding:8px 10px;';
+
+    var top = document.createElement('div');
+    top.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;';
+    var descSpan = document.createElement('span');
+    descSpan.style.cssText = 'font-size:0.75rem;color:var(--archie-text-secondary);';
+    descSpan.textContent = descText;
+    top.appendChild(descSpan);
+    var countSpan = document.createElement('span');
+    countSpan.style.cssText = 'font-size:0.7rem;opacity:0.7;';
+    countSpan.textContent = countText;
+    top.appendChild(countSpan);
+    prog.appendChild(top);
+
+    var barOuter = document.createElement('div');
+    barOuter.style.cssText = 'background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px;';
+    var barFill = document.createElement('div');
+    barFill.style.cssText = 'width:' + pct + '%;height:100%;background:' + barColor + ';transition:width 0.4s ease;border-radius:4px;';
+    barOuter.appendChild(barFill);
+    prog.appendChild(barOuter);
+
+    var bot = document.createElement('div');
+    bot.style.cssText = 'display:flex;justify-content:space-between;font-size:0.68rem;opacity:0.6;';
+    var bl = document.createElement('span');
+    bl.textContent = bottomLeft;
+    bot.appendChild(bl);
+    var br = document.createElement('span');
+    br.textContent = bottomRight;
+    bot.appendChild(br);
+    prog.appendChild(bot);
+    frag.appendChild(prog);
+    return frag;
+}
+
+
+function _showStationScanComplete(done, total, avgScore, failed) {
+    var el = document.getElementById('stationJobs');
+    if (!el) return;
+    var failStr = failed > 0 ? ' (' + failed + ' failed)' : '';
+    var scoreText = avgScore > 0 ? (avgScore + '/100') : 'Done';
+    var scoreColor = avgScore >= 80 ? '#00ff41' : avgScore >= 50 ? '#f59e0b' : (avgScore > 0 ? '#ef4444' : '#10b981');
+    el.textContent = '';
+    var frag = _buildStationJobDOM(
+        'COMPLETED', 'Code Scan Complete', scoreText,
+        100, '#10b981', done + '/' + total + ' files scanned' + failStr, '100%'
+    );
+    var spans = frag.querySelectorAll('span');
+    if (spans[0]) spans[0].style.color = '#10b981';
+    if (spans[1]) { spans[1].style.color = scoreColor; spans[1].style.fontFamily = 'Orbitron,monospace'; spans[1].style.fontWeight = '700'; }
+    el.appendChild(frag);
+    // Keep completed state visible for 60s
+    if (_completedTimer) clearTimeout(_completedTimer);
+    _completedTimer = setTimeout(function() { el.textContent = ''; }, 60000);
+}
+var _completedTimer = null;
+
+/* Update score badge on a file row without re-rendering the whole list */
+function _updateFileScore(filePath, score) {
+    var row = document.querySelector('.dp-file-item[data-path="' + filePath + '"]');
+    if (!row) return;
+    var existing = row.querySelector('.dp-file-score');
+    var scInt = Math.round(score);
+    if (existing) {
+        existing.className = 'dp-file-score ' + (scInt >= 80 ? 'good' : scInt >= 50 ? 'warn' : 'bad');
+        existing.textContent = scInt;
+    } else {
+        var sc = document.createElement('span');
+        sc.className = 'dp-file-score ' + (scInt >= 80 ? 'good' : scInt >= 50 ? 'warn' : 'bad');
+        sc.textContent = scInt;
+        sc.title = 'Scanned this session';
+        var sizeEl = row.querySelector('.dp-file-size');
+        if (sizeEl) row.insertBefore(sc, sizeEl);
+        else row.appendChild(sc);
+    }
+}
+
 
 function loadIssues() {
     var status = _currentIssueFilter === 'all' ? '' : _currentIssueFilter;
@@ -1038,7 +1738,7 @@ function loadScanHistory() {
                 sc.textContent = Math.round(score);
                 var time = document.createElement('span');
                 time.className = 'dp-history-time';
-                time.textContent = s.scanned_at ? new Date(s.scanned_at).toLocaleString() : '\u2014';
+                time.textContent = s.scanned_at ? ArchieTime.format(s.scanned_at, 'short') : '\u2014';
                 row.appendChild(file);
                 row.appendChild(sc);
                 row.appendChild(time);
@@ -1058,11 +1758,26 @@ function loadScanHistory() {
 
 function loadStats() {
     fetch(API + '/scan/stats').then(function(r) { return r.json(); }).then(function(d) {
-        if (d.total_scans !== undefined) document.getElementById('statScans').textContent = d.total_scans;
-        if (d.open_issues !== undefined) {
-            var badge = document.getElementById('issuesBadge');
-            if (d.open_issues > 0) { badge.textContent = d.open_issues; badge.style.display = 'inline'; }
-        }
+        if (!d.success) return;
+        var ss = d.scan_stats || {};
+        var is = d.issue_stats || {};
+        document.getElementById('statScans').textContent = ss.total_scans || 0;
+        var badge = document.getElementById('issuesBadge');
+        if (is.open > 0) { badge.textContent = is.open; badge.style.display = 'inline'; }
+        else { badge.style.display = 'none'; }
+    }).catch(function() {});
+    // Also load proposal/sandbox/deploy counts
+    fetch(API + '/proposals').then(function(r) { return r.json(); }).then(function(d) {
+        var arr = d.proposals || d || [];
+        if (Array.isArray(arr)) document.getElementById('statProposals').textContent = arr.length;
+    }).catch(function() {});
+    fetch(API + '/sandbox/list').then(function(r) { return r.json(); }).then(function(d) {
+        var arr = d.sandboxes || d || [];
+        if (Array.isArray(arr)) document.getElementById('statSandboxes').textContent = arr.length;
+    }).catch(function() {});
+    fetch(API + '/deploy/history').then(function(r) { return r.json(); }).then(function(d) {
+        var stats = d.stats || {};
+        document.getElementById('statDeployed').textContent = stats.total_deployed || 0;
     }).catch(function() {});
 }
 
@@ -1334,7 +2049,7 @@ function loadTestRuns() {
 
             var time = document.createElement('span');
             time.className = 'dp-history-time';
-            time.textContent = r.started_at ? new Date(r.started_at).toLocaleString() : '\u2014';
+            time.textContent = r.started_at ? ArchieTime.format(r.started_at, 'short') : '\u2014';
 
             row.appendChild(name);
             row.appendChild(status);
@@ -1527,7 +2242,7 @@ function loadDeployHistory() {
 
             var time = document.createElement('span');
             time.className = 'dp-history-time';
-            time.textContent = dep.deployed_at ? new Date(dep.deployed_at).toLocaleString() : '\u2014';
+            time.textContent = dep.deployed_at ? ArchieTime.format(dep.deployed_at, 'short') : '\u2014';
 
             row.appendChild(title);
             row.appendChild(badge);
@@ -1575,6 +2290,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Init scan tab
     checkScanAi();
     loadStats();
+    _loadPrefs();
+    // Auto-load files on first visit if in browse mode
+    if (_scanMode === 'browse') loadScanFiles();
 });
 
 window.addEventListener('hashchange', function() {
@@ -1585,218 +2303,53 @@ window.addEventListener('hashchange', function() {
 });
 
 // ============================================================
-// STATION INTEGRATION
+// STATION INTEGRATION (shared StationOps component)
 // ============================================================
-var _activeJobPolls = {};
 var _stationPollInterval = null;
 var _stationFailCount = 0;
 var _stationMaxFails = 3;
 
-function loadStationCrew() {
-    // Fetch directly from Bridge API (browser carries auth cookie)
-    fetch('/tools/bridge/api/stations').then(function(r) {
-        if (!r.ok) return Promise.reject('http ' + r.status);
-        var ct = r.headers.get('content-type') || '';
-        if (ct.indexOf('application/json') === -1) return Promise.reject('not json');
-        return r.json();
-    }).then(function(data) {
-        _stationFailCount = 0;
-        var dot = document.getElementById('stationStatusDot');
-        var el = document.getElementById('stationCrew');
-        if (!data.success) {
-            dot.className = 'dp-station-status offline';
-            _setStationMsg(el, 'Bridge unavailable');
-            return;
-        }
-        // Find ENGINEERING station
-        var crew = [];
-        var maxPrimary = 2;
-        var maxAux = 1;
-        var stations = data.stations || [];
-        for (var i = 0; i < stations.length; i++) {
-            if (stations[i].code !== 'ENGINEERING') continue;
-            maxPrimary = stations[i].max_primary || 2;
-            maxAux = stations[i].max_auxiliary || 1;
-            (stations[i].assigned_agents || []).forEach(function(a) {
-                crew.push({
-                    name: (a.first_name && a.last_name) ? a.first_name + ' ' + a.last_name : (a.name || 'Agent'),
-                    codeName: a.name || '',
-                    title: a.title || a.assignment_type || 'agent'
-                });
-            });
-        }
-        // Store for checkStationJobs to use
-        window._dpCrew = crew;
-        window._dpMaxPrimary = maxPrimary;
-        window._dpMaxAux = maxAux;
-
-        if (!crew.length) {
-            dot.className = 'dp-station-status offline';
-            _setStationMsg(el, 'No agents assigned');
-            return;
-        }
-        dot.className = 'dp-station-status online';
-        _renderCrewPanel(el, crew, maxPrimary, maxAux, [], []);
-        // After loading crew, check for active jobs
-        checkStationJobs();
-    }).catch(function() {
-        _stationFailCount++;
-        var dot = document.getElementById('stationStatusDot');
-        if (dot) dot.className = 'dp-station-status offline';
-        var el = document.getElementById('stationCrew');
-        if (el) _setStationMsg(el, 'Bridge unavailable');
-        // Stop polling after repeated failures to avoid console spam
-        if (_stationFailCount >= _stationMaxFails && _stationPollInterval) {
-            clearInterval(_stationPollInterval);
-            _stationPollInterval = null;
-        }
-    });
-}
-
-function _setStationMsg(el, msg) {
-    el.textContent = '';
-    var span = document.createElement('span');
-    span.className = 'dp-station-loading';
-    span.textContent = msg;
-    el.appendChild(span);
-}
-
-function _renderCrewPanel(el, crew, maxPrimary, maxAux, assists, busyMap) {
-    el.textContent = '';
-
-    // STATION CREW section
-    var label = document.createElement('div');
-    label.className = 'dp-section-label';
-    label.textContent = 'STATION CREW (' + crew.length + '/' + maxPrimary + ')';
-    el.appendChild(label);
-
-    crew.forEach(function(a) {
-        var row = document.createElement('div');
-        row.className = 'dp-crew-agent';
-        var name = document.createElement('span');
-        name.className = 'dp-crew-name';
-        name.textContent = a.name;
-        row.appendChild(name);
-        // Working badge (hidden by default, shown by checkStationJobs)
-        var badge = document.createElement('span');
-        badge.className = 'dp-crew-badge';
-        badge.id = 'crewBadge-' + a.codeName;
-        if (busyMap[a.codeName]) {
-            badge.className = 'dp-crew-badge working';
-            badge.textContent = 'WORKING';
-        }
-        row.appendChild(badge);
-        // Role
-        var role = document.createElement('span');
-        role.className = 'dp-crew-role';
-        role.textContent = a.title;
-        row.appendChild(role);
-        el.appendChild(row);
-    });
-
-    // AUXILIARY section
-    var auxLabel = document.createElement('div');
-    auxLabel.className = 'dp-section-label';
-    auxLabel.style.marginTop = '8px';
-    auxLabel.textContent = 'AUXILIARY (' + assists.length + '/' + maxAux + ')';
-    el.appendChild(auxLabel);
-
-    if (assists.length) {
-        assists.forEach(function(a) {
-            var row = document.createElement('div');
-            row.className = 'dp-aux-agent';
-            var name = document.createElement('span');
-            name.className = 'dp-crew-name';
-            name.textContent = a.name;
-            row.appendChild(name);
-            var badge = document.createElement('span');
-            badge.className = 'dp-crew-badge working';
-            badge.textContent = 'HELPING';
-            row.appendChild(badge);
-            var role = document.createElement('span');
-            role.className = 'dp-crew-role';
-            role.style.color = '#facc15';
-            role.style.background = 'rgba(250,204,21,0.15)';
-            role.textContent = a.station + ' \u2022 ' + a.cap;
-            row.appendChild(role);
-            el.appendChild(row);
-        });
-    } else {
-        var empty = document.createElement('div');
-        empty.className = 'dp-station-loading';
-        empty.textContent = 'Slot available';
-        el.appendChild(empty);
-    }
-}
+var _engOps = new StationOps({
+    stationCode: 'ENGINEERING',
+    moduleSource: 'dev_pipeline',
+    agentsElId: 'engOpsAgents',
+    jobsElId: 'engOpsJobs',
+    commandsElId: null,
+    statusElId: 'engOpsOnline'
+});
 
 function checkStationJobs() {
-    // Fetch running jobs directly from Bridge API (browser carries auth cookie)
-    fetch('/tools/bridge/api/bridge/jobs?status=running').then(function(r) {
-        if (!r.ok) return Promise.reject('http ' + r.status);
-        var ct = r.headers.get('content-type') || '';
-        if (ct.indexOf('application/json') === -1) return Promise.reject('not json');
-        return r.json();
-    }).then(function(data) {
+    _engOps.checkJobs().then(function(result) {
         _stationFailCount = 0;
-        if (!data.success) return;
+        var myJobs = result.myJobs;
 
-        // Filter to dev_pipeline module jobs
-        var myJobs = (data.jobs || []).filter(function(j) {
-            return j.module_source === 'dev_pipeline';
-        });
+        // Render crew with busy badges from active jobs
+        _engOps.renderAgents(myJobs.length ? myJobs : null);
 
-        // Build busy map from active jobs
-        var busyMap = {};
-        myJobs.forEach(function(j) {
-            if (j.agent_name && j.status === 'running') {
-                busyMap[j.agent_name] = j.description || j.job_type || 'task';
-            }
-        });
+        // Render job progress in ops terminal
+        _engOps.renderJobs(myJobs.length ? myJobs : null);
 
-        // Extract cross-station assists and contractors
-        var assists = [];
-        myJobs.forEach(function(j) {
-            var meta = j.metadata || {};
-            if (meta.is_cross_station && meta.agent_station && meta.agent_station !== 'ENGINEERING') {
-                var aname = j.agent_name || 'Cross-station agent';
-                var already = assists.some(function(a) { return a.name === aname; });
-                if (!already) {
-                    assists.push({ name: aname, station: meta.agent_station, cap: meta.capability || 'assist' });
-                }
-            }
-        });
-
-        // Re-render crew panel with busy state
-        var crew = window._dpCrew || [];
-        var crewEl = document.getElementById('stationCrew');
-        if (crewEl && crew.length) {
-            _renderCrewPanel(crewEl, crew, window._dpMaxPrimary || 2, window._dpMaxAux || 1, assists, busyMap);
-        }
-
-        // Render job progress bars
+        // Also render in stationJobs div (for scan-complete overlay)
         var jobsEl = document.getElementById('stationJobs');
-        jobsEl.textContent = '';
-        myJobs.forEach(function(j) {
-            var pct = j.progress_pct || (j.total_steps > 0 ? Math.round((j.completed_steps / j.total_steps) * 100) : 0);
-            var prog = document.createElement('div');
-            prog.className = 'dp-job-progress';
-            var desc = document.createElement('span');
-            desc.textContent = (j.description || j.job_type || 'Working').substring(0, 40);
-            prog.appendChild(desc);
-            var bar = document.createElement('div');
-            bar.className = 'dp-job-bar';
-            var fill = document.createElement('div');
-            fill.className = 'dp-job-bar-fill' + (j.status === 'completed' ? ' done' : j.status === 'failed' ? ' failed' : '');
-            fill.style.width = pct + '%';
-            bar.appendChild(fill);
-            prog.appendChild(bar);
-            var pctText = document.createElement('span');
-            pctText.textContent = pct + '%';
-            prog.appendChild(pctText);
-            jobsEl.appendChild(prog);
-        });
+        if (!myJobs.length) {
+            if (!_completedTimer && jobsEl) jobsEl.textContent = '';
+            return;
+        }
+        if (jobsEl) {
+            jobsEl.textContent = '';
+            myJobs.forEach(function(j) {
+                var completed = j.completed_steps || 0;
+                var total = j.total_steps || 0;
+                var pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                var agentName = j.agent_display_name || j.agent_name || 'Queued';
+                var desc = j.description || j.job_type || 'Working';
+                jobsEl.appendChild(_buildStationJobDOM(
+                    'ACTIVE JOB', desc, completed + ' / ' + total,
+                    pct, '#8b5cf6', 'Assigned: ' + agentName, pct + '%'
+                ));
+            });
+        }
     }).catch(function() {
-        // Silently fail — stop polling after repeated failures
         _stationFailCount++;
         if (_stationFailCount >= _stationMaxFails && _stationPollInterval) {
             clearInterval(_stationPollInterval);
@@ -1805,11 +2358,12 @@ function checkStationJobs() {
     });
 }
 
-// Poll station every 15s (stops after 3 consecutive failures)
 function startStationPolling() {
     if (_stationPollInterval) return;
-    loadStationCrew();
-    _stationPollInterval = setInterval(checkStationJobs, 15000);
+    // Initial render
+    _engOps.renderAgents(null);
+    checkStationJobs();
+    _startNormalPolling();
 }
 
 // Start station polling on load

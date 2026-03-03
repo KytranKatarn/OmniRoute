@@ -36,8 +36,10 @@
                         <a href="{{ url_for('dashboard') }}" class="cn-back" onclick="showTransition(event, this.href)" title="Back to Dashboard">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                         </a>
-                        <div class="cn-avatar">{{ current_user.username[0] | upper }}</div>
-                        <span class="cn-username">{{ current_user.username }}</span>
+                        <a href="/tools/my-profile" class="cn-profile-link" title="My Profile" onclick="showTransition(event, this.href)">
+                            <div class="cn-avatar">{{ current_user.username[0] | upper }}</div>
+                            <span class="cn-username">{{ current_user.username }}</span>
+                        </a>
                         {% if current_user.is_admin %}
                         <span class="cn-badge cn-badge-role">ADMIN</span>
                         {% endif %}
@@ -145,6 +147,15 @@
 .cn-username {
     font-size: 13px; font-weight: 600; color: #e0e0e0; white-space: nowrap;
 }
+
+.cn-profile-link {
+    display: flex; align-items: center; gap: 8px;
+    text-decoration: none; color: inherit;
+    border-radius: 6px; padding: 2px 4px;
+    transition: background 0.2s;
+}
+.cn-profile-link:hover { background: rgba(255,255,255,0.08); }
+.cn-profile-link:hover .cn-username { color: #fff; }
 
 .cn-badge {
     font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;

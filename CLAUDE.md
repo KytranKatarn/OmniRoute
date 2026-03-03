@@ -55,10 +55,13 @@
 ## Key Files
 
 ```
-platform_v2/app.py                - Flask app
+platform_v2/app.py                - Flask app + |localtime filter
 platform_v2/module_registry.py    - Module definitions
 platform_v2/rbac.py               - Permissions
 platform_v2/database.py           - DB connection
+platform_v2/static/js/archie-time.js  - Global timezone-aware timestamp formatter
+platform_v2/static/js/station-ops.js  - Shared station operations component
+platform_v2/static/css/station-ops.css - Shared station ops CSS
 ai_bridge/archie_bridge.py        - AI routing
 ai_bridge/orchestration_engine.py - Orchestration pipeline (intent→route→execute)
 ai_bridge/smart_router.py         - GPU-aware model routing

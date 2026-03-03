@@ -5145,12 +5145,7 @@ let historyHours = 24;  // Default: 24 hours of history
 
 // Format ISO UTC timestamp to local time, smart format based on hours range
 function formatHistoryTime(isoStr, hours) {
-    const d = new Date(isoStr);
-    if (hours > 24) {
-        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
-               d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    }
-    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return hours > 24 ? ArchieTime.format(isoStr, 'short') : ArchieTime.time(isoStr);
 }
 
 function changeHistoryRange(hours) {
@@ -6508,7 +6503,7 @@ function updateDashboard(data) {
     if (bootTime) {
         // Handle both ISO format and "YYYY-MM-DD HH:MM" format
         const bootDate = new Date(bootTime.includes('T') ? bootTime : bootTime.replace(' ', 'T'));
-        document.getElementById('sys-boot').textContent = isNaN(bootDate) ? bootTime : bootDate.toLocaleString();
+        document.getElementById('sys-boot').textContent = isNaN(bootDate) ? bootTime : ArchieTime.format(bootTime, 'datetime');
     } else {
         document.getElementById('sys-boot').textContent = '--';
     }
@@ -7546,7 +7541,7 @@ function renderHealthAlerts(alerts, counts) {
         // Time
         const time = document.createElement('div');
         time.className = 'health-alert-time';
-        time.textContent = new Date(alert.created_at).toLocaleString();
+        time.textContent = ArchieTime.format(alert.created_at, 'short');
 
         content.appendChild(header);
         content.appendChild(message);

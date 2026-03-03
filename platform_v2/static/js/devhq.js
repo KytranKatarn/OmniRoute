@@ -34,23 +34,11 @@
   }
 
   function formatAge(dateStr) {
-    if (!dateStr) return "\u2014";
-    var d = new Date(dateStr);
-    var diff = (Date.now() - d.getTime()) / 1000;
-    if (diff < 60) return "just now";
-    if (diff < 3600) return Math.floor(diff / 60) + "m ago";
-    if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
-    if (diff < 604800) return Math.floor(diff / 86400) + "d ago";
-    return d.toLocaleDateString();
+    return ArchieTime.age(dateStr);
   }
 
   function formatDate(dateStr) {
-    if (!dateStr) return "\u2014";
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    return ArchieTime.date(dateStr);
   }
 
   function api(path, opts) {
@@ -1487,7 +1475,7 @@
           var color = c.status === "online" ? "var(--archie-green, #22c55e)"
                     : c.status === "warning" ? "var(--archie-orange, #ffa500)"
                     : "var(--archie-red, #ef4444)";
-          var ts = c.checked_at ? new Date(c.checked_at).toLocaleTimeString() : "";
+          var ts = c.checked_at ? ArchieTime.time(c.checked_at) : "";
           var title = escHtml(c.status + " - " + (c.detail || "") + " (" + ts + ")");
           return '<span title="' + title + '" style="display:inline-block;width:6px;height:14px;background:' + color + ';border-radius:1px;margin:0 1px;"></span>';
         }).join("");

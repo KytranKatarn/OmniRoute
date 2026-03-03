@@ -1592,8 +1592,7 @@ function renderHistoryList(sessions) {
 
         var dateText = '';
         if (session.created_at) {
-            var d = new Date(session.created_at);
-            dateText = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            dateText = ArchieTime.format(session.created_at, 'short');
         }
         var dateEl = document.createElement('span');
         dateEl.textContent = dateText;

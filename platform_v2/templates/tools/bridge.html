@@ -8185,8 +8185,7 @@ function loadOverviewData() {
                 if (ev.timestamp) {
                     var ts = document.createElement('span');
                     ts.style.cssText = 'color:var(--archie-text-tertiary);font-size:0.65rem;white-space:nowrap;flex-shrink:0;';
-                    var d = new Date(ev.timestamp);
-                    ts.textContent = d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                    ts.textContent = ArchieTime.time(ev.timestamp);
                     row.appendChild(ts);
                 }
                 el.appendChild(row);
@@ -8357,9 +8356,7 @@ function loadVigilLogPage() {
                 // Time
                 var ts = '';
                 if (ev.timestamp) {
-                    var d = new Date(ev.timestamp);
-                    ts = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
-                         d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                    ts = ArchieTime.format(ev.timestamp, 'short');
                 }
                 tr.appendChild(_vigilMakeText('td', ts, 'white-space:nowrap;font-size:0.7rem;color:var(--archie-text-tertiary);'));
 
@@ -10127,7 +10124,7 @@ async function loadConsoleDispatch(stationCodes) {
 
                 var timeEl = document.createElement('div');
                 timeEl.className = 'lcars-dispatch-time';
-                timeEl.textContent = ev.created_at ? new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                timeEl.textContent = ev.created_at ? ArchieTime.time(ev.created_at) : '--:--';
                 row.appendChild(timeEl);
 
                 var statusEl = document.createElement('div');
@@ -11232,10 +11229,7 @@ function renderViewscreen(events, trafficData) {
             // Parse time from created_at (ISO string)
             let timeStr = '--:--:--';
             if (evt.created_at) {
-                const d = new Date(evt.created_at);
-                if (!isNaN(d.getTime())) {
-                    timeStr = d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                }
+                timeStr = ArchieTime.time(evt.created_at);
             }
 
             // Success status icon
@@ -11729,7 +11723,7 @@ async function showNodeDetail(nodeId) {
         document.getElementById('nd-ip').textContent = node.vpn_ip || '--';
         document.getElementById('nd-port').textContent = node.port || '11434';
         document.getElementById('nd-os').textContent = node.os_info || '--';
-        document.getElementById('nd-registered').textContent = node.created_at ? new Date(node.created_at).toLocaleDateString() : '--';
+        document.getElementById('nd-registered').textContent = node.created_at ? ArchieTime.date(node.created_at) : '--';
         document.getElementById('nd-heartbeat').textContent = node.last_heartbeat ? formatTimeAgo(node.last_heartbeat) : '--';
 
         document.getElementById('nd-cpu').textContent = node.cpu_model || '--';
@@ -11806,17 +11800,7 @@ function switchNodeTab(tabName) {
 }
 
 function formatTimeAgo(dateStr) {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+    return ArchieTime.age(dateStr);
 }
 
 // Store for all stations with assignment status
@@ -12876,15 +12860,7 @@ function toggleMeshSection(sectionId) {
 }
 
 function formatMeshAge(isoStr) {
-    if (!isoStr) return '—';
-    const diff = Date.now() - new Date(isoStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return mins + 'm ago';
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return hrs + 'h ago';
-    const days = Math.floor(hrs / 24);
-    return days + 'd ago';
+    return ArchieTime.age(isoStr);
 }
 
 // Load nodes, models, dispatch, and crew on page load (stations loaded separately via main init)
@@ -12995,8 +12971,7 @@ function renderDispatchHistory(history) {
         const time = document.createElement('span');
         time.className = 'dispatch-history-time';
         if (item.timestamp) {
-            const d = new Date(item.timestamp);
-            time.textContent = d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            time.textContent = ArchieTime.time(item.timestamp);
         }
 
         row.appendChild(agent);
@@ -14411,7 +14386,7 @@ async function loadTrainingHistory() {
             var displayName = h.full_name || h.agent_name || 'Unknown';
             var statusColor = h.status === 'completed' ? '#00ff41' : (h.status === 'cancelled' ? '#ff6b6b' : 'rgba(255,255,255,0.5)');
             var statusLabel = h.status === 'completed' ? 'Completed' : (h.status === 'cancelled' ? 'Cancelled' : (h.status || 'Unknown'));
-            var dateStr = h.completed_at ? new Date(h.completed_at).toLocaleDateString() : '--';
+            var dateStr = h.completed_at ? ArchieTime.date(h.completed_at) : '--';
 
             html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);">';
             html += '<div>';
@@ -14661,7 +14636,7 @@ async function loadRestHistory() {
                 var eDiffColor = (eEnd - eStart) >= 0 ? '#00ff41' : '#ef4444';
                 energyDelta = '<span style="color:' + eDiffColor + ';">' + eStart + '% ' + String.fromCodePoint(0x2192) + ' ' + eEnd + '%</span>';
             }
-            var endDate = h.ended_at ? new Date(h.ended_at).toLocaleDateString() + ' ' + new Date(h.ended_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'ongoing';
+            var endDate = h.ended_at ? ArchieTime.format(h.ended_at, 'short') : 'ongoing';
             html += '<div style="padding:6px 8px;margin-bottom:4px;background:rgba(139,92,246,0.04);border:1px solid rgba(139,92,246,0.1);border-radius:5px;">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">';
             html += '<span style="font-size:0.7rem;font-weight:600;color:rgba(255,255,255,0.7);">' + (h.full_name || h.agent_name) + '</span>';
@@ -14826,8 +14801,7 @@ function renderContractors(providers, routingMode, iaaeData) {
                 html += '<div>Cost/24h: <span class="stat-val">$' + (mStats.cost != null ? parseFloat(mStats.cost).toFixed(3) : '0.000') + '</span></div>';
                 html += '</div>';
                 if (mAlltime) {
-                    var lastUsed = mAlltime.last_used ? new Date(mAlltime.last_used) : null;
-                    var lastUsedStr = lastUsed ? lastUsed.toLocaleDateString() : '--';
+                    var lastUsedStr = mAlltime.last_used ? ArchieTime.date(mAlltime.last_used) : '--';
                     html += '<div class="model-stats" style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">';
                     html += '<div>Total: <span class="stat-val">' + mAlltime.requests + ' tasks</span></div>';
                     html += '<div>Success: <span class="stat-val">' + parseFloat(mAlltime.success_rate).toFixed(0) + '%</span></div>';

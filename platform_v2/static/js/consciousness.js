@@ -35,13 +35,7 @@ function lcarsMsg(type, icon, msg) {
 }
 
 function formatAge(dateStr) {
-  if (!dateStr) return "\u2014";
-  var d = new Date(dateStr);
-  var diff = (Date.now() - d.getTime()) / 1000;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
-  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
-  return Math.floor(diff / 86400) + "d ago";
+  return ArchieTime.age(dateStr);
 }
 
 function refreshIcons() {
@@ -678,45 +672,9 @@ function loadEmbeddingStatus() {
 /* _renderJobProgress removed — replaced by _renderBridgeJob (uses Bridge as source of truth) */
 
 function _pollJobStatus(jobId, el, onComplete) {
-  /* Poll Bridge Command for job progress — single source of truth */
-  var retries = 0;
-  var maxRetries = 3;
-  var poll = setInterval(function() {
-    fetch("/tools/bridge/api/bridge/jobs/" + jobId).then(function(resp) {
-      var ct = resp.headers.get("content-type") || "";
-      if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
-      return resp.json();
-    }).then(function(data) {
-      retries = 0;
-      if (!data.success) { clearInterval(poll); return; }
-      var j = data.job;
-      /* Render using Bridge format */
-      var pct = j.total_steps > 0 ? Math.round(((j.completed_steps || 0) / j.total_steps) * 100) : 0;
-      _renderBridgeJob({
-        description: j.description,
-        agent_name: j.agent_display_name || j.agent_name || "Agent",
-        station_code: j.station_code || "",
-        completed_steps: j.completed_steps || 0,
-        total_steps: j.total_steps || 0,
-        failed_steps: j.failed_steps || 0,
-        progress_pct: pct,
-        status: j.status
-      }, el);
-      if (j.status === "completed" || j.status === "failed" || j.status === "cancelled") {
-        clearInterval(poll);
-        if (onComplete) onComplete(j);
-      }
-    }).catch(function() {
-      retries++;
-      if (retries >= maxRetries) {
-        clearInterval(poll);
-        setHtml(el, '<div class="cs-pipeline-step" style="color:rgba(255,255,255,0.5);">' +
-          '<span class="cs-pipeline-icon" style="color:#8b5cf6;">\u25B6</span> ' +
-          'Job #' + jobId + ' running \u2014 check <a href="/tools/bridge" style="color:#8b5cf6;">Bridge Command</a> for live progress</div>');
-        if (onComplete) onComplete(null);
-      }
-    });
-  }, 3000);
+  /* Delegate to shared StationOps component */
+  var ops = _kbOps || _getOpsInstance("kbOpsAgents");
+  ops.pollJob(jobId, el, onComplete);
 }
 
 /* ── Active Job Status + Station Agent Display ─────── */
@@ -857,57 +815,21 @@ function _renderStationStatus(allJobs, myJobs) {
 }
 
 function _buildJobHtml(job) {
-  /* Build HTML for a single Bridge job — LCARS notification bar with progress */
-  var pct = job.progress_pct || 0;
-  var agent = job.agent_name || "Queued";
-  if (job.station_code) agent += " \u2022 " + job.station_code;
-  var eta = "";
-  if (job.eta_seconds && job.eta_seconds > 0) {
-    var m = Math.floor(job.eta_seconds / 60);
-    var s = job.eta_seconds % 60;
-    eta = m > 0 ? " \u2022 ~" + m + "m " + s + "s remaining" : " \u2022 ~" + s + "s remaining";
-  }
-  var type = job.status === "failed" ? "err" : job.status === "completed" ? "ok" : "info";
-  var icon = job.status === "failed" ? "\u2717" : job.status === "completed" ? "\u2713" : "\u25B6";
-  var capColor = job.status === "failed" ? "#ef4444" : job.status === "completed" ? "#10b981" : "#8b5cf6";
-  var barColor = job.status === "failed" ? "#ef4444" : job.status === "completed" ? "#10b981" : "#8b5cf6";
-
-  var countStr = (job.completed_steps || 0) + ' / ' + (job.total_steps || 0);
-  if (job.failed_steps > 0) countStr += ' (' + job.failed_steps + ' failed)';
-
-  return '<div class="cs-job-msg ' + type + '" style="flex-direction:column;align-items:stretch;">' +
-    '<div style="display:flex;align-items:stretch;">' +
-      '<span class="cs-job-msg-cap" style="background:' + capColor + ';">' + icon + '</span>' +
-      '<span class="cs-job-msg-text" style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<span>' + escHtml(job.description) + '</span>' +
-        '<span style="font-size:0.7rem;opacity:0.7;white-space:nowrap;margin-left:8px;">' + escHtml(agent) + '</span>' +
-      '</span>' +
-    '</div>' +
-    '<div style="padding:0 12px 8px 12px;">' +
-      '<div style="background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px;">' +
-        '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width 0.5s ease;border-radius:4px;"></div>' +
-      '</div>' +
-      '<div style="display:flex;justify-content:space-between;font-size:0.7rem;opacity:0.6;">' +
-        '<span>' + countStr + eta + '</span>' +
-        '<span>' + pct + '%</span>' +
-      '</div>' +
-    '</div>' +
-  '</div>';
+  /* Delegate to shared StationOps component */
+  var ops = _kbOps || _getOpsInstance("kbOpsAgents");
+  return ops.buildJobHtml(job);
 }
 
 function _renderBridgeJob(job, el) {
-  /* Render a single Bridge job into an element (backward compat) */
-  setHtml(el, _buildJobHtml(job));
+  /* Delegate to shared StationOps component */
+  var ops = _kbOps || _getOpsInstance("kbOpsAgents");
+  ops.renderJob(job, el);
 }
 
 function _renderBridgeJobs(jobs, el, prefix) {
-  /* Render multiple Bridge jobs stacked in a container */
-  var pfx = prefix || el;
-  var html = '';
-  jobs.forEach(function(j) {
-    html += '<div id="bjob-' + pfx + '-' + j.id + '">' + _buildJobHtml(j) + '</div>';
-  });
-  setHtml(el, html);
+  /* Delegate to shared StationOps component */
+  var ops = _kbOps || _getOpsInstance("kbOpsAgents");
+  ops.renderBridgeJobs(jobs, el, prefix);
 }
 
 function _disableProcessingBtns() {
@@ -2081,139 +2003,70 @@ function loadGitHubEmbedStats() {
 }
 
 /* ── Shared: Render station crew + cross-station assists ─── */
+/* Delegates to shared StationOps component (station-ops.js) */
 
-/* Track station capacity — updated by _renderOpsAgents */
+/* Track station capacity — updated by StationOps onCapacityChange */
 var _stationAtCapacity = false;
 
+/* Per-tab StationOps instances — all point to ANALYTICS station,
+   each rendering into its own ops terminal element IDs */
+var _kbOps = null;
+var _ghOps = null;
+var _langOps = null;
+
+function _getOpsInstance(elId) {
+  /* Return (or create) the StationOps instance for the given agents element */
+  if (elId === "kbOpsAgents") {
+    if (!_kbOps) {
+      _kbOps = new StationOps({
+        stationCode: "ANALYTICS",
+        moduleSource: "consciousness",
+        agentsElId: "kbOpsAgents",
+        jobsElId: "kbOpsJobs",
+        commandsElId: "kbOpsCommands",
+        statusElId: "kbOpsOnline",
+        onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
+      });
+    }
+    return _kbOps;
+  }
+  if (elId === "ghOpsAgents") {
+    if (!_ghOps) {
+      _ghOps = new StationOps({
+        stationCode: "ANALYTICS",
+        moduleSource: "consciousness",
+        agentsElId: "ghOpsAgents",
+        jobsElId: "ghOpsJobs",
+        commandsElId: "ghOpsCommands",
+        statusElId: "ghOpsOnline",
+        onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
+      });
+    }
+    return _ghOps;
+  }
+  if (elId === "langOpsAgents") {
+    if (!_langOps) {
+      _langOps = new StationOps({
+        stationCode: "ANALYTICS",
+        moduleSource: "consciousness",
+        agentsElId: "langOpsAgents",
+        jobsElId: "langOpsJobs",
+        commandsElId: "langOpsCommands",
+        statusElId: "langOpsOnline",
+        onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
+      });
+    }
+    return _langOps;
+  }
+  return null;
+}
+
 function _renderOpsAgents(elId, homeStationCode, jobData) {
-  var agentsEl = document.getElementById(elId);
-  if (!agentsEl) return;
-
-  fetch("/tools/bridge/api/stations").then(function(resp) {
-    var ct = resp.headers.get("content-type") || "";
-    if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
-    return resp.json();
-  }).then(function(data) {
-    if (!data.success) return;
-    var crew = [];
-    var maxPrimary = 2;
-    var maxAux = 1;
-    var stations = data.stations || [];
-    stations.forEach(function(s) {
-      if (s.code !== homeStationCode) return;
-      maxPrimary = s.max_primary || 2;
-      maxAux = s.max_auxiliary || 1;
-      (s.assigned_agents || []).forEach(function(a) {
-        crew.push({
-          name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
-          title: a.title || a.assignment_type || "agent",
-          agentName: a.name || ""
-        });
-      });
-    });
-
-    /* Separate cross-station assists and contractors from active jobs */
-    var assists = [];
-    var contractors = [];
-    if (jobData && jobData.length) {
-      jobData.forEach(function(j) {
-        var meta = j.metadata || {};
-        if (meta.is_cloud) {
-          var cname = j.agent_name || "Cloud";
-          var already = contractors.some(function(c) { return c.name === cname; });
-          if (!already) {
-            contractors.push({ name: cname, cap: meta.capability || j.job_type || "task" });
-          }
-        } else if (meta.is_cross_station && meta.agent_station && meta.agent_station !== homeStationCode) {
-          var aname = j.agent_name || "Cross-station agent";
-          var already2 = assists.some(function(a) { return a.name === aname; });
-          if (!already2) {
-            assists.push({ name: aname, station: meta.agent_station, cap: meta.capability || "assist" });
-          }
-        }
-      });
-    }
-
-    /* Build lookup of busy agents from active jobs */
-    var busyMap = {};
-    if (jobData && jobData.length) {
-      jobData.forEach(function(j) {
-        if (j.agent_name && j.status === "running") {
-          busyMap[j.agent_name] = j.description || j.job_type || "task";
-        }
-      });
-    }
-
-    /* Count how many crew members are busy */
-    var busyCrew = 0;
-    crew.forEach(function(a) {
-      if (busyMap[a.agentName] || busyMap[a.name]) busyCrew++;
-    });
-
-    /* Station is at capacity when all crew busy AND auxiliary is full */
-    var wasAtCapacity = _stationAtCapacity;
-    _stationAtCapacity = (busyCrew >= crew.length && crew.length > 0) && (assists.length >= maxAux);
-    if (_stationAtCapacity !== wasAtCapacity) {
-      _applyStationCapacity(_stationAtCapacity);
-    }
-
-    var html = '';
-
-    /* STATION CREW section */
-    html += '<div class="cs-ops-section-label">STATION CREW (' + crew.length + '/' + maxPrimary + ')</div>';
-    if (crew.length) {
-      crew.forEach(function(a) {
-        var busy = busyMap[a.agentName] || busyMap[a.name];
-        html += '<div class="cs-ops-agent-row">' +
-          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-          (busy ? '<span class="cs-ops-agent-badge working">WORKING</span>' : '') +
-          '<span class="cs-ops-agent-role">' + escHtml(a.title) + '</span>' +
-          '</div>';
-      });
-    } else {
-      html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.3); padding:3px 8px; font-style:italic;">No primary crew assigned</div>';
-    }
-
-    /* AUXILIARY section */
-    html += '<div class="cs-ops-section-label" style="margin-top:8px;">AUXILIARY (' + assists.length + '/' + maxAux + ')</div>';
-    if (assists.length) {
-      assists.forEach(function(a) {
-        html += '<div class="cs-ops-agent-row" style="border-left-color:#facc15;">' +
-          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-          '<span class="cs-ops-agent-badge working">HELPING</span>' +
-          '<span class="cs-ops-agent-role" style="color:#facc15; background:rgba(250,204,21,0.15);">' +
-            escHtml(a.station) + ' \u2022 ' + escHtml(a.cap) + '</span>' +
-          '</div>';
-      });
-    } else {
-      html += '<div style="font-size:0.72rem; color:rgba(255,255,255,0.3); padding:3px 8px; font-style:italic;">Slot available</div>';
-    }
-
-    /* CONTRACTOR section (only if active) */
-    if (contractors.length) {
-      html += '<div class="cs-ops-section-label" style="margin-top:8px; color:#a78bfa;">CONTRACTOR (' + contractors.length + ')</div>';
-      contractors.forEach(function(c) {
-        html += '<div class="cs-ops-agent-row" style="border-left-color:#a78bfa;">' +
-          '<span class="cs-ops-agent-name" style="color:#a78bfa;">' + escHtml(c.name) + '</span>' +
-          '<span class="cs-ops-agent-badge working" style="background:rgba(167,139,250,0.15); color:#a78bfa;">HIRED</span>' +
-          '<span class="cs-ops-agent-role" style="color:#a78bfa; background:rgba(167,139,250,0.15);">' +
-            escHtml(c.cap) + '</span>' +
-          '</div>';
-      });
-    }
-
-    /* Station capacity banner */
-    if (_stationAtCapacity) {
-      html += '<div class="cs-ops-capacity-banner">STATION AT CAPACITY \u2014 awaiting free slot</div>';
-    }
-
-    /* Only update DOM if content actually changed */
-    if (agentsEl.innerHTML !== html) {
-      setHtml(agentsEl, html);
-    }
-  }).catch(function() {
-    if (agentsEl.innerHTML !== "") setHtml(agentsEl, "");
-  });
+  /* Delegate to shared StationOps component */
+  var ops = _getOpsInstance(elId);
+  if (ops) {
+    ops.renderAgents(jobData);
+  }
 }
 
 function _applyStationCapacity(atCapacity) {

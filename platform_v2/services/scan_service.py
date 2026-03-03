@@ -416,7 +416,10 @@ def scan_file(file_path, full_path=None, scanned_by="system", user_id=4):
     # Step 2: AI analysis via Bridge dispatcher
     if BRIDGE_ROUTING_AVAILABLE and _dispatcher:
         try:
-            ai_content = code_content[:10000] + "\n... (truncated)" if len(code_content) > 10000 else code_content
+            ai_content = code_content[:10000]
+            if len(code_content) > 10000:
+                ai_content += "\n... (truncated, " + str(len(code_content)) + " chars total)"
+
             prompt = f"""Analyze this code for issues. Return a JSON object with:
 {{
     "quality_score": 0-100,
@@ -445,7 +448,39 @@ Only return valid JSON, no other text."""
                 module_id="dev_pipeline",
                 json_mode=True,
                 user_id=user_id,
+                timeout=120,
             )
+
+            # Always capture agent info from Bridge, even if AI fails
+            # Resolve display name from DB (agents use code names internally)
+            agent_display = result.agent_name
+            agent_title = None
+            try:
+                _conn = _get_db()
+                _cur = _conn.cursor(cursor_factory=RealDictCursor)
+                _cur.execute(
+                    "SELECT display_name, first_name, last_name, title FROM agents WHERE name = %s",
+                    (result.agent_name,),
+                )
+                _row = _cur.fetchone()
+                if _row:
+                    if _row["first_name"] and _row["last_name"]:
+                        agent_display = f"{_row['first_name']} {_row['last_name']}"
+                    elif _row["display_name"]:
+                        agent_display = _row["display_name"]
+                    agent_title = _row.get("title")
+                _cur.close()
+                _conn.close()
+            except Exception:
+                pass
+
+            agent_used = {
+                "name": agent_display,
+                "code_name": result.agent_name,
+                "station": result.station_code,
+                "model": result.model_used,
+                "title": agent_title,
+            }
 
             if result.success:
                 response_text = result.response
@@ -455,12 +490,7 @@ Only return valid JSON, no other text."""
                     response_text = response_text.split("```")[1].split("```")[0]
 
                 ai_result = json.loads(response_text.strip())
-                agent_used = {
-                    "name": result.agent_name,
-                    "station": result.station_code,
-                    "model": result.model_used,
-                }
-                logger.info(f"AI analysis completed for {file_path} via " f"{result.agent_name} ({result.model_used})")
+                logger.info(f"AI analysis completed for {file_path} via {result.agent_name} ({result.model_used})")
             else:
                 logger.warning(f"Dispatcher returned failure for {file_path}: {result.error}")
 
@@ -484,12 +514,13 @@ Only return valid JSON, no other text."""
     else:
         analysis = static_result
         analysis["analysis_type"] = "static"
-        if BRIDGE_ROUTING_AVAILABLE:
-            analysis["summary"] = "AI parsing failed - showing static analysis"
-        else:
-            analysis["summary"] = f"Static analysis ({len(static_result['issues'])} issues found)"
+        analysis["summary"] = f"Static analysis — {len(static_result['issues'])} issues found"
 
     # Step 4: Store in database
+    # Include agent info in the stored result so reports can show it later
+    if agent_used:
+        analysis["agent_used"] = agent_used
+
     conn = None
     cur = None
     try:
@@ -572,130 +603,90 @@ Only return valid JSON, no other text."""
             conn.close()
 
 
-def batch_scan(file_paths, scanned_by="system", max_workers=4):
-    """Scan multiple files in parallel (static analysis only).
+def batch_scan(file_paths, scanned_by="system", user_id=4):
+    """Start a batch scan as a tracked Bridge job (background thread).
 
-    Returns dict with total_files, scanned, failed, results, errors, summary.
+    Creates a real Bridge job so it shows at the ENGINEERING station with
+    agent assignment, progress bar, and working badges. Returns the job_id
+    immediately; frontend polls Bridge for progress.
+
+    Returns dict with job_id on success.
     """
-    max_workers = min(max_workers, 8)
     if not file_paths:
         return {"success": False, "error": "No files provided"}
     if len(file_paths) > 50:
         return {"success": False, "error": "Maximum 50 files per batch"}
 
-    results = []
-    errors = []
+    # Create a Bridge job for tracking
+    if not BRIDGE_ROUTING_AVAILABLE or not _dispatcher:
+        return {"success": False, "error": "Bridge dispatcher not available"}
 
-    def _scan_single(fp):
-        conn = None
-        cur = None
-        try:
-            resolved = _resolve_path(fp)
-            if not resolved or not os.path.exists(resolved):
-                return {"file_path": fp, "error": "File not found", "success": False}
+    job_id = _dispatcher.create_job(
+        job_type="code_scan",
+        module_source="dev_pipeline",
+        description=f"Code scan: {len(file_paths)} files",
+        total_steps=len(file_paths),
+        capability="code_review",
+        metadata={"scanned_by": scanned_by, "file_count": len(file_paths)},
+    )
 
-            with open(resolved, "r") as f:
-                code_content = f.read()
+    if job_id is None:
+        # Duplicate guard triggered — a scan is already running
+        return {"success": False, "error": "A scan job is already running"}
 
-            analysis = static_analysis(code_content, fp)
-            analysis["analysis_type"] = "static"
-
-            conn = _get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            issues = analysis.get("issues", [])
-            security_count = len([i for i in issues if i.get("type") == "security"])
-
-            cur.execute(
-                """
-                INSERT INTO code_scans (file_path, scan_type, issues_found, security_issues,
-                                       quality_score, scan_result, scanned_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """,
-                (
-                    fp,
-                    "batch_scan",
-                    len(issues),
-                    security_count,
-                    analysis.get("quality_score", 0),
-                    json.dumps(analysis),
-                    scanned_by,
-                ),
-            )
-            scan_id = cur.fetchone()["id"]
-
-            for issue in issues:
-                cur.execute(
-                    """
-                    INSERT INTO code_issues (scan_id, file_path, line_number, issue_type,
-                                            severity, message, suggestion)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                    (
-                        scan_id,
-                        fp,
-                        issue.get("line"),
-                        issue.get("type", "quality"),
-                        issue.get("severity", "medium"),
-                        issue.get("message", ""),
-                        issue.get("suggestion", ""),
-                    ),
-                )
-            conn.commit()
-
-            # Pipeline hook
-            try:
-                from services.scan_pipeline import process_scan_results
-
-                process_scan_results(scan_id, issues, fp)
-            except Exception as pe:
-                logger.warning(f"Batch scan pipeline hook failed for {fp}: {pe}")
-
-            return {
-                "file_path": fp,
-                "success": True,
-                "scan_id": scan_id,
-                "quality_score": analysis.get("quality_score", 0),
-                "issues_found": len(issues),
-                "security_issues": security_count,
-                "analysis_type": "static",
-            }
-        except Exception as e:
-            return {"file_path": fp, "error": str(e), "success": False}
-        finally:
-            if cur:
-                try:
-                    cur.close()
-                except Exception:
-                    pass
-            if conn:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_map = {executor.submit(_scan_single, fp): fp for fp in file_paths}
-        for future in as_completed(future_map):
-            result = future.result()
-            if result.get("success"):
-                results.append(result)
-            else:
-                errors.append(result)
+    # Run scan in background thread
+    thread = threading.Thread(
+        target=_run_batch_scan_job,
+        args=(job_id, file_paths, scanned_by, user_id),
+        daemon=True,
+    )
+    thread.start()
 
     return {
         "success": True,
-        "total_files": len(file_paths),
-        "scanned": len(results),
-        "failed": len(errors),
-        "results": results,
-        "errors": errors,
-        "summary": {
-            "avg_quality": sum(r.get("quality_score", 0) for r in results) / max(len(results), 1),
-            "total_issues": sum(r.get("issues_found", 0) for r in results),
-            "security_issues": sum(r.get("security_issues", 0) for r in results),
-        },
+        "job_id": job_id,
+        "message": f"Scan job #{job_id} started for {len(file_paths)} files",
     }
+
+
+def _run_batch_scan_job(job_id, file_paths, scanned_by, user_id):
+    """Background thread: scan files sequentially, updating Bridge job progress."""
+    completed = 0
+    failed = 0
+
+    for fp in file_paths:
+        try:
+            result = scan_file(
+                file_path=fp,
+                scanned_by=scanned_by,
+                user_id=user_id,
+            )
+            if result.get("success"):
+                completed += 1
+            else:
+                failed += 1
+                logger.warning(f"Batch scan file failed: {fp}: {result.get('error')}")
+        except Exception as e:
+            failed += 1
+            logger.warning(f"Batch scan file exception: {fp}: {e}")
+
+        # Update Bridge job progress after each file
+        try:
+            _dispatcher.update_job_progress(
+                job_id=job_id,
+                completed_steps=completed,
+                failed_steps=failed,
+            )
+        except Exception as ue:
+            logger.warning(f"Failed to update job progress: {ue}")
+
+    # Mark job complete
+    try:
+        _dispatcher.complete_job(job_id)
+    except Exception as ce:
+        logger.warning(f"Failed to complete job: {ce}")
+
+    logger.info(f"Batch scan job #{job_id} complete: {completed}/{len(file_paths)} " f"scanned, {failed} failed")
 
 
 # ===================================================================
@@ -799,6 +790,44 @@ def get_history(limit=20):
                 }
                 for s in scans
             ],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_file_report(file_path):
+    """Get the latest scan report for a specific file, including full issues list."""
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            """
+            SELECT id, file_path, quality_score, scan_result, scanned_by, scanned_at
+            FROM code_scans
+            WHERE file_path = %s
+            ORDER BY scanned_at DESC
+            LIMIT 1
+        """,
+            (file_path,),
+        )
+        scan = cur.fetchone()
+        if not scan:
+            return {"success": False, "error": "No scan found for this file"}
+
+        result = scan["scan_result"] or {}
+        return {
+            "success": True,
+            "file_path": scan["file_path"],
+            "quality_score": float(scan["quality_score"]) if scan["quality_score"] else 0,
+            "issues": result.get("issues", []),
+            "summary": result.get("summary", ""),
+            "analysis_type": result.get("analysis_type", "static"),
+            "agent_used": result.get("agent_used"),
+            "scanned_by": scan["scanned_by"],
+            "scanned_at": scan["scanned_at"].isoformat() if scan["scanned_at"] else None,
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -1029,6 +1058,215 @@ def get_directory_files(path="platform_v2", extensions=None):
         "file_count": len(files),
         "files": sorted(files, key=lambda x: x["path"]),
     }
+
+
+# ===================================================================
+# SMART SCAN MODES
+# ===================================================================
+
+
+def get_changed_files(extensions=None):
+    """Find files that have been modified since their last scan.
+
+    Compares filesystem mtime to the latest scanned_at per file in code_scans.
+    Returns files where mtime > last scan time, plus files never scanned.
+    """
+    if extensions is None:
+        extensions = [".py", ".js", ".html"]
+
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Get the latest scan time per file
+        cur.execute(
+            """
+            SELECT file_path, MAX(scanned_at) as last_scanned
+            FROM code_scans
+            GROUP BY file_path
+        """
+        )
+        scan_map = {r["file_path"]: r["last_scanned"] for r in cur.fetchall()}
+
+        if not scan_map:
+            return {
+                "success": True,
+                "changed": [],
+                "total": 0,
+                "message": "No previous scans found — use Browse to scan files first",
+            }
+
+        changed = []
+        for file_path, last_scanned in scan_map.items():
+            resolved = _resolve_path(file_path)
+            if not resolved or not os.path.exists(resolved):
+                continue
+            if not any(file_path.endswith(ext) for ext in extensions):
+                continue
+            stat = os.stat(resolved)
+            file_mtime = datetime.fromtimestamp(stat.st_mtime)
+            if file_mtime > last_scanned:
+                folder = os.path.dirname(file_path)
+                changed.append(
+                    {
+                        "path": file_path,
+                        "name": os.path.basename(file_path),
+                        "size": stat.st_size,
+                        "full_path": resolved,
+                        "extension": os.path.splitext(file_path)[1],
+                        "folder": folder or "root",
+                        "mtime": file_mtime.isoformat(),
+                        "last_scanned": last_scanned.isoformat(),
+                    }
+                )
+
+        return {
+            "success": True,
+            "changed": sorted(changed, key=lambda x: x["path"]),
+            "total": len(changed),
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+
+def get_module_list():
+    """List scannable platform modules with file counts.
+
+    Reads from module_registry MODULES list and counts .py files per module dir.
+    """
+    try:
+        from module_registry import MODULES
+    except ImportError:
+        return {"success": False, "error": "module_registry not available"}
+
+    modules = []
+    for mod in MODULES:
+        if not mod.enabled:
+            continue
+        # Derive filesystem path from module id
+        mod_dir = f"/app/tools/{mod.id}"
+        if not os.path.isdir(mod_dir):
+            continue
+        # Count scannable files
+        file_count = 0
+        for root, dirs, filenames in os.walk(mod_dir):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__"]
+            for fn in filenames:
+                if fn.endswith((".py", ".js", ".html")) and fn != "__init__.py":
+                    file_count += 1
+
+        modules.append(
+            {
+                "id": mod.id,
+                "name": mod.name,
+                "category": mod.category.value if hasattr(mod.category, "value") else str(mod.category),
+                "file_count": file_count,
+                "icon": mod.icon,
+            }
+        )
+
+    # Sort by category then name
+    modules.sort(key=lambda m: (m["category"], m["name"]))
+    return {"success": True, "modules": modules, "total": len(modules)}
+
+
+def get_module_files(module_id, extensions=None):
+    """Get scannable files for a specific module."""
+    if extensions is None:
+        extensions = [".py", ".js", ".html"]
+
+    mod_dir = f"/app/tools/{module_id}"
+    if not os.path.isdir(mod_dir):
+        return {"success": False, "error": f"Module directory not found: {module_id}"}
+
+    files = []
+    for root, dirs, filenames in os.walk(mod_dir):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__" and d != "node_modules"]
+        for filename in filenames:
+            if filename == "__init__.py":
+                continue
+            if any(filename.endswith(ext) for ext in extensions):
+                full = os.path.join(root, filename)
+                rel_path = f"platform_v2/tools/{module_id}/{os.path.relpath(full, mod_dir)}"
+                folder = os.path.dirname(os.path.relpath(full, mod_dir))
+                stat = os.stat(full)
+                files.append(
+                    {
+                        "path": rel_path,
+                        "name": filename,
+                        "size": stat.st_size,
+                        "full_path": full,
+                        "extension": os.path.splitext(filename)[1],
+                        "folder": f"tools/{module_id}/{folder}" if folder else f"tools/{module_id}",
+                        "mtime": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    }
+                )
+
+    return {
+        "success": True,
+        "module_id": module_id,
+        "file_count": len(files),
+        "files": sorted(files, key=lambda x: x["path"]),
+    }
+
+
+def get_previously_scanned(extensions=None):
+    """Get all previously scanned files for rescan mode.
+
+    Returns distinct file_path entries from code_scans that still exist on disk.
+    """
+    if extensions is None:
+        extensions = [".py", ".js", ".html"]
+
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            """
+            SELECT DISTINCT ON (file_path)
+                file_path, quality_score, scanned_at
+            FROM code_scans
+            ORDER BY file_path, scanned_at DESC
+        """
+        )
+        rows = cur.fetchall()
+
+        files = []
+        for r in rows:
+            fp = r["file_path"]
+            if not any(fp.endswith(ext) for ext in extensions):
+                continue
+            resolved = _resolve_path(fp)
+            if not resolved or not os.path.exists(resolved):
+                continue
+            stat = os.stat(resolved)
+            folder = os.path.dirname(fp)
+            files.append(
+                {
+                    "path": fp,
+                    "name": os.path.basename(fp),
+                    "size": stat.st_size,
+                    "full_path": resolved,
+                    "extension": os.path.splitext(fp)[1],
+                    "folder": folder or "root",
+                    "mtime": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    "last_score": float(r["quality_score"]) if r["quality_score"] else None,
+                    "last_scanned": r["scanned_at"].isoformat() if r["scanned_at"] else None,
+                }
+            )
+
+        return {
+            "success": True,
+            "file_count": len(files),
+            "files": sorted(files, key=lambda x: x["path"]),
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ===================================================================

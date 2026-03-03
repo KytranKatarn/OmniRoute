@@ -1514,7 +1514,9 @@
             authorSpan.className = 'author';
             authorSpan.textContent = backup.created_by || 'system';
             metaDiv.appendChild(authorSpan);
-            metaDiv.appendChild(document.createTextNode(' on ' + (backup.created_at || backup.name)));
+            var backupTime = backup.created_at || backup.name;
+            if (typeof ArchieTime !== 'undefined' && backupTime) backupTime = ArchieTime.format(backupTime, 'datetime');
+            metaDiv.appendChild(document.createTextNode(' on ' + backupTime));
             infoDiv.appendChild(metaDiv);
 
             header.appendChild(infoDiv);
@@ -2252,16 +2254,11 @@
 
     function formatTime(timestamp) {
         if (!timestamp) return '-';
+        if (typeof ArchieTime !== 'undefined') return ArchieTime.format(timestamp, 'short');
         try {
             const date = new Date(timestamp);
             if (isNaN(date)) return timestamp.substring(0, 15) || timestamp;
-            const now = new Date();
-            const diff = now - date;
-
-            if (diff < 60000) return 'Just now';
-            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-            return date.toLocaleDateString();
+            return date.toLocaleString();
         } catch {
             return timestamp;
         }
@@ -2727,7 +2724,7 @@
                         ${meta.compression ? '<span class="badge" style="background: #22c55e;">GZIP</span>' : ''}
                     </div>
                     <p style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">
-                        Created: ${meta.created_at || '-'} by <strong>${meta.created_by || '-'}</strong>
+                        Created: ${typeof ArchieTime !== 'undefined' && meta.created_at ? ArchieTime.format(meta.created_at, 'datetime') : (meta.created_at || '-')} by <strong>${meta.created_by || '-'}</strong>
                     </p>
                 </div>
 

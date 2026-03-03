@@ -27,6 +27,13 @@
 
   function parseDate(str) {
     if (!str) return null;
+    /* If ISO string has no timezone indicator, assume UTC.
+       PostgreSQL returns UTC timestamps without offset; without "Z"
+       the browser would misinterpret them as local time (+5h for EST). */
+    if (typeof str === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}/.test(str) &&
+        !/[Z+\-]\d{0,4}$/.test(str)) {
+      str = str + "Z";
+    }
     var d = new Date(str);
     if (isNaN(d.getTime())) return null;
     return d;

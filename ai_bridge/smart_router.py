@@ -165,6 +165,7 @@ CAPABILITY_ROUTING = {
     "multimodal": "vision",      # Image + text
     "json": "local",             # Structured output (any model with format=json)
     "code": "local_analysis",    # Code generation/analysis
+    "code_review": "local_analysis",  # Code scanning/review (Dev Pipeline)
     "conversation": "local",     # Chat
     "summarize": "local",        # Summarization
     "embed": "local",            # (handled by embedding service, not router)

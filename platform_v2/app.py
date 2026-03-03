@@ -254,6 +254,7 @@ def load_user(user_id):
 import sys  # noqa: E402
 
 sys.path.insert(0, "/mnt/archie_brain")
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
 try:
     from ai_bridge.archie_bridge import (

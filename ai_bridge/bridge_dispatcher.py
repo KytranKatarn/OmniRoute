@@ -774,10 +774,10 @@ class BridgeDispatcher:
     ) -> Dict:
         """Execute an LLM call using the existing archie_bridge functions."""
         try:
-            from archie_bridge import call_ollama, call_ollama_json, call_ollama_cloud
+            from ai_bridge.archie_bridge import call_ollama, call_ollama_json, call_ollama_cloud
 
             # Route to external providers — dynamic lookup from contractor_providers DB
-            from external_providers import (
+            from ai_bridge.external_providers import (
                 get_provider_for_model,
                 call_external,
                 _get_provider_config,
@@ -1503,7 +1503,7 @@ class BridgeDispatcher:
     def _get_next_tier(self, current_model: str, capability: str) -> Optional[Dict]:
         """Find the next escalation tier above current model."""
         try:
-            from smart_router import SmartRouter, TIER_ORDER
+            from ai_bridge.smart_router import SmartRouter, TIER_ORDER
 
             router = SmartRouter()
             available = router.get_available_tiers()

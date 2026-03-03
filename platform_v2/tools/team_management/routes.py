@@ -10020,7 +10020,7 @@ AGENT_TEMPLATES = [
         "role": "Code Quality Analyst",
         "department": "Development Tools",
         "module_id": "dev_pipeline",
-        "category": "development_tools",
+        "category": "ai_command",
         "icon": "code",
         "system_prompt": (
             "You are Priya Sharma, the platform's code quality analyst. You review code changes, identify bugs and "
@@ -10043,7 +10043,7 @@ AGENT_TEMPLATES = [
         "role": "Testing & Sandbox Specialist",
         "department": "Development Tools",
         "module_id": "dev_pipeline",
-        "category": "development_tools",
+        "category": "ai_command",
         "icon": "flask-conical",
         "system_prompt": (
             "You are Oscar Lindqvist, the platform's testing and sandbox specialist. You manage sandbox environments, "
@@ -10066,7 +10066,7 @@ AGENT_TEMPLATES = [
         "role": "Platform Improvement Analyst",
         "department": "Development Tools",
         "module_id": "dev_pipeline",
-        "category": "development_tools",
+        "category": "ai_command",
         "icon": "lightbulb",
         "system_prompt": (
             "You are Zara Al-Rashid, the platform's improvement analyst. You scan for optimization opportunities, "

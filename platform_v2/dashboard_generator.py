@@ -172,14 +172,6 @@ def get_categories_info() -> Dict[str, Dict]:
             "color": "#FF6B6B",
             "priority": 2,
         },
-        "development_tools": {
-            "name": "Development Tools",
-            "icon": "fas fa-code",
-            "description": "Code quality, testing, and improvements",
-            "admin_only": True,
-            "color": "#FF6B6B",
-            "priority": 3,
-        },
         "saas_services": {
             "name": "SaaS Services",
             "icon": "fas fa-cloud",

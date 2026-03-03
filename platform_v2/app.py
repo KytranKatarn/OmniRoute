@@ -2231,7 +2231,7 @@ THEME_TO_FAMILY = {
     "forest": "elegant",
 }
 
-ADMIN_CATEGORIES = {"admin_operations", "ai_command", "development_tools"}
+ADMIN_CATEGORIES = {"admin_operations", "ai_command"}
 
 
 @app.context_processor

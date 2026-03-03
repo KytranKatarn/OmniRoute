@@ -2019,10 +2019,6 @@ body.light-mode .briefing-activity-item:hover {
     --feat-accent: #cc6600;
 }
 
-.featured-card[data-category="development_tools"] {
-    --feat-accent: #00808f;
-}
-
 .featured-card[data-category="saas_services"] {
     --feat-accent: #7c3aed;
 }
@@ -2245,7 +2241,6 @@ body.light-mode .featured-pin-btn.pinned {
 /* ─── Per-Category LCARS Frame Color Classes ─── */
 .category-frame--admin_operations  { --frame-color: var(--archie-danger); --frame-rgb: 239,68,68; --cat-accent: var(--archie-danger); }
 .category-frame--ai_command        { --frame-color: var(--archie-cyan); --frame-rgb: var(--archie-cyan-rgb, 0,255,255); --cat-accent: var(--archie-cyan); }
-.category-frame--development_tools { --frame-color: var(--archie-info, #8b5cf6); --frame-rgb: 139,92,246; --cat-accent: var(--archie-info, #8b5cf6); }
 .category-frame--saas_services     { --frame-color: var(--archie-orange); --frame-rgb: var(--archie-orange-rgb, 245,158,11); --cat-accent: var(--archie-orange); }
 .category-frame--project_knowledge { --frame-color: var(--archie-green); --frame-rgb: var(--archie-green-rgb, 0,255,65); --cat-accent: var(--archie-green); }
 .category-frame--media_home        { --frame-color: var(--archie-info, #0ea5e9); --frame-rgb: 14,165,233; --cat-accent: var(--archie-info, #0ea5e9); }
@@ -3259,7 +3254,7 @@ window.timeAgo = function timeAgo(isoString) {
         // Category accent colors for result icons
         var catAccents = {
             admin_operations: '#cc6600', ai_command: '#cc6600',
-            development_tools: '#00808f', saas_services: '#7c3aed',
+            saas_services: '#7c3aed',
             project_knowledge: '#00aa33', media_home: '#db2777',
             placeholder_future: '#8b949e', core_services: '#00808f'
         };
@@ -3267,7 +3262,7 @@ window.timeAgo = function timeAgo(isoString) {
         // Category display names
         var catNames = {
             admin_operations: 'Admin Operations', ai_command: 'AI Command',
-            development_tools: 'Development Tools', saas_services: 'SaaS Services',
+            saas_services: 'SaaS Services',
             project_knowledge: 'Project & Knowledge', media_home: 'Media & Home',
             placeholder_future: 'Coming Soon', core_services: 'Core Services'
         };

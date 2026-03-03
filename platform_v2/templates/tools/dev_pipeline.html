@@ -2326,28 +2326,18 @@ function checkStationJobs() {
         // Render crew with busy badges from active jobs
         _engOps.renderAgents(myJobs.length ? myJobs : null);
 
-        // Render job progress in ops terminal
+        // Render job progress in ops terminal (single display via StationOps)
         _engOps.renderJobs(myJobs.length ? myJobs : null);
 
-        // Also render in stationJobs div (for scan-complete overlay)
+        // Clear scan-complete overlay when new jobs start
         var jobsEl = document.getElementById('stationJobs');
         if (!myJobs.length) {
             if (!_completedTimer && jobsEl) jobsEl.textContent = '';
-            return;
-        }
-        if (jobsEl) {
+        } else if (jobsEl && _completedTimer) {
+            // Active jobs override scan-complete message
+            clearTimeout(_completedTimer);
+            _completedTimer = null;
             jobsEl.textContent = '';
-            myJobs.forEach(function(j) {
-                var completed = j.completed_steps || 0;
-                var total = j.total_steps || 0;
-                var pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-                var agentName = j.agent_display_name || j.agent_name || 'Queued';
-                var desc = j.description || j.job_type || 'Working';
-                jobsEl.appendChild(_buildStationJobDOM(
-                    'ACTIVE JOB', desc, completed + ' / ' + total,
-                    pct, '#8b5cf6', 'Assigned: ' + agentName, pct + '%'
-                ));
-            });
         }
     }).catch(function() {
         _stationFailCount++;

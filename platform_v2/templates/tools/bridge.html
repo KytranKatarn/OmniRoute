@@ -563,11 +563,13 @@ body.light-mode .status-bar-divider {
 
 /* --- Active Operations Strip --- */
 .bridge-ops-strip {
+    position: relative;
+    z-index: 30;
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    margin: 0 auto;
+    margin: -140px auto 0;
     max-width: 800px;
 }
 .bridge-ops-label {
@@ -1463,6 +1465,884 @@ body.light-mode .bridge-ops-status-value {
 .lcars-tab-panel { display: none; }
 .lcars-tab-panel.active { display: block; }
 
+/* Actions tab — uses stn-ops-terminal pattern from station-ops.css */
+.actn-params {
+    padding: 6px 0 2px 0;
+    display: none;
+}
+.actn-params.open { display: block; }
+.actn-field {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+}
+.actn-field label {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.65rem; color: rgba(255,255,255,0.5);
+    min-width: 70px; text-align: right;
+}
+.actn-field input, .actn-field select {
+    flex: 1; background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.85); border-radius: 3px;
+    padding: 4px 8px; font-size: 0.72rem;
+    font-family: 'IBM Plex Mono', monospace;
+}
+.actn-field input:focus, .actn-field select:focus {
+    border-color: var(--station-color, #00ffff); outline: none;
+}
+.actn-summary {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    padding: 6px 0; margin-bottom: 4px;
+}
+.actn-stat {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.7rem; color: rgba(255,255,255,0.45);
+    letter-spacing: 0.05em;
+}
+.actn-stat b {
+    color: var(--station-color, #00ffff);
+    font-weight: 600; margin-right: 3px;
+}
+
+/* Benchmark UI — 3-button action rows */
+.stn-action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 5px;
+}
+/* Uniform button sizing — all 3 columns identical boxes */
+.stn-action-row > * {
+    height: 34px;
+    display: block;
+    text-align: center;
+    box-sizing: border-box;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    line-height: 34px;
+    font-size: 0.68rem;
+    padding: 0 6px;
+}
+.stn-action-row .stn-ops-cmd {
+    margin: 0;
+}
+/* Station-accent color — inherits from parent terminal's --stn-accent-rgb */
+.stn-ops-cmd.station-accent {
+    background: rgba(var(--stn-accent-rgb), 0.15);
+    border: 1px solid rgba(var(--stn-accent-rgb), 0.3);
+    border-left: 3px solid rgba(var(--stn-accent-rgb), 0.6);
+    color: var(--stn-accent);
+}
+.stn-bench-btn {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem; letter-spacing: 0.08em;
+    padding: 7px 14px;
+    border-radius: 2px 8px 8px 2px;
+    background: rgba(245,158,11,0.12);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-left: 3px solid rgba(245,158,11,0.5);
+    color: #f59e0b; cursor: pointer;
+    transition: all 0.2s;
+}
+/* Station-accent TEST/RESULTS — match station color */
+.stn-ops-terminal .stn-bench-btn {
+    background: rgba(var(--stn-accent-rgb), 0.08);
+    border: 1px solid rgba(var(--stn-accent-rgb), 0.2);
+    border-left: 3px solid rgba(var(--stn-accent-rgb), 0.4);
+    color: var(--stn-accent);
+}
+.stn-bench-btn:hover {
+    filter: brightness(1.2);
+    box-shadow: 0 0 10px rgba(245,158,11,0.15);
+}
+.stn-ops-terminal .stn-bench-btn:hover {
+    box-shadow: 0 0 10px rgba(var(--stn-accent-rgb), 0.15);
+}
+.stn-bench-btn:disabled {
+    opacity: 0.4; cursor: not-allowed; filter: none;
+}
+.stn-bench-btn.bench-locked {
+    opacity: 0.25; cursor: not-allowed;
+    background: #333 !important; color: #666 !important;
+    border-color: #444 !important;
+}
+.stn-bench-btn.running {
+    animation: benchPulse 1.2s ease-in-out infinite;
+}
+@keyframes benchPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.bench-container { margin-top: 6px; }
+
+.bench-leaderboard {
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 4px;
+    background: rgba(0,0,0,0.25);
+    padding: 8px;
+    margin-top: 6px;
+}
+.bench-header {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.6rem; letter-spacing: 0.1em;
+    color: #f59e0b; margin-bottom: 6px;
+    display: flex; justify-content: space-between;
+    align-items: center;
+}
+.bench-header-title { flex: 1; }
+.bench-header-close {
+    cursor: pointer; opacity: 0.5;
+    font-size: 0.7rem; padding: 0 4px;
+}
+.bench-header-close:hover { opacity: 1; }
+
+.bench-row {
+    display: grid;
+    grid-template-columns: 24px 1fr 60px 60px 50px;
+    gap: 6px; align-items: center;
+    padding: 3px 4px; border-radius: 3px;
+    font-size: 0.65rem; color: rgba(255,255,255,0.7);
+    font-family: 'IBM Plex Mono', monospace;
+}
+.bench-row:nth-child(even) { background: rgba(255,255,255,0.03); }
+.bench-row.bench-gold {
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.25);
+    color: #f59e0b;
+}
+.bench-rank {
+    font-family: 'Orbitron', monospace;
+    font-weight: 700; text-align: center;
+    font-size: 0.6rem;
+}
+.bench-agent { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bench-time, .bench-tokens { text-align: right; opacity: 0.7; }
+.bench-score {
+    text-align: right; font-weight: 600;
+    color: #f59e0b;
+}
+.bench-row.bench-failed { opacity: 0.4; }
+.bench-row.bench-failed .bench-score { color: #ef4444; }
+
+.bench-footer {
+    margin-top: 4px; padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.55rem; color: rgba(255,255,255,0.3);
+    font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.05em;
+    display: flex; justify-content: space-between;
+}
+
+.bench-summary {
+    font-size: 0.55rem; color: rgba(245,158,11,0.6);
+    font-family: 'Antonio', sans-serif;
+    letter-spacing: 0.04em;
+    margin-top: 4px; padding: 3px 0;
+}
+.bench-summary b { color: #f59e0b; }
+
+/* Benchmark RESULTS button */
+.stn-bench-results-btn {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem; letter-spacing: 0.06em;
+    padding: 7px 14px;
+    border-radius: 2px 8px 8px 2px;
+    background: rgba(100,149,237,0.12);
+    border: 1px solid rgba(100,149,237,0.25);
+    border-left: 3px solid rgba(100,149,237,0.5);
+    color: #6495ED; cursor: pointer;
+    transition: all 0.2s;
+}
+/* Station-accent RESULTS — match station color */
+.stn-ops-terminal .stn-bench-results-btn {
+    background: rgba(var(--stn-accent-rgb), 0.08);
+    border: 1px solid rgba(var(--stn-accent-rgb), 0.2);
+    border-left: 3px solid rgba(var(--stn-accent-rgb), 0.4);
+    color: var(--stn-accent);
+}
+.stn-bench-results-btn:hover {
+    filter: brightness(1.2);
+    box-shadow: 0 0 10px rgba(100,149,237,0.15);
+}
+.stn-ops-terminal .stn-bench-results-btn:hover {
+    box-shadow: 0 0 10px rgba(var(--stn-accent-rgb), 0.15);
+}
+/* Dimmed state when no results yet */
+.stn-bench-results-btn.no-results {
+    opacity: 0.3; cursor: default;
+    pointer-events: none;
+}
+
+/* Side-by-side comparison modal */
+.bench-modal-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(0,0,0,0.85);
+    display: flex; align-items: center; justify-content: center;
+    animation: benchFadeIn 0.2s ease;
+}
+@keyframes benchFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.bench-modal {
+    background: #0a0e1a;
+    border: 1px solid rgba(245,158,11,0.4);
+    border-radius: 8px;
+    width: 92vw; max-width: 1200px;
+    max-height: 88vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 0 40px rgba(245,158,11,0.15);
+}
+.bench-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(245,158,11,0.2);
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem; letter-spacing: 0.1em;
+    color: #f59e0b;
+}
+.bench-modal-close {
+    cursor: pointer; font-size: 1rem; opacity: 0.6;
+    padding: 0 6px; color: #fff;
+}
+.bench-modal-close:hover { opacity: 1; }
+
+.bench-modal-body {
+    flex: 1; overflow-y: auto;
+    padding: 0;
+}
+/* --- Leaderboard summary table (top section) --- */
+.bench-summary-table {
+    width: 100%; border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+}
+.bench-summary-table th {
+    padding: 6px 10px; text-align: left;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.55rem; letter-spacing: 0.08em;
+    color: rgba(245,158,11,0.7);
+    border-bottom: 1px solid rgba(245,158,11,0.2);
+    background: rgba(255,255,255,0.02);
+}
+.bench-summary-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.7);
+}
+.bench-summary-table tr.bench-row-gold td {
+    color: #f59e0b;
+}
+.bench-summary-table tr.bench-row-failed td {
+    color: rgba(239,68,68,0.6);
+}
+.bench-summary-table tr.bench-tab-active td {
+    background: rgba(245,158,11,0.08);
+}
+.bench-summary-table tr:hover td {
+    background: rgba(255,255,255,0.04);
+    cursor: pointer;
+}
+.bench-summary-rank {
+    font-weight: 700; color: #f59e0b;
+    font-family: 'Orbitron', monospace;
+}
+.bench-summary-score {
+    font-weight: 600; color: #f59e0b;
+    font-family: 'Orbitron', monospace;
+}
+/* --- Agent navigator (prev / current / next) --- */
+.bench-agent-nav {
+    display: flex; align-items: center; gap: 0;
+    border-bottom: 1px solid rgba(245,158,11,0.2);
+    background: rgba(0,0,0,0.4);
+    padding: 0;
+}
+.bench-nav-btn {
+    flex: 0 0 auto;
+    padding: 10px 14px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    color: #f59e0b;
+    background: none; border: none;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: rgba(245,158,11,0.15);
+}
+.bench-nav-btn:hover { background: rgba(245,158,11,0.1); }
+.bench-nav-btn:active { background: rgba(245,158,11,0.2); }
+.bench-nav-btn:disabled { color: rgba(255,255,255,0.15); cursor: default; background: none; }
+.bench-nav-current {
+    flex: 1; min-width: 0;
+    text-align: center;
+    padding: 8px 6px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.7rem; letter-spacing: 0.03em;
+    color: rgba(255,255,255,0.9);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bench-nav-rank {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.6rem;
+    color: #f59e0b;
+    margin-right: 6px;
+}
+.bench-nav-count {
+    display: block;
+    font-size: 0.5rem;
+    color: rgba(255,255,255,0.3);
+    margin-top: 1px;
+}
+/* --- Human pick button --- */
+.bench-pick-btn {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.55rem; letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: rgba(16,185,129,0.2);
+}
+.bench-pick-btn:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.2); }
+.bench-pick-btn.picked {
+    color: #10b981; border-color: #10b981;
+    background: rgba(16,185,129,0.12);
+    text-shadow: 0 0 6px rgba(16,185,129,0.4);
+}
+.bench-pick-badge {
+    display: inline-block;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.45rem; letter-spacing: 0.08em;
+    color: #10b981; margin-left: 6px;
+    vertical-align: middle;
+}
+/* --- Agent response panel --- */
+.bench-response-panel {
+    padding: 12px 16px;
+    min-height: 120px;
+}
+.bench-response-meta {
+    display: flex; gap: 16px; padding: 4px 0 10px;
+    font-size: 0.58rem; color: rgba(255,255,255,0.4);
+    font-family: 'IBM Plex Mono', monospace;
+}
+.bench-response-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.bench-response-text {
+    font-size: 0.65rem; line-height: 1.6;
+    color: rgba(255,255,255,0.8);
+    font-family: 'IBM Plex Mono', monospace;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 40vh; overflow-y: auto;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 4px;
+}
+/* Legacy grid (kept for backwards compat if needed) */
+.bench-compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px; padding: 12px 16px;
+}
+.bench-compare-card {
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    overflow: hidden;
+}
+.bench-compare-card.bench-card-gold {
+    border-color: rgba(245,158,11,0.4);
+    background: rgba(245,158,11,0.04);
+}
+.bench-compare-card.bench-card-failed {
+    border-color: rgba(239,68,68,0.3);
+    opacity: 0.6;
+}
+.bench-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.bench-card-rank {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem; font-weight: 700;
+    color: #f59e0b; min-width: 24px;
+}
+.bench-card-agent {
+    flex: 1; margin-left: 8px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.7rem; color: rgba(255,255,255,0.85);
+    letter-spacing: 0.04em;
+}
+.bench-card-score {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem; font-weight: 600;
+    color: #f59e0b;
+}
+.bench-card-meta {
+    display: flex; gap: 10px; padding: 5px 10px;
+    font-size: 0.58rem; color: rgba(255,255,255,0.4);
+    font-family: 'IBM Plex Mono', monospace;
+}
+.bench-card-response {
+    padding: 8px 10px;
+    font-size: 0.62rem; line-height: 1.5;
+    color: rgba(255,255,255,0.7);
+    font-family: 'IBM Plex Mono', monospace;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 200px; overflow-y: auto;
+}
+/* Skill update footer in compare modal */
+.bench-skill-footer {
+    border-top: 1px solid rgba(245,166,35,0.3);
+    padding: 12px 16px;
+    background: rgba(245,166,35,0.05);
+}
+.bench-skill-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem; letter-spacing: 2px;
+    color: #f5a623; margin-bottom: 8px;
+}
+.bench-skill-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem; color: rgba(255,255,255,0.7);
+}
+.bench-skill-agent { min-width: 120px; color: rgba(255,255,255,0.9); }
+.bench-skill-arrow { color: #f5a623; font-weight: 700; }
+.bench-skill-level { color: #f5a623; font-weight: 600; }
+.bench-skill-level-old { color: rgba(255,255,255,0.4); }
+.bench-skill-level-up { color: #10b981; }
+.bench-skill-level-down { color: #ef4444; }
+
+/* ── Benchmark Recommendations ── */
+.bench-rec-section {
+    margin-bottom: 16px;
+}
+.bench-rec-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 6px 6px 0 0;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.6rem; letter-spacing: 0.1em;
+    color: #f59e0b;
+}
+.bench-rec-header-actions {
+    display: flex; gap: 6px;
+}
+.bench-rec-generate-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.55rem; letter-spacing: 0.05em;
+    padding: 3px 10px;
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 3px;
+    background: rgba(245,158,11,0.08);
+    color: #f59e0b;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.bench-rec-generate-btn:hover {
+    background: rgba(245,158,11,0.15);
+    border-color: #f59e0b;
+}
+.bench-rec-body {
+    border: 1px solid rgba(245,158,11,0.12);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    background: rgba(0,0,0,0.2);
+}
+.bench-rec-alert {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    background: rgba(245,158,11,0.06);
+    border-bottom: 1px solid rgba(245,158,11,0.1);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.85);
+}
+.bench-rec-alert-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.bench-rec-alert-text { flex: 1; line-height: 1.5; }
+.bench-rec-alert-text strong { color: #f59e0b; }
+.bench-rec-alert-actions {
+    display: flex; gap: 4px;
+    flex-shrink: 0;
+}
+.bench-rec-approve-btn,
+.bench-rec-reject-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.5rem; letter-spacing: 0.06em;
+    padding: 4px 10px;
+    border-radius: 3px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.bench-rec-approve-btn {
+    color: #10b981;
+    border-color: rgba(16,185,129,0.4);
+    background: rgba(16,185,129,0.08);
+}
+.bench-rec-approve-btn:hover {
+    background: rgba(16,185,129,0.2);
+    border-color: #10b981;
+}
+.bench-rec-reject-btn {
+    color: rgba(255,255,255,0.5);
+    border-color: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.04);
+}
+.bench-rec-reject-btn:hover {
+    background: rgba(239,68,68,0.1);
+    border-color: rgba(239,68,68,0.4);
+    color: #ef4444;
+}
+.bench-rec-card {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.bench-rec-card:last-child { border-bottom: none; }
+.bench-rec-station-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.55rem; letter-spacing: 0.08em;
+    color: var(--stn-accent, #f59e0b);
+    margin-bottom: 6px;
+}
+.bench-rec-top3 {
+    display: flex; flex-direction: column; gap: 3px;
+}
+.bench-rec-agent-row {
+    display: grid;
+    grid-template-columns: 20px 1fr 50px 20px;
+    gap: 6px;
+    align-items: center;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    color: rgba(255,255,255,0.7);
+}
+.bench-rec-agent-row.rec-current {
+    background: rgba(255,255,255,0.03);
+}
+.bench-rec-agent-row.rec-recommended {
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.15);
+}
+.bench-rec-rank {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.5rem;
+    color: rgba(245,158,11,0.7);
+    text-align: center;
+}
+.bench-rec-agent-name { color: rgba(255,255,255,0.85); }
+.bench-rec-score {
+    text-align: right;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.5rem;
+    color: #f59e0b;
+}
+.bench-rec-hp { color: #10b981; font-size: 0.7rem; text-align: center; }
+.bench-rec-delta {
+    display: inline-block;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.5rem;
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-left: 6px;
+}
+.bench-rec-delta.positive {
+    color: #10b981;
+    background: rgba(16,185,129,0.1);
+}
+.bench-rec-delta.negative {
+    color: #ef4444;
+    background: rgba(239,68,68,0.1);
+}
+.bench-rec-delta.neutral {
+    color: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.04);
+}
+.bench-rec-empty {
+    padding: 16px;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.3);
+}
+.bench-rec-current-label {
+    font-size: 0.45rem;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.35);
+    margin-left: 4px;
+}
+
+/* ── Resource Bar ── */
+.bench-resource-bar {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(100,149,237,0.15);
+    border-radius: 6px;
+}
+.bench-resource-loading {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.3);
+    padding: 8px;
+}
+.bench-resource-item {
+    flex: 1; min-width: 140px;
+}
+.bench-resource-item.models {
+    flex-basis: 100%; min-width: auto;
+}
+.bench-resource-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.5rem; letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 4px;
+}
+.bench-resource-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.45rem;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.02em;
+}
+.bench-resource-bar-track {
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 2px;
+}
+.bench-resource-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+.bench-resource-bar-fill.gpu { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+.bench-resource-bar-fill.ram { background: linear-gradient(90deg, #10b981, #34d399); }
+.bench-resource-bar-fill.cpu { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.bench-resource-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.5rem;
+    color: rgba(255,255,255,0.5);
+    text-align: right;
+}
+.bench-model-list {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 4px;
+}
+.bench-model-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.5rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: rgba(255,255,255,0.7);
+}
+.bench-model-tag.gpu {
+    background: rgba(139,92,246,0.12);
+    border: 1px solid rgba(139,92,246,0.25);
+}
+.bench-model-tag.cpu {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.2);
+}
+.bench-model-tag small {
+    color: rgba(255,255,255,0.35);
+    font-size: 0.42rem;
+}
+.bench-model-tag.loaded {
+    opacity: 1;
+}
+.bench-model-tag.unloaded {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.08);
+    opacity: 0.5;
+}
+.bench-model-tag.cloud {
+    background: rgba(100,149,237,0.08);
+    border: 1px solid rgba(100,149,237,0.2);
+    opacity: 0.6;
+}
+.bench-model-tag.cloud small { color: rgba(100,149,237,0.5); }
+.bench-resource-capacity {
+    margin-top: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.48rem;
+    color: rgba(16,185,129,0.6);
+    letter-spacing: 0.02em;
+}
+
+/* ── Score Heatmap ── */
+.bench-heatmap-section {
+    margin-bottom: 16px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(245,158,11,0.12);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.bench-heatmap-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(245,158,11,0.06);
+    border-bottom: 1px solid rgba(245,158,11,0.12);
+}
+.bench-heatmap-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.6rem; letter-spacing: 0.1em;
+    color: #f59e0b;
+}
+.bench-heatmap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.55rem;
+}
+.bench-heatmap-table thead th {
+    padding: 6px 4px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.42rem; letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    white-space: nowrap;
+}
+.bench-heatmap-table thead th:first-child {
+    text-align: left; padding-left: 10px;
+}
+.bench-heatmap-agent {
+    padding: 5px 10px;
+    color: rgba(255,255,255,0.75);
+    white-space: nowrap;
+    border-right: 1px solid rgba(255,255,255,0.04);
+}
+.bench-heatmap-cell {
+    text-align: center;
+    padding: 4px 3px;
+    position: relative;
+    transition: all 0.2s;
+    min-width: 48px;
+}
+.bench-heatmap-cell.score-high { background: rgba(16,185,129,0.12); color: #10b981; }
+.bench-heatmap-cell.score-mid { background: rgba(245,158,11,0.1); color: #f59e0b; }
+.bench-heatmap-cell.score-low { background: rgba(239,68,68,0.08); color: #ef4444; }
+.bench-heatmap-cell.score-none { color: rgba(255,255,255,0.15); }
+.bench-heatmap-cell.is-primary { box-shadow: inset 0 0 0 2px #10b981; }
+.bench-heatmap-cell.is-auxiliary { box-shadow: inset 0 0 0 1px rgba(245,158,11,0.4); }
+.bench-heatmap-star {
+    position: absolute; top: 1px; right: 2px;
+    font-size: 0.4rem; color: #fbbf24;
+}
+.bench-heatmap-table tbody tr { border-bottom: 1px solid rgba(255,255,255,0.03); }
+.bench-heatmap-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+.bench-heatmap-legend {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    padding: 8px 12px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.48rem;
+    color: rgba(255,255,255,0.35);
+}
+.bench-legend-item { display: flex; align-items: center; gap: 4px; }
+.bench-legend-swatch {
+    display: inline-block; width: 12px; height: 8px;
+    border-radius: 2px;
+}
+.bench-legend-swatch.score-high { background: rgba(16,185,129,0.3); }
+.bench-legend-swatch.score-mid { background: rgba(245,158,11,0.3); }
+.bench-legend-swatch.score-low { background: rgba(239,68,68,0.2); }
+.bench-legend-swatch.score-none { background: rgba(255,255,255,0.06); }
+.bench-legend-border {
+    display: inline-block; width: 12px; height: 8px;
+    border-radius: 2px;
+}
+.bench-legend-border.primary { box-shadow: inset 0 0 0 2px #10b981; }
+.bench-legend-border.auxiliary { box-shadow: inset 0 0 0 1px rgba(245,158,11,0.4); }
+
+/* ── Optimal Placement Overlay ── */
+.bench-placement-overlay {
+    margin: 12px 0;
+    background: rgba(16,185,129,0.04);
+    border: 1px solid rgba(16,185,129,0.2);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.bench-placement-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(16,185,129,0.06);
+    border-bottom: 1px solid rgba(16,185,129,0.12);
+}
+.bench-placement-actions { display: flex; gap: 6px; }
+.bench-placement-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
+    padding: 12px;
+}
+.bench-placement-card {
+    padding: 10px;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 4px;
+}
+.bench-placement-card.changed {
+    border-color: rgba(245,158,11,0.3);
+    background: rgba(245,158,11,0.04);
+}
+.bench-placement-station {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.55rem; letter-spacing: 0.08em;
+    color: #f59e0b;
+    margin-bottom: 6px;
+}
+.bench-placement-detail {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.7);
+}
+.bench-placement-current strong { color: rgba(255,255,255,0.85); }
+.bench-placement-arrow {
+    color: #f59e0b; font-size: 0.7rem;
+    padding: 2px 0; text-align: center;
+}
+.bench-placement-proposed { color: #10b981; }
+.bench-placement-proposed strong { color: #34d399; }
+.bench-placement-score {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.5rem; color: #f59e0b;
+}
+.bench-placement-optimal {
+    color: #10b981;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.48rem; letter-spacing: 0.04em;
+}
+.bench-placement-secondary {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.48rem;
+    color: rgba(255,255,255,0.35);
+    margin-top: 4px;
+}
+.bench-placement-unassigned {
+    padding: 8px 12px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.5rem;
+    color: rgba(255,255,255,0.3);
+}
+
 /* Crew tab */
 .lcars-crew-row {
     display: flex;
@@ -1832,8 +2712,8 @@ body.light-mode .bridge-zone-unstaffed {
     z-index: 5;
     width: 96%;
     max-width: 860px;
-    aspect-ratio: 1 / 0.62;
-    margin: 0 auto;
+    aspect-ratio: 1 / 0.95;
+    margin: 0 auto 0;
     perspective: 1200px;
 }
 
@@ -2364,42 +3244,68 @@ body.light-mode .bridge-zone-unstaffed {
     50% { opacity: 0; }
 }
 
-/* ── Station Positions — Horseshoe arrangement ── */
+/* ── Station Positions — Horseshoe arrangement (10 stations, smooth U-curve) ── */
 
-.iso-zone-command {
-    top: 58%;
+.iso-zone-research {
+    top: 8%;
     left: 50%;
     transform: translate(-50%, -50%);
 }
 
+.iso-zone-documentation {
+    top: 8%;
+    left: 33%;
+    transform: translate(-50%, -50%) rotate(-1deg);
+}
+
+.iso-zone-rnd_ai {
+    top: 8%;
+    right: 33%;
+    left: auto;
+    transform: translate(50%, -50%) rotate(1deg);
+}
+
 .iso-zone-creative {
-    top: 26%;
-    left: 16%;
-    transform: translate(-50%, -50%) rotate(-6deg);
+    top: 12%;
+    left: 14%;
+    transform: translate(-50%, -50%) rotate(-5deg);
 }
 
 .iso-zone-engineering {
-    top: 26%;
-    right: 16%;
+    top: 12%;
+    right: 14%;
     left: auto;
-    transform: translate(50%, -50%) rotate(6deg);
+    transform: translate(50%, -50%) rotate(5deg);
 }
 
 .iso-zone-operations {
-    top: 50%;
-    left: 8%;
+    top: 46%;
+    left: 6%;
     transform: translate(-50%, -50%) rotate(-10deg);
 }
 
 .iso-zone-analytics {
-    top: 50%;
-    right: 8%;
+    top: 46%;
+    right: 6%;
     left: auto;
     transform: translate(50%, -50%) rotate(10deg);
 }
 
-.iso-zone-research {
-    top: 10%;
+.iso-zone-support {
+    top: 82%;
+    left: 14%;
+    transform: translate(-50%, -50%) rotate(-5deg);
+}
+
+.iso-zone-qa {
+    top: 82%;
+    right: 14%;
+    left: auto;
+    transform: translate(50%, -50%) rotate(5deg);
+}
+
+.iso-zone-command {
+    top: 92%;
     left: 50%;
     transform: translate(-50%, -50%);
 }
@@ -2446,6 +3352,34 @@ body.light-mode .bridge-zone-unstaffed {
 .iso-zone-research .iso-avatar-ring { color: #6495ED; }
 .iso-zone-research .iso-typing-cursor { background: #6495ED; }
 .iso-zone-research .iso-station-floor-glow { background: #6495ED; }
+
+.iso-zone-documentation .iso-station-name { color: #8B5CF6; }
+.iso-zone-documentation .iso-console { box-shadow: 0 0 12px rgba(139,92,246,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(139,92,246,0.2); }
+.iso-zone-documentation .iso-console-glow { background: #8B5CF6; }
+.iso-zone-documentation .iso-avatar-ring { color: #8B5CF6; }
+.iso-zone-documentation .iso-typing-cursor { background: #8B5CF6; }
+.iso-zone-documentation .iso-station-floor-glow { background: #8B5CF6; }
+
+.iso-zone-rnd_ai .iso-station-name { color: #06B6D4; }
+.iso-zone-rnd_ai .iso-console { box-shadow: 0 0 12px rgba(6,182,212,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(6,182,212,0.2); }
+.iso-zone-rnd_ai .iso-console-glow { background: #06B6D4; }
+.iso-zone-rnd_ai .iso-avatar-ring { color: #06B6D4; }
+.iso-zone-rnd_ai .iso-typing-cursor { background: #06B6D4; }
+.iso-zone-rnd_ai .iso-station-floor-glow { background: #06B6D4; }
+
+.iso-zone-support .iso-station-name { color: #F43F5E; }
+.iso-zone-support .iso-console { box-shadow: 0 0 12px rgba(244,63,94,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(244,63,94,0.2); }
+.iso-zone-support .iso-console-glow { background: #F43F5E; }
+.iso-zone-support .iso-avatar-ring { color: #F43F5E; }
+.iso-zone-support .iso-typing-cursor { background: #F43F5E; }
+.iso-zone-support .iso-station-floor-glow { background: #F43F5E; }
+
+.iso-zone-qa .iso-station-name { color: #10B981; }
+.iso-zone-qa .iso-console { box-shadow: 0 0 12px rgba(16,185,129,0.15), 0 4px 16px rgba(0,0,0,0.5); border-color: rgba(16,185,129,0.2); }
+.iso-zone-qa .iso-console-glow { background: #10B981; }
+.iso-zone-qa .iso-avatar-ring { color: #10B981; }
+.iso-zone-qa .iso-typing-cursor { background: #10B981; }
+.iso-zone-qa .iso-station-floor-glow { background: #10B981; }
 
 /* ── Wall panels (ambient decorations) ── */
 .iso-wall-panel {
@@ -2500,12 +3434,16 @@ body.light-mode .bridge-zone-unstaffed {
     animation: iso-station-arrive 0.6s ease-out forwards;
 }
 
-.iso-zone-creative { animation-delay: 0.78s; }
-.iso-zone-engineering { animation-delay: 0.95s; }
-.iso-zone-command { animation-delay: 1.1s; }
-.iso-zone-operations { animation-delay: 1.25s; }
-.iso-zone-analytics { animation-delay: 1.4s; }
-.iso-zone-research { animation-delay: 1.55s; }
+.iso-zone-research       { animation-delay: 0.7s; }
+.iso-zone-documentation  { animation-delay: 0.85s; }
+.iso-zone-rnd_ai         { animation-delay: 0.85s; }
+.iso-zone-creative       { animation-delay: 1.0s; }
+.iso-zone-engineering    { animation-delay: 1.0s; }
+.iso-zone-operations     { animation-delay: 1.15s; }
+.iso-zone-analytics      { animation-delay: 1.15s; }
+.iso-zone-support        { animation-delay: 1.3s; }
+.iso-zone-qa             { animation-delay: 1.3s; }
+.iso-zone-command        { animation-delay: 1.45s; }
 
 /* Dispatch arc highlight on isometric zones */
 .iso-station-zone.dispatch-active {
@@ -2525,7 +3463,7 @@ body.light-mode .bridge-zone-unstaffed {
 
 /* ── Responsive 768px ── */
 @media (max-width: 768px) {
-    .iso-bridge-room { max-width: 600px; /* inherits aspect-ratio 1/0.62 → 372px */ }
+    .iso-bridge-room { max-width: 600px; aspect-ratio: 1 / 0.95; }
     .iso-viewscreen { width: 58%; padding: 8px 10px; top: 20%; }
     .iso-viewscreen .bridge-viewscreen-event { font-size: 0.52rem; }
     .iso-viewscreen .viewscreen-detail { display: none; }
@@ -2541,13 +3479,17 @@ body.light-mode .bridge-zone-unstaffed {
     .iso-station-name .iso-module-count { display: none; }
     .iso-wall-panel { display: none; }
 
-    /* Zone positions — research top, command bottom */
-    .iso-zone-research { top: 6%; }
-    .iso-zone-command { top: 80%; }
-    .iso-zone-creative { top: 24%; }
-    .iso-zone-engineering { top: 24%; }
-    .iso-zone-operations { top: 52%; }
-    .iso-zone-analytics { top: 52%; }
+    /* Zone positions — smooth U-curve */
+    .iso-zone-research { top: 4%; }
+    .iso-zone-documentation { top: 4%; left: 33%; }
+    .iso-zone-rnd_ai { top: 4%; right: 33%; }
+    .iso-zone-creative { top: 12%; left: 14%; }
+    .iso-zone-engineering { top: 12%; right: 14%; }
+    .iso-zone-operations { top: 34%; left: 8%; }
+    .iso-zone-analytics { top: 34%; right: 8%; }
+    .iso-zone-support { top: 50%; left: 14%; }
+    .iso-zone-qa { top: 50%; right: 14%; }
+    .iso-zone-command { top: 64%; }
 }
 
 /* ── Responsive 500px (Fold5) ── */
@@ -2584,12 +3526,16 @@ body.light-mode .bridge-zone-unstaffed {
 
     .iso-station-floor-glow { width: 60px; height: 16px; bottom: -10px; filter: blur(6px); }
 
-    .iso-zone-creative { top: 20%; left: 18%; }
-    .iso-zone-engineering { top: 20%; right: 18%; }
-    .iso-zone-operations { top: 46%; left: 10%; }
-    .iso-zone-analytics { top: 46%; right: 10%; }
-    .iso-zone-research { top: 5%; }
-    .iso-zone-command { top: 76%; }
+    .iso-zone-research { top: 4%; }
+    .iso-zone-documentation { top: 4%; left: 33%; }
+    .iso-zone-rnd_ai { top: 4%; right: 33%; }
+    .iso-zone-creative { top: 14%; left: 14%; }
+    .iso-zone-engineering { top: 14%; right: 14%; }
+    .iso-zone-operations { top: 38%; left: 8%; }
+    .iso-zone-analytics { top: 38%; right: 8%; }
+    .iso-zone-support { top: 58%; left: 14%; }
+    .iso-zone-qa { top: 58%; right: 14%; }
+    .iso-zone-command { top: 66%; }
 
     .iso-wall-panel { display: none; }
     .iso-bridge-center-marker { width: 30px; height: 30px; }
@@ -2711,12 +3657,16 @@ body.light-mode .bridge-zone-unstaffed {
 .iso-bridge-room.warp-active .iso-viewscreen {
     animation-delay: 1.4s !important;
 }
-.iso-bridge-room.warp-active .iso-zone-creative    { animation-delay: 1.5s !important; }
-.iso-bridge-room.warp-active .iso-zone-engineering  { animation-delay: 1.6s !important; }
-.iso-bridge-room.warp-active .iso-zone-command      { animation-delay: 1.7s !important; }
-.iso-bridge-room.warp-active .iso-zone-operations   { animation-delay: 1.8s !important; }
-.iso-bridge-room.warp-active .iso-zone-analytics    { animation-delay: 1.9s !important; }
-.iso-bridge-room.warp-active .iso-zone-research     { animation-delay: 2.0s !important; }
+.iso-bridge-room.warp-active .iso-zone-research      { animation-delay: 1.5s !important; }
+.iso-bridge-room.warp-active .iso-zone-documentation { animation-delay: 1.65s !important; }
+.iso-bridge-room.warp-active .iso-zone-rnd_ai        { animation-delay: 1.65s !important; }
+.iso-bridge-room.warp-active .iso-zone-creative      { animation-delay: 1.8s !important; }
+.iso-bridge-room.warp-active .iso-zone-engineering   { animation-delay: 1.8s !important; }
+.iso-bridge-room.warp-active .iso-zone-operations    { animation-delay: 1.95s !important; }
+.iso-bridge-room.warp-active .iso-zone-analytics     { animation-delay: 1.95s !important; }
+.iso-bridge-room.warp-active .iso-zone-support       { animation-delay: 2.1s !important; }
+.iso-bridge-room.warp-active .iso-zone-qa            { animation-delay: 2.1s !important; }
+.iso-bridge-room.warp-active .iso-zone-command       { animation-delay: 2.25s !important; }
 
 /* Hide intro on mobile — too small to see */
 @media (max-width: 500px) {
@@ -3018,6 +3968,21 @@ body.light-mode .bridge-zone-unstaffed {
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 0.75rem;
 }
+.roster-hw-divider {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 4px 0 2px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.roster-hw-divider .rhd-icon { font-size: 0.65rem; }
+.roster-hw-divider .rhd-count {
+    font-weight: 400; font-size: 0.55rem; color: var(--archie-text-muted);
+}
+.roster-hw-divider.gpu { color: #32CD32; }
+.roster-hw-divider.cpu { color: #3b82f6; }
+.roster-hw-divider.cloud { color: #a78bfa; }
+.roster-hw-divider.swap { color: #FFD700; }
 
 .crew-agent-card {
     background: var(--archie-bg-tertiary);
@@ -3037,6 +4002,10 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-agent-card[data-station="OPERATIONS"] { border-left-color: #FF8C00; }
 .crew-agent-card[data-station="CREATIVE"] { border-left-color: #FF69B4; }
 .crew-agent-card[data-station="RESEARCH"] { border-left-color: #6495ED; }
+.crew-agent-card[data-station="DOCUMENTATION"] { border-left-color: #8B5CF6; }
+.crew-agent-card[data-station="RND_AI"] { border-left-color: #06B6D4; }
+.crew-agent-card[data-station="SUPPORT"] { border-left-color: #F43F5E; }
+.crew-agent-card[data-station="QA"] { border-left-color: #10B981; }
 
 .crew-agent-top {
     display: flex;
@@ -3139,6 +4108,222 @@ body.light-mode .bridge-zone-unstaffed {
     font-weight: 600;
     color: var(--archie-text-secondary);
 }
+
+/* LLM readiness badges */
+.crew-llm-badge {
+    font-size: 0.55rem;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.crew-llm-badge.loaded { background: rgba(50,205,50,0.15); color: #32CD32; }
+.crew-llm-badge.swap { background: rgba(255,215,0,0.15); color: #FFD700; }
+.crew-llm-badge.cloud { background: rgba(139,92,246,0.15); color: #8b5cf6; }
+
+/* Performance tags */
+.crew-perf-tag {
+    font-size: 0.5rem;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.crew-perf-tag.underutilized { background: rgba(255,170,0,0.15); color: #ffaa00; }
+.crew-perf-tag.low-success { background: rgba(255,68,68,0.15); color: #FF4444; }
+
+/* RAM capacity bar */
+.roster-capacity-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.65rem;
+    color: var(--archie-text-muted);
+    padding: 6px 0 4px;
+}
+.roster-capacity-track {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 60px;
+}
+.roster-capacity-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+.roster-capacity-fill.green { background: #32CD32; }
+.roster-capacity-fill.amber { background: #ffaa00; }
+.roster-capacity-fill.red { background: #FF4444; }
+.roster-capacity-label { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Model picker in agent form */
+.agent-form-model-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.7rem;
+    transition: background 0.15s;
+}
+.agent-form-model-row:hover { background: rgba(139,92,246,0.1); }
+.agent-form-model-row.selected { background: rgba(139,92,246,0.18); border-left: 2px solid #8b5cf6; }
+.agent-form-model-row .model-name { flex: 1; font-weight: 500; color: var(--archie-text-primary); }
+.agent-form-model-row .model-size { color: var(--archie-text-muted); font-size: 0.6rem; font-variant-numeric: tabular-nums; }
+.agent-form-model-row .model-status-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.agent-form-model-row .model-status-dot.loaded { background: #32CD32; box-shadow: 0 0 4px #32CD3266; }
+.agent-form-model-row .model-status-dot.swap { background: #FFD700; box-shadow: 0 0 4px #FFD70066; }
+.agent-form-model-row .model-agents { font-size: 0.55rem; color: var(--archie-text-muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-form-ram-warn {
+    padding: 6px 10px; border-radius: 5px; font-size: 0.7rem; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+}
+.agent-form-ram-warn.amber { background: rgba(255,170,0,0.12); border: 1px solid rgba(255,170,0,0.25); color: #ffaa00; }
+.agent-form-ram-warn.red { background: rgba(255,68,68,0.12); border: 1px solid rgba(255,68,68,0.25); color: #ff4444; }
+
+/* Hardware overview — combined GPU + RAM */
+.agent-form-hw-overview {
+    padding: 8px 10px; border-radius: 5px; font-size: 0.65rem; margin-bottom: 10px;
+    background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+}
+.hw-section { margin-bottom: 6px; }
+.hw-section:last-child { margin-bottom: 0; }
+.hw-section-hdr {
+    display: flex; align-items: center; gap: 6px; font-size: 0.6rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px;
+}
+.hw-section-hdr .hw-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.hw-section-hdr .hw-dot.green { background: #32CD32; box-shadow: 0 0 4px #32CD3266; }
+.hw-section-hdr .hw-dot.amber { background: #FFD700; box-shadow: 0 0 4px #FFD70066; }
+.hw-section-hdr .hw-dot.red { background: #ff4444; box-shadow: 0 0 4px #ff444466; }
+.hw-bar-track {
+    height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-bottom: 3px;
+}
+.hw-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.hw-bar-fill.green { background: #32CD32; }
+.hw-bar-fill.amber { background: #FFD700; }
+.hw-bar-fill.red { background: #ff4444; }
+.hw-bar-fill.blue { background: #3b82f6; }
+.hw-detail {
+    font-size: 0.55rem; color: var(--archie-text-muted); line-height: 1.4;
+}
+.hw-divider {
+    height: 1px; background: rgba(255,255,255,0.06); margin: 6px 0;
+}
+/* Model dropdown selector */
+.model-dropdown {
+    position: absolute; left: 0; right: 0; top: 100%;
+    z-index: 100; max-height: 260px; overflow-y: auto;
+    background: var(--archie-bg-secondary, #1a1a2e);
+    border: 1px solid rgba(139,92,246,0.3); border-top: none;
+    border-radius: 0 0 6px 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.model-dd-group {
+    font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 600; padding: 6px 10px 3px; display: flex; align-items: center; gap: 5px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.model-dd-group:first-child { border-top: none; }
+.model-dd-group.gpu { color: #32CD32; }
+.model-dd-group.cpu { color: #3b82f6; }
+.model-dd-group.avail { color: #FFD700; }
+.model-dd-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; font-size: 0.65rem; cursor: pointer;
+    transition: background 0.15s;
+}
+.model-dd-item:hover { background: rgba(139,92,246,0.15); }
+.model-dd-item.selected { background: rgba(139,92,246,0.2); }
+.model-dd-item .dd-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.model-dd-item .dd-dot.loaded { background: #32CD32; box-shadow: 0 0 4px #32CD3266; }
+.model-dd-item .dd-dot.swap { background: #FFD700; box-shadow: 0 0 4px #FFD70066; }
+.model-dd-item .dd-name { flex: 1; font-weight: 500; }
+.model-dd-item .dd-agents {
+    font-size: 0.52rem; color: var(--archie-text-muted);
+    max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.model-dd-item .dd-size {
+    font-size: 0.55rem; color: var(--archie-text-muted);
+    font-variant-numeric: tabular-nums; min-width: 40px; text-align: right;
+}
+.model-dd-empty {
+    font-size: 0.6rem; color: var(--archie-text-muted); padding: 12px; text-align: center;
+}
+.model-dd-item .dd-gpu-note {
+    font-size: 0.48rem; color: #32CD32; opacity: 0.7;
+}
+.hw-tag.gpu-eligible {
+    background: rgba(50,205,50,0.08); color: #32CD32; border: 1px dashed rgba(50,205,50,0.3);
+}
+
+/* Hardware tag on model rows */
+.hw-tag {
+    font-size: 0.5rem; padding: 1px 4px; border-radius: 3px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; margin-left: 4px;
+}
+.hw-tag.gpu { background: rgba(50,205,50,0.15); color: #32CD32; border: 1px solid rgba(50,205,50,0.25); }
+.hw-tag.cpu { background: rgba(100,149,237,0.15); color: #6495ED; border: 1px solid rgba(100,149,237,0.25); }
+
+/* Media contractors section */
+.agent-form-media-section {
+    margin-bottom: 10px;
+}
+.agent-form-media-section .media-section-hdr {
+    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--archie-text-muted); margin-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 3px;
+}
+.agent-form-media-section .media-cap-label {
+    font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--archie-text-muted); margin: 6px 0 3px; font-weight: 600;
+}
+.media-provider-row {
+    display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+    border-radius: 4px; font-size: 0.65rem; cursor: default;
+}
+.media-provider-row:hover { background: rgba(255,255,255,0.03); }
+.media-provider-row .mp-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.media-provider-row .mp-dot.configured { background: #32CD32; box-shadow: 0 0 4px #32CD3266; }
+.media-provider-row .mp-dot.degraded { background: #FFD700; box-shadow: 0 0 4px #FFD70066; }
+.media-provider-row .mp-dot.offline { background: #FF4444; box-shadow: 0 0 4px #FF444466; }
+.media-provider-row .mp-dot.unconfigured { background: #666; }
+.media-provider-row .mp-name { flex: 1; font-weight: 500; }
+.media-provider-row .mp-cost { font-size: 0.55rem; color: var(--archie-text-muted); }
+.media-provider-row .mp-status { font-size: 0.55rem; }
+.media-provider-row .mp-status.active { color: #32CD32; }
+.media-provider-row .mp-status.inactive { color: var(--archie-text-muted); }
+.media-provider-row.local { border-left: 2px solid #8b5cf6; padding-left: 6px; }
+.media-provider-row .mp-hw-note {
+    font-size: 0.52rem; color: #FFD700; margin-top: 1px; line-height: 1.3;
+    padding-left: 14px; width: 100%;
+}
+.agent-form-media-note {
+    font-size: 0.58rem; color: var(--archie-text-muted); padding: 4px 8px;
+    margin-top: 4px; line-height: 1.4;
+}
+
+/* Add Agent resource-gated states */
+.btn-add-agent { transition: opacity 0.2s; }
+.btn-add-agent.amber { border-color: rgba(255,170,0,0.4) !important; color: #ffaa00 !important; background: rgba(255,170,0,0.12) !important; }
+.btn-add-agent.red { opacity: 0.5; cursor: not-allowed !important; border-color: rgba(255,68,68,0.3) !important; color: #FF4444 !important; background: rgba(255,68,68,0.1) !important; }
+
+/* Underutilized agent dim */
+.crew-agent-card.underutilized { border-color: rgba(255,170,0,0.2); opacity: 0.8; }
 
 /* Crew Sub-Tabs — GlassNav */
 .crew-subtabs {
@@ -5625,6 +6810,22 @@ body.light-mode .station-coverage-code,
         order: 3;
         width: 100%;
     }
+    /* Station action + benchmark buttons — compact for tablet */
+    .stn-ops-commands { gap: 5px; }
+    .stn-action-row { gap: 4px; margin-bottom: 4px; }
+    .stn-ops-cmd,
+    .stn-bench-btn,
+    .stn-bench-results-btn {
+        font-size: 0.65rem;
+        padding: 5px 10px;
+    }
+    .bench-row {
+        grid-template-columns: 20px 1fr 48px 48px 42px;
+        font-size: 0.58rem; gap: 4px;
+    }
+    .bench-compare-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Fold5 Closed — 374px */
@@ -5768,6 +6969,26 @@ body.light-mode .station-coverage-code,
     .bridge-live-indicator {
         display: none;
     }
+    /* Station action + benchmark buttons — tight for Fold5 closed */
+    .stn-ops-commands { gap: 3px; }
+    .stn-action-row { gap: 3px; margin-bottom: 3px; }
+    .stn-ops-cmd,
+    .stn-bench-btn,
+    .stn-bench-results-btn {
+        font-size: 0.55rem;
+        padding: 4px 6px;
+        border-radius: 2px 5px 5px 2px;
+    }
+    .bench-leaderboard { padding: 6px; }
+    .bench-row {
+        grid-template-columns: 18px 1fr 42px 42px 38px;
+        font-size: 0.52rem; gap: 3px; padding: 2px 3px;
+    }
+    .bench-header { font-size: 0.5rem; }
+    .bench-footer { font-size: 0.48rem; }
+    .bench-modal { width: 96vw; max-height: 92vh; }
+    .bench-compare-grid { grid-template-columns: 1fr; }
+    .bench-card-response { font-size: 0.55rem; max-height: 150px; }
 }
 
 /* ============================================================================
@@ -6854,7 +8075,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                             <i data-lucide="users"></i>
                             <span data-i18n="bridge.crew.active_roster">Active Roster</span>
                             <span class="briefing-card-link" id="crew-manifest-count">-- agents</span>
-                            <button onclick="openAgentFormModal()" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;"><span data-i18n="bridge.add_agent">+ Add Agent</span></button>
+                            <button id="btn-add-agent" class="btn-add-agent" onclick="openAgentFormModal()" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;"><span data-i18n="bridge.add_agent">+ Add Agent</span></button>
                         </div>
                         <div class="briefing-card-body">
                             <div class="crew-manifest-grid" id="crew-manifest-grid">
@@ -7499,6 +8720,8 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
             <button class="lcars-tab-pill" data-console-tab="nodes"><span data-i18n="bridge.nodes">NODES</span></button>
             <button class="lcars-tab-pill" data-console-tab="metrics"><span data-i18n="bridge.stats">STATS</span></button>
             <button class="lcars-tab-pill" data-console-tab="memory"><span data-i18n="bridge.mem">MEM</span></button>
+            <button class="lcars-tab-pill" data-console-tab="actions"><span data-i18n="bridge.actn">ACTN</span></button>
+            <button class="lcars-tab-pill" data-console-tab="benchmarks" id="lcarsBenchTab" style="display:none;"><span>BENCH</span></button>
             <button class="lcars-tab-pill" data-console-tab="routing" id="lcarsRoutingTab" style="display:none;"><span data-i18n="bridge.ctrl">CTRL</span></button>
         </div>
         <div class="lcars-tab-content" id="lcarsTabContent">
@@ -7507,6 +8730,8 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
             <div class="lcars-tab-panel" data-console-panel="nodes" id="lcarsNodesPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="metrics" id="lcarsMetricsPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="memory" id="lcarsMemoryPanel"></div>
+            <div class="lcars-tab-panel" data-console-panel="actions" id="lcarsActionsPanel"></div>
+            <div class="lcars-tab-panel" data-console-panel="benchmarks" id="lcarsBenchPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="routing" id="lcarsRoutingPanel"></div>
             <div class="lcars-tab-panel" data-console-panel="module-preview" id="lcarsModulePreviewPanel"></div>
         </div>
@@ -7759,7 +8984,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 
 <!-- Agent Create/Edit Form Modal -->
 <div class="bm-overlay" id="agent-form-modal" style="--bm-accent:#8b5cf6;--bm-accent-rgb:139,92,246;">
-    <div class="bm-shell" style="max-width:540px;">
+    <div class="bm-shell" style="max-width:620px;">
         <div class="bm-frame">
             <div class="bm-frame-elbow-top"></div>
             <div class="bm-frame-seg"></div>
@@ -7780,54 +9005,84 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     <button class="bm-close" onclick="closeAgentFormModal()">&times;</button>
                 </div>
             </div>
-            <div class="bm-body">
+            <div class="bm-body" style="max-height:70vh;overflow-y:auto;">
+                <!-- Hardware overview (GPU + RAM) -->
+                <div id="agent-form-hw-overview" style="display:none;"></div>
+                <!-- Resource warning banner (critical only) -->
+                <div id="agent-form-ram-banner" style="display:none;"></div>
                 <input type="hidden" id="agent-form-id" value="">
-                <div style="margin-bottom:8px;">
-                    <label><span data-i18n="bridge.codename">Codename</span></label>
-                    <input type="text" id="agent-form-name" placeholder="e.g. Sentinel, Vigil">
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                    <div>
-                        <label><span data-i18n="bridge.first_name">First Name</span></label>
-                        <input type="text" id="agent-form-first">
+
+                <!-- Identity section -->
+                <div style="margin-bottom:10px;">
+                    <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--archie-text-muted);margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:3px;">Identity</div>
+                    <div style="margin-bottom:6px;">
+                        <label><span data-i18n="bridge.codename">Codename</span></label>
+                        <input type="text" id="agent-form-name" placeholder="e.g. Sentinel, Vigil">
                     </div>
-                    <div>
-                        <label><span data-i18n="bridge.last_name">Last Name</span></label>
-                        <input type="text" id="agent-form-last">
-                    </div>
-                    <div>
-                        <label><span data-i18n="bridge.title_2">Title</span></label>
-                        <input type="text" id="agent-form-title-input">
-                    </div>
-                    <div>
-                        <label><span data-i18n="bridge.department">Department</span></label>
-                        <input type="text" id="agent-form-dept">
-                    </div>
-                    <div>
-                        <label><span data-i18n="bridge.model">Model *</span></label>
-                        <input type="text" id="agent-form-model" placeholder="e.g. dolphin3-8k:latest">
-                    </div>
-                    <div>
-                        <label><span data-i18n="bridge.worker_type">Worker Type</span></label>
-                        <select id="agent-form-worker">
-                            <option value="ai">AI</option>
-                            <option value="internal"><span data-i18n="bridge.internal">Internal</span></option>
-                            <option value="contractor"><span data-i18n="bridge.contractor">Contractor</span></option>
-                        </select>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <div>
+                            <label><span data-i18n="bridge.first_name">First Name</span></label>
+                            <input type="text" id="agent-form-first">
+                        </div>
+                        <div>
+                            <label><span data-i18n="bridge.last_name">Last Name</span></label>
+                            <input type="text" id="agent-form-last">
+                        </div>
+                        <div>
+                            <label><span data-i18n="bridge.title_2">Title</span></label>
+                            <input type="text" id="agent-form-title-input">
+                        </div>
+                        <div>
+                            <label><span data-i18n="bridge.department">Department</span></label>
+                            <input type="text" id="agent-form-dept">
+                        </div>
                     </div>
                 </div>
-                <div style="margin-top:8px;">
-                    <label><span data-i18n="bridge.bio">Bio</span></label>
-                    <textarea id="agent-form-bio" rows="2" style="resize:vertical;"></textarea>
+
+                <!-- Model assignment section -->
+                <div style="margin-bottom:10px;">
+                    <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-bottom:6px;">
+                        <div style="position:relative;">
+                            <label><span data-i18n="bridge.model">Model *</span></label>
+                            <input type="text" id="agent-form-model" placeholder="Search models..." autocomplete="off">
+                            <input type="hidden" id="agent-form-model-value">
+                            <!-- Dropdown panel -->
+                            <div id="agent-form-model-dropdown" class="model-dropdown" style="display:none;"></div>
+                        </div>
+                        <div>
+                            <label><span data-i18n="bridge.worker_type">Worker Type</span></label>
+                            <select id="agent-form-worker">
+                                <option value="ai">AI</option>
+                                <option value="internal"><span data-i18n="bridge.internal">Internal</span></option>
+                                <option value="contractor"><span data-i18n="bridge.contractor">Contractor</span></option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Selected model info card -->
+                    <div id="agent-form-model-info" style="display:none;margin-top:4px;font-size:0.65rem;padding:6px 8px;border-radius:4px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.15);"></div>
+                    <!-- Legacy picker div kept for JS references -->
+                    <div id="agent-form-model-picker" style="display:none;"></div>
                 </div>
-                <div style="margin-top:8px;">
-                    <label><span data-i18n="bridge.system_prompt">System Prompt</span></label>
-                    <textarea id="agent-form-prompt" rows="3" style="resize:vertical;"></textarea>
+
+                <!-- Media Generation section -->
+                <div id="agent-form-media-section" class="agent-form-media-section" style="display:none;"></div>
+
+                <!-- Config section -->
+                <div>
+                    <div style="font-size:0.6rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--archie-text-muted);margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.06);padding-bottom:3px;">Configuration</div>
+                    <div style="margin-bottom:6px;">
+                        <label><span data-i18n="bridge.bio">Bio</span></label>
+                        <textarea id="agent-form-bio" rows="2" style="resize:vertical;"></textarea>
+                    </div>
+                    <div>
+                        <label><span data-i18n="bridge.system_prompt">System Prompt</span></label>
+                        <textarea id="agent-form-prompt" rows="3" style="resize:vertical;"></textarea>
+                    </div>
                 </div>
             </div>
             <div class="bm-actions">
                 <button class="btn-cancel" onclick="closeAgentFormModal()"><span data-i18n="bridge.cancel_2">Cancel</span></button>
-                <button class="btn-submit" onclick="saveAgent()"><span data-i18n="bridge.save_agent">Save Agent</span></button>
+                <button class="btn-submit" id="agent-form-save-btn" onclick="saveAgent()"><span data-i18n="bridge.save_agent">Save Agent</span></button>
             </div>
             <div class="bm-footer">
                 <div class="bm-footer-strip">
@@ -8603,7 +9858,7 @@ const STATION_COLORS = {
     'HR': '#10B981',
     'RND': '#8B5CF6',
     'RND_CORE': '#8B5CF6',
-    'RND_AI': '#A855F7',
+    'RND_AI': '#06B6D4',
     'ENGINEERING': '#0EA5E9',
     'ENGINEERING_BUILD': '#0EA5E9',
     'ENGINEERING_CODE': '#06B6D4',
@@ -8618,20 +9873,24 @@ const STATION_COLORS = {
     'AWAY_TEAM': '#F59E0B',
     'INFRASTRUCTURE': '#3B82F6',
     'FINANCE': '#A855F7',
-    'DOCUMENTATION': '#22C55E',
-    'QA': '#F97316',
+    'DOCUMENTATION': '#8B5CF6',
+    'QA': '#10B981',
     'ADMIN': '#6366F1',
-    'SUPPORT': '#EC4899'
+    'SUPPORT': '#F43F5E'
 };
 
-// ── Isometric zone grouping (10 stations → 6 zones) ──
+// ── Isometric zone grouping (10 active stations → 10 zones) ──
 const ISOMETRIC_ZONE_MAP = {
-    'COMMAND':     { stations: ['COMMAND'],                                color: '#FFD700', label: 'Command',     abbr: 'CMD' },
-    'CREATIVE':    { stations: ['CREATIVE'],                               color: '#FF69B4', label: 'Creative',    abbr: 'CRE' },
-    'ENGINEERING': { stations: ['ENGINEERING', 'SECURITY'],                color: '#32CD32', label: 'Engineering', abbr: 'ENG' },
-    'OPERATIONS':  { stations: ['OPERATIONS', 'HR'],                       color: '#FF8C00', label: 'Operations',  abbr: 'OPS' },
-    'ANALYTICS':   { stations: ['ANALYTICS', 'CONSCIOUSNESS', 'RND'],      color: '#00CED1', label: 'Analytics',   abbr: 'ANA' },
-    'RESEARCH':    { stations: ['RESEARCH', 'MEDICAL', 'AWAY_TEAM'],       color: '#6495ED', label: 'Research',    abbr: 'RES' }
+    'COMMAND':       { stations: ['COMMAND'],             color: '#FFD700', label: 'Command',       abbr: 'CMD' },
+    'CREATIVE':      { stations: ['CREATIVE'],            color: '#FF69B4', label: 'Creative',      abbr: 'CRE' },
+    'ENGINEERING':   { stations: ['ENGINEERING'],         color: '#32CD32', label: 'Engineering',   abbr: 'ENG' },
+    'OPERATIONS':    { stations: ['OPERATIONS'],          color: '#FF8C00', label: 'Operations',    abbr: 'OPS' },
+    'ANALYTICS':     { stations: ['ANALYTICS'],           color: '#00CED1', label: 'Analytics',     abbr: 'ANA' },
+    'RESEARCH':      { stations: ['RESEARCH'],            color: '#6495ED', label: 'Research',      abbr: 'RES' },
+    'DOCUMENTATION': { stations: ['DOCUMENTATION'],       color: '#8B5CF6', label: 'Documentation', abbr: 'DOC' },
+    'RND_AI':        { stations: ['RND_AI'],              color: '#06B6D4', label: 'R&D - AI',      abbr: 'R&D' },
+    'SUPPORT':       { stations: ['SUPPORT'],             color: '#F43F5E', label: 'Support',       abbr: 'SUP' },
+    'QA':            { stations: ['QA'],                  color: '#10B981', label: 'QA',            abbr: 'QA'  }
 };
 
 // Reverse lookup: station code → zone name
@@ -8740,6 +9999,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStations();
     loadIAAEStatus();
     loadStaffingStatus();
+
+    // Check for running benchmarks on page load + periodic recheck
+    setTimeout(_checkActiveBenchmark, 1500);
+    setInterval(function() {
+        if (_activeBenchmarkRun) _checkActiveBenchmark();
+    }, 5000);
 
     // Refresh intervals
     setInterval(loadOverviewData, 60000);
@@ -9500,9 +10765,11 @@ function openStationConsole(zoneName, zoneInfo, zd) {
 
     _consoleCurrentZone = { zoneName, zoneInfo, zd };
 
-    // Show CTRL tab only for COMMAND zone
+    // Show CTRL and BENCH tabs only for COMMAND zone
     var ctrlTab = document.getElementById('lcarsRoutingTab');
     if (ctrlTab) ctrlTab.style.display = (zoneName === 'COMMAND') ? '' : 'none';
+    var benchTab = document.getElementById('lcarsBenchTab');
+    if (benchTab) benchTab.style.display = (zoneName === 'COMMAND') ? '' : 'none';
 
     // Set station color
     panel.style.setProperty('--station-color', zoneInfo.color);
@@ -9548,6 +10815,8 @@ function closeStationConsole() {
         _consoleEventSource.close();
         _consoleEventSource = null;
     }
+    // Stop action job polling
+    _clearActionPolls();
     _consoleCurrentZone = null;
 }
 
@@ -9578,6 +10847,8 @@ function switchConsoleTab(tabName) {
     if (tabName === 'nodes') loadConsoleNodes(zd, zoneInfo.color);
     if (tabName === 'metrics') loadConsoleMetrics(zoneInfo.stations);
     if (tabName === 'memory') loadConsoleMemory();
+    if (tabName === 'actions') loadConsoleActions(zoneInfo.stations);
+    if (tabName === 'benchmarks') loadConsoleBenchmarks();
     if (tabName === 'routing') renderRoutingTab();
 }
 
@@ -9771,6 +11042,2075 @@ async function buildModuleRail(moduleNames, stationColor) {
 
     // Re-render Lucide icons
     if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// === ACTIONS TAB CONTENT ===
+// Renders per-module stn-ops-terminal blocks (same pattern as Consciousness GitHub tab).
+// All DOM built via createElement — no innerHTML with user data.
+
+var _actionJobPolls = {};
+
+function _clearActionPolls() {
+    for (var k in _actionJobPolls) { clearInterval(_actionJobPolls[k]); }
+    _actionJobPolls = {};
+}
+
+function loadConsoleActions(stationCodes) {
+    var panel = document.getElementById('lcarsActionsPanel');
+    if (!panel) return;
+    panel.textContent = '';
+
+    var codes = stationCodes.join(',');
+
+    // Fetch actions + running jobs in parallel
+    Promise.all([
+        fetch('/tools/bridge/api/station-actions?station_code=' + encodeURIComponent(codes)).then(function(r) { return r.json(); }),
+        fetch('/tools/bridge/api/bridge/jobs?status=running').then(function(r) { return r.json(); }).catch(function() { return { success: true, jobs: [] }; })
+    ]).then(function(results) {
+        _renderModuleActions(panel, results[0], results[1]);
+    }).catch(function(err) {
+        console.error('Failed to load station actions:', err);
+        var errEl = document.createElement('div');
+        errEl.className = 'stn-ops-loading';
+        errEl.style.cssText = 'padding:20px 12px;text-align:center;';
+        errEl.textContent = 'Failed to load actions';
+        panel.appendChild(errEl);
+    });
+}
+
+// ── BENCH tab: All-stations benchmark & assignment hub ──
+
+function loadConsoleBenchmarks() {
+    var panel = document.getElementById('lcarsBenchPanel');
+    if (!panel) return;
+    panel.textContent = '';
+
+    // Resource bar (Phase 4)
+    _renderResourceBar(panel);
+    // Score heatmap matrix (Phase 3)
+    _renderScoreHeatmap(panel);
+    // Existing station overview
+    _loadBenchmarkOverview(panel);
+}
+
+// ── Resource Bar ──
+function _renderResourceBar(panel) {
+    var bar = document.createElement('div');
+    bar.className = 'bench-resource-bar';
+    bar.id = 'benchResourceBar';
+    var loadMsg = document.createElement('div');
+    loadMsg.className = 'bench-resource-loading';
+    loadMsg.textContent = 'Loading system resources...';
+    bar.appendChild(loadMsg);
+    panel.appendChild(bar);
+
+    fetch('/tools/bridge/api/bridge/resources')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (!d.success) { bar.textContent = 'Failed to load resources'; return; }
+        bar.textContent = '';
+
+        function makeResourceItem(label, labelDetail, pct, valueText, colorClass) {
+            var item = document.createElement('div');
+            item.className = 'bench-resource-item';
+            var lbl = document.createElement('div');
+            lbl.className = 'bench-resource-label';
+            lbl.textContent = label + ' ';
+            if (labelDetail) {
+                var detail = document.createElement('span');
+                detail.className = 'bench-resource-name';
+                detail.textContent = labelDetail;
+                lbl.appendChild(detail);
+            }
+            item.appendChild(lbl);
+            var track = document.createElement('div');
+            track.className = 'bench-resource-bar-track';
+            var fill = document.createElement('div');
+            fill.className = 'bench-resource-bar-fill ' + colorClass;
+            fill.style.width = Math.min(pct, 100) + '%';
+            track.appendChild(fill);
+            item.appendChild(track);
+            var val = document.createElement('div');
+            val.className = 'bench-resource-value';
+            val.textContent = valueText;
+            item.appendChild(val);
+            return item;
+        }
+
+        // GPU — real data from host monitor
+        var gpuPct = d.gpu.vram_total_mb > 0 ? Math.round((d.gpu.vram_used_mb / d.gpu.vram_total_mb) * 100) : 0;
+        var gpuDetail = d.gpu.name;
+        if (d.gpu.temperature) gpuDetail += ' ' + d.gpu.temperature + '\u00B0C';
+        bar.appendChild(makeResourceItem('GPU VRAM', gpuDetail, gpuPct, d.gpu.vram_used_mb + '/' + d.gpu.vram_total_mb + ' MB', 'gpu'));
+
+        // RAM — with model RAM usage overlay
+        var ramDetail = d.ram.models_ram_gb ? d.ram.models_ram_gb + 'GB by models' : null;
+        bar.appendChild(makeResourceItem('RAM', ramDetail, d.ram.pct, d.ram.used_gb + '/' + d.ram.total_gb + ' GB (' + d.ram.available_gb + ' free)', 'ram'));
+
+        // CPU
+        var cpuDetail = d.cpu.model ? d.cpu.model.replace(/\(R\)/g,'').replace(/CPU /,'').trim() : d.cpu.cores + ' cores';
+        if (cpuDetail.length > 40) cpuDetail = cpuDetail.substring(0, 37) + '...';
+        bar.appendChild(makeResourceItem('CPU', cpuDetail, d.cpu.usage_pct, d.cpu.usage_pct + '%', 'cpu'));
+
+        // ── Ollama Model Roster ──
+        var roster = document.createElement('div');
+        roster.className = 'bench-resource-item models';
+
+        // Header: MODELS (loaded/max) — config
+        var rosterHeader = document.createElement('div');
+        rosterHeader.className = 'bench-resource-label';
+        rosterHeader.textContent = 'OLLAMA MODELS ';
+        var rosterMeta = document.createElement('span');
+        rosterMeta.className = 'bench-resource-name';
+        var cfg = d.ollama_config || {};
+        var cap = d.capacity || {};
+        rosterMeta.textContent = cap.loaded_count + '/' + cap.max_slots + ' loaded \u2022 ' +
+            cap.local_count + ' local \u2022 ' + cap.cloud_count + ' cloud \u2022 ' +
+            'keep_alive=' + (cfg.keep_alive || '?') + ' \u2022 parallel=' + (cfg.num_parallel || '?');
+        rosterHeader.appendChild(rosterMeta);
+        roster.appendChild(rosterHeader);
+
+        // Slot usage bar
+        var slotPct = cap.max_slots > 0 ? Math.round((cap.loaded_count / cap.max_slots) * 100) : 0;
+        var slotTrack = document.createElement('div');
+        slotTrack.className = 'bench-resource-bar-track';
+        slotTrack.style.marginBottom = '6px';
+        var slotFill = document.createElement('div');
+        slotFill.className = 'bench-resource-bar-fill gpu';
+        slotFill.style.width = slotPct + '%';
+        slotTrack.appendChild(slotFill);
+        roster.appendChild(slotTrack);
+
+        // Model grid: all models with loaded/unloaded status
+        var modList = document.createElement('div');
+        modList.className = 'bench-model-list';
+
+        var allModels = d.ollama_available || [];
+        // Sort: loaded first, then by name
+        allModels.sort(function(a, b) {
+            if (a.loaded && !b.loaded) return -1;
+            if (!a.loaded && b.loaded) return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        allModels.forEach(function(m) {
+            var tag = document.createElement('span');
+            if (m.cloud) {
+                tag.className = 'bench-model-tag cloud';
+            } else if (m.loaded) {
+                // Find device info from loaded list
+                var loadedInfo = (d.ollama_loaded || []).find(function(l) { return l.name === m.name; });
+                var device = loadedInfo ? loadedInfo.device : 'cpu';
+                tag.className = 'bench-model-tag ' + device + ' loaded';
+            } else {
+                tag.className = 'bench-model-tag unloaded';
+            }
+            tag.textContent = m.name.replace(':latest', '') + ' ';
+            var small = document.createElement('small');
+            if (m.cloud) {
+                small.textContent = 'CLOUD';
+            } else if (m.loaded) {
+                var li = (d.ollama_loaded || []).find(function(l) { return l.name === m.name; });
+                if (li && li.vram_gb > 0) {
+                    small.textContent = m.size_gb + 'GB \u2022 GPU:' + li.vram_gb + 'GB RAM:' + li.ram_gb + 'GB';
+                } else {
+                    small.textContent = m.size_gb + 'GB \u2022 CPU';
+                }
+            } else {
+                small.textContent = m.size_gb + 'GB';
+            }
+            tag.appendChild(small);
+            modList.appendChild(tag);
+        });
+        roster.appendChild(modList);
+
+        // Capacity summary
+        if (cap.free_slots > 0 || cap.could_load && cap.could_load.length > 0) {
+            var capDiv = document.createElement('div');
+            capDiv.className = 'bench-resource-capacity';
+            if (cap.free_slots > 0 && cap.ram_available_gb > 5) {
+                capDiv.textContent = cap.free_slots + ' slot(s) free \u2022 ' + cap.ram_available_gb + 'GB RAM available';
+                if (cap.could_load && cap.could_load.length > 0) {
+                    capDiv.textContent += ' \u2022 Could load: ' + cap.could_load.map(function(n) { return n.replace(':latest',''); }).join(', ');
+                }
+            } else if (cap.free_slots === 0) {
+                capDiv.textContent = 'All ' + cap.max_slots + ' model slots in use (OLLAMA_MAX_LOADED_MODELS=' + cap.max_slots + ')';
+            }
+            roster.appendChild(capDiv);
+        }
+
+        bar.appendChild(roster);
+    })
+    .catch(function() { bar.textContent = 'Resource data unavailable'; });
+}
+
+// ── Score Heatmap Matrix ──
+function _renderScoreHeatmap(panel) {
+    var section = document.createElement('div');
+    section.className = 'bench-heatmap-section';
+    section.id = 'benchHeatmapSection';
+    var loadMsg = document.createElement('div');
+    loadMsg.className = 'bench-resource-loading';
+    loadMsg.textContent = 'Loading score matrix...';
+    section.appendChild(loadMsg);
+    panel.appendChild(section);
+
+    fetch('/tools/bridge/api/benchmarks/score-matrix')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        section.textContent = '';
+        if (!d.success || !d.stations || d.stations.length === 0) {
+            var noData = document.createElement('div');
+            noData.className = 'bench-resource-loading';
+            noData.textContent = 'No benchmark data available for heatmap.';
+            section.appendChild(noData);
+            return;
+        }
+
+        // Header with auto-place button
+        var header = document.createElement('div');
+        header.className = 'bench-heatmap-header';
+        var title = document.createElement('span');
+        title.className = 'bench-heatmap-title';
+        title.textContent = 'AGENT \u00D7 STATION SCORE MATRIX';
+        header.appendChild(title);
+
+        var autoBtn = document.createElement('button');
+        autoBtn.className = 'bench-rec-generate-btn';
+        autoBtn.textContent = 'GENERATE OPTIMAL PLACEMENT';
+        autoBtn.onclick = function() { _runOptimalPlacement(section); };
+        header.appendChild(autoBtn);
+        section.appendChild(header);
+
+        // Build heatmap table
+        var table = document.createElement('table');
+        table.className = 'bench-heatmap-table';
+
+        // Header row
+        var thead = document.createElement('thead');
+        var hrow = document.createElement('tr');
+        var corner = document.createElement('th');
+        corner.textContent = 'AGENT';
+        hrow.appendChild(corner);
+        d.stations.forEach(function(stn) {
+            var th = document.createElement('th');
+            th.textContent = stn.replace(/_/g, ' ');
+            th.title = stn;
+            hrow.appendChild(th);
+        });
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+
+        // Filter agents with scores, sort by avg
+        var agentsWithScores = d.agents.filter(function(a) { return d.scores[a.name]; });
+        agentsWithScores.sort(function(a, b) {
+            var aS = d.scores[a.name] || {}, bS = d.scores[b.name] || {};
+            var aAvg = 0, aC = 0, bAvg = 0, bC = 0;
+            for (var k in aS) { aAvg += aS[k]; aC++; }
+            for (var k2 in bS) { bAvg += bS[k2]; bC++; }
+            return (bC ? bAvg/bC : 0) - (aC ? aAvg/aC : 0);
+        });
+
+        // Body rows
+        var tbody = document.createElement('tbody');
+        agentsWithScores.forEach(function(agent) {
+            var row = document.createElement('tr');
+            var nameCell = document.createElement('td');
+            nameCell.className = 'bench-heatmap-agent';
+            nameCell.textContent = agent.display_name || agent.name;
+            row.appendChild(nameCell);
+
+            d.stations.forEach(function(stn) {
+                var cell = document.createElement('td');
+                var score = (d.scores[agent.name] || {})[stn];
+                var isPrimary = false, isAuxiliary = false;
+                (d.current_assignments[stn] || []).forEach(function(ca) {
+                    if (ca.agent_name === agent.name) {
+                        if (ca.type === 'primary') isPrimary = true;
+                        else isAuxiliary = true;
+                    }
+                });
+                var isHumanPick = (d.human_picks[agent.name] || {})[stn];
+
+                if (score !== undefined && score !== null) {
+                    cell.className = 'bench-heatmap-cell';
+                    if (score >= 80) cell.classList.add('score-high');
+                    else if (score >= 60) cell.classList.add('score-mid');
+                    else cell.classList.add('score-low');
+                    if (isPrimary) cell.classList.add('is-primary');
+                    if (isAuxiliary) cell.classList.add('is-auxiliary');
+                    cell.textContent = score.toFixed(1);
+                    if (isHumanPick) {
+                        var star = document.createElement('span');
+                        star.className = 'bench-heatmap-star';
+                        star.textContent = '\u2605';
+                        star.title = 'Human Pick';
+                        cell.appendChild(star);
+                    }
+                } else {
+                    cell.className = 'bench-heatmap-cell score-none';
+                    cell.textContent = '\u2014';
+                }
+                row.appendChild(cell);
+            });
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        section.appendChild(table);
+
+        // Legend
+        var legend = document.createElement('div');
+        legend.className = 'bench-heatmap-legend';
+        var legendItems = [
+            { cls: 'score-high', text: '80+' },
+            { cls: 'score-mid', text: '60-79' },
+            { cls: 'score-low', text: '<60' },
+            { cls: 'score-none', text: 'No data' }
+        ];
+        legendItems.forEach(function(li) {
+            var item = document.createElement('span');
+            item.className = 'bench-legend-item';
+            var swatch = document.createElement('span');
+            swatch.className = 'bench-legend-swatch ' + li.cls;
+            item.appendChild(swatch);
+            item.appendChild(document.createTextNode(' ' + li.text));
+            legend.appendChild(item);
+        });
+        // Primary/auxiliary borders
+        var pItem = document.createElement('span');
+        pItem.className = 'bench-legend-item';
+        var pBorder = document.createElement('span');
+        pBorder.className = 'bench-legend-border primary';
+        pItem.appendChild(pBorder);
+        pItem.appendChild(document.createTextNode(' Primary'));
+        legend.appendChild(pItem);
+        var aItem = document.createElement('span');
+        aItem.className = 'bench-legend-item';
+        var aBorder = document.createElement('span');
+        aBorder.className = 'bench-legend-border auxiliary';
+        aItem.appendChild(aBorder);
+        aItem.appendChild(document.createTextNode(' Auxiliary'));
+        legend.appendChild(aItem);
+        var hpItem = document.createElement('span');
+        hpItem.className = 'bench-legend-item';
+        hpItem.textContent = '\u2605 Human Pick';
+        legend.appendChild(hpItem);
+        section.appendChild(legend);
+    })
+    .catch(function(err) {
+        section.textContent = '';
+        var errDiv = document.createElement('div');
+        errDiv.className = 'bench-resource-loading';
+        errDiv.textContent = 'Failed to load score matrix';
+        section.appendChild(errDiv);
+        console.error('Heatmap load error:', err);
+    });
+}
+
+// ── Optimal Placement ──
+function _runOptimalPlacement(container) {
+    var overlay = document.getElementById('benchPlacementOverlay');
+    if (overlay) overlay.remove();
+
+    overlay = document.createElement('div');
+    overlay.id = 'benchPlacementOverlay';
+    overlay.className = 'bench-placement-overlay';
+    var loadMsg = document.createElement('div');
+    loadMsg.className = 'bench-resource-loading';
+    loadMsg.textContent = 'Generating optimal placement...';
+    overlay.appendChild(loadMsg);
+    container.appendChild(overlay);
+
+    fetch('/tools/bridge/api/benchmarks/placement/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (!d.success) {
+            overlay.textContent = '';
+            var errMsg = document.createElement('div');
+            errMsg.className = 'bench-resource-loading';
+            errMsg.textContent = 'Failed: ' + (d.error || 'Unknown error');
+            overlay.appendChild(errMsg);
+            return;
+        }
+
+        overlay.textContent = '';
+
+        // Header with approve/cancel
+        var header = document.createElement('div');
+        header.className = 'bench-placement-header';
+        var headerTitle = document.createElement('span');
+        headerTitle.className = 'bench-heatmap-title';
+        headerTitle.textContent = 'PROPOSED OPTIMAL PLACEMENT';
+        header.appendChild(headerTitle);
+
+        var actions = document.createElement('div');
+        actions.className = 'bench-placement-actions';
+
+        var applyBtn = document.createElement('button');
+        applyBtn.className = 'bench-rec-approve-btn';
+        applyBtn.textContent = 'APPROVE & APPLY';
+        applyBtn.onclick = function() {
+            applyBtn.disabled = true;
+            applyBtn.textContent = 'APPLYING...';
+            fetch('/tools/bridge/api/benchmarks/placement/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(d)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(result) {
+                if (result.success) {
+                    overlay.remove();
+                    loadConsoleBenchmarks();
+                } else {
+                    applyBtn.textContent = 'FAILED';
+                    setTimeout(function() { applyBtn.textContent = 'APPROVE & APPLY'; applyBtn.disabled = false; }, 2000);
+                }
+            })
+            .catch(function() { applyBtn.textContent = 'ERROR'; applyBtn.disabled = false; });
+        };
+        actions.appendChild(applyBtn);
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.className = 'bench-rec-reject-btn';
+        cancelBtn.textContent = 'CANCEL';
+        cancelBtn.onclick = function() { overlay.remove(); };
+        actions.appendChild(cancelBtn);
+        header.appendChild(actions);
+        overlay.appendChild(header);
+
+        // Placement cards grid
+        var grid = document.createElement('div');
+        grid.className = 'bench-placement-grid';
+
+        d.placements.forEach(function(p) {
+            var card = document.createElement('div');
+            card.className = 'bench-placement-card';
+            if (p.changed) card.classList.add('changed');
+
+            var stnName = document.createElement('div');
+            stnName.className = 'bench-placement-station';
+            stnName.textContent = p.station_code.replace(/_/g, ' ');
+            if (p.human_locked) {
+                var lock = document.createElement('span');
+                lock.textContent = ' \uD83D\uDD12';
+                lock.title = 'Human-locked';
+                stnName.appendChild(lock);
+            }
+            card.appendChild(stnName);
+
+            var currentName = p.current_primary ? (p.current_primary.display_name || p.current_primary.agent_name) : 'None';
+            var proposedName = p.primary ? (p.primary.display_name || p.primary.agent_name) : 'None';
+            var proposedScore = p.primary ? p.primary.avg_score : 0;
+
+            var detail = document.createElement('div');
+            detail.className = 'bench-placement-detail';
+
+            if (p.changed) {
+                var curDiv = document.createElement('div');
+                curDiv.className = 'bench-placement-current';
+                curDiv.textContent = 'Current: ';
+                var curStrong = document.createElement('strong');
+                curStrong.textContent = currentName;
+                curDiv.appendChild(curStrong);
+                detail.appendChild(curDiv);
+
+                var arrow = document.createElement('div');
+                arrow.className = 'bench-placement-arrow';
+                arrow.textContent = '\u2192';
+                detail.appendChild(arrow);
+
+                var propDiv = document.createElement('div');
+                propDiv.className = 'bench-placement-proposed';
+                propDiv.textContent = 'Proposed: ';
+                var propStrong = document.createElement('strong');
+                propStrong.textContent = proposedName;
+                propDiv.appendChild(propStrong);
+                var scoreSpan = document.createElement('span');
+                scoreSpan.className = 'bench-placement-score';
+                scoreSpan.textContent = ' ' + proposedScore.toFixed(1);
+                propDiv.appendChild(scoreSpan);
+                detail.appendChild(propDiv);
+            } else {
+                var optDiv = document.createElement('div');
+                optDiv.className = 'bench-placement-current';
+                optDiv.textContent = 'Current: ';
+                var optStrong = document.createElement('strong');
+                optStrong.textContent = currentName;
+                optDiv.appendChild(optStrong);
+                var checkMark = document.createElement('span');
+                checkMark.className = 'bench-placement-optimal';
+                checkMark.textContent = ' \u2713 OPTIMAL';
+                optDiv.appendChild(checkMark);
+                detail.appendChild(optDiv);
+            }
+            card.appendChild(detail);
+
+            if (p.secondary) {
+                var secDiv = document.createElement('div');
+                secDiv.className = 'bench-placement-secondary';
+                secDiv.textContent = 'Secondary: ' + (p.secondary.display_name || p.secondary.agent_name) + ' (' + p.secondary.avg_score.toFixed(1) + ')';
+                card.appendChild(secDiv);
+            }
+
+            grid.appendChild(card);
+        });
+        overlay.appendChild(grid);
+
+        if (d.unassigned && d.unassigned.length > 0) {
+            var unDiv = document.createElement('div');
+            unDiv.className = 'bench-placement-unassigned';
+            unDiv.textContent = 'Auxiliary pool: ' + d.unassigned.map(function(a) { return a.display_name || a.name; }).join(', ');
+            overlay.appendChild(unDiv);
+        }
+    })
+    .catch(function(err) {
+        overlay.textContent = '';
+        var errDiv = document.createElement('div');
+        errDiv.className = 'bench-resource-loading';
+        errDiv.textContent = 'Error generating placement';
+        overlay.appendChild(errDiv);
+        console.error('Placement error:', err);
+    });
+}
+
+function _loadBenchmarkOverview(panel) {
+    Promise.all([
+        fetch('/tools/bridge/api/stations').then(function(r) { return r.json(); }),
+        fetch('/tools/bridge/api/station-actions').then(function(r) { return r.json(); }),
+        fetch('/tools/bridge/api/bridge/jobs?status=running').then(function(r) { return r.json(); }).catch(function() { return { success: true, jobs: [] }; })
+    ]).then(function(results) {
+        var stationsData = results[0];
+        var actData = results[1];
+        var jobData = results[2];
+
+        var stations = (stationsData.success && stationsData.stations) ? stationsData.stations : [];
+        var allActions = (actData.success && actData.actions) ? actData.actions : [];
+        var runningJobs = (jobData.success && jobData.jobs) ? jobData.jobs : [];
+
+        // Index actions by station_code
+        var actionsByStation = {};
+        allActions.forEach(function(a) {
+            if (!actionsByStation[a.station_code]) actionsByStation[a.station_code] = [];
+            actionsByStation[a.station_code].push(a);
+        });
+
+        // Index jobs by station_code
+        var jobsByStation = {};
+        runningJobs.forEach(function(j) {
+            var sc = j.station_code || '';
+            if (!jobsByStation[sc]) jobsByStation[sc] = [];
+            jobsByStation[sc].push(j);
+        });
+
+        // Viewscreen colors — the canonical station colors from the bridge map
+        var VIEWSCREEN_COLORS = {
+            COMMAND: '#FFD700',
+            OPERATIONS: '#FF8C00',
+            CREATIVE: '#FF69B4',
+            ENGINEERING: '#32CD32',
+            ANALYTICS: '#00CED1',
+            RESEARCH: '#6495ED',
+            DOCUMENTATION: '#8B5CF6',
+            RND_AI: '#06B6D4',
+            SUPPORT: '#F43F5E',
+            QA: '#10B981'
+        };
+
+        // Show all stations — COMMAND first, then alphabetical
+        var stationsToShow = stations.slice().sort(function(a, b) {
+            if (a.code === 'COMMAND') return -1;
+            if (b.code === 'COMMAND') return 1;
+            return a.code.localeCompare(b.code);
+        });
+
+        if (stationsToShow.length === 0) {
+            var empty = document.createElement('div');
+            empty.className = 'stn-ops-loading';
+            empty.style.cssText = 'padding:20px;text-align:center;';
+            empty.textContent = 'No stations to display';
+            panel.appendChild(empty);
+            return;
+        }
+
+        // Color helper — extract RGB from hex
+        function hexToRgb(hex) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+            var r = parseInt(hex.substring(0,2),16);
+            var g = parseInt(hex.substring(2,4),16);
+            var b = parseInt(hex.substring(4,6),16);
+            return r+','+g+','+b;
+        }
+
+        // ── Recommendations Panel (top of COMMAND overview) ──
+        _renderRecommendationsPanel(panel, VIEWSCREEN_COLORS);
+
+        stationsToShow.forEach(function(stn) {
+            var stnColor = VIEWSCREEN_COLORS[stn.code] || stn.color || '#00ffff';
+            var stnRgb = hexToRgb(stnColor);
+            var agents = stn.assigned_agents || [];
+            var stnJobs = jobsByStation[stn.code] || [];
+            var stnActions = actionsByStation[stn.code] || [];
+            var crewCount = agents.length;
+            var maxCrew = stn.max_primary || 2;
+
+            // Terminal container
+            var terminal = document.createElement('div');
+            terminal.className = 'stn-ops-terminal';
+            terminal.style.setProperty('--stn-accent', stnColor);
+            terminal.style.setProperty('--stn-accent-rgb', stnRgb);
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'stn-ops-header';
+            var elbow = document.createElement('div');
+            elbow.className = 'stn-ops-elbow';
+            header.appendChild(elbow);
+            var title = document.createElement('div');
+            title.className = 'stn-ops-title';
+            title.textContent = (stn.name || stn.code).toUpperCase();
+            header.appendChild(title);
+            var status = document.createElement('div');
+            status.className = 'stn-ops-status';
+            var dot = document.createElement('span');
+            dot.className = 'stn-ops-dot';
+            if (stnJobs.length > 0) {
+                dot.style.background = '#f59e0b';
+                dot.style.boxShadow = '0 0 4px #f59e0b';
+            }
+            status.appendChild(dot);
+            status.appendChild(document.createTextNode(stnJobs.length > 0 ? ' ACTIVE' : crewCount > 0 ? ' ONLINE' : ' UNMANNED'));
+            header.appendChild(status);
+            terminal.appendChild(header);
+
+            // Body
+            var body = document.createElement('div');
+            body.className = 'stn-ops-body';
+
+            // Crew row (compact — single line per agent)
+            var crewLabel = document.createElement('div');
+            crewLabel.className = 'stn-ops-section-label';
+            crewLabel.textContent = 'CREW (' + crewCount + '/' + maxCrew + ')';
+            body.appendChild(crewLabel);
+
+            if (crewCount > 0) {
+                agents.forEach(function(a) {
+                    var row = document.createElement('div');
+                    row.className = 'stn-ops-agent-row';
+                    var name = document.createElement('span');
+                    name.className = 'stn-ops-agent-name';
+                    name.textContent = (a.first_name && a.last_name) ? a.first_name + ' ' + a.last_name : (a.name || 'Agent');
+                    row.appendChild(name);
+                    // Check if this agent has a running job
+                    var agentJob = stnJobs.find(function(j) { return j.agent_callsign === a.name || j.agent_display_name === (a.first_name + ' ' + a.last_name); });
+                    if (agentJob) {
+                        var badge = document.createElement('span');
+                        badge.className = 'stn-ops-agent-badge working';
+                        badge.textContent = 'WORKING';
+                        row.appendChild(badge);
+                    }
+                    var role = document.createElement('span');
+                    role.className = 'stn-ops-agent-role';
+                    role.textContent = a.title || a.assignment_type || 'agent';
+                    row.appendChild(role);
+                    body.appendChild(row);
+                });
+            } else {
+                var noAgent = document.createElement('div');
+                noAgent.className = 'stn-ops-loading';
+                noAgent.textContent = 'No crew assigned';
+                body.appendChild(noAgent);
+            }
+
+            // Active jobs
+            if (stnJobs.length > 0) {
+                var jobLabel = document.createElement('div');
+                jobLabel.className = 'stn-ops-section-label';
+                jobLabel.style.marginTop = '10px';
+                jobLabel.textContent = 'ACTIVE JOBS (' + stnJobs.length + ')';
+                body.appendChild(jobLabel);
+
+                stnJobs.forEach(function(j) {
+                    var pct = j.total_steps > 0 ? Math.round(((j.completed_steps || 0) / j.total_steps) * 100) : 0;
+                    var row = document.createElement('div');
+                    row.className = 'stn-ops-job-row';
+
+                    var info = document.createElement('div');
+                    info.className = 'stn-ops-job-info';
+                    var desc = document.createElement('div');
+                    desc.className = 'stn-ops-job-desc';
+                    desc.textContent = j.description || j.job_type || 'Processing';
+                    info.appendChild(desc);
+                    row.appendChild(info);
+
+                    var bar = document.createElement('div');
+                    bar.className = 'stn-ops-job-bar';
+                    var fill = document.createElement('div');
+                    fill.className = 'stn-ops-job-fill';
+                    fill.style.width = pct + '%';
+                    bar.appendChild(fill);
+                    row.appendChild(bar);
+
+                    var cnt = document.createElement('div');
+                    cnt.className = 'stn-ops-job-count';
+                    cnt.textContent = (j.completed_steps || 0) + '/' + (j.total_steps || 0);
+                    row.appendChild(cnt);
+
+                    var pctEl = document.createElement('div');
+                    pctEl.className = 'stn-ops-job-pct';
+                    pctEl.textContent = pct + '%';
+                    row.appendChild(pctEl);
+
+                    body.appendChild(row);
+                });
+            }
+
+            // Action buttons — one 3-col row per action
+            if (stnActions.length > 0) {
+                var cmds = document.createElement('div');
+                cmds.className = 'stn-ops-commands';
+
+                stnActions.forEach(function(action) {
+                    var hasParams = action.params_schema && action.params_schema.length > 0;
+                    var isRunning = stnJobs.some(function(j) { return j.job_type === action.job_type; });
+
+                    // Row wrapper: ACTION | TEST | RESULTS
+                    var row = document.createElement('div');
+                    row.className = 'stn-action-row';
+
+                    // Col 1: Action button — use station-accent to match station color
+                    var btn = document.createElement('button');
+                    btn.className = 'stn-ops-cmd station-accent';
+                    btn.textContent = action.label;
+                    btn.title = action.description || '';
+                    btn.dataset.actionKey = action.action_key;
+                    if (isRunning) {
+                        btn.disabled = true;
+                        btn.textContent = action.label + ' \u25B6';
+                    }
+                    if (hasParams) {
+                        btn.addEventListener('click', (function(ak) {
+                            return function() { toggleActionParams(ak, this); };
+                        })(action.action_key));
+                    } else {
+                        btn.addEventListener('click', (function(a) {
+                            return function() { executeStationAction(a.action_key, a.endpoint_path, a.http_method || 'POST', a.creates_job, this); };
+                        })(action));
+                    }
+                    row.appendChild(btn);
+
+                    // Col 2: TEST button
+                    if (action.test_config) {
+                        var tbtn = document.createElement('button');
+                        tbtn.className = 'stn-bench-btn';
+                        tbtn.textContent = 'TEST';
+                        tbtn.title = 'Benchmark: ' + (action.test_config.description || action.label);
+                        tbtn.dataset.actionKey = action.action_key;
+                        tbtn.addEventListener('click', (function(ak) {
+                            return function() { startActionBenchmark(ak, this); };
+                        })(action.action_key));
+                        row.appendChild(tbtn);
+                    }
+
+                    // Col 3: RESULTS button
+                    if (action.test_config) {
+                        var rbtn = document.createElement('button');
+                        rbtn.className = 'stn-bench-results-btn no-results';
+                        rbtn.textContent = 'RESULTS';
+                        rbtn.title = 'View latest benchmark results';
+                        rbtn.dataset.actionKey = action.action_key;
+                        rbtn.addEventListener('click', (function(ak) {
+                            return function() { loadLatestBenchmark(ak); };
+                        })(action.action_key));
+                        row.appendChild(rbtn);
+                    }
+
+                    cmds.appendChild(row);
+
+                    // Benchmark container after each row
+                    if (action.test_config) {
+                        var benchEl = document.createElement('div');
+                        benchEl.id = 'bench-' + action.action_key;
+                        benchEl.className = 'bench-container';
+                        cmds.appendChild(benchEl);
+                        _checkExistingBenchmark(action.action_key);
+                    }
+                });
+
+                body.appendChild(cmds);
+
+                // Params forms
+                stnActions.forEach(function(action) {
+                    if (!action.params_schema || action.params_schema.length === 0) return;
+                    var paramsDiv = document.createElement('div');
+                    paramsDiv.className = 'actn-params';
+                    paramsDiv.id = 'params-' + action.action_key;
+                    action.params_schema.forEach(function(p) {
+                        var field = document.createElement('div');
+                        field.className = 'actn-field';
+                        var lbl = document.createElement('label');
+                        lbl.textContent = p.label || p.key;
+                        field.appendChild(lbl);
+                        if (p.options && p.options.length) {
+                            var sel = document.createElement('select');
+                            sel.dataset.param = p.key;
+                            p.options.forEach(function(opt) {
+                                var o = document.createElement('option');
+                                o.value = opt; o.textContent = opt;
+                                sel.appendChild(o);
+                            });
+                            field.appendChild(sel);
+                        } else {
+                            var inp = document.createElement('input');
+                            inp.type = p.type === 'number' ? 'number' : 'text';
+                            inp.dataset.param = p.key;
+                            inp.value = p.default != null ? p.default : '';
+                            inp.placeholder = p.label || p.key;
+                            field.appendChild(inp);
+                        }
+                        paramsDiv.appendChild(field);
+                    });
+                    body.appendChild(paramsDiv);
+                });
+
+                // Job progress placeholders
+                stnActions.forEach(function(action) {
+                    var jobEl = document.createElement('div');
+                    jobEl.id = 'job-' + action.action_key;
+                    body.appendChild(jobEl);
+                });
+
+                // Auto-attach polls for running jobs
+                stnJobs.forEach(function(j) {
+                    var match = stnActions.find(function(a) { return a.job_type === j.job_type; });
+                    if (match) {
+                        var mbtn = cmds.querySelector('[data-action-key="' + match.action_key + '"]');
+                        _startActionJobPoll(match.action_key, j.id, mbtn);
+                    }
+                });
+            } else {
+                // Station has no registered actions — show modules list
+                var mods = stn.modules || [];
+                if (mods.length > 0) {
+                    var modLabel = document.createElement('div');
+                    modLabel.className = 'stn-ops-section-label';
+                    modLabel.style.marginTop = '10px';
+                    modLabel.textContent = 'MODULES (' + mods.length + ')';
+                    body.appendChild(modLabel);
+                    var modText = document.createElement('div');
+                    modText.className = 'stn-ops-loading';
+                    modText.textContent = mods.map(function(m) { return m.replace(/_/g, ' '); }).join(' \u2022 ');
+                    body.appendChild(modText);
+                }
+            }
+
+            terminal.appendChild(body);
+            panel.appendChild(terminal);
+        });
+    }).catch(function(err) {
+        console.error('Command overview error:', err);
+        var errEl = document.createElement('div');
+        errEl.className = 'stn-ops-loading';
+        errEl.style.cssText = 'padding:20px;text-align:center;';
+        errEl.textContent = 'Failed to load station overview';
+        panel.appendChild(errEl);
+    });
+}
+
+// ── Benchmark Recommendations Panel (COMMAND overview) ──
+
+function _renderRecommendationsPanel(panel, VIEWSCREEN_COLORS) {
+    var section = document.createElement('div');
+    section.className = 'bench-rec-section';
+    section.id = 'benchRecSection';
+
+    // Header
+    var header = document.createElement('div');
+    header.className = 'bench-rec-header';
+
+    var title = document.createElement('span');
+    title.textContent = 'STATION ASSIGNMENT RECOMMENDATIONS';
+    header.appendChild(title);
+
+    var headerActions = document.createElement('div');
+    headerActions.className = 'bench-rec-header-actions';
+
+    var genBtn = document.createElement('button');
+    genBtn.className = 'bench-rec-generate-btn';
+    genBtn.textContent = 'GENERATE';
+    genBtn.onclick = function() {
+        genBtn.textContent = 'GENERATING...';
+        genBtn.disabled = true;
+        fetch('/tools/bridge/api/benchmarks/recommendations/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            genBtn.textContent = 'GENERATE';
+            genBtn.disabled = false;
+            if (d.success) {
+                _loadRecommendationsContent(body, VIEWSCREEN_COLORS);
+            }
+        })
+        .catch(function() { genBtn.textContent = 'GENERATE'; genBtn.disabled = false; });
+    };
+    headerActions.appendChild(genBtn);
+    header.appendChild(headerActions);
+    section.appendChild(header);
+
+    // Body
+    var body = document.createElement('div');
+    body.className = 'bench-rec-body';
+    body.id = 'benchRecBody';
+    section.appendChild(body);
+
+    panel.appendChild(section);
+
+    // Load content
+    _loadRecommendationsContent(body, VIEWSCREEN_COLORS);
+}
+
+function _loadRecommendationsContent(body, VIEWSCREEN_COLORS) {
+    body.textContent = '';
+    var loading = document.createElement('div');
+    loading.className = 'bench-rec-empty';
+    loading.textContent = 'Loading recommendations...';
+    body.appendChild(loading);
+
+    fetch('/tools/bridge/api/benchmarks/station-summary')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        body.textContent = '';
+        if (!data.success || !data.stations || data.stations.length === 0) {
+            var empty = document.createElement('div');
+            empty.className = 'bench-rec-empty';
+            empty.textContent = 'No benchmark data available. Run benchmarks first to generate recommendations.';
+            body.appendChild(empty);
+            return;
+        }
+
+        data.stations.forEach(function(stn) {
+            var card = document.createElement('div');
+            card.className = 'bench-rec-card';
+
+            var stnColor = VIEWSCREEN_COLORS[stn.station_code] || '#00ffff';
+
+            // Station name row
+            var nameEl = document.createElement('div');
+            nameEl.className = 'bench-rec-station-name';
+            nameEl.style.color = stnColor;
+            var stnLabel = stn.station_code.replace(/_/g, ' ');
+            nameEl.textContent = stnLabel;
+
+            // Add action count + benchmark date
+            if (stn.action_count || stn.latest_benchmark) {
+                var meta = document.createElement('span');
+                meta.style.cssText = 'font-family:"IBM Plex Mono",monospace;font-size:0.45rem;color:rgba(255,255,255,0.3);margin-left:8px;letter-spacing:0.04em;';
+                var parts = [];
+                if (stn.action_count) parts.push(stn.action_count + ' actions');
+                if (stn.latest_benchmark) {
+                    var d = new Date(stn.latest_benchmark);
+                    parts.push('last bench: ' + d.toLocaleDateString());
+                }
+                meta.textContent = parts.join(' \u2022 ');
+                nameEl.appendChild(meta);
+            }
+            card.appendChild(nameEl);
+
+            // Pending recommendation alert
+            var rec = stn.pending_recommendation;
+            if (rec) {
+                var alert = document.createElement('div');
+                alert.className = 'bench-rec-alert';
+
+                var icon = document.createElement('span');
+                icon.className = 'bench-rec-alert-icon';
+                icon.textContent = '\u26A0';
+                alert.appendChild(icon);
+
+                var text = document.createElement('div');
+                text.className = 'bench-rec-alert-text';
+
+                // Build alert text safely with DOM (no innerHTML)
+                var recName = rec.recommended_agent_name;
+                var top3 = rec.top_3 || [];
+                if (top3.length > 0 && top3[0].display_name) recName = top3[0].display_name;
+
+                text.appendChild(document.createTextNode('Benchmark suggests '));
+                var strong = document.createElement('strong');
+                strong.textContent = recName;
+                text.appendChild(strong);
+                text.appendChild(document.createTextNode(' for ' + stnLabel));
+                if (rec.score_delta > 0) {
+                    text.appendChild(document.createTextNode(' (+' + rec.score_delta.toFixed(1) + ' pts)'));
+                }
+                alert.appendChild(text);
+
+                var actions = document.createElement('div');
+                actions.className = 'bench-rec-alert-actions';
+
+                var approveBtn = document.createElement('button');
+                approveBtn.className = 'bench-rec-approve-btn';
+                approveBtn.textContent = 'APPROVE';
+                approveBtn.onclick = function() {
+                    _resolveRecommendation(rec.id, true, body, VIEWSCREEN_COLORS);
+                };
+                actions.appendChild(approveBtn);
+
+                var rejectBtn = document.createElement('button');
+                rejectBtn.className = 'bench-rec-reject-btn';
+                rejectBtn.textContent = 'REJECT';
+                rejectBtn.onclick = function() {
+                    _resolveRecommendation(rec.id, false, body, VIEWSCREEN_COLORS);
+                };
+                actions.appendChild(rejectBtn);
+
+                alert.appendChild(actions);
+                card.appendChild(alert);
+            }
+
+            // Top 3 agent rows
+            var top3Data = rec ? (rec.top_3 || []) : [];
+            var currentAgents = stn.assigned_agents || [];
+            var currentNames = currentAgents.map(function(a) { return a.name; });
+
+            if (top3Data.length > 0) {
+                var top3El = document.createElement('div');
+                top3El.className = 'bench-rec-top3';
+
+                top3Data.forEach(function(agent, idx) {
+                    var row = document.createElement('div');
+                    row.className = 'bench-rec-agent-row';
+                    if (currentNames.indexOf(agent.agent_name) !== -1) {
+                        row.classList.add('rec-current');
+                    }
+                    if (idx === 0 && rec) {
+                        row.classList.add('rec-recommended');
+                    }
+
+                    var rankEl = document.createElement('span');
+                    rankEl.className = 'bench-rec-rank';
+                    rankEl.textContent = '#' + (idx + 1);
+                    row.appendChild(rankEl);
+
+                    var nameSpan = document.createElement('span');
+                    nameSpan.className = 'bench-rec-agent-name';
+                    nameSpan.textContent = agent.display_name || agent.agent_name;
+                    if (currentNames.indexOf(agent.agent_name) !== -1) {
+                        var curLabel = document.createElement('span');
+                        curLabel.className = 'bench-rec-current-label';
+                        curLabel.textContent = 'CURRENT';
+                        nameSpan.appendChild(curLabel);
+                    }
+                    row.appendChild(nameSpan);
+
+                    var scoreEl = document.createElement('span');
+                    scoreEl.className = 'bench-rec-score';
+                    scoreEl.textContent = (agent.avg_score || 0).toFixed(1);
+                    row.appendChild(scoreEl);
+
+                    var hpEl = document.createElement('span');
+                    hpEl.className = 'bench-rec-hp';
+                    hpEl.textContent = agent.human_pick ? '\u2605' : '';
+                    row.appendChild(hpEl);
+
+                    top3El.appendChild(row);
+                });
+
+                card.appendChild(top3El);
+            } else if (currentAgents.length > 0) {
+                // No benchmark data, just show current assignment
+                var curRow = document.createElement('div');
+                curRow.style.cssText = 'padding:4px 6px;font-family:"IBM Plex Mono",monospace;font-size:0.55rem;color:rgba(255,255,255,0.4);';
+                curRow.textContent = 'Assigned: ' + currentAgents.map(function(a) { return a.display_name || a.name; }).join(', ') + ' \u2022 No benchmarks yet';
+                card.appendChild(curRow);
+            } else {
+                var noData = document.createElement('div');
+                noData.style.cssText = 'padding:4px 6px;font-family:"IBM Plex Mono",monospace;font-size:0.55rem;color:rgba(255,255,255,0.25);';
+                noData.textContent = 'No assignments \u2022 No benchmarks yet';
+                card.appendChild(noData);
+            }
+
+            body.appendChild(card);
+        });
+    })
+    .catch(function(err) {
+        body.textContent = '';
+        var errEl = document.createElement('div');
+        errEl.className = 'bench-rec-empty';
+        errEl.textContent = 'Failed to load recommendations';
+        body.appendChild(errEl);
+        console.error('Recommendations load error:', err);
+    });
+}
+
+function _resolveRecommendation(recId, approved, body, VIEWSCREEN_COLORS) {
+    fetch('/tools/bridge/api/benchmarks/recommendations/' + recId + '/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved: approved })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) {
+            // Reload recommendations
+            _loadRecommendationsContent(body, VIEWSCREEN_COLORS);
+            // If approved, also refresh the station overview to show new assignments
+            if (approved) {
+                setTimeout(function() { loadConsoleActions(); }, 500);
+            }
+        }
+    })
+    .catch(function(err) {
+        console.error('Resolve recommendation error:', err);
+    });
+}
+
+// ── Standard per-module action rendering (non-COMMAND zones) ──
+
+function _renderModuleActions(panel, actData, jobData) {
+    var runningJobs = (jobData.success && jobData.jobs) ? jobData.jobs : [];
+
+    if (!actData.success || !actData.actions || actData.actions.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'stn-ops-loading';
+        empty.style.cssText = 'padding:20px 12px;text-align:center;';
+        empty.textContent = 'No registered actions for this station';
+        panel.appendChild(empty);
+        return;
+    }
+
+    // Group by module_source
+    var groups = {};
+    actData.actions.forEach(function(a) {
+        if (!groups[a.module_source]) groups[a.module_source] = [];
+        groups[a.module_source].push(a);
+    });
+
+    var colorMap = {
+        green: { hex: '#32CD32', rgb: '50,205,50' },
+        cyan: { hex: '#00CED1', rgb: '0,206,209' },
+        purple: { hex: '#8b5cf6', rgb: '139,92,246' },
+        gold: { hex: '#FFD700', rgb: '255,215,0' },
+        orange: { hex: '#FF8C00', rgb: '255,140,0' },
+        pink: { hex: '#FF69B4', rgb: '255,105,180' },
+        red: { hex: '#ef4444', rgb: '239,68,68' },
+        blue: { hex: '#6495ED', rgb: '100,149,237' }
+    };
+
+    var runMap = {};
+    runningJobs.forEach(function(j) {
+        if (!runMap[j.module_source]) runMap[j.module_source] = [];
+        runMap[j.module_source].push(j);
+    });
+
+    for (var mod in groups) {
+        var actions = groups[mod];
+        var firstColor = colorMap[actions[0].color_class] || { hex: 'var(--station-color,#00ffff)', rgb: '0,206,209' };
+        var modRunning = runMap[mod] || [];
+        var modLabel = mod.replace(/_/g, ' ').toUpperCase();
+
+        var terminal = document.createElement('div');
+        terminal.className = 'stn-ops-terminal';
+        terminal.style.setProperty('--stn-accent', firstColor.hex);
+        terminal.style.setProperty('--stn-accent-rgb', firstColor.rgb);
+
+        // Header
+        var header = document.createElement('div');
+        header.className = 'stn-ops-header';
+        var elbow = document.createElement('div');
+        elbow.className = 'stn-ops-elbow';
+        header.appendChild(elbow);
+        var title = document.createElement('div');
+        title.className = 'stn-ops-title';
+        title.textContent = modLabel + ' OPERATIONS';
+        header.appendChild(title);
+        var status = document.createElement('div');
+        status.className = 'stn-ops-status';
+        var dot = document.createElement('span');
+        dot.className = 'stn-ops-dot';
+        if (modRunning.length > 0) { dot.style.background = '#f59e0b'; dot.style.boxShadow = '0 0 4px #f59e0b'; }
+        status.appendChild(dot);
+        status.appendChild(document.createTextNode(modRunning.length > 0 ? ' ACTIVE' : ' READY'));
+        header.appendChild(status);
+        terminal.appendChild(header);
+
+        var body = document.createElement('div');
+        body.className = 'stn-ops-body';
+
+        // Summary
+        var summary = document.createElement('div');
+        summary.className = 'actn-summary';
+        var s1 = document.createElement('span'); s1.className = 'actn-stat';
+        var b1 = document.createElement('b'); b1.textContent = actions.length;
+        s1.appendChild(b1); s1.appendChild(document.createTextNode(' actions'));
+        summary.appendChild(s1);
+        if (modRunning.length > 0) {
+            var s2 = document.createElement('span'); s2.className = 'actn-stat';
+            var b2 = document.createElement('b'); b2.textContent = modRunning.length; b2.style.color = '#f59e0b';
+            s2.appendChild(b2); s2.appendChild(document.createTextNode(' running'));
+            summary.appendChild(s2);
+        }
+        body.appendChild(summary);
+
+        // Running jobs
+        if (modRunning.length > 0) {
+            modRunning.forEach(function(j) {
+                var pct = j.total_steps > 0 ? Math.round(((j.completed_steps || 0) / j.total_steps) * 100) : 0;
+                var row = document.createElement('div'); row.className = 'stn-ops-job-row';
+                var info = document.createElement('div'); info.className = 'stn-ops-job-info';
+                var desc = document.createElement('div'); desc.className = 'stn-ops-job-desc';
+                desc.textContent = j.description || j.job_type || 'Processing'; info.appendChild(desc);
+                var agent = document.createElement('div'); agent.className = 'stn-ops-job-agent';
+                agent.textContent = j.agent_display_name || j.agent_name || 'Queued'; info.appendChild(agent);
+                row.appendChild(info);
+                var bar = document.createElement('div'); bar.className = 'stn-ops-job-bar';
+                var fill = document.createElement('div'); fill.className = 'stn-ops-job-fill'; fill.style.width = pct + '%';
+                bar.appendChild(fill); row.appendChild(bar);
+                var pctEl = document.createElement('div'); pctEl.className = 'stn-ops-job-pct'; pctEl.textContent = pct + '%';
+                row.appendChild(pctEl);
+                body.appendChild(row);
+            });
+        }
+
+        // Command buttons — one 3-col row per action
+        var cmds = document.createElement('div');
+        cmds.className = 'stn-ops-commands';
+        actions.forEach(function(action) {
+            var hasParams = action.params_schema && action.params_schema.length > 0;
+            var isRunning = modRunning.some(function(j) { return j.job_type === action.job_type; });
+
+            // Row wrapper: ACTION | TEST | RESULTS
+            var row = document.createElement('div');
+            row.className = 'stn-action-row';
+
+            // Col 1: Action button — use station-accent to match station color
+            var btn = document.createElement('button');
+            btn.className = 'stn-ops-cmd station-accent';
+            btn.textContent = action.label; btn.title = action.description || '';
+            btn.dataset.actionKey = action.action_key;
+            if (isRunning) { btn.disabled = true; btn.textContent = action.label + ' \u25B6'; }
+            if (hasParams) {
+                btn.addEventListener('click', (function(ak) { return function() { toggleActionParams(ak, this); }; })(action.action_key));
+            } else {
+                btn.addEventListener('click', (function(a) { return function() { executeStationAction(a.action_key, a.endpoint_path, a.http_method || 'POST', a.creates_job, this); }; })(action));
+            }
+            row.appendChild(btn);
+
+            // Col 2: TEST button
+            if (action.test_config) {
+                var tbtn = document.createElement('button');
+                tbtn.className = 'stn-bench-btn';
+                tbtn.textContent = 'TEST';
+                tbtn.title = 'Benchmark: ' + (action.test_config.description || action.label);
+                tbtn.dataset.actionKey = action.action_key;
+                tbtn.addEventListener('click', (function(ak) {
+                    return function() { startActionBenchmark(ak, this); };
+                })(action.action_key));
+                row.appendChild(tbtn);
+            }
+
+            // Col 3: RESULTS button
+            if (action.test_config) {
+                var rbtn = document.createElement('button');
+                rbtn.className = 'stn-bench-results-btn no-results';
+                rbtn.textContent = 'RESULTS';
+                rbtn.title = 'View latest benchmark results';
+                rbtn.dataset.actionKey = action.action_key;
+                rbtn.addEventListener('click', (function(ak) {
+                    return function() { loadLatestBenchmark(ak); };
+                })(action.action_key));
+                row.appendChild(rbtn);
+            }
+
+            cmds.appendChild(row);
+
+            // Benchmark container after each row
+            if (action.test_config) {
+                var benchEl = document.createElement('div');
+                benchEl.id = 'bench-' + action.action_key;
+                benchEl.className = 'bench-container';
+                cmds.appendChild(benchEl);
+                _checkExistingBenchmark(action.action_key);
+            }
+        });
+        body.appendChild(cmds);
+
+        // If we already know a benchmark is running, apply state to new buttons
+        // Otherwise check the server
+        if (_activeBenchmarkRun) {
+            setTimeout(_applyBenchmarkState, 100);
+        } else {
+            setTimeout(_checkActiveBenchmark, 500);
+        }
+
+        // Params forms + job placeholders
+        actions.forEach(function(action) {
+            if (action.params_schema && action.params_schema.length > 0) {
+                var paramsDiv = document.createElement('div');
+                paramsDiv.className = 'actn-params'; paramsDiv.id = 'params-' + action.action_key;
+                action.params_schema.forEach(function(p) {
+                    var field = document.createElement('div'); field.className = 'actn-field';
+                    var lbl = document.createElement('label'); lbl.textContent = p.label || p.key; field.appendChild(lbl);
+                    if (p.options && p.options.length) {
+                        var sel = document.createElement('select'); sel.dataset.param = p.key;
+                        p.options.forEach(function(opt) { var o = document.createElement('option'); o.value = opt; o.textContent = opt; sel.appendChild(o); });
+                        field.appendChild(sel);
+                    } else {
+                        var inp = document.createElement('input'); inp.type = p.type === 'number' ? 'number' : 'text';
+                        inp.dataset.param = p.key; inp.value = p.default != null ? p.default : ''; inp.placeholder = p.label || p.key;
+                        field.appendChild(inp);
+                    }
+                    paramsDiv.appendChild(field);
+                });
+                body.appendChild(paramsDiv);
+            }
+            var jobEl = document.createElement('div'); jobEl.id = 'job-' + action.action_key;
+            body.appendChild(jobEl);
+        });
+
+        terminal.appendChild(body);
+        panel.appendChild(terminal);
+
+        // Auto-attach polls
+        modRunning.forEach(function(j) {
+            var match = actions.find(function(a) { return a.job_type === j.job_type; });
+            if (match) {
+                var mbtn = cmds.querySelector('[data-action-key="' + match.action_key + '"]');
+                _startActionJobPoll(match.action_key, j.id, mbtn);
+            }
+        });
+    }
+}
+
+function toggleActionParams(actionKey, btn) {
+    var paramsEl = document.getElementById('params-' + actionKey);
+    if (!paramsEl) return;
+
+    if (paramsEl.classList.contains('open')) {
+        // Gather params and execute
+        var params = {};
+        paramsEl.querySelectorAll('[data-param]').forEach(function(input) {
+            if (input.value) params[input.dataset.param] = input.value;
+        });
+        // Find action details from cached data
+        var codes = _consoleCurrentZone ? _consoleCurrentZone.zoneInfo.stations.join(',') : '';
+        fetch('/tools/bridge/api/station-actions?station_code=' + encodeURIComponent(codes))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var action = (data.actions || []).find(function(a) { return a.action_key === actionKey; });
+                if (action) {
+                    executeStationAction(actionKey, action.endpoint_path, action.http_method || 'POST', action.creates_job, btn, params);
+                }
+            });
+        paramsEl.classList.remove('open');
+    } else {
+        paramsEl.classList.add('open');
+        var firstInput = paramsEl.querySelector('input, select');
+        if (firstInput) firstInput.focus();
+    }
+}
+
+function executeStationAction(actionKey, endpointPath, httpMethod, createsJob, btn, params) {
+    if (btn) { btn.disabled = true; var origText = btn.textContent; btn.textContent = origText + ' \u25B6'; }
+
+    var fetchOpts = { method: httpMethod || 'POST', headers: { 'Content-Type': 'application/json' } };
+    if (params && Object.keys(params).length > 0) fetchOpts.body = JSON.stringify(params);
+
+    fetch(endpointPath, fetchOpts)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var jobEl = document.getElementById('job-' + actionKey);
+            if (data.success === false) {
+                if (jobEl) { jobEl.textContent = data.error || 'Action failed'; jobEl.style.cssText = 'color:#ef4444;font-size:0.7rem;padding:4px 0;'; }
+                if (btn) { btn.disabled = false; btn.textContent = btn.textContent.replace(' \u25B6', ''); }
+                return;
+            }
+            var jobId = data.job_id || data.jobId || data.id;
+            if (createsJob && jobId) {
+                _startActionJobPoll(actionKey, jobId, btn);
+            } else {
+                if (jobEl) { jobEl.textContent = 'Started'; jobEl.style.cssText = 'color:#10b981;font-size:0.7rem;padding:4px 0;'; }
+                if (btn) setTimeout(function() { btn.disabled = false; btn.textContent = btn.textContent.replace(' \u25B6', ''); if (jobEl) { jobEl.textContent = ''; jobEl.style.cssText = ''; } }, 3000);
+            }
+        })
+        .catch(function() {
+            var jobEl = document.getElementById('job-' + actionKey);
+            if (jobEl) { jobEl.textContent = 'Network error'; jobEl.style.cssText = 'color:#ef4444;font-size:0.7rem;padding:4px 0;'; }
+            if (btn) { btn.disabled = false; btn.textContent = btn.textContent.replace(' \u25B6', ''); }
+        });
+}
+
+// ── Benchmark functions (Project #110) ──
+
+function _checkExistingBenchmark(actionKey) {
+    fetch('/tools/bridge/api/benchmarks/latest/' + encodeURIComponent(actionKey))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.results && data.results.length > 0) {
+            // Activate the RESULTS button
+            var btns = document.querySelectorAll('.stn-bench-results-btn[data-action-key="' + actionKey + '"]');
+            btns.forEach(function(b) { b.classList.remove('no-results'); });
+        }
+    })
+    .catch(function() {});
+}
+
+function loadLatestBenchmark(actionKey) {
+    fetch('/tools/bridge/api/benchmarks/latest/' + encodeURIComponent(actionKey))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.results) {
+            _showBenchmarkCompareModal(data.results, data.run);
+        }
+    })
+    .catch(function(err) { console.error('Load benchmark error:', err); });
+}
+
+/* ── Benchmark lock: only one benchmark at a time ── */
+var _activeBenchmarkKey = null;  // action_key of currently running benchmark
+
+function _lockBenchmarkButtons(activeKey) {
+    _activeBenchmarkKey = activeKey;
+    document.querySelectorAll('.stn-bench-btn').forEach(function(b) {
+        if (b.dataset.actionKey !== activeKey) {
+            b.disabled = true;
+            b.classList.add('bench-locked');
+            b.title = 'Benchmark in progress — wait for completion';
+        }
+    });
+}
+
+function _unlockBenchmarkButtons() {
+    _activeBenchmarkKey = null;
+    _activeBenchmarkRun = null;
+    _benchmarkPollActive = false;
+    document.querySelectorAll('.stn-bench-btn').forEach(function(b) {
+        b.disabled = false;
+        b.classList.remove('bench-locked', 'running');
+        if (!b.classList.contains('bench-done')) {
+            b.textContent = 'TEST';
+        }
+    });
+}
+
+/* Cached active benchmark state — survives re-renders */
+var _activeBenchmarkRun = null;
+var _benchmarkPollActive = false;
+
+function _checkActiveBenchmark() {
+    fetch('/tools/bridge/api/benchmarks/active')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.active) {
+            var run = data.run;
+            _activeBenchmarkRun = run;
+            _applyBenchmarkState();
+        } else {
+            _activeBenchmarkRun = null;
+            _benchmarkPollActive = false;
+            _unlockBenchmarkButtons();
+        }
+    })
+    .catch(function() {});
+}
+
+function _applyBenchmarkState() {
+    if (!_activeBenchmarkRun) return;
+    var run = _activeBenchmarkRun;
+    var done = (run.completed_agents || 0) + (run.failed_agents || 0);
+
+    _lockBenchmarkButtons(run.action_key);
+    var btn = document.querySelector('.stn-bench-btn[data-action-key="' + run.action_key + '"]');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('running');
+        btn.textContent = 'TESTING ' + done + '/' + run.total_agents;
+        if (!_benchmarkPollActive) {
+            _benchmarkPollActive = true;
+            _startBenchmarkPoll(run.action_key, run.id, null, btn, run.total_agents);
+        }
+    }
+}
+
+function startActionBenchmark(actionKey, btn) {
+    if (btn.disabled) return;
+    if (_activeBenchmarkKey) {
+        alert('A benchmark is already running. Wait for it to finish.');
+        return;
+    }
+    btn.disabled = true;
+    btn.classList.add('running');
+    btn.textContent = 'TESTING...';
+    _lockBenchmarkButtons(actionKey);
+
+    fetch('/tools/bridge/api/benchmarks/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_key: actionKey })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) {
+            btn.disabled = false;
+            btn.classList.remove('running');
+            btn.textContent = 'TEST';
+            _unlockBenchmarkButtons();
+            alert('Benchmark failed: ' + (data.error || 'Unknown error'));
+            return;
+        }
+        btn.textContent = 'TESTING 0/' + data.total_agents;
+        _startBenchmarkPoll(actionKey, data.run_id, data.job_id, btn, data.total_agents);
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.classList.remove('running');
+        btn.textContent = 'TEST';
+        _unlockBenchmarkButtons();
+        console.error('Benchmark start error:', err);
+    });
+}
+
+function _startBenchmarkPoll(actionKey, runId, jobId, btn, totalAgents) {
+    var pollInterval = setInterval(function() {
+        if (jobId) {
+            fetch('/tools/bridge/api/bridge/jobs/' + jobId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && data.job) {
+                    var j = data.job;
+                    var done = (j.completed_steps || 0);
+                    btn.textContent = 'TESTING ' + done + '/' + totalAgents;
+                    if (j.status !== 'running') {
+                        clearInterval(pollInterval);
+                        _unlockBenchmarkButtons();
+                        _fetchBenchmarkResults(actionKey, runId, btn);
+                    }
+                }
+            })
+            .catch(function() {});
+        } else {
+            fetch('/tools/bridge/api/benchmarks/' + runId + '/status')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && data.run) {
+                    var done = (data.run.completed_agents || 0) + (data.run.failed_agents || 0);
+                    btn.textContent = 'TESTING ' + done + '/' + totalAgents;
+                    if (data.run.status !== 'running') {
+                        clearInterval(pollInterval);
+                        _unlockBenchmarkButtons();
+                        fetch('/tools/bridge/api/benchmarks/' + runId)
+                        .then(function(r2) { return r2.json(); })
+                        .then(function(fullData) {
+                            if (fullData.success) {
+                                _renderBenchmarkFromData(actionKey, fullData, btn);
+                            } else {
+                                btn.disabled = false;
+                                btn.classList.remove('running');
+                                btn.textContent = 'TEST';
+                            }
+                        })
+                        .catch(function() {
+                            btn.disabled = false;
+                            btn.classList.remove('running');
+                            btn.textContent = 'TEST';
+                        });
+                    }
+                }
+            })
+            .catch(function() {});
+        }
+    }, 2000);
+}
+
+function _fetchBenchmarkResults(actionKey, runId, btn) {
+    fetch('/tools/bridge/api/benchmarks/' + runId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            _renderBenchmarkFromData(actionKey, data, btn);
+        } else {
+            btn.disabled = false;
+            btn.classList.remove('running');
+            btn.textContent = 'TEST';
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.classList.remove('running');
+        btn.textContent = 'TEST';
+    });
+}
+
+function _renderBenchmarkFromData(actionKey, data, btn) {
+    btn.disabled = false;
+    btn.classList.remove('running');
+    btn.textContent = 'TEST';
+
+    // Activate RESULTS button now that we have data
+    var rbtns = document.querySelectorAll('.stn-bench-results-btn[data-action-key="' + actionKey + '"]');
+    rbtns.forEach(function(b) { b.classList.remove('no-results'); });
+
+    var container = document.getElementById('bench-' + actionKey);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'bench-' + actionKey;
+        container.className = 'bench-container';
+        btn.parentElement.parentElement.appendChild(container);
+    }
+    _renderBenchmarkLeaderboard(container, data.results || [], data.run || {});
+}
+
+function _clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function _renderBenchmarkLeaderboard(containerEl, results, runInfo) {
+    _clearChildren(containerEl);
+    if (!results || results.length === 0) return;
+
+    var board = document.createElement('div');
+    board.className = 'bench-leaderboard';
+
+    // Header
+    var header = document.createElement('div');
+    header.className = 'bench-header';
+    var title = document.createElement('span');
+    title.className = 'bench-header-title';
+    title.textContent = 'BENCHMARK RESULTS';
+    header.appendChild(title);
+    var close = document.createElement('span');
+    close.className = 'bench-header-close';
+    close.textContent = '\u2715';
+    close.addEventListener('click', function() { _clearChildren(containerEl); });
+    header.appendChild(close);
+    board.appendChild(header);
+
+    // Result rows
+    results.forEach(function(r, i) {
+        var row = document.createElement('div');
+        row.className = 'bench-row';
+        if (i === 0 && r.success) row.classList.add('bench-gold');
+        if (!r.success) row.classList.add('bench-failed');
+
+        var rank = document.createElement('div');
+        rank.className = 'bench-rank';
+        rank.textContent = r.rank || (i + 1);
+        row.appendChild(rank);
+
+        var agent = document.createElement('div');
+        agent.className = 'bench-agent';
+        agent.textContent = r.display_name || r.agent_name;
+        agent.title = (r.model_used || '') + ' (' + (r.provider || '') + ')';
+        row.appendChild(agent);
+
+        var time = document.createElement('div');
+        time.className = 'bench-time';
+        time.textContent = r.success ? ((r.duration_ms / 1000).toFixed(1) + 's') : 'FAIL';
+        row.appendChild(time);
+
+        var tokens = document.createElement('div');
+        tokens.className = 'bench-tokens';
+        tokens.textContent = r.success ? (r.total_tokens || 0) + 'tk' : '--';
+        row.appendChild(tokens);
+
+        var score = document.createElement('div');
+        score.className = 'bench-score';
+        score.textContent = r.success ? r.score.toFixed(1) : '0.0';
+        row.appendChild(score);
+
+        board.appendChild(row);
+    });
+
+    // Footer
+    var footer = document.createElement('div');
+    footer.className = 'bench-footer';
+    var ts = runInfo.completed_at || runInfo.started_at || '';
+    if (ts) {
+        try { ts = new Date(ts).toLocaleString(); } catch(e) {}
+    }
+    var left = document.createElement('span');
+    left.textContent = ts;
+    footer.appendChild(left);
+
+    var mid = document.createElement('span');
+    var passed = results.filter(function(r) { return r.success; }).length;
+    mid.textContent = passed + '/' + results.length + ' passed';
+    footer.appendChild(mid);
+
+    // RESULTS button for side-by-side comparison
+    var resultsBtn = document.createElement('button');
+    resultsBtn.className = 'stn-bench-results-btn';
+    resultsBtn.textContent = 'COMPARE';
+    resultsBtn.title = 'View side-by-side response comparison';
+    resultsBtn.addEventListener('click', function() {
+        _showBenchmarkCompareModal(results, runInfo);
+    });
+    footer.appendChild(resultsBtn);
+
+    board.appendChild(footer);
+    containerEl.appendChild(board);
+}
+
+function _showBenchmarkCompareModal(results, runInfo) {
+    // Remove existing modal
+    var existing = document.getElementById('benchCompareModal');
+    if (existing) existing.parentElement.removeChild(existing);
+
+    var overlay = document.createElement('div');
+    overlay.className = 'bench-modal-overlay';
+    overlay.id = 'benchCompareModal';
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.parentElement.removeChild(overlay);
+    });
+
+    var modal = document.createElement('div');
+    modal.className = 'bench-modal';
+
+    // ── Header ──
+    var header = document.createElement('div');
+    header.className = 'bench-modal-header';
+    var titleText = document.createElement('span');
+    titleText.textContent = 'BENCHMARK — ' + (runInfo.action_key || '').replace(/\./g, ' ').toUpperCase();
+    header.appendChild(titleText);
+    var closeBtn = document.createElement('span');
+    closeBtn.className = 'bench-modal-close';
+    closeBtn.textContent = '\u2715';
+    closeBtn.addEventListener('click', function() {
+        overlay.parentElement.removeChild(overlay);
+    });
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    // ── Body (scrollable) ──
+    var body = document.createElement('div');
+    body.className = 'bench-modal-body';
+
+    // ── 1. Leaderboard summary table (top) ──
+    var table = document.createElement('table');
+    table.className = 'bench-summary-table';
+    var thead = document.createElement('thead');
+    var thRow = document.createElement('tr');
+    ['RANK', 'AGENT', 'MODEL', 'TIME', 'TOKENS', 'SCORE'].forEach(function(h) {
+        var th = document.createElement('th');
+        th.textContent = h;
+        thRow.appendChild(th);
+    });
+    thead.appendChild(thRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    var tableRows = [];
+    results.forEach(function(r, i) {
+        var tr = document.createElement('tr');
+        if (i === 0 && r.success) tr.className = 'bench-row-gold';
+        if (!r.success) tr.className = 'bench-row-failed';
+        tr.setAttribute('data-bench-idx', i);
+
+        var tdRank = document.createElement('td');
+        tdRank.className = 'bench-summary-rank';
+        tdRank.textContent = '#' + (r.rank || (i + 1));
+        tr.appendChild(tdRank);
+
+        var tdAgent = document.createElement('td');
+        tdAgent.textContent = r.display_name || r.agent_name;
+        tr.appendChild(tdAgent);
+
+        var tdModel = document.createElement('td');
+        tdModel.textContent = r.model_used || '';
+        tdModel.style.opacity = '0.5';
+        tdModel.style.fontSize = '0.55rem';
+        tr.appendChild(tdModel);
+
+        var tdTime = document.createElement('td');
+        tdTime.textContent = r.success ? (r.duration_ms / 1000).toFixed(1) + 's' : '--';
+        tr.appendChild(tdTime);
+
+        var tdTokens = document.createElement('td');
+        tdTokens.textContent = r.success ? (r.total_tokens || 0) : '--';
+        tr.appendChild(tdTokens);
+
+        var tdScore = document.createElement('td');
+        tdScore.className = 'bench-summary-score';
+        tdScore.textContent = r.success ? r.score.toFixed(1) : 'FAIL';
+        tr.appendChild(tdScore);
+
+        // Click row to switch to that agent's tab
+        tr.addEventListener('click', function() { _switchBenchTab(i); });
+        tableRows.push(tr);
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    body.appendChild(table);
+
+    // ── 2. Skill updates (between table and responses) ──
+    var skillFooter = document.createElement('div');
+    skillFooter.className = 'bench-skill-footer';
+    skillFooter.style.display = 'none';
+    body.appendChild(skillFooter);
+
+    if (runInfo && runInfo.id) {
+        fetch('/tools/bridge/api/benchmarks/' + runInfo.id + '/skill-updates')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.updates || data.updates.length === 0) return;
+                skillFooter.style.display = '';
+
+                var title = document.createElement('div');
+                title.className = 'bench-skill-title';
+                title.textContent = 'SKILLS UPDATED (' + data.total_updated + ' agents)';
+                skillFooter.appendChild(title);
+
+                data.updates.forEach(function(u) {
+                    var row = document.createElement('div');
+                    row.className = 'bench-skill-row';
+
+                    var agentSpan = document.createElement('span');
+                    agentSpan.className = 'bench-skill-agent';
+                    agentSpan.textContent = u.agent_name;
+                    row.appendChild(agentSpan);
+
+                    var skill = document.createElement('span');
+                    skill.textContent = u.skill_name;
+                    row.appendChild(skill);
+
+                    var oldLvl = document.createElement('span');
+                    oldLvl.className = 'bench-skill-level-old';
+                    oldLvl.textContent = u.old_level != null ? 'Lv' + u.old_level : 'NEW';
+                    row.appendChild(oldLvl);
+
+                    var arrow = document.createElement('span');
+                    arrow.className = 'bench-skill-arrow';
+                    arrow.textContent = '\u2192';
+                    row.appendChild(arrow);
+
+                    var newLvl = document.createElement('span');
+                    var lvlClass = 'bench-skill-level';
+                    if (u.old_level != null && u.new_level > u.old_level) lvlClass += ' bench-skill-level-up';
+                    else if (u.old_level != null && u.new_level < u.old_level) lvlClass += ' bench-skill-level-down';
+                    newLvl.className = lvlClass;
+                    newLvl.textContent = 'Lv' + u.new_level;
+                    row.appendChild(newLvl);
+
+                    skillFooter.appendChild(row);
+                });
+            })
+            .catch(function(err) { console.error('Skill updates fetch error:', err); });
+    }
+
+    // ── 3. Prev/Next agent navigator + response panel ──
+    var currentIdx = 0;
+    var nav = document.createElement('div');
+    nav.className = 'bench-agent-nav';
+
+    var prevBtn = document.createElement('button');
+    prevBtn.className = 'bench-nav-btn';
+    prevBtn.textContent = '\u25C0';
+    prevBtn.addEventListener('click', function() { if (currentIdx > 0) _switchBenchTab(currentIdx - 1); });
+    nav.appendChild(prevBtn);
+
+    var navCurrent = document.createElement('div');
+    navCurrent.className = 'bench-nav-current';
+    nav.appendChild(navCurrent);
+
+    var nextBtn = document.createElement('button');
+    nextBtn.className = 'bench-nav-btn';
+    nextBtn.textContent = '\u25B6';
+    nextBtn.addEventListener('click', function() { if (currentIdx < results.length - 1) _switchBenchTab(currentIdx + 1); });
+    nav.appendChild(nextBtn);
+
+    var pickBtn = document.createElement('button');
+    pickBtn.className = 'bench-pick-btn';
+    pickBtn.textContent = 'BEST';
+    pickBtn.addEventListener('click', function() {
+        var r = results[currentIdx];
+        pickBtn.disabled = true;
+        pickBtn.textContent = '...';
+        fetch('/tools/bridge/api/benchmarks/' + runInfo.id + '/pick', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({agent_name: r.agent_name})
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.success) {
+                // Clear all picks, set current
+                results.forEach(function(x) { x.is_human_pick = false; });
+                r.is_human_pick = true;
+                _updatePickState();
+                // Flash the table row
+                tableRows[currentIdx].style.outline = '1px solid #10b981';
+                setTimeout(function() { tableRows[currentIdx].style.outline = ''; }, 1200);
+            }
+            pickBtn.disabled = false;
+        })
+        .catch(function() { pickBtn.disabled = false; pickBtn.textContent = 'BEST'; });
+    });
+    nav.appendChild(pickBtn);
+
+    body.appendChild(nav);
+
+    var responsePanel = document.createElement('div');
+    responsePanel.className = 'bench-response-panel';
+    body.appendChild(responsePanel);
+
+    // Navigation + tab switching logic
+    function _updatePickState() {
+        var r = results[currentIdx];
+        if (r.is_human_pick) {
+            pickBtn.classList.add('picked');
+            pickBtn.textContent = '\u2713 BEST';
+        } else {
+            pickBtn.classList.remove('picked');
+            pickBtn.textContent = 'BEST';
+        }
+        // Also show badge on table rows with pick
+        tableRows.forEach(function(tr, j) {
+            var existing = tr.querySelector('.bench-pick-badge');
+            if (existing) existing.remove();
+            if (results[j].is_human_pick) {
+                var badge = document.createElement('span');
+                badge.className = 'bench-pick-badge';
+                badge.textContent = '\u2713 PICK';
+                tr.querySelector('td').appendChild(badge);
+            }
+        });
+    }
+
+    function _updateNav(idx) {
+        currentIdx = idx;
+        var r = results[idx];
+        var name = (r.display_name || r.agent_name).split('(')[0].trim();
+        navCurrent.textContent = '';
+        var rankSpan = document.createElement('span');
+        rankSpan.className = 'bench-nav-rank';
+        rankSpan.textContent = '#' + (r.rank || (idx + 1));
+        navCurrent.appendChild(rankSpan);
+        navCurrent.appendChild(document.createTextNode(name));
+        if (r.is_human_pick) {
+            var pickBadge = document.createElement('span');
+            pickBadge.className = 'bench-pick-badge';
+            pickBadge.textContent = '\u2713 PICK';
+            navCurrent.appendChild(pickBadge);
+        }
+        var countLine = document.createElement('span');
+        countLine.className = 'bench-nav-count';
+        countLine.textContent = (idx + 1) + ' of ' + results.length;
+        navCurrent.appendChild(countLine);
+        prevBtn.disabled = (idx === 0);
+        nextBtn.disabled = (idx === results.length - 1);
+        _updatePickState();
+    }
+
+    function _switchBenchTab(idx) {
+        var r = results[idx];
+        _updateNav(idx);
+        // Update table row highlight
+        tableRows.forEach(function(tr, j) {
+            tr.classList.toggle('bench-tab-active', j === idx);
+        });
+        // Render response panel
+        responsePanel.textContent = '';
+
+        var meta = document.createElement('div');
+        meta.className = 'bench-response-meta';
+        var spans = [
+            (r.display_name || r.agent_name),
+            r.model_used || '',
+            r.success ? (r.duration_ms / 1000).toFixed(1) + 's' : 'FAILED',
+            (r.total_tokens || 0) + ' tokens',
+            'Score: ' + (r.success ? r.score.toFixed(1) : '0.0')
+        ];
+        spans.forEach(function(txt) {
+            var s = document.createElement('span');
+            s.textContent = txt;
+            meta.appendChild(s);
+        });
+        responsePanel.appendChild(meta);
+
+        var resp = document.createElement('div');
+        resp.className = 'bench-response-text';
+        resp.textContent = r.success
+            ? (r.response_preview || '(no response captured)')
+            : ('Error: ' + (r.error_message || 'unknown'));
+        responsePanel.appendChild(resp);
+    }
+
+    // Show first agent by default
+    if (results.length > 0) _switchBenchTab(0);
+
+    modal.appendChild(body);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // ESC to close
+    var escHandler = function(e) {
+        if (e.key === 'Escape') {
+            var el = document.getElementById('benchCompareModal');
+            if (el) el.parentElement.removeChild(el);
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
+}
+
+function _startActionJobPoll(actionKey, jobId, btn) {
+    var jobEl = document.getElementById('job-' + actionKey);
+    if (!jobEl) return;
+    if (_actionJobPolls[actionKey]) clearInterval(_actionJobPolls[actionKey]);
+
+    _actionJobPolls[actionKey] = setInterval(function() {
+        fetch('/tools/bridge/api/bridge/jobs/' + jobId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var j = data.job;
+                var pct = j.total_steps > 0 ? Math.round(((j.completed_steps || 0) / j.total_steps) * 100) : 0;
+                var barColor = j.status === 'failed' ? '#ef4444' : j.status === 'completed' ? '#10b981' : 'var(--stn-accent,#8b5cf6)';
+                var countStr = (j.completed_steps || 0) + ' / ' + (j.total_steps || 0);
+
+                jobEl.textContent = '';
+                var row = document.createElement('div');
+                row.className = 'stn-ops-job-row';
+                row.style.marginTop = '6px';
+
+                var info = document.createElement('div');
+                info.className = 'stn-ops-job-info';
+                var desc = document.createElement('div');
+                desc.className = 'stn-ops-job-desc';
+                desc.textContent = j.description || actionKey;
+                info.appendChild(desc);
+                row.appendChild(info);
+
+                var bar = document.createElement('div');
+                bar.className = 'stn-ops-job-bar';
+                var fill = document.createElement('div');
+                fill.className = 'stn-ops-job-fill';
+                fill.style.width = pct + '%';
+                fill.style.background = barColor;
+                bar.appendChild(fill);
+                row.appendChild(bar);
+
+                var cnt = document.createElement('div');
+                cnt.className = 'stn-ops-job-count';
+                cnt.textContent = countStr;
+                row.appendChild(cnt);
+
+                var pctEl = document.createElement('div');
+                pctEl.className = 'stn-ops-job-pct';
+                pctEl.textContent = pct + '%';
+                row.appendChild(pctEl);
+
+                jobEl.appendChild(row);
+
+                if (j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled') {
+                    clearInterval(_actionJobPolls[actionKey]);
+                    delete _actionJobPolls[actionKey];
+                    if (btn) { btn.disabled = false; btn.textContent = btn.textContent.replace(' \u25B6', ''); }
+                }
+            })
+            .catch(function() {});
+    }, 3000);
 }
 
 // === CREW TAB CONTENT ===
@@ -13265,7 +16605,7 @@ async function loadCrewManifest() {
             }
         }
         if (data.success) {
-            renderCrewManifest(data.crew || []);
+            renderCrewManifest(data.crew || [], data.capacity || null);
         }
     } catch (e) {
         // Silently fail — crew manifest is supplementary
@@ -13282,17 +16622,120 @@ function makeStatSpan(val, label) {
     return span;
 }
 
-function renderCrewManifest(crew) {
+function renderCrewManifest(crew, capacity) {
     var grid = document.getElementById('crew-manifest-grid');
     var countEl = document.getElementById('crew-manifest-count');
     if (!grid) return;
     // Also populate training/lounge selects
     populateTrainingLoungeSelects(crew);
 
+    // --- Hardware capacity bars (GPU + CPU/RAM, insert before grid) ---
+    var capBarId = 'roster-capacity-bar';
+    var existingCap = document.getElementById(capBarId);
+    if (existingCap) existingCap.remove();
+    if (capacity) {
+        var ram = capacity.ram || {};
+        var gpuCap = capacity.gpu || null;
+        var cpuModelList = capacity.cpu_models || [];
+
+        var capWrap = document.createElement('div');
+        capWrap.id = capBarId;
+        capWrap.style.cssText = 'margin-bottom: 6px;';
+
+        // GPU / VRAM section
+        if (gpuCap) {
+            var gpuBar = document.createElement('div');
+            gpuBar.className = 'roster-capacity-bar';
+
+            var gpuLbl = document.createElement('span');
+            gpuLbl.className = 'roster-capacity-label';
+            gpuLbl.style.fontWeight = '600';
+            gpuLbl.textContent = '\u26A1 GPU';
+            gpuBar.appendChild(gpuLbl);
+
+            var gpuTrack = document.createElement('div');
+            gpuTrack.className = 'roster-capacity-track';
+            var gpuFill = document.createElement('div');
+            gpuFill.className = 'roster-capacity-fill ' + gpuCap.status;
+            gpuFill.style.width = Math.min(gpuCap.usage_pct, 100) + '%';
+            gpuTrack.appendChild(gpuFill);
+            gpuBar.appendChild(gpuTrack);
+
+            var gpuPct = document.createElement('span');
+            gpuPct.className = 'roster-capacity-label';
+            gpuPct.textContent = gpuCap.vram_used_gb + '/' + gpuCap.vram_total_gb + 'GB';
+            gpuBar.appendChild(gpuPct);
+
+            // Show which models are on GPU
+            var gpuModels = gpuCap.models || [];
+            if (gpuModels.length > 0) {
+                var gpuModelsLbl = document.createElement('span');
+                gpuModelsLbl.className = 'roster-capacity-label';
+                gpuModelsLbl.style.color = '#32CD32';
+                gpuModelsLbl.textContent = gpuModels.map(function(m) { return m.name + ' (' + m.vram_gb + 'GB)'; }).join(', ');
+                gpuBar.appendChild(gpuModelsLbl);
+            }
+
+            capWrap.appendChild(gpuBar);
+        }
+
+        // CPU / RAM section
+        var cpuBar = document.createElement('div');
+        cpuBar.className = 'roster-capacity-bar';
+
+        var cpuLbl = document.createElement('span');
+        cpuLbl.className = 'roster-capacity-label';
+        cpuLbl.style.fontWeight = '600';
+        cpuLbl.textContent = '\uD83D\uDCBB CPU';
+        cpuBar.appendChild(cpuLbl);
+
+        var cpuTrack = document.createElement('div');
+        cpuTrack.className = 'roster-capacity-track';
+        var cpuFill = document.createElement('div');
+        cpuFill.className = 'roster-capacity-fill ' + ram.status;
+        cpuFill.style.width = Math.min(ram.usage_pct || 0, 100) + '%';
+        cpuTrack.appendChild(cpuFill);
+        cpuBar.appendChild(cpuTrack);
+
+        var cpuPct = document.createElement('span');
+        cpuPct.className = 'roster-capacity-label';
+        cpuPct.textContent = (ram.usage_pct || 0) + '% \u2014 ' + (ram.available_gb || 0) + 'GB free';
+        cpuBar.appendChild(cpuPct);
+
+        var cpuModelsLbl = document.createElement('span');
+        cpuModelsLbl.className = 'roster-capacity-label';
+        cpuModelsLbl.style.color = 'var(--archie-text-secondary)';
+        cpuModelsLbl.textContent = cpuModelList.length + ' models, ' + cpuModelList.reduce(function(sum, m) { return sum + m.size_gb; }, 0).toFixed(0) + 'GB';
+        cpuBar.appendChild(cpuModelsLbl);
+
+        capWrap.appendChild(cpuBar);
+        grid.parentNode.insertBefore(capWrap, grid);
+
+        // Gate the Add Agent button
+        var addBtn = document.getElementById('btn-add-agent');
+        if (addBtn) {
+            addBtn.classList.remove('amber', 'red');
+            addBtn.removeAttribute('title');
+            if (ram.status === 'red') {
+                addBtn.classList.add('red');
+                addBtn.title = 'No capacity \u2014 less than ' + ram.reserve_gb + 'GB free';
+                addBtn.onclick = function(e) { e.preventDefault(); alert('Cannot add agent: less than ' + ram.reserve_gb + 'GB RAM available (' + ram.available_gb + 'GB free)'); };
+            } else if (ram.status === 'amber') {
+                addBtn.classList.add('amber');
+                addBtn.title = 'Limited RAM \u2014 ' + ram.available_gb + 'GB free';
+                addBtn.onclick = function() { openAgentFormModal(); };
+            } else {
+                addBtn.onclick = function() { openAgentFormModal(); };
+            }
+        }
+    }
+
     if (countEl) {
         var working = crew.filter(function(a) { return a.status === 'working'; }).length;
         var idle = crew.filter(function(a) { return a.status === 'idle'; }).length;
-        countEl.textContent = crew.length + ' agents \u2014 ' + working + ' working, ' + idle + ' idle';
+        var llmReady = crew.filter(function(a) { return a.llm_status === 'loaded' || a.llm_status === 'cloud'; }).length;
+        var llmSwap = crew.filter(function(a) { return a.llm_status === 'swap'; }).length;
+        countEl.textContent = crew.length + ' agents \u2014 ' + working + ' working, ' + idle + ' idle | ' + llmReady + ' LLM ready, ' + llmSwap + ' swap';
     }
 
     grid.replaceChildren();
@@ -13305,13 +16748,34 @@ function renderCrewManifest(crew) {
         return;
     }
 
-    // Sort: working first, then idle, then resting
+    // Sort within groups: working first, then idle, then resting
     var statusOrder = { working: 0, idle: 1, resting: 2, offline: 3 };
     crew.sort(function(a, b) {
         return (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9);
     });
 
-    crew.forEach(function(agent) {
+    // Group by hardware: GPU, CPU, Cloud, SWAP
+    var gpuAgents = crew.filter(function(a) { return (a.hardware || '').toUpperCase() === 'GPU' && a.llm_status === 'loaded'; });
+    var cpuAgents = crew.filter(function(a) { return (a.hardware || 'CPU').toUpperCase() === 'CPU' && a.llm_status === 'loaded'; });
+    var cloudAgents = crew.filter(function(a) { return a.llm_status === 'cloud'; });
+    var swapAgents = crew.filter(function(a) { return a.llm_status === 'swap'; });
+
+    function _addRosterDivider(icon, label, count, cssClass) {
+        var div = document.createElement('div');
+        div.className = 'roster-hw-divider ' + cssClass;
+        var iconEl = document.createElement('span');
+        iconEl.className = 'rhd-icon';
+        iconEl.textContent = icon;
+        div.appendChild(iconEl);
+        div.appendChild(document.createTextNode(label));
+        var countEl = document.createElement('span');
+        countEl.className = 'rhd-count';
+        countEl.textContent = '(' + count + ')';
+        div.appendChild(countEl);
+        grid.appendChild(div);
+    }
+
+    function _renderAgentCard(agent) {
         var card = document.createElement('div');
         card.className = 'crew-agent-card';
         card.setAttribute('data-station', agent.station);
@@ -13346,6 +16810,40 @@ function renderCrewManifest(crew) {
         statusBadge.className = 'crew-status-badge ' + agent.status;
         statusBadge.textContent = agent.status;
         badges.appendChild(statusBadge);
+
+        // LLM readiness badge
+        if (agent.llm_status) {
+            var llmBadge = document.createElement('span');
+            llmBadge.className = 'crew-llm-badge ' + agent.llm_status;
+            if (agent.llm_status === 'loaded') {
+                llmBadge.textContent = 'LLM \u2713';
+                llmBadge.title = 'Model loaded in RAM (' + (agent.llm_size_gb || 0) + 'GB)';
+            } else if (agent.llm_status === 'swap') {
+                llmBadge.textContent = 'SWAP';
+                llmBadge.title = 'Model not loaded \u2014 cold-load required, may evict other models';
+            } else if (agent.llm_status === 'cloud') {
+                llmBadge.textContent = 'CLOUD';
+                llmBadge.title = 'Cloud model \u2014 no local RAM needed';
+            }
+            badges.appendChild(llmBadge);
+        }
+
+        // Performance tags
+        var agentStats = agent.stats_24h || {};
+        if (agent.llm_status === 'loaded' && (agentStats.dispatches || 0) === 0) {
+            var perfTag = document.createElement('span');
+            perfTag.className = 'crew-perf-tag underutilized';
+            perfTag.textContent = 'UNDERUTILIZED';
+            perfTag.title = 'Model loaded but 0 dispatches in 24h';
+            badges.appendChild(perfTag);
+            card.classList.add('underutilized');
+        } else if ((agentStats.dispatches || 0) >= 3 && (agentStats.success_rate || 0) < 0.5) {
+            var perfTag2 = document.createElement('span');
+            perfTag2.className = 'crew-perf-tag low-success';
+            perfTag2.textContent = 'LOW SUCCESS';
+            perfTag2.title = 'Success rate below 50% (' + Math.round((agentStats.success_rate || 0) * 100) + '%)';
+            badges.appendChild(perfTag2);
+        }
 
         top.appendChild(name);
         top.appendChild(badges);
@@ -13442,7 +16940,28 @@ function renderCrewManifest(crew) {
         }
 
         grid.appendChild(card);
-    });
+    }
+
+    // Render all hardware groups
+    if (gpuAgents.length > 0) {
+        _addRosterDivider('\u26A1', 'GPU Agents', gpuAgents.length, 'gpu');
+        gpuAgents.forEach(_renderAgentCard);
+    }
+
+    if (cpuAgents.length > 0) {
+        _addRosterDivider('\uD83D\uDCBB', 'CPU Agents', cpuAgents.length, 'cpu');
+        cpuAgents.forEach(_renderAgentCard);
+    }
+
+    if (cloudAgents.length > 0) {
+        _addRosterDivider('\u2601', 'Cloud Agents', cloudAgents.length, 'cloud');
+        cloudAgents.forEach(_renderAgentCard);
+    }
+
+    if (swapAgents.length > 0) {
+        _addRosterDivider('\u23F3', 'Swap \u2014 Not Loaded', swapAgents.length, 'swap');
+        swapAgents.forEach(_renderAgentCard);
+    }
 }
 
 // === Agent Profile Modal ===
@@ -13757,12 +17276,31 @@ function editAgentFromProfile() {
             document.getElementById('agent-form-last').value = a.last_name || '';
             document.getElementById('agent-form-title-input').value = a.title || '';
             document.getElementById('agent-form-dept').value = a.department || '';
-            document.getElementById('agent-form-model').value = a.model || '';
             document.getElementById('agent-form-worker').value = a.worker_type || 'ai';
             document.getElementById('agent-form-bio').value = a.bio || '';
             document.getElementById('agent-form-prompt').value = '';
             document.getElementById('agent-form-title').textContent = 'Edit Agent';
             document.getElementById('agent-form-modal').classList.add('active');
+            // Set model and load context
+            document.getElementById('agent-form-model').value = a.model || '';
+            fetch('/tools/bridge/api/bridge/agent-form-context')
+                .then(function(r) { return r.json(); })
+                .then(function(ctxData) {
+                    if (!ctxData.success) return;
+                    _agentFormContext = ctxData;
+                    _renderAgentFormContext(ctxData, true);
+                    // Highlight the current model in dropdown
+                    var currentModel = a.model || '';
+                    var dd = document.getElementById('agent-form-model-dropdown');
+                    if (dd && currentModel) {
+                        dd.querySelectorAll('.model-dd-item').forEach(function(item) {
+                            var name = item.getAttribute('data-model') || '';
+                            if (name === currentModel || name.replace(':latest', '') === currentModel) {
+                                item.classList.add('selected');
+                            }
+                        });
+                    }
+                });
         });
 }
 
@@ -13792,6 +17330,9 @@ function toggleAgentFromProfile() {
 }
 
 // === Agent Form Modal (Create/Edit) ===
+var _agentFormContext = null; // cached context from API
+var _agentFormMaxSwap = 3;   // max agents in swap state allowed
+
 function openAgentFormModal(agentId) {
     document.getElementById('agent-form-id').value = agentId || '';
     document.getElementById('agent-form-name').value = '';
@@ -13800,25 +17341,552 @@ function openAgentFormModal(agentId) {
     document.getElementById('agent-form-title-input').value = '';
     document.getElementById('agent-form-dept').value = '';
     document.getElementById('agent-form-model').value = '';
+    document.getElementById('agent-form-model-value').value = '';
     document.getElementById('agent-form-worker').value = 'ai';
     document.getElementById('agent-form-bio').value = '';
     document.getElementById('agent-form-prompt').value = '';
     document.getElementById('agent-form-title').textContent = agentId ? 'Edit Agent' : 'Add Agent';
     document.getElementById('agent-form-modal').classList.add('active');
+
+    // Clear previous state
+    var banner = document.getElementById('agent-form-ram-banner');
+    banner.style.display = 'none';
+    var hwOverview = document.getElementById('agent-form-hw-overview');
+    hwOverview.style.display = 'none';
+    hwOverview.textContent = '';
+    var mediaSec = document.getElementById('agent-form-media-section');
+    mediaSec.style.display = 'none';
+    mediaSec.textContent = '';
+    var dropdown = document.getElementById('agent-form-model-dropdown');
+    dropdown.style.display = 'none';
+    dropdown.textContent = '';
+    var infoBox = document.getElementById('agent-form-model-info');
+    infoBox.style.display = 'none';
+
+    // Fetch context
+    fetch('/tools/bridge/api/bridge/agent-form-context')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            _agentFormContext = data;
+            _renderAgentFormContext(data, agentId);
+        })
+        .catch(function() {
+            picker.textContent = 'Could not load model data';
+        });
+}
+
+function _renderAgentFormContext(ctx, isEdit) {
+    var banner = document.getElementById('agent-form-ram-banner');
+    var picker = document.getElementById('agent-form-model-picker');
+    var ram = ctx.ram || {};
+    var gpu = ctx.gpu || {};
+
+    // Count current swap agents
+    var swapCount = 0;
+    try {
+        var crewGrid = document.getElementById('crew-manifest-grid');
+        if (crewGrid) {
+            var cards = crewGrid.querySelectorAll('.crew-llm-badge.swap');
+            swapCount = cards.length;
+        }
+    } catch(e) {}
+
+    // Critical RAM warning only
+    if (ram.status === 'red') {
+        banner.className = 'agent-form-ram-warn red';
+        banner.textContent = '\u26A0 Critical: Only ' + ram.available_gb + 'GB RAM free (reserve: ' + ram.reserve_gb + 'GB). Adding agents with unloaded models risks system instability.';
+        banner.style.display = 'flex';
+    } else {
+        banner.style.display = 'none';
+    }
+
+    // Swap limit warning
+    if (swapCount >= _agentFormMaxSwap && !isEdit) {
+        var swapWarn = document.createElement('div');
+        swapWarn.className = 'agent-form-ram-warn amber';
+        swapWarn.textContent = '\u26A0 Swap limit: ' + swapCount + '/' + _agentFormMaxSwap + ' agents already in SWAP state. Choose a loaded model to avoid cold-load contention.';
+        swapWarn.style.display = 'flex';
+        banner.parentNode.insertBefore(swapWarn, banner.nextSibling);
+        swapWarn.setAttribute('data-swap-warn', '1');
+    }
+
+    // Hardware overview — GPU + RAM
+    var hwOverview = document.getElementById('agent-form-hw-overview');
+    hwOverview.style.display = 'block';
+    hwOverview.className = 'agent-form-hw-overview';
+    while (hwOverview.firstChild) hwOverview.removeChild(hwOverview.firstChild);
+
+    // GPU section
+    if (gpu.available) {
+        var gpuSec = document.createElement('div');
+        gpuSec.className = 'hw-section';
+        var gpuHdr = document.createElement('div');
+        gpuHdr.className = 'hw-section-hdr';
+        var gpuDot = document.createElement('span');
+        gpuDot.className = 'hw-dot ' + gpu.status;
+        gpuHdr.appendChild(gpuDot);
+        gpuHdr.appendChild(document.createTextNode('VIDEO CARD \u2014 ' + gpu.name));
+        gpuSec.appendChild(gpuHdr);
+
+        var gpuTrack = document.createElement('div');
+        gpuTrack.className = 'hw-bar-track';
+        var gpuFill = document.createElement('div');
+        gpuFill.className = 'hw-bar-fill ' + gpu.status;
+        gpuFill.style.width = gpu.usage_pct + '%';
+        gpuTrack.appendChild(gpuFill);
+        gpuSec.appendChild(gpuTrack);
+
+        var gpuDetail = document.createElement('div');
+        gpuDetail.className = 'hw-detail';
+        gpuDetail.textContent = gpu.vram_used_gb + '/' + gpu.vram_total_gb + 'GB VRAM used'
+            + (gpu.occupied_by ? ' \u2014 ' + gpu.occupied_by : '')
+            + ' \u00B7 ' + gpu.vram_free_gb + 'GB free';
+        gpuSec.appendChild(gpuDetail);
+        hwOverview.appendChild(gpuSec);
+
+        // Divider
+        var div1 = document.createElement('div');
+        div1.className = 'hw-divider';
+        hwOverview.appendChild(div1);
+    }
+
+    // CPU / RAM section
+    var cpuSec = document.createElement('div');
+    cpuSec.className = 'hw-section';
+    var cpuHdr = document.createElement('div');
+    cpuHdr.className = 'hw-section-hdr';
+    var cpuDot = document.createElement('span');
+    cpuDot.className = 'hw-dot ' + ram.status;
+    cpuHdr.appendChild(cpuDot);
+    cpuHdr.appendChild(document.createTextNode('CPU / SYSTEM RAM'));
+    cpuSec.appendChild(cpuHdr);
+
+    var cpuTrack = document.createElement('div');
+    cpuTrack.className = 'hw-bar-track';
+    var cpuFill = document.createElement('div');
+    cpuFill.className = 'hw-bar-fill ' + (ram.status === 'red' ? 'red' : ram.status === 'amber' ? 'amber' : 'blue');
+    cpuFill.style.width = ram.usage_pct + '%';
+    cpuTrack.appendChild(cpuFill);
+    cpuSec.appendChild(cpuTrack);
+
+    // Count CPU-loaded models
+    var cpuModels = (ctx.models || []).filter(function(m) { return m.loaded && !m.on_gpu; });
+    var cpuUsed = 0;
+    cpuModels.forEach(function(m) { cpuUsed += m.size_gb; });
+
+    var cpuDetail = document.createElement('div');
+    cpuDetail.className = 'hw-detail';
+    cpuDetail.textContent = (ram.total_gb - ram.available_gb).toFixed(0) + '/' + ram.total_gb + 'GB used'
+        + ' \u00B7 ' + ram.available_gb + 'GB free'
+        + ' \u00B7 ' + cpuModels.length + ' models (' + cpuUsed.toFixed(0) + 'GB)';
+    cpuSec.appendChild(cpuDetail);
+    hwOverview.appendChild(cpuSec);
+
+    // Media generation — local services + cloud contractors
+    var mediaContractors = ctx.media_contractors || [];
+    var mediaSec = document.getElementById('agent-form-media-section');
+    if (mediaContractors.length > 0) {
+        mediaSec.style.display = 'block';
+        while (mediaSec.firstChild) mediaSec.removeChild(mediaSec.firstChild);
+        var mhdr = document.createElement('div');
+        mhdr.className = 'media-section-hdr';
+        mhdr.textContent = 'Media Generation';
+        mediaSec.appendChild(mhdr);
+
+        // Split into local vs cloud
+        var localProviders = mediaContractors.filter(function(mc) { return mc.location === 'local'; });
+        var cloudProviders = mediaContractors.filter(function(mc) { return mc.location !== 'local'; });
+
+        function _renderMediaRow(mc, container) {
+            var isLocal = mc.location === 'local';
+            var wrapper = document.createElement('div');
+
+            var row = document.createElement('div');
+            row.className = 'media-provider-row' + (isLocal ? ' local' : '');
+
+            // Dot: green=ready, yellow=degraded (CPU fallback), red=offline, gray=unconfigured
+            var dotClass = 'unconfigured';
+            if (isLocal) {
+                if (!mc.service_online) dotClass = 'offline';
+                else if (!mc.gpu_available) dotClass = 'degraded';
+                else dotClass = 'configured';
+            } else {
+                dotClass = (mc.has_key && mc.is_active) ? 'configured' : 'unconfigured';
+            }
+            var mDot = document.createElement('span');
+            mDot.className = 'mp-dot ' + dotClass;
+            row.appendChild(mDot);
+
+            var mName = document.createElement('span');
+            mName.className = 'mp-name';
+            mName.textContent = mc.display_name;
+            row.appendChild(mName);
+
+            var mCost = document.createElement('span');
+            mCost.className = 'mp-cost';
+            mCost.textContent = mc.is_free ? 'free' : 'paid';
+            row.appendChild(mCost);
+
+            var mStatus = document.createElement('span');
+            if (isLocal) {
+                if (!mc.service_online) {
+                    mStatus.className = 'mp-status inactive';
+                    mStatus.textContent = 'Container offline';
+                } else {
+                    var mdl = (mc.models && mc.models[0]) ? mc.models[0].name : '';
+                    mStatus.className = 'mp-status active';
+                    mStatus.textContent = mdl;
+                }
+            } else {
+                mStatus.className = 'mp-status ' + ((mc.has_key && mc.is_active) ? 'active' : 'inactive');
+                mStatus.textContent = (mc.has_key && mc.is_active) ? '\u2713 configured' : 'Configure in Contractors';
+            }
+            row.appendChild(mStatus);
+            wrapper.appendChild(row);
+
+            // VRAM conflict note for local providers
+            if (isLocal && mc.service_online && !mc.gpu_available && mc.cpu_fallback) {
+                var hwNote = document.createElement('div');
+                hwNote.className = 'mp-hw-note';
+                var occupant = mc.gpu_occupied_by || 'another model';
+                hwNote.textContent = '\u26A0 GPU occupied by ' + occupant + ' \u2014 will run on CPU (~2-5 min)';
+                wrapper.appendChild(hwNote);
+            } else if (isLocal && !mc.service_online) {
+                var hwNote2 = document.createElement('div');
+                hwNote2.className = 'mp-hw-note';
+                hwNote2.style.color = '#FF4444';
+                hwNote2.textContent = 'Start container: docker compose up -d archie_diffuser';
+                wrapper.appendChild(hwNote2);
+            }
+
+            container.appendChild(wrapper);
+        }
+
+        // Render local group
+        if (localProviders.length > 0) {
+            var localLbl = document.createElement('div');
+            localLbl.className = 'media-cap-label';
+            localLbl.textContent = 'Local Generation';
+            mediaSec.appendChild(localLbl);
+            localProviders.forEach(function(mc) { _renderMediaRow(mc, mediaSec); });
+        }
+
+        // Render cloud group
+        if (cloudProviders.length > 0) {
+            var cloudLbl = document.createElement('div');
+            cloudLbl.className = 'media-cap-label';
+            cloudLbl.textContent = 'Cloud APIs';
+            mediaSec.appendChild(cloudLbl);
+            cloudProviders.forEach(function(mc) { _renderMediaRow(mc, mediaSec); });
+        }
+    }
+
+    // Build model dropdown
+    var dropdown = document.getElementById('agent-form-model-dropdown');
+    var modelInput = document.getElementById('agent-form-model');
+    dropdown.textContent = '';
+
+    var models = ctx.models || [];
+    var gpu = ctx.gpu || {};
+
+    if (models.length === 0) {
+        var emptyEl = document.createElement('div');
+        emptyEl.className = 'model-dd-empty';
+        emptyEl.textContent = 'No models found';
+        dropdown.appendChild(emptyEl);
+    } else {
+        // Split models into groups
+        var gpuModels = models.filter(function(m) { return m.loaded && m.on_gpu; });
+        var cpuModels = models.filter(function(m) { return m.loaded && !m.on_gpu; });
+        var availModels = models.filter(function(m) { return !m.loaded; });
+
+        function _addDdGroup(label, icon, cssClass) {
+            var g = document.createElement('div');
+            g.className = 'model-dd-group ' + cssClass;
+            g.textContent = icon + ' ' + label;
+            dropdown.appendChild(g);
+        }
+
+        function _addDdItem(model) {
+            var item = document.createElement('div');
+            item.className = 'model-dd-item';
+            item.setAttribute('data-model', model.name);
+
+            var dot = document.createElement('span');
+            dot.className = 'dd-dot ' + (model.loaded ? 'loaded' : 'swap');
+            item.appendChild(dot);
+
+            var nameEl = document.createElement('span');
+            nameEl.className = 'dd-name';
+            nameEl.textContent = model.name.replace(':latest', '');
+            item.appendChild(nameEl);
+
+            // HW badge — show current location + GPU eligibility
+            var hwTag = document.createElement('span');
+            var isGpu = model.on_gpu && model.loaded;
+            var vramTotalGb = (ctx.gpu || {}).vram_total_gb || 0;
+            var couldFitGpu = vramTotalGb > 0 && model.size_gb <= vramTotalGb;
+            if (isGpu) {
+                hwTag.className = 'hw-tag gpu';
+                hwTag.textContent = 'GPU';
+            } else if (couldFitGpu) {
+                hwTag.className = 'hw-tag gpu-eligible';
+                hwTag.textContent = 'GPU \u2713';
+                hwTag.title = 'Could run on GPU (' + model.size_gb + 'GB fits in ' + vramTotalGb + 'GB VRAM)';
+            } else {
+                hwTag.className = 'hw-tag cpu';
+                hwTag.textContent = 'CPU';
+                if (vramTotalGb > 0) hwTag.title = 'Too large for GPU (' + model.size_gb + 'GB > ' + vramTotalGb + 'GB VRAM)';
+            }
+            item.appendChild(hwTag);
+
+            // Agents using this model
+            var agents = ctx.model_agents[model.name] || ctx.model_agents[model.name.replace(':latest', '')] || [];
+            if (agents.length > 0) {
+                var agEl = document.createElement('span');
+                agEl.className = 'dd-agents';
+                agEl.textContent = agents.join(', ');
+                agEl.title = 'Used by: ' + agents.join(', ');
+                item.appendChild(agEl);
+            }
+
+            var sizeEl = document.createElement('span');
+            sizeEl.className = 'dd-size';
+            sizeEl.textContent = model.size_gb + 'GB';
+            item.appendChild(sizeEl);
+
+            item.addEventListener('click', function() {
+                modelInput.value = model.name.replace(':latest', '');
+                document.getElementById('agent-form-model-value').value = model.name;
+                dropdown.style.display = 'none';
+                // Highlight selected
+                dropdown.querySelectorAll('.model-dd-item').forEach(function(r) { r.classList.remove('selected'); });
+                item.classList.add('selected');
+                _showModelInfo(model, ctx);
+            });
+
+            dropdown.appendChild(item);
+        }
+
+        var vramTotalGb = (gpu.vram_total_gb || 0);
+
+        // GPU eligible = fits in VRAM (whether currently on GPU, CPU, or not loaded)
+        var cpuGpuEligible = cpuModels.filter(function(m) { return vramTotalGb > 0 && m.size_gb <= vramTotalGb; });
+        var cpuOnly = cpuModels.filter(function(m) { return !(vramTotalGb > 0 && m.size_gb <= vramTotalGb); });
+        var availGpuEligible = availModels.filter(function(m) { return vramTotalGb > 0 && m.size_gb <= vramTotalGb; });
+        var availCpuOnly = availModels.filter(function(m) { return !(vramTotalGb > 0 && m.size_gb <= vramTotalGb); });
+
+        // Group 1: Currently on GPU
+        if (gpuModels.length > 0) {
+            var vramInfo = gpu.available ? ' \u2014 ' + (gpu.vram_used_gb || 0) + '/' + vramTotalGb + 'GB VRAM' : '';
+            _addDdGroup('On GPU (' + gpuModels.length + ')' + vramInfo, '\u26A1', 'gpu');
+            gpuModels.forEach(_addDdItem);
+        }
+
+        // Group 2: Loaded on CPU but could run on GPU
+        if (cpuGpuEligible.length > 0) {
+            _addDdGroup('CPU \u2014 GPU eligible (' + cpuGpuEligible.length + ') \u2014 fits in ' + vramTotalGb + 'GB VRAM', '\u26A1', 'gpu');
+            cpuGpuEligible.forEach(_addDdItem);
+        }
+
+        // Group 3: Loaded on CPU, too large for GPU
+        if (cpuOnly.length > 0) {
+            var ramInfo = ' \u2014 ' + (ctx.ram.available_gb || 0) + 'GB free';
+            _addDdGroup('CPU only (' + cpuOnly.length + ')' + ramInfo, '\uD83D\uDCBB', 'cpu');
+            cpuOnly.forEach(_addDdItem);
+        }
+
+        // Group 4: Not loaded, GPU eligible
+        if (availGpuEligible.length > 0) {
+            _addDdGroup('Available \u2014 GPU eligible (' + availGpuEligible.length + ')', '\u23F3', 'avail');
+            availGpuEligible.forEach(_addDdItem);
+        }
+
+        // Group 5: Not loaded, CPU only
+        if (availCpuOnly.length > 0) {
+            _addDdGroup('Available \u2014 CPU only (' + availCpuOnly.length + ')', '\u23F3', 'avail');
+            availCpuOnly.forEach(_addDdItem);
+        }
+    }
+
+    // Show dropdown on focus/click
+    modelInput.addEventListener('focus', function() {
+        dropdown.style.display = 'block';
+    });
+
+    // Filter on typing
+    modelInput.addEventListener('input', function() {
+        dropdown.style.display = 'block';
+        var q = modelInput.value.toLowerCase();
+        var hasVisible = false;
+        dropdown.querySelectorAll('.model-dd-item').forEach(function(item) {
+            var name = (item.getAttribute('data-model') || '').toLowerCase();
+            var show = !q || name.indexOf(q) >= 0;
+            item.style.display = show ? '' : 'none';
+            if (show) hasVisible = true;
+        });
+        // Show/hide group headers based on visible children
+        dropdown.querySelectorAll('.model-dd-group').forEach(function(grp) {
+            var next = grp.nextElementSibling;
+            var groupHasVisible = false;
+            while (next && !next.classList.contains('model-dd-group')) {
+                if (next.style.display !== 'none') groupHasVisible = true;
+                next = next.nextElementSibling;
+            }
+            grp.style.display = groupHasVisible ? '' : 'none';
+        });
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function _closeDD(e) {
+        if (!modelInput.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    // If editing, pre-select current model
+    var currentVal = modelInput.value;
+    if (currentVal) {
+        dropdown.querySelectorAll('.model-dd-item').forEach(function(item) {
+            var name = item.getAttribute('data-model') || '';
+            if (name === currentVal || name.replace(':latest', '') === currentVal) {
+                item.classList.add('selected');
+            }
+        });
+    }
+}
+
+function _makeModelRow(model, ctx) {
+    var row = document.createElement('div');
+    row.className = 'agent-form-model-row';
+    row.setAttribute('data-model', model.name);
+
+    var dot = document.createElement('span');
+    dot.className = 'model-status-dot ' + (model.loaded ? 'loaded' : 'swap');
+    dot.title = model.loaded ? 'Loaded in RAM' : 'Not loaded \u2014 cold-load required';
+    row.appendChild(dot);
+
+    var nameEl = document.createElement('span');
+    nameEl.className = 'model-name';
+    nameEl.textContent = model.name.replace(':latest', '');
+    row.appendChild(nameEl);
+
+    // Hardware badge (GPU/CPU)
+    var hwTag = document.createElement('span');
+    var isGpu = model.on_gpu && model.loaded;
+    hwTag.className = 'hw-tag ' + (isGpu ? 'gpu' : 'cpu');
+    hwTag.textContent = isGpu ? 'GPU' : 'CPU';
+    if (isGpu && model.vram_gb) hwTag.textContent += ' ' + model.vram_gb + 'GB';
+    row.appendChild(hwTag);
+
+    // Agents using this model
+    var agents = ctx.model_agents[model.name] || ctx.model_agents[model.name.replace(':latest', '')] || [];
+    if (agents.length > 0) {
+        var agentsEl = document.createElement('span');
+        agentsEl.className = 'model-agents';
+        agentsEl.textContent = agents.join(', ');
+        agentsEl.title = 'Used by: ' + agents.join(', ');
+        row.appendChild(agentsEl);
+    }
+
+    var sizeEl = document.createElement('span');
+    sizeEl.className = 'model-size';
+    sizeEl.textContent = model.size_gb + 'GB';
+    if (model.parameter_size) sizeEl.textContent += ' \u00B7 ' + model.parameter_size;
+    row.appendChild(sizeEl);
+
+    row.addEventListener('click', function() {
+        // Select this model
+        document.getElementById('agent-form-model').value = model.name;
+        // Highlight selected row
+        var picker = document.getElementById('agent-form-model-picker');
+        picker.querySelectorAll('.agent-form-model-row').forEach(function(r) { r.classList.remove('selected'); });
+        row.classList.add('selected');
+        // Show model info
+        _showModelInfo(model, ctx);
+    });
+
+    return row;
+}
+
+function _showModelInfo(model, ctx) {
+    var info = document.getElementById('agent-form-model-info');
+    info.style.display = 'block';
+    info.textContent = '';
+
+    var parts = [];
+    parts.push(model.name.replace(':latest', ''));
+    if (model.family) parts.push(model.family);
+    if (model.parameter_size) parts.push(model.parameter_size);
+    parts.push(model.size_gb + 'GB');
+    var isOnGpu = model.on_gpu && model.loaded;
+    parts.push(isOnGpu ? '\u26A1 GPU' + (model.vram_gb ? ' (' + model.vram_gb + 'GB VRAM)' : '') : '\uD83D\uDCBB CPU');
+    parts.push(model.loaded ? '\u2705 Loaded' : '\u26A0 Not loaded (will cold-load on first dispatch)');
+
+    var agents = ctx.model_agents[model.name] || ctx.model_agents[model.name.replace(':latest', '')] || [];
+    if (agents.length > 0) {
+        parts.push('Shared with: ' + agents.join(', '));
+    } else if (model.loaded) {
+        parts.push('Not assigned to any agent \u2014 consider reusing');
+    }
+
+    // Swap limit check
+    if (!model.loaded) {
+        var swapBadges = document.querySelectorAll('.crew-llm-badge.swap');
+        var currentSwap = swapBadges ? swapBadges.length : 0;
+        if (currentSwap >= _agentFormMaxSwap) {
+            parts.push('\u26D4 Swap limit reached (' + currentSwap + '/' + _agentFormMaxSwap + ') \u2014 selecting this model will exceed swap capacity');
+            info.style.borderColor = 'rgba(255,68,68,0.3)';
+            info.style.background = 'rgba(255,68,68,0.08)';
+        } else {
+            info.style.borderColor = 'rgba(255,170,0,0.2)';
+            info.style.background = 'rgba(255,170,0,0.08)';
+        }
+    } else {
+        info.style.borderColor = 'rgba(139,92,246,0.15)';
+        info.style.background = 'rgba(139,92,246,0.08)';
+    }
+
+    info.textContent = parts.join(' \u2022 ');
 }
 
 function closeAgentFormModal() {
     document.getElementById('agent-form-modal').classList.remove('active');
+    // Clean up swap warning if present
+    var swapWarns = document.querySelectorAll('[data-swap-warn]');
+    swapWarns.forEach(function(el) { el.remove(); });
 }
 
 function saveAgent() {
     var id = document.getElementById('agent-form-id').value;
+    var modelVal = document.getElementById('agent-form-model-value').value || document.getElementById('agent-form-model').value;
+
+    // Swap limit check (only for new agents or model changes)
+    if (_agentFormContext && modelVal) {
+        var loadedSet = new Set();
+        (_agentFormContext.models || []).forEach(function(m) {
+            if (m.loaded) { loadedSet.add(m.name); loadedSet.add(m.name.replace(':latest', '')); }
+        });
+        var isLoaded = loadedSet.has(modelVal) || loadedSet.has(modelVal.replace(':latest', ''));
+        if (!isLoaded && !id) {
+            // Count current swap agents
+            var swapBadges = document.querySelectorAll('.crew-llm-badge.swap');
+            var currentSwap = swapBadges ? swapBadges.length : 0;
+            if (currentSwap >= _agentFormMaxSwap) {
+                if (!confirm('Swap limit reached (' + currentSwap + '/' + _agentFormMaxSwap + ' agents in SWAP state).\n\nAdding another swap agent risks cold-load contention and model eviction.\n\nProceed anyway?')) {
+                    return;
+                }
+            }
+        }
+    }
+
     var payload = {
         first_name: document.getElementById('agent-form-first').value,
         last_name: document.getElementById('agent-form-last').value,
         title: document.getElementById('agent-form-title-input').value,
         department: document.getElementById('agent-form-dept').value,
-        model: document.getElementById('agent-form-model').value,
+        model: modelVal,
         worker_type: document.getElementById('agent-form-worker').value,
         bio: document.getElementById('agent-form-bio').value,
     };

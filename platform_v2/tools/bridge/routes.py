@@ -11,6 +11,7 @@ Date: 2026-01-16
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 import logging
@@ -5822,6 +5823,226 @@ def get_bridge_job_detail(job_id):
 # ============================================================================
 
 
+@bridge_bp.route("/api/bridge/agent-form-context")
+@login_required
+def get_agent_form_context():
+    """Context data for the Add/Edit Agent modal — models, RAM, stations."""
+    try:
+        import psutil
+
+        # RAM info
+        mem = psutil.virtual_memory()
+        ram = {
+            "total_gb": round(mem.total / (1024**3), 1),
+            "available_gb": round(mem.available / (1024**3), 1),
+            "usage_pct": round(mem.percent, 1),
+            "reserve_gb": 15,
+        }
+        if ram["available_gb"] > 25:
+            ram["status"] = "green"
+        elif ram["available_gb"] >= 15:
+            ram["status"] = "amber"
+        else:
+            ram["status"] = "red"
+
+        # All downloaded models (from /api/tags)
+        all_models, _ = _get_cached_ollama_tags()
+        # Currently loaded (from /api/ps) — track names + VRAM usage per model
+        loaded_raw = _get_cached_ollama_ps()
+        loaded_names = set()
+        loaded_vram = {}  # model_name -> size_vram_gb
+        for m in loaded_raw:
+            n = m.get("name", "")
+            loaded_names.add(n)
+            short = n.replace(":latest", "") if n.endswith(":latest") else n
+            loaded_names.add(short)
+            vram_bytes = m.get("size_vram", 0)
+            if vram_bytes and vram_bytes > 0:
+                loaded_vram[n] = round(vram_bytes / (1024**3), 1)
+                loaded_vram[short] = loaded_vram[n]
+
+        models = []
+        for m in all_models:
+            name = m.get("name", "")
+            short_name = name.replace(":latest", "") if name.endswith(":latest") else name
+            size_gb = round(m.get("size", 0) / (1024**3), 1)
+            family = m.get("details", {}).get("family", "")
+            params = m.get("details", {}).get("parameter_size", "")
+            is_loaded = name in loaded_names or short_name in loaded_names
+            vram_gb = loaded_vram.get(name, loaded_vram.get(short_name, 0))
+            models.append(
+                {
+                    "name": name,
+                    "size_gb": size_gb,
+                    "family": family,
+                    "parameter_size": params,
+                    "loaded": is_loaded,
+                    "vram_gb": vram_gb,
+                    "on_gpu": vram_gb > 0,
+                }
+            )
+        models.sort(key=lambda x: (not x["loaded"], x["name"]))
+
+        # Agents already using each model
+        model_agents = {}
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            manifest = dispatcher.get_crew_manifest()
+            for a in manifest:
+                mdl = a.get("model", "")
+                if mdl:
+                    model_agents.setdefault(mdl, []).append(a.get("full_name") or a.get("name"))
+        except Exception:
+            pass
+
+        # GPU status
+        gpu = {"available": False}
+        try:
+            result = subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=name,memory.total,memory.used,memory.free",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                parts = [p.strip() for p in result.stdout.strip().split(",")]
+                if len(parts) >= 4:
+                    vram_total = round(float(parts[1]) / 1024, 1)
+                    vram_used = round(float(parts[2]) / 1024, 1)
+                    vram_free = round(float(parts[3]) / 1024, 1)
+                    # Find which model occupies GPU (has size_vram > 0)
+                    gpu_model = None
+                    for pm in loaded_raw:
+                        sv = pm.get("size_vram", 0)
+                        if sv and sv > 0:
+                            gpu_model = pm.get("name", "").replace(":latest", "")
+                            break
+                    gpu = {
+                        "available": True,
+                        "name": parts[0],
+                        "vram_total_gb": vram_total,
+                        "vram_used_gb": vram_used,
+                        "vram_free_gb": vram_free,
+                        "usage_pct": round(vram_used / vram_total * 100, 1) if vram_total > 0 else 0,
+                        "status": "red" if vram_free < 1.0 else ("amber" if vram_free < 2.0 else "green"),
+                        "occupied_by": gpu_model,
+                    }
+        except Exception:
+            pass
+
+        # Media generation — local services + cloud contractors
+        media_contractors = []
+        try:
+            # Local: OllamaDiffuser
+            try:
+                from ai_bridge.diffuser_service import get_diffuser_service, DiffuserService
+
+                diffuser = get_diffuser_service()
+                diffuser_online = diffuser.health_check()
+                diffuser_gpu = diffuser.get_gpu_status() if diffuser_online else gpu
+                # Use already-fetched gpu data as fallback when diffuser is offline
+                if not diffuser_online:
+                    diffuser_gpu = {
+                        "can_use_gpu": gpu.get("vram_free_gb", 0) >= 4.0,
+                        "vram_free_gb": gpu.get("vram_free_gb", 0),
+                        "occupied_by": gpu.get("occupied_by"),
+                    }
+                media_contractors.append(
+                    {
+                        "provider_key": "ollama_diffuser",
+                        "display_name": "OllamaDiffuser (Local)",
+                        "capability": "image_gen",
+                        "models": [{"name": m["name"]} for m in DiffuserService.AVAILABLE_MODELS],
+                        "is_free": True,
+                        "has_key": True,
+                        "is_active": diffuser_online,
+                        "location": "local",
+                        "gpu_required_gb": 4.0,
+                        "gpu_available": diffuser_gpu.get("can_use_gpu", False),
+                        "gpu_occupied_by": diffuser_gpu.get("occupied_by"),
+                        "gpu_vram_free": diffuser_gpu.get("vram_free_gb", 0),
+                        "cpu_fallback": True,
+                        "service_online": diffuser_online,
+                    }
+                )
+            except Exception:
+                pass
+
+            # Cloud: from contractor_providers with image_gen/video_gen capability
+            from ai_bridge.external_providers import get_providers_with_capability
+
+            for cap in ("image_gen", "video_gen"):
+                for prov in get_providers_with_capability(cap):
+                    media_contractors.append(
+                        {
+                            "provider_key": prov["provider_key"],
+                            "display_name": prov["display_name"],
+                            "capability": cap,
+                            "models": prov.get("models", []),
+                            "is_free": prov.get("is_free_tier", False),
+                            "has_key": True,
+                            "is_active": True,
+                            "location": "cloud",
+                        }
+                    )
+
+            # Well-known media providers not yet configured
+            existing_keys = {mc["provider_key"] for mc in media_contractors}
+            potential = [
+                {
+                    "provider_key": "stability",
+                    "display_name": "Stability AI",
+                    "capability": "image_gen",
+                    "models": [{"name": "stable-diffusion-3"}],
+                    "is_free": False,
+                },
+                {
+                    "provider_key": "replicate",
+                    "display_name": "Replicate",
+                    "capability": "image_gen",
+                    "models": [{"name": "flux-pro"}],
+                    "is_free": False,
+                },
+            ]
+            for p in potential:
+                if p["provider_key"] not in existing_keys:
+                    media_contractors.append({**p, "has_key": False, "is_active": False, "location": "cloud"})
+        except Exception:
+            pass
+
+        # Stations
+        stations = []
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    "SELECT station_code, station_name FROM bridge_stations WHERE is_active = TRUE ORDER BY station_name"
+                )
+                stations = [{"code": r["station_code"], "name": r["station_name"]} for r in cur.fetchall()]
+        except Exception:
+            pass
+
+        return jsonify(
+            {
+                "success": True,
+                "ram": ram,
+                "gpu": gpu,
+                "models": models,
+                "model_agents": model_agents,
+                "media_contractors": media_contractors,
+                "stations": stations,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting agent form context: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/bridge/crew/manifest")
 @login_required
 def get_crew_manifest():
@@ -5832,7 +6053,105 @@ def get_crew_manifest():
         dispatcher = get_dispatcher()
         manifest = dispatcher.get_crew_manifest()
 
-        return jsonify({"success": True, "crew": manifest, "total": len(manifest)})
+        # RAM capacity from Ollama /api/ps + system memory
+        capacity = None
+        try:
+            import os
+            import psutil
+            import requests as _req
+
+            mem = psutil.virtual_memory()
+            total_gb = round(mem.total / (1024**3), 1)
+            available_gb = round(mem.available / (1024**3), 1)
+            usage_pct = round(mem.percent, 1)
+            reserve_gb = 15
+
+            # Count loaded models + their RAM/VRAM from Ollama
+            models_loaded = 0
+            models_ram_gb = 0
+            gpu_models = []
+            cpu_models = []
+            _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+            _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+            try:
+                ps_resp = _req.get(f"http://{_ollama_host}:{_ollama_port}/api/ps", timeout=5)
+                if ps_resp.status_code == 200:
+                    ps_models = ps_resp.json().get("models", [])
+                    models_loaded = len(ps_models)
+                    models_ram_gb = round(sum(m.get("size", 0) for m in ps_models) / (1024**3), 1)
+                    for pm in ps_models:
+                        pm_name = pm.get("name", "").replace(":latest", "")
+                        pm_size = round(pm.get("size", 0) / (1024**3), 1)
+                        pm_vram = pm.get("size_vram", 0)
+                        if pm_vram and pm_vram > 0:
+                            gpu_models.append(
+                                {"name": pm_name, "size_gb": pm_size, "vram_gb": round(pm_vram / (1024**3), 1)}
+                            )
+                        else:
+                            cpu_models.append({"name": pm_name, "size_gb": pm_size})
+            except Exception:
+                pass
+
+            # GPU info from nvidia-smi
+            gpu_info = None
+            try:
+                result = subprocess.run(
+                    [
+                        "nvidia-smi",
+                        "--query-gpu=name,memory.total,memory.used,memory.free",
+                        "--format=csv,noheader,nounits",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    parts = [p.strip() for p in result.stdout.strip().split(",")]
+                    if len(parts) >= 4:
+                        vram_total = round(float(parts[1]) / 1024, 1)
+                        vram_used = round(float(parts[2]) / 1024, 1)
+                        vram_free = round(float(parts[3]) / 1024, 1)
+                        gpu_status = "red" if vram_free < 1.0 else ("amber" if vram_free < 2.0 else "green")
+                        gpu_info = {
+                            "name": parts[0],
+                            "vram_total_gb": vram_total,
+                            "vram_used_gb": vram_used,
+                            "vram_free_gb": vram_free,
+                            "usage_pct": round(vram_used / vram_total * 100, 1) if vram_total > 0 else 0,
+                            "status": gpu_status,
+                            "models": gpu_models,
+                        }
+            except Exception:
+                pass
+
+            if available_gb > 25:
+                ram_status = "green"
+            elif available_gb >= reserve_gb:
+                ram_status = "amber"
+            else:
+                ram_status = "red"
+
+            capacity = {
+                "ram": {
+                    "total_gb": total_gb,
+                    "available_gb": available_gb,
+                    "usage_pct": usage_pct,
+                    "reserve_gb": reserve_gb,
+                    "status": ram_status,
+                },
+                "gpu": gpu_info,
+                "models_loaded": models_loaded,
+                "models_ram_gb": models_ram_gb,
+                "gpu_models": gpu_models,
+                "cpu_models": cpu_models,
+            }
+        except Exception as cap_err:
+            logger.debug(f"Could not get capacity info: {cap_err}")
+
+        resp = {"success": True, "crew": manifest, "total": len(manifest)}
+        if capacity:
+            resp["capacity"] = capacity
+        return jsonify(resp)
     except Exception as e:
         logger.error(f"Error getting crew manifest: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -6580,6 +6899,612 @@ def activity_history():
     except Exception as e:
         logger.error("activity_history error: %s", e)
         return jsonify([])
+
+
+# ============================================================================
+# STATION ACTIONS — DB-driven action registry for Bridge ACTN tab
+# ============================================================================
+
+
+@bridge_bp.route("/api/station-actions")
+@login_required
+def get_station_actions():
+    """Return registered station actions, filtered by station_code or module_source."""
+    try:
+        station_code = request.args.get("station_code")
+        module_source = request.args.get("module_source")
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            if station_code:
+                # Support comma-separated station codes (zones map to multiple stations)
+                codes = [c.strip() for c in station_code.split(",") if c.strip()]
+                cur.execute(
+                    """
+                    SELECT id, action_key, station_code, module_source, label,
+                           description, icon, color_class, sort_order,
+                           http_method, endpoint_path, params_schema,
+                           creates_job, job_type, requires_admin, test_config
+                    FROM station_actions
+                    WHERE station_code = ANY(%s) AND is_active = TRUE
+                    ORDER BY sort_order, label
+                    """,
+                    (codes,),
+                )
+            elif module_source:
+                cur.execute(
+                    """
+                    SELECT id, action_key, station_code, module_source, label,
+                           description, icon, color_class, sort_order,
+                           http_method, endpoint_path, params_schema,
+                           creates_job, job_type, requires_admin, test_config
+                    FROM station_actions
+                    WHERE module_source = %s AND is_active = TRUE
+                    ORDER BY sort_order, label
+                    """,
+                    (module_source,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, action_key, station_code, module_source, label,
+                           description, icon, color_class, sort_order,
+                           http_method, endpoint_path, params_schema,
+                           creates_job, job_type, requires_admin, test_config
+                    FROM station_actions
+                    WHERE is_active = TRUE
+                    ORDER BY station_code, sort_order, label
+                    """
+                )
+
+            actions = cur.fetchall()
+            # Ensure params_schema is always a list
+            for a in actions:
+                if a.get("params_schema") is None:
+                    a["params_schema"] = []
+
+        return jsonify({"success": True, "actions": actions, "count": len(actions)})
+    except Exception as e:
+        logger.error("station_actions error: %s", e)
+        return jsonify({"success": True, "actions": [], "count": 0})
+
+
+# ---------------------------------------------------------------------------
+# Benchmark endpoints (Project #110)
+# ---------------------------------------------------------------------------
+@bridge_bp.route("/api/benchmarks/start", methods=["POST"])
+@login_required
+def start_benchmark():
+    """Start a benchmark run for an action_key."""
+    try:
+        from services.benchmark_service import start_benchmark as _start
+
+        data = request.get_json() or {}
+        action_key = data.get("action_key")
+        if not action_key:
+            return jsonify({"success": False, "error": "action_key required"}), 400
+
+        user_id = current_user.id if current_user.is_authenticated else None
+        result = _start(action_key, user_id=user_id)
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        logger.error("benchmark start error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/active")
+@login_required
+def get_active_benchmark():
+    """Return the currently running benchmark, if any."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, action_key, station_code, total_agents,
+                       completed_agents, failed_agents, status, started_at
+                FROM action_benchmark_runs
+                WHERE status = 'running'
+                ORDER BY started_at DESC
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"success": True, "active": False})
+            return jsonify(
+                {
+                    "success": True,
+                    "active": True,
+                    "run": {
+                        "id": row["id"],
+                        "action_key": row["action_key"],
+                        "station_code": row["station_code"],
+                        "total_agents": row["total_agents"],
+                        "completed_agents": row["completed_agents"],
+                        "failed_agents": row["failed_agents"],
+                        "status": row["status"],
+                        "started_at": row["started_at"].isoformat() if row["started_at"] else None,
+                    },
+                }
+            )
+    except Exception as e:
+        logger.error("active benchmark check error: %s", e)
+        return jsonify({"success": True, "active": False})
+
+
+@bridge_bp.route("/api/benchmarks/<int:run_id>/status")
+@login_required
+def get_benchmark_status(run_id):
+    """Lightweight progress poll — no pool checkout, direct connection."""
+    import psycopg2
+
+    conn = None
+    try:
+        conn = psycopg2.connect(
+            host=os.environ.get("DB_HOST", "192.168.1.200"),
+            port=os.environ.get("DB_PORT", "5432"),
+            database=os.environ.get("DB_NAME", "archie"),
+            user=os.environ.get("DB_USER", "archie"),
+            password=os.environ.get("DB_PASSWORD", ""),
+        )
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT completed_agents, failed_agents, total_agents, status " "FROM action_benchmark_runs WHERE id = %s",
+            (run_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return jsonify({"success": False, "error": "Not found"}), 404
+        return jsonify(
+            {
+                "success": True,
+                "run": {
+                    "completed_agents": row[0],
+                    "failed_agents": row[1],
+                    "total_agents": row[2],
+                    "status": row[3],
+                },
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": True, "run": {"status": "running", "completed_agents": 0, "failed_agents": 0}})
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@bridge_bp.route("/api/benchmarks/<int:run_id>")
+@login_required
+def get_benchmark(run_id):
+    """Get benchmark run info + ranked leaderboard."""
+    try:
+        from services.benchmark_service import get_benchmark_results
+
+        data = get_benchmark_results(run_id)
+        if not data:
+            return jsonify({"success": False, "error": "Run not found"}), 404
+
+        # Serialize datetimes
+        run = data["run"]
+        for key in ("started_at", "completed_at"):
+            if run.get(key):
+                run[key] = run[key].isoformat() if hasattr(run[key], "isoformat") else str(run[key])
+
+        for r in data["results"]:
+            if r.get("tested_at"):
+                r["tested_at"] = (
+                    r["tested_at"].isoformat() if hasattr(r["tested_at"], "isoformat") else str(r["tested_at"])
+                )
+
+        return jsonify({"success": True, **data})
+    except Exception as e:
+        logger.error("benchmark get error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/<int:run_id>/skill-updates")
+@login_required
+def get_benchmark_skill_updates(run_id):
+    """Get skill adjustments made by a specific benchmark run."""
+    try:
+        from services.benchmark_service import get_skill_updates
+
+        data = get_skill_updates(run_id)
+        return jsonify({"success": True, **(data or {})})
+    except Exception as e:
+        logger.error("benchmark skill-updates error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/<int:run_id>/pick", methods=["POST"])
+@login_required
+def set_benchmark_pick(run_id):
+    """Mark an agent as the human-picked best for a benchmark run."""
+    try:
+        data = request.get_json(force=True)
+        agent_name = data.get("agent_name")
+        if not agent_name:
+            return jsonify({"success": False, "error": "agent_name required"}), 400
+
+        with get_db_cursor() as (conn, cur):
+            # Clear previous picks for this run
+            cur.execute(
+                "UPDATE action_benchmark_results SET is_human_pick = FALSE WHERE run_id = %s",
+                (run_id,),
+            )
+            # Set the new pick
+            cur.execute(
+                "UPDATE action_benchmark_results SET is_human_pick = TRUE WHERE run_id = %s AND agent_name = %s",
+                (run_id, agent_name),
+            )
+
+            # Also boost picked agent's skill proficiency to 5 (Expert)
+            try:
+                cur.execute("SELECT test_config FROM action_benchmark_runs WHERE id = %s", (run_id,))
+                row = cur.fetchone()
+                if row:
+                    import json as _json
+
+                    tc = row.get("test_config") if isinstance(row, dict) else row[0]
+                    if isinstance(tc, str):
+                        tc = _json.loads(tc)
+                    capability = (tc or {}).get("capability", "general")
+                    cur.execute("SELECT skill_name FROM capability_skill_map WHERE capability = %s", (capability,))
+                    mapping = cur.fetchone()
+                    skill_name = (
+                        (mapping.get("skill_name") if isinstance(mapping, dict) else mapping[0])
+                        if mapping
+                        else capability
+                    )
+                    cur.execute(
+                        "SELECT agent_id FROM action_benchmark_results WHERE run_id = %s AND agent_name = %s",
+                        (run_id, agent_name),
+                    )
+                    ar = cur.fetchone()
+                    if ar:
+                        agent_id = ar.get("agent_id") if isinstance(ar, dict) else ar[0]
+                        cur.execute(
+                            """INSERT INTO agent_skills (agent_id, skill_name, skill_category, proficiency_level, updated_at)
+                            VALUES (%s, %s, 'human_pick', %s, NOW())
+                            ON CONFLICT (agent_id, skill_name) DO UPDATE
+                                SET proficiency_level = EXCLUDED.proficiency_level, updated_at = NOW()""",
+                            (agent_id, skill_name, 5),
+                        )
+            except Exception as e:
+                logger.warning("Human pick skill boost failed: %s", e)
+
+        return jsonify({"success": True, "agent_name": agent_name})
+    except Exception as e:
+        logger.error("set_benchmark_pick error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/latest/<path:action_key>")
+@login_required
+def get_latest_benchmark(action_key):
+    """Get the most recent completed benchmark for an action."""
+    try:
+        from services.benchmark_service import get_latest_benchmark as _latest
+
+        data = _latest(action_key)
+        if not data:
+            return jsonify({"success": False, "error": "No benchmarks found"}), 404
+
+        # Serialize datetimes
+        run = data["run"]
+        for key in ("started_at", "completed_at"):
+            if run.get(key):
+                run[key] = run[key].isoformat() if hasattr(run[key], "isoformat") else str(run[key])
+
+        for r in data["results"]:
+            if r.get("tested_at"):
+                r["tested_at"] = (
+                    r["tested_at"].isoformat() if hasattr(r["tested_at"], "isoformat") else str(r["tested_at"])
+                )
+
+        return jsonify({"success": True, **data})
+    except Exception as e:
+        logger.error("benchmark latest error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Benchmark Recommendations
+# ---------------------------------------------------------------------------
+
+
+@bridge_bp.route("/api/benchmarks/recommendations")
+@login_required
+def get_recommendations():
+    """List benchmark recommendations (optional ?station=X&status=pending)."""
+    try:
+        from services.benchmark_service import get_station_recommendations
+
+        station = request.args.get("station")
+        status = request.args.get("status", "pending")
+        recs = get_station_recommendations(station_code=station, status=status)
+        return jsonify({"success": True, "recommendations": recs})
+    except Exception as e:
+        logger.error("get recommendations error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/recommendations/generate", methods=["POST"])
+@login_required
+def generate_recommendations():
+    """Trigger recommendation generation for all or a specific station."""
+    try:
+        from services.benchmark_service import generate_station_recommendations
+
+        data = request.get_json(force=True) if request.is_json else {}
+        station = data.get("station_code")
+        recs = generate_station_recommendations(station_code=station)
+        return jsonify(
+            {
+                "success": True,
+                "generated": len(recs),
+                "recommendations": recs,
+            }
+        )
+    except Exception as e:
+        logger.error("generate recommendations error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/recommendations/<int:rec_id>/resolve", methods=["POST"])
+@login_required
+def resolve_recommendation_route(rec_id):
+    """Approve or reject a recommendation. Body: {approved: bool}."""
+    try:
+        from services.benchmark_service import resolve_recommendation
+
+        data = request.get_json(force=True)
+        approved = data.get("approved", False)
+        user_id = current_user.id if current_user.is_authenticated else None
+        result = resolve_recommendation(rec_id, approved=approved, user_id=user_id)
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        logger.error("resolve recommendation error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/station-summary")
+@login_required
+def get_benchmark_station_summary():
+    """Per-station summary: current agent, top 3, human pick, latest date."""
+    try:
+        from services.benchmark_service import get_station_summary
+
+        summaries = get_station_summary()
+        return jsonify({"success": True, "stations": summaries})
+    except Exception as e:
+        logger.error("station summary error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/score-matrix")
+@login_required
+def get_score_matrix_route():
+    """Return agent×station score grid for heatmap display."""
+    try:
+        from services.benchmark_service import get_score_matrix
+
+        matrix = get_score_matrix()
+        return jsonify({"success": True, **matrix})
+    except Exception as e:
+        logger.error("score matrix error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/placement/generate", methods=["POST"])
+@login_required
+def generate_placement_route():
+    """Generate optimal agent placement plan (not auto-applied)."""
+    try:
+        from services.benchmark_service import generate_optimal_placement
+
+        plan = generate_optimal_placement()
+        return jsonify({"success": True, **plan})
+    except Exception as e:
+        logger.error("generate placement error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/benchmarks/placement/apply", methods=["POST"])
+@login_required
+def apply_placement_route():
+    """Apply an approved placement plan."""
+    try:
+        from services.benchmark_service import apply_placement
+
+        data = request.get_json(force=True)
+        user_id = current_user.id if current_user.is_authenticated else None
+        result = apply_placement(data, user_id=user_id)
+        status_code = 200 if result.get("success") else 400
+        return jsonify(result), status_code
+    except Exception as e:
+        logger.error("apply placement error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/bridge/resources")
+@login_required
+def get_bridge_resources():
+    """System resource overview from host monitor + Ollama model roster.
+
+    Pulls real GPU data from host_monitor_data.json (same source as System Ops),
+    shows all available vs loaded Ollama models, Ollama config limits, and
+    capacity analysis for how many more models can fit in RAM.
+    """
+    try:
+        import psutil
+
+        # ── Real GPU data from host monitor ──
+        gpu_data = {
+            "name": "Unknown",
+            "vram_total_mb": 0,
+            "vram_used_mb": 0,
+            "utilization_pct": 0,
+            "temperature": None,
+            "driver": None,
+        }
+        try:
+            host_monitor_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+                "host_monitor_data.json",
+            )
+            with open(host_monitor_path) as f:
+                import json as _json
+
+                hm = _json.load(f)
+            gpus = hm.get("gpu", [])
+            if gpus and isinstance(gpus, list) and len(gpus) > 0:
+                g = gpus[0]
+                gpu_data = {
+                    "name": g.get("model", "Unknown"),
+                    "vram_total_mb": g.get("vram_total_mb", 0),
+                    "vram_used_mb": g.get("vram_used_mb", 0),
+                    "utilization_pct": g.get("utilization_percent", 0),
+                    "temperature": g.get("temperature"),
+                    "driver": g.get("driver"),
+                }
+            # CPU model from host monitor
+            cpu_model = hm.get("cpu", {}).get("model", "")
+        except Exception:
+            cpu_model = ""
+
+        # ── Ollama: loaded models ──
+        loaded_models = _get_cached_ollama_ps()
+        ollama_loaded = []
+        model_ram_used = 0
+        model_vram_used = 0
+        for m in loaded_models:
+            size_bytes = m.get("size", 0)
+            vram_bytes = m.get("size_vram", 0)
+            ram_bytes = size_bytes - vram_bytes
+            device = "gpu" if vram_bytes and vram_bytes > 0 else "cpu"
+            if device == "gpu":
+                model_vram_used += vram_bytes
+            model_ram_used += max(ram_bytes, 0)
+            ollama_loaded.append(
+                {
+                    "name": m.get("name", "unknown"),
+                    "size_gb": round(size_bytes / (1024**3), 1) if size_bytes else 0,
+                    "ram_gb": round(max(ram_bytes, 0) / (1024**3), 1),
+                    "vram_gb": round(vram_bytes / (1024**3), 1) if vram_bytes else 0,
+                    "device": device,
+                }
+            )
+
+        # ── Ollama: all available models ──
+        all_models, model_count = _get_cached_ollama_tags()
+        ollama_available = []
+        unloaded_total_gb = 0
+        loaded_names = {m["name"] for m in ollama_loaded}
+        for m in all_models:
+            name = m.get("name", "unknown")
+            size_gb = round(m.get("size", 0) / (1024**3), 1)
+            is_cloud = ":cloud" in name
+            is_loaded = name in loaded_names
+            ollama_available.append(
+                {
+                    "name": name,
+                    "size_gb": size_gb,
+                    "loaded": is_loaded,
+                    "cloud": is_cloud,
+                }
+            )
+            if not is_loaded and not is_cloud and size_gb > 0:
+                unloaded_total_gb += size_gb
+
+        # ── System stats ──
+        cpu_pct = psutil.cpu_percent(interval=0.1)
+        ram = psutil.virtual_memory()
+        ram_available_gb = round(ram.available / (1024**3), 1)
+
+        # ── Ollama config (read from systemd override on host) ──
+        ollama_config = {
+            "max_loaded_models": 20,
+            "keep_alive": "24h",
+            "num_parallel": 4,
+            "num_cpu": psutil.cpu_count(),
+            "cpu_pct": 70,
+        }
+        try:
+            conf_path = "/etc/systemd/system/ollama.service.d/override.conf"
+            if os.path.exists(conf_path):
+                with open(conf_path) as _f:
+                    for line in _f:
+                        if "OLLAMA_MAX_LOADED_MODELS" in line:
+                            val = line.split("=")[-1].strip().rstrip('"')
+                            ollama_config["max_loaded_models"] = int(val)
+                        elif "OLLAMA_KEEP_ALIVE" in line:
+                            ollama_config["keep_alive"] = line.split("=")[-1].strip().rstrip('"')
+                        elif "OLLAMA_NUM_PARALLEL" in line:
+                            val = line.split("=")[-1].strip().rstrip('"')
+                            ollama_config["num_parallel"] = int(val)
+                        elif "OLLAMA_NUM_CPU" in line:
+                            val = line.split("=")[-1].strip().rstrip('"')
+                            ollama_config["num_cpu"] = int(val)
+                            total = psutil.cpu_count()
+                            ollama_config["cpu_pct"] = round(int(val) / total * 100) if total else 70
+        except Exception:
+            pass
+
+        # ── Capacity analysis ──
+        local_unloaded = [m for m in ollama_available if not m["loaded"] and not m["cloud"] and m["size_gb"] > 0]
+        # Sort by size ascending (load small models first)
+        local_unloaded.sort(key=lambda m: m["size_gb"])
+        can_fit = []
+        remaining_ram = ram_available_gb
+        remaining_slots = ollama_config["max_loaded_models"] - len(ollama_loaded)
+        for m in local_unloaded:
+            if remaining_slots <= 0:
+                break
+            if m["size_gb"] <= remaining_ram:
+                can_fit.append(m["name"])
+                remaining_ram -= m["size_gb"]
+                remaining_slots -= 1
+
+        result = {
+            "gpu": gpu_data,
+            "cpu": {
+                "model": cpu_model,
+                "cores": psutil.cpu_count(),
+                "usage_pct": round(cpu_pct, 1),
+            },
+            "ram": {
+                "total_gb": round(ram.total / (1024**3), 1),
+                "used_gb": round(ram.used / (1024**3), 1),
+                "available_gb": ram_available_gb,
+                "pct": ram.percent,
+                "models_ram_gb": round(model_ram_used / (1024**3), 1),
+            },
+            "ollama_config": ollama_config,
+            "ollama_loaded": ollama_loaded,
+            "ollama_available": ollama_available,
+            "capacity": {
+                "loaded_count": len(ollama_loaded),
+                "available_count": model_count,
+                "local_count": sum(1 for m in ollama_available if not m["cloud"]),
+                "cloud_count": sum(1 for m in ollama_available if m["cloud"]),
+                "max_slots": ollama_config["max_loaded_models"],
+                "free_slots": max(0, ollama_config["max_loaded_models"] - len(ollama_loaded)),
+                "unloaded_total_gb": round(unloaded_total_gb, 1),
+                "ram_available_gb": ram_available_gb,
+                "can_fit_more": remaining_slots > 0 and ram_available_gb > 1,
+                "could_load": can_fit,
+            },
+        }
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error("resources error: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @bridge_bp.route("/api/stations/<station_code>/dispatch")

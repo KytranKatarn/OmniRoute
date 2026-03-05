@@ -469,6 +469,7 @@ def generate_media(provider_key: str, request: dict) -> dict:
         "gemini": _gemini_media_adapter,
         "openai": _openai_image_adapter,
         "local_tts": _local_tts_adapter,
+        "ollama_diffuser": _ollama_diffuser_adapter,
     }
     adapter = adapters.get(provider_key)
     if not adapter:
@@ -692,6 +693,33 @@ def _local_tts_adapter(request: dict) -> dict:
         }
     except requests.ConnectionError:
         return {"success": False, "error": "Local TTS service unavailable"}
+
+
+def _ollama_diffuser_adapter(request: dict) -> dict:
+    """Generate images via local OllamaDiffuser service."""
+    from ai_bridge.diffuser_service import get_diffuser_service
+
+    service = get_diffuser_service()
+    prompt = request.get("prompt", "")
+    params = request.get("params", {})
+
+    result = service.generate_image(
+        prompt=prompt,
+        model=params.get("model"),
+        steps=params.get("steps", 4),
+        width=params.get("width", 1024),
+        height=params.get("height", 1024),
+        force_cpu=params.get("force_cpu", False),
+    )
+
+    if not result.success:
+        return {"success": False, "error": result.error}
+
+    return {
+        "success": True,
+        "file_path": result.file_path,
+        "metadata": result.metadata,
+    }
 
 
 # ============================================================================

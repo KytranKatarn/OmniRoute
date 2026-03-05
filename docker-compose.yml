@@ -191,6 +191,39 @@ services:
       retries: 3
       start_period: 40s
 
+  # OllamaDiffuser — Local image generation (FLUX/Stable Diffusion)
+  archie_diffuser:
+    image: python:3.11-slim
+    container_name: archie_diffuser
+    restart: unless-stopped
+    ports:
+      - "11435:11435"
+    volumes:
+      - diffuser_models:/root/.ollamadiffuser
+      - ./platform_v2/static/media:/media
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - archie_internal
+    command: >
+      bash -c "pip install ollamadiffuser &&
+               ollamadiffuser pull flux.1-schnell &&
+               ollamadiffuser serve --host 0.0.0.0 --port 11435"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11435/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 networks:
   archie_internal:
     driver: bridge
@@ -203,3 +236,6 @@ volumes:
   archie_db:
     driver: local
     name: archie_database
+  diffuser_models:
+    driver: local
+    name: archie_diffuser_models

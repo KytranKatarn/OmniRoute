@@ -60,7 +60,7 @@ services:
       NPM_ADMIN_EMAIL: ${NPM_ADMIN_EMAIL}
       NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-hub}
-      OLLAMA_MODELS: /mnt/data2/ollama/models
+      OLLAMA_MODELS: /mnt/llm_drive/ollama/models
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       COMFYUI_HOST: http://archie_comfyui:8188
     extra_hosts:
@@ -108,8 +108,8 @@ services:
       - /mnt/stacks:/mnt/stacks:ro
       # Media stack configs for Media Hub service discovery (API keys, etc.)
       - /mnt/Plex/config:/mnt/Plex/config:ro
-      # Ollama model storage on /mnt/data2 (Phase 77b)
-      - /mnt/data2/ollama/models:/mnt/data2/ollama/models:ro
+      # Ollama model storage on LLM SSD
+      - /mnt/llm_drive/ollama/models:/mnt/llm_drive/ollama/models:ro
       # Google Drive credentials for cloud backup (rw: OAuth token written at runtime)
       - ./credentials:/app/credentials:rw
       # Browser automation screenshots (Project Autonomy Phase 4)
@@ -122,12 +122,44 @@ services:
     depends_on:
       archie_database:
         condition: service_healthy
+      archie_ollama:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Ollama LLM Engine (models on Samsung 840 SSD)
+  archie_ollama:
+    image: ollama/ollama:latest
+    container_name: archie_ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_MAX_LOADED_MODELS=13
+      - OLLAMA_NUM_PARALLEL=4
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - /mnt/llm_drive/ollama:/root/.ollama
+    ports:
+      - "192.168.1.200:11434:11434"
+    networks:
+      - archie_internal
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # n8n Workflow Automation
   archie_nginx_n8n:

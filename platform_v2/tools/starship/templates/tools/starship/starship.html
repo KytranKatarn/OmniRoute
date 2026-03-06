@@ -97,12 +97,45 @@
 .sc-toast.error { background: rgba(255, 68, 68, 0.12); border: 1px solid var(--sc-red); color: var(--sc-red); }
 @keyframes scSlide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+/* Add Node button */
+.sc-add-btn { display: flex; align-items: center; gap: 8px; padding: 10px 24px; background: var(--sc-accent-dim); border: 1px solid var(--sc-accent); color: var(--sc-accent); font-family: 'Antonio', sans-serif; font-size: 0.95rem; letter-spacing: 2px; cursor: pointer; border-radius: 4px; transition: all 0.2s; text-transform: uppercase; }
+.sc-add-btn:hover { background: rgba(0, 229, 255, 0.25); transform: translateY(-1px); }
+.sc-add-btn svg { width: 18px; height: 18px; }
+
+/* Setup Modal */
+.sc-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; }
+.sc-modal-overlay.active { display: flex; }
+.sc-modal { background: #0a0e1a; border: 1px solid var(--sc-accent); border-radius: 12px; width: 90%; max-width: 640px; max-height: 85vh; overflow-y: auto; }
+.sc-modal-header { display: flex; align-items: center; gap: 12px; padding: 20px 24px; border-bottom: 1px solid rgba(0, 229, 255, 0.15); }
+.sc-modal-header h2 { font-family: 'Antonio', sans-serif; color: var(--sc-accent); font-size: 1.3rem; letter-spacing: 3px; margin: 0; flex: 1; }
+.sc-modal-close { background: none; border: none; color: rgba(255,255,255,0.4); font-size: 1.5rem; cursor: pointer; padding: 0 4px; line-height: 1; }
+.sc-modal-close:hover { color: var(--sc-red); }
+.sc-modal-body { padding: 24px; }
+.sc-modal-body p { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: rgba(255,255,255,0.6); line-height: 1.6; margin: 0 0 16px; }
+
+/* Setup steps */
+.sc-steps { counter-reset: step; list-style: none; padding: 0; margin: 0 0 20px; }
+.sc-steps li { counter-increment: step; padding: 12px 0 12px 44px; position: relative; border-bottom: 1px solid rgba(255,255,255,0.04); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: rgba(255,255,255,0.7); line-height: 1.5; }
+.sc-steps li::before { content: counter(step); position: absolute; left: 0; top: 12px; width: 28px; height: 28px; border-radius: 50%; background: var(--sc-accent-dim); border: 1px solid rgba(0, 229, 255, 0.3); color: var(--sc-accent); font-family: 'Antonio', sans-serif; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; }
+.sc-code-block { background: rgba(0,0,0,0.5); border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 6px; padding: 12px 16px; margin: 10px 0; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--sc-accent); position: relative; overflow-x: auto; white-space: pre; }
+.sc-copy-btn { position: absolute; top: 6px; right: 6px; background: rgba(0, 229, 255, 0.1); border: 1px solid rgba(0, 229, 255, 0.3); color: var(--sc-accent); padding: 3px 10px; border-radius: 3px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; }
+.sc-copy-btn:hover { background: rgba(0, 229, 255, 0.2); }
+.sc-config-json { background: rgba(0,0,0,0.5); border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 6px; padding: 12px 16px; margin: 10px 0; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--sc-green); white-space: pre; overflow-x: auto; max-height: 200px; }
+.sc-name-input { width: 100%; padding: 10px; background: rgba(0,0,0,0.5); border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 4px; color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; box-sizing: border-box; margin-bottom: 16px; }
+.sc-name-input:focus { outline: none; border-color: var(--sc-accent); }
+.sc-modal-actions { display: flex; gap: 12px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid rgba(0, 229, 255, 0.1); }
+.sc-btn-secondary { padding: 8px 24px; background: transparent; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); font-family: 'Antonio', sans-serif; font-size: 0.9rem; letter-spacing: 2px; cursor: pointer; border-radius: 4px; }
+.sc-btn-secondary:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
+.sc-download-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 20px; background: rgba(0, 255, 136, 0.1); border: 1px solid var(--sc-green); color: var(--sc-green); font-family: 'Antonio', sans-serif; font-size: 0.85rem; letter-spacing: 2px; cursor: pointer; border-radius: 4px; text-decoration: none; margin-top: 8px; }
+.sc-download-btn:hover { background: rgba(0, 255, 136, 0.2); }
+
 @media (max-width: 768px) {
     .sc-fleet-grid { grid-template-columns: 1fr; }
     .sc-node-stats { grid-template-columns: repeat(2, 1fr); }
     .sc-models-grid { grid-template-columns: 1fr; }
     .sc-header { flex-direction: column; align-items: flex-start; gap: 8px; }
     .sc-fleet-count { margin-left: 0; }
+    .sc-modal { width: 95%; }
 }
 </style>
 
@@ -116,13 +149,81 @@
         <div class="sc-fleet-count" id="sc-fleet-count">
             {{ nodes|length }} NODE{{ 'S' if nodes|length != 1 else '' }}
         </div>
+        <button class="sc-add-btn" onclick="openAddNodeModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            ADD NODE
+        </button>
+    </div>
+
+    <!-- Add Node Modal -->
+    <div class="sc-modal-overlay" id="add-node-modal">
+        <div class="sc-modal">
+            <!-- Step 1: Name -->
+            <div id="modal-step-1">
+                <div class="sc-modal-header">
+                    <h2>DEPLOY A STARSHIP NODE</h2>
+                    <button class="sc-modal-close" onclick="closeAddNodeModal()">&times;</button>
+                </div>
+                <div class="sc-modal-body">
+                    <p>Add a new compute node to your fleet. Give it a name, then follow the setup instructions to get it online.</p>
+                    <label class="sc-label" style="display: block; margin-bottom: 6px;">Node Name</label>
+                    <input type="text" id="new-node-name" class="sc-name-input" placeholder="e.g. My Desktop, Office Server, GPU Rig" maxlength="100" autofocus>
+                </div>
+                <div class="sc-modal-actions">
+                    <button class="sc-btn-secondary" onclick="closeAddNodeModal()">CANCEL</button>
+                    <button class="sc-btn" id="btn-create-node" onclick="createNode()">CREATE NODE</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Setup Instructions -->
+            <div id="modal-step-2" style="display:none;">
+                <div class="sc-modal-header">
+                    <h2>SETUP INSTRUCTIONS</h2>
+                    <button class="sc-modal-close" onclick="closeAddNodeModal()">&times;</button>
+                </div>
+                <div class="sc-modal-body">
+                    <p>Your node <strong id="setup-node-name" style="color: var(--sc-accent);"></strong> is registered and waiting for connection.</p>
+
+                    <ol class="sc-steps">
+                        <li>
+                            Download the starship node package
+                            <br>
+                            <a href="/tools/starship/download/node-package" class="sc-download-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                DOWNLOAD PACKAGE
+                            </a>
+                        </li>
+                        <li>
+                            Extract the package on the target machine
+                            <div class="sc-code-block">tar -xzf archie-starship-node.tar.gz
+cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button></div>
+                        </li>
+                        <li>
+                            Save this config as <code style="color: var(--sc-accent);">config.json</code> in the node directory
+                            <div class="sc-config-json" id="setup-config"></div>
+                            <button class="sc-copy-btn" style="position:relative; top:0; right:0; margin-top:6px;" onclick="copyConfig()">COPY CONFIG</button>
+                        </li>
+                        <li>
+                            Start the node with Docker
+                            <div class="sc-code-block">docker compose -f docker-compose.node.yml up -d<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button></div>
+                        </li>
+                        <li>
+                            The node will automatically connect to Archie and appear in your fleet. An admin will approve it and assign models based on your hardware.
+                        </li>
+                    </ol>
+                </div>
+                <div class="sc-modal-actions">
+                    <button class="sc-btn" onclick="closeAddNodeModal(); location.reload();">DONE</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     {% if nodes|length == 0 %}
     <div class="sc-empty">
         <h3>NO NODES REGISTERED</h3>
         <p>Deploy a starship node on any machine to join the fleet.
-           Download the starship package and run <code>docker compose up</code> to get started.</p>
+           Click <strong>ADD NODE</strong> above to get started.</p>
     </div>
     {% else %}
 
@@ -285,6 +386,83 @@
 <script>
 var selectedNodeId = null;
 var nodeCache = {};
+var pendingConfig = null;
+
+// ── Add Node Modal ──
+function openAddNodeModal() {
+    document.getElementById('add-node-modal').classList.add('active');
+    document.getElementById('modal-step-1').style.display = '';
+    document.getElementById('modal-step-2').style.display = 'none';
+    document.getElementById('new-node-name').value = '';
+    document.getElementById('new-node-name').focus();
+}
+
+function closeAddNodeModal() {
+    document.getElementById('add-node-modal').classList.remove('active');
+    pendingConfig = null;
+}
+
+// Close modal on overlay click
+document.addEventListener('click', function(e) {
+    if (e.target.id === 'add-node-modal') closeAddNodeModal();
+});
+
+// Close on Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeAddNodeModal();
+});
+
+async function createNode() {
+    var name = document.getElementById('new-node-name').value.trim();
+    var btn = document.getElementById('btn-create-node');
+    btn.disabled = true;
+    btn.textContent = 'CREATING...';
+
+    try {
+        var resp = await fetch('/tools/starship/api/request-node', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({node_name: name || undefined})
+        });
+        var data = await resp.json();
+        if (!data.success) {
+            scToast(data.error || 'Failed to create node', 'error');
+            btn.disabled = false;
+            btn.textContent = 'CREATE NODE';
+            return;
+        }
+
+        pendingConfig = data.config;
+
+        // Show step 2
+        document.getElementById('modal-step-1').style.display = 'none';
+        document.getElementById('modal-step-2').style.display = '';
+        document.getElementById('setup-node-name').textContent = data.node_name;
+        document.getElementById('setup-config').textContent = JSON.stringify(data.config, null, 2);
+
+        scToast('Node "' + data.node_name + '" registered', 'success');
+    } catch (e) {
+        scToast('Request failed', 'error');
+    }
+    btn.disabled = false;
+    btn.textContent = 'CREATE NODE';
+}
+
+function copyCode(btn) {
+    var block = btn.parentElement;
+    var text = block.textContent.replace('COPY', '').trim();
+    navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = 'COPIED';
+        setTimeout(function() { btn.textContent = 'COPY'; }, 1500);
+    });
+}
+
+function copyConfig() {
+    if (!pendingConfig) return;
+    navigator.clipboard.writeText(JSON.stringify(pendingConfig, null, 2)).then(function() {
+        scToast('Config copied to clipboard', 'success');
+    });
+}
 
 function scToast(msg, type) {
     var el = document.createElement('div');

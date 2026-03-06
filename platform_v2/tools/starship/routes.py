@@ -5,7 +5,11 @@ Fleet owners see all their nodes. Node operators see their own ship.
 Privacy controls let operators choose what to share with the fleet.
 """
 
-from flask import Blueprint, render_template, jsonify, request
+import json
+import os
+import secrets
+
+from flask import Blueprint, render_template, jsonify, request, send_file
 from flask_login import login_required, current_user
 from database import get_db_cursor
 
@@ -238,3 +242,113 @@ def api_update_privacy(node_id):
             (psycopg2.Json(settings), node_id),
         )
     return jsonify({"success": True, "privacy_settings": settings})
+
+
+# ============================================================================
+# NODE SETUP / ONBOARDING
+# ============================================================================
+
+NODE_CLIENT_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+    "node_client",
+)
+
+
+@starship_bp.route("/api/request-node", methods=["POST"])
+@login_required
+def api_request_node():
+    """Generate a setup token and pre-register a pending node for this user."""
+    import psycopg2
+
+    user_id = current_user.id
+    data = request.get_json() or {}
+    node_name = data.get("node_name", "").strip() or f"Starship-{secrets.token_hex(3).upper()}"
+
+    # Generate unique node ID and setup token
+    node_id = f"starship_{secrets.token_hex(8)}"
+    setup_token = secrets.token_urlsafe(32)
+
+    # Get starbase hostname for the config
+    starbase_host = os.getenv("STARBASE_HOST", request.host.split(":")[0])
+    starbase_port = os.getenv("STARBASE_PORT", "3000")
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO remote_nodes (
+                    node_id, node_name, deployment_mode, status,
+                    is_active, bridge_enabled, bridge_priority,
+                    approval_status, user_id, setup_token,
+                    privacy_settings
+                ) VALUES (
+                    %s, %s, 'starship', 'pending',
+                    false, false, 50,
+                    'pending', %s, %s,
+                    '{}'::jsonb
+                )
+                RETURNING node_id, node_name
+                """,
+                (node_id, node_name, user_id, setup_token),
+            )
+            row = cur.fetchone()
+
+        # Build config for the node
+        config = {
+            "node_id": node_id,
+            "node_name": node_name,
+            "setup_token": setup_token,
+            "starbase_url": f"http://{starbase_host}:{starbase_port}",
+            "deployment_mode": "starship",
+            "heartbeat_interval": 30,
+        }
+
+        return jsonify(
+            {
+                "success": True,
+                "node_id": row["node_id"],
+                "node_name": row["node_name"],
+                "setup_token": setup_token,
+                "config": config,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@starship_bp.route("/api/setup-instructions/<node_id>")
+@login_required
+def api_setup_instructions(node_id):
+    """Get setup instructions and config for a pending node."""
+    user_id = current_user.id
+    node = _get_node_for_user(node_id, user_id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+
+    starbase_host = os.getenv("STARBASE_HOST", request.host.split(":")[0])
+    starbase_port = os.getenv("STARBASE_PORT", "3000")
+
+    config = {
+        "node_id": node["node_id"],
+        "node_name": node["node_name"],
+        "setup_token": node.get("setup_token", ""),
+        "starbase_url": f"http://{starbase_host}:{starbase_port}",
+        "deployment_mode": "starship",
+        "heartbeat_interval": 30,
+    }
+
+    return jsonify({"success": True, "config": config})
+
+
+@starship_bp.route("/download/node-package")
+@login_required
+def download_node_package():
+    """Download the starship node package (tar.gz)."""
+    package_path = os.path.join(NODE_CLIENT_DIR, "archie-node-latest.tar.gz")
+    if os.path.exists(package_path):
+        return send_file(
+            package_path,
+            as_attachment=True,
+            download_name="archie-starship-node.tar.gz",
+        )
+    return jsonify({"success": False, "error": "Package not found"}), 404

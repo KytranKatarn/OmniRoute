@@ -108,7 +108,7 @@ def _get_cached_hw_capacity():
     total_gb = round(mem.total / (1024**3), 1)
     available_gb = round(mem.available / (1024**3), 1)
     usage_pct = round(mem.percent, 1)
-    reserve_gb = 15
+    reserve_gb = 25  # 20% of 125GB host reserve
 
     # Ollama loaded models — categorize GPU vs CPU
     ps_models = _get_cached_ollama_ps()
@@ -156,7 +156,10 @@ def _get_cached_hw_capacity():
     except Exception:
         pass
 
-    ram_status = "green" if available_gb > 25 else ("amber" if available_gb >= reserve_gb else "red")
+    llm_budget_gb = round(total_gb * 0.80, 1)  # 80% for LLM
+    agent_budget_gb = round(llm_budget_gb * 0.90, 1)  # 90% of LLM budget
+    swap_buffer_gb = round(llm_budget_gb * 0.10, 1)  # 10% swap buffer
+    ram_status = "green" if available_gb > reserve_gb else ("amber" if available_gb >= reserve_gb * 0.6 else "red")
 
     capacity = {
         "ram": {
@@ -164,6 +167,9 @@ def _get_cached_hw_capacity():
             "available_gb": available_gb,
             "usage_pct": usage_pct,
             "reserve_gb": reserve_gb,
+            "llm_budget_gb": llm_budget_gb,
+            "agent_budget_gb": agent_budget_gb,
+            "swap_buffer_gb": swap_buffer_gb,
             "status": ram_status,
         },
         "gpu": gpu_info,

@@ -1942,33 +1942,59 @@ except Exception as e:
 def _get_agent_models():
     """Query DB for unique models used by active agents + infrastructure models.
 
-    Returns list of (model_name, endpoint_type) tuples.
+    Returns list of (model_name, endpoint_type) tuples, ordered by priority:
+    1. Infrastructure models (embeddings, classify, vision)
+    2. Agent models sorted by recent dispatch frequency (most-used first)
+
+    Skips cloud models (contain ':cloud') since they don't need local loading.
     """
     from database import get_db_cursor
 
-    agent_models = set()
+    agent_models_ordered = []
     try:
         with get_db_cursor(commit=False) as (conn, cur):
+            # Get agent models ordered by dispatch frequency (last 7 days)
             cur.execute(
                 """
-                SELECT DISTINCT model FROM agents
-                WHERE status = 'active' AND model IS NOT NULL AND model != ''
+                SELECT a.model, COUNT(tel.id) AS dispatch_count
+                FROM agents a
+                LEFT JOIN task_execution_log tel
+                    ON tel.agent_name = a.name
+                    AND tel.created_at > NOW() - INTERVAL '7 days'
+                WHERE a.status = 'active'
+                    AND a.model IS NOT NULL AND a.model != ''
+                    AND a.model NOT LIKE '%%:cloud'
+                GROUP BY a.model
+                ORDER BY dispatch_count DESC
             """
             )
             for row in cur.fetchall():
-                agent_models.add(row["model"])
+                agent_models_ordered.append(row["model"])
     except Exception:
-        pass
+        # Fallback: just get distinct models without ordering
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT DISTINCT model FROM agents
+                    WHERE status = 'active' AND model IS NOT NULL AND model != ''
+                        AND model NOT LIKE '%%:cloud'
+                """
+                )
+                for row in cur.fetchall():
+                    agent_models_ordered.append(row["model"])
+        except Exception:
+            pass
 
     # Always include infrastructure models regardless of agent assignment
     infra_models = {"arctic-embed-cpu", "qwen25-classify", "minicpm-v-cpu"}
 
-    # Build load list: infrastructure first, then agent models
+    # Build load list: infrastructure first, then agent models by dispatch priority
     models_to_load = []
     for m in infra_models:
         endpoint = "embed" if "embed" in m else "generate"
         models_to_load.append((m, endpoint))
-    for m in agent_models:
+    for m in agent_models_ordered:
         if m not in infra_models:
             endpoint = "embed" if "embed" in m else "generate"
             models_to_load.append((m, endpoint))
@@ -1980,7 +2006,8 @@ def _warmup_ollama_models():
 
     Loads models sequentially with keep_alive=-1 (infinite).
     GPU vs CPU determined by checking what's already on GPU in Ollama.
-    Stops when <15GB RAM free.
+    Stops when <25GB RAM free (20% host reserve of 125GB).
+    Priority: infrastructure models first, then agents by dispatch frequency.
     """
     import threading
 
@@ -2049,8 +2076,10 @@ def _warmup_ollama_models():
 
         for model_name, endpoint in models_to_load:
             ram_free = psutil.virtual_memory().available / (1024**3)
-            if ram_free < 15:
-                logger.info(f"Ollama warmup: {ram_free:.0f}GB free, stopping " f"({loaded} models loaded)")
+            if ram_free < 25:
+                logger.info(
+                    f"Ollama warmup: {ram_free:.0f}GB free (< 25GB reserve), stopping " f"({loaded} models loaded)"
+                )
                 break
             if _load_model(model_name, endpoint):
                 loaded += 1

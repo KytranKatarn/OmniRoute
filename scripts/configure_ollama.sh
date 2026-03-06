@@ -9,7 +9,7 @@
 #
 # Defaults:
 #   CPU: 70% of cores for Ollama inference
-#   RAM reserve: 16GB kept free for system/Docker (rest available for models)
+#   RAM reserve: 25GB kept free for system/Docker (20% of 125GB host)
 #   Max loaded models: auto-calculated from available RAM
 #   Keep alive: 24h
 #   Parallel: 4 concurrent requests
@@ -19,7 +19,7 @@ set -euo pipefail
 
 # ── Defaults (override with flags) ──
 CPU_PCT=${CPU_PCT:-70}
-RAM_RESERVE_GB=${RAM_RESERVE_GB:-16}
+RAM_RESERVE_GB=${RAM_RESERVE_GB:-25}
 KEEP_ALIVE=${KEEP_ALIVE:-24h}
 NUM_PARALLEL=${NUM_PARALLEL:-4}
 OLLAMA_MODELS_PATH=${OLLAMA_MODELS_PATH:-/mnt/data2/ollama/models}
@@ -44,8 +44,12 @@ TOTAL_RAM_GB=$(python3 -c "import psutil; print(int(psutil.virtual_memory().tota
 OLLAMA_CORES=$(python3 -c "import math; print(max(2, math.floor($TOTAL_CORES * $CPU_PCT / 100)))")
 CPU_QUOTA=$(( OLLAMA_CORES * 100 ))
 AVAILABLE_FOR_MODELS=$(( TOTAL_RAM_GB - RAM_RESERVE_GB ))
-# Estimate: average model ~5GB, leave some headroom
-MAX_LOADED=$(python3 -c "print(max(3, min(20, $AVAILABLE_FOR_MODELS // 5)))")
+# Budget: 80% total RAM for LLM, within that 90% for agent models, 10% swap buffer
+# Average runtime model ~8GB (runtime > disk due to KV cache/context)
+LLM_BUDGET_GB=$(python3 -c "print(int($TOTAL_RAM_GB * 0.80))")
+AGENT_BUDGET_GB=$(python3 -c "print(int($LLM_BUDGET_GB * 0.90))")
+SWAP_BUFFER_GB=$(python3 -c "print(int($LLM_BUDGET_GB * 0.10))")
+MAX_LOADED=$(python3 -c "print(max(3, min(20, $AGENT_BUDGET_GB // 8)))")
 
 echo "============================================================"
 echo "  OLLAMA AUTO-CONFIGURATION"
@@ -54,10 +58,15 @@ echo "  Hardware detected:"
 echo "    CPU cores:  $TOTAL_CORES"
 echo "    RAM total:  ${TOTAL_RAM_GB}GB"
 echo ""
-echo "  Allocation (${CPU_PCT}% CPU, ${RAM_RESERVE_GB}GB RAM reserved):"
+echo "  RAM budget (80/20 split):"
+echo "    Host reserve (20%):      ${RAM_RESERVE_GB}GB"
+echo "    LLM budget (80%):        ${LLM_BUDGET_GB}GB"
+echo "      Agent models (90%):    ${AGENT_BUDGET_GB}GB"
+echo "      Swap buffer (10%):     ${SWAP_BUFFER_GB}GB"
+echo ""
+echo "  Allocation (${CPU_PCT}% CPU):"
 echo "    OLLAMA_NUM_CPU:          $OLLAMA_CORES / $TOTAL_CORES cores"
 echo "    CPUQuota:                ${CPU_QUOTA}%"
-echo "    RAM for models:          ~${AVAILABLE_FOR_MODELS}GB"
 echo "    OLLAMA_MAX_LOADED_MODELS: $MAX_LOADED"
 echo "    OLLAMA_KEEP_ALIVE:       $KEEP_ALIVE"
 echo "    OLLAMA_NUM_PARALLEL:     $NUM_PARALLEL"

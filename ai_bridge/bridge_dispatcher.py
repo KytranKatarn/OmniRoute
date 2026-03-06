@@ -4090,6 +4090,32 @@ class BridgeDispatcher:
             except Exception:
                 pass  # Ollama unavailable — all agents show as "swap"
 
+            # Get disk sizes for all models (to estimate swap eligibility)
+            model_disk_gb = {}
+            try:
+                _tags_resp = _req.get(
+                    f"http://{_ollama_host}:{_ollama_port}/api/tags", timeout=5
+                )
+                if _tags_resp.status_code == 200:
+                    for m in _tags_resp.json().get("models", []):
+                        mname = m.get("name", "")
+                        disk_gb = round(m.get("size", 0) / (1024**3), 1)
+                        model_disk_gb[mname] = disk_gb
+                        if mname.endswith(":latest"):
+                            model_disk_gb[mname.replace(":latest", "")] = disk_gb
+            except Exception:
+                pass
+
+            # RAM budget for swap eligibility
+            _swap_buffer_gb = 10.0
+            try:
+                import psutil as _ps
+
+                _total_ram = _ps.virtual_memory().total / (1024**3)
+                _swap_buffer_gb = round(_total_ram * 0.80 * 0.10, 1)
+            except Exception:
+                pass
+
             # Build manifest
             manifest = []
             for name, info in self._agent_cache.items():
@@ -4114,7 +4140,7 @@ class BridgeDispatcher:
                 else:
                     hw = self.MODEL_HARDWARE.get(model, "CPU")
 
-                # LLM readiness status
+                # LLM readiness status: loaded > swap > barracked
                 if model and model.endswith(":cloud"):
                     llm_status = "cloud"
                     llm_size_gb = 0
@@ -4122,8 +4148,17 @@ class BridgeDispatcher:
                     llm_status = "loaded"
                     llm_size_gb = loaded_models[model]
                 else:
-                    llm_status = "swap"
-                    llm_size_gb = 0
+                    # Estimate runtime size (~1.3x disk) to check swap fit
+                    disk_gb = model_disk_gb.get(model, 0)
+                    est_runtime_gb = round(disk_gb * 1.3, 1)
+                    llm_size_gb = est_runtime_gb
+                    if est_runtime_gb > 0 and est_runtime_gb <= _swap_buffer_gb:
+                        llm_status = "swap"
+                    elif disk_gb == 0:
+                        # Model not downloaded or unknown
+                        llm_status = "barracked"
+                    else:
+                        llm_status = "barracked"
 
                 first = info.get("first_name", "")
                 last = info.get("last_name", "")

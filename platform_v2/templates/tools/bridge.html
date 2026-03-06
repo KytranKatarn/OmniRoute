@@ -4157,6 +4157,11 @@ body.light-mode .bridge-zone-unstaffed {
     letter-spacing: 0.3px;
     cursor: help;
 }
+.crew-tool-row {
+    border-top: 1px dashed rgba(255,170,0,0.15);
+    padding-top: 2px;
+    margin-top: 1px;
+}
 
 .crew-agent-job {
     font-size: 0.65rem;
@@ -4205,6 +4210,7 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-llm-badge.loaded { background: rgba(50,205,50,0.15); color: #32CD32; }
 .crew-llm-badge.swap { background: rgba(255,215,0,0.15); color: #FFD700; }
 .crew-llm-badge.cloud { background: rgba(139,92,246,0.15); color: #8b5cf6; }
+.crew-llm-badge.barracked { background: rgba(255,69,0,0.15); color: #FF6347; }
 .crew-llm-toggle {
     font-size: 0.55rem; padding: 1px 5px; border-radius: 3px; cursor: pointer;
     border: 1px solid rgba(255,255,255,0.2); font-weight: 600; letter-spacing: 0.3px;
@@ -17054,7 +17060,11 @@ function renderCrewManifest(crew, capacity) {
         var idle = crew.filter(function(a) { return a.status === 'idle'; }).length;
         var llmReady = crew.filter(function(a) { return a.llm_status === 'loaded' || a.llm_status === 'cloud'; }).length;
         var llmSwap = crew.filter(function(a) { return a.llm_status === 'swap'; }).length;
-        countEl.textContent = crew.length + ' agents \u2014 ' + working + ' working, ' + idle + ' idle | ' + llmReady + ' LLM ready, ' + llmSwap + ' swap';
+        var llmBarracked = crew.filter(function(a) { return a.llm_status === 'barracked'; }).length;
+        var summary = crew.length + ' agents \u2014 ' + working + ' working, ' + idle + ' idle | ' + llmReady + ' LLM ready';
+        if (llmSwap > 0) summary += ', ' + llmSwap + ' swap';
+        if (llmBarracked > 0) summary += ', ' + llmBarracked + ' barracked';
+        countEl.textContent = summary;
     }
 
     grid.replaceChildren();
@@ -17084,6 +17094,7 @@ function renderCrewManifest(crew, capacity) {
     var cpuAgents = crew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && (a.hardware || 'CPU').toUpperCase() === 'CPU' && a.llm_status === 'loaded'; });
     var cloudAgents = crew.filter(function(a) { return a.llm_status === 'cloud'; });
     var swapAgents = crew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && a.llm_status === 'swap'; });
+    var barrackedAgents = crew.filter(function(a) { return a.llm_status === 'barracked'; });
 
     function _addRosterDivider(icon, label, count, cssClass) {
         var div = document.createElement('div');
@@ -17145,16 +17156,19 @@ function renderCrewManifest(crew, capacity) {
                 llmBadge.title = 'Model loaded in RAM (' + (agent.llm_size_gb || 0) + 'GB)';
             } else if (agent.llm_status === 'swap') {
                 llmBadge.textContent = 'SWAP';
-                llmBadge.title = 'Model not loaded \u2014 cold-load required, may evict other models';
+                llmBadge.title = 'Can load on-demand (~' + (agent.llm_size_gb || '?') + 'GB) \u2014 fits in swap buffer';
             } else if (agent.llm_status === 'cloud') {
                 llmBadge.textContent = 'CLOUD';
                 llmBadge.title = 'Cloud model \u2014 no local RAM needed';
+            } else if (agent.llm_status === 'barracked') {
+                llmBadge.textContent = 'BARRACKED';
+                llmBadge.title = 'Model too large for swap buffer (~' + (agent.llm_size_gb || '?') + 'GB) \u2014 needs agent budget space';
             }
             badges.appendChild(llmBadge);
         }
 
         // Load/Unload toggle button
-        if (agent.llm_status === 'loaded' || agent.llm_status === 'swap') {
+        if (agent.llm_status === 'loaded' || agent.llm_status === 'swap' || agent.llm_status === 'barracked') {
             var toggleBtn = document.createElement('button');
             toggleBtn.className = 'crew-llm-toggle ' + agent.llm_status;
             if (agent.llm_status === 'loaded') {
@@ -17214,26 +17228,48 @@ function renderCrewManifest(crew, capacity) {
         modelSpan.textContent = (agent.model || '').replace(':latest', '');
         meta.appendChild(modelSpan);
 
+        // For agents with GPU tools: show LLM as CPU, then tool row below
+        var hasGpuTools = agent.gpu_tools && agent.gpu_tools.length > 0;
+        var llmHw = hasGpuTools ? 'CPU' : (agent.hardware || 'CPU');
         var hwBadge = document.createElement('span');
-        hwBadge.className = 'crew-hw-badge ' + (agent.hardware || 'cpu').toLowerCase();
-        hwBadge.textContent = agent.hardware || 'CPU';
+        hwBadge.className = 'crew-hw-badge ' + llmHw.toLowerCase();
+        hwBadge.textContent = llmHw;
         meta.appendChild(hwBadge);
 
-        // GPU tools (image gen, future: video)
-        if (agent.gpu_tools && agent.gpu_tools.length > 0) {
+        card.appendChild(meta);
+
+        // GPU tools row (separate line: ComfyUI + model + IMG badge)
+        if (hasGpuTools) {
             agent.gpu_tools.forEach(function(tool) {
+                var toolRow = document.createElement('div');
+                toolRow.className = 'crew-agent-meta crew-tool-row';
+
+                var providerSpan = document.createElement('span');
+                providerSpan.textContent = (tool.provider || 'gpu').charAt(0).toUpperCase() + (tool.provider || 'gpu').slice(1);
+                providerSpan.style.color = '#ffaa00';
+                toolRow.appendChild(providerSpan);
+
+                var toolModelSpan = document.createElement('span');
+                var shortModel = (tool.model || '').replace('.safetensors', '').replace('.ckpt', '');
+                toolModelSpan.textContent = shortModel;
+                toolRow.appendChild(toolModelSpan);
+
+                var gpuBadge = document.createElement('span');
+                gpuBadge.className = 'crew-hw-badge gpu';
+                gpuBadge.textContent = 'GPU';
+                toolRow.appendChild(gpuBadge);
+
                 var toolBadge = document.createElement('span');
                 toolBadge.className = 'crew-tool-badge';
                 var toolIcon = tool.type === 'image_generation' ? '\uD83C\uDFA8' : '\uD83C\uDFAC';
                 var toolLabel = tool.type === 'image_generation' ? 'IMG' : 'VID';
                 toolBadge.textContent = toolIcon + ' ' + toolLabel;
-                var shortModel = (tool.model || '').replace('.safetensors', '').replace('.ckpt', '');
-                toolBadge.title = tool.type.replace('_', ' ') + ' via ' + (tool.provider || 'gpu') + ' \u2014 ' + shortModel;
-                meta.appendChild(toolBadge);
+                toolBadge.title = tool.type.replace('_', ' ') + ' via ' + (tool.provider || 'gpu');
+                toolRow.appendChild(toolBadge);
+
+                card.appendChild(toolRow);
             });
         }
-
-        card.appendChild(meta);
 
         // Active job (if any)
         if (agent.current_job) {
@@ -17318,8 +17354,13 @@ function renderCrewManifest(crew, capacity) {
     }
 
     if (swapAgents.length > 0) {
-        _addRosterDivider('\u23F3', 'Swap \u2014 Not Loaded', swapAgents.length, 'swap');
+        _addRosterDivider('\u23F3', 'Swap \u2014 On-Demand (' + (capacity && capacity.ram ? capacity.ram.swap_buffer_gb : '~10') + 'GB buffer)', swapAgents.length, 'swap');
         swapAgents.forEach(_renderAgentCard);
+    }
+
+    if (barrackedAgents.length > 0) {
+        _addRosterDivider('\uD83C\uDFDA', 'Barracked \u2014 Too Large for Swap', barrackedAgents.length, 'barracked');
+        barrackedAgents.forEach(_renderAgentCard);
     }
 }
 

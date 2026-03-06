@@ -62,6 +62,7 @@ services:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-hub}
       OLLAMA_MODELS: /mnt/data2/ollama/models
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      OLLAMA_DIFFUSER_HOST: http://archie_diffuser:11435
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

@@ -169,14 +169,22 @@ def start_benchmark(action_key: str, user_id: Optional[int] = None) -> Dict:
             "error": f"No test_config for action '{action_key}'",
         }
     capability = test_config.get("capability", "general")
+    benchmark_type = test_config.get("benchmark_type", "llm")
 
-    # 2. Find eligible agents
-    agents = get_eligible_agents(capability)
-    if not agents:
-        return {
-            "success": False,
-            "error": f"No eligible agents for capability '{capability}'",
-        }
+    # 2. Find eligible agents (or prompts for image benchmarks)
+    if benchmark_type == "image":
+        prompts = test_config.get("prompts", [])
+        if not prompts:
+            return {"success": False, "error": "No prompts in image benchmark test_config"}
+        total_items = len(prompts)
+    else:
+        agents = get_eligible_agents(capability)
+        if not agents:
+            return {
+                "success": False,
+                "error": f"No eligible agents for capability '{capability}'",
+            }
+        total_items = len(agents)
 
     # 3. Create benchmark run
     try:
@@ -194,7 +202,7 @@ def start_benchmark(action_key: str, user_id: Optional[int] = None) -> Dict:
                     action["action_key"],
                     action["station_code"],
                     __import__("json").dumps(test_config),
-                    len(agents),
+                    total_items,
                     user_id,
                 ),
             )
@@ -203,19 +211,26 @@ def start_benchmark(action_key: str, user_id: Optional[int] = None) -> Dict:
     except Exception as e:
         return {"success": False, "error": f"Failed to create run: {e}"}
 
-    # 4. Launch background thread (poll via benchmark run, not bridge_jobs)
-    thread = threading.Thread(
-        target=_run_benchmark_thread,
-        args=(run_id, None, action, agents, test_config),
-        daemon=True,
-    )
+    # 4. Launch background thread
+    if benchmark_type == "image":
+        thread = threading.Thread(
+            target=_run_image_benchmark_thread,
+            args=(run_id, action, test_config),
+            daemon=True,
+        )
+    else:
+        thread = threading.Thread(
+            target=_run_benchmark_thread,
+            args=(run_id, None, action, agents, test_config),
+            daemon=True,
+        )
     thread.start()
 
     return {
         "success": True,
         "run_id": run_id,
         "job_id": None,
-        "total_agents": len(agents),
+        "total_agents": total_items,
     }
 
 
@@ -459,6 +474,267 @@ def _run_benchmark_thread(
             db_conn.close()
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Image generation benchmark
+# ---------------------------------------------------------------------------
+def _run_image_benchmark_thread(
+    run_id: int,
+    action: Dict,
+    test_config: Dict,
+):
+    """Test image generation across prompts/models via OllamaDiffuser.
+
+    Each prompt in test_config["prompts"] is generated and timed.
+    Results are recorded as benchmark_results rows with the model as
+    "agent_name" (since image gen doesn't use LLM agents).
+    """
+    import json as _json
+    import psycopg2
+
+    prompts = test_config.get("prompts", [])
+    default_width = test_config.get("width", 512)
+    default_height = test_config.get("height", 512)
+    default_steps = test_config.get("steps", 15)
+
+    # Find Pixel (image gen agent) for the agent_id field
+    pixel_id = None
+    pixel_display = "OllamaDiffuser"
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT id, display_name FROM agents WHERE name = 'Pixel' AND status = 'active'")
+            row = cur.fetchone()
+            if row:
+                pixel_id = row[0] if isinstance(row, tuple) else row["id"]
+                pixel_display = row[1] if isinstance(row, tuple) else row["display_name"]
+    except Exception:
+        pass
+
+    completed = 0
+    failed = 0
+    results = []
+
+    try:
+        db_conn = psycopg2.connect(
+            host=__import__("os").getenv("DB_HOST", "192.168.1.200"),
+            port=__import__("os").getenv("DB_PORT", "5432"),
+            database=__import__("os").getenv("DB_NAME", "archie"),
+            user=__import__("os").getenv("DB_USER", "archie"),
+            password=__import__("os").getenv("DB_PASSWORD", ""),
+        )
+        db_conn.autocommit = True
+    except Exception as e:
+        logger.error("Image benchmark thread %d: can't connect to DB: %s", run_id, e)
+        return
+
+    try:
+        from ai_bridge.diffuser_service import get_diffuser_service
+
+        diffuser = get_diffuser_service()
+
+        for i, prompt_cfg in enumerate(prompts):
+            prompt_text = prompt_cfg.get("prompt", "a cat")
+            model = prompt_cfg.get("model", "stable-diffusion-1.5")
+            category = prompt_cfg.get("category", f"test_{i}")
+            steps = prompt_cfg.get("steps", default_steps)
+            width = prompt_cfg.get("width", default_width)
+            height = prompt_cfg.get("height", default_height)
+
+            agent_label = f"{model} ({category})"
+            logger.info(
+                "Image benchmark %d: testing %s — %s",
+                run_id,
+                agent_label,
+                prompt_text[:60],
+            )
+
+            try:
+                import time
+
+                start_ms = int(time.time() * 1000)
+                result = diffuser.generate_image(
+                    prompt=prompt_text,
+                    model=model,
+                    steps=steps,
+                    width=width,
+                    height=height,
+                )
+                duration_ms = int(time.time() * 1000) - start_ms
+
+                success = result.success
+                error_msg = result.error if not success else None
+                file_size = result.metadata.get("file_size_bytes", 0) if success else 0
+                file_path = result.file_path or ""
+
+                # Build preview with generation details
+                if success:
+                    response_preview = (
+                        f"Category: {category}\n"
+                        f"Model: {model}\n"
+                        f"Prompt: {prompt_text}\n"
+                        f"Size: {width}x{height}, Steps: {steps}\n"
+                        f"File: {file_path} ({file_size} bytes)\n"
+                        f"Duration: {duration_ms}ms ({duration_ms / 1000:.1f}s)"
+                    )
+                else:
+                    response_preview = f"FAILED: {error_msg}"
+
+            except Exception as e:
+                logger.warning("Image benchmark prompt %d failed: %s", i, e)
+                success = False
+                duration_ms = 0
+                error_msg = str(e)
+                response_preview = f"EXCEPTION: {e}"
+                file_size = 0
+
+            # Insert result (reuse benchmark_results schema)
+            try:
+                cur = db_conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO action_benchmark_results
+                        (run_id, agent_id, agent_name, display_name,
+                         model_used, provider, duration_ms,
+                         prompt_tokens, completion_tokens, total_tokens,
+                         success, error_message, response_preview)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s)
+                    """,
+                    (
+                        run_id,
+                        pixel_id,
+                        agent_label,
+                        pixel_display,
+                        model,
+                        "ollama_diffuser",
+                        duration_ms,
+                        0,  # no prompt tokens for image gen
+                        0,
+                        file_size,  # repurpose total_tokens as file_size
+                        success,
+                        error_msg,
+                        response_preview,
+                    ),
+                )
+                cur.close()
+            except Exception as e:
+                logger.error("Failed to insert image benchmark result: %s", e)
+
+            if success:
+                completed += 1
+            else:
+                failed += 1
+
+            results.append(
+                {
+                    "agent_name": agent_label,
+                    "success": success,
+                    "duration_ms": duration_ms,
+                    "total_tokens": file_size,
+                    "response_preview": response_preview,
+                }
+            )
+
+            # Update progress
+            try:
+                cur = db_conn.cursor()
+                cur.execute(
+                    """
+                    UPDATE action_benchmark_runs
+                    SET completed_agents = %s, failed_agents = %s
+                    WHERE id = %s
+                    """,
+                    (completed, failed, run_id),
+                )
+                cur.close()
+            except Exception:
+                pass
+
+        # Compute scores — for image gen, score based on success + speed
+        _compute_image_scores(run_id, results, conn=db_conn)
+
+        # Mark run complete
+        final_status = "completed" if completed > 0 else "failed"
+        try:
+            cur = db_conn.cursor()
+            cur.execute(
+                """
+                UPDATE action_benchmark_runs
+                SET status = %s, completed_agents = %s,
+                    failed_agents = %s, completed_at = NOW()
+                WHERE id = %s
+                """,
+                (final_status, completed, failed, run_id),
+            )
+            cur.close()
+        except Exception as e:
+            logger.error("Failed to finalize image benchmark %d: %s", run_id, e)
+
+        logger.info(
+            "Image benchmark %d complete: %d/%d prompts succeeded",
+            run_id,
+            completed,
+            len(prompts),
+        )
+
+    finally:
+        try:
+            db_conn.close()
+        except Exception:
+            pass
+
+
+def _compute_image_scores(run_id: int, results: List[Dict], conn=None):
+    """Score image benchmark results.
+
+    Formula: score = (success * 40) + (speed_norm * 30) + (size_norm * 30)
+    - success: 40 points for generating an image
+    - speed_norm: faster = higher (relative to slowest in run)
+    - size_norm: larger file = more detail (relative to largest)
+    """
+    successful = [r for r in results if r["success"]]
+    if not successful:
+        return
+
+    max_duration = max(r["duration_ms"] for r in successful) or 1
+    max_size = max(r["total_tokens"] for r in successful) or 1  # total_tokens = file_size
+
+    scores = {}
+    for r in results:
+        if r["success"]:
+            speed_norm = 1.0 - (r["duration_ms"] / max_duration)
+            size_norm = r["total_tokens"] / max_size
+            score = 40.0 + (speed_norm * 30.0) + (size_norm * 30.0)
+        else:
+            score = 0.0
+        scores[r["agent_name"]] = round(score, 1)
+
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+    def _write(c):
+        cur = c.cursor()
+        for rank, (agent_name, score) in enumerate(ranked, 1):
+            cur.execute(
+                """
+                UPDATE action_benchmark_results
+                SET score = %s, rank = %s
+                WHERE run_id = %s AND agent_name = %s
+                """,
+                (score, rank, run_id, agent_name),
+            )
+        cur.close()
+
+    try:
+        if conn:
+            _write(conn)
+        else:
+            with get_db_connection() as pool_conn:
+                _write(pool_conn)
+                pool_conn.commit()
+    except Exception as e:
+        logger.error("Failed to update image scores for run %d: %s", run_id, e)
 
 
 def _compute_scores(run_id: int, results: List[Dict], conn=None):

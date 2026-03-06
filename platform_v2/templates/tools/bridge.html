@@ -9547,9 +9547,11 @@ setInterval(loadStarshipData, 30000);
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
+{% if not starship_node %}
 <script>
 // === Mobile Controls Toggle ===
 function toggleBridgeControls() {

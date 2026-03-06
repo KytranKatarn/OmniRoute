@@ -18,7 +18,8 @@ globs: ["ai_bridge/**"]
 - MAX_LOADED_MODELS=13 | KEEP_ALIVE=24h | NUM_PARALLEL=4
 - Warmup: `_warmup_ollama_models()` in app.py — priority by dispatch frequency, stops at <25GB free
 - Cloud models (`:cloud` suffix) skip local loading
-- Modelfiles at `/mnt/data2/ollama/Modelfile.*`
+- Modelfiles at `/mnt/llm_drive/ollama/Modelfile.*`
+- Model storage: `/mnt/llm_drive/ollama/models/` (Samsung 840 SSD, systemd env OLLAMA_MODELS)
 
 ## ComfyUI
 - Port 8188 (Docker `archie_comfyui`) | Pixel is sole image gen agent

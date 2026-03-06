@@ -7683,6 +7683,266 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
 [data-panel] .lcars-body > div[style*="display:flex"] { margin: 0 !important; }
 </style>
 
+{% if starship_node %}
+<!-- ==================== STARSHIP COMMAND ==================== -->
+<style>
+/* Starship Command — Teal accent theme */
+.starship-command { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.sc-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; position: relative; }
+.sc-header-bar { width: 8px; height: 48px; background: #00e5ff; border-radius: 4px; }
+.sc-title { font-family: 'Antonio', sans-serif; font-size: 2rem; color: #00e5ff; margin: 0; letter-spacing: 4px; }
+.sc-node-name { font-family: 'IBM Plex Mono', monospace; color: rgba(255,255,255,0.7); font-size: 0.9rem; }
+.sc-status-indicator { width: 12px; height: 12px; border-radius: 50%; background: #00ff88; margin-left: auto; }
+.sc-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid rgba(0, 229, 255, 0.2); padding-bottom: 4px; }
+.sc-tab { background: transparent; border: 1px solid transparent; color: rgba(255,255,255,0.5); padding: 10px 24px; cursor: pointer; font-family: 'Antonio', sans-serif; font-size: 0.95rem; letter-spacing: 2px; text-transform: uppercase; transition: all 0.2s; }
+.sc-tab:hover { color: #00e5ff; border-color: rgba(0, 229, 255, 0.3); }
+.sc-tab.active { color: #00e5ff; border-color: #00e5ff; background: rgba(0, 229, 255, 0.08); }
+.sc-panel { display: none; }
+.sc-panel.active { display: block; }
+.sc-card { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+.sc-card h3 { font-family: 'Antonio', sans-serif; color: #00e5ff; font-size: 1rem; letter-spacing: 3px; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid rgba(0, 229, 255, 0.1); }
+.sc-stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.sc-label { color: rgba(255,255,255,0.5); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
+.sc-value { color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; }
+.sc-readonly { opacity: 0.6; }
+.sc-info { color: rgba(255,255,255,0.4); font-size: 0.85rem; margin-bottom: 16px; }
+.sc-models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.sc-model-card { background: rgba(0, 229, 255, 0.05); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 6px; padding: 12px; }
+.sc-model-name { color: #00e5ff; font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; margin-bottom: 4px; }
+.sc-model-size { color: rgba(255,255,255,0.5); font-size: 0.8rem; }
+.sc-model-available { color: #00ff88; }
+.sc-model-offline { color: #ff4444; }
+.sc-form-group { margin-bottom: 16px; }
+.sc-input { width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(0, 229, 255, 0.3); border-radius: 4px; color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 0.9rem; box-sizing: border-box; }
+.sc-input:focus { outline: none; border-color: #00e5ff; }
+.sc-btn { padding: 10px 32px; background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff; font-family: 'Antonio', sans-serif; font-size: 0.95rem; letter-spacing: 2px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+.sc-btn:hover { background: rgba(0, 229, 255, 0.25); }
+.sc-placeholder { color: rgba(255,255,255,0.3); text-align: center; padding: 40px; }
+.sc-toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; z-index: 9999; animation: scFadeIn 0.3s ease; }
+.sc-toast.success { background: rgba(0, 255, 136, 0.15); border: 1px solid #00ff88; color: #00ff88; }
+.sc-toast.error { background: rgba(255, 68, 68, 0.15); border: 1px solid #ff4444; color: #ff4444; }
+@keyframes scFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+
+<div class="starship-command" id="starship-command">
+    <div class="sc-header">
+        <div class="sc-header-bar"></div>
+        <h1 class="sc-title">STARSHIP COMMAND</h1>
+        <span class="sc-node-name" id="sc-node-name">{{ starship_node.node_name }}</span>
+        <div class="sc-status-indicator" id="sc-status-dot"></div>
+    </div>
+
+    <div class="sc-tabs">
+        <button class="sc-tab active" onclick="switchStarshipTab('status')" data-panel="status">STATUS</button>
+        <button class="sc-tab" onclick="switchStarshipTab('hardware')" data-panel="hardware">HARDWARE</button>
+        <button class="sc-tab" onclick="switchStarshipTab('models')" data-panel="models">MODELS</button>
+        <button class="sc-tab" onclick="switchStarshipTab('agents')" data-panel="agents">AGENTS</button>
+        <button class="sc-tab" onclick="switchStarshipTab('profile')" data-panel="profile">PROFILE</button>
+    </div>
+
+    <!-- STATUS TAB -->
+    <div class="sc-panel active" id="sc-panel-status">
+        <div class="sc-card">
+            <h3>CONNECTION</h3>
+            <div class="sc-stat-row">
+                <span class="sc-label">Status</span>
+                <span class="sc-value" id="sc-conn-status">{{ starship_node.status | upper }}</span>
+            </div>
+            <div class="sc-stat-row">
+                <span class="sc-label">Deployment</span>
+                <span class="sc-value">{{ starship_node.deployment_mode | upper }}</span>
+            </div>
+            <div class="sc-stat-row">
+                <span class="sc-label">Priority</span>
+                <span class="sc-value">{{ starship_node.bridge_priority or '—' }}</span>
+            </div>
+        </div>
+        <div class="sc-card">
+            <h3>CONTRIBUTION</h3>
+            <div class="sc-stat-row">
+                <span class="sc-label">Jobs Processed</span>
+                <span class="sc-value" id="sc-jobs-count">—</span>
+            </div>
+            <div class="sc-stat-row">
+                <span class="sc-label">Jobs Completed</span>
+                <span class="sc-value" id="sc-jobs-completed">—</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- HARDWARE TAB -->
+    <div class="sc-panel" id="sc-panel-hardware">
+        <div class="sc-card">
+            <h3>COMPUTE RESOURCES</h3>
+            <div class="sc-stat-row">
+                <span class="sc-label">CPU</span>
+                <span class="sc-value">{{ starship_node.cpu_model or 'Unknown' }} ({{ starship_node.cpu_cores or '?' }} cores)</span>
+            </div>
+            <div class="sc-stat-row">
+                <span class="sc-label">RAM</span>
+                <span class="sc-value">{{ starship_node.ram_gb or '?' }} GB</span>
+            </div>
+            {% if starship_node.gpu_model %}
+            <div class="sc-stat-row">
+                <span class="sc-label">GPU</span>
+                <span class="sc-value">{{ starship_node.gpu_model }} ({{ starship_node.gpu_vram_gb or '?' }} GB VRAM)</span>
+            </div>
+            {% endif %}
+            <div class="sc-stat-row">
+                <span class="sc-label">Storage</span>
+                <span class="sc-value">{{ starship_node.disk_gb or '?' }} GB</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODELS TAB -->
+    <div class="sc-panel" id="sc-panel-models">
+        <div class="sc-card">
+            <h3>ASSIGNED MODELS</h3>
+            <p class="sc-info">Models are assigned by Archie based on your hardware capabilities.</p>
+            <div id="sc-models-grid" class="sc-models-grid"></div>
+        </div>
+    </div>
+
+    <!-- AGENTS TAB -->
+    <div class="sc-panel" id="sc-panel-agents">
+        <div class="sc-card">
+            <h3>ASSIGNED AGENTS</h3>
+            <p class="sc-info">Agents are allocated by Archie based on fleet needs and your resources.</p>
+            <div id="sc-agents-grid">
+                <p class="sc-placeholder">No agents currently assigned to this node.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROFILE TAB -->
+    <div class="sc-panel" id="sc-panel-profile">
+        <div class="sc-card">
+            <h3>NODE PROFILE</h3>
+            <form id="sc-profile-form" onsubmit="saveStarshipProfile(event)">
+                <div class="sc-form-group">
+                    <label class="sc-label">Display Name</label>
+                    <input type="text" id="sc-display-name" class="sc-input" value="{{ starship_node.node_name }}" maxlength="100">
+                </div>
+                <div class="sc-form-group">
+                    <label class="sc-label">Node ID</label>
+                    <span class="sc-value sc-readonly">{{ starship_node.node_id }}</span>
+                </div>
+                <div class="sc-form-group">
+                    <label class="sc-label">Hostname</label>
+                    <span class="sc-value sc-readonly">{{ starship_node.hostname or '—' }}</span>
+                </div>
+                <button type="submit" class="sc-btn">SAVE PROFILE</button>
+            </form>
+        </div>
+        <div class="sc-card">
+            <h3>RECOMMENDATIONS</h3>
+            <div id="sc-recommendations">
+                <p class="sc-info">Archie will suggest optimal configurations for your hardware.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchStarshipTab(panel) {
+    document.querySelectorAll('.sc-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.sc-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.querySelector('.sc-tab[data-panel="' + panel + '"]').classList.add('active');
+    document.getElementById('sc-panel-' + panel).classList.add('active');
+}
+
+function scToast(msg, type) {
+    var el = document.createElement('div');
+    el.className = 'sc-toast ' + (type || 'success');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(function() { el.remove(); }, 3000);
+}
+
+function escHtmlSC(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+async function loadStarshipData() {
+    try {
+        var resp = await fetch('/tools/bridge/api/starship/status');
+        var data = await resp.json();
+        if (!data.success) return;
+
+        // Update status indicator
+        var statusDot = document.getElementById('sc-status-dot');
+        statusDot.style.background = data.node.status === 'online' ? '#00ff88' : '#ff4444';
+        document.getElementById('sc-conn-status').textContent = (data.node.status || 'unknown').toUpperCase();
+
+        // Update job stats
+        if (data.stats) {
+            document.getElementById('sc-jobs-count').textContent = data.stats.total_jobs || 0;
+            document.getElementById('sc-jobs-completed').textContent = data.stats.completed_jobs || 0;
+        }
+
+        // Update models grid using safe DOM construction
+        var grid = document.getElementById('sc-models-grid');
+        grid.textContent = '';
+        if (data.models && data.models.length > 0) {
+            data.models.forEach(function(m) {
+                var card = document.createElement('div');
+                card.className = 'sc-model-card';
+                var nameEl = document.createElement('div');
+                nameEl.className = 'sc-model-name';
+                nameEl.textContent = m.model_name;
+                var sizeEl = document.createElement('div');
+                sizeEl.className = 'sc-model-size';
+                sizeEl.textContent = (m.model_size_gb || '?') + ' GB ';
+                var statusEl = document.createElement('span');
+                statusEl.className = m.is_available ? 'sc-model-available' : 'sc-model-offline';
+                statusEl.textContent = m.is_available ? 'READY' : 'OFFLINE';
+                sizeEl.appendChild(statusEl);
+                card.appendChild(nameEl);
+                card.appendChild(sizeEl);
+                grid.appendChild(card);
+            });
+        } else {
+            var placeholder = document.createElement('p');
+            placeholder.className = 'sc-placeholder';
+            placeholder.textContent = 'No models assigned yet.';
+            grid.appendChild(placeholder);
+        }
+    } catch (e) {
+        console.error('Starship data load failed:', e);
+    }
+}
+
+async function saveStarshipProfile(e) {
+    e.preventDefault();
+    var name = document.getElementById('sc-display-name').value.trim();
+    if (!name) return;
+    try {
+        var resp = await fetch('/tools/bridge/api/starship/profile', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({display_name: name})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            document.getElementById('sc-node-name').textContent = name;
+            scToast('Profile saved', 'success');
+        } else {
+            scToast(data.error || 'Save failed', 'error');
+        }
+    } catch (e) {
+        console.error('Profile save failed:', e);
+        scToast('Save failed', 'error');
+    }
+}
+
+// Load data on page load and refresh every 30s
+loadStarshipData();
+setInterval(loadStarshipData, 30000);
+</script>
+{% else %}
 <!-- Admin Operations Navigation -->
 {% include 'includes/admin_ops_nav.html' %}
 
@@ -19815,4 +20075,5 @@ function saveProvider() {
 }
 
 </script>
+{% endif %}
 {% endblock %}

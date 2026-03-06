@@ -307,6 +307,33 @@ STATIONS_FALLBACK = {
 }
 
 # ============================================================================
+# STARSHIP NODE DETECTION
+# ============================================================================
+
+
+def get_starship_node_for_user(user_id):
+    """Check if the current user is a starship node operator."""
+    if not user_id:
+        return None
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT node_id, node_name, deployment_mode, hostname, port,
+                       status, bridge_priority, gpu_model, gpu_vram_gb,
+                       cpu_model, cpu_cores, ram_gb, disk_gb
+                FROM remote_nodes
+                WHERE user_id = %s AND deployment_mode = 'starship' AND is_active = true
+                LIMIT 1
+            """,
+                (user_id,),
+            )
+            return cur.fetchone()
+    except Exception:
+        return None
+
+
+# ============================================================================
 # MAIN BRIDGE PAGE
 # ============================================================================
 
@@ -338,11 +365,14 @@ def bridge_dashboard():
                 interactions_24h = cur.fetchone()["cnt"]
         except Exception:
             pass
+        # Check if user is a starship node operator
+        starship_node = get_starship_node_for_user(current_user.id if current_user.is_authenticated else None)
         return render_template(
             "tools/bridge.html",
             deployment_mode=deployment_mode,
             initial_agent_count=agent_count,
             initial_interactions_24h=interactions_24h,
+            starship_node=starship_node,
         )
 
 
@@ -9181,6 +9211,83 @@ def reassignment_recommendations():
     except Exception as e:
         logger.error(f"reassignment_recommendations error: {e}")
         return jsonify(success=False, error=str(e)), 500
+
+
+# ============================================================================
+# STARSHIP COMMAND API
+# ============================================================================
+
+
+@bridge_bp.route("/api/starship/status")
+@login_required
+def starship_status():
+    """Get current user's starship node status."""
+    user_id = current_user.id if current_user.is_authenticated else None
+    if not user_id:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    node = get_starship_node_for_user(user_id)
+    if not node:
+        return jsonify({"success": False, "error": "Not a starship operator"}), 403
+
+    node_id = node["node_id"]
+    with get_db_cursor() as (conn, cur):
+        # Get job stats
+        cur.execute(
+            """
+            SELECT COUNT(*) as total_jobs,
+                   COUNT(*) FILTER (WHERE status = 'completed') as completed_jobs
+            FROM bridge_jobs WHERE agent_name LIKE %s
+        """,
+            (f"%{node_id}%",),
+        )
+        stats = cur.fetchone()
+
+        # Get models
+        cur.execute(
+            """
+            SELECT model_name, model_size_gb, is_available
+            FROM node_ollama_models WHERE node_id = %s ORDER BY model_name
+        """,
+            (node_id,),
+        )
+        models = [dict(m) for m in cur.fetchall()]
+
+    return jsonify(
+        {
+            "success": True,
+            "node": dict(node),
+            "models": models,
+            "stats": dict(stats) if stats else {},
+        }
+    )
+
+
+@bridge_bp.route("/api/starship/profile", methods=["POST"])
+@login_required
+def starship_update_profile():
+    """Update starship node display name."""
+    user_id = current_user.id if current_user.is_authenticated else None
+    if not user_id:
+        return jsonify({"success": False, "error": "Not authenticated"}), 401
+    node = get_starship_node_for_user(user_id)
+    if not node:
+        return jsonify({"success": False, "error": "Not a starship operator"}), 403
+
+    data = request.get_json() or {}
+    display_name = data.get("display_name", "").strip()
+    if not display_name or len(display_name) > 100:
+        return jsonify({"success": False, "error": "Invalid name"}), 400
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE remote_nodes SET node_name = %s, updated_at = NOW()
+            WHERE node_id = %s
+        """,
+            (display_name, node["node_id"]),
+        )
+
+    return jsonify({"success": True})
 
 
 # ============================================================================

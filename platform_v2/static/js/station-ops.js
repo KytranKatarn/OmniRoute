@@ -413,6 +413,65 @@
     return this._atCapacity;
   };
 
+  /* ── Fetch DB-driven actions for a module ── */
+
+  /**
+   * Fetch registered actions for a module from the station_actions table.
+   * Returns a promise resolving to an array of action objects.
+   *
+   * Usage:
+   *   StationOps.fetchActions("dev_pipeline").then(function(actions) { ... });
+   */
+  StationOps.fetchActions = function(moduleSource) {
+    return fetch("/tools/bridge/api/station-actions?module_source=" + encodeURIComponent(moduleSource))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        return (data.success && data.actions) ? data.actions : [];
+      })
+      .catch(function() { return []; });
+  };
+
+  /**
+   * Execute a station action by POSTing to its endpoint.
+   * If createsJob is true, starts polling via the instance's pollJob method.
+   *
+   * @param {StationOps} ops   - StationOps instance (for pollJob)
+   * @param {string} actionKey - e.g. "dev_pipeline.scan.batch"
+   * @param {string} endpointPath - e.g. "/tools/dev-pipeline/api/scan/batch"
+   * @param {string} httpMethod - "POST" or "GET"
+   * @param {boolean} createsJob - whether to poll for job progress
+   * @param {object} params - optional body params
+   * @param {string|HTMLElement} jobElId - element to render job progress into
+   * @param {Function} onComplete - callback(job) when done
+   */
+  StationOps._execAction = function(ops, actionKey, endpointPath, httpMethod, createsJob, params, jobElId, onComplete) {
+    var fetchOpts = {
+      method: httpMethod || "POST",
+      headers: { "Content-Type": "application/json" }
+    };
+    if (params && Object.keys(params).length > 0) {
+      fetchOpts.body = JSON.stringify(params);
+    }
+
+    return fetch(endpointPath, fetchOpts)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.success === false) {
+          if (onComplete) onComplete(null, data.error || "Action failed");
+          return;
+        }
+        var jobId = data.job_id || data.jobId || data.id;
+        if (createsJob && jobId && ops) {
+          ops.pollJob(jobId, jobElId, onComplete);
+        } else {
+          if (onComplete) onComplete(data);
+        }
+      })
+      .catch(function(err) {
+        if (onComplete) onComplete(null, "Network error");
+      });
+  };
+
   /* ── Expose helpers for module-specific code ── */
   StationOps.escHtml = escHtml;
   StationOps.setHtml = setHtml;

@@ -1939,43 +1939,124 @@ except Exception as e:
 # ============================================================================
 # OLLAMA MODEL WARMUP - Pre-load key models so first requests are fast
 # ============================================================================
+def _get_agent_models():
+    """Query DB for unique models used by active agents + infrastructure models.
+
+    Returns list of (model_name, endpoint_type) tuples.
+    """
+    from database import get_db_cursor
+
+    agent_models = set()
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT DISTINCT model FROM agents
+                WHERE status = 'active' AND model IS NOT NULL AND model != ''
+            """
+            )
+            for row in cur.fetchall():
+                agent_models.add(row["model"])
+    except Exception:
+        pass
+
+    # Always include infrastructure models regardless of agent assignment
+    infra_models = {"arctic-embed-cpu", "qwen25-classify", "minicpm-v-cpu"}
+
+    # Build load list: infrastructure first, then agent models
+    models_to_load = []
+    for m in infra_models:
+        endpoint = "embed" if "embed" in m else "generate"
+        models_to_load.append((m, endpoint))
+    for m in agent_models:
+        if m not in infra_models:
+            endpoint = "embed" if "embed" in m else "generate"
+            models_to_load.append((m, endpoint))
+    return models_to_load
+
+
 def _warmup_ollama_models():
-    """Background warmup of Ollama models: dolphin3-8k (GPU), embedding model (CPU)."""
+    """Background warmup of Ollama models.
+
+    Loads models sequentially with keep_alive=-1 (infinite).
+    GPU vs CPU determined by checking what's already on GPU in Ollama.
+    Stops when <15GB RAM free.
+    """
     import threading
 
     def _do_warmup():
         import time
         import requests as req
+        import psutil
 
         ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
         if not ollama_host.startswith("http"):
             ollama_host = f"http://{ollama_host}"
 
-        models_to_warm = [
-            ("dolphin3-8k:latest", "generate", "warmup"),
-            ("arctic-embed-cpu", "embed", "warmup"),
-            ("qwen25-classify", "generate", "warmup"),
-        ]
-        for model_name, endpoint, payload_key in models_to_warm:
+        # Check what's currently on GPU
+        gpu_models = set()
+        try:
+            ps_resp = req.get(f"{ollama_host}/api/ps", timeout=10)
+            if ps_resp.status_code == 200:
+                for m in ps_resp.json().get("models", []):
+                    if m.get("size_vram", 0) > 0:
+                        gpu_models.add(m["name"])
+                        gpu_models.add(m["name"].replace(":latest", ""))
+        except Exception:
+            pass
+
+        models_to_load = _get_agent_models()
+
+        def _load_model(model_name, endpoint):
+            # Use GPU only if model is already on GPU (preserve user choice)
+            use_gpu = model_name in gpu_models or f"{model_name}:latest" in gpu_models
             for attempt in range(3):
                 try:
                     if endpoint == "embed":
-                        data = {"model": model_name, "input": payload_key}
+                        data = {"model": model_name, "input": "warmup", "keep_alive": -1}
                     else:
-                        data = {"model": model_name, "prompt": payload_key, "stream": False}
+                        opts = {"num_predict": 1}
+                        if not use_gpu:
+                            opts["num_gpu"] = 0
+                        data = {
+                            "model": model_name,
+                            "prompt": "warmup",
+                            "stream": False,
+                            "options": opts,
+                            "keep_alive": -1,
+                        }
+                    req_timeout = 600 if "coder" in model_name else 300
                     resp = req.post(
                         f"{ollama_host}/api/{endpoint}",
                         json=data,
-                        timeout=120,
+                        timeout=req_timeout,
                     )
                     if resp.status_code == 200:
-                        logger.info(f"Ollama warmup: {model_name} loaded successfully")
-                        break
+                        logger.info(f"Ollama warmup: {model_name} loaded " f"({'GPU' if use_gpu else 'CPU'})")
+                        return True
                     else:
-                        logger.warning(f"Ollama warmup: {model_name} returned {resp.status_code}, retry {attempt+1}/3")
+                        logger.warning(
+                            f"Ollama warmup: {model_name} returned " f"{resp.status_code}, retry {attempt+1}/3"
+                        )
                 except Exception as e:
-                    logger.warning(f"Ollama warmup: {model_name} attempt {attempt+1}/3 failed: {e}")
+                    logger.warning(f"Ollama warmup: {model_name} attempt " f"{attempt+1}/3 failed: {e}")
                 time.sleep(5)
+            return False
+
+        ram_free = psutil.virtual_memory().available / (1024**3)
+        logger.info(f"Ollama warmup: {ram_free:.0f}GB free, loading {len(models_to_load)} models")
+        loaded = 0
+
+        for model_name, endpoint in models_to_load:
+            ram_free = psutil.virtual_memory().available / (1024**3)
+            if ram_free < 15:
+                logger.info(f"Ollama warmup: {ram_free:.0f}GB free, stopping " f"({loaded} models loaded)")
+                break
+            if _load_model(model_name, endpoint):
+                loaded += 1
+
+        final_free = psutil.virtual_memory().available / (1024**3)
+        logger.info(f"Ollama warmup complete: {loaded} models loaded, " f"{final_free:.0f}GB RAM free")
 
     t = threading.Thread(target=_do_warmup, daemon=True, name="ollama-warmup")
     t.start()
@@ -3528,9 +3609,94 @@ def init_consciousness_scheduler(flask_app):
             replace_existing=True,
         )
 
+        # Ollama model health check: re-load evicted models every 30 min
+        def scheduled_ollama_health():
+            """Re-load agent + infrastructure models that Ollama may have evicted.
+
+            Uses keep_alive=-1. GPU vs CPU determined by what's already on GPU
+            (preserves user choice from Bridge Command).
+            """
+            import requests as req
+            import psutil
+
+            ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+            if not ollama_host.startswith("http"):
+                ollama_host = f"http://{ollama_host}"
+
+            # Get desired models from DB (agents + infra)
+            desired = {}
+            for model_name, endpoint in _get_agent_models():
+                desired[model_name] = endpoint
+
+            try:
+                resp = req.get(f"{ollama_host}/api/ps", timeout=10)
+                if resp.status_code != 200:
+                    return
+                ps_models = resp.json().get("models", [])
+                loaded = {m["name"] for m in ps_models}
+                # Track GPU models to preserve user's GPU choices
+                gpu_models = set()
+                for m in ps_models:
+                    if m.get("size_vram", 0) > 0:
+                        gpu_models.add(m["name"])
+                        gpu_models.add(m["name"].replace(":latest", ""))
+            except Exception:
+                return
+
+            missing = {m for m in desired if m not in loaded and f"{m}:latest" not in loaded}
+            if not missing:
+                return
+
+            ram_free = psutil.virtual_memory().available / (1024**3)
+            logger.info(
+                f"Ollama health: {len(missing)} models missing, " f"{ram_free:.0f}GB free — reloading: {missing}"
+            )
+
+            for model_name in missing:
+                ram_free = psutil.virtual_memory().available / (1024**3)
+                if ram_free < 10:
+                    logger.warning("Ollama health: <10GB RAM free, stopping")
+                    break
+                endpoint = desired[model_name]
+                use_gpu = model_name in gpu_models or f"{model_name}:latest" in gpu_models
+                try:
+                    if endpoint == "embed":
+                        data = {"model": model_name, "input": "health", "keep_alive": -1}
+                    else:
+                        opts = {"num_predict": 1}
+                        if not use_gpu:
+                            opts["num_gpu"] = 0
+                        data = {
+                            "model": model_name,
+                            "prompt": "health",
+                            "stream": False,
+                            "options": opts,
+                            "keep_alive": -1,
+                        }
+                    timeout = 600 if "coder" in model_name else 300
+                    r = req.post(
+                        f"{ollama_host}/api/{endpoint}",
+                        json=data,
+                        timeout=timeout,
+                    )
+                    if r.status_code == 200:
+                        logger.info(f"Ollama health: reloaded {model_name} " f"({'GPU' if use_gpu else 'CPU'})")
+                    else:
+                        logger.warning(f"Ollama health: {model_name} returned " f"{r.status_code}")
+                except Exception as e:
+                    logger.warning(f"Ollama health: {model_name} failed: {e}")
+
+        scheduler.add_job(
+            scheduled_ollama_health,
+            trigger=IntervalTrigger(minutes=30),
+            id="ollama_model_health",
+            name="Ollama Model Health Check",
+            replace_existing=True,
+        )
+
         scheduler.start()
         flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
-        logger.info("Consciousness scheduler started with 8 scheduled tasks")
+        logger.info("Consciousness scheduler started with 9 scheduled tasks")
 
         return scheduler
 

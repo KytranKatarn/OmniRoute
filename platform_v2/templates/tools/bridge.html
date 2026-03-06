@@ -4121,6 +4121,20 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-llm-badge.loaded { background: rgba(50,205,50,0.15); color: #32CD32; }
 .crew-llm-badge.swap { background: rgba(255,215,0,0.15); color: #FFD700; }
 .crew-llm-badge.cloud { background: rgba(139,92,246,0.15); color: #8b5cf6; }
+.crew-llm-toggle {
+    font-size: 0.55rem; padding: 1px 5px; border-radius: 3px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.2); font-weight: 600; letter-spacing: 0.3px;
+    transition: all 0.2s;
+}
+.crew-llm-toggle.loaded {
+    background: rgba(255,68,68,0.1); color: #ff6b6b; border-color: rgba(255,68,68,0.3);
+}
+.crew-llm-toggle.loaded:hover { background: rgba(255,68,68,0.25); }
+.crew-llm-toggle.swap {
+    background: rgba(50,205,50,0.1); color: #32CD32; border-color: rgba(50,205,50,0.3);
+}
+.crew-llm-toggle.swap:hover { background: rgba(50,205,50,0.25); }
+.crew-llm-toggle:disabled { opacity: 0.5; cursor: wait; }
 
 /* Performance tags */
 .crew-perf-tag {
@@ -16626,6 +16640,8 @@ function renderCrewManifest(crew, capacity) {
     var grid = document.getElementById('crew-manifest-grid');
     var countEl = document.getElementById('crew-manifest-count');
     if (!grid) return;
+    // Store crew data for instant profile previews
+    window._lastCrewData = crew;
     // Also populate training/lounge selects
     populateTrainingLoungeSelects(crew);
 
@@ -16828,6 +16844,26 @@ function renderCrewManifest(crew, capacity) {
             badges.appendChild(llmBadge);
         }
 
+        // Load/Unload toggle button
+        if (agent.llm_status === 'loaded' || agent.llm_status === 'swap') {
+            var toggleBtn = document.createElement('button');
+            toggleBtn.className = 'crew-llm-toggle ' + agent.llm_status;
+            if (agent.llm_status === 'loaded') {
+                toggleBtn.textContent = 'Unload';
+                toggleBtn.title = 'Unload ' + (agent.model || '').replace(':latest', '') + ' from memory';
+            } else {
+                toggleBtn.textContent = 'Load';
+                toggleBtn.title = 'Load ' + (agent.model || '').replace(':latest', '') + ' into memory';
+            }
+            toggleBtn.onclick = (function(ag, btn) {
+                return function(e) {
+                    e.stopPropagation();
+                    _toggleAgentModel(ag, btn);
+                };
+            })(agent, toggleBtn);
+            badges.appendChild(toggleBtn);
+        }
+
         // Performance tags
         var agentStats = agent.stats_24h || {};
         if (agent.llm_status === 'loaded' && (agentStats.dispatches || 0) === 0) {
@@ -16964,20 +17000,141 @@ function renderCrewManifest(crew, capacity) {
     }
 }
 
-// === Agent Profile Modal ===
+// === Model Load/Unload Control ===
+function _toggleAgentModel(agent, btn) {
+    var model = agent.model || '';
+    var isLoaded = agent.llm_status === 'loaded';
+    var action = isLoaded ? 'unload' : 'load';
+    var hw = (agent.hardware || 'CPU').toUpperCase();
+
+    // Confirm unload if agent is working
+    if (isLoaded && agent.status === 'working') {
+        if (!confirm('Warning: ' + (agent.full_name || agent.name) + ' is currently working.\n\nUnloading their model will interrupt any active dispatch.\n\nContinue?')) return;
+    }
+
+    // Confirm load — show estimated impact
+    if (!isLoaded) {
+        var sizeNote = agent.llm_size_gb ? ' (~' + agent.llm_size_gb + 'GB)' : '';
+        if (!confirm('Load ' + model.replace(':latest', '') + sizeNote + ' into memory?\n\nThis may take a moment for cold-load models.')) return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = isLoaded ? 'Unloading...' : 'Loading...';
+
+    fetch('/tools/bridge/api/bridge/model-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: model,
+            action: action,
+            num_gpu: hw === 'GPU' ? 99 : 0
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            loadCrewManifest();
+        } else {
+            alert('Failed: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.textContent = isLoaded ? 'Unload' : 'Load';
+        }
+    })
+    .catch(function() {
+        alert('Request failed — check network');
+        btn.disabled = false;
+        btn.textContent = isLoaded ? 'Unload' : 'Load';
+    });
+}
+
+// === Agent Profile Modal (with client-side cache + manifest preload) ===
+var _profileCache = {};      // agentId -> { ts: timestamp, data: response }
+var _profileCacheTTL = 30;   // seconds
+
+function _getManifestAgent(agentId) {
+    // Pull instant data from crew manifest (already loaded, no network call)
+    var grid = document.getElementById('crew-manifest-grid');
+    if (!grid || !window._lastCrewData) return null;
+    for (var i = 0; i < window._lastCrewData.length; i++) {
+        if (window._lastCrewData[i].agent_id === agentId || window._lastCrewData[i].id === agentId) {
+            return window._lastCrewData[i];
+        }
+    }
+    return null;
+}
+
+function _renderProfilePreview(agentId, body, title) {
+    // Show instant preview from manifest data while full profile loads
+    var manifest = _getManifestAgent(agentId);
+    if (!manifest) return;
+    var name = manifest.full_name || manifest.name || '';
+    title.textContent = name;
+    var previewEl = document.createElement('div');
+    previewEl.style.cssText = 'opacity:0.7;';
+
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;gap:12px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);';
+    var avatar = document.createElement('div');
+    avatar.style.cssText = 'width:48px;height:48px;border-radius:50%;background:var(--archie-cyan);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;color:#000;';
+    avatar.textContent = (name[0] || '?').toUpperCase();
+    hdr.appendChild(avatar);
+    var info = document.createElement('div');
+    info.style.flex = '1';
+    var nameEl = document.createElement('div');
+    nameEl.style.cssText = 'font-size:1rem;font-weight:600;';
+    nameEl.textContent = name;
+    info.appendChild(nameEl);
+    var subEl = document.createElement('div');
+    subEl.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted);';
+    subEl.textContent = (manifest.name || '') + (manifest.title ? ' \u2014 ' + manifest.title : '');
+    info.appendChild(subEl);
+    var metaEl = document.createElement('div');
+    metaEl.style.cssText = 'font-size:0.7rem;color:var(--archie-text-tertiary);';
+    metaEl.textContent = (manifest.station || '') + ' \u2022 ' + (manifest.model || '').replace(':latest', '') + ' \u2022 ' + (manifest.hardware || 'CPU');
+    info.appendChild(metaEl);
+    hdr.appendChild(info);
+    previewEl.appendChild(hdr);
+
+    var loadingEl = document.createElement('div');
+    loadingEl.style.cssText = 'text-align:center;padding:1rem;color:var(--archie-text-muted);font-size:0.75rem;';
+    loadingEl.textContent = 'Loading full profile...';
+    previewEl.appendChild(loadingEl);
+
+    body.replaceChildren(previewEl);
+}
+
 function openAgentProfile(agentId) {
     _profileAgentId = agentId;
     var modal = document.getElementById('agent-profile-modal');
     var body = document.getElementById('agent-profile-body');
     var title = document.getElementById('agent-profile-title');
     if (!modal || !body) return;
-    body.innerHTML = '<span class="briefing-muted">Loading...</span>';
     title.textContent = 'Agent Profile';
     modal.classList.add('active');
+
+    // Check client-side cache first
+    var cached = _profileCache[agentId];
+    if (cached && (Date.now() - cached.ts) < _profileCacheTTL * 1000) {
+        _renderFullProfile(cached.data, body, title);
+        return;
+    }
+
+    // Show instant preview from manifest while fetching
+    _renderProfilePreview(agentId, body, title);
 
     fetch('/tools/bridge/api/agents/' + parseInt(agentId) + '/profile')
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            // Cache the response
+            _profileCache[agentId] = { ts: Date.now(), data: data };
+            _renderFullProfile(data, body, title);
+        }).catch(function() {
+            body.textContent = 'Failed to load profile';
+        });
+}
+
+function _renderFullProfile(data, body, title) {
+            var agentId = _profileAgentId;
             if (!data.success) {
                 body.textContent = 'Failed to load profile';
                 return;
@@ -17243,9 +17400,6 @@ function openAgentProfile(agentId) {
                     iHtml += '</div></div>';
                     section.innerHTML = iHtml;
                 }).catch(function() {});
-        }).catch(function() {
-            body.textContent = 'Failed to load profile';
-        });
 }
 
 function closeAgentProfile() {
@@ -17810,25 +17964,87 @@ function _makeModelRow(model, ctx) {
     return row;
 }
 
+var _agentFormNumGpu = 0;  // 0=CPU, 99=GPU — set by hardware toggle
+
 function _showModelInfo(model, ctx) {
     var info = document.getElementById('agent-form-model-info');
     info.style.display = 'block';
-    info.textContent = '';
+    while (info.firstChild) info.removeChild(info.firstChild);
 
-    var parts = [];
-    parts.push(model.name.replace(':latest', ''));
-    if (model.family) parts.push(model.family);
-    if (model.parameter_size) parts.push(model.parameter_size);
-    parts.push(model.size_gb + 'GB');
+    var vramTotalGb = (ctx.gpu || {}).vram_total_gb || 0;
     var isOnGpu = model.on_gpu && model.loaded;
-    parts.push(isOnGpu ? '\u26A1 GPU' + (model.vram_gb ? ' (' + model.vram_gb + 'GB VRAM)' : '') : '\uD83D\uDCBB CPU');
-    parts.push(model.loaded ? '\u2705 Loaded' : '\u26A0 Not loaded (will cold-load on first dispatch)');
+    var couldFitGpu = vramTotalGb > 0 && model.size_gb <= vramTotalGb;
 
+    // Default: keep current hw, or CPU for new
+    _agentFormNumGpu = isOnGpu ? 99 : 0;
+
+    // Model summary line
+    var summaryParts = [];
+    summaryParts.push(model.name.replace(':latest', ''));
+    if (model.parameter_size) summaryParts.push(model.parameter_size);
+    summaryParts.push(model.size_gb + 'GB');
+    summaryParts.push(model.loaded ? '\u2705 Loaded' : '\u26A0 Not loaded');
+    var summaryEl = document.createElement('div');
+    summaryEl.textContent = summaryParts.join(' \u2022 ');
+    info.appendChild(summaryEl);
+
+    // GPU/CPU hardware toggle (for GPU-eligible models)
+    if (couldFitGpu || isOnGpu) {
+        var toggleRow = document.createElement('div');
+        toggleRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:5px;';
+
+        var lbl = document.createElement('span');
+        lbl.textContent = 'Load on:';
+        lbl.style.cssText = 'font-weight:600;color:var(--archie-text-secondary);';
+        toggleRow.appendChild(lbl);
+
+        var gpuBtn = document.createElement('button');
+        gpuBtn.type = 'button';
+        gpuBtn.textContent = '\u26A1 GPU (' + vramTotalGb + 'GB VRAM)';
+        gpuBtn.className = 'hw-toggle-btn' + (isOnGpu ? ' active' : '');
+        gpuBtn.style.cssText = 'padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;border:1px solid rgba(255,170,0,0.3);background:' + (isOnGpu ? 'rgba(255,170,0,0.2)' : 'transparent') + ';color:#FFD700;';
+
+        var cpuBtn = document.createElement('button');
+        cpuBtn.type = 'button';
+        cpuBtn.textContent = '\uD83D\uDCBB CPU (128GB RAM)';
+        cpuBtn.className = 'hw-toggle-btn' + (!isOnGpu ? ' active' : '');
+        cpuBtn.style.cssText = 'padding:2px 8px;border-radius:3px;font-size:0.6rem;cursor:pointer;border:1px solid rgba(50,205,50,0.3);background:' + (!isOnGpu ? 'rgba(50,205,50,0.2)' : 'transparent') + ';color:#32CD32;';
+
+        gpuBtn.onclick = function() {
+            _agentFormNumGpu = 99;
+            gpuBtn.style.background = 'rgba(255,170,0,0.2)';
+            cpuBtn.style.background = 'transparent';
+        };
+        cpuBtn.onclick = function() {
+            _agentFormNumGpu = 0;
+            cpuBtn.style.background = 'rgba(50,205,50,0.2)';
+            gpuBtn.style.background = 'transparent';
+        };
+
+        toggleRow.appendChild(gpuBtn);
+        toggleRow.appendChild(cpuBtn);
+        info.appendChild(toggleRow);
+    } else {
+        // CPU only — too large for GPU
+        var cpuNote = document.createElement('div');
+        cpuNote.style.cssText = 'margin-top:3px;color:var(--archie-text-muted);';
+        cpuNote.textContent = '\uD83D\uDCBB CPU only \u2014 ' + model.size_gb + 'GB exceeds ' + vramTotalGb + 'GB VRAM';
+        info.appendChild(cpuNote);
+        _agentFormNumGpu = 0;
+    }
+
+    // Agents using this model
     var agents = ctx.model_agents[model.name] || ctx.model_agents[model.name.replace(':latest', '')] || [];
     if (agents.length > 0) {
-        parts.push('Shared with: ' + agents.join(', '));
+        var agNote = document.createElement('div');
+        agNote.style.cssText = 'margin-top:3px;color:var(--archie-text-muted);';
+        agNote.textContent = 'Shared with: ' + agents.join(', ');
+        info.appendChild(agNote);
     } else if (model.loaded) {
-        parts.push('Not assigned to any agent \u2014 consider reusing');
+        var orphanNote = document.createElement('div');
+        orphanNote.style.cssText = 'margin-top:3px;color:#FFD700;';
+        orphanNote.textContent = '\u26A0 Not assigned to any agent \u2014 will be auto-unloaded if you choose this model';
+        info.appendChild(orphanNote);
     }
 
     // Swap limit check
@@ -17836,7 +18052,10 @@ function _showModelInfo(model, ctx) {
         var swapBadges = document.querySelectorAll('.crew-llm-badge.swap');
         var currentSwap = swapBadges ? swapBadges.length : 0;
         if (currentSwap >= _agentFormMaxSwap) {
-            parts.push('\u26D4 Swap limit reached (' + currentSwap + '/' + _agentFormMaxSwap + ') \u2014 selecting this model will exceed swap capacity');
+            var swapNote = document.createElement('div');
+            swapNote.style.cssText = 'margin-top:3px;color:#FF4444;font-weight:600;';
+            swapNote.textContent = '\u26D4 Swap limit reached (' + currentSwap + '/' + _agentFormMaxSwap + ')';
+            info.appendChild(swapNote);
             info.style.borderColor = 'rgba(255,68,68,0.3)';
             info.style.background = 'rgba(255,68,68,0.08)';
         } else {
@@ -17847,8 +18066,6 @@ function _showModelInfo(model, ctx) {
         info.style.borderColor = 'rgba(139,92,246,0.15)';
         info.style.background = 'rgba(139,92,246,0.08)';
     }
-
-    info.textContent = parts.join(' \u2022 ');
 }
 
 function closeAgentFormModal() {
@@ -17889,6 +18106,7 @@ function saveAgent() {
         model: modelVal,
         worker_type: document.getElementById('agent-form-worker').value,
         bio: document.getElementById('agent-form-bio').value,
+        num_gpu: _agentFormNumGpu || 0,
     };
     var nameVal = document.getElementById('agent-form-name').value.trim();
     if (nameVal) payload.name = nameVal;
@@ -17898,18 +18116,34 @@ function saveAgent() {
     var url = id ? '/tools/bridge/api/agents/' + parseInt(id) : '/tools/bridge/api/agents';
     var method = id ? 'PUT' : 'POST';
 
+    // Disable save button during request (model load can take a while)
+    var saveBtn = document.getElementById('agent-form-save-btn');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
     fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     }).then(function(r) { return r.json(); })
     .then(function(data) {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Agent'; }
         if (data.success) {
             closeAgentFormModal();
+            // Invalidate profile cache for edited agent
+            if (id) delete _profileCache[parseInt(id)];
             loadCrewManifest();
+            // Show model operations feedback if any
+            if (data.model_ops && data.model_ops.length > 0) {
+                var msg = 'Model operations:\n' + data.model_ops.join('\n');
+                setTimeout(function() { alert(msg); }, 300);
+            }
         } else {
             alert(data.error || 'Failed to save');
         }
+    })
+    .catch(function() {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Agent'; }
+        alert('Request failed — model load may have timed out');
     });
 }
 

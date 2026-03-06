@@ -696,8 +696,20 @@ def update_agent(agent_id):
     sets.append("updated_at = NOW()")
     params.append(agent_id)
 
+    # Capture model transition info from request
+    new_model = data.get("model", "").strip()
+    num_gpu = int(data.get("num_gpu", 0))
+
     try:
         with get_db_cursor() as (conn, cur):
+            # Get old model before update
+            old_model = None
+            if new_model:
+                cur.execute("SELECT model FROM agents WHERE id = %s", (agent_id,))
+                row = cur.fetchone()
+                if row:
+                    old_model = row["model"]
+
             cur.execute(
                 f"UPDATE agents SET {', '.join(sets)} WHERE id = %s RETURNING id, name, first_name, last_name, model, status",
                 params,
@@ -706,15 +718,62 @@ def update_agent(agent_id):
             if not agent:
                 return jsonify({"success": False, "error": "Agent not found"}), 404
 
-            # Invalidate dispatcher cache so crew manifest reflects changes immediately
+            # Invalidate caches
             try:
                 from ai_bridge.bridge_dispatcher import get_dispatcher
 
                 get_dispatcher()._cache_time = 0
             except Exception:
                 pass
+            _profile_cache.pop(agent_id, None)
 
-            return jsonify({"success": True, "agent": dict(agent)})
+            # Model transition: auto-load new model, auto-unload orphaned old model
+            model_ops = []
+            if new_model and old_model and new_model != old_model:
+                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+                _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+                ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+
+                # Check if old model is orphaned (no other agent uses it)
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM agents WHERE model = %s AND id != %s AND status = 'active'",
+                    (old_model, agent_id),
+                )
+                old_count = cur.fetchone()["cnt"]
+                if old_count == 0 and old_model:
+                    # Unload orphaned model
+                    try:
+                        requests.post(
+                            f"{ollama_url}/api/generate",
+                            json={"model": old_model, "keep_alive": 0},
+                            timeout=10,
+                        )
+                        model_ops.append(f"unloaded {old_model} (orphaned)")
+                    except Exception:
+                        model_ops.append(f"failed to unload {old_model}")
+
+                # Load new model
+                try:
+                    requests.post(
+                        f"{ollama_url}/api/generate",
+                        json={
+                            "model": new_model,
+                            "prompt": "hi",
+                            "options": {"num_gpu": num_gpu, "num_predict": 1},
+                            "keep_alive": -1,
+                            "stream": False,
+                        },
+                        timeout=300,
+                    )
+                    hw_label = "GPU" if num_gpu > 0 else "CPU"
+                    model_ops.append(f"loaded {new_model} on {hw_label}")
+                except Exception:
+                    model_ops.append(f"failed to load {new_model}")
+
+            result = {"success": True, "agent": dict(agent)}
+            if model_ops:
+                result["model_ops"] = model_ops
+            return jsonify(result)
     except Exception as e:
         logger.error("update_agent error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
@@ -6157,6 +6216,83 @@ def get_crew_manifest():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/bridge/model-control", methods=["POST"])
+@login_required
+def model_control():
+    """Load or unload an Ollama model (admin only).
+
+    Body: { "model": "phi3.5:latest", "action": "load"|"unload", "num_gpu": 0 }
+    """
+    try:
+        if not current_user.is_admin:
+            return jsonify({"success": False, "error": "Admin access required"}), 403
+
+        data = request.get_json()
+        model_name = (data or {}).get("model", "").strip()
+        action = (data or {}).get("action", "").strip()
+        num_gpu = int((data or {}).get("num_gpu", 0))
+
+        if not model_name or action not in ("load", "unload"):
+            return jsonify({"success": False, "error": "model and action (load|unload) required"}), 400
+
+        _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+        _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+        ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+
+        if action == "unload":
+            # Unload: send generate with keep_alive=0
+            resp = requests.post(
+                f"{ollama_url}/api/generate",
+                json={"model": model_name, "keep_alive": 0},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return jsonify({"success": True, "message": f"{model_name} unloaded"})
+            return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}), 502
+
+        # action == "load"
+        # Check swap limit: count models currently loaded
+        try:
+            ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=5)
+            loaded_count = len(ps_resp.json().get("models", [])) if ps_resp.status_code == 200 else 0
+            already_loaded = False
+            for m in ps_resp.json().get("models", []) if ps_resp.status_code == 200 else []:
+                if m.get("name", "") == model_name or m.get("name", "").replace(":latest", "") == model_name.replace(
+                    ":latest", ""
+                ):
+                    already_loaded = True
+                    break
+            if already_loaded:
+                return jsonify({"success": True, "message": f"{model_name} already loaded"})
+        except Exception:
+            loaded_count = 0
+
+        # Load: send generate with keep_alive=-1
+        resp = requests.post(
+            f"{ollama_url}/api/generate",
+            json={
+                "model": model_name,
+                "prompt": "hi",
+                "options": {"num_gpu": num_gpu, "num_predict": 1},
+                "keep_alive": -1,
+                "stream": False,
+            },
+            timeout=300,
+        )
+        if resp.status_code == 200:
+            result = resp.json()
+            if result.get("error"):
+                return jsonify({"success": False, "error": result["error"][:300]}), 502
+            return jsonify({"success": True, "message": f"{model_name} loaded"})
+        return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}: {resp.text[:200]}"}), 502
+
+    except requests.Timeout:
+        return jsonify({"success": False, "error": "Model load timed out (300s) — try a smaller model"}), 504
+    except Exception as e:
+        logger.error(f"model_control error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/bridge/reassign", methods=["POST"])
 @login_required
 def reassign_agent():
@@ -7723,10 +7859,21 @@ def agent_emotional_state_detail(agent_id):
         return jsonify({"emotional_state": None, "last_rest": None})
 
 
+_profile_cache = {}  # agent_id -> (timestamp, response_dict)
+_profile_cache_ttl = 30  # seconds
+
+
 @bridge_bp.route("/api/agents/<int:agent_id>/profile")
 @login_required
 def agent_profile(agent_id):
     """Aggregated agent profile: details, skills, emotional state, performance, memory."""
+    # Server-side cache: return cached if fresh
+    import time as _time
+
+    cached = _profile_cache.get(agent_id)
+    if cached and (_time.time() - cached[0]) < _profile_cache_ttl:
+        return jsonify(cached[1])
+
     try:
         with get_db_cursor(commit=False) as (conn, cur):
 
@@ -7833,22 +7980,22 @@ def agent_profile(agent_id):
                 if m.get("created_at"):
                     m["created_at"] = m["created_at"].isoformat()
 
-            return jsonify(
-                {
-                    "success": True,
-                    "agent": agent,
-                    "skills": skills,
-                    "emotional_state": emotional,
-                    "performance_24h": {
-                        "tasks": perf["tasks_24h"],
-                        "completed": perf["completed"],
-                        "failed": perf["failed"],
-                        "avg_duration_ms": round(float(perf["avg_duration_ms"]), 1),
-                    },
-                    "recent_tasks": recent,
-                    "memories": memories,
-                }
-            )
+            result = {
+                "success": True,
+                "agent": agent,
+                "skills": skills,
+                "emotional_state": emotional,
+                "performance_24h": {
+                    "tasks": perf["tasks_24h"],
+                    "completed": perf["completed"],
+                    "failed": perf["failed"],
+                    "avg_duration_ms": round(float(perf["avg_duration_ms"]), 1),
+                },
+                "recent_tasks": recent,
+                "memories": memories,
+            }
+            _profile_cache[agent_id] = (_time.time(), result)
+            return jsonify(result)
 
     except Exception as e:
         logger.error("agent_profile error: %s", e)

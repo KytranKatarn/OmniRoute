@@ -396,7 +396,7 @@ def _resolve_path(file_path=None, full_path=None):
 # ===================================================================
 
 
-def scan_file(file_path, full_path=None, scanned_by="system", user_id=4):
+def scan_file(file_path, full_path=None, scanned_by="system", user_id=4, job_id=None, prefer_agent=None):
     """Scan a single file with AI + static analysis.
 
     Returns dict with scan_id, quality_score, issues, analysis_type, agent_used.
@@ -449,6 +449,8 @@ Only return valid JSON, no other text."""
                 json_mode=True,
                 user_id=user_id,
                 timeout=120,
+                job_id=job_id,
+                prefer_agent=prefer_agent,
             )
 
             # Always capture agent info from Bridge, even if AI fails
@@ -654,12 +656,29 @@ def _run_batch_scan_job(job_id, file_paths, scanned_by, user_id):
     completed = 0
     failed = 0
 
+    # Look up assigned agent for batch consistency — every file in the
+    # batch should be dispatched to the same agent.
+    prefer_agent = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT agent_name FROM bridge_jobs WHERE id = %s", (job_id,))
+        row = cur.fetchone()
+        if row:
+            prefer_agent = row[0]
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
     for fp in file_paths:
         try:
             result = scan_file(
                 file_path=fp,
                 scanned_by=scanned_by,
                 user_id=user_id,
+                job_id=job_id,
+                prefer_agent=prefer_agent,
             )
             if result.get("success"):
                 completed += 1

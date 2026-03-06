@@ -280,6 +280,7 @@ def call_ollama(
     system_prompt=None,
     context=None,
     prefer_gpu=True,
+    timeout=300,
 ):
     """
     Call Ollama API with dynamic node routing (Phase 71)
@@ -327,7 +328,7 @@ def call_ollama(
         response = requests.post(
             f"{ollama_host}/api/generate",
             json=payload,
-            timeout=300,  # Increased timeout for larger models
+            timeout=timeout,
         )
 
         response_ms = int((time.time() - start_time) * 1000)

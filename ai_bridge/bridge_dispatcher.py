@@ -213,6 +213,10 @@ class BridgeDispatcher:
         # Module → station cache (bridge_stations.modules lookup)
         self._module_station_cache = {}
         self._module_station_ts = 0
+        # Dynamic specialization cache from benchmarks (10-minute TTL)
+        self._dynamic_spec_cache = {}  # (station, capability) → agent_name
+        self._dynamic_spec_ts = 0
+        self._dynamic_spec_ttl = 600
 
     def _get_db(self):
         """Get database connection."""
@@ -581,6 +585,64 @@ class BridgeDispatcher:
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Welfare cache refresh failed: {e}")
 
+    def _get_dynamic_specialization(
+        self, station_code: str, capability: str
+    ) -> Optional[str]:
+        """Return the top benchmark performer for *capability* at *station*.
+
+        Uses a 10-minute cache.  Falls back to ``None`` so the caller can
+        check the static ``AGENT_SPECIALIZATION`` dict.
+        """
+        _NO_WINNER = ""  # sentinel for "queried DB, no winner found"
+        now = time.time()
+        cache_key = (station_code, capability)
+
+        if (now - self._dynamic_spec_ts) < self._dynamic_spec_ttl:
+            cached = self._dynamic_spec_cache.get(cache_key)
+            if cached is not None:
+                return cached if cached != _NO_WINNER else None
+
+        # Query latest completed benchmark whose capability matches
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT r.agent_name
+                    FROM action_benchmark_results r
+                    JOIN action_benchmark_runs br ON br.id = r.run_id
+                    WHERE br.status = 'completed'
+                      AND br.station_code = %s
+                      AND br.test_config->>'capability' = %s
+                      AND r.rank = 1
+                      AND r.success = TRUE
+                    ORDER BY br.started_at DESC
+                    LIMIT 1
+                    """,
+                    (station_code, capability),
+                )
+                row = cur.fetchone()
+            finally:
+                cur.close()
+                conn.close()
+
+            agent_name = row["agent_name"] if row else None
+            self._dynamic_spec_cache[cache_key] = agent_name or _NO_WINNER
+            self._dynamic_spec_ts = now
+            return agent_name
+
+        except Exception as e:
+            logger.debug(
+                "Dynamic specialization lookup failed (%s/%s): %s",
+                station_code,
+                capability,
+                e,
+            )
+            return None
+
     def _score_agent(
         self,
         agent_name: str,
@@ -636,10 +698,12 @@ class BridgeDispatcher:
             skills_score = 0.3  # generous default — agent may still handle it
 
         # ------------------------------------------------------------------
-        # Specialization score
+        # Specialization score (dynamic benchmark winner → static fallback)
         # ------------------------------------------------------------------
-        station_specs = AGENT_SPECIALIZATION.get(station_code, {})
-        preferred = station_specs.get(capability, station_specs.get("default"))
+        preferred = self._get_dynamic_specialization(station_code, capability)
+        if not preferred:
+            station_specs = AGENT_SPECIALIZATION.get(station_code, {})
+            preferred = station_specs.get(capability, station_specs.get("default"))
         specialization_score = 1.0 if agent_name == preferred else 0.0
 
         # ------------------------------------------------------------------
@@ -830,7 +894,8 @@ class BridgeDispatcher:
 
             # Standard call
             return call_ollama(
-                prompt, model=model, system_prompt=system_prompt, prefer_gpu=prefer_gpu
+                prompt, model=model, system_prompt=system_prompt,
+                prefer_gpu=prefer_gpu, timeout=timeout,
             )
         except ImportError:
             logger.error("[BridgeDispatcher] archie_bridge not available")
@@ -851,18 +916,25 @@ class BridgeDispatcher:
         try:
             conn = self._get_db()
             cur = conn.cursor()
+            # Determine worker_type from escalation metadata
+            meta = result.metadata or {}
+            is_contractor = meta.get("is_cloud", False)
+            worker_type = "contract" if is_contractor else "internal"
+
             cur.execute(
                 """
                 INSERT INTO task_execution_log (
                     agent_id, agent_name, module_source, task_type, capability,
                     model_used, provider, prompt_tokens, completion_tokens,
                     tokens_used, duration_ms, success, error_message,
-                    station_code, requested_by, priority, request_metadata, job_id
+                    station_code, requested_by, priority, request_metadata, job_id,
+                    worker_type
                 ) VALUES (
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s,
                     %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s,
+                    %s
                 )
                 """,
                 (
@@ -884,10 +956,12 @@ class BridgeDispatcher:
                     "normal",
                     json.dumps(result.metadata or {}),
                     job_id,
+                    worker_type,
                 ),
             )
             # Also update agent-level performance summary
-            if result.agent_id:
+            # Skip when contractor did the work — don't credit the agent
+            if result.agent_id and not is_contractor:
                 cur.execute(
                     """
                     UPDATE agents SET
@@ -922,6 +996,8 @@ class BridgeDispatcher:
             conn.close()
             # After logging, update agent emotional state based on recent performance
             self._update_agent_welfare(result.agent_id, result.success)
+            # Record agent memory from this task execution
+            self._record_agent_memory(result, module_id)
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Failed to log execution: {e}")
 
@@ -981,6 +1057,61 @@ class BridgeDispatcher:
             self._welfare_cache_time = 0
         except Exception as e:
             logger.debug(f"[BridgeDispatcher] Welfare update skipped: {e}")
+
+    def _record_agent_memory(self, result: DispatchResult, module_id: str):
+        """Create an agent_memory record summarising what the agent did.
+
+        Keeps memories brief (no LLM call) — just logs the task capability,
+        module, model used, and outcome so the MEM tab has content.
+        """
+        if not result.agent_id:
+            return
+        # Skip contractor/cloud work — memory belongs to internal agents
+        meta = result.metadata or {}
+        if meta.get("is_cloud"):
+            return
+        try:
+            # Build a concise memory string
+            outcome = "completed successfully" if result.success else f"failed: {result.error or 'unknown error'}"
+            content = (
+                f"Handled {result.capability or 'task'} for {module_id} "
+                f"using {result.model_used or 'unknown model'}. "
+                f"Task {outcome}."
+            )
+            # Determine memory type & importance
+            memory_type = "skill" if result.success else "interaction"
+            importance = 0.55 if result.success else 0.65  # failures slightly more important to remember
+
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO agent_memory
+                    (agent_id, memory_type, content, importance_score,
+                     source_module, context)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    result.agent_id,
+                    memory_type,
+                    content,
+                    importance,
+                    module_id,
+                    json.dumps({
+                        "capability": result.capability,
+                        "model": result.model_used,
+                        "station": result.station_code,
+                        "duration_ms": result.duration_ms,
+                        "success": result.success,
+                        "tokens": result.prompt_tokens + result.completion_tokens,
+                    }),
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] Agent memory skipped: {e}")
 
     def _get_escalation_threshold(self) -> int:
         """Read escalation threshold from platform_settings."""
@@ -2117,6 +2248,17 @@ class BridgeDispatcher:
             # handle every item in the batch, not just the first.
             if prefer_agent:
                 self._busy_agents.discard(prefer_agent)
+            # Auto-resolve prefer_agent from job_id for batch consistency —
+            # any caller that passes job_id gets the same agent automatically.
+            if job_id and not prefer_agent:
+                bcur.execute(
+                    "SELECT agent_name FROM bridge_jobs WHERE id = %s",
+                    (job_id,),
+                )
+                row = bcur.fetchone()
+                if row and row["agent_name"]:
+                    prefer_agent = row["agent_name"]
+                    self._busy_agents.discard(prefer_agent)
             bcur.close()
             bconn.close()
         except Exception as busy_err:
@@ -2135,7 +2277,12 @@ class BridgeDispatcher:
         # Don't let _refresh_welfare_cache() overwrite it.
         _sbr = bool(prefer_agent or job_id)
 
-        if home_station:
+        # 1a. If prefer_agent is set, force-select that specific agent
+        #     (used by benchmarks to test each agent individually).
+        if prefer_agent and prefer_agent in self._agent_cache:
+            agent = self._agent_cache[prefer_agent]
+            dispatch_station = agent.get("station_code", capability_station)
+        elif home_station:
             agent = self._select_agent(capability, home_station, skip_busy_refresh=_sbr)
             if agent:
                 dispatch_station = home_station
@@ -2541,6 +2688,8 @@ class BridgeDispatcher:
         )
 
         # 4. Execute the LLM call
+        escalation_info = None  # Tracks failure→cloud escalation for metrics
+        original_model = model  # Preserve for escalation metadata
         llm_result = self._execute_llm(
             model=model,
             prompt=prompt,
@@ -2603,6 +2752,14 @@ class BridgeDispatcher:
                         llm_result = escalated_result
                         model = next_tier["model"]
                         duration_ms = int((time.time() - start) * 1000)
+                        escalation_info = {
+                            "escalation": "failure_auto_escalation",
+                            "original_model": original_model,
+                            "is_cloud": True,
+                            "cloud_model": next_tier["model"],
+                            "cloud_provider": next_tier["provider"],
+                            "failure_count": failure_count,
+                        }
                 elif next_tier and next_tier["is_paid"]:
                     logger.info(
                         f"[BridgeDispatcher] Paid escalation needed: {model} -> "
@@ -2654,6 +2811,20 @@ class BridgeDispatcher:
             self._reset_failure(agent.get("id", 0), capability)
 
         # 5. Build result
+        result_metadata = {
+            "module_id": module_id,
+            "priority": priority,
+            "home_station": agent.get("station_code") if agent and is_cross_station else home_station,
+            "dispatch_station": home_station if is_cross_station else dispatch_station,
+            "is_cross_station": is_cross_station,
+            "capability_station": capability_station,
+            "agent_station": agent.get("station_code") if agent else None,
+            "module_station": home_station,
+        }
+        # Merge failure-escalation flags so Bridge Command tracks contractor work
+        if escalation_info:
+            result_metadata.update(escalation_info)
+
         result = DispatchResult(
             success=llm_result.get("success", False),
             response=llm_result.get("response", ""),
@@ -2671,16 +2842,7 @@ class BridgeDispatcher:
             ),
             provider=llm_result.get("provider", "ollama"),
             error=llm_result.get("error"),
-            metadata={
-                "module_id": module_id,
-                "priority": priority,
-                "home_station": agent.get("station_code") if agent and is_cross_station else home_station,
-                "dispatch_station": home_station if is_cross_station else dispatch_station,
-                "is_cross_station": is_cross_station,
-                "capability_station": capability_station,
-                "agent_station": agent.get("station_code") if agent else None,
-                "module_station": home_station,
-            },
+            metadata=result_metadata,
         )
 
         # 6. Log for HR tracking
@@ -2878,12 +3040,20 @@ class BridgeDispatcher:
         All escalation types get interactive buttons so the user can
         acknowledge, override, or escalate further.
         """
-        # Suppress Telegram for high-volume internal batch capabilities
-        SILENT_CAPABILITIES = {"translate", "detect_language"}
+        # Suppress per-request Telegram for high-volume batch capabilities
+        # but ALWAYS notify on cloud escalations (free_cloud, paid_cloud)
+        SILENT_CAPABILITIES = {"detect_language"}
+        BATCH_SILENT_TYPES = {"cross_station", "same_station"}
         if capability in SILENT_CAPABILITIES and not is_overflow:
             logger.debug(
                 f"[BridgeDispatcher] Silent advisory ({advisory_type}) "
                 f"for batch capability '{capability}'"
+            )
+            return
+        if capability == "translate" and advisory_type in BATCH_SILENT_TYPES:
+            logger.debug(
+                f"[BridgeDispatcher] Silent advisory ({advisory_type}) "
+                f"for translate batch (cloud escalations still notify)"
             )
             return
 
@@ -3065,6 +3235,7 @@ class BridgeDispatcher:
         Returns:
             job_id on success, None on failure or duplicate.
         """
+        conn = None
         try:
             conn = self._get_db()
             cur = conn.cursor()
@@ -3319,6 +3490,12 @@ class BridgeDispatcher:
         except Exception as e:
             logger.error(f"[BridgeDispatcher] create_job failed: {e}")
             return None
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def update_job_progress(
         self,
@@ -3338,6 +3515,7 @@ class BridgeDispatcher:
         Returns:
             True on success.
         """
+        conn = None
         try:
             conn = self._get_db()
             cur = conn.cursor()
@@ -3373,6 +3551,12 @@ class BridgeDispatcher:
         except Exception as e:
             logger.error(f"[BridgeDispatcher] update_job_progress failed: {e}")
             return False
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def complete_job(self, job_id: int, status: str = "auto") -> bool:
         """Mark a job as completed (or failed/cancelled).
@@ -3390,6 +3574,7 @@ class BridgeDispatcher:
         Returns:
             True on success.
         """
+        conn = None
         try:
             conn = self._get_db()
             cur = conn.cursor()
@@ -3493,6 +3678,12 @@ class BridgeDispatcher:
         except Exception as e:
             logger.error(f"[BridgeDispatcher] complete_job failed: {e}")
             return False
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # ========================================================================
     # STALE JOB REAPER
@@ -3655,6 +3846,39 @@ class BridgeDispatcher:
             cur.close()
             conn.close()
 
+            # --- Ollama loaded models (for LLM readiness) ---
+            loaded_models = {}  # model_name -> size_gb
+            gpu_models_live = set()  # models currently on GPU (size_vram > 0)
+            try:
+                import requests as _req
+                import os
+
+                _ollama_host = os.getenv(
+                    "OLLAMA_LOCAL_HOST", "host.docker.internal"
+                )
+                _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+                _ps_resp = _req.get(
+                    f"http://{_ollama_host}:{_ollama_port}/api/ps", timeout=5
+                )
+                if _ps_resp.status_code == 200:
+                    for m in _ps_resp.json().get("models", []):
+                        mname = m.get("name", "")
+                        msize = m.get("size", 0) / (1024**3)  # bytes→GB
+                        vram_bytes = m.get("size_vram", 0)
+                        # Store both full name and without :latest
+                        loaded_models[mname] = round(msize, 1)
+                        if mname.endswith(":latest"):
+                            loaded_models[mname.replace(":latest", "")] = round(
+                                msize, 1
+                            )
+                        # Track GPU models by live VRAM usage
+                        if vram_bytes and vram_bytes > 0:
+                            gpu_models_live.add(mname)
+                            if mname.endswith(":latest"):
+                                gpu_models_live.add(mname.replace(":latest", ""))
+            except Exception:
+                pass  # Ollama unavailable — all agents show as "swap"
+
             # Build manifest
             manifest = []
             for name, info in self._agent_cache.items():
@@ -3669,7 +3893,22 @@ class BridgeDispatcher:
                 else:
                     status = "idle"
 
-                hw = self.MODEL_HARDWARE.get(model, "CPU")
+                # Hardware: use live VRAM data, fall back to static map
+                if model in gpu_models_live:
+                    hw = "GPU"
+                else:
+                    hw = self.MODEL_HARDWARE.get(model, "CPU")
+
+                # LLM readiness status
+                if model and model.endswith(":cloud"):
+                    llm_status = "cloud"
+                    llm_size_gb = 0
+                elif model and model in loaded_models:
+                    llm_status = "loaded"
+                    llm_size_gb = loaded_models[model]
+                else:
+                    llm_status = "swap"
+                    llm_size_gb = 0
 
                 first = info.get("first_name", "")
                 last = info.get("last_name", "")
@@ -3685,6 +3924,8 @@ class BridgeDispatcher:
                         "station": info.get("station_code", "COMMAND"),
                         "model": model,
                         "hardware": hw,
+                        "llm_status": llm_status,
+                        "llm_size_gb": llm_size_gb,
                         "status": status,
                         "wellness": wellness_map.get(
                             agent_id,

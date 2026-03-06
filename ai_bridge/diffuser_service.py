@@ -35,7 +35,7 @@ _diffuser_host = os.getenv("OLLAMA_DIFFUSER_HOST", "http://host.docker.internal:
 if not _diffuser_host.startswith("http"):
     _diffuser_host = f"http://{_diffuser_host}"
 DIFFUSER_HOST = _diffuser_host
-DIFFUSER_MODEL = os.getenv("OLLAMA_DIFFUSER_MODEL", "flux.1-schnell")
+DIFFUSER_MODEL = os.getenv("OLLAMA_DIFFUSER_MODEL", "stable-diffusion-1.5")
 REQUEST_TIMEOUT = 300  # 5 min — CPU generation is slow
 GPU_VRAM_THRESHOLD_GB = 4.0  # Minimum free VRAM to use GPU
 
@@ -53,8 +53,8 @@ class DiffuserService:
     """Service for generating images via local OllamaDiffuser."""
 
     AVAILABLE_MODELS = [
-        {"name": "flux.1-schnell", "vram_gb": 4.0, "description": "FLUX Schnell — fast, high quality"},
-        {"name": "stable-diffusion-3.5", "vram_gb": 3.5, "description": "Stable Diffusion 3.5"},
+        {"name": "stable-diffusion-1.5", "vram_gb": 2.0, "description": "SD 1.5 — fast, versatile, unrestricted"},
+        {"name": "realvisxl-v4", "vram_gb": 3.5, "description": "RealVisXL v4 — photorealistic SDXL, unrestricted"},
     ]
 
     def __init__(self, host: str = DIFFUSER_HOST, model: str = DIFFUSER_MODEL):

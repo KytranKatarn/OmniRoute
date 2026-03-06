@@ -22,8 +22,8 @@ def _get_pool():
         with _pool_lock:
             if _pool is None:
                 _pool = pool.ThreadedConnectionPool(
-                    minconn=2,
-                    maxconn=20,
+                    minconn=5,
+                    maxconn=50,
                     host=os.environ.get("DB_HOST", "archie_database"),
                     port=os.environ.get("DB_PORT", "5432"),
                     database=os.environ.get("DB_NAME", "archie"),
@@ -43,17 +43,49 @@ def _cleanup_pool():
 atexit.register(_cleanup_pool)
 
 
+class _PooledConnection:
+    """Wrapper that returns connection to pool on close() instead of destroying it."""
+
+    __slots__ = ("_conn", "_pool", "_released")
+
+    def __init__(self, conn, pool_ref):
+        object.__setattr__(self, "_conn", conn)
+        object.__setattr__(self, "_pool", pool_ref)
+        object.__setattr__(self, "_released", False)
+
+    def close(self):
+        if not self._released:
+            object.__setattr__(self, "_released", True)
+            try:
+                self._pool.putconn(self._conn)
+            except Exception:
+                pass
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
 def get_db():
     """
     Get a database connection from the pool.
 
-    IMPORTANT: Caller is responsible for closing the connection!
+    Returns a wrapper where .close() returns the connection to the pool
+    instead of destroying it.  All other attributes delegate to the
+    underlying psycopg2 connection.
+
     For safer usage, prefer get_db_connection() context manager.
 
     Returns:
-        psycopg2 connection object
+        _PooledConnection wrapping a psycopg2 connection
     """
-    return _get_pool().getconn()
+    p = _get_pool()
+    return _PooledConnection(p.getconn(), p)
 
 
 def release_db(conn):
@@ -61,11 +93,14 @@ def release_db(conn):
     Return a connection to the pool.
 
     Args:
-        conn: The connection to release
+        conn: The connection (or _PooledConnection wrapper) to release
     """
     if conn is not None:
         try:
-            _get_pool().putconn(conn)
+            if isinstance(conn, _PooledConnection):
+                conn.close()  # delegates to putconn
+            else:
+                _get_pool().putconn(conn)
         except Exception:
             pass  # Pool may be closed during shutdown
 
@@ -90,7 +125,7 @@ def get_db_connection(cursor_factory=None):
         cursor_factory: Optional cursor factory (e.g., RealDictCursor)
 
     Yields:
-        Database connection
+        _PooledConnection wrapper (close() returns to pool)
     """
     conn = None
     try:
@@ -107,7 +142,7 @@ def get_db_connection(cursor_factory=None):
         raise
     finally:
         if conn is not None:
-            release_db(conn)
+            conn.close()  # _PooledConnection.close() → putconn
 
 
 @contextmanager
@@ -154,4 +189,4 @@ def get_db_cursor(cursor_factory=RealDictCursor, commit=True):
             except Exception:
                 pass
         if conn is not None:
-            release_db(conn)
+            conn.close()  # _PooledConnection.close() → putconn

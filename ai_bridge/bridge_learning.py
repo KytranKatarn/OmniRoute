@@ -76,19 +76,23 @@ def capture_learning(
 
         from database import get_db
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO knowledge_base (title, content, source_type, tags, importance_score, ai_analysis)
-            VALUES (%s, %s, 'agent_learning', %s, %s, %s)
-            ON CONFLICT ON CONSTRAINT idx_kb_title_unique DO UPDATE SET
-                content = EXCLUDED.content, importance_score = EXCLUDED.importance_score,
-                ai_analysis = EXCLUDED.ai_analysis, updated_at = NOW()
-        """, (title, learning_content, tags, importance, json.dumps(ai_analysis)))
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        logger.info(f"[BridgeLearning] Captured learning: {title}")
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO knowledge_base (title, content, source_type, tags, importance_score, ai_analysis)
+                VALUES (%s, %s, 'agent_learning', %s, %s, %s)
+                ON CONFLICT ON CONSTRAINT idx_kb_title_unique DO UPDATE SET
+                    content = EXCLUDED.content, importance_score = EXCLUDED.importance_score,
+                    ai_analysis = EXCLUDED.ai_analysis, updated_at = NOW()
+            """, (title, learning_content, tags, importance, json.dumps(ai_analysis)))
+            conn.commit()
+            cur.close()
+            logger.info(f"[BridgeLearning] Captured learning: {title}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     except Exception as e:
         logger.warning(f"[BridgeLearning] capture_learning failed: {e}")
@@ -110,6 +114,7 @@ def inject_learnings(
     Returns the enhanced prompt with learning context prepended,
     or the original prompt if no learnings found.
     """
+    conn = None
     try:
         from database import get_db
         from psycopg2.extras import RealDictCursor
@@ -132,7 +137,6 @@ def inject_learnings(
 
         cards = cur.fetchall()
         cur.close()
-        conn.close()
 
         if not cards:
             return prompt
@@ -147,3 +151,9 @@ def inject_learnings(
     except Exception as e:
         logger.debug(f"[BridgeLearning] inject_learnings failed: {e}")
         return prompt
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass

@@ -365,14 +365,11 @@ def bridge_dashboard():
                 interactions_24h = cur.fetchone()["cnt"]
         except Exception:
             pass
-        # Check if user is a starship node operator
-        starship_node = get_starship_node_for_user(current_user.id if current_user.is_authenticated else None)
         return render_template(
             "tools/bridge.html",
             deployment_mode=deployment_mode,
             initial_agent_count=agent_count,
             initial_interactions_24h=interactions_24h,
-            starship_node=starship_node,
         )
 
 

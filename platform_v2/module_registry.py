@@ -42,6 +42,7 @@ class ModuleCategory(Enum):
     SAAS_SERVICES = "saas_services"  # crm, website_studio, store_builder, call_center, etc.
     PROJECT_KNOWLEDGE = "project_knowledge"  # project_manager, obsidian_vault, api_docs
     MEDIA_HOME = "media_home"  # media_hub
+    FLEET = "fleet"  # starship command, node management
     PLACEHOLDERS_FUTURE = "placeholders_future"  # fitness, therapy, doc, stockbot, game_studio, etc.
 
 
@@ -1009,6 +1010,29 @@ MODULES: List[ModuleDefinition] = [
     #     priority=12,
     #     tags=["ai", "mobile", "apps", "ios", "android", "placeholder"],
     # ),
+    # Fleet — Node Management
+    ModuleDefinition(
+        id="starship",
+        name="Starship Command",
+        description="Fleet node management<br>Your starships • Hardware • Models • Privacy controls",
+        icon="rocket",
+        category=ModuleCategory.FLEET,
+        route="/tools/starship",
+        blueprint_import="tools.starship.routes:starship_bp",
+        required_permissions=[],
+        minimum_role="USER",
+        enabled=True,
+        health_check=lambda: default_health_check("starship"),
+        priority=14,
+        tags=[
+            "starship",
+            "fleet",
+            "nodes",
+            "compute",
+            "network",
+            "privacy",
+        ],
+    ),
 ]
 
 

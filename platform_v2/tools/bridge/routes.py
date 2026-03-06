@@ -125,7 +125,7 @@ def _get_cached_hw_capacity():
         else:
             cpu_models.append({"name": pm_name, "size_gb": pm_size})
 
-    # GPU info from nvidia-smi
+    # GPU info from nvidia-smi (may fail inside Docker without GPU passthrough)
     gpu_info = None
     try:
         result = subprocess.run(
@@ -155,6 +155,19 @@ def _get_cached_hw_capacity():
                 }
     except Exception:
         pass
+
+    # Fallback: build GPU info from Ollama VRAM data if nvidia-smi unavailable
+    if gpu_info is None and gpu_models:
+        vram_used = round(sum(m["vram_gb"] for m in gpu_models), 1)
+        gpu_info = {
+            "name": "GPU (via Ollama)",
+            "vram_total_gb": 8.0,  # Quadro M4000
+            "vram_used_gb": vram_used,
+            "vram_free_gb": round(8.0 - vram_used, 1),
+            "usage_pct": round(vram_used / 8.0 * 100, 1),
+            "status": "red" if (8.0 - vram_used) < 1.0 else ("amber" if (8.0 - vram_used) < 2.0 else "green"),
+            "models": gpu_models,
+        }
 
     llm_budget_gb = round(total_gb * 0.80, 1)  # 80% for LLM
     agent_budget_gb = round(llm_budget_gb * 0.90, 1)  # 90% of LLM budget

@@ -62,7 +62,7 @@ services:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-hub}
       OLLAMA_MODELS: /mnt/data2/ollama/models
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      OLLAMA_DIFFUSER_HOST: http://archie_diffuser:11435
+      COMFYUI_HOST: http://archie_comfyui:8188
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -192,24 +192,31 @@ services:
       retries: 3
       start_period: 40s
 
-  # OllamaDiffuser — Local image generation (FLUX/Stable Diffusion)
-  archie_diffuser:
-    build: ./diffuser
-    container_name: archie_diffuser
+  # ComfyUI — Advanced local image generation (SD, FLUX, LoRA, ControlNet)
+  archie_comfyui:
+    build: ./comfyui
+    container_name: archie_comfyui
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     ports:
-      - "11435:11435"
+      - "8188:8188"
     volumes:
-      - diffuser_models:/root/.ollamadiffuser
+      - /mnt/data2/comfyui/models:/comfyui/models
+      - comfyui_output:/comfyui/output
       - ./platform_v2/static/media:/media
+      - ./comfyui/workflows:/comfyui/user/default/workflows
     environment:
-      - CUDA_VISIBLE_DEVICES=
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - NVIDIA_VISIBLE_DEVICES=all
     networks:
       - archie_internal
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11435/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8188/system_stats"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -226,6 +233,6 @@ volumes:
   archie_db:
     driver: local
     name: archie_database
-  diffuser_models:
+  comfyui_output:
     driver: local
-    name: archie_diffuser_models
+    name: archie_comfyui_output

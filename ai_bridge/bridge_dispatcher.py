@@ -101,6 +101,7 @@ CAPABILITY_STATION_MAP = {
 CAPABILITY_REQUIRES_SKILL = {
     "translate",            # Needs a capable chat LLM — not a classifier or embedder
     "knowledge_analysis",   # Deep JSON analysis — needs qwen3-coder-cpu or better
+    "image_generation",     # ComfyUI skill — only Pixel has this
 }
 
 # Specialized agent selection within stations
@@ -254,7 +255,7 @@ class BridgeDispatcher:
                        a.system_prompt, a.capabilities, a.temperature,
                        a.max_tokens, a.status,
                        a.first_name, a.last_name, a.title,
-                       a.display_name,
+                       a.display_name, a.image_model,
                        bs.station_code, bs.default_llm
                 FROM agents a
                 JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
@@ -282,6 +283,7 @@ class BridgeDispatcher:
                     "last_name": agent.get("last_name") or "",
                     "display_name": agent.get("display_name") or "",
                     "title": agent.get("title") or "",
+                    "image_model": agent.get("image_model"),
                     "skills": {},  # populated below
                 }
 
@@ -825,6 +827,194 @@ class BridgeDispatcher:
         )
 
         return best_info
+
+    def _execute_comfyui(
+        self,
+        agent_name: str,
+        agent: Dict,
+        image_model: str,
+        prompt: str,
+        context: Dict,
+        station_code: str,
+        capability: str,
+        module_id: str,
+        user_id: Optional[int] = None,
+        job_id: Optional[int] = None,
+    ) -> "DispatchResult":
+        """Execute image generation via ComfyUI for agents with image_model.
+
+        Handles VRAM management (unloads Ollama GPU models for SDXL),
+        creates bridge_job for tracking, calls ComfyUI, returns DispatchResult.
+        """
+        from ai_bridge.comfyui_service import ComfyUIService
+
+        comfyui = ComfyUIService()
+        agent_id = agent.get("id")
+
+        # --- Create bridge_job to mark agent busy ---
+        bridge_job_id = None
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO bridge_jobs (job_type, module_source, description,
+                    total_steps, status, agent_name, station_code, metadata)
+                VALUES ('image_generation', %s, %s, 1, 'running', %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    module_id,
+                    f"Image gen: {prompt[:80]}",
+                    agent_name,
+                    station_code,
+                    json.dumps({
+                        "image_model": image_model,
+                        "provider": "comfyui",
+                        "capability": capability,
+                    }),
+                ),
+            )
+            bridge_job_id = cur.fetchone()[0]
+            conn.commit()
+            cur.close()
+            conn.close()
+            self._busy_agents.add(agent_name)
+            logger.info(
+                f"[BridgeDispatcher] ComfyUI job #{bridge_job_id} started: "
+                f"{agent_name} generating with {image_model}"
+            )
+        except Exception as e:
+            logger.error(f"[BridgeDispatcher] Failed to create bridge_job: {e}")
+
+        # --- VRAM swap: unload Ollama GPU models if SDXL needs full GPU ---
+        ollama_models_unloaded = []
+        is_xl = "xl" in image_model.lower()
+        if is_xl:
+            try:
+                import requests as _req
+                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+                _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+                ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+                ps_resp = _req.get(f"{ollama_url}/api/ps", timeout=5)
+                if ps_resp.status_code == 200:
+                    for m in ps_resp.json().get("models", []):
+                        vram = m.get("size_vram", 0)
+                        if vram > 0:
+                            mname = m.get("name", "")
+                            _req.post(
+                                f"{ollama_url}/api/generate",
+                                json={"model": mname, "keep_alive": 0},
+                                timeout=10,
+                            )
+                            ollama_models_unloaded.append(mname)
+                            logger.info(
+                                f"[BridgeDispatcher] VRAM swap: unloaded {mname} for SDXL"
+                            )
+            except Exception as e:
+                logger.warning(f"[BridgeDispatcher] VRAM swap failed: {e}")
+
+        # --- Determine resolution ---
+        width, height = (1024, 1024) if is_xl else (512, 512)
+        # Allow context overrides
+        width = context.get("width", width)
+        height = context.get("height", height)
+        steps = context.get("steps", 20)
+        cfg = context.get("cfg", 7.0)
+
+        # --- Generate image ---
+        try:
+            result = comfyui.generate_image(
+                prompt=prompt,
+                model=image_model,
+                steps=steps,
+                width=width,
+                height=height,
+                cfg=cfg,
+            )
+        except Exception as e:
+            result = None
+            logger.error(f"[BridgeDispatcher] ComfyUI generation error: {e}")
+
+        # --- Reload Ollama GPU models after SDXL ---
+        if ollama_models_unloaded:
+            try:
+                import requests as _req
+                # Free ComfyUI VRAM first
+                comfyui_host = os.getenv("COMFYUI_HOST", "http://host.docker.internal:8188")
+                _req.post(
+                    f"{comfyui_host}/free",
+                    json={"unload_models": True},
+                    timeout=10,
+                )
+                logger.info("[BridgeDispatcher] Freed ComfyUI VRAM after SDXL")
+                # Reload Ollama models
+                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+                _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+                ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+                for mname in ollama_models_unloaded:
+                    _req.post(
+                        f"{ollama_url}/api/generate",
+                        json={"model": mname, "prompt": "", "keep_alive": "24h"},
+                        timeout=30,
+                    )
+                    logger.info(f"[BridgeDispatcher] VRAM swap: reloaded {mname}")
+            except Exception as e:
+                logger.warning(f"[BridgeDispatcher] VRAM reload failed: {e}")
+
+        # --- Complete bridge_job ---
+        if bridge_job_id:
+            try:
+                conn = self._get_db()
+                cur = conn.cursor()
+                success = result and result.success
+                cur.execute(
+                    """
+                    UPDATE bridge_jobs
+                    SET status = %s, completed_steps = 1, completed_at = NOW()
+                    WHERE id = %s
+                    """,
+                    ("completed" if success else "failed", bridge_job_id),
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+            except Exception as e:
+                logger.error(f"[BridgeDispatcher] Failed to complete bridge_job: {e}")
+            self._busy_agents.discard(agent_name)
+
+        # --- Build DispatchResult ---
+        if result and result.success:
+            metadata = result.metadata or {}
+            metadata["file_path"] = result.file_path
+            metadata["bridge_job_id"] = bridge_job_id
+            if ollama_models_unloaded:
+                metadata["vram_swap"] = ollama_models_unloaded
+            return DispatchResult(
+                success=True,
+                response=result.file_path,
+                agent_name=agent_name,
+                agent_id=agent_id,
+                model_used=image_model,
+                station_code=station_code,
+                capability=capability,
+                provider="comfyui",
+                metadata=metadata,
+            )
+        else:
+            error_msg = result.error if result else "ComfyUI service unreachable"
+            return DispatchResult(
+                success=False,
+                response="",
+                agent_name=agent_name,
+                agent_id=agent_id,
+                model_used=image_model,
+                station_code=station_code,
+                capability=capability,
+                provider="comfyui",
+                error=error_msg,
+                metadata={"bridge_job_id": bridge_job_id},
+            )
 
     def _execute_llm(
         self,
@@ -2687,9 +2877,30 @@ class BridgeDispatcher:
             },
         )
 
-        # 4. Execute the LLM call
+        # 4. Execute — ComfyUI branch for image generation, LLM for everything else
         escalation_info = None  # Tracks failure→cloud escalation for metrics
         original_model = model  # Preserve for escalation metadata
+
+        image_model = agent.get("image_model")
+        if capability == "image_generation" and image_model:
+            # Route to ComfyUI instead of Ollama
+            comfyui_result = self._execute_comfyui(
+                agent_name=agent_name,
+                agent=agent,
+                image_model=image_model,
+                prompt=prompt,
+                context=context or {},
+                station_code=station_code,
+                capability=capability,
+                module_id=module_id,
+                user_id=user_id,
+                job_id=job_id,
+            )
+            duration_ms = int((time.time() - start) * 1000)
+            comfyui_result.duration_ms = duration_ms
+            self._log_execution(comfyui_result, module_id, user_id, job_id=job_id)
+            return comfyui_result
+
         llm_result = self._execute_llm(
             model=model,
             prompt=prompt,

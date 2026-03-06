@@ -85,37 +85,41 @@
         });
       });
 
-      /* Separate cross-station assists and contractors from active jobs */
+      /* Filter jobs to this station (primary + cross-station TO here + contractors here) */
+      var stationJobs = [];
       var assists = [];
       var contractors = [];
       if (jobData && jobData.length) {
         jobData.forEach(function(j) {
           var meta = j.metadata || {};
-          if (meta.is_cloud) {
+          if (meta.is_cloud && j.station_code === self.stationCode) {
             var cname = j.agent_name || "Cloud";
             var already = contractors.some(function(c) { return c.name === cname; });
             if (!already) {
               contractors.push({ name: cname, cap: meta.capability || j.job_type || "task" });
             }
-          } else if (meta.is_cross_station && meta.agent_station && meta.agent_station !== self.stationCode) {
+            stationJobs.push(j);
+          } else if (meta.is_cross_station && j.station_code === self.stationCode) {
+            /* Cross-station agent helping THIS station */
             var aname = j.agent_name || "Cross-station agent";
             var already2 = assists.some(function(a) { return a.name === aname; });
             if (!already2) {
               assists.push({ name: aname, station: meta.agent_station, cap: meta.capability || "assist" });
             }
+            stationJobs.push(j);
+          } else if (j.station_code === self.stationCode) {
+            stationJobs.push(j);
           }
         });
       }
 
-      /* Build lookup of busy agents from active jobs */
+      /* Build lookup of busy agents from THIS station's jobs only */
       var busyMap = {};
-      if (jobData && jobData.length) {
-        jobData.forEach(function(j) {
-          if (j.agent_name && j.status === "running") {
-            busyMap[j.agent_name] = j.description || j.job_type || "task";
-          }
-        });
-      }
+      stationJobs.forEach(function(j) {
+        if (j.agent_name && j.status === "running") {
+          busyMap[j.agent_name] = j.description || j.job_type || "task";
+        }
+      });
 
       /* Count how many crew members are busy */
       var busyCrew = 0;
@@ -195,11 +199,18 @@
   /* ── Render job progress rows in ops terminal ── */
 
   StationOps.prototype.renderJobs = function(jobs) {
+    var self = this;
     var jobsEl = document.getElementById(this.jobsElId);
     if (!jobsEl) return;
     if (jobs && jobs.length) {
       var seen = {};
-      var unique = jobs.filter(function(j) { if (seen[j.id]) return false; seen[j.id] = true; return true; });
+      var unique = jobs.filter(function(j) {
+        if (seen[j.id]) return false;
+        if (j.station_code && j.station_code !== self.stationCode) return false;
+        seen[j.id] = true;
+        return true;
+      });
+      if (!unique.length) { setHtml(jobsEl, ""); return; }
       var parts = ['<div class="stn-ops-section-label cs-ops-section-label">ACTIVE JOBS</div>'];
       unique.forEach(function(j) {
         var pct = j.progress_pct || 0;

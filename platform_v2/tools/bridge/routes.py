@@ -5998,41 +5998,6 @@ def get_agent_form_context():
         # Media generation — local services + cloud contractors
         media_contractors = []
         try:
-            # Local: OllamaDiffuser
-            try:
-                from ai_bridge.diffuser_service import get_diffuser_service, DiffuserService
-
-                diffuser = get_diffuser_service()
-                diffuser_online = diffuser.health_check()
-                diffuser_gpu = diffuser.get_gpu_status() if diffuser_online else gpu
-                # Use already-fetched gpu data as fallback when diffuser is offline
-                if not diffuser_online:
-                    diffuser_gpu = {
-                        "can_use_gpu": gpu.get("vram_free_gb", 0) >= 4.0,
-                        "vram_free_gb": gpu.get("vram_free_gb", 0),
-                        "occupied_by": gpu.get("occupied_by"),
-                    }
-                media_contractors.append(
-                    {
-                        "provider_key": "ollama_diffuser",
-                        "display_name": "OllamaDiffuser (Local)",
-                        "capability": "image_gen",
-                        "models": [{"name": m["name"]} for m in DiffuserService.AVAILABLE_MODELS],
-                        "is_free": True,
-                        "has_key": True,
-                        "is_active": diffuser_online,
-                        "location": "local",
-                        "gpu_required_gb": 4.0,
-                        "gpu_available": diffuser_gpu.get("can_use_gpu", False),
-                        "gpu_occupied_by": diffuser_gpu.get("occupied_by"),
-                        "gpu_vram_free": diffuser_gpu.get("vram_free_gb", 0),
-                        "cpu_fallback": True,
-                        "service_online": diffuser_online,
-                    }
-                )
-            except Exception:
-                pass
-
             # Cloud: from contractor_providers with image_gen/video_gen capability
             from ai_bridge.external_providers import get_providers_with_capability
 
@@ -7120,7 +7085,8 @@ def start_benchmark():
             return jsonify({"success": False, "error": "action_key required"}), 400
 
         user_id = current_user.id if current_user.is_authenticated else None
-        result = _start(action_key, user_id=user_id)
+        include_contractors = data.get("include_contractors", False)
+        result = _start(action_key, user_id=user_id, include_contractors=include_contractors)
         status_code = 200 if result.get("success") else 400
         return jsonify(result), status_code
     except Exception as e:

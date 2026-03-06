@@ -1597,6 +1597,13 @@ body.light-mode .bridge-ops-status-value {
 }
 .bench-header-close:hover { opacity: 1; }
 
+.bench-row-thumb {
+    width: 28px; height: 28px; border-radius: 3px;
+    object-fit: cover; border: 1px solid rgba(255,255,255,0.1);
+}
+.bench-row.has-thumb {
+    grid-template-columns: 30px 24px 1fr 60px 60px 50px;
+}
 .bench-row {
     display: grid;
     grid-template-columns: 24px 1fr 60px 60px 50px;
@@ -1840,6 +1847,72 @@ body.light-mode .bridge-ops-status-value {
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.06);
     border-radius: 4px;
+}
+/* Image benchmark gallery */
+.bench-image-gallery {
+    margin: 10px 0;
+    padding: 10px;
+    background: rgba(139,92,246,0.05);
+    border: 1px solid rgba(139,92,246,0.15);
+    border-radius: 6px;
+}
+.bench-gallery-title {
+    font-size: 0.55rem; font-weight: 700; letter-spacing: 2px;
+    color: rgba(139,92,246,0.7); margin-bottom: 8px;
+}
+.bench-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+}
+.bench-gallery-card {
+    position: relative; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 4px; overflow: hidden;
+    transition: border-color 0.2s, transform 0.15s;
+    background: rgba(0,0,0,0.3);
+}
+.bench-gallery-card:hover {
+    border-color: rgba(139,92,246,0.5);
+    transform: scale(1.03);
+}
+.bench-gallery-card.bench-gallery-failed {
+    opacity: 0.4; border-color: rgba(239,68,68,0.3);
+}
+.bench-gallery-thumb {
+    width: 100%; aspect-ratio: 1; object-fit: cover;
+    display: block;
+}
+.bench-gallery-fail-icon {
+    width: 100%; aspect-ratio: 1; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 2rem; color: #ef4444;
+}
+.bench-gallery-label {
+    font-size: 0.5rem; text-transform: uppercase;
+    letter-spacing: 1px; padding: 3px 6px;
+    color: rgba(255,255,255,0.7);
+    text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+}
+.bench-gallery-score {
+    font-size: 0.55rem; font-weight: 700;
+    padding: 0 6px 4px; color: #f59e0b;
+}
+/* Image preview in response panel */
+.bench-image-wrap {
+    display: flex; flex-direction: column;
+    align-items: center; padding: 12px;
+}
+.bench-image-preview {
+    max-width: 100%; max-height: 50vh;
+    border-radius: 6px; cursor: zoom-in;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+.bench-image-prompt {
+    font-size: 0.6rem; color: rgba(255,255,255,0.5);
+    font-style: italic; margin-top: 8px;
+    text-align: center; max-width: 400px;
 }
 /* Legacy grid (kept for backwards compat if needed) */
 .bench-compare-grid {
@@ -6516,6 +6589,33 @@ body.light-mode .escalation-btn.active,
     border-color: #0088aa;
 }
 
+/* CTRL toggle switch */
+.ctrl-toggle {
+    position: relative; display: inline-block;
+    width: 36px; height: 18px; flex-shrink: 0;
+}
+.ctrl-toggle input { opacity: 0; width: 0; height: 0; }
+.ctrl-toggle-slider {
+    position: absolute; cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.12);
+    border-radius: 18px; transition: 0.3s;
+}
+.ctrl-toggle-slider::before {
+    content: ""; position: absolute;
+    height: 14px; width: 14px;
+    left: 2px; bottom: 2px;
+    background: rgba(255,255,255,0.5);
+    border-radius: 50%; transition: 0.3s;
+}
+.ctrl-toggle input:checked + .ctrl-toggle-slider {
+    background: var(--archie-accent, #f59e0b);
+}
+.ctrl-toggle input:checked + .ctrl-toggle-slider::before {
+    transform: translateX(18px);
+    background: #000;
+}
+
 /* Dispatch — light mode HUD value colors */
 body.light-mode .bridge-hud-value.hud-success,
 [data-theme="light"] .bridge-hud-value.hud-success {
@@ -10866,6 +10966,12 @@ function switchConsoleTab(tabName) {
     if (tabName === 'routing') renderRoutingTab();
 }
 
+function _syncBenchContractorSetting(enabled) {
+    // Setting is stored in localStorage and read when starting benchmarks.
+    // No backend call needed — the flag is sent with each benchmark start request.
+    console.log('Benchmark contractors:', enabled ? 'enabled' : 'disabled');
+}
+
 function renderRoutingTab() {
     var panel = document.getElementById('lcarsRoutingPanel');
     if (!panel) return;
@@ -10953,6 +11059,48 @@ function renderRoutingTab() {
         escGroup.appendChild(btn);
     });
     section.appendChild(escGroup);
+
+    // Benchmark Contractors toggle
+    var benchLabel = document.createElement('div');
+    benchLabel.style.cssText = 'font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;opacity:0.5;margin:16px 0 8px;';
+    benchLabel.textContent = 'Benchmark Settings';
+    section.appendChild(benchLabel);
+
+    var toggleRow = document.createElement('div');
+    toggleRow.style.cssText = 'display:flex;align-items:center;gap:10px;';
+
+    var toggleLabel = document.createElement('span');
+    toggleLabel.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.7);';
+    toggleLabel.textContent = 'Include External Contractors';
+    toggleRow.appendChild(toggleLabel);
+
+    var toggle = document.createElement('label');
+    toggle.className = 'ctrl-toggle';
+    var tInput = document.createElement('input');
+    tInput.type = 'checkbox';
+    tInput.id = 'benchContractorsToggle';
+    // Load saved state
+    tInput.checked = localStorage.getItem('archie_bench_contractors') === 'true';
+    tInput.addEventListener('change', function() {
+        localStorage.setItem('archie_bench_contractors', tInput.checked ? 'true' : 'false');
+        // Update all active benchmark test_configs
+        _syncBenchContractorSetting(tInput.checked);
+    });
+    var tSlider = document.createElement('span');
+    tSlider.className = 'ctrl-toggle-slider';
+    toggle.appendChild(tInput);
+    toggle.appendChild(tSlider);
+    toggleRow.appendChild(toggle);
+
+    var toggleStatus = document.createElement('span');
+    toggleStatus.style.cssText = 'font-size:0.5rem;opacity:0.4;';
+    toggleStatus.textContent = tInput.checked ? 'ON — contractors tested in benchmarks' : 'OFF — local only';
+    toggleRow.appendChild(toggleStatus);
+    tInput.addEventListener('change', function() {
+        toggleStatus.textContent = tInput.checked ? 'ON — contractors tested in benchmarks' : 'OFF — local only';
+    });
+
+    section.appendChild(toggleRow);
 
     panel.appendChild(section);
 
@@ -12557,10 +12705,14 @@ function startActionBenchmark(actionKey, btn) {
     btn.textContent = 'TESTING...';
     _lockBenchmarkButtons(actionKey);
 
+    var benchPayload = { action_key: actionKey };
+    if (localStorage.getItem('archie_bench_contractors') === 'true') {
+        benchPayload.include_contractors = true;
+    }
     fetch('/tools/bridge/api/benchmarks/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action_key: actionKey })
+        body: JSON.stringify(benchPayload)
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -12706,6 +12858,17 @@ function _renderBenchmarkLeaderboard(containerEl, results, runInfo) {
         if (i === 0 && r.success) row.classList.add('bench-gold');
         if (!r.success) row.classList.add('bench-failed');
 
+        // Mini thumbnail for image benchmarks
+        var inlineImg = r.success && r.response_preview && r.response_preview.match(/File:\s*(\/static\/media\/[^\s]+)/);
+        if (inlineImg) {
+            row.classList.add('has-thumb');
+            var miniThumb = document.createElement('img');
+            miniThumb.className = 'bench-row-thumb';
+            miniThumb.src = inlineImg[1];
+            miniThumb.alt = '';
+            row.appendChild(miniThumb);
+        }
+
         var rank = document.createElement('div');
         rank.className = 'bench-rank';
         rank.textContent = r.rank || (i + 1);
@@ -12724,8 +12887,11 @@ function _renderBenchmarkLeaderboard(containerEl, results, runInfo) {
 
         var tokens = document.createElement('div');
         tokens.className = 'bench-tokens';
-        tokens.textContent = r.success ? (r.total_tokens || 0) + 'tk' : '--';
-        row.appendChild(tokens);
+        if (inlineImg && r.success) {
+            tokens.textContent = ((r.total_tokens || 0) / 1024).toFixed(0) + 'KB';
+        } else {
+            tokens.textContent = r.success ? (r.total_tokens || 0) + 'tk' : '--';
+        }
 
         var score = document.createElement('div');
         score.className = 'bench-score';
@@ -12804,7 +12970,10 @@ function _showBenchmarkCompareModal(results, runInfo) {
     table.className = 'bench-summary-table';
     var thead = document.createElement('thead');
     var thRow = document.createElement('tr');
-    ['RANK', 'AGENT', 'MODEL', 'TIME', 'TOKENS', 'SCORE'].forEach(function(h) {
+    var _isImgBench = results.some(function(r) {
+        return r.success && r.response_preview && r.response_preview.indexOf('/static/media/') !== -1;
+    });
+    ['RANK', 'AGENT', 'MODEL', 'TIME', _isImgBench ? 'SIZE' : 'TOKENS', 'SCORE'].forEach(function(h) {
         var th = document.createElement('th');
         th.textContent = h;
         thRow.appendChild(th);
@@ -12840,7 +13009,12 @@ function _showBenchmarkCompareModal(results, runInfo) {
         tr.appendChild(tdTime);
 
         var tdTokens = document.createElement('td');
-        tdTokens.textContent = r.success ? (r.total_tokens || 0) : '--';
+        if (_isImgBench && r.success) {
+            var kb = ((r.total_tokens || 0) / 1024).toFixed(0);
+            tdTokens.textContent = kb + 'KB';
+        } else {
+            tdTokens.textContent = r.success ? (r.total_tokens || 0) : '--';
+        }
         tr.appendChild(tdTokens);
 
         var tdScore = document.createElement('td');
@@ -12855,6 +13029,63 @@ function _showBenchmarkCompareModal(results, runInfo) {
     });
     table.appendChild(tbody);
     body.appendChild(table);
+
+    // ── 1b. Image gallery (for image benchmarks) ──
+    var isImageBenchmark = results.some(function(r) {
+        return r.success && r.response_preview && r.response_preview.indexOf('/static/media/') !== -1;
+    });
+    if (isImageBenchmark) {
+        var gallery = document.createElement('div');
+        gallery.className = 'bench-image-gallery';
+
+        var galleryTitle = document.createElement('div');
+        galleryTitle.className = 'bench-gallery-title';
+        galleryTitle.textContent = 'GENERATED IMAGES';
+        gallery.appendChild(galleryTitle);
+
+        var galleryGrid = document.createElement('div');
+        galleryGrid.className = 'bench-gallery-grid';
+
+        results.forEach(function(r, i) {
+            var card = document.createElement('div');
+            card.className = 'bench-gallery-card';
+            if (!r.success) card.classList.add('bench-gallery-failed');
+            card.addEventListener('click', function() { _switchBenchTab(i); });
+
+            if (r.success) {
+                var imgM = r.response_preview.match(/File:\s*(\/static\/media\/[^\s]+)/);
+                if (imgM) {
+                    var thumb = document.createElement('img');
+                    thumb.className = 'bench-gallery-thumb';
+                    thumb.src = imgM[1];
+                    thumb.alt = r.agent_name;
+                    thumb.loading = 'lazy';
+                    card.appendChild(thumb);
+                }
+            } else {
+                var failIcon = document.createElement('div');
+                failIcon.className = 'bench-gallery-fail-icon';
+                failIcon.textContent = '\u2717';
+                card.appendChild(failIcon);
+            }
+
+            var label = document.createElement('div');
+            label.className = 'bench-gallery-label';
+            var catMatch = r.response_preview && r.response_preview.match(/Category:\s*(\w+)/);
+            label.textContent = catMatch ? catMatch[1] : (r.agent_name || 'Image ' + (i + 1));
+            card.appendChild(label);
+
+            var scoreLabel = document.createElement('div');
+            scoreLabel.className = 'bench-gallery-score';
+            scoreLabel.textContent = r.success ? r.score.toFixed(1) : 'FAIL';
+            card.appendChild(scoreLabel);
+
+            galleryGrid.appendChild(card);
+        });
+
+        gallery.appendChild(galleryGrid);
+        body.appendChild(gallery);
+    }
 
     // ── 2. Skill updates (between table and responses) ──
     var skillFooter = document.createElement('div');
@@ -13031,7 +13262,7 @@ function _showBenchmarkCompareModal(results, runInfo) {
             (r.display_name || r.agent_name),
             r.model_used || '',
             r.success ? (r.duration_ms / 1000).toFixed(1) + 's' : 'FAILED',
-            (r.total_tokens || 0) + ' tokens',
+            isImageBenchmark ? (((r.total_tokens || 0) / 1024).toFixed(0) + ' KB') : ((r.total_tokens || 0) + ' tokens'),
             'Score: ' + (r.success ? r.score.toFixed(1) : '0.0')
         ];
         spans.forEach(function(txt) {
@@ -13041,12 +13272,41 @@ function _showBenchmarkCompareModal(results, runInfo) {
         });
         responsePanel.appendChild(meta);
 
-        var resp = document.createElement('div');
-        resp.className = 'bench-response-text';
-        resp.textContent = r.success
-            ? (r.response_preview || '(no response captured)')
-            : ('Error: ' + (r.error_message || 'unknown'));
-        responsePanel.appendChild(resp);
+        // Check if this is an image benchmark (response_preview contains "File: /static/media/")
+        var imgMatch = r.success && r.response_preview && r.response_preview.match(/File:\s*(\/static\/media\/[^\s]+)/);
+        if (imgMatch) {
+            // Image benchmark — show the generated image
+            var imgWrap = document.createElement('div');
+            imgWrap.className = 'bench-image-wrap';
+
+            var img = document.createElement('img');
+            img.className = 'bench-image-preview';
+            img.src = imgMatch[1];
+            img.alt = (r.agent_name || 'Generated image');
+            img.loading = 'lazy';
+            img.addEventListener('click', function() {
+                window.open(imgMatch[1], '_blank');
+            });
+            imgWrap.appendChild(img);
+
+            // Show prompt below image
+            var promptMatch = r.response_preview.match(/Prompt:\s*(.+)/);
+            if (promptMatch) {
+                var promptEl = document.createElement('div');
+                promptEl.className = 'bench-image-prompt';
+                promptEl.textContent = promptMatch[1];
+                imgWrap.appendChild(promptEl);
+            }
+
+            responsePanel.appendChild(imgWrap);
+        } else {
+            var resp = document.createElement('div');
+            resp.className = 'bench-response-text';
+            resp.textContent = r.success
+                ? (r.response_preview || '(no response captured)')
+                : ('Error: ' + (r.error_message || 'unknown'));
+            responsePanel.appendChild(resp);
+        }
     }
 
     // Show first agent by default

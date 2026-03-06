@@ -1,0 +1,428 @@
+"""
+ComfyUI Service — Advanced Local Image Generation
+
+Interfaces with ComfyUI's queue-based REST API for image generation.
+Supports custom workflows, LoRAs, ControlNet, and unrestricted generation.
+
+ComfyUI API flow:
+    1. POST /prompt — submit a workflow, get a prompt_id
+    2. GET /history/{prompt_id} — poll until complete
+    3. GET /view?filename=... — download the output image
+
+Usage:
+    from ai_bridge.comfyui_service import get_comfyui_service
+
+    service = get_comfyui_service()
+    result = service.generate_image("a cat in space", model="v1-5-pruned-emaonly.safetensors")
+"""
+
+import base64
+import copy
+import json
+import logging
+import os
+import time
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Dict, List
+
+import requests
+
+logger = logging.getLogger(__name__)
+
+# Configuration
+_comfyui_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
+if not _comfyui_host.startswith("http"):
+    _comfyui_host = f"http://{_comfyui_host}"
+COMFYUI_HOST = _comfyui_host
+REQUEST_TIMEOUT = 600  # 10 min for CPU generation
+POLL_INTERVAL = 3  # seconds between status polls
+
+# Default workflow path
+_default_workflow = os.path.join(
+    os.path.dirname(__file__), "..", "comfyui", "workflows", "txt2img_default.json"
+)
+
+
+@dataclass
+class ComfyUIResult:
+    """Result of a ComfyUI image generation operation."""
+    success: bool
+    file_path: Optional[str] = None
+    error: Optional[str] = None
+    metadata: Dict = field(default_factory=dict)
+
+
+class ComfyUIService:
+    """Service for generating images via local ComfyUI instance."""
+
+    def __init__(self, host: str = COMFYUI_HOST):
+        self.host = host.rstrip("/")
+        self._healthy: Optional[bool] = None
+        self._models: Optional[List[str]] = None
+
+    def health_check(self) -> bool:
+        """Check if ComfyUI is reachable."""
+        try:
+            resp = requests.get(f"{self.host}/system_stats", timeout=5)
+            if resp.status_code == 200:
+                self._healthy = True
+                return True
+        except Exception:
+            pass
+        self._healthy = False
+        return False
+
+    @property
+    def is_healthy(self) -> bool:
+        if self._healthy is None:
+            self.health_check()
+        return self._healthy
+
+    def get_models(self) -> Dict:
+        """Get available checkpoint models from ComfyUI."""
+        try:
+            resp = requests.get(
+                f"{self.host}/object_info/CheckpointLoaderSimple", timeout=10
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                ckpts = (
+                    data.get("CheckpointLoaderSimple", {})
+                    .get("input", {})
+                    .get("required", {})
+                    .get("ckpt_name", [[]])[0]
+                )
+                self._models = ckpts if isinstance(ckpts, list) else []
+                return {
+                    "installed": self._models,
+                    "available": [],
+                    "current": self._models[0] if self._models else None,
+                }
+        except Exception as e:
+            logger.debug(f"[ComfyUI] Failed to list models: {e}")
+        return {"installed": [], "available": [], "current": None}
+
+    def get_system_stats(self) -> Dict:
+        """Get ComfyUI system stats (RAM, device info)."""
+        try:
+            resp = requests.get(f"{self.host}/system_stats", timeout=5)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+        return {}
+
+    def get_queue_status(self) -> Dict:
+        """Get current queue length."""
+        try:
+            resp = requests.get(f"{self.host}/queue", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "running": len(data.get("queue_running", [])),
+                    "pending": len(data.get("queue_pending", [])),
+                }
+        except Exception:
+            pass
+        return {"running": 0, "pending": 0}
+
+    def _load_workflow(self, workflow_path: str = None) -> Dict:
+        """Load a workflow JSON file."""
+        path = workflow_path or _default_workflow
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            # Fallback: return a minimal inline workflow
+            return self._minimal_workflow()
+
+    def _minimal_workflow(self) -> Dict:
+        """Minimal txt2img workflow as fallback."""
+        return {
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "cfg": 7, "denoise": 1,
+                    "latent_image": ["5", 0], "model": ["4", 0],
+                    "negative": ["7", 0], "positive": ["6", 0],
+                    "sampler_name": "euler_ancestral",
+                    "scheduler": "normal", "seed": 42, "steps": 20,
+                },
+            },
+            "4": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "v1-5-pruned-emaonly.safetensors"},
+            },
+            "5": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"batch_size": 1, "height": 512, "width": 512},
+            },
+            "6": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"clip": ["4", 1], "text": "a beautiful sunset"},
+            },
+            "7": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"clip": ["4", 1], "text": "low quality, bad anatomy"},
+            },
+            "8": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["3", 0], "vae": ["4", 2]},
+            },
+            "9": {
+                "class_type": "SaveImage",
+                "inputs": {"filename_prefix": "archie", "images": ["8", 0]},
+            },
+        }
+
+    def generate_image(
+        self,
+        prompt: str,
+        model: str = None,
+        steps: int = 20,
+        width: int = 512,
+        height: int = 512,
+        negative_prompt: str = "low quality, bad anatomy, worst quality, low resolution",
+        seed: int = None,
+        workflow_path: str = None,
+        cfg: float = 7.0,
+        sampler: str = "euler_ancestral",
+    ) -> ComfyUIResult:
+        """Generate an image via ComfyUI.
+
+        Args:
+            prompt: Text description of the image
+            model: Checkpoint filename (e.g., "v1-5-pruned-emaonly.safetensors")
+            steps: Inference steps
+            width/height: Output dimensions
+            negative_prompt: What to avoid
+            seed: Random seed (-1 or None for random)
+            workflow_path: Custom workflow JSON path
+            cfg: Classifier-free guidance scale
+            sampler: Sampler name (euler_ancestral, dpmpp_2m, etc.)
+
+        Returns:
+            ComfyUIResult with file_path and metadata
+        """
+        # Load and customize workflow
+        workflow = copy.deepcopy(self._load_workflow(workflow_path))
+
+        # Set model
+        if model:
+            for node in workflow.values():
+                if node.get("class_type") == "CheckpointLoaderSimple":
+                    node["inputs"]["ckpt_name"] = model
+
+        # Set prompt
+        for node in workflow.values():
+            if node.get("class_type") == "CLIPTextEncode":
+                if node["inputs"].get("text") and "low quality" not in node["inputs"]["text"]:
+                    node["inputs"]["text"] = prompt
+                elif "low quality" in node["inputs"].get("text", ""):
+                    node["inputs"]["text"] = negative_prompt
+
+        # Set dimensions
+        for node in workflow.values():
+            if node.get("class_type") == "EmptyLatentImage":
+                node["inputs"]["width"] = width
+                node["inputs"]["height"] = height
+
+        # Set sampler params
+        for node in workflow.values():
+            if node.get("class_type") == "KSampler":
+                node["inputs"]["steps"] = steps
+                node["inputs"]["cfg"] = cfg
+                node["inputs"]["sampler_name"] = sampler
+                if seed is not None:
+                    node["inputs"]["seed"] = seed
+                else:
+                    node["inputs"]["seed"] = int(time.time()) % (2**32)
+
+        # Set unique filename prefix
+        file_prefix = f"archie_{uuid.uuid4().hex[:8]}"
+        for node in workflow.values():
+            if node.get("class_type") == "SaveImage":
+                node["inputs"]["filename_prefix"] = file_prefix
+
+        # Submit to queue
+        client_id = str(uuid.uuid4())
+        payload = {"prompt": workflow, "client_id": client_id}
+
+        logger.info(
+            "[ComfyUI] Generating: model=%s, steps=%d, %dx%d",
+            model or "default", steps, width, height,
+        )
+
+        try:
+            start = time.time()
+            resp = requests.post(
+                f"{self.host}/prompt",
+                json=payload,
+                timeout=30,
+            )
+
+            if resp.status_code != 200:
+                return ComfyUIResult(
+                    success=False,
+                    error=f"ComfyUI queue error {resp.status_code}: {resp.text[:500]}",
+                )
+
+            prompt_id = resp.json().get("prompt_id")
+            if not prompt_id:
+                return ComfyUIResult(success=False, error="No prompt_id returned")
+
+            # Poll for completion
+            result = self._poll_completion(prompt_id, timeout=REQUEST_TIMEOUT)
+            duration_ms = int((time.time() - start) * 1000)
+
+            if not result["success"]:
+                return ComfyUIResult(success=False, error=result.get("error", "Unknown"))
+
+            # Download the output image
+            output_images = result.get("images", [])
+            if not output_images:
+                return ComfyUIResult(success=False, error="No output images")
+
+            img_info = output_images[0]
+            img_data = self._download_image(
+                img_info["filename"],
+                img_info.get("subfolder", ""),
+                img_info.get("type", "output"),
+            )
+
+            if not img_data:
+                return ComfyUIResult(success=False, error="Failed to download output image")
+
+            # Save to platform media directory
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            file_uuid = str(uuid.uuid4())[:12]
+            rel_dir = f"static/media/images/{date_str}"
+            app_root = os.environ.get("FLASK_APP_ROOT", "/app")
+            abs_dir = os.path.join(app_root, rel_dir)
+            os.makedirs(abs_dir, exist_ok=True)
+
+            file_name = f"{file_uuid}.png"
+            file_path = os.path.join(abs_dir, file_name)
+            with open(file_path, "wb") as f:
+                f.write(img_data)
+
+            return ComfyUIResult(
+                success=True,
+                file_path=f"/{rel_dir}/{file_name}",
+                metadata={
+                    "provider": "comfyui",
+                    "model": model or "default",
+                    "cost_usd": 0.0,
+                    "hardware": "cpu",
+                    "mime_type": "image/png",
+                    "file_size_bytes": len(img_data),
+                    "width": width,
+                    "height": height,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler": sampler,
+                    "duration_ms": duration_ms,
+                    "seed": seed,
+                },
+            )
+
+        except requests.ConnectionError:
+            return ComfyUIResult(
+                success=False,
+                error="ComfyUI service unavailable — is the container running?",
+            )
+        except requests.Timeout:
+            return ComfyUIResult(
+                success=False,
+                error=f"Generation timed out after {REQUEST_TIMEOUT}s",
+            )
+        except Exception as e:
+            logger.error(f"[ComfyUI] Generation failed: {e}")
+            return ComfyUIResult(success=False, error=str(e))
+
+    def _poll_completion(self, prompt_id: str, timeout: int = 600) -> Dict:
+        """Poll ComfyUI history until the prompt completes."""
+        deadline = time.time() + timeout
+
+        while time.time() < deadline:
+            try:
+                resp = requests.get(
+                    f"{self.host}/history/{prompt_id}", timeout=10
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if prompt_id in data:
+                        entry = data[prompt_id]
+                        status = entry.get("status", {})
+
+                        if status.get("completed", False):
+                            # Extract output images
+                            images = []
+                            outputs = entry.get("outputs", {})
+                            for node_id, node_out in outputs.items():
+                                for img in node_out.get("images", []):
+                                    images.append(img)
+                            return {"success": True, "images": images}
+
+                        if status.get("status_str") == "error":
+                            msgs = status.get("messages", [])
+                            err = str(msgs) if msgs else "Workflow execution error"
+                            return {"success": False, "error": err}
+
+            except Exception as e:
+                logger.debug("[ComfyUI] Poll error: %s", e)
+
+            time.sleep(POLL_INTERVAL)
+
+        return {"success": False, "error": f"Timed out after {timeout}s"}
+
+    def _download_image(
+        self, filename: str, subfolder: str = "", img_type: str = "output"
+    ) -> Optional[bytes]:
+        """Download an output image from ComfyUI."""
+        try:
+            params = {
+                "filename": filename,
+                "subfolder": subfolder,
+                "type": img_type,
+            }
+            resp = requests.get(
+                f"{self.host}/view", params=params, timeout=30
+            )
+            if resp.status_code == 200:
+                return resp.content
+        except Exception as e:
+            logger.error("[ComfyUI] Image download failed: %s", e)
+        return None
+
+    def get_status(self) -> Dict:
+        """Get service status for UI display."""
+        healthy = self.health_check()
+        models = self.get_models() if healthy else {}
+        queue = self.get_queue_status() if healthy else {}
+        stats = self.get_system_stats() if healthy else {}
+
+        return {
+            "service_online": healthy,
+            "host": self.host,
+            "installed_models": models.get("installed", []),
+            "queue_running": queue.get("running", 0),
+            "queue_pending": queue.get("pending", 0),
+            "system_stats": stats,
+            "hardware": "cpu",
+        }
+
+
+# Singleton
+_service: Optional[ComfyUIService] = None
+
+
+def get_comfyui_service() -> ComfyUIService:
+    """Get or create the singleton ComfyUIService instance."""
+    global _service
+    if _service is None:
+        _service = ComfyUIService()
+    return _service

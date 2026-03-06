@@ -104,7 +104,7 @@ def get_eligible_agents(capability: str) -> List[Dict]:
 # ---------------------------------------------------------------------------
 # Start a benchmark run
 # ---------------------------------------------------------------------------
-def start_benchmark(action_key: str, user_id: Optional[int] = None) -> Dict:
+def start_benchmark(action_key: str, user_id: Optional[int] = None, include_contractors: bool = False) -> Dict:
     """Kick off a benchmark run for *action_key*.
 
     1. Load test_config from station_actions.
@@ -168,6 +168,9 @@ def start_benchmark(action_key: str, user_id: Optional[int] = None) -> Dict:
             "success": False,
             "error": f"No test_config for action '{action_key}'",
         }
+    # Inject runtime setting from CTRL panel
+    if include_contractors:
+        test_config["include_contractors"] = True
     capability = test_config.get("capability", "general")
     benchmark_type = test_config.get("benchmark_type", "llm")
 
@@ -176,7 +179,11 @@ def start_benchmark(action_key: str, user_id: Optional[int] = None) -> Dict:
         prompts = test_config.get("prompts", [])
         if not prompts:
             return {"success": False, "error": "No prompts in image benchmark test_config"}
-        total_items = len(prompts)
+        # Count contractors if enabled
+        contractor_count = 0
+        if test_config.get("include_contractors"):
+            contractor_count = len(_discover_image_contractors())
+        total_items = len(prompts) + (contractor_count * len(prompts))
     else:
         agents = get_eligible_agents(capability)
         if not agents:
@@ -484,19 +491,23 @@ def _run_image_benchmark_thread(
     action: Dict,
     test_config: Dict,
 ):
-    """Test image generation across prompts/models via OllamaDiffuser.
+    """Test image generation across prompts/models via local + external contractors.
 
     Each prompt in test_config["prompts"] is generated and timed.
+    When include_contractors is true, also tests configured external providers
+    (Gemini Imagen, OpenAI DALL-E) for each prompt.
     Results are recorded as benchmark_results rows with the model as
     "agent_name" (since image gen doesn't use LLM agents).
     """
     import json as _json
     import psycopg2
+    import time
 
     prompts = test_config.get("prompts", [])
     default_width = test_config.get("width", 512)
     default_height = test_config.get("height", 512)
     default_steps = test_config.get("steps", 15)
+    include_contractors = test_config.get("include_contractors", False)
 
     # Find Pixel (image gen agent) for the agent_id field
     pixel_id = None
@@ -512,9 +523,17 @@ def _run_image_benchmark_thread(
     except Exception:
         pass
 
+    # Build list of external contractor adapters to test
+    contractor_tests = []
+    if include_contractors:
+        contractor_tests = _discover_image_contractors()
+
     completed = 0
     failed = 0
     results = []
+
+    # Total items = local prompts + (contractor count × prompts)
+    total_items = len(prompts) + (len(contractor_tests) * len(prompts))
 
     try:
         db_conn = psycopg2.connect(
@@ -529,128 +548,267 @@ def _run_image_benchmark_thread(
         logger.error("Image benchmark thread %d: can't connect to DB: %s", run_id, e)
         return
 
+    # Update total_agents to include contractors
+    if total_items != len(prompts):
+        try:
+            cur = db_conn.cursor()
+            cur.execute(
+                "UPDATE action_benchmark_runs SET total_agents = %s WHERE id = %s",
+                (total_items, run_id),
+            )
+            cur.close()
+        except Exception:
+            pass
+
+    def _insert_result(db, run, agent_id, agent_name, display, model, provider, dur, fsize, ok, err, preview):
+        try:
+            cur = db.cursor()
+            cur.execute(
+                """
+                INSERT INTO action_benchmark_results
+                    (run_id, agent_id, agent_name, display_name,
+                     model_used, provider, duration_ms,
+                     prompt_tokens, completion_tokens, total_tokens,
+                     success, error_message, response_preview)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s)
+                """,
+                (run, agent_id, agent_name, display, model, provider, dur, 0, 0, fsize, ok, err, preview),
+            )
+            cur.close()
+        except Exception as e:
+            logger.error("Failed to insert image benchmark result: %s", e)
+
+    def _update_progress(db, run, comp, fail):
+        try:
+            cur = db.cursor()
+            cur.execute(
+                "UPDATE action_benchmark_runs SET completed_agents = %s, failed_agents = %s WHERE id = %s",
+                (comp, fail, run),
+            )
+            cur.close()
+        except Exception:
+            pass
+
     try:
-        from ai_bridge.diffuser_service import get_diffuser_service
+        # ── Phase 1: ComfyUI local tests ──
+        from ai_bridge.comfyui_service import get_comfyui_service
 
-        diffuser = get_diffuser_service()
-
-        for i, prompt_cfg in enumerate(prompts):
-            prompt_text = prompt_cfg.get("prompt", "a cat")
-            model = prompt_cfg.get("model", "stable-diffusion-1.5")
-            category = prompt_cfg.get("category", f"test_{i}")
-            steps = prompt_cfg.get("steps", default_steps)
-            width = prompt_cfg.get("width", default_width)
-            height = prompt_cfg.get("height", default_height)
-
-            agent_label = f"{model} ({category})"
-            logger.info(
-                "Image benchmark %d: testing %s — %s",
-                run_id,
-                agent_label,
-                prompt_text[:60],
-            )
-
-            try:
-                import time
-
-                start_ms = int(time.time() * 1000)
-                result = diffuser.generate_image(
-                    prompt=prompt_text,
-                    model=model,
-                    steps=steps,
-                    width=width,
-                    height=height,
-                )
-                duration_ms = int(time.time() * 1000) - start_ms
-
-                success = result.success
-                error_msg = result.error if not success else None
-                file_size = result.metadata.get("file_size_bytes", 0) if success else 0
-                file_path = result.file_path or ""
-
-                # Build preview with generation details
-                if success:
-                    response_preview = (
-                        f"Category: {category}\n"
-                        f"Model: {model}\n"
-                        f"Prompt: {prompt_text}\n"
-                        f"Size: {width}x{height}, Steps: {steps}\n"
-                        f"File: {file_path} ({file_size} bytes)\n"
-                        f"Duration: {duration_ms}ms ({duration_ms / 1000:.1f}s)"
-                    )
-                else:
-                    response_preview = f"FAILED: {error_msg}"
-
-            except Exception as e:
-                logger.warning("Image benchmark prompt %d failed: %s", i, e)
-                success = False
-                duration_ms = 0
-                error_msg = str(e)
-                response_preview = f"EXCEPTION: {e}"
-                file_size = 0
-
-            # Insert result (reuse benchmark_results schema)
-            try:
-                cur = db_conn.cursor()
-                cur.execute(
-                    """
-                    INSERT INTO action_benchmark_results
-                        (run_id, agent_id, agent_name, display_name,
-                         model_used, provider, duration_ms,
-                         prompt_tokens, completion_tokens, total_tokens,
-                         success, error_message, response_preview)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                            %s, %s, %s)
-                    """,
-                    (
-                        run_id,
-                        pixel_id,
-                        agent_label,
-                        pixel_display,
-                        model,
-                        "ollama_diffuser",
-                        duration_ms,
-                        0,  # no prompt tokens for image gen
-                        0,
-                        file_size,  # repurpose total_tokens as file_size
-                        success,
-                        error_msg,
-                        response_preview,
-                    ),
-                )
-                cur.close()
-            except Exception as e:
-                logger.error("Failed to insert image benchmark result: %s", e)
-
-            if success:
-                completed += 1
+        comfyui = get_comfyui_service()
+        if not comfyui.health_check():
+            logger.warning("Image benchmark %d: ComfyUI not available", run_id)
+        else:
+            comfy_models = comfyui.get_models().get("installed", [])
+            if not comfy_models:
+                logger.warning("Image benchmark %d: ComfyUI has no models installed", run_id)
             else:
-                failed += 1
+                logger.info(
+                    "Image benchmark %d: testing %d ComfyUI models × %d prompts",
+                    run_id,
+                    len(comfy_models),
+                    len(prompts),
+                )
+                # Update total count (models × prompts)
+                total_items = len(comfy_models) * len(prompts)
+                try:
+                    cur = db_conn.cursor()
+                    cur.execute(
+                        "UPDATE action_benchmark_runs SET total_agents = %s WHERE id = %s",
+                        (total_items + (len(contractor_tests) * len(prompts)), run_id),
+                    )
+                    cur.close()
+                except Exception:
+                    pass
 
-            results.append(
-                {
-                    "agent_name": agent_label,
-                    "success": success,
-                    "duration_ms": duration_ms,
-                    "total_tokens": file_size,
-                    "response_preview": response_preview,
-                }
+                for ckpt in comfy_models:
+                    for i, prompt_cfg in enumerate(prompts):
+                        prompt_text = prompt_cfg.get("prompt", "a cat")
+                        category = prompt_cfg.get("category", f"test_{i}")
+                        width = prompt_cfg.get("width", default_width)
+                        height = prompt_cfg.get("height", default_height)
+                        steps = prompt_cfg.get("steps", default_steps)
+
+                        short_model = ckpt.replace(".safetensors", "").replace(".ckpt", "")
+                        # SDXL models need 1024x1024 native resolution
+                        if "xl" in ckpt.lower():
+                            width, height = 1024, 1024
+                        agent_label = f"{short_model} ({category})"
+                        logger.info(
+                            "Image benchmark %d: ComfyUI %s — %s",
+                            run_id,
+                            short_model,
+                            prompt_text[:60],
+                        )
+
+                        try:
+                            start_ms = int(time.time() * 1000)
+                            result = comfyui.generate_image(
+                                prompt=prompt_text,
+                                model=ckpt,
+                                steps=steps,
+                                width=width,
+                                height=height,
+                            )
+                            duration_ms = int(time.time() * 1000) - start_ms
+
+                            success = result.success
+                            error_msg = result.error if not success else None
+                            file_size = result.metadata.get("file_size_bytes", 0) if success else 0
+                            file_path = result.file_path or ""
+
+                            if success:
+                                response_preview = (
+                                    f"Category: {category}\n"
+                                    f"Model: {short_model}\n"
+                                    f"Provider: ComfyUI\n"
+                                    f"Prompt: {prompt_text}\n"
+                                    f"Size: {width}x{height}, Steps: {steps}\n"
+                                    f"File: {file_path} ({file_size} bytes)\n"
+                                    f"Duration: {duration_ms}ms ({duration_ms / 1000:.1f}s)"
+                                )
+                            else:
+                                response_preview = f"FAILED: {error_msg}"
+                        except Exception as e:
+                            logger.warning("ComfyUI benchmark %s prompt %d failed: %s", ckpt, i, e)
+                            success = False
+                            duration_ms = 0
+                            error_msg = str(e)
+                            response_preview = f"EXCEPTION: {e}"
+                            file_size = 0
+
+                        _insert_result(
+                            db_conn,
+                            run_id,
+                            pixel_id,
+                            agent_label,
+                            "ComfyUI",
+                            short_model,
+                            "comfyui",
+                            duration_ms,
+                            file_size,
+                            success,
+                            error_msg,
+                            response_preview,
+                        )
+
+                        if success:
+                            completed += 1
+                        else:
+                            failed += 1
+
+                        results.append(
+                            {
+                                "agent_name": agent_label,
+                                "success": success,
+                                "duration_ms": duration_ms,
+                                "total_tokens": file_size,
+                                "response_preview": response_preview,
+                            }
+                        )
+                        _update_progress(db_conn, run_id, completed, failed)
+
+        # ── Phase 2: External contractor tests ──
+        if contractor_tests:
+            logger.info(
+                "Image benchmark %d: testing %d external contractors",
+                run_id,
+                len(contractor_tests),
             )
 
-            # Update progress
-            try:
-                cur = db_conn.cursor()
-                cur.execute(
-                    """
-                    UPDATE action_benchmark_runs
-                    SET completed_agents = %s, failed_agents = %s
-                    WHERE id = %s
-                    """,
-                    (completed, failed, run_id),
+        for contractor in contractor_tests:
+            c_key = contractor["provider_key"]
+            c_name = contractor["display_name"]
+            c_model = contractor["model"]
+            c_adapter = contractor["adapter"]
+
+            for i, prompt_cfg in enumerate(prompts):
+                prompt_text = prompt_cfg.get("prompt", "a cat")
+                category = prompt_cfg.get("category", f"test_{i}")
+
+                agent_label = f"{c_model} ({category})"
+                logger.info(
+                    "Image benchmark %d: contractor %s — %s",
+                    run_id,
+                    c_key,
+                    prompt_text[:60],
                 )
-                cur.close()
-            except Exception:
-                pass
+
+                try:
+                    import time
+
+                    start_ms = int(time.time() * 1000)
+                    result = c_adapter(
+                        {
+                            "type": "image",
+                            "prompt": prompt_text,
+                            "params": contractor.get("params", {}),
+                        }
+                    )
+                    duration_ms = int(time.time() * 1000) - start_ms
+
+                    success = result.get("success", False)
+                    error_msg = result.get("error") if not success else None
+                    meta = result.get("metadata", {})
+                    file_size = meta.get("file_size_bytes", 0) if success else 0
+                    file_path = result.get("file_path", "")
+                    cost_usd = meta.get("cost_usd", 0.0)
+
+                    if success:
+                        response_preview = (
+                            f"Category: {category}\n"
+                            f"Model: {c_model}\n"
+                            f"Provider: {c_name}\n"
+                            f"Prompt: {prompt_text}\n"
+                            f"File: {file_path} ({file_size} bytes)\n"
+                            f"Cost: ${cost_usd:.4f}\n"
+                            f"Duration: {duration_ms}ms ({duration_ms / 1000:.1f}s)"
+                        )
+                    else:
+                        response_preview = f"FAILED: {error_msg}"
+
+                except Exception as e:
+                    logger.warning(
+                        "Image benchmark contractor %s prompt %d failed: %s",
+                        c_key,
+                        i,
+                        e,
+                    )
+                    success = False
+                    duration_ms = 0
+                    error_msg = str(e)
+                    response_preview = f"EXCEPTION: {e}"
+                    file_size = 0
+
+                _insert_result(
+                    db_conn,
+                    run_id,
+                    pixel_id,
+                    agent_label,
+                    c_name,
+                    c_model,
+                    c_key,
+                    duration_ms,
+                    file_size,
+                    success,
+                    error_msg,
+                    response_preview,
+                )
+
+                if success:
+                    completed += 1
+                else:
+                    failed += 1
+
+                results.append(
+                    {
+                        "agent_name": agent_label,
+                        "success": success,
+                        "duration_ms": duration_ms,
+                        "total_tokens": file_size,
+                        "response_preview": response_preview,
+                    }
+                )
+                _update_progress(db_conn, run_id, completed, failed)
 
         # Compute scores — for image gen, score based on success + speed
         _compute_image_scores(run_id, results, conn=db_conn)
@@ -673,10 +831,10 @@ def _run_image_benchmark_thread(
             logger.error("Failed to finalize image benchmark %d: %s", run_id, e)
 
         logger.info(
-            "Image benchmark %d complete: %d/%d prompts succeeded",
+            "Image benchmark %d complete: %d/%d items succeeded",
             run_id,
             completed,
-            len(prompts),
+            total_items,
         )
 
     finally:
@@ -684,6 +842,82 @@ def _run_image_benchmark_thread(
             db_conn.close()
         except Exception:
             pass
+
+
+def _discover_image_contractors() -> list:
+    """Find external contractor providers that support image generation.
+
+    Checks contractor_providers table for providers with image_gen capability,
+    verifies their API key is configured, and returns adapter functions.
+    """
+    contractors = []
+
+    # Map provider_key → adapter function
+    try:
+        from ai_bridge.external_providers import (
+            _gemini_media_adapter,
+            _openai_image_adapter,
+        )
+    except ImportError:
+        logger.warning("Could not import external provider adapters")
+        return []
+
+    adapter_map = {
+        "gemini": {
+            "adapter": _gemini_media_adapter,
+            "env_var": "GEMINI_API_KEY",
+            "model": "imagen-3.0-generate-002",
+            "params": {"aspect_ratio": "1:1"},
+        },
+        "openai": {
+            "adapter": _openai_image_adapter,
+            "env_var": "OPENAI_API_KEY",
+            "model": "dall-e-3",
+            "params": {"size": "1024x1024", "quality": "standard"},
+        },
+    }
+
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT provider_key, display_name, default_model, is_active
+                FROM contractor_providers
+                WHERE capabilities::text ILIKE '%%image%%'
+                  AND is_active = TRUE
+                  AND provider_key NOT IN ('ollama_diffuser', 'comfyui')
+                """
+            )
+            rows = cur.fetchall()
+            for row in rows:
+                pk = row[0] if isinstance(row, tuple) else row["provider_key"]
+                dn = row[1] if isinstance(row, tuple) else row["display_name"]
+
+                if pk not in adapter_map:
+                    continue
+
+                info = adapter_map[pk]
+                # Check if API key is configured
+                api_key = __import__("os").environ.get(info["env_var"], "")
+                if not api_key:
+                    logger.info("Skipping contractor %s: no API key (%s)", pk, info["env_var"])
+                    continue
+
+                contractors.append(
+                    {
+                        "provider_key": pk,
+                        "display_name": dn,
+                        "model": info["model"],
+                        "adapter": info["adapter"],
+                        "params": info["params"],
+                    }
+                )
+                logger.info("Image benchmark: including contractor %s (%s)", pk, dn)
+    except Exception as e:
+        logger.error("Failed to discover image contractors: %s", e)
+
+    return contractors
 
 
 def _compute_image_scores(run_id: int, results: List[Dict], conn=None):

@@ -4047,17 +4047,42 @@ def node_heartbeat(node_id):
 
             # Sync Ollama models if provided (Phase 70: Node Model Discovery)
             models_synced = 0
+            ollama_models_payload = None
+
+            # Support both flat (ollama_models) and nested (ollama.available_models) formats
             if data.get("ollama_models") and data.get("ollama_online"):
+                ollama_models_payload = data["ollama_models"]
+            elif "ollama" in data:
+                ollama_data = data["ollama"]
+                available = ollama_data.get("available_models", [])
+                if available:
+                    ollama_models_payload = available
+
+            if ollama_models_payload:
                 try:
                     cur.execute(
                         """
                         SELECT sync_node_models(%s, %s::jsonb)
                     """,
-                        (node_id, psycopg2.extras.Json(data["ollama_models"])),
+                        (node_id, psycopg2.extras.Json(ollama_models_payload)),
                     )
                     result = cur.fetchone()
                     models_synced = result[0] if result else 0
                     logger.debug(f"Synced {models_synced} models for node {node_id}")
+
+                    # Mark models no longer available
+                    if ollama_models_payload:
+                        available_names = [
+                            m.get("name", m.get("model", "")) for m in ollama_models_payload if isinstance(m, dict)
+                        ]
+                        if available_names:
+                            cur.execute(
+                                """
+                                UPDATE node_ollama_models SET is_available = false
+                                WHERE node_id = %s AND model_name != ALL(%s::text[])
+                            """,
+                                (node_id, available_names),
+                            )
                 except Exception as e:
                     logger.warning(f"Model sync error for {node_id}: {e}")
 
@@ -4759,6 +4784,87 @@ def get_node_health_history(node_id):
 
     except Exception as e:
         logger.error(f"Error getting health history: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/nodes/<node_id>/health")
+@login_required
+def get_node_health(node_id):
+    """Get latest heartbeat health data for a specific node."""
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT rn.status, rn.last_heartbeat, rn.current_load, rn.max_concurrent,
+                       rn.cpu_cores, rn.ram_gb, rn.gpu_model, rn.gpu_vram_gb,
+                       rn.deployment_mode, rn.bridge_priority
+                FROM remote_nodes rn
+                WHERE rn.node_id = %s
+            """,
+                (node_id,),
+            )
+            node = cur.fetchone()
+
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        # Convert datetime for JSON serialization
+        health = dict(node)
+        if health.get("last_heartbeat"):
+            health["last_heartbeat"] = health["last_heartbeat"].isoformat()
+
+        return jsonify({"success": True, "node_id": node_id, "health": health})
+
+    except Exception as e:
+        logger.error(f"Error getting node health: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/nodes/<node_id>/dispatch-test", methods=["POST"])
+@login_required
+def dispatch_test_to_node(node_id):
+    """Send a connectivity test to a specific node's Ollama."""
+    import time as _time
+
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT vpn_ip, hostname, port FROM remote_nodes
+                WHERE node_id = %s AND is_active = true
+            """,
+                (node_id,),
+            )
+            node = cur.fetchone()
+
+        if not node:
+            return jsonify({"success": False, "error": "Node not found or inactive"}), 404
+
+        host = node["vpn_ip"] or node["hostname"]
+        port = node["port"] or 11434
+        ollama_url = f"http://{host}:{port}"
+        start = _time.time()
+        resp = requests.get(f"{ollama_url}/api/tags", timeout=10)
+        latency_ms = round((_time.time() - start) * 1000)
+        data = resp.json()
+        model_count = len(data.get("models", []))
+
+        return jsonify(
+            {
+                "success": True,
+                "node_id": node_id,
+                "latency_ms": latency_ms,
+                "model_count": model_count,
+                "ollama_url": ollama_url,
+            }
+        )
+
+    except requests.exceptions.Timeout:
+        return jsonify({"success": False, "error": "Connection timed out"}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({"success": False, "error": "Connection refused"}), 502
+    except Exception as e:
+        logger.error(f"Error dispatch-testing node: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -5465,7 +5571,8 @@ def get_node_models(node_id):
             cur.execute(
                 """
                 SELECT id, model_name, model_family, parameter_size, model_size_gb,
-                       is_available, total_requests, avg_response_ms, updated_at
+                       is_available, total_requests, avg_response_ms,
+                       context_length, quantization, updated_at
                 FROM node_ollama_models
                 WHERE node_id = %s
                 ORDER BY model_name

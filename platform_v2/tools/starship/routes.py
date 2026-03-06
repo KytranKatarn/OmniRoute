@@ -26,10 +26,10 @@ def _get_user_nodes(user_id):
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT node_id, node_name, deployment_mode, hostname, port,
+            SELECT id, node_id, node_name, deployment_mode, hostname, port,
                    status, is_active, bridge_enabled, bridge_priority,
                    gpu_model, gpu_vram_gb, cpu_model, cpu_cores, ram_gb, disk_gb,
-                   approval_status, last_heartbeat,
+                   approval_status, last_heartbeat, client_version,
                    COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
             FROM remote_nodes
             WHERE user_id = %s
@@ -114,19 +114,24 @@ def api_list_nodes():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+    # Current node package version (update this when releasing new packages)
+
+
+LATEST_NODE_VERSION = "1.1.0"
+
 
 @starship_bp.route("/api/nodes/<node_id>/status")
 @login_required
 def api_node_status(node_id):
-    """Get detailed status for a specific node."""
+    """Get detailed status for a specific node including version, stations, agents."""
     user_id = current_user.id
     try:
         node = _get_node_for_user(node_id, user_id)
         if not node:
             return jsonify({"success": False, "error": "Node not found"}), 404
 
-        # Get models for this node
         with get_db_cursor() as (conn, cur):
+            # Models
             cur.execute(
                 """
                 SELECT model_name, model_size_gb, is_loaded, is_available,
@@ -139,7 +144,7 @@ def api_node_status(node_id):
             )
             models = cur.fetchall()
 
-            # Get job stats
+            # Job stats
             cur.execute(
                 """
                 SELECT COUNT(*) as total_jobs,
@@ -152,6 +157,53 @@ def api_node_status(node_id):
             )
             stats = cur.fetchone()
 
+            # All stations (for the stations grid)
+            cur.execute(
+                """
+                SELECT bs.id, bs.station_code, bs.station_name, bs.color,
+                       CASE WHEN nsa.id IS NOT NULL THEN true ELSE false END as assigned,
+                       nsa.is_active as station_active
+                FROM bridge_stations bs
+                LEFT JOIN node_station_assignments nsa
+                    ON nsa.station_id = bs.id AND nsa.node_id = %s
+                WHERE bs.is_active = true
+                ORDER BY bs.position_row, bs.position_order
+                """,
+                (node.get("id") or 0,),
+            )
+            stations = cur.fetchall()
+
+            # Agents available to assign (all active agents with their stations)
+            cur.execute(
+                """
+                SELECT DISTINCT a.id, a.name, a.display_name, a.model,
+                       array_agg(DISTINCT bs.station_code) as station_codes
+                FROM agents a
+                JOIN station_assignments sa ON sa.agent_id = a.id
+                JOIN bridge_stations bs ON bs.id = sa.station_id
+                WHERE a.status = 'active'
+                GROUP BY a.id, a.name, a.display_name, a.model
+                ORDER BY a.name
+                """,
+            )
+            agents = cur.fetchall()
+
+            # Agents currently restricted on this node
+            cur.execute(
+                """
+                SELECT agent_id, is_allowed
+                FROM node_agent_access
+                WHERE node_id = %s
+                """,
+                (node_id,),
+            )
+            agent_access_rows = cur.fetchall()
+            agent_access = {r["agent_id"]: r["is_allowed"] for r in agent_access_rows}
+
+        # Version check
+        client_ver = node.get("client_version", "1.0.0") or "1.0.0"
+        update_available = client_ver < LATEST_NODE_VERSION
+
         return jsonify(
             {
                 "success": True,
@@ -163,6 +215,12 @@ def api_node_status(node_id):
                     "bridge_priority": node["bridge_priority"],
                     "last_heartbeat": node["last_heartbeat"].isoformat() if node["last_heartbeat"] else None,
                     "privacy_settings": node.get("privacy_settings", {}),
+                    "client_version": client_ver,
+                },
+                "version": {
+                    "current": client_ver,
+                    "latest": LATEST_NODE_VERSION,
+                    "update_available": update_available,
                 },
                 "hardware": {
                     "cpu_model": node["cpu_model"],
@@ -182,6 +240,28 @@ def api_node_status(node_id):
                         "quantization": m["quantization"],
                     }
                     for m in models
+                ],
+                "stations": [
+                    {
+                        "id": s["id"],
+                        "station_code": s["station_code"],
+                        "station_name": s["station_name"],
+                        "color": s["color"],
+                        "assigned": s["assigned"],
+                        "active": s["station_active"] if s["station_active"] is not None else False,
+                    }
+                    for s in stations
+                ],
+                "agents": [
+                    {
+                        "id": a["id"],
+                        "name": a["name"],
+                        "display_name": a["display_name"],
+                        "model": a["model"],
+                        "station_codes": a["station_codes"],
+                        "allowed": agent_access.get(a["id"], True),
+                    }
+                    for a in agents
                 ],
                 "stats": {
                     "total_jobs": stats["total_jobs"],
@@ -242,6 +322,80 @@ def api_update_privacy(node_id):
             (psycopg2.Json(settings), node_id),
         )
     return jsonify({"success": True, "privacy_settings": settings})
+
+
+# ============================================================================
+# AGENT & STATION CONTROLS
+# ============================================================================
+
+
+@starship_bp.route("/api/nodes/<node_id>/agent-access", methods=["POST"])
+@login_required
+def api_toggle_agent_access(node_id):
+    """Toggle whether an agent is allowed to run on this node."""
+    user_id = current_user.id
+    node = _get_node_for_user(node_id, user_id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+
+    data = request.get_json() or {}
+    agent_id = data.get("agent_id")
+    is_allowed = data.get("is_allowed", True)
+
+    if not agent_id:
+        return jsonify({"success": False, "error": "agent_id required"}), 400
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            INSERT INTO node_agent_access (node_id, agent_id, is_allowed)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (node_id, agent_id)
+            DO UPDATE SET is_allowed = EXCLUDED.is_allowed
+            """,
+            (node_id, agent_id, is_allowed),
+        )
+    return jsonify({"success": True, "agent_id": agent_id, "is_allowed": is_allowed})
+
+
+@starship_bp.route("/api/nodes/<node_id>/station-toggle", methods=["POST"])
+@login_required
+def api_toggle_station(node_id):
+    """Toggle a station assignment on/off for this node."""
+    user_id = current_user.id
+    node = _get_node_for_user(node_id, user_id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+
+    data = request.get_json() or {}
+    station_id = data.get("station_id")
+    enabled = data.get("enabled", True)
+
+    if not station_id:
+        return jsonify({"success": False, "error": "station_id required"}), 400
+
+    node_db_id = node.get("id") or 0
+    with get_db_cursor(commit=True) as (conn, cur):
+        if enabled:
+            cur.execute(
+                """
+                INSERT INTO node_station_assignments (node_id, station_id, is_active)
+                VALUES (%s, %s, true)
+                ON CONFLICT (node_id, station_id)
+                DO UPDATE SET is_active = true
+                """,
+                (node_db_id, station_id),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE node_station_assignments
+                SET is_active = false
+                WHERE node_id = %s AND station_id = %s
+                """,
+                (node_db_id, station_id),
+            )
+    return jsonify({"success": True, "station_id": station_id, "enabled": enabled})
 
 
 # ============================================================================

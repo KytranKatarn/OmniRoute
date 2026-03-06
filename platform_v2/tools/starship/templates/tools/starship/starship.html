@@ -97,6 +97,35 @@
 .sc-toast.error { background: rgba(255, 68, 68, 0.12); border: 1px solid var(--sc-red); color: var(--sc-red); }
 @keyframes scSlide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+/* Version badge */
+.sc-version-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; }
+.sc-version-badge.current { background: rgba(0, 255, 136, 0.08); border: 1px solid rgba(0, 255, 136, 0.2); color: var(--sc-green); }
+.sc-version-badge.outdated { background: rgba(255, 171, 0, 0.1); border: 1px solid rgba(255, 171, 0, 0.3); color: var(--sc-amber); cursor: pointer; }
+.sc-version-badge.outdated:hover { background: rgba(255, 171, 0, 0.2); }
+
+/* Stations mini grid */
+.sc-stations-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.sc-station-card { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer; transition: all 0.2s; position: relative; }
+.sc-station-card:hover { border-color: rgba(255,255,255,0.2); }
+.sc-station-card.active { border-color: var(--station-color, var(--sc-accent)); background: rgba(255,255,255,0.03); }
+.sc-station-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); flex-shrink: 0; }
+.sc-station-card.active .sc-station-dot { background: var(--station-color, var(--sc-accent)); box-shadow: 0 0 6px var(--station-color, var(--sc-accent)); }
+.sc-station-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: rgba(255,255,255,0.5); letter-spacing: 1px; text-transform: uppercase; }
+.sc-station-card.active .sc-station-label { color: #fff; }
+
+/* Agent access list */
+.sc-agent-list { display: flex; flex-direction: column; gap: 4px; }
+.sc-agent-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; transition: background 0.2s; }
+.sc-agent-row:hover { background: rgba(0,0,0,0.4); }
+.sc-agent-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--sc-accent-dim); display: flex; align-items: center; justify-content: center; font-family: 'Antonio', sans-serif; color: var(--sc-accent); font-size: 0.8rem; flex-shrink: 0; }
+.sc-agent-info { flex: 1; min-width: 0; }
+.sc-agent-name { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-agent-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: rgba(255,255,255,0.35); }
+.sc-agent-stations { display: flex; gap: 4px; flex-wrap: wrap; }
+.sc-agent-station-tag { padding: 1px 6px; border-radius: 3px; font-size: 0.6rem; font-family: 'IBM Plex Mono', monospace; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.08); }
+.sc-agent-row.restricted { opacity: 0.45; }
+.sc-agent-row.restricted .sc-agent-name { text-decoration: line-through; }
+
 /* Add Node button */
 .sc-add-btn { display: flex; align-items: center; gap: 8px; padding: 10px 24px; background: var(--sc-accent-dim); border: 1px solid var(--sc-accent); color: var(--sc-accent); font-family: 'Antonio', sans-serif; font-size: 0.95rem; letter-spacing: 2px; cursor: pointer; border-radius: 4px; transition: all 0.2s; text-transform: uppercase; }
 .sc-add-btn:hover { background: rgba(0, 229, 255, 0.25); transform: translateY(-1px); }
@@ -265,7 +294,8 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         </div>
         <div class="sc-tabs">
             <button class="sc-tab active" onclick="switchTab('status')" data-tab="status">STATUS</button>
-            <button class="sc-tab" onclick="switchTab('hardware')" data-tab="hardware">HARDWARE</button>
+            <button class="sc-tab" onclick="switchTab('stations')" data-tab="stations">STATIONS</button>
+            <button class="sc-tab" onclick="switchTab('agents')" data-tab="agents">AGENTS</button>
             <button class="sc-tab" onclick="switchTab('models')" data-tab="models">MODELS</button>
             <button class="sc-tab" onclick="switchTab('privacy')" data-tab="privacy">PRIVACY</button>
             <button class="sc-tab" onclick="switchTab('profile')" data-tab="profile">PROFILE</button>
@@ -279,6 +309,7 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <div class="sc-row"><span class="sc-label">Deployment</span><span class="sc-value" id="d-mode">—</span></div>
                 <div class="sc-row"><span class="sc-label">Priority</span><span class="sc-value" id="d-priority">—</span></div>
                 <div class="sc-row"><span class="sc-label">Last Heartbeat</span><span class="sc-value" id="d-heartbeat">—</span></div>
+                <div class="sc-row"><span class="sc-label">Version</span><span class="sc-value" id="d-version">—</span></div>
             </div>
             <div class="sc-section">
                 <h4>CONTRIBUTION</h4>
@@ -298,6 +329,32 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <div class="sc-row"><span class="sc-label">GPU</span><span class="sc-value" id="d-gpu">—</span></div>
                 <div class="sc-row"><span class="sc-label">VRAM</span><span class="sc-value" id="d-vram">—</span></div>
                 <div class="sc-row"><span class="sc-label">Storage</span><span class="sc-value" id="d-disk">—</span></div>
+            </div>
+        </div>
+
+        <!-- STATIONS TAB -->
+        <div class="sc-panel" id="panel-stations">
+            <div class="sc-section">
+                <h4>STATION ACCESS</h4>
+                <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
+                    Enable or disable stations on this node. Active stations can receive dispatched work.
+                </p>
+                <div id="d-stations-grid" class="sc-stations-grid">
+                    <span class="sc-label">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- AGENTS TAB -->
+        <div class="sc-panel" id="panel-agents">
+            <div class="sc-section">
+                <h4>AGENT ACCESS</h4>
+                <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
+                    Control which agents can run on this node. Restricted agents won't be dispatched here.
+                </p>
+                <div id="d-agents-list" class="sc-agent-list">
+                    <span class="sc-label">Loading...</span>
+                </div>
             </div>
         </div>
 
@@ -529,6 +586,20 @@ function renderDetail(data) {
     document.getElementById('d-priority').textContent = n.bridge_priority || '—';
     document.getElementById('d-heartbeat').textContent = n.last_heartbeat ? new Date(n.last_heartbeat).toLocaleString() : 'Never';
 
+    // Version
+    var verEl = document.getElementById('d-version');
+    verEl.textContent = '';
+    if (data.version) {
+        var badge = document.createElement('span');
+        badge.className = 'sc-version-badge ' + (data.version.update_available ? 'outdated' : 'current');
+        badge.textContent = 'v' + data.version.current;
+        if (data.version.update_available) {
+            badge.textContent += ' \u2192 v' + data.version.latest;
+            badge.title = 'Update available! Download the latest node package.';
+        }
+        verEl.appendChild(badge);
+    }
+
     // Stats
     document.getElementById('d-jobs-total').textContent = data.stats.total_jobs || 0;
     document.getElementById('d-jobs-done').textContent = data.stats.completed_jobs || 0;
@@ -542,6 +613,87 @@ function renderDetail(data) {
     document.getElementById('d-vram').textContent = hw.gpu_vram_gb ? hw.gpu_vram_gb + ' GB' : '—';
     document.getElementById('d-disk').textContent = hw.disk_gb ? hw.disk_gb + ' GB' : '?';
 
+    // Stations tab
+    var stGrid = document.getElementById('d-stations-grid');
+    stGrid.textContent = '';
+    if (data.stations && data.stations.length > 0) {
+        data.stations.forEach(function(s) {
+            var card = document.createElement('div');
+            card.className = 'sc-station-card' + (s.assigned && s.active ? ' active' : '');
+            card.style.setProperty('--station-color', s.color);
+            card.onclick = function() { toggleStation(s.id, !(s.assigned && s.active), card, s.color); };
+            var dot = document.createElement('div');
+            dot.className = 'sc-station-dot';
+            var label = document.createElement('span');
+            label.className = 'sc-station-label';
+            label.textContent = s.station_name;
+            card.appendChild(dot);
+            card.appendChild(label);
+            stGrid.appendChild(card);
+        });
+    } else {
+        var empty = document.createElement('span');
+        empty.className = 'sc-label';
+        empty.textContent = 'No stations available.';
+        stGrid.appendChild(empty);
+    }
+
+    // Agents tab
+    var agList = document.getElementById('d-agents-list');
+    agList.textContent = '';
+    if (data.agents && data.agents.length > 0) {
+        data.agents.forEach(function(a) {
+            var row = document.createElement('div');
+            row.className = 'sc-agent-row' + (a.allowed ? '' : ' restricted');
+            row.id = 'agent-row-' + a.id;
+
+            var avatar = document.createElement('div');
+            avatar.className = 'sc-agent-avatar';
+            avatar.textContent = a.name.substring(0, 2).toUpperCase();
+
+            var info = document.createElement('div');
+            info.className = 'sc-agent-info';
+            var nameEl = document.createElement('div');
+            nameEl.className = 'sc-agent-name';
+            nameEl.textContent = a.display_name || a.name;
+            var meta = document.createElement('div');
+            meta.className = 'sc-agent-meta';
+            meta.textContent = a.model;
+            var tags = document.createElement('div');
+            tags.className = 'sc-agent-stations';
+            (a.station_codes || []).forEach(function(sc) {
+                var tag = document.createElement('span');
+                tag.className = 'sc-agent-station-tag';
+                tag.textContent = sc;
+                tags.appendChild(tag);
+            });
+            info.appendChild(nameEl);
+            info.appendChild(meta);
+            info.appendChild(tags);
+
+            var toggle = document.createElement('label');
+            toggle.className = 'sc-switch';
+            var input = document.createElement('input');
+            input.type = 'checkbox';
+            input.checked = a.allowed;
+            input.onchange = function() { toggleAgentAccess(a.id, input.checked, row); };
+            var slider = document.createElement('span');
+            slider.className = 'slider';
+            toggle.appendChild(input);
+            toggle.appendChild(slider);
+
+            row.appendChild(avatar);
+            row.appendChild(info);
+            row.appendChild(toggle);
+            agList.appendChild(row);
+        });
+    } else {
+        var empty = document.createElement('span');
+        empty.className = 'sc-label';
+        empty.textContent = 'No agents available.';
+        agList.appendChild(empty);
+    }
+
     // Models tab
     var grid = document.getElementById('d-models-grid');
     grid.textContent = '';
@@ -549,18 +701,18 @@ function renderDetail(data) {
         data.models.forEach(function(m) {
             var card = document.createElement('div');
             card.className = 'sc-model-card';
-            var name = document.createElement('div');
-            name.className = 'sc-model-name';
-            name.textContent = m.model_name;
-            var meta = document.createElement('div');
-            meta.className = 'sc-model-meta';
-            meta.textContent = (m.model_size_gb || '?') + ' GB ';
-            var badge = document.createElement('span');
-            badge.className = 'sc-badge ' + (m.is_loaded ? 'loaded' : m.is_available ? 'available' : 'offline');
-            badge.textContent = m.is_loaded ? 'LOADED' : m.is_available ? 'READY' : 'OFFLINE';
-            meta.appendChild(badge);
-            card.appendChild(name);
-            card.appendChild(meta);
+            var mname = document.createElement('div');
+            mname.className = 'sc-model-name';
+            mname.textContent = m.model_name;
+            var mmeta = document.createElement('div');
+            mmeta.className = 'sc-model-meta';
+            mmeta.textContent = (m.model_size_gb || '?') + ' GB ';
+            var mbadge = document.createElement('span');
+            mbadge.className = 'sc-badge ' + (m.is_loaded ? 'loaded' : m.is_available ? 'available' : 'offline');
+            mbadge.textContent = m.is_loaded ? 'LOADED' : m.is_available ? 'READY' : 'OFFLINE';
+            mmeta.appendChild(mbadge);
+            card.appendChild(mname);
+            card.appendChild(mmeta);
             grid.appendChild(card);
         });
     } else {
@@ -582,6 +734,47 @@ function renderDetail(data) {
     document.getElementById('d-profile-name').value = n.node_name || '';
     document.getElementById('d-profile-id').textContent = n.node_id;
     document.getElementById('d-profile-host').textContent = data.hardware.cpu_model ? (selectedNodeId || '—') : '—';
+}
+
+async function toggleStation(stationId, enable, card, color) {
+    if (!selectedNodeId) return;
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/station-toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({station_id: stationId, enabled: enable})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            if (enable) {
+                card.classList.add('active');
+            } else {
+                card.classList.remove('active');
+            }
+            scToast('Station ' + (enable ? 'enabled' : 'disabled'), 'success');
+        } else {
+            scToast(data.error || 'Failed', 'error');
+        }
+    } catch (e) { scToast('Request failed', 'error'); }
+}
+
+async function toggleAgentAccess(agentId, allowed, row) {
+    if (!selectedNodeId) return;
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/agent-access', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({agent_id: agentId, is_allowed: allowed})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            if (allowed) { row.classList.remove('restricted'); }
+            else { row.classList.add('restricted'); }
+            scToast('Agent ' + (allowed ? 'allowed' : 'restricted'), 'success');
+        } else {
+            scToast(data.error || 'Failed', 'error');
+        }
+    } catch (e) { scToast('Request failed', 'error'); }
 }
 
 async function savePrivacy() {

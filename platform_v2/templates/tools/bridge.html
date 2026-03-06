@@ -4147,6 +4147,17 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-hw-badge.gpu { background: rgba(50,205,50,0.15); color: #32CD32; }
 .crew-hw-badge.cpu { background: rgba(100,149,237,0.15); color: #6495ED; }
 
+.crew-tool-badge {
+    font-size: 0.5rem;
+    font-weight: 600;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: rgba(255,170,0,0.15);
+    color: #ffaa00;
+    letter-spacing: 0.3px;
+    cursor: help;
+}
+
 .crew-agent-job {
     font-size: 0.65rem;
     color: var(--archie-cyan);
@@ -16957,15 +16968,32 @@ function renderCrewManifest(crew, capacity) {
             gpuPct.textContent = gpuCap.vram_used_gb + '/' + gpuCap.vram_total_gb + 'GB';
             gpuBar.appendChild(gpuPct);
 
-            // Show which models are on GPU
+            // Show GPU model count + names (matches CPU format)
             var gpuModels = gpuCap.models || [];
-            if (gpuModels.length > 0) {
-                var gpuModelsLbl = document.createElement('span');
-                gpuModelsLbl.className = 'roster-capacity-label';
-                gpuModelsLbl.style.color = '#32CD32';
-                gpuModelsLbl.textContent = gpuModels.map(function(m) { return m.name + ' (' + m.vram_gb + 'GB)'; }).join(', ');
-                gpuBar.appendChild(gpuModelsLbl);
-            }
+            // Also count GPU tool models (ComfyUI) from crew
+            var gpuToolModels = [];
+            (crew || []).forEach(function(a) {
+                (a.gpu_tools || []).forEach(function(t) {
+                    if (t.model && gpuToolModels.indexOf(t.model) === -1) {
+                        gpuToolModels.push(t.model);
+                    }
+                });
+            });
+            var totalGpuModels = gpuModels.length + gpuToolModels.length;
+            var totalGpuGB = gpuModels.reduce(function(sum, m) { return sum + m.vram_gb; }, 0);
+
+            var gpuModelsLbl = document.createElement('span');
+            gpuModelsLbl.className = 'roster-capacity-label';
+            gpuModelsLbl.style.color = '#32CD32';
+            var gpuModelNames = gpuModels.map(function(m) { return m.name + ' (' + m.vram_gb + 'GB)'; });
+            gpuToolModels.forEach(function(tm) {
+                var shortName = tm.replace('.safetensors', '').replace('.ckpt', '');
+                gpuModelNames.push(shortName + ' (ComfyUI)');
+            });
+            gpuModelsLbl.textContent = totalGpuModels + ' model' + (totalGpuModels !== 1 ? 's' : '') +
+                (totalGpuGB > 0 ? ', ' + totalGpuGB.toFixed(0) + 'GB' : '') +
+                (gpuModelNames.length > 0 ? ' \u2014 ' + gpuModelNames.join(', ') : '');
+            gpuBar.appendChild(gpuModelsLbl);
 
             capWrap.appendChild(gpuBar);
         }
@@ -17046,10 +17074,16 @@ function renderCrewManifest(crew, capacity) {
     });
 
     // Group by hardware: GPU, CPU, Cloud, SWAP
-    var gpuAgents = crew.filter(function(a) { return (a.hardware || '').toUpperCase() === 'GPU' && a.llm_status === 'loaded'; });
-    var cpuAgents = crew.filter(function(a) { return (a.hardware || 'CPU').toUpperCase() === 'CPU' && a.llm_status === 'loaded'; });
+    // GPU group: agents with LLM on GPU OR agents with GPU tools (ComfyUI)
+    var gpuAgents = crew.filter(function(a) {
+        var isGpuHw = (a.hardware || '').toUpperCase() === 'GPU';
+        var hasGpuTools = a.gpu_tools && a.gpu_tools.length > 0;
+        return (isGpuHw || hasGpuTools) && a.llm_status !== 'cloud';
+    });
+    var gpuIds = new Set(gpuAgents.map(function(a) { return a.agent_id || a.id; }));
+    var cpuAgents = crew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && (a.hardware || 'CPU').toUpperCase() === 'CPU' && a.llm_status === 'loaded'; });
     var cloudAgents = crew.filter(function(a) { return a.llm_status === 'cloud'; });
-    var swapAgents = crew.filter(function(a) { return a.llm_status === 'swap'; });
+    var swapAgents = crew.filter(function(a) { return !gpuIds.has(a.agent_id || a.id) && a.llm_status === 'swap'; });
 
     function _addRosterDivider(icon, label, count, cssClass) {
         var div = document.createElement('div');
@@ -17184,6 +17218,20 @@ function renderCrewManifest(crew, capacity) {
         hwBadge.className = 'crew-hw-badge ' + (agent.hardware || 'cpu').toLowerCase();
         hwBadge.textContent = agent.hardware || 'CPU';
         meta.appendChild(hwBadge);
+
+        // GPU tools (image gen, future: video)
+        if (agent.gpu_tools && agent.gpu_tools.length > 0) {
+            agent.gpu_tools.forEach(function(tool) {
+                var toolBadge = document.createElement('span');
+                toolBadge.className = 'crew-tool-badge';
+                var toolIcon = tool.type === 'image_generation' ? '\uD83C\uDFA8' : '\uD83C\uDFAC';
+                var toolLabel = tool.type === 'image_generation' ? 'IMG' : 'VID';
+                toolBadge.textContent = toolIcon + ' ' + toolLabel;
+                var shortModel = (tool.model || '').replace('.safetensors', '').replace('.ckpt', '');
+                toolBadge.title = tool.type.replace('_', ' ') + ' via ' + (tool.provider || 'gpu') + ' \u2014 ' + shortModel;
+                meta.appendChild(toolBadge);
+            });
+        }
 
         card.appendChild(meta);
 

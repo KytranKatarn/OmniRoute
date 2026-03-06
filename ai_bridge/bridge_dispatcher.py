@@ -4105,7 +4105,11 @@ class BridgeDispatcher:
                     status = "idle"
 
                 # Hardware: use live VRAM data, fall back to static map
+                image_model = info.get("image_model")
                 if model in gpu_models_live:
+                    hw = "GPU"
+                elif image_model:
+                    # Agent has a GPU tool (e.g. ComfyUI image gen)
                     hw = "GPU"
                 else:
                     hw = self.MODEL_HARDWARE.get(model, "CPU")
@@ -4125,6 +4129,17 @@ class BridgeDispatcher:
                 last = info.get("last_name", "")
                 full_name = f"{first} {last}".strip() if (first or last) else name
 
+                # GPU tools (ComfyUI image gen, future: video)
+                gpu_tools = []
+                if image_model:
+                    gpu_tools.append(
+                        {
+                            "type": "image_generation",
+                            "model": image_model,
+                            "provider": "comfyui",
+                        }
+                    )
+
                 manifest.append(
                     {
                         "name": name,
@@ -4134,7 +4149,9 @@ class BridgeDispatcher:
                         "agent_id": agent_id,
                         "station": info.get("station_code", "COMMAND"),
                         "model": model,
+                        "image_model": image_model,
                         "hardware": hw,
+                        "gpu_tools": gpu_tools,
                         "llm_status": llm_status,
                         "llm_size_gb": llm_size_gb,
                         "status": status,

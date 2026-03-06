@@ -11624,6 +11624,7 @@ function _runOptimalPlacement(container) {
                 if (result.success) {
                     overlay.remove();
                     loadConsoleBenchmarks();
+                    loadStations();  // Refresh isometric view with new assignments
                 } else {
                     applyBtn.textContent = 'FAILED';
                     setTimeout(function() { applyBtn.textContent = 'APPROVE & APPLY'; applyBtn.disabled = false; }, 2000);

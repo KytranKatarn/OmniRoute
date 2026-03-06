@@ -2136,8 +2136,8 @@ def generate_optimal_placement() -> Dict:
     # Sort by gap descending — assign stations with largest gap first
     station_gaps.sort(key=lambda x: x["gap"], reverse=True)
 
-    # Greedy assignment
-    taken = set()  # agent names already assigned as primary
+    # Greedy assignment — each agent assigned to exactly 1 station
+    taken = set()  # agent names already assigned (primary OR secondary)
     placements = []
 
     # First pass: honor locked (human-picked) assignments
@@ -2173,13 +2173,14 @@ def generate_optimal_placement() -> Dict:
                     taken.add(r["agent_name"])
                     break
 
-        # Secondary assignment (best available that isn't the primary)
+        # Secondary assignment (best available not already taken anywhere)
         secondary = None
         for r in ranking:
             if primary and r["agent_name"] == primary["agent_name"]:
                 continue
             if r["agent_name"] not in taken:
                 secondary = r
+                taken.add(r["agent_name"])  # Mark taken — 1 station per agent
                 break
 
         # Current assignment for comparison
@@ -2208,7 +2209,7 @@ def generate_optimal_placement() -> Dict:
     # Sort placements back to alphabetical for display
     placements.sort(key=lambda x: x["station_code"])
 
-    # Unassigned agents (not primary anywhere in the plan)
+    # Unassigned agents (not placed at any station in the plan)
     all_agents_with_scores = set(scores.keys())
     unassigned = []
     for aname in all_agents_with_scores:
@@ -2296,22 +2297,22 @@ def apply_placement(placement_plan: Dict, user_id: int = None) -> Dict:
                         )
                         continue
 
-                    # Deactivate current non-fixed primary assignments at this station
+                    # Deactivate ALL current non-fixed assignments at this station
                     cur.execute(
                         "UPDATE station_assignments "
                         "SET is_active = FALSE "
-                        "WHERE station_id = %s AND assignment_type = 'primary' "
+                        "WHERE station_id = %s "
                         "AND is_active = TRUE AND is_fixed = FALSE",
                         (stn_id,),
                     )
 
-                    # Also deactivate this agent's primary elsewhere
-                    # (the unique index enforces this, but let's be explicit)
+                    # Deactivate primary agent's existing assignment elsewhere
+                    # (1 station per agent rule)
                     cur.execute(
                         "UPDATE station_assignments "
                         "SET is_active = FALSE "
-                        "WHERE agent_id = %s AND assignment_type = 'primary' "
-                        "AND is_active = TRUE",
+                        "WHERE agent_id = %s "
+                        "AND is_active = TRUE AND is_fixed = FALSE",
                         (primary["agent_id"],),
                     )
 
@@ -2331,23 +2332,28 @@ def apply_placement(placement_plan: Dict, user_id: int = None) -> Dict:
                         (stn_id, primary["agent_id"], user_id),
                     )
 
-                    # Assign secondary as auxiliary (if provided)
+                    # Assign secondary (if provided)
                     if secondary and secondary.get("agent_id"):
+                        # Deactivate secondary's existing assignment elsewhere
+                        cur.execute(
+                            "UPDATE station_assignments "
+                            "SET is_active = FALSE "
+                            "WHERE agent_id = %s "
+                            "AND is_active = TRUE AND is_fixed = FALSE",
+                            (secondary["agent_id"],),
+                        )
+
                         cur.execute(
                             """
                             INSERT INTO station_assignments
                                 (station_id, agent_id, assignment_type,
                                  assigned_by, is_active)
-                            VALUES (%s, %s, 'auxiliary', %s, TRUE)
+                            VALUES (%s, %s, 'primary', %s, TRUE)
                             ON CONFLICT (station_id, agent_id) DO UPDATE
-                                SET assignment_type = CASE
-                                    WHEN station_assignments.assignment_type = 'primary'
-                                    THEN 'primary'
-                                    ELSE 'auxiliary'
-                                END,
-                                is_active = TRUE,
-                                assigned_by = EXCLUDED.assigned_by,
-                                assigned_at = NOW()
+                                SET assignment_type = 'primary',
+                                    is_active = TRUE,
+                                    assigned_by = EXCLUDED.assigned_by,
+                                    assigned_at = NOW()
                             """,
                             (stn_id, secondary["agent_id"], user_id),
                         )

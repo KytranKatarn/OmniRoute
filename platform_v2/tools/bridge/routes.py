@@ -1006,10 +1006,10 @@ def assign_agent_to_station(agent_id):
                         ),
                         400,
                     )
-            elif limits and assignment_type in ("auxiliary", "backup"):
+            elif limits and assignment_type in ("auxiliary", "backup", "relief"):
                 cur.execute(
                     "SELECT COUNT(*) as cnt FROM station_assignments "
-                    "WHERE station_id = %s AND assignment_type IN ('auxiliary', 'backup') "
+                    "WHERE station_id = %s AND assignment_type IN ('auxiliary', 'backup', 'relief') "
                     "AND is_active = TRUE AND agent_id != %s",
                     (station_id, agent_id),
                 )
@@ -1024,7 +1024,15 @@ def assign_agent_to_station(agent_id):
                         400,
                     )
 
-            # Check if assignment already exists
+            # 1-station rule: deactivate agent's existing assignment elsewhere
+            cur.execute(
+                "UPDATE station_assignments SET is_active = FALSE "
+                "WHERE agent_id = %s AND is_active = TRUE AND is_fixed = FALSE "
+                "AND station_id != %s",
+                (agent_id, station_id),
+            )
+
+            # Check if assignment already exists at this station
             cur.execute(
                 """
                 SELECT id FROM station_assignments

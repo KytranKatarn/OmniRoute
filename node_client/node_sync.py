@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-A.R.C.H.I.E. Node Sync Service
-================================
-Long-lived service that runs on business nodes to keep them in sync with the Hub.
+A.R.C.H.I.E. Starship Sync Service
+=====================================
+Long-lived service that runs on starship nodes to keep them in sync with the Starbase.
 
 Responsibilities:
   - Sends periodic heartbeats with system metrics
@@ -293,6 +293,25 @@ def get_ollama_models(ollama_host):
     return models
 
 
+def get_ollama_status():
+    """Query local Ollama for loaded and available models."""
+    ollama_host = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+    result = {"loaded_models": [], "available_models": []}
+    try:
+        tags_status, tags = http_get(f"{ollama_host}/api/tags")
+        if tags_status == 200 and isinstance(tags, dict) and "models" in tags:
+            result["available_models"] = [
+                {"name": m["name"], "size_gb": round(m["size"] / (1024**3), 2)}
+                for m in tags["models"]
+            ]
+        ps_status, ps = http_get(f"{ollama_host}/api/ps")
+        if ps_status == 200 and isinstance(ps, dict) and "models" in ps:
+            result["loaded_models"] = [m["name"] for m in ps["models"]]
+    except Exception as e:
+        logger.warning(f"Ollama status check failed: {e}")
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Sync Operations
 # ---------------------------------------------------------------------------
@@ -327,6 +346,8 @@ def send_heartbeat(config):
             {"name": m["name"], "size": int(m["size_gb"] * (1024**3))} for m in models
         ],
         "client_version": config["archie_version"],
+        "deployment_mode": os.getenv("DEPLOYMENT_MODE", "starship"),
+        "ollama": get_ollama_status(),
         "details": {
             "hostname": _get_hostname(),
             "uptime": _get_uptime(),

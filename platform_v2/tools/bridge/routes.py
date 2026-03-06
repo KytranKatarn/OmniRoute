@@ -964,6 +964,66 @@ def assign_agent_to_station(agent_id):
 
             station_id = station["id"]
 
+            # Block: cannot reassign fixed agents (ARCHIE, Vigil at COMMAND)
+            cur.execute(
+                "SELECT bs.station_code FROM station_assignments sa "
+                "JOIN bridge_stations bs ON bs.id = sa.station_id "
+                "WHERE sa.agent_id = %s AND sa.is_fixed = TRUE AND sa.is_active = TRUE",
+                (agent_id,),
+            )
+            fixed_row = cur.fetchone()
+            if fixed_row:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"Agent has a fixed assignment at {fixed_row['station_code']} and cannot be moved",
+                        }
+                    ),
+                    400,
+                )
+
+            # Enforce station capacity limits
+            cur.execute(
+                "SELECT max_primary, max_auxiliary FROM bridge_stations WHERE id = %s",
+                (station_id,),
+            )
+            limits = cur.fetchone()
+            if limits and assignment_type == "primary":
+                cur.execute(
+                    "SELECT COUNT(*) as cnt FROM station_assignments "
+                    "WHERE station_id = %s AND assignment_type = 'primary' "
+                    "AND is_active = TRUE AND agent_id != %s",
+                    (station_id, agent_id),
+                )
+                if cur.fetchone()["cnt"] >= limits["max_primary"]:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": f"Station at max primary capacity ({limits['max_primary']})",
+                            }
+                        ),
+                        400,
+                    )
+            elif limits and assignment_type in ("auxiliary", "backup"):
+                cur.execute(
+                    "SELECT COUNT(*) as cnt FROM station_assignments "
+                    "WHERE station_id = %s AND assignment_type IN ('auxiliary', 'backup') "
+                    "AND is_active = TRUE AND agent_id != %s",
+                    (station_id, agent_id),
+                )
+                if cur.fetchone()["cnt"] >= limits["max_auxiliary"]:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": f"Station at max auxiliary capacity ({limits['max_auxiliary']})",
+                            }
+                        ),
+                        400,
+                    )
+
             # Check if assignment already exists
             cur.execute(
                 """

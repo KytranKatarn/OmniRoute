@@ -2051,11 +2051,13 @@ def generate_optimal_placement() -> Dict:
 
     Algorithm:
     1. Build score matrix: agents × stations (from benchmark results).
-    2. Lock human-picked assignments (is_human_pick=TRUE).
-    3. Sort stations by "score gap" (diff between #1 and #2 candidate) — largest gap first.
-    4. Greedy: assign best available agent as primary to each station.
-    5. Assign second-best available as secondary.
-    6. Remaining agents go to auxiliary pool.
+    2. Skip COMMAND station (ARCHIE + Vigil are fixed there).
+    3. Exclude fixed agents (is_fixed=TRUE) from the assignment pool.
+    4. Lock human-picked assignments (is_human_pick=TRUE).
+    5. Sort stations by "score gap" (diff between #1 and #2 candidate) — largest gap first.
+    6. Greedy: assign best available agent as primary to each station.
+    7. Assign second-best available as secondary.
+    8. Remaining agents go to auxiliary pool.
 
     Returns placement plan (not applied — needs human approval).
     """
@@ -2067,12 +2069,36 @@ def generate_optimal_placement() -> Dict:
     current = matrix["current_assignments"]
     human_picks = matrix["human_picks"]
 
-    # Build agent lookup
-    agent_lookup = {a["name"]: a for a in matrix["agents"]}
+    # Skip COMMAND — fixed seats (ARCHIE + Vigil), not reassignable
+    stations = [s for s in stations if s != "COMMAND"]
+
+    # Build agent lookup — only active agents
+    agent_lookup = {a["name"]: a for a in matrix["agents"] if a.get("status", "active") == "active"}
+
+    # Find fixed agents (is_fixed=TRUE in station_assignments) — exclude from pool
+    fixed_agents = set()
+    try:
+        with get_db_connection() as conn:
+            _cur = conn.cursor()
+            _cur.execute(
+                "SELECT a.name FROM station_assignments sa "
+                "JOIN agents a ON a.id = sa.agent_id "
+                "WHERE sa.is_fixed = TRUE AND sa.is_active = TRUE"
+            )
+            fixed_agents = {r[0] for r in _cur.fetchall()}
+            _cur.close()
+    except Exception:
+        pass
+
+    # Remove fixed agents from scores (they can't be reassigned)
+    for fa in fixed_agents:
+        scores.pop(fa, None)
 
     # Identify human-locked assignments (agents marked as human_pick at a station)
     locked = {}  # station_code -> agent_name
     for aname, stn_picks in human_picks.items():
+        if aname in fixed_agents:
+            continue
         for stn_code in stn_picks:
             # Only lock if this agent actually has the best human_pick for this station
             if stn_code not in locked:
@@ -2207,9 +2233,11 @@ def apply_placement(placement_plan: Dict, user_id: int = None) -> Dict:
     """Execute an approved placement plan.
 
     For each station in the plan:
-    1. Deactivate current primary assignments at that station.
-    2. Assign the new primary agent.
-    3. Optionally assign secondary as auxiliary.
+    1. Skip COMMAND (fixed seats — ARCHIE + Vigil).
+    2. Skip fixed assignments (is_fixed=TRUE).
+    3. Deactivate current non-fixed primary assignments at that station.
+    4. Assign the new primary agent.
+    5. Optionally assign secondary as backup.
 
     All within a single transaction — rolls back on error.
     """
@@ -2224,6 +2252,10 @@ def apply_placement(placement_plan: Dict, user_id: int = None) -> Dict:
                 stn_code = p["station_code"]
                 primary = p.get("primary")
                 secondary = p.get("secondary")
+
+                # Never touch COMMAND — fixed seats
+                if stn_code == "COMMAND":
+                    continue
 
                 if not primary:
                     continue
@@ -2249,12 +2281,27 @@ def apply_placement(placement_plan: Dict, user_id: int = None) -> Dict:
                         continue
                     stn_id = stn_row[0]
 
-                    # Deactivate all current primary assignments at this station
+                    # Skip if primary agent has a fixed assignment elsewhere
+                    cur.execute(
+                        "SELECT 1 FROM station_assignments "
+                        "WHERE agent_id = %s AND is_fixed = TRUE AND is_active = TRUE",
+                        (primary["agent_id"],),
+                    )
+                    if cur.fetchone():
+                        errors.append(
+                            {
+                                "station_code": stn_code,
+                                "error": f"{primary['agent_name']} has a fixed assignment",
+                            }
+                        )
+                        continue
+
+                    # Deactivate current non-fixed primary assignments at this station
                     cur.execute(
                         "UPDATE station_assignments "
                         "SET is_active = FALSE "
                         "WHERE station_id = %s AND assignment_type = 'primary' "
-                        "AND is_active = TRUE",
+                        "AND is_active = TRUE AND is_fixed = FALSE",
                         (stn_id,),
                     )
 

@@ -1,25 +1,19 @@
 """
 OllamaDiffuser Service — Local Image Generation
 
-Generates images using FLUX/Stable Diffusion models via a local OllamaDiffuser instance.
-Runs on the same host as Ollama but as a separate service (port 11435).
-
-GPU/CPU logic:
-- Queries nvidia-smi for free VRAM
-- >=4GB free → GPU (fast, ~10-30s)
-- <4GB free → CPU (slow, ~2-5 min, uses system RAM)
-- dolphin3-8k typically occupies ~7.4GB of 8GB VRAM, so CPU is the default path
+Generates images using Stable Diffusion models via a local OllamaDiffuser instance.
+Runs as a separate Docker container (port 11435), CPU-only (Quadro M4000 is compute 5.2,
+too old for current PyTorch CUDA).
 
 Usage:
     from ai_bridge.diffuser_service import get_diffuser_service
 
     service = get_diffuser_service()
-    result = service.generate_image("a cat in space", model="flux.1-schnell")
+    result = service.generate_image("a cat in space", model="stable-diffusion-1.5")
 """
 
 import logging
 import os
-import subprocess
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -36,8 +30,7 @@ if not _diffuser_host.startswith("http"):
     _diffuser_host = f"http://{_diffuser_host}"
 DIFFUSER_HOST = _diffuser_host
 DIFFUSER_MODEL = os.getenv("OLLAMA_DIFFUSER_MODEL", "stable-diffusion-1.5")
-REQUEST_TIMEOUT = 300  # 5 min — CPU generation is slow
-GPU_VRAM_THRESHOLD_GB = 4.0  # Minimum free VRAM to use GPU
+REQUEST_TIMEOUT = 600  # 10 min — CPU generation is slow
 
 
 @dataclass
@@ -53,20 +46,26 @@ class DiffuserService:
     """Service for generating images via local OllamaDiffuser."""
 
     AVAILABLE_MODELS = [
-        {"name": "stable-diffusion-1.5", "vram_gb": 2.0, "description": "SD 1.5 — fast, versatile, unrestricted"},
-        {"name": "realvisxl-v4", "vram_gb": 3.5, "description": "RealVisXL v4 — photorealistic SDXL, unrestricted"},
+        {"name": "stable-diffusion-1.5", "description": "SD 1.5 — fast, versatile, unrestricted", "default_steps": 20},
+        {"name": "realvisxl-v4", "description": "RealVisXL v4 — photorealistic SDXL, unrestricted", "default_steps": 25},
     ]
 
     def __init__(self, host: str = DIFFUSER_HOST, model: str = DIFFUSER_MODEL):
         self.host = host.rstrip("/")
         self.model = model
         self._healthy: Optional[bool] = None
+        self._loaded_model: Optional[str] = None
 
     def health_check(self) -> bool:
         """Check if OllamaDiffuser service is reachable."""
         try:
-            resp = requests.get(f"{self.host}/api/tags", timeout=3)
-            self._healthy = resp.status_code == 200
+            resp = requests.get(f"{self.host}/api/health", timeout=3)
+            if resp.status_code == 200:
+                data = resp.json()
+                self._healthy = data.get("status") == "healthy"
+                self._loaded_model = data.get("current_model")
+            else:
+                self._healthy = False
         except Exception:
             self._healthy = False
         return self._healthy
@@ -77,108 +76,96 @@ class DiffuserService:
             self.health_check()
         return self._healthy
 
-    def get_models(self) -> list:
-        """Get list of models available on the OllamaDiffuser instance."""
+    def get_models(self) -> Dict:
+        """Get list of models from OllamaDiffuser."""
         try:
-            resp = requests.get(f"{self.host}/api/tags", timeout=5)
+            resp = requests.get(f"{self.host}/api/models", timeout=5)
             if resp.status_code == 200:
-                return resp.json().get("models", [])
+                return resp.json()
         except Exception as e:
             logger.debug(f"[DiffuserService] Failed to list models: {e}")
-        return []
+        return {"available": [], "installed": [], "current": None}
 
-    def get_gpu_status(self) -> Dict:
-        """Query nvidia-smi for current VRAM availability.
-
-        Returns:
-            {available: bool, vram_free_gb: float, vram_total_gb: float, occupied_by: str|None}
-        """
+    def load_model(self, model_name: str) -> bool:
+        """Load a model into OllamaDiffuser memory."""
         try:
-            result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=memory.total,memory.used,memory.free",
-                 "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=5
+            resp = requests.post(
+                f"{self.host}/api/models/load",
+                json={"model_name": model_name},
+                timeout=120,
             )
-            if result.returncode == 0 and result.stdout.strip():
-                parts = [p.strip() for p in result.stdout.strip().split(",")]
-                if len(parts) >= 3:
-                    vram_total = round(float(parts[0]) / 1024, 1)
-                    vram_used = round(float(parts[1]) / 1024, 1)
-                    vram_free = round(float(parts[2]) / 1024, 1)
-
-                    # Check what Ollama model holds the GPU
-                    occupied_by = None
-                    try:
-                        ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-                        if not ollama_host.startswith("http"):
-                            ollama_host = f"http://{ollama_host}"
-                        ps_resp = requests.get(f"{ollama_host}/api/ps", timeout=3)
-                        if ps_resp.status_code == 200:
-                            for m in ps_resp.json().get("models", []):
-                                if m.get("size_vram", 0) > 0:
-                                    occupied_by = m.get("name", "").replace(":latest", "")
-                                    break
-                    except Exception:
-                        pass
-
-                    return {
-                        "available": True,
-                        "vram_free_gb": vram_free,
-                        "vram_total_gb": vram_total,
-                        "vram_used_gb": vram_used,
-                        "can_use_gpu": vram_free >= GPU_VRAM_THRESHOLD_GB,
-                        "occupied_by": occupied_by,
-                    }
+            if resp.status_code == 200:
+                self._loaded_model = model_name
+                logger.info(f"[DiffuserService] Model {model_name} loaded")
+                return True
+            else:
+                logger.warning(f"[DiffuserService] Load failed: {resp.text[:200]}")
+                return False
         except Exception as e:
-            logger.debug(f"[DiffuserService] nvidia-smi failed: {e}")
+            logger.error(f"[DiffuserService] Load error: {e}")
+            return False
 
-        return {"available": False, "vram_free_gb": 0, "vram_total_gb": 0,
-                "can_use_gpu": False, "occupied_by": None}
+    def _ensure_model_loaded(self, model: str) -> bool:
+        """Ensure the requested model is loaded, loading it if needed."""
+        # Check current state
+        self.health_check()
+        if self._loaded_model == model:
+            return True
+        return self.load_model(model)
 
     def generate_image(
         self,
         prompt: str,
         model: str = None,
-        steps: int = 4,
-        width: int = 1024,
-        height: int = 1024,
-        force_cpu: bool = False,
+        steps: int = None,
+        width: int = 512,
+        height: int = 512,
+        negative_prompt: str = "low quality, bad anatomy, worst quality, low resolution",
+        seed: int = None,
     ) -> DiffuserResult:
         """Generate an image via OllamaDiffuser.
 
         Args:
             prompt: Text description of the image to generate
-            model: Model name (default: flux.1-schnell)
-            steps: Number of inference steps
+            model: Model name (default: stable-diffusion-1.5)
+            steps: Number of inference steps (default depends on model)
             width: Output width in pixels
             height: Output height in pixels
-            force_cpu: Force CPU generation even if GPU is available
+            negative_prompt: What to avoid in generation
+            seed: Random seed for reproducibility
 
         Returns:
             DiffuserResult with file_path and metadata
         """
         model = model or self.model
 
-        # Determine hardware
-        gpu_status = self.get_gpu_status()
-        use_gpu = gpu_status["can_use_gpu"] and not force_cpu
-        hardware = "gpu" if use_gpu else "cpu"
+        # Default steps per model
+        if steps is None:
+            model_info = next((m for m in self.AVAILABLE_MODELS if m["name"] == model), None)
+            steps = model_info["default_steps"] if model_info else 20
+
+        # Ensure model is loaded
+        if not self._ensure_model_loaded(model):
+            return DiffuserResult(
+                success=False,
+                error=f"Failed to load model {model}"
+            )
 
         logger.info(
-            f"[DiffuserService] Generating image: model={model}, hw={hardware}, "
-            f"steps={steps}, {width}x{height}"
+            f"[DiffuserService] Generating image: model={model}, "
+            f"steps={steps}, {width}x{height}, CPU"
         )
 
         payload = {
-            "model": model,
             "prompt": prompt,
-            "parameters": {
-                "steps": steps,
-                "width": width,
-                "height": height,
-                "num_gpu": 1 if use_gpu else 0,
-            },
+            "negative_prompt": negative_prompt,
+            "steps": steps,
+            "width": width,
+            "height": height,
+            "response_format": "b64_json",
         }
+        if seed is not None:
+            payload["seed"] = seed
 
         try:
             start = time.time()
@@ -195,19 +182,18 @@ class DiffuserService:
                     error=f"OllamaDiffuser error {resp.status_code}: {resp.text[:500]}"
                 )
 
-            # Save image to disk
-            img_bytes = resp.content
-            content_type = resp.headers.get("Content-Type", "")
+            data = resp.json()
+            if data.get("status") == "error":
+                return DiffuserResult(success=False, error=data.get("error", "Unknown error"))
 
-            # If response is JSON with base64 image
-            if "application/json" in content_type:
-                import base64
-                data = resp.json()
-                img_b64 = data.get("image", "") or data.get("images", [""])[0]
-                if not img_b64:
-                    return DiffuserResult(success=False, error="Empty image data in response")
-                img_bytes = base64.b64decode(img_b64)
+            # Extract base64 image
+            import base64
+            img_b64 = data.get("image", "") or data.get("images", [""])[0]
+            if not img_b64:
+                return DiffuserResult(success=False, error="Empty image data in response")
+            img_bytes = base64.b64decode(img_b64)
 
+            # Save to disk
             date_str = datetime.now().strftime("%Y-%m-%d")
             file_uuid = str(uuid.uuid4())[:12]
             rel_dir = f"static/media/images/{date_str}"
@@ -226,17 +212,14 @@ class DiffuserService:
                     "provider": "ollama_diffuser",
                     "model": model,
                     "cost_usd": 0.0,
-                    "hardware": hardware,
+                    "hardware": "cpu",
                     "mime_type": "image/png",
                     "file_size_bytes": len(img_bytes),
                     "width": width,
                     "height": height,
                     "steps": steps,
                     "duration_ms": duration_ms,
-                    "gpu_status": {
-                        "vram_free_gb": gpu_status.get("vram_free_gb", 0),
-                        "occupied_by": gpu_status.get("occupied_by"),
-                    },
+                    "seed": data.get("seed"),
                 },
             )
 
@@ -257,16 +240,16 @@ class DiffuserService:
     def get_status(self) -> Dict:
         """Get service status summary for UI display."""
         healthy = self.health_check()
-        gpu = self.get_gpu_status()
-        models = self.get_models() if healthy else []
+        models = self.get_models() if healthy else {}
 
         return {
             "service_online": healthy,
             "host": self.host,
             "default_model": self.model,
-            "available_models": [m.get("name", "") for m in models],
-            "gpu": gpu,
-            "cpu_fallback": True,  # Always available with 128GB RAM
+            "loaded_model": self._loaded_model,
+            "installed_models": models.get("installed", []),
+            "available_models": models.get("available", []),
+            "hardware": "cpu",
         }
 
 

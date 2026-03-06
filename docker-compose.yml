@@ -201,15 +201,8 @@ services:
     volumes:
       - diffuser_models:/root/.ollamadiffuser
       - ./platform_v2/static/media:/media
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

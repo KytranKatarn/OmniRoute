@@ -1082,11 +1082,19 @@ class BridgeDispatcher:
                     "provider": "ollama",
                 }
 
-            # Standard call
-            return call_ollama(
+            # Standard call (routes through node_router for starship nodes)
+            result = call_ollama(
                 prompt, model=model, system_prompt=system_prompt,
                 prefer_gpu=prefer_gpu, timeout=timeout,
             )
+            # Tag starship node routing in provider field
+            node_id = result.get("node_id")
+            if node_id and node_id != "archie-starbase":
+                result["provider"] = f"starship:{node_id}"
+                logger.info(
+                    f"[BridgeDispatcher] Routed {model} to starship node {node_id}"
+                )
+            return result
         except ImportError:
             logger.error("[BridgeDispatcher] archie_bridge not available")
             return {

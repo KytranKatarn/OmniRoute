@@ -70,6 +70,7 @@ def get_nodes_with_model(model_name: str) -> List[Dict[str, Any]]:
                 n.gpu_available,
                 n.gpu_model,
                 n.status,
+                n.deployment_mode,
                 m.avg_response_ms
             FROM remote_nodes n
             JOIN node_ollama_models m ON n.node_id = m.node_id
@@ -79,6 +80,9 @@ def get_nodes_with_model(model_name: str) -> List[Dict[str, Any]]:
               AND n.ollama_available = true
               AND m.model_name = %s
               AND m.is_available = true
+              AND n.deployment_mode IN ('starship', 'starbase')
+              AND n.node_id != 'archie-starbase'
+              AND n.last_heartbeat > NOW() - INTERVAL '90 seconds'
             ORDER BY n.current_load ASC, n.bridge_priority DESC
         """,
             (model_name,),

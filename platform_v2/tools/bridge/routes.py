@@ -92,6 +92,91 @@ def _get_cached_ollama_ps():
     return _ollama_ps_cache["models"]
 
 
+# Hardware capacity cache (nvidia-smi + psutil + Ollama model categories)
+_hw_capacity_cache = {"data": None, "time": 0}
+
+
+def _get_cached_hw_capacity():
+    """Get hardware capacity info with 30s cache (GPU, RAM, model breakdown)."""
+    now = time.time()
+    if _hw_capacity_cache["data"] and (now - _hw_capacity_cache["time"]) < _OLLAMA_CACHE_TTL:
+        return _hw_capacity_cache["data"]
+
+    import psutil
+
+    mem = psutil.virtual_memory()
+    total_gb = round(mem.total / (1024**3), 1)
+    available_gb = round(mem.available / (1024**3), 1)
+    usage_pct = round(mem.percent, 1)
+    reserve_gb = 15
+
+    # Ollama loaded models — categorize GPU vs CPU
+    ps_models = _get_cached_ollama_ps()
+    models_loaded = len(ps_models)
+    models_ram_gb = round(sum(m.get("size", 0) for m in ps_models) / (1024**3), 1)
+    gpu_models = []
+    cpu_models = []
+    for pm in ps_models:
+        pm_name = pm.get("name", "").replace(":latest", "")
+        pm_size = round(pm.get("size", 0) / (1024**3), 1)
+        pm_vram = pm.get("size_vram", 0)
+        if pm_vram and pm_vram > 0:
+            gpu_models.append({"name": pm_name, "size_gb": pm_size, "vram_gb": round(pm_vram / (1024**3), 1)})
+        else:
+            cpu_models.append({"name": pm_name, "size_gb": pm_size})
+
+    # GPU info from nvidia-smi
+    gpu_info = None
+    try:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,memory.used,memory.free",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            parts = [p.strip() for p in result.stdout.strip().split(",")]
+            if len(parts) >= 4:
+                vram_total = round(float(parts[1]) / 1024, 1)
+                vram_used = round(float(parts[2]) / 1024, 1)
+                vram_free = round(float(parts[3]) / 1024, 1)
+                gpu_info = {
+                    "name": parts[0],
+                    "vram_total_gb": vram_total,
+                    "vram_used_gb": vram_used,
+                    "vram_free_gb": vram_free,
+                    "usage_pct": round(vram_used / vram_total * 100, 1) if vram_total > 0 else 0,
+                    "status": "red" if vram_free < 1.0 else ("amber" if vram_free < 2.0 else "green"),
+                    "models": gpu_models,
+                }
+    except Exception:
+        pass
+
+    ram_status = "green" if available_gb > 25 else ("amber" if available_gb >= reserve_gb else "red")
+
+    capacity = {
+        "ram": {
+            "total_gb": total_gb,
+            "available_gb": available_gb,
+            "usage_pct": usage_pct,
+            "reserve_gb": reserve_gb,
+            "status": ram_status,
+        },
+        "gpu": gpu_info,
+        "models_loaded": models_loaded,
+        "models_ram_gb": models_ram_gb,
+        "gpu_models": gpu_models,
+        "cpu_models": cpu_models,
+    }
+    _hw_capacity_cache["data"] = capacity
+    _hw_capacity_cache["time"] = now
+    return capacity
+
+
 # --- SSE Activity Event Queue ---
 _activity_queue = deque(maxlen=200)
 
@@ -221,7 +306,25 @@ def bridge_dashboard():
         )
     else:
         # Hub and default: full command center with stations, agents, crew + mesh
-        return render_template("tools/bridge.html", deployment_mode=deployment_mode)
+        # Pre-fetch status bar data so it shows instantly (no flash of "--")
+        agent_count = 0
+        interactions_24h = 0
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute("SELECT COUNT(*) AS cnt FROM agents WHERE status = 'active'")
+                agent_count = cur.fetchone()["cnt"]
+                cur.execute(
+                    "SELECT COUNT(*) AS cnt FROM task_execution_log " "WHERE created_at >= NOW() - INTERVAL '24 hours'"
+                )
+                interactions_24h = cur.fetchone()["cnt"]
+        except Exception:
+            pass
+        return render_template(
+            "tools/bridge.html",
+            deployment_mode=deployment_mode,
+            initial_agent_count=agent_count,
+            initial_interactions_24h=interactions_24h,
+        )
 
 
 # ============================================================================
@@ -3263,18 +3366,13 @@ def get_llm_status():
         # 3. Get all available models (dict of name -> size_bytes)
         available_models = get_ollama_models(ollama_host, ollama_port)
 
-        # 3b. Get models in use — assigned to agents OR configured in active tiers
+        # 3b. Get models assigned to active agents (green = agent is using it)
         assigned_models = set()
         try:
             with get_db_cursor(commit=False) as (aconn, acur):
                 acur.execute("SELECT DISTINCT model FROM agents WHERE status = 'active' AND model IS NOT NULL")
                 for row in acur.fetchall():
                     assigned_models.add(row["model"])
-                acur.execute(
-                    "SELECT DISTINCT model_name FROM model_tier_configs WHERE is_active = true AND model_name IS NOT NULL"
-                )
-                for row in acur.fetchall():
-                    assigned_models.add(row["model_name"])
         except Exception:
             pass
 
@@ -5595,18 +5693,19 @@ def get_dispatch_status():
             )
             active_tasks = cur.fetchall()
 
-            # Per-station dispatch counts (last 24h)
+            # Per-station dispatch counts (last 24h) — use tel.station_code directly
             cur.execute(
                 """
-                SELECT bs.station_code, bs.station_name, bs.color,
-                       COUNT(tel.id) as dispatch_count,
+                SELECT COALESCE(tel.station_code, 'UNASSIGNED') as station_code,
+                       COALESCE(bs.station_name, tel.station_code, 'Unassigned') as station_name,
+                       COALESCE(bs.color, '#666') as color,
+                       COUNT(*) as dispatch_count,
                        COALESCE(AVG(tel.duration_ms), 0) as avg_ms
-                FROM bridge_stations bs
-                LEFT JOIN station_assignments sa ON sa.station_id = bs.id AND sa.is_active = TRUE
-                LEFT JOIN task_execution_log tel ON tel.agent_id = sa.agent_id
-                      AND tel.created_at > NOW() - INTERVAL '24 hours'
-                WHERE bs.is_active = TRUE
-                GROUP BY bs.station_code, bs.station_name, bs.color
+                FROM task_execution_log tel
+                LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
+                      AND bs.is_active = TRUE
+                WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                GROUP BY tel.station_code, bs.station_name, bs.color
                 ORDER BY dispatch_count DESC
             """
             )
@@ -5693,11 +5792,11 @@ def get_dispatch_history():
                        tel.module_source, tel.task_type, tel.capability,
                        tel.model_used, tel.duration_ms, tel.success,
                        tel.error_message, tel.created_at,
-                       bs.station_code, bs.color as station_color
+                       tel.station_code, bs.color as station_color
                 FROM task_execution_log tel
                 LEFT JOIN agents a ON a.id = tel.agent_id
-                LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
-                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
+                      AND bs.is_active = TRUE
                 WHERE tel.created_at > NOW() - INTERVAL '24 hours'
                 ORDER BY tel.created_at DESC
                 LIMIT %s
@@ -5733,6 +5832,183 @@ def get_dispatch_history():
 
     except Exception as e:
         logger.error(f"Error getting dispatch history: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# DISPATCH OVERVIEW — Merged stats + history + jobs in one call
+# ============================================================================
+
+
+@bridge_bp.route("/api/bridge/dispatch-overview")
+@login_required
+def get_dispatch_overview():
+    """Single endpoint for the Dispatch tab: stats, history, active jobs, station bars."""
+    try:
+        limit = request.args.get("limit", 20, type=int)
+        limit = min(limit, 200)
+        jobs_limit = request.args.get("jobs_limit", 10, type=int)
+
+        with get_db_cursor(commit=False) as (conn, cur):
+
+            # 1. Dispatch stats (24h + 1h)
+            cur.execute(
+                """
+                SELECT COUNT(*) as total_dispatches,
+                       COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                       COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
+                       COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+            """
+            )
+            stats_24h = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT COUNT(*) as total_dispatches,
+                       COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                       COUNT(CASE WHEN success = FALSE THEN 1 END) as failed
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '1 hour'
+            """
+            )
+            stats_1h = cur.fetchone()
+
+            # 2. Recent dispatch history
+            cur.execute(
+                """
+                SELECT tel.id,
+                       COALESCE(
+                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                           a.name,
+                           tel.agent_name
+                       ) as agent_display_name,
+                       COALESCE(a.name, tel.agent_name) as agent_callsign,
+                       a.avatar_url,
+                       tel.module_source, tel.task_type, tel.capability,
+                       tel.model_used, tel.duration_ms, tel.success,
+                       tel.error_message, tel.created_at,
+                       tel.station_code,
+                       bs.color as station_color
+                FROM task_execution_log tel
+                LEFT JOIN agents a ON a.id = tel.agent_id
+                LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
+                      AND bs.is_active = TRUE
+                WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                ORDER BY tel.created_at DESC
+                LIMIT %s
+            """,
+                (limit,),
+            )
+            history = cur.fetchall()
+
+            # 3. Per-station activity using tel.station_code directly
+            cur.execute(
+                """
+                SELECT COALESCE(tel.station_code, 'UNASSIGNED') as station_code,
+                       COALESCE(bs.station_name, tel.station_code, 'Unassigned') as station_name,
+                       COALESCE(bs.color, '#666') as color,
+                       COUNT(*) as dispatch_count,
+                       COALESCE(AVG(tel.duration_ms), 0) as avg_ms
+                FROM task_execution_log tel
+                LEFT JOIN bridge_stations bs ON bs.station_code = tel.station_code
+                      AND bs.is_active = TRUE
+                WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                GROUP BY tel.station_code, bs.station_name, bs.color
+                ORDER BY dispatch_count DESC
+            """
+            )
+            station_activity = cur.fetchall()
+
+            # 4. Active bridge jobs
+            cur.execute(
+                """
+                SELECT bj.id, bj.job_type, bj.status,
+                       bj.completed_steps, bj.total_steps,
+                       bj.created_at, bj.updated_at, bj.completed_at,
+                       bj.description, bj.agent_name,
+                       COALESCE(
+                           NULLIF(CONCAT_WS(' ', a.first_name, a.last_name), ''),
+                           a.name,
+                           bj.agent_name
+                       ) as agent_display_name,
+                       a.avatar_url,
+                       bj.station_code, bj.module_source
+                FROM bridge_jobs bj
+                LEFT JOIN agents a ON a.name = bj.agent_name
+                WHERE bj.status IN ('pending', 'running')
+                   OR (bj.status IN ('completed', 'failed')
+                       AND bj.completed_at > NOW() - INTERVAL '2 minutes')
+                ORDER BY bj.created_at DESC
+                LIMIT %s
+            """,
+                (jobs_limit,),
+            )
+            jobs = cur.fetchall()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "dispatch_stats": {
+                        "total_1h": stats_1h["total_dispatches"],
+                        "total_24h": stats_24h["total_dispatches"],
+                        "successful_1h": stats_1h["successful"],
+                        "successful_24h": stats_24h["successful"],
+                        "failed_1h": stats_1h["failed"],
+                        "failed_24h": stats_24h["failed"],
+                        "avg_duration_ms": round(float(stats_24h["avg_duration_ms"]), 1),
+                    },
+                    "history": [
+                        {
+                            "id": h["id"],
+                            "agent_name": h["agent_display_name"] or h.get("agent_callsign") or "Unknown",
+                            "avatar_url": h.get("avatar_url"),
+                            "module": h["module_source"],
+                            "task_type": h["task_type"],
+                            "capability": h.get("capability"),
+                            "model": h["model_used"],
+                            "duration_ms": h["duration_ms"],
+                            "success": h["success"],
+                            "error": h.get("error_message"),
+                            "timestamp": h["created_at"].isoformat() if h["created_at"] else None,
+                            "station_code": h.get("station_code"),
+                            "station_color": h.get("station_color"),
+                        }
+                        for h in history
+                    ],
+                    "station_activity": [
+                        {
+                            "station_code": s["station_code"],
+                            "station_name": s["station_name"],
+                            "color": s["color"],
+                            "dispatch_count": s["dispatch_count"],
+                            "avg_ms": round(float(s["avg_ms"]), 1),
+                        }
+                        for s in station_activity
+                    ],
+                    "jobs": [
+                        {
+                            "id": j["id"],
+                            "job_type": j["job_type"],
+                            "status": j["status"],
+                            "completed_steps": j["completed_steps"],
+                            "total_steps": j["total_steps"],
+                            "agent_name": j.get("agent_display_name") or j.get("agent_name"),
+                            "avatar_url": j.get("avatar_url"),
+                            "station_code": j.get("station_code"),
+                            "module": j.get("module_source"),
+                            "description": j.get("description"),
+                            "created_at": j["created_at"].isoformat() if j["created_at"] else None,
+                            "completed_at": j["completed_at"].isoformat() if j.get("completed_at") else None,
+                        }
+                        for j in jobs
+                    ],
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Error getting dispatch overview: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -6145,100 +6421,60 @@ def get_crew_manifest():
         dispatcher = get_dispatcher()
         manifest = dispatcher.get_crew_manifest()
 
-        # RAM capacity from Ollama /api/ps + system memory
+        # Hardware capacity (cached — nvidia-smi + psutil + Ollama model breakdown)
         capacity = None
         try:
-            import os
-            import psutil
-            import requests as _req
-
-            mem = psutil.virtual_memory()
-            total_gb = round(mem.total / (1024**3), 1)
-            available_gb = round(mem.available / (1024**3), 1)
-            usage_pct = round(mem.percent, 1)
-            reserve_gb = 15
-
-            # Count loaded models + their RAM/VRAM from Ollama
-            models_loaded = 0
-            models_ram_gb = 0
-            gpu_models = []
-            cpu_models = []
-            _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
-            _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
-            try:
-                ps_resp = _req.get(f"http://{_ollama_host}:{_ollama_port}/api/ps", timeout=5)
-                if ps_resp.status_code == 200:
-                    ps_models = ps_resp.json().get("models", [])
-                    models_loaded = len(ps_models)
-                    models_ram_gb = round(sum(m.get("size", 0) for m in ps_models) / (1024**3), 1)
-                    for pm in ps_models:
-                        pm_name = pm.get("name", "").replace(":latest", "")
-                        pm_size = round(pm.get("size", 0) / (1024**3), 1)
-                        pm_vram = pm.get("size_vram", 0)
-                        if pm_vram and pm_vram > 0:
-                            gpu_models.append(
-                                {"name": pm_name, "size_gb": pm_size, "vram_gb": round(pm_vram / (1024**3), 1)}
-                            )
-                        else:
-                            cpu_models.append({"name": pm_name, "size_gb": pm_size})
-            except Exception:
-                pass
-
-            # GPU info from nvidia-smi
-            gpu_info = None
-            try:
-                result = subprocess.run(
-                    [
-                        "nvidia-smi",
-                        "--query-gpu=name,memory.total,memory.used,memory.free",
-                        "--format=csv,noheader,nounits",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    parts = [p.strip() for p in result.stdout.strip().split(",")]
-                    if len(parts) >= 4:
-                        vram_total = round(float(parts[1]) / 1024, 1)
-                        vram_used = round(float(parts[2]) / 1024, 1)
-                        vram_free = round(float(parts[3]) / 1024, 1)
-                        gpu_status = "red" if vram_free < 1.0 else ("amber" if vram_free < 2.0 else "green")
-                        gpu_info = {
-                            "name": parts[0],
-                            "vram_total_gb": vram_total,
-                            "vram_used_gb": vram_used,
-                            "vram_free_gb": vram_free,
-                            "usage_pct": round(vram_used / vram_total * 100, 1) if vram_total > 0 else 0,
-                            "status": gpu_status,
-                            "models": gpu_models,
-                        }
-            except Exception:
-                pass
-
-            if available_gb > 25:
-                ram_status = "green"
-            elif available_gb >= reserve_gb:
-                ram_status = "amber"
-            else:
-                ram_status = "red"
-
-            capacity = {
-                "ram": {
-                    "total_gb": total_gb,
-                    "available_gb": available_gb,
-                    "usage_pct": usage_pct,
-                    "reserve_gb": reserve_gb,
-                    "status": ram_status,
-                },
-                "gpu": gpu_info,
-                "models_loaded": models_loaded,
-                "models_ram_gb": models_ram_gb,
-                "gpu_models": gpu_models,
-                "cpu_models": cpu_models,
-            }
+            capacity = _get_cached_hw_capacity()
         except Exception as cap_err:
             logger.debug(f"Could not get capacity info: {cap_err}")
+
+        # Merge workload data (daily caps, token usage, risk levels)
+        workload_map = {}
+        try:
+            with get_db_cursor(commit=False) as (wconn, wcur):
+                wcur.execute(
+                    """
+                    SELECT a.id,
+                        COALESCE(ab.task_queue_limit, 50) as daily_cap,
+                        COALESCE(ab.token_limit_per_day, 500000) as token_cap,
+                        COUNT(tel.id) as tasks_24h,
+                        COALESCE(SUM(tel.tokens_used), 0) as tokens_used_24h
+                    FROM agents a
+                    LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
+                    LEFT JOIN task_execution_log tel ON tel.agent_id = a.id
+                        AND tel.created_at >= NOW() - INTERVAL '24 hours'
+                    WHERE a.status = 'active'
+                    GROUP BY a.id, ab.task_queue_limit, ab.token_limit_per_day
+                """
+                )
+                for r in wcur.fetchall():
+                    daily_cap = int(r["daily_cap"]) or 50
+                    token_cap = int(r["token_cap"]) or 500000
+                    tasks = int(r["tasks_24h"])
+                    tokens = int(r["tokens_used_24h"])
+                    wl_pct = min(round(tasks / daily_cap * 100, 1), 100) if daily_cap > 0 else 0
+                    tk_pct = min(round(tokens / token_cap * 100, 1), 100) if token_cap > 0 else 0
+                    risk = (
+                        "overloaded"
+                        if wl_pct >= 100
+                        else "critical" if wl_pct >= 80 else "elevated" if wl_pct >= 60 else "healthy"
+                    )
+                    workload_map[r["id"]] = {
+                        "daily_cap": daily_cap,
+                        "token_cap": token_cap,
+                        "tasks_24h": tasks,
+                        "tokens_used_24h": tokens,
+                        "workload_pct": wl_pct,
+                        "token_usage_pct": tk_pct,
+                        "risk_level": risk,
+                    }
+        except Exception:
+            pass
+
+        # Attach workload to each crew member
+        for member in manifest:
+            wl = workload_map.get(member.get("agent_id") or member.get("id"), {})
+            member["workload"] = wl
 
         resp = {"success": True, "crew": manifest, "total": len(manifest)}
         if capacity:

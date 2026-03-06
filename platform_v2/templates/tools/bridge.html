@@ -7494,15 +7494,18 @@ body.light-mode .bridge-hud-value {
         margin: 0 8px 8px;
         padding: 4px 4px;
     }
-    .bridge-tab { padding: 6px 10px; font-size: 0.65rem; justify-content: center; }
-    .bridge-tab span { display: none; }
+    .bridge-tab { padding: 6px 8px; font-size: 0.65rem; justify-content: center; gap: 3px; }
+    .bridge-tab span { font-size: 0.5rem; }
 
     /* Briefing cards stack to single column */
     .bridge-overview-cards { grid-template-columns: minmax(0, 1fr); }
 
-    /* HUD pods wrap to 2x2 */
-    .bridge-hud-strip { flex-wrap: wrap; }
-    .bridge-hud-pod { flex: 1 1 45%; min-width: 0; }
+    /* HUD pods wrap to 2x2, compact for foldables */
+    .bridge-hud-strip { flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .bridge-hud-pod { flex: 1 1 45%; min-width: 0; padding: 8px 6px; gap: 2px; }
+    .bridge-hud-value { font-size: 1.1rem; }
+    .bridge-hud-label { font-size: 0.55rem; }
+    .bridge-hud-unit { font-size: 0.55rem; }
 
     /* Status bar wrap */
     .bridge-status-bar .status-bar-label { display: none; }
@@ -7512,20 +7515,22 @@ body.light-mode .bridge-hud-value {
         margin: 0 8px 8px;
         padding: 4px 4px;
     }
-    .crew-subtab span { display: none; }
-    .crew-subtab { padding: 6px 10px; justify-content: center; }
+    .crew-subtab span { font-size: 0.5rem; }
+    .crew-subtab { padding: 6px 8px; justify-content: center; gap: 3px; }
 }
 
 @media (max-width: 480px) {
-    /* HUD pods full-width on narrow mobile */
-    .bridge-hud-pod { flex: 1 1 100%; }
+    /* HUD pods stay 2x2 on narrow mobile (not full-width — saves vertical space) */
+    .bridge-hud-pod { flex: 1 1 45%; padding: 6px 4px; }
+    .bridge-hud-value { font-size: 0.95rem; }
+    .bridge-hud-strip { margin-bottom: 8px; }
 
     /* Status bar compact */
     .status-bar-divider { display: none; }
     .bridge-status-bar { justify-content: space-around; padding: 6px 8px; margin: 0 8px 8px; }
 
     /* Tighter spacing */
-    .bridge-hud-strip { padding: 0 8px; gap: 6px; }
+    .bridge-hud-strip { padding: 0 8px; gap: 4px; }
     .bridge-overview-cards { padding: 0 8px; gap: 8px; }
 }
 
@@ -7780,13 +7785,13 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
         <div class="status-bar-item">
             <i data-lucide="zap" class="status-bar-icon"></i>
             <span class="status-bar-label" data-i18n="bridge.status.interactions_24h">24h</span>
-            <span class="status-bar-value" id="statusInteractions">--</span>
+            <span class="status-bar-value" id="statusInteractions">{{ initial_interactions_24h|default('--') }}</span>
         </div>
         <div class="status-bar-divider"></div>
         <div class="status-bar-item">
             <i data-lucide="users" class="status-bar-icon"></i>
             <span class="status-bar-label" data-i18n="bridge.status.agents">Agents</span>
-            <span class="status-bar-value" id="statusAgentCount">--</span>
+            <span class="status-bar-value" id="statusAgentCount">{{ initial_agent_count|default('--') }}</span>
         </div>
         <div class="status-bar-divider"></div>
         <div class="status-bar-item">
@@ -9785,8 +9790,8 @@ function switchBridgeTab(tabName) {
         // Trigger warp-in intro + entrance animations
         triggerWarpIntro();
     }
-    if (tabName === 'dispatch') loadDispatchActivity();
-    if (tabName === 'crew') loadCrewManifest();
+    if (tabName === 'dispatch') { startDispatchRefresh(); } else { stopDispatchRefresh(); }
+    if (tabName === 'crew') { startCrewRefresh(); } else { stopCrewRefresh(); }
     if (tabName === 'network') { loadNodes(); loadModelAvailability(); }
     // Re-render Lucide icons for any new content
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -10439,22 +10444,25 @@ function renderOpsStrip(stations, runningJobs) {
         var dtx = document.createElement('span'); dtx.className = 'bridge-ops-status-value'; dtx.id = 'opsBridgeStatusText'; dtx.textContent = 'Online';
         s1.appendChild(statusDot); s1.appendChild(dtx); statusSec.appendChild(s1);
 
-        // Route mode
+        // Route mode — seed from hidden status bar if available
         var s2 = document.createElement('div'); s2.className = 'bridge-ops-status-item';
         var ri = document.createElement('i'); ri.setAttribute('data-lucide', 'route'); ri.className = 'bridge-ops-status-icon';
-        var rv = document.createElement('span'); rv.className = 'bridge-ops-status-value'; rv.id = 'opsRoutingMode'; rv.textContent = '--';
+        var rv = document.createElement('span'); rv.className = 'bridge-ops-status-value'; rv.id = 'opsRoutingMode';
+        rv.textContent = (document.getElementById('statusRoutingMode') || {}).textContent || '--';
         s2.appendChild(ri); s2.appendChild(rv); statusSec.appendChild(s2);
 
-        // Agent count
+        // Agent count — seed from hidden status bar (server-side rendered)
         var s3 = document.createElement('div'); s3.className = 'bridge-ops-status-item';
         var ai = document.createElement('i'); ai.setAttribute('data-lucide', 'users'); ai.className = 'bridge-ops-status-icon';
-        var av = document.createElement('span'); av.className = 'bridge-ops-status-value'; av.id = 'opsAgentCount'; av.textContent = '--';
+        var av = document.createElement('span'); av.className = 'bridge-ops-status-value'; av.id = 'opsAgentCount';
+        av.textContent = (document.getElementById('statusAgentCount') || {}).textContent || '--';
         s3.appendChild(ai); s3.appendChild(av); statusSec.appendChild(s3);
 
         // Clock
         var s4 = document.createElement('div'); s4.className = 'bridge-ops-status-item';
         var ci = document.createElement('i'); ci.setAttribute('data-lucide', 'clock'); ci.className = 'bridge-ops-status-icon';
-        var cv = document.createElement('span'); cv.className = 'bridge-ops-status-value'; cv.id = 'opsBarClock'; cv.textContent = '--:--';
+        var cv = document.createElement('span'); cv.className = 'bridge-ops-status-value'; cv.id = 'opsBarClock';
+        cv.textContent = (document.getElementById('statusBarClock') || {}).textContent || '--:--';
         s4.appendChild(ci); s4.appendChild(cv); statusSec.appendChild(s4);
 
         strip.appendChild(statusSec);
@@ -16494,37 +16502,34 @@ document.addEventListener('DOMContentLoaded', function() {
 // DISPATCH ACTIVITY (Project #91 — Phase 6)
 // ============================================================================
 
+var _dispatchRefreshTimer = null;
+
 async function loadDispatchActivity() {
     try {
-        const [statusResp, historyResp, jobsResp] = await Promise.all([
-            fetch('/tools/bridge/api/bridge/dispatch-status'),
-            fetch('/tools/bridge/api/bridge/dispatch-history?limit=20'),
-            fetch('/tools/bridge/api/bridge/jobs?limit=10')
-        ]);
+        const resp = await fetch('/tools/bridge/api/bridge/dispatch-overview?limit=20&jobs_limit=10');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.success) return;
 
-        if (statusResp.ok) {
-            const statusData = await statusResp.json();
-            if (statusData.success) {
-                renderDispatchStats(statusData.dispatch_stats);
-                renderStationActivity(statusData.station_activity);
-            }
-        }
-
-        if (historyResp.ok) {
-            const historyData = await historyResp.json();
-            if (historyData.success) {
-                renderDispatchHistory(historyData.history);
-            }
-        }
-
-        if (jobsResp.ok) {
-            const jobsData = await jobsResp.json();
-            if (jobsData.success) {
-                renderActiveJobs(jobsData.jobs || []);
-            }
-        }
+        renderDispatchStats(data.dispatch_stats);
+        renderStationActivity(data.station_activity);
+        renderDispatchHistory(data.history);
+        renderActiveJobs(data.jobs || []);
     } catch (e) {
         // Silently fail — dispatch panel is supplementary
+    }
+}
+
+function startDispatchRefresh() {
+    if (_dispatchRefreshTimer) return;
+    loadDispatchActivity();
+    _dispatchRefreshTimer = setInterval(loadDispatchActivity, 30000);
+}
+
+function stopDispatchRefresh() {
+    if (_dispatchRefreshTimer) {
+        clearInterval(_dispatchRefreshTimer);
+        _dispatchRefreshTimer = null;
     }
 }
 
@@ -16863,27 +16868,36 @@ async function loadLeaderboard() {
 // ============================================================================
 
 var _crewWorkloadMap = {};
+var _crewRefreshTimer = null;
+
 async function loadCrewManifest() {
     try {
-        const [crewResp, wlResp] = await Promise.all([
-            fetch('/tools/bridge/api/bridge/crew/manifest'),
-            fetch('/tools/bridge/api/agents/workload')
-        ]);
+        const crewResp = await fetch('/tools/bridge/api/bridge/crew/manifest');
         if (!crewResp.ok) return;
         const data = await crewResp.json();
-        // Build workload lookup
+        // Build workload lookup from merged response
         _crewWorkloadMap = {};
-        if (wlResp.ok) {
-            const wlData = await wlResp.json();
-            if (wlData.success) {
-                (wlData.agents || []).forEach(function(w) { _crewWorkloadMap[w.id] = w; });
-            }
-        }
         if (data.success) {
+            (data.crew || []).forEach(function(a) {
+                if (a.workload) _crewWorkloadMap[a.agent_id || a.id] = a.workload;
+            });
             renderCrewManifest(data.crew || [], data.capacity || null);
         }
     } catch (e) {
         // Silently fail — crew manifest is supplementary
+    }
+}
+
+function startCrewRefresh() {
+    if (_crewRefreshTimer) return;
+    loadCrewManifest();
+    _crewRefreshTimer = setInterval(loadCrewManifest, 30000);
+}
+
+function stopCrewRefresh() {
+    if (_crewRefreshTimer) {
+        clearInterval(_crewRefreshTimer);
+        _crewRefreshTimer = null;
     }
 }
 

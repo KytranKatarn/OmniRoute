@@ -33,12 +33,10 @@ CLAUDE_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
 
 # Ollama configuration (fallback when no Claude API key)
-# Analysis model — dolphin3-8k (GPU) is best for knowledge extraction from
-# conversations and documents.  qwen3-coder-cpu is a coding model that produces
-# empty/truncated JSON when Ollama's format:json constraint suppresses its
-# thinking tokens.  Override via OLLAMA_ANALYSIS_MODEL env var if needed.
+# Analysis model — qwen2.5-coder:7b (GPU) for knowledge extraction from
+# conversations and documents.  Override via OLLAMA_ANALYSIS_MODEL env var.
 def _get_analysis_model():
-    return os.getenv("OLLAMA_ANALYSIS_MODEL", "dolphin3-8k:latest")
+    return os.getenv("OLLAMA_ANALYSIS_MODEL", "qwen2.5-coder:7b")
 
 OLLAMA_MODEL = _get_analysis_model()
 # Fast model for short entries (disabled by default — model swapping crashes on small-VRAM GPUs)

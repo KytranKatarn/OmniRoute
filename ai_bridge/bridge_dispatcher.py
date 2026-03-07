@@ -415,9 +415,9 @@ class BridgeDispatcher:
         """Check if a station can accept a cross-station auxiliary agent.
 
         Rules (3-slot model):
-        1. Primary + Secondary must BOTH be filled before auxiliary is allowed.
-           A station can't request cross-station help if it doesn't have its
-           own crew assigned first.
+        1. ALL assigned crew must be busy before auxiliary is allowed.
+           A station with 1 agent can get aux help once that agent is working.
+           A station with 2 agents needs both busy before aux.
         2. Only 1 auxiliary slot per station (max_auxiliary from bridge_stations).
 
         Returns (available: bool, aux_count: int, max_aux: int, reason: str).
@@ -441,7 +441,7 @@ class BridgeDispatcher:
             max_primary = station["max_primary"] or 2
             max_aux = station["max_auxiliary"] or 1
 
-            # Rule 1: Both Primary and Secondary must be assigned first
+            # Rule 1: All assigned crew must be busy before auxiliary help
             cur.execute(
                 """
                 SELECT COUNT(*) as cnt FROM station_assignments
@@ -451,14 +451,13 @@ class BridgeDispatcher:
             """,
                 (station["id"],),
             )
-            primary_count = cur.fetchone()["cnt"]
-            if primary_count < max_primary:
+            assigned_count = cur.fetchone()["cnt"]
+            if assigned_count == 0:
                 cur.close()
                 conn.close()
                 reason = (
-                    f"{requesting_station} has {primary_count}/{max_primary} "
-                    f"crew assigned. Primary + Secondary must be filled "
-                    f"before auxiliary dispatch."
+                    f"{requesting_station} has no crew assigned. "
+                    f"At least one agent must be assigned before auxiliary dispatch."
                 )
                 return False, 0, max_aux, reason
 

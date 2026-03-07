@@ -1701,14 +1701,13 @@ def request_station_support(station_code):
                     404,
                 )
 
-            # Step 2: Enforce 3-slot model (Primary + Secondary + 1 Auxiliary)
-            # Rule: Primary + Secondary must be filled before auxiliary is allowed
+            # Step 2: Enforce 3-slot model (assigned crew + 1 Auxiliary)
+            # Rule: All assigned crew must exist before auxiliary is allowed
             cur.execute(
                 "SELECT max_primary, max_auxiliary FROM bridge_stations WHERE id = %s",
                 (station["id"],),
             )
             limits = cur.fetchone()
-            max_primary = limits["max_primary"] if limits else 2
             max_aux = limits["max_auxiliary"] if limits else 1
 
             cur.execute(
@@ -1718,15 +1717,15 @@ def request_station_support(station_code):
             """,
                 (station["id"],),
             )
-            primary_count = cur.fetchone()["cnt"]
-            if primary_count < max_primary:
+            assigned_count = cur.fetchone()["cnt"]
+            if assigned_count == 0:
                 return (
                     jsonify(
                         {
                             "success": False,
                             "message": (
-                                f"Station has {primary_count}/{max_primary} primary crew. "
-                                f"Primary + Secondary must be filled before auxiliary support."
+                                "Station has no crew assigned. "
+                                "At least one agent must be assigned before auxiliary support."
                             ),
                             "slot_status": "primary_incomplete",
                         }

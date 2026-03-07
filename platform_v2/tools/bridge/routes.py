@@ -172,6 +172,7 @@ def _get_cached_hw_capacity():
     # ComfyUI VRAM usage (loads SDXL on-demand, torch_vram_total > 0 when active)
     comfyui_vram_gb = 0
     comfyui_status = "idle"
+    comfyui_reserved_gb = 0
     try:
         comfyui_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
         _cfu_resp = requests.get(f"{comfyui_host}/system_stats", timeout=3)
@@ -183,9 +184,27 @@ def _get_cached_hw_capacity():
                     comfyui_status = "loaded" if torch_vram > 0 else "idle"
     except Exception:
         pass
+    # Estimate reserved VRAM for the configured checkpoint (SDXL ~6.5GB)
+    if comfyui_status == "idle":
+        try:
+            with get_db_cursor(commit=False) as (_cconn, _ccur):
+                _ccur.execute(
+                    "SELECT image_model FROM agents WHERE image_model IS NOT NULL AND status = 'active' LIMIT 1"
+                )
+                _crow = _ccur.fetchone()
+                if _crow:
+                    ckpt = _crow["image_model"]
+                    # Estimate VRAM from checkpoint name
+                    if "xl" in ckpt.lower():
+                        comfyui_reserved_gb = 6.5
+                    else:
+                        comfyui_reserved_gb = 4.0
+        except Exception:
+            comfyui_reserved_gb = 6.5  # Default SDXL estimate
     if gpu_info:
         gpu_info["comfyui_vram_gb"] = comfyui_vram_gb
         gpu_info["comfyui_status"] = comfyui_status
+        gpu_info["comfyui_reserved_gb"] = comfyui_reserved_gb
 
     llm_budget_gb = round(total_gb * 0.80, 1)  # 80% for LLM
     agent_budget_gb = round(llm_budget_gb * 0.90, 1)  # 90% of LLM budget

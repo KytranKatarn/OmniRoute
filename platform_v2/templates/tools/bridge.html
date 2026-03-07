@@ -4443,21 +4443,37 @@ body.light-mode .bridge-zone-unstaffed {
 }
 
 /* Add Agent resource-gated states */
-/* Fleet mode toggle */
-.btn-fleet-mode {
-    padding: 2px 8px; border-radius: 4px; font-size: 0.6rem; cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.15); color: var(--archie-text-muted);
-    background: rgba(255,255,255,0.06); transition: all 0.3s; white-space: nowrap;
-    display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.5px; font-weight: 600;
+/* Fleet mode toggle switch */
+.fleet-toggle {
+    display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+    user-select: none; vertical-align: middle;
 }
-.btn-fleet-mode .fleet-mode-dot {
-    width: 6px; height: 6px; border-radius: 50%; transition: background 0.3s;
+.fleet-toggle-label {
+    font-size: 0.55rem; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--archie-text-muted); transition: color 0.3s;
 }
-.btn-fleet-mode.workday { border-color: rgba(0,255,65,0.3); color: #00ff41; background: rgba(0,255,65,0.08); }
-.btn-fleet-mode.workday .fleet-mode-dot { background: #00ff41; box-shadow: 0 0 4px #00ff41; }
-.btn-fleet-mode.weekend { border-color: rgba(255,170,0,0.3); color: #ffaa00; background: rgba(255,170,0,0.08); }
-.btn-fleet-mode.weekend .fleet-mode-dot { background: #ffaa00; box-shadow: 0 0 4px #ffaa00; }
-.btn-fleet-mode.transitioning { opacity: 0.6; pointer-events: none; }
+.fleet-toggle-track {
+    width: 32px; height: 16px; border-radius: 8px; position: relative;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+    transition: all 0.3s ease;
+}
+.fleet-toggle-thumb {
+    width: 12px; height: 12px; border-radius: 50%; position: absolute;
+    top: 1px; left: 1px; transition: all 0.3s ease;
+    background: #00ff41; box-shadow: 0 0 6px rgba(0,255,65,0.6);
+}
+/* Workday = thumb left (green) */
+.fleet-toggle.workday .fleet-toggle-track { border-color: rgba(0,255,65,0.3); background: rgba(0,255,65,0.1); }
+.fleet-toggle.workday .fleet-toggle-thumb { left: 1px; background: #00ff41; box-shadow: 0 0 6px rgba(0,255,65,0.6); }
+.fleet-toggle.workday #fleet-mode-label-left { color: #00ff41; }
+/* Weekend = thumb right (amber) */
+.fleet-toggle.weekend .fleet-toggle-track { border-color: rgba(255,170,0,0.3); background: rgba(255,170,0,0.1); }
+.fleet-toggle.weekend .fleet-toggle-thumb { left: 17px; background: #ffaa00; box-shadow: 0 0 6px rgba(255,170,0,0.6); }
+.fleet-toggle.weekend #fleet-mode-label-right { color: #ffaa00; }
+/* Transitioning */
+.fleet-toggle.transitioning { opacity: 0.5; pointer-events: none; }
+.fleet-toggle.transitioning .fleet-toggle-thumb { animation: fleet-pulse 0.8s ease-in-out infinite; }
+@keyframes fleet-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 .btn-add-agent {
     padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; cursor: pointer;
@@ -8254,7 +8270,11 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                             <i data-lucide="users"></i>
                             <span data-i18n="bridge.crew.active_roster">Active Roster</span>
                             <span class="briefing-card-link" id="crew-manifest-count">-- agents</span>
-                            <button id="btn-fleet-mode" class="btn-fleet-mode workday" onclick="toggleFleetMode()"><span class="fleet-mode-dot"></span><span id="fleet-mode-label">WORKDAY</span></button>
+                            <div id="btn-fleet-mode" class="fleet-toggle workday" onclick="toggleFleetMode()">
+                                <span class="fleet-toggle-label" id="fleet-mode-label-left">WKD</span>
+                                <div class="fleet-toggle-track"><div class="fleet-toggle-thumb"></div></div>
+                                <span class="fleet-toggle-label" id="fleet-mode-label-right">WKE</span>
+                            </div>
                             <button id="btn-add-agent" class="btn-add-agent" onclick="openAgentFormModal()"><span data-i18n="bridge.add_agent">+ Add Agent</span></button>
                         </div>
                         <div class="briefing-card-body">
@@ -9469,28 +9489,21 @@ function closeIaaeCapacityModal() {
 // === Fleet Mode Toggle (Workday / Weekend) ===
 function updateFleetModeButton(mode) {
     var btn = document.getElementById('btn-fleet-mode');
-    var lbl = document.getElementById('fleet-mode-label');
-    if (!btn || !lbl) return;
+    if (!btn) return;
     btn.classList.remove('workday', 'weekend', 'transitioning');
     btn.classList.add(mode);
-    lbl.textContent = mode.toUpperCase();
 }
 
 function toggleFleetMode() {
     var btn = document.getElementById('btn-fleet-mode');
     var current = btn.classList.contains('weekend') ? 'weekend' : 'workday';
     var next = current === 'workday' ? 'weekend' : 'workday';
-    var msg = next === 'weekend'
-        ? 'Switch to WEEKEND mode?\n\nAll LLM models will be unloaded from RAM to free resources.\nAgents will show as barracked until workday mode is restored.'
-        : 'Switch to WORKDAY mode?\n\nAll agent LLM models will be warmed up and loaded into RAM.\nThis may take a few minutes.';
-
     showIaaeCapacityModal(next === 'weekend' ? 'fleet-weekend' : 'fleet-workday', {next: next});
 }
 
 function executeFleetModeToggle(mode) {
     var btn = document.getElementById('btn-fleet-mode');
     btn.classList.add('transitioning');
-    document.getElementById('fleet-mode-label').textContent = mode === 'weekend' ? 'UNLOADING...' : 'WARMING UP...';
     closeIaaeCapacityModal();
 
     fetch('/tools/bridge/api/bridge/fleet-mode', {
@@ -17192,7 +17205,11 @@ function renderCrewManifest(crew, capacity) {
             var ollamaVram = ollamaGpuModels.reduce(function(s, m) { return s + (m.vram_gb || 0); }, 0);
             var comfyVram = gpuCap.comfyui_vram_gb || 0;
             var comfyStatus = gpuCap.comfyui_status || 'idle';
-            var gpuFreeVram = Math.max(0, vramTotal - ollamaVram - comfyVram);
+            var comfyReserved = gpuCap.comfyui_reserved_gb || 0;
+            // Show real usage when active, reserved estimate when idle
+            var comfyDisplay = comfyStatus === 'loaded' ? comfyVram : comfyReserved;
+            var comfyIsActive = comfyStatus === 'loaded';
+            var gpuFreeVram = Math.max(0, vramTotal - ollamaVram - comfyDisplay);
 
             var gpuTrack = document.createElement('div');
             gpuTrack.className = 'roster-capacity-track';
@@ -17206,29 +17223,21 @@ function renderCrewManifest(crew, capacity) {
                 gpuTrack.appendChild(gSeg1);
             }
 
-            // Segment: ComfyUI (purple)
-            if (comfyVram > 0) {
+            // Segment: ComfyUI — solid purple when active, dashed purple when reserved/idle
+            if (comfyDisplay > 0) {
                 var gSeg2 = document.createElement('div');
                 gSeg2.className = 'roster-capacity-seg';
-                gSeg2.style.background = '#8b5cf6';
-                gSeg2.style.width = ((comfyVram / vramTotal) * 100).toFixed(1) + '%';
-                gSeg2.title = 'ComfyUI: ' + comfyVram.toFixed(1) + 'GB';
-                gpuTrack.appendChild(gSeg2);
-            }
-
-            // Segment: ComfyUI idle reservation (dashed purple — shows it's available but reserved)
-            if (comfyStatus === 'idle') {
-                var baseVram = Math.max(0, gpuCap.vram_used_gb - ollamaVram - comfyVram);
-                if (baseVram > 0.3) {
-                    var gSeg2b = document.createElement('div');
-                    gSeg2b.className = 'roster-capacity-seg';
-                    gSeg2b.style.background = 'rgba(139,92,246,0.2)';
-                    gSeg2b.style.borderTop = '1px dashed rgba(139,92,246,0.5)';
-                    gSeg2b.style.borderBottom = '1px dashed rgba(139,92,246,0.5)';
-                    gSeg2b.style.width = ((baseVram / vramTotal) * 100).toFixed(1) + '%';
-                    gSeg2b.title = 'ComfyUI base: ' + baseVram.toFixed(1) + 'GB (idle)';
-                    gpuTrack.appendChild(gSeg2b);
+                if (comfyIsActive) {
+                    gSeg2.style.background = '#8b5cf6';
+                    gSeg2.title = 'ComfyUI SDXL: ' + comfyVram.toFixed(1) + 'GB (generating)';
+                } else {
+                    gSeg2.style.background = 'rgba(139,92,246,0.2)';
+                    gSeg2.style.borderTop = '1px dashed rgba(139,92,246,0.5)';
+                    gSeg2.style.borderBottom = '1px dashed rgba(139,92,246,0.5)';
+                    gSeg2.title = 'ComfyUI SDXL: ~' + comfyReserved.toFixed(1) + 'GB reserved (on-demand)';
                 }
+                gSeg2.style.width = ((comfyDisplay / vramTotal) * 100).toFixed(1) + '%';
+                gpuTrack.appendChild(gSeg2);
             }
 
             gpuBar.appendChild(gpuTrack);
@@ -17244,7 +17253,12 @@ function renderCrewManifest(crew, capacity) {
             gpuLegend.className = 'roster-capacity-legend';
             var legendParts = [];
             if (ollamaVram > 0) legendParts.push('<span class="leg-models">' + ollamaVram.toFixed(1) + 'GB Ollama</span>');
-            legendParts.push('<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + (comfyVram > 0 ? '#8b5cf6' : 'rgba(139,92,246,0.25)') + ';margin-right:3px;vertical-align:middle;' + (comfyVram > 0 ? '' : 'border:1px dashed rgba(139,92,246,0.5);') + '"></span>ComfyUI ' + (comfyStatus === 'loaded' ? comfyVram.toFixed(1) + 'GB active' : 'idle') + '</span>');
+            var comfyDot = comfyIsActive ? '#8b5cf6' : 'rgba(139,92,246,0.25)';
+            var comfyBorder = comfyIsActive ? '' : 'border:1px dashed rgba(139,92,246,0.5);';
+            var comfyLabel = comfyIsActive
+                ? comfyVram.toFixed(1) + 'GB active'
+                : '~' + comfyReserved.toFixed(1) + 'GB reserved';
+            legendParts.push('<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + comfyDot + ';margin-right:3px;vertical-align:middle;' + comfyBorder + '"></span>ComfyUI ' + comfyLabel + '</span>');
             legendParts.push('<span style="color:var(--archie-text-muted);">' + gpuFreeVram.toFixed(1) + 'GB free</span>');
             gpuLegend.innerHTML = legendParts.join('');
             gpuBar.appendChild(gpuLegend);

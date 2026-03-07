@@ -411,7 +411,7 @@ class BridgeDispatcher:
                 "allow_overflow": True,
             }
 
-    def _station_aux_available(self, requesting_station):
+    def _station_aux_available(self, requesting_station, cur=None):
         """Check if a station can accept a cross-station auxiliary agent.
 
         Rules (3-slot model):
@@ -420,13 +420,24 @@ class BridgeDispatcher:
            A station with 2 agents needs both busy before aux.
         2. Only 1 auxiliary slot per station (max_auxiliary from bridge_stations).
 
+        Pass an existing cursor to reuse a transaction (prevents race conditions
+        when called inside create_job's advisory-locked transaction).
+
         Returns (available: bool, aux_count: int, max_aux: int, reason: str).
         """
+        own_conn = False
         try:
-            from psycopg2.extras import RealDictCursor
+            if cur is None:
+                from psycopg2.extras import RealDictCursor
 
-            conn = self._get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+                conn = self._get_db()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                own_conn = True
+
+            # Acquire station-level advisory lock to prevent concurrent aux dispatches
+            station_lock_key = hash(f"aux_lock:{requesting_station}") % (2**31)
+            cur.execute("SELECT pg_advisory_xact_lock(%s)", (station_lock_key,))
+
             cur.execute(
                 "SELECT id, max_primary, max_auxiliary FROM bridge_stations "
                 "WHERE station_code = %s AND is_active = true",
@@ -434,11 +445,11 @@ class BridgeDispatcher:
             )
             station = cur.fetchone()
             if not station:
-                cur.close()
-                conn.close()
+                if own_conn:
+                    cur.close()
+                    conn.close()
                 return True, 0, 1, ""
 
-            max_primary = station["max_primary"] or 2
             max_aux = station["max_auxiliary"] or 1
 
             # Rule 1: All assigned crew must be busy before auxiliary help
@@ -453,8 +464,9 @@ class BridgeDispatcher:
             )
             assigned_count = cur.fetchone()["cnt"]
             if assigned_count == 0:
-                cur.close()
-                conn.close()
+                if own_conn:
+                    cur.close()
+                    conn.close()
                 reason = (
                     f"{requesting_station} has no crew assigned. "
                     f"At least one agent must be assigned before auxiliary dispatch."
@@ -476,8 +488,9 @@ class BridgeDispatcher:
                 (requesting_station, requesting_station),
             )
             aux_count = cur.fetchone()["cnt"]
-            cur.close()
-            conn.close()
+            if own_conn:
+                cur.close()
+                conn.close()
 
             if aux_count >= max_aux:
                 return False, aux_count, max_aux, f"Auxiliary slot full ({aux_count}/{max_aux})"
@@ -488,6 +501,12 @@ class BridgeDispatcher:
                 f"[CAPACITY] Error checking aux availability at "
                 f"{requesting_station}: {e}"
             )
+            if own_conn:
+                try:
+                    cur.close()
+                    conn.close()
+                except Exception:
+                    pass
             return True, 0, 1, ""  # Fail open
 
     def _log_capacity_event(
@@ -3682,11 +3701,17 @@ class BridgeDispatcher:
 
             # ── Cross-station fallback (mirrors dispatch() logic) ──
             #     Enforce max_auxiliary: only 1 cross-station helper per station.
+            #     Use a RealDictCursor on the SAME connection to share the
+            #     transaction and its advisory lock, preventing race conditions.
             if not agent:
                 blocked_station = home_station or capability_station
+                from psycopg2.extras import RealDictCursor
+
+                aux_cur = conn.cursor(cursor_factory=RealDictCursor)
                 aux_ok, aux_count, max_aux, aux_reason = self._station_aux_available(
-                    blocked_station
+                    blocked_station, cur=aux_cur
                 )
+                aux_cur.close()
 
                 if not aux_ok:
                     logger.info(

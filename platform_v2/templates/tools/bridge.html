@@ -4211,6 +4211,8 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-llm-badge.swap { background: rgba(255,215,0,0.15); color: #FFD700; }
 .crew-llm-badge.cloud { background: rgba(139,92,246,0.15); color: #8b5cf6; }
 .crew-llm-badge.barracked { background: rgba(255,69,0,0.15); color: #FF6347; }
+.crew-llm-badge.resting { background: rgba(139,92,246,0.15); color: #a78bfa; }
+.crew-llm-badge.weekend { background: rgba(255,170,0,0.12); color: #ffaa00; }
 .crew-llm-toggle {
     font-size: 0.55rem; padding: 1px 5px; border-radius: 3px; cursor: pointer;
     border: 1px solid rgba(255,255,255,0.2); font-weight: 600; letter-spacing: 0.3px;
@@ -17135,6 +17137,7 @@ async function loadCrewManifest() {
             (data.crew || []).forEach(function(a) {
                 if (a.workload) _crewWorkloadMap[a.agent_id || a.id] = a.workload;
             });
+            window._lastFleetMode = data.fleet_mode || 'workday';
             renderCrewManifest(data.crew || [], data.capacity || null);
             if (data.fleet_mode) updateFleetModeButton(data.fleet_mode);
         }
@@ -17469,19 +17472,35 @@ function renderCrewManifest(crew, capacity) {
         // LLM readiness badge
         if (agent.llm_status) {
             var llmBadge = document.createElement('span');
-            llmBadge.className = 'crew-llm-badge ' + agent.llm_status;
-            if (agent.llm_status === 'loaded') {
-                llmBadge.textContent = 'LLM \u2713';
-                llmBadge.title = 'Model loaded in RAM (' + (agent.llm_size_gb || 0) + 'GB)';
-            } else if (agent.llm_status === 'swap') {
-                llmBadge.textContent = 'SWAP';
-                llmBadge.title = 'Can load on-demand (~' + (agent.llm_size_gb || '?') + 'GB) \u2014 fits in swap buffer';
-            } else if (agent.llm_status === 'cloud') {
-                llmBadge.textContent = 'CLOUD';
-                llmBadge.title = 'Cloud model \u2014 no local RAM needed';
-            } else if (agent.llm_status === 'barracked') {
-                llmBadge.textContent = 'BARRACKED';
-                llmBadge.title = 'Model too large for swap buffer (~' + (agent.llm_size_gb || '?') + 'GB) \u2014 needs agent budget space';
+            var isResting = agent.status === 'resting';
+            var fleetMode = window._lastFleetMode || 'workday';
+            var isWeekend = fleetMode === 'weekend';
+
+            if (isResting) {
+                // Resting agents — LLM unloaded for break
+                llmBadge.className = 'crew-llm-badge resting';
+                llmBadge.textContent = '\u263E REST';
+                llmBadge.title = 'LLM unloaded \u2014 agent on break (' + (agent.llm_size_gb || '?') + 'GB freed)';
+            } else if (isWeekend && agent.llm_status !== 'cloud') {
+                // Weekend mode — everything unloaded
+                llmBadge.className = 'crew-llm-badge weekend';
+                llmBadge.textContent = '\u263E WKE';
+                llmBadge.title = 'Weekend mode \u2014 LLM unloaded (' + (agent.llm_size_gb || '?') + 'GB freed)';
+            } else {
+                llmBadge.className = 'crew-llm-badge ' + agent.llm_status;
+                if (agent.llm_status === 'loaded') {
+                    llmBadge.textContent = 'LLM \u2713';
+                    llmBadge.title = 'Model loaded in RAM (' + (agent.llm_size_gb || 0) + 'GB)';
+                } else if (agent.llm_status === 'swap') {
+                    llmBadge.textContent = 'SWAP';
+                    llmBadge.title = 'Can load on-demand (~' + (agent.llm_size_gb || '?') + 'GB) \u2014 fits in swap buffer';
+                } else if (agent.llm_status === 'cloud') {
+                    llmBadge.textContent = 'CLOUD';
+                    llmBadge.title = 'Cloud model \u2014 no local RAM needed';
+                } else if (agent.llm_status === 'barracked') {
+                    llmBadge.textContent = 'BARRACKED';
+                    llmBadge.title = 'Model too large for swap buffer (~' + (agent.llm_size_gb || '?') + 'GB) \u2014 needs agent budget space';
+                }
             }
             badges.appendChild(llmBadge);
         }

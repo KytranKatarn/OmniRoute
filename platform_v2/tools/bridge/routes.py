@@ -1995,11 +1995,39 @@ def send_agent_to_lounge(agent_id):
 
             rest_cycle_id = cur.fetchone()["id"]
 
+            # Unload agent's LLM to free RAM during rest
+            cur.execute("SELECT model FROM agents WHERE id = %s", (agent_id,))
+            agent_row = cur.fetchone()
+            model_name = agent_row["model"] if agent_row else None
+            unloaded = False
+            if model_name and not model_name.endswith(":cloud"):
+                # Check no other active agent uses this model
+                cur.execute(
+                    """SELECT COUNT(*) AS cnt FROM agents a
+                       LEFT JOIN agent_rest_cycles arc ON arc.agent_id = a.id AND arc.ended_at IS NULL
+                       WHERE a.model = %s AND a.id != %s AND a.status = 'active' AND arc.id IS NULL""",
+                    (model_name, agent_id),
+                )
+                if cur.fetchone()["cnt"] == 0:
+                    try:
+                        _oh = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+                        _op = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+                        requests.post(
+                            f"http://{_oh}:{_op}/api/generate",
+                            json={"model": model_name, "keep_alive": 0},
+                            timeout=30,
+                        )
+                        unloaded = True
+                        logger.info(f"[Lounge] Unloaded {model_name} for agent {agent_id} rest")
+                    except Exception as ue:
+                        logger.warning(f"[Lounge] Failed to unload {model_name}: {ue}")
+
             return jsonify(
                 {
                     "success": True,
                     "rest_cycle_id": rest_cycle_id,
-                    "message": "Agent sent to lounge",
+                    "model_unloaded": unloaded,
+                    "message": f"Agent sent to lounge{' — LLM unloaded' if unloaded else ''}",
                 }
             )
 
@@ -2061,7 +2089,55 @@ def return_agent_from_lounge(agent_id):
                 (agent_id,),
             )
 
-            return jsonify({"success": True, "message": "Agent returned from lounge"})
+            # Reload agent's LLM if fleet is in workday mode
+            cur.execute("SELECT model FROM agents WHERE id = %s", (agent_id,))
+            agent_row = cur.fetchone()
+            model_name = agent_row["model"] if agent_row else None
+            reloaded = False
+
+            fleet_mode = "workday"
+            cur.execute("SELECT value FROM system_config WHERE key = 'fleet_mode'")
+            fm_row = cur.fetchone()
+            if fm_row:
+                fleet_mode = fm_row["value"]
+
+            if model_name and not model_name.endswith(":cloud") and fleet_mode == "workday":
+                try:
+                    import threading
+
+                    _oh = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+                    _op = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+                    ollama_url = f"http://{_oh}:{_op}"
+
+                    def _reload():
+                        try:
+                            requests.post(
+                                f"{ollama_url}/api/generate",
+                                json={
+                                    "model": model_name,
+                                    "prompt": "warmup",
+                                    "stream": False,
+                                    "options": {"num_predict": 1, "num_gpu": 0},
+                                    "keep_alive": -1,
+                                },
+                                timeout=300,
+                            )
+                            logger.info(f"[Lounge] Reloaded {model_name} for agent {agent_id}")
+                        except Exception as re:
+                            logger.warning(f"[Lounge] Failed to reload {model_name}: {re}")
+
+                    threading.Thread(target=_reload, daemon=True).start()
+                    reloaded = True
+                except Exception:
+                    pass
+
+            return jsonify(
+                {
+                    "success": True,
+                    "model_reloading": reloaded,
+                    "message": f"Agent returned from lounge{' — LLM reloading' if reloaded else ''}",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error returning agent from lounge: {e}")

@@ -443,72 +443,8 @@ var _kbEntries = [];
 /* ── Knowledge LCARS Operations Terminal ─────────── */
 
 function renderKnowledgeOps(agentData, jobData) {
-  /* Render agents section — ANALYTICS station crew */
-  var agentsEl = document.getElementById("kbOpsAgents");
-  if (agentsEl) {
-    if (agentData && agentData.length) {
-      var html = '<div class="cs-ops-section-label">ASSIGNED AGENTS</div>';
-      agentData.forEach(function(a) {
-        html += '<div class="cs-ops-agent-row">' +
-          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-          '<span class="cs-ops-agent-role">' + escHtml(a.role || "agent") + '</span>' +
-          '</div>';
-      });
-      setHtml(agentsEl, html);
-    } else {
-      _renderOpsAgents("kbOpsAgents", "ANALYTICS", jobData);
-    }
-  }
-
-  /* Render jobs section — deduplicate by job ID (like GitHub tab) */
-  var jobsEl = document.getElementById("kbOpsJobs");
-  if (jobsEl) {
-    if (jobData && jobData.length) {
-      var seen = {};
-      var unique = jobData.filter(function(j) { if (seen[j.id]) return false; seen[j.id] = true; return true; });
-      var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
-      unique.forEach(function(j) {
-        var pct = j.progress_pct || 0;
-        var desc = j.description || j.job_type || "Processing";
-        var agentLabel = j.agent_name || "Queued";
-        var stationLabel = j.station_code || "";
-        if (stationLabel) agentLabel += " \u2022 " + stationLabel;
-        var completed = j.completed_steps || 0;
-        var total = j.total_steps || 0;
-        var countLabel = total > 0 ? ('<span class="cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
-        html += '<div class="cs-ops-job-row">' +
-          '<div class="cs-ops-job-info">' +
-            '<div class="cs-ops-job-desc">' + escHtml(desc) + '</div>' +
-            '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
-          '</div>' +
-          '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
-          countLabel +
-          '<div class="cs-ops-job-pct">' + pct + '%</div>' +
-          '</div>';
-      });
-      setHtml(jobsEl, html);
-    } else {
-      setHtml(jobsEl, "");
-    }
-  }
-
-  /* Render command buttons (only once) */
-  var cmdsEl = document.getElementById("kbOpsCommands");
-  if (cmdsEl && !cmdsEl.hasChildNodes()) {
-    var commands = [
-      { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" },
-      { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis" }
-    ];
-    commands.forEach(function(c) {
-      var btn = document.createElement("button");
-      btn.className = "cs-ops-cmd " + c.cls;
-      btn.textContent = c.label;
-      btn.setAttribute("onclick", c.fn);
-      if (c.id) btn.id = c.id;
-      if (c.title) btn.title = c.title;
-      cmdsEl.appendChild(btn);
-    });
-  }
+  /* Agents, jobs, and commands all rendered by shared StationOps component */
+  _renderOpsAgents("kbOpsAgents", "ANALYTICS", jobData);
 }
 
 function loadKnowledge() {
@@ -690,9 +626,9 @@ function checkActiveJobs() {
   }).then(function(data) {
     if (!data.success) { _enableProcessingBtns(); _enableGitHubBtns(); return; }
 
-    /* Filter to consciousness module jobs */
+    /* Filter to consciousness module jobs (includes sub-modules like consciousness_linguistics) */
     var myJobs = (data.jobs || []).filter(function(j) {
-      return j.module_source === "consciousness";
+      return j.module_source && j.module_source.indexOf("consciousness") === 0;
     });
 
     /* Build station status from ALL running jobs */
@@ -764,38 +700,31 @@ function checkActiveJobs() {
       }
     });
 
-    /* ── Languages tab — jobs already rendered by _renderStationStatus above ── */
+    /* ── Languages tab — job progress rendered by StationOps, but track
+     *    completion here for continuous-loop auto-restart logic ── */
     var langJobs = myJobs.filter(function(j) {
       return (j.job_type || "").indexOf("translate") > -1;
     });
 
-    var langWrap = document.getElementById("langJobProgress");
-    if (langWrap && langJobs.length) {
-      langWrap.style.display = "block";
-      langJobs.forEach(function(job) {
-        var pollKey = "lang_" + job.id;
-        if (!_activeJobPolls[pollKey]) {
-          _activeJobPolls[pollKey] = true;
-          _pollJobStatus(job.id, "bjob-lang-" + job.id, function(completedJob) {
-            _activeJobPolls[pollKey] = false;
-            _cache.languages = false;
-            setTimeout(function() {
-              loadLanguages();
-              /* Continuous loop: auto-start next translation batch if looping */
-              var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
-              if (jt.indexOf("translate") > -1) {
-                if (_continuousRun.translate) { _loopNext("translate"); }
-                else if (_continuousRun.fullPass) { _loopNext("fullPass"); }
-              }
-              checkActiveJobs();
-            }, 1500);
-          });
-        }
-      });
-    } else if (langWrap && !langJobs.length) {
-      var anyPolling = Object.keys(_activeJobPolls).some(function(k) { return k.indexOf("lang_") === 0 && _activeJobPolls[k]; });
-      if (!anyPolling && langWrap) langWrap.style.display = "none";
-    }
+    langJobs.forEach(function(job) {
+      var pollKey = "lang_" + job.id;
+      if (!_activeJobPolls[pollKey]) {
+        _activeJobPolls[pollKey] = true;
+        _pollJobStatus(job.id, null, function(completedJob) {
+          _activeJobPolls[pollKey] = false;
+          _cache.languages = false;
+          setTimeout(function() {
+            loadLanguages();
+            var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
+            if (jt.indexOf("translate") > -1) {
+              if (_continuousRun.translate) { _loopNext("translate"); }
+              else if (_continuousRun.fullPass) { _loopNext("fullPass"); }
+            }
+            checkActiveJobs();
+          }, 1500);
+        });
+      }
+    });
   }).catch(function() {
     /* Bridge unavailable — don't block */
     _enableProcessingBtns();
@@ -1390,75 +1319,8 @@ var _langGenRunning = false;
 /* ── Languages LCARS Operations Terminal ───────────── */
 
 function renderLangOps(agentData, jobData) {
-  /* Render agents section — pass ALL jobs for busy detection */
-  var agentsEl = document.getElementById("langOpsAgents");
-  if (agentsEl) {
-    if (agentData && agentData.length) {
-      var html = '<div class="cs-ops-section-label">ASSIGNED AGENTS</div>';
-      agentData.forEach(function(a) {
-        html += '<div class="cs-ops-agent-row">' +
-          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-          '<span class="cs-ops-agent-role">' + escHtml(a.role || "agent") + '</span>' +
-          '</div>';
-      });
-      setHtml(agentsEl, html);
-    } else {
-      _renderOpsAgents("langOpsAgents", "ANALYTICS", jobData);
-    }
-  }
-
-  /* Render jobs section — show ALL active consciousness jobs, deduplicate */
-  var jobsEl = document.getElementById("langOpsJobs");
-  if (jobsEl) {
-    if (jobData && jobData.length) {
-      var seen = {};
-      var unique = jobData.filter(function(j) { if (seen[j.id]) return false; seen[j.id] = true; return true; });
-      var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
-      unique.forEach(function(j) {
-        var pct = j.progress_pct || 0;
-        var desc = j.description || j.job_type || "Processing";
-        var agentLabel = j.agent_name || "Queued";
-        var stationLabel = j.station_code || "";
-        if (stationLabel) agentLabel += " \u2022 " + stationLabel;
-        var completed = j.completed_steps || 0;
-        var total = j.total_steps || 0;
-        var countLabel = total > 0 ? ('<span class="cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
-        html += '<div class="cs-ops-job-row">' +
-          '<div class="cs-ops-job-info">' +
-            '<div class="cs-ops-job-desc">' + escHtml(desc) + '</div>' +
-            '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
-          '</div>' +
-          '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
-          countLabel +
-          '<div class="cs-ops-job-pct">' + pct + '%</div>' +
-          '</div>';
-      });
-      setHtml(jobsEl, html);
-    } else {
-      setHtml(jobsEl, "");
-    }
-  }
-
-  /* Render command buttons (only once) */
-  var cmdsEl = document.getElementById("langOpsCommands");
-  if (cmdsEl && !cmdsEl.hasChildNodes()) {
-    var commands = [
-      { label: "AUDIT", cls: "amber", fn: "langAuditTemplates()", id: "langAuditBtn" },
-      { label: "SCAN KEYS", cls: "purple", fn: "langScanKeys()", id: "langScanBtn" },
-      { label: "GENERATE ALL", cls: "green", fn: "langGenerateAll()", id: "langGenAllBtn" },
-      { label: "\u221E TRANSLATE", cls: "cs-loop-idle", fn: "toggleLoop('translate')", id: "loopBtn-translate" },
-      { label: "FULL PASS", cls: "cyan", fn: "langFullPass()", id: "langFullPassBtn" },
-      { label: "\u221E FULL PASS", cls: "cs-loop-idle", fn: "toggleLoop('fullPass')", id: "loopBtn-fullPass" }
-    ];
-    commands.forEach(function(c) {
-      var btn = document.createElement("button");
-      btn.className = "cs-ops-cmd " + c.cls;
-      btn.textContent = c.label;
-      btn.setAttribute("onclick", c.fn);
-      if (c.id) btn.id = c.id;
-      cmdsEl.appendChild(btn);
-    });
-  }
+  /* Agents, jobs, and commands all rendered by shared StationOps component */
+  _renderOpsAgents("langOpsAgents", "ANALYTICS", jobData);
 }
 
 function loadLanguages() {
@@ -1666,19 +1528,12 @@ window.langGenerateModule = function(moduleId) {
 
 /* Poll a translation bridge job — reuses existing _pollJobStatus + _buildJobHtml */
 function _startLangJobPoll(jobId, onDone) {
-  var el = document.getElementById("langJobProgress");
-  if (el) el.style.display = "block";
   var pollKey = "lang_" + jobId;
   if (_activeJobPolls[pollKey]) return;
   _activeJobPolls[pollKey] = true;
-  _pollJobStatus(jobId, "langJobProgressInner", function(completedJob) {
+  /* Progress rendered by StationOps — just track completion for refresh + loop */
+  _pollJobStatus(jobId, null, function(completedJob) {
     _activeJobPolls[pollKey] = false;
-    var status = completedJob ? completedJob.status : "unknown";
-    if (status === "completed") {
-      _showLangJob("Translation complete!");
-    } else if (status === "failed") {
-      _showLangJob("Translation job failed — check Bridge Command for details");
-    }
     _cache.languages = false;
     setTimeout(function() { loadLanguages(); checkActiveJobs(); }, 1500);
     if (onDone) onDone();
@@ -1686,7 +1541,7 @@ function _startLangJobPoll(jobId, onDone) {
 }
 
 function _showLangJob(msg, type) {
-  var el = document.getElementById("langActiveJob");
+  var el = document.getElementById("langScanStatus");
   if (el) {
     el.style.display = "block";
     var t = type || "ok";
@@ -2025,6 +1880,10 @@ function _getOpsInstance(elId) {
         jobsElId: "kbOpsJobs",
         commandsElId: "kbOpsCommands",
         statusElId: "kbOpsOnline",
+        commands: [
+          { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" },
+          { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis" }
+        ],
         onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
       });
     }
@@ -2039,6 +1898,13 @@ function _getOpsInstance(elId) {
         jobsElId: "ghOpsJobs",
         commandsElId: "ghOpsCommands",
         statusElId: "ghOpsOnline",
+        commands: [
+          { label: "REINDEX ALL", cls: "amber", fn: "reindexAllRepos()", id: "btnReindexAll" },
+          { label: "\u221E REINDEX", cls: "cs-loop-idle", fn: "toggleLoop('reindex')", id: "loopBtn-reindex" },
+          { label: "EMBED FILES", cls: "green", fn: "embedGitHubFiles()", id: "btnEmbedGH" },
+          { label: "\u221E EMBED", cls: "cs-loop-idle", fn: "toggleLoop('ghEmbed')", id: "loopBtn-ghEmbed" },
+          { label: "VERIFY", cls: "cyan", fn: "verifyGitHubData()" }
+        ],
         onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
       });
     }
@@ -2053,6 +1919,14 @@ function _getOpsInstance(elId) {
         jobsElId: "langOpsJobs",
         commandsElId: "langOpsCommands",
         statusElId: "langOpsOnline",
+        commands: [
+          { label: "AUDIT", cls: "amber", fn: "langAuditTemplates()", id: "langAuditBtn" },
+          { label: "SCAN KEYS", cls: "purple", fn: "langScanKeys()", id: "langScanBtn" },
+          { label: "GENERATE ALL", cls: "green", fn: "langGenerateAll()", id: "langGenAllBtn" },
+          { label: "\u221E TRANSLATE", cls: "cs-loop-idle", fn: "toggleLoop('translate')", id: "loopBtn-translate" },
+          { label: "FULL PASS", cls: "cyan", fn: "langFullPass()", id: "langFullPassBtn" },
+          { label: "\u221E FULL PASS", cls: "cs-loop-idle", fn: "toggleLoop('fullPass')", id: "loopBtn-fullPass" }
+        ],
         onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
       });
     }
@@ -2062,10 +1936,10 @@ function _getOpsInstance(elId) {
 }
 
 function _renderOpsAgents(elId, homeStationCode, jobData) {
-  /* Delegate to shared StationOps component */
+  /* Delegate to shared StationOps component — renders agents + jobs + commands */
   var ops = _getOpsInstance(elId);
   if (ops) {
-    ops.renderAgents(jobData);
+    ops.render(jobData);
   }
 }
 
@@ -2104,78 +1978,8 @@ function _applyStationCapacity(atCapacity) {
 /* ── GitHub LCARS Operations Terminal ─────────────── */
 
 function renderGitHubOps(agentData, jobData) {
-  /* Render agents section — ANALYTICS crew + cross-station assists */
-  var agentsEl = document.getElementById("ghOpsAgents");
-  if (agentsEl) {
-    if (agentData && agentData.length) {
-      var html = '<div class="cs-ops-section-label">ASSIGNED AGENTS</div>';
-      agentData.forEach(function(a) {
-        html += '<div class="cs-ops-agent-row">' +
-          '<span class="cs-ops-agent-name">' + escHtml(a.name) + '</span>' +
-          '<span class="cs-ops-agent-role">' + escHtml(a.role || "agent") + '</span>' +
-          '</div>';
-      });
-      setHtml(agentsEl, html);
-    } else {
-      _renderOpsAgents("ghOpsAgents", "ANALYTICS", jobData);
-    }
-  }
-
-  /* Render jobs section — only show unique jobs (deduplicate by id) */
-  var jobsEl = document.getElementById("ghOpsJobs");
-  if (jobsEl) {
-    if (jobData && jobData.length) {
-      var seen = {};
-      var unique = jobData.filter(function(j) {
-        if (seen[j.id]) return false;
-        seen[j.id] = true;
-        return true;
-      });
-      var html = '<div class="cs-ops-section-label">ACTIVE JOBS</div>';
-      unique.forEach(function(j) {
-        var pct = j.progress_pct || 0;
-        var desc = j.description || j.job_type || "Processing";
-        var agentLabel = j.agent_name || "Queued";
-        var stationLabel = j.station_code || "";
-        if (stationLabel) agentLabel += " \u2022 " + stationLabel;
-        var completed = j.completed_steps || 0;
-        var total = j.total_steps || 0;
-        var countLabel = total > 0 ? ('<span class="cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
-        html += '<div class="cs-ops-job-row">' +
-          '<div class="cs-ops-job-info">' +
-            '<div class="cs-ops-job-desc">' + escHtml(desc) + '</div>' +
-            '<div class="cs-ops-job-agent">' + escHtml(agentLabel) + '</div>' +
-          '</div>' +
-          '<div class="cs-ops-job-bar"><div class="cs-ops-job-fill" style="width:' + pct + '%"></div></div>' +
-          countLabel +
-          '<div class="cs-ops-job-pct">' + pct + '%</div>' +
-          '</div>';
-      });
-      setHtml(jobsEl, html);
-    } else {
-      setHtml(jobsEl, "");
-    }
-  }
-
-  /* Render command buttons (always) */
-  var cmdsEl = document.getElementById("ghOpsCommands");
-  if (cmdsEl && !cmdsEl.hasChildNodes()) {
-    var commands = [
-      { label: "REINDEX ALL", cls: "amber", fn: "reindexAllRepos()", id: "btnReindexAll" },
-      { label: "\u221E REINDEX", cls: "cs-loop-idle", fn: "toggleLoop('reindex')", id: "loopBtn-reindex" },
-      { label: "EMBED FILES", cls: "green", fn: "embedGitHubFiles()", id: "btnEmbedGH" },
-      { label: "\u221E EMBED", cls: "cs-loop-idle", fn: "toggleLoop('ghEmbed')", id: "loopBtn-ghEmbed" },
-      { label: "VERIFY", cls: "cyan", fn: "verifyGitHubData()" }
-    ];
-    commands.forEach(function(c) {
-      var btn = document.createElement("button");
-      btn.className = "cs-ops-cmd " + c.cls;
-      btn.textContent = c.label;
-      btn.setAttribute("onclick", c.fn);
-      if (c.id) btn.id = c.id;
-      cmdsEl.appendChild(btn);
-    });
-  }
+  /* Agents, jobs, and commands all rendered by shared StationOps component */
+  _renderOpsAgents("ghOpsAgents", "ANALYTICS", jobData);
 }
 
 /* ── Verify/Audit GitHub Data ────────────────────── */

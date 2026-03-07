@@ -178,12 +178,17 @@ def get_glossary(language: str) -> List[Dict]:
 def batch_translate(
     strings: List[Tuple[str, str, str]],
     language: str,
+    parent_job_id: int = None,
+    batch_offset: int = 0,
 ) -> List[Dict]:
     """Translate a batch of UI strings via the bridge.
 
     Args:
         strings: List of (key, english_text, context) tuples.
         language: Target language ISO code.
+        parent_job_id: If provided, update this job's progress instead of
+                       creating a new sub-job. batch_offset is the number
+                       of batches already completed in prior languages.
 
     Returns:
         List of dicts: {"key": str, "translation": str, "success": bool}
@@ -210,26 +215,35 @@ def batch_translate(
     all_results = []
     total_batches = (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE
 
-    # Create a bridge job for this batch operation
-    job_id = None
-    try:
-        from ai_bridge.bridge_dispatcher import get_dispatcher
-        dispatcher = get_dispatcher()
-        job_id = dispatcher.create_job(
-            job_type="batch_translate",
-            module_source=MODULE_ID,
-            description=f"Translate {len(strings)} keys to {lang_name}",
-            total_steps=total_batches,
-            capability="translate",
-            metadata={
-                "language": language,
-                "lang_name": lang_name,
-                "total_strings": len(strings),
-                "batch_size": BATCH_SIZE,
-            },
-        )
-    except Exception as e:
-        logger.warning("[Linguistics] Could not create bridge job: %s", e)
+    # If no parent job, create a standalone job for this batch operation
+    job_id = parent_job_id
+    dispatcher = None
+    standalone = job_id is None
+    if standalone:
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+            dispatcher = get_dispatcher()
+            job_id = dispatcher.create_job(
+                job_type="batch_translate",
+                module_source=MODULE_ID,
+                description=f"Translate {len(strings)} keys to {lang_name}",
+                total_steps=total_batches,
+                capability="translate",
+                metadata={
+                    "language": language,
+                    "lang_name": lang_name,
+                    "total_strings": len(strings),
+                    "batch_size": BATCH_SIZE,
+                },
+            )
+        except Exception as e:
+            logger.warning("[Linguistics] Could not create bridge job: %s", e)
+    else:
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+            dispatcher = get_dispatcher()
+        except Exception:
+            pass
 
     total_ok = 0
     total_fail = 0
@@ -289,13 +303,15 @@ def batch_translate(
         )
 
         # Update job progress
-        if job_id:
+        if job_id and dispatcher:
             try:
                 dispatcher.update_job_progress(
                     job_id=job_id,
-                    completed_steps=batch_num,
+                    completed_steps=batch_offset + batch_num,
                     failed_steps=0,
                     metadata_update={
+                        "language": language,
+                        "lang_name": lang_name,
                         "strings_ok": total_ok,
                         "strings_failed": total_fail,
                         "last_batch": batch_num,
@@ -304,10 +320,10 @@ def batch_translate(
             except Exception:
                 pass
 
-    # Complete the job
-    if job_id:
+    # Only complete if this is a standalone job (not part of a parent)
+    if standalone and job_id and dispatcher:
         try:
-            dispatcher.complete_job(job_id)  # auto-determines status from counters
+            dispatcher.complete_job(job_id)
         except Exception:
             pass
 

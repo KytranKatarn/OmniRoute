@@ -85,29 +85,33 @@
         });
       });
 
-      /* Filter jobs to this station (primary + cross-station TO here + contractors here) */
+      /* Filter jobs to this station (primary + cross-station TO here + contractors here)
+       * Cross-station jobs: station_code = agent's home, but module_station or
+       * dispatch_station = the requesting station. Match on either. */
       var stationJobs = [];
       var assists = [];
       var contractors = [];
       if (jobData && jobData.length) {
         jobData.forEach(function(j) {
           var meta = j.metadata || {};
-          if (meta.is_cloud && j.station_code === self.stationCode) {
+          var jobForStation = j.station_code === self.stationCode;
+          var moduleForStation = meta.module_station === self.stationCode || meta.dispatch_station === self.stationCode;
+          if (meta.is_cloud && (jobForStation || moduleForStation)) {
             var cname = j.agent_name || "Cloud";
             var already = contractors.some(function(c) { return c.name === cname; });
             if (!already) {
               contractors.push({ name: cname, cap: meta.capability || j.job_type || "task" });
             }
             stationJobs.push(j);
-          } else if (meta.is_cross_station && j.station_code === self.stationCode) {
+          } else if (meta.is_cross_station && (jobForStation || moduleForStation)) {
             /* Cross-station agent helping THIS station */
             var aname = j.agent_name || "Cross-station agent";
             var already2 = assists.some(function(a) { return a.name === aname; });
             if (!already2) {
-              assists.push({ name: aname, station: meta.agent_station, cap: meta.capability || "assist" });
+              assists.push({ name: aname, station: meta.agent_station || j.station_code, cap: meta.capability || "assist" });
             }
             stationJobs.push(j);
-          } else if (j.station_code === self.stationCode) {
+          } else if (jobForStation) {
             stationJobs.push(j);
           }
         });
@@ -206,7 +210,11 @@
       var seen = {};
       var unique = jobs.filter(function(j) {
         if (seen[j.id]) return false;
-        if (j.station_code && j.station_code !== self.stationCode) return false;
+        var meta = j.metadata || {};
+        var forStation = j.station_code === self.stationCode ||
+          meta.module_station === self.stationCode ||
+          meta.dispatch_station === self.stationCode;
+        if (j.station_code && !forStation) return false;
         seen[j.id] = true;
         return true;
       });
@@ -273,7 +281,8 @@
     }).then(function(data) {
       if (!data.success) return { myJobs: [], allJobs: [] };
       var myJobs = (data.jobs || []).filter(function(j) {
-        return j.module_source === self.moduleSource;
+        return j.module_source === self.moduleSource ||
+          (j.module_source && j.module_source.indexOf(self.moduleSource) === 0);
       });
       return { myJobs: myJobs, allJobs: data.jobs || [] };
     }).catch(function() {

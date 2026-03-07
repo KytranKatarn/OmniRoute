@@ -766,7 +766,13 @@ class BridgeDispatcher:
                 self._module_station_ts = now
             except Exception as e:
                 logger.debug(f"[BridgeDispatcher] Module station cache failed: {e}")
-        return self._module_station_cache.get(module_id.lower().strip())
+        key = module_id.lower().strip()
+        result = self._module_station_cache.get(key)
+        if not result and "_" in key:
+            # Try base module name (e.g. "consciousness_linguistics" → "consciousness")
+            base = key.split("_")[0]
+            result = self._module_station_cache.get(base)
+        return result
 
     def _select_agent(
         self,
@@ -3459,6 +3465,10 @@ class BridgeDispatcher:
             conn = self._get_db()
             cur = conn.cursor()
 
+            # ── Advisory lock to prevent race conditions on concurrent create_job ──
+            lock_key = hash(f"{job_type}:{module_source}") % (2**31)
+            cur.execute("SELECT pg_advisory_xact_lock(%s)", (lock_key,))
+
             # ── Duplicate guard: block if same type+module already running ──
             cur.execute(
                 """
@@ -3471,6 +3481,7 @@ class BridgeDispatcher:
             existing = cur.fetchone()
             if existing:
                 eid = existing[0] if isinstance(existing, (list, tuple)) else existing["id"]
+                conn.rollback()
                 cur.close()
                 conn.close()
                 logger.info(
@@ -3485,21 +3496,11 @@ class BridgeDispatcher:
                 )
                 return None
 
-            # Force-refresh busy agents list (bypass 30s welfare cache TTL)
-            # so we never assign a job to an agent mid-task
-            try:
-                from psycopg2.extras import RealDictCursor
-
-                bconn = self._get_db()
-                bcur = bconn.cursor(cursor_factory=RealDictCursor)
-                bcur.execute(
-                    "SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'"
-                )
-                self._busy_agents = {r["agent_name"] for r in bcur.fetchall()}
-                bcur.close()
-                bconn.close()
-            except Exception as busy_err:
-                logger.debug(f"[BridgeDispatcher] Busy agents refresh failed: {busy_err}")
+            # Force-refresh busy agents from DB (inside advisory lock transaction)
+            cur.execute(
+                "SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'"
+            )
+            self._busy_agents = {r[0] for r in cur.fetchall()}
 
             # Resolve agent name from capability→station→agent mapping (home-first)
             cap_key = capability or job_type.split("_")[0]
@@ -3625,6 +3626,51 @@ class BridgeDispatcher:
                     slot_number = occupancy["primary"] + occupancy["auxiliary"] + 1
             else:
                 slot_number = occupancy["primary"] + 1
+
+            # ── Final DB-level guard: agent must not have another running job ──
+            if agent_name:
+                cur.execute(
+                    """
+                    SELECT id, description FROM bridge_jobs
+                    WHERE agent_name = %s AND status = 'running'
+                    LIMIT 1
+                    """,
+                    (agent_name,),
+                )
+                busy_row = cur.fetchone()
+                if busy_row:
+                    busy_id = busy_row[0]
+                    busy_desc = busy_row[1]
+                    conn.rollback()
+                    cur.close()
+                    conn.close()
+                    logger.warning(
+                        f"[BridgeDispatcher] Agent guard: {agent_name} already running "
+                        f"job #{busy_id} ({busy_desc}) — cannot assign new job"
+                    )
+                    return None
+
+            # ── Station capacity guard: check running jobs at this station ──
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM bridge_jobs
+                WHERE station_code = %s AND status = 'running'
+                """,
+                (station_code,),
+            )
+            station_running = cur.fetchone()[0]
+            max_station = (
+                occupancy.get("max_primary", 2) + occupancy.get("max_auxiliary", 1)
+            )
+            if station_running >= max_station and not occupancy.get("allow_overflow"):
+                conn.rollback()
+                cur.close()
+                conn.close()
+                logger.warning(
+                    f"[BridgeDispatcher] Station guard: {station_code} at capacity "
+                    f"({station_running}/{max_station} running) — job rejected"
+                )
+                return None
 
             cur.execute(
                 """

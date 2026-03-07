@@ -7155,8 +7155,8 @@ def translation_generate_async():
 def _run_translate_bg(languages, module_id, parent_job_id):
     """Background worker: translate missing keys for each language sequentially.
 
-    Creates per-language sub-jobs via batch_translate() for batch-level progress,
-    while updating the parent job for language-level progress.
+    Uses a single bridge job for the entire pipeline. batch_translate() updates
+    the parent job's progress at batch level so only one agent slot is consumed.
     """
     from ai_bridge.bridge_dispatcher import get_dispatcher
 
@@ -7165,41 +7165,84 @@ def _run_translate_bg(languages, module_id, parent_job_id):
     failed_langs = 0
     total_inserted = 0
     total_failed = 0
+    batch_offset = 0  # cumulative batches completed across languages
+
+    # Pre-scan: count total batches across all languages so job has accurate total_steps
+    from ai_bridge.translation_service import BATCH_SIZE
+
+    total_batches = 0
+    lang_strings = {}  # lang -> list of (key, english_text, context)
+    try:
+        for lang in languages:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            module_filter = ""
+            params = [lang]
+            if module_id:
+                module_filter = "AND t1.key LIKE %s"
+                params.append(f"{module_id}.%")
+            cur.execute(
+                f"""
+                SELECT DISTINCT t1.key, t1.text AS english_text, t1.context
+                FROM translations t1
+                WHERE t1.language = 'en'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM translations t2
+                      WHERE t2.key = t1.key AND t2.language = %s
+                  )
+                  {module_filter}
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+            strings = [(r["key"], r["english_text"], r.get("context") or "") for r in rows]
+            lang_strings[lang] = strings
+            total_batches += (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE if strings else 0
+            cur.close()
+            conn.close()
+    except Exception as e:
+        logger.error(f"[TranslateBG] Pre-scan failed: {e}")
+
+    # Update parent job with accurate total
+    if total_batches > 0:
+        try:
+            dispatcher.update_job_progress(
+                job_id=parent_job_id,
+                completed_steps=0,
+                metadata_update={"total_batches": total_batches},
+            )
+            # Also update total_steps in DB directly
+            conn2 = get_db()
+            cur2 = conn2.cursor()
+            cur2.execute(
+                "UPDATE bridge_jobs SET total_steps = %s WHERE id = %s",
+                (total_batches, parent_job_id),
+            )
+            conn2.commit()
+            cur2.close()
+            conn2.close()
+        except Exception:
+            pass
 
     try:
         for lang in languages:
             lang_name = SUPPORTED_LANGUAGES.get(lang, lang)
+            strings = lang_strings.get(lang, [])
             logger.info(
-                f"[TranslateBG] Job #{parent_job_id}: starting {lang_name} " f"({completed_langs + 1}/{len(languages)})"
+                f"[TranslateBG] Job #{parent_job_id}: starting {lang_name} "
+                f"({completed_langs + 1}/{len(languages)}, {len(strings)} keys)"
             )
 
             try:
-                # Fetch untranslated strings for this language
-                conn = get_db()
-                cur = conn.cursor(cursor_factory=RealDictCursor)
-                module_filter = ""
-                params = [lang]
-                if module_id:
-                    module_filter = "AND t1.key LIKE %s"
-                    params.append(f"{module_id}.%")
-                cur.execute(
-                    f"""
-                    SELECT DISTINCT t1.key, t1.text AS english_text, t1.context
-                    FROM translations t1
-                    WHERE t1.language = 'en'
-                      AND NOT EXISTS (
-                          SELECT 1 FROM translations t2
-                          WHERE t2.key = t1.key AND t2.language = %s
-                      )
-                      {module_filter}
-                    """,
-                    params,
-                )
-                rows = cur.fetchall()
-                strings = [(r["key"], r["english_text"], r.get("context") or "") for r in rows]
-
                 if strings:
-                    results = batch_translate(strings, lang)
+                    results = batch_translate(
+                        strings,
+                        lang,
+                        parent_job_id=parent_job_id,
+                        batch_offset=batch_offset,
+                    )
+                    lang_batches = (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE
+                    batch_offset += lang_batches
                     stats = store_translations(results, lang, "qwen3-coder-cpu")
                     total_inserted += stats.get("inserted", 0)
                     total_failed += stats.get("failed", 0)
@@ -7215,26 +7258,6 @@ def _run_translate_bg(languages, module_id, parent_job_id):
             except Exception as lang_err:
                 logger.error(f"[TranslateBG] {lang_name} failed: {lang_err}")
                 failed_langs += 1
-            finally:
-
-                cur.close()
-
-                conn.close()
-
-            # Update parent job progress after each language
-            try:
-                dispatcher.update_job_progress(
-                    job_id=parent_job_id,
-                    completed_steps=completed_langs,
-                    failed_steps=failed_langs,
-                    metadata_update={
-                        "last_language": lang,
-                        "total_inserted": total_inserted,
-                        "total_failed": total_failed,
-                    },
-                )
-            except Exception:
-                pass
 
     except Exception as e:
         logger.error(f"[TranslateBG] Job #{parent_job_id} error: {e}")

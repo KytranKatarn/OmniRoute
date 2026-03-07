@@ -4249,21 +4249,42 @@ body.light-mode .bridge-zone-unstaffed {
 }
 .roster-capacity-track {
     flex: 1;
-    height: 6px;
+    height: 10px;
     background: rgba(255,255,255,0.08);
-    border-radius: 3px;
+    border-radius: 5px;
     overflow: hidden;
-    min-width: 60px;
+    min-width: 80px;
+    display: flex;
+    position: relative;
 }
+.roster-capacity-seg {
+    height: 100%;
+    transition: width 0.3s ease;
+    position: relative;
+}
+.roster-capacity-seg.models { background: #32CD32; }
+.roster-capacity-seg.swap-used { background: #FFD700; }
+.roster-capacity-seg.swap-free { background: rgba(255,215,0,0.2); border-top: 1px dashed rgba(255,215,0,0.5); border-bottom: 1px dashed rgba(255,215,0,0.5); }
+.roster-capacity-seg.host-reserve { background: rgba(255,68,68,0.15); border-top: 1px dashed rgba(255,68,68,0.4); border-bottom: 1px dashed rgba(255,68,68,0.4); }
 .roster-capacity-fill {
     height: 100%;
-    border-radius: 3px;
+    border-radius: 5px;
     transition: width 0.3s ease;
 }
 .roster-capacity-fill.green { background: #32CD32; }
 .roster-capacity-fill.amber { background: #ffaa00; }
 .roster-capacity-fill.red { background: #FF4444; }
 .roster-capacity-label { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.roster-capacity-legend {
+    display: flex; gap: 12px; font-size: 0.6rem; color: var(--archie-text-muted); padding: 3px 0 0 0; width: 100%; justify-content: center;
+}
+.roster-capacity-legend span::before {
+    content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle;
+}
+.roster-capacity-legend .leg-models::before { background: #32CD32; }
+.roster-capacity-legend .leg-swap-used::before { background: #FFD700; }
+.roster-capacity-legend .leg-swap-free::before { background: rgba(255,215,0,0.25); border: 1px dashed rgba(255,215,0,0.5); }
+.roster-capacity-legend .leg-reserve::before { background: rgba(255,68,68,0.2); border: 1px dashed rgba(255,68,68,0.4); }
 
 /* Model picker in agent form */
 .agent-form-model-row {
@@ -4422,9 +4443,31 @@ body.light-mode .bridge-zone-unstaffed {
 }
 
 /* Add Agent resource-gated states */
-.btn-add-agent { transition: opacity 0.2s; }
-.btn-add-agent.amber { border-color: rgba(255,170,0,0.4) !important; color: #ffaa00 !important; background: rgba(255,170,0,0.12) !important; }
-.btn-add-agent.red { opacity: 0.5; cursor: not-allowed !important; border-color: rgba(255,68,68,0.3) !important; color: #FF4444 !important; background: rgba(255,68,68,0.1) !important; }
+/* Fleet mode toggle */
+.btn-fleet-mode {
+    padding: 2px 8px; border-radius: 4px; font-size: 0.6rem; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.15); color: var(--archie-text-muted);
+    background: rgba(255,255,255,0.06); transition: all 0.3s; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.5px; font-weight: 600;
+}
+.btn-fleet-mode .fleet-mode-dot {
+    width: 6px; height: 6px; border-radius: 50%; transition: background 0.3s;
+}
+.btn-fleet-mode.workday { border-color: rgba(0,255,65,0.3); color: #00ff41; background: rgba(0,255,65,0.08); }
+.btn-fleet-mode.workday .fleet-mode-dot { background: #00ff41; box-shadow: 0 0 4px #00ff41; }
+.btn-fleet-mode.weekend { border-color: rgba(255,170,0,0.3); color: #ffaa00; background: rgba(255,170,0,0.08); }
+.btn-fleet-mode.weekend .fleet-mode-dot { background: #ffaa00; box-shadow: 0 0 4px #ffaa00; }
+.btn-fleet-mode.transitioning { opacity: 0.6; pointer-events: none; }
+
+.btn-add-agent {
+    padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; cursor: pointer;
+    background: rgba(0,255,65,0.15); border: 1px solid rgba(0,255,65,0.3); color: #00ff41;
+    transition: all 0.2s; white-space: nowrap;
+}
+.btn-add-agent:hover { background: rgba(0,255,65,0.25); }
+.btn-add-agent.amber { border-color: rgba(255,170,0,0.4); color: #ffaa00; background: rgba(255,170,0,0.12); }
+.btn-add-agent.amber:hover { background: rgba(255,170,0,0.22); }
+.btn-add-agent.red { opacity: 0.6; cursor: not-allowed; border-color: rgba(255,68,68,0.3); color: #FF4444; background: rgba(255,68,68,0.1); }
 
 /* Underutilized agent dim */
 .crew-agent-card.underutilized { border-color: rgba(255,170,0,0.2); opacity: 0.8; }
@@ -8211,7 +8254,8 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                             <i data-lucide="users"></i>
                             <span data-i18n="bridge.crew.active_roster">Active Roster</span>
                             <span class="briefing-card-link" id="crew-manifest-count">-- agents</span>
-                            <button id="btn-add-agent" class="btn-add-agent" onclick="openAgentFormModal()" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;"><span data-i18n="bridge.add_agent">+ Add Agent</span></button>
+                            <button id="btn-fleet-mode" class="btn-fleet-mode workday" onclick="toggleFleetMode()"><span class="fleet-mode-dot"></span><span id="fleet-mode-label">WORKDAY</span></button>
+                            <button id="btn-add-agent" class="btn-add-agent" onclick="openAgentFormModal()"><span data-i18n="bridge.add_agent">+ Add Agent</span></button>
                         </div>
                         <div class="briefing-card-body">
                             <div class="crew-manifest-grid" id="crew-manifest-grid">
@@ -9287,10 +9331,190 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
         </div>
     </div>
 </div>
+<!-- IAAE Capacity Warning Modal -->
+<div class="bm-overlay" id="iaae-capacity-modal" style="--bm-accent:#ffaa00;--bm-accent-rgb:255,170,0;">
+    <div class="bm-shell" style="max-width:480px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-seg purple"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="iaae-capacity-title">IAAE CAPACITY WARNING</span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <button class="bm-close" onclick="closeIaaeCapacityModal()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" style="max-height:60vh;overflow-y:auto;">
+                <div id="iaae-capacity-body" style="font-size:0.8rem;line-height:1.6;color:var(--archie-text-secondary);"></div>
+                <div id="iaae-capacity-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;"></div>
+            </div>
+            <div class="bm-footer">
+                <span class="bm-footer-tag">IAAE GOVERNANCE</span>
+                <span class="bm-footer-dot amber"></span>
+                <span class="bm-footer-dot gold"></span>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// === IAAE Capacity Modal ===
+function showIaaeCapacityModal(level, info) {
+    var modal = document.getElementById('iaae-capacity-modal');
+    var title = document.getElementById('iaae-capacity-title');
+    var body = document.getElementById('iaae-capacity-body');
+    var actions = document.getElementById('iaae-capacity-actions');
+
+    // Fleet mode confirmations
+    if (level === 'fleet-weekend') {
+        modal.style.setProperty('--bm-accent', '#ffaa00');
+        modal.style.setProperty('--bm-accent-rgb', '255,170,0');
+        title.textContent = 'SWITCH TO WEEKEND MODE';
+        body.innerHTML =
+            '<div style="background:rgba(255,170,0,0.1);border:1px solid rgba(255,170,0,0.3);border-radius:6px;padding:12px;margin-bottom:12px;">' +
+            '<strong style="color:#ffaa00;">&#9790; Weekend Mode</strong><br>' +
+            'All LLM models will be unloaded from RAM to free resources.' +
+            '</div>' +
+            '<div style="font-size:0.75rem;color:var(--archie-text-secondary);line-height:1.7;">' +
+            '&#8226; All agents will show as <strong>barracked</strong><br>' +
+            '&#8226; No inference available until workday mode is restored<br>' +
+            '&#8226; ComfyUI image generation unaffected (loads on-demand)<br>' +
+            '&#8226; Frees ~90GB RAM for other tasks' +
+            '</div>';
+        actions.innerHTML =
+            '<button class="bm-btn" onclick="closeIaaeCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
+            '<button class="bm-btn" onclick="executeFleetModeToggle(\'weekend\')" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;">&#9790; Activate Weekend</button>';
+        modal.classList.add('active');
+        return;
+    }
+
+    if (level === 'fleet-workday') {
+        modal.style.setProperty('--bm-accent', '#00ff41');
+        modal.style.setProperty('--bm-accent-rgb', '0,255,65');
+        title.textContent = 'SWITCH TO WORKDAY MODE';
+        body.innerHTML =
+            '<div style="background:rgba(0,255,65,0.1);border:1px solid rgba(0,255,65,0.3);border-radius:6px;padding:12px;margin-bottom:12px;">' +
+            '<strong style="color:#00ff41;">&#9788; Workday Mode</strong><br>' +
+            'All agent LLM models will be warmed up and loaded into RAM.' +
+            '</div>' +
+            '<div style="font-size:0.75rem;color:var(--archie-text-secondary);line-height:1.7;">' +
+            '&#8226; Models load sequentially by dispatch priority<br>' +
+            '&#8226; Stops at 25GB free RAM (host reserve)<br>' +
+            '&#8226; Full warmup takes 2\u20135 minutes<br>' +
+            '&#8226; Agents become available as their model loads' +
+            '</div>';
+        actions.innerHTML =
+            '<button class="bm-btn" onclick="closeIaaeCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
+            '<button class="bm-btn" onclick="executeFleetModeToggle(\'workday\')" style="background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:#00ff41;">&#9788; Activate Workday</button>';
+        modal.classList.add('active');
+        return;
+    }
+
+    modal.style.setProperty('--bm-accent', level === 'red' ? '#FF4444' : '#ffaa00');
+    modal.style.setProperty('--bm-accent-rgb', level === 'red' ? '255,68,68' : '255,170,0');
+    title.textContent = level === 'red' ? 'IAAE POLICY BLOCK' : 'IAAE CAPACITY WARNING';
+
+    if (level === 'red') {
+        body.innerHTML =
+            '<div style="background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.3);border-radius:6px;padding:12px;margin-bottom:12px;">' +
+            '<strong style="color:#FF4444;">&#9888; Cannot add agent</strong><br>' +
+            'RAM host reserve (' + info.reserveGB + 'GB) is being consumed.' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:0.75rem;">' +
+            '<span style="color:var(--archie-text-muted);">Available RAM</span><span>' + info.availableGB + 'GB</span>' +
+            '<span style="color:var(--archie-text-muted);">Host Reserve</span><span style="color:#FF4444;">' + info.reserveGB + 'GB</span>' +
+            '<span style="color:var(--archie-text-muted);">Models Loaded</span><span>' + info.modelsGB + 'GB</span>' +
+            '<span style="color:var(--archie-text-muted);">Swap Buffer</span><span>' + info.swapUsed + '/' + info.swapTotal + 'GB used</span>' +
+            '</div>' +
+            '<div style="margin-top:12px;font-size:0.7rem;color:var(--archie-text-muted);border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;">' +
+            'Remove or barrack an existing agent to free capacity.' +
+            '</div>';
+        actions.innerHTML = '<button class="bm-btn" onclick="closeIaaeCapacityModal()" style="background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.3);color:#FF4444;">Understood</button>';
+    } else {
+        body.innerHTML =
+            '<div style="background:rgba(255,170,0,0.1);border:1px solid rgba(255,170,0,0.3);border-radius:6px;padding:12px;margin-bottom:12px;">' +
+            '<strong style="color:#ffaa00;">&#9888; Limited RAM capacity</strong><br>' +
+            'Swap buffer is partially consumed. New agent must fit in remaining space.' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:0.75rem;">' +
+            '<span style="color:var(--archie-text-muted);">Available RAM</span><span>' + info.availableGB + 'GB</span>' +
+            '<span style="color:var(--archie-text-muted);">Usable (after reserve)</span><span>' + info.usableGB + 'GB</span>' +
+            '<span style="color:var(--archie-text-muted);">Swap Buffer</span><span style="color:#ffaa00;">' + info.swapUsed + '/' + info.swapTotal + 'GB used</span>' +
+            '<span style="color:var(--archie-text-muted);">Swap Remaining</span><span>' + info.swapFree + 'GB</span>' +
+            '</div>' +
+            '<div style="margin-top:12px;font-size:0.7rem;color:var(--archie-text-muted);border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;">' +
+            'New agent LLM must fit within ' + info.swapFree + 'GB swap remaining or use a cloud model.' +
+            '</div>';
+        actions.innerHTML =
+            '<button class="bm-btn" onclick="closeIaaeCapacityModal()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--archie-text-secondary);">Cancel</button>' +
+            '<button class="bm-btn" onclick="closeIaaeCapacityModal();openAgentFormModal();" style="background:rgba(255,170,0,0.15);border:1px solid rgba(255,170,0,0.3);color:#ffaa00;">Continue Anyway</button>';
+    }
+    modal.classList.add('active');
+}
+function closeIaaeCapacityModal() {
+    document.getElementById('iaae-capacity-modal').classList.remove('active');
+}
+
+// === Fleet Mode Toggle (Workday / Weekend) ===
+function updateFleetModeButton(mode) {
+    var btn = document.getElementById('btn-fleet-mode');
+    var lbl = document.getElementById('fleet-mode-label');
+    if (!btn || !lbl) return;
+    btn.classList.remove('workday', 'weekend', 'transitioning');
+    btn.classList.add(mode);
+    lbl.textContent = mode.toUpperCase();
+}
+
+function toggleFleetMode() {
+    var btn = document.getElementById('btn-fleet-mode');
+    var current = btn.classList.contains('weekend') ? 'weekend' : 'workday';
+    var next = current === 'workday' ? 'weekend' : 'workday';
+    var msg = next === 'weekend'
+        ? 'Switch to WEEKEND mode?\n\nAll LLM models will be unloaded from RAM to free resources.\nAgents will show as barracked until workday mode is restored.'
+        : 'Switch to WORKDAY mode?\n\nAll agent LLM models will be warmed up and loaded into RAM.\nThis may take a few minutes.';
+
+    showIaaeCapacityModal(next === 'weekend' ? 'fleet-weekend' : 'fleet-workday', {next: next});
+}
+
+function executeFleetModeToggle(mode) {
+    var btn = document.getElementById('btn-fleet-mode');
+    btn.classList.add('transitioning');
+    document.getElementById('fleet-mode-label').textContent = mode === 'weekend' ? 'UNLOADING...' : 'WARMING UP...';
+    closeIaaeCapacityModal();
+
+    fetch('/tools/bridge/api/bridge/fleet-mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: mode})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            updateFleetModeButton(mode);
+            // Refresh manifest after delay to show changes
+            setTimeout(function() { loadCrewManifest(); }, mode === 'weekend' ? 5000 : 15000);
+        } else {
+            alert('Failed: ' + (data.error || 'unknown'));
+            btn.classList.remove('transitioning');
+        }
+    })
+    .catch(function(err) {
+        alert('Error: ' + err);
+        btn.classList.remove('transitioning');
+    });
+}
+
 // === Mobile Controls Toggle ===
 function toggleBridgeControls() {
     var controls = document.getElementById('bridgeHeaderControls');
@@ -16899,6 +17123,7 @@ async function loadCrewManifest() {
                 if (a.workload) _crewWorkloadMap[a.agent_id || a.id] = a.workload;
             });
             renderCrewManifest(data.crew || [], data.capacity || null);
+            if (data.fleet_mode) updateFleetModeButton(data.fleet_mode);
         }
     } catch (e) {
         // Silently fail — crew manifest is supplementary
@@ -16950,10 +17175,11 @@ function renderCrewManifest(crew, capacity) {
         capWrap.id = capBarId;
         capWrap.style.cssText = 'margin-bottom: 6px;';
 
-        // GPU / VRAM section
+        // GPU / VRAM section — segmented bar
         if (gpuCap) {
             var gpuBar = document.createElement('div');
             gpuBar.className = 'roster-capacity-bar';
+            gpuBar.style.flexWrap = 'wrap';
 
             var gpuLbl = document.createElement('span');
             gpuLbl.className = 'roster-capacity-label';
@@ -16961,94 +17187,173 @@ function renderCrewManifest(crew, capacity) {
             gpuLbl.textContent = '\u26A1 GPU';
             gpuBar.appendChild(gpuLbl);
 
+            var vramTotal = gpuCap.vram_total_gb || 8.0;
+            var ollamaGpuModels = gpuCap.models || [];
+            var ollamaVram = ollamaGpuModels.reduce(function(s, m) { return s + (m.vram_gb || 0); }, 0);
+            var comfyVram = gpuCap.comfyui_vram_gb || 0;
+            var comfyStatus = gpuCap.comfyui_status || 'idle';
+            var gpuFreeVram = Math.max(0, vramTotal - ollamaVram - comfyVram);
+
             var gpuTrack = document.createElement('div');
             gpuTrack.className = 'roster-capacity-track';
-            var gpuFill = document.createElement('div');
-            gpuFill.className = 'roster-capacity-fill ' + gpuCap.status;
-            gpuFill.style.width = Math.min(gpuCap.usage_pct, 100) + '%';
-            gpuTrack.appendChild(gpuFill);
+
+            // Segment: Ollama GPU models (green)
+            if (ollamaVram > 0) {
+                var gSeg1 = document.createElement('div');
+                gSeg1.className = 'roster-capacity-seg models';
+                gSeg1.style.width = ((ollamaVram / vramTotal) * 100).toFixed(1) + '%';
+                gSeg1.title = 'Ollama GPU: ' + ollamaVram.toFixed(1) + 'GB';
+                gpuTrack.appendChild(gSeg1);
+            }
+
+            // Segment: ComfyUI (purple)
+            if (comfyVram > 0) {
+                var gSeg2 = document.createElement('div');
+                gSeg2.className = 'roster-capacity-seg';
+                gSeg2.style.background = '#8b5cf6';
+                gSeg2.style.width = ((comfyVram / vramTotal) * 100).toFixed(1) + '%';
+                gSeg2.title = 'ComfyUI: ' + comfyVram.toFixed(1) + 'GB';
+                gpuTrack.appendChild(gSeg2);
+            }
+
+            // Segment: ComfyUI idle reservation (dashed purple — shows it's available but reserved)
+            if (comfyStatus === 'idle') {
+                var baseVram = Math.max(0, gpuCap.vram_used_gb - ollamaVram - comfyVram);
+                if (baseVram > 0.3) {
+                    var gSeg2b = document.createElement('div');
+                    gSeg2b.className = 'roster-capacity-seg';
+                    gSeg2b.style.background = 'rgba(139,92,246,0.2)';
+                    gSeg2b.style.borderTop = '1px dashed rgba(139,92,246,0.5)';
+                    gSeg2b.style.borderBottom = '1px dashed rgba(139,92,246,0.5)';
+                    gSeg2b.style.width = ((baseVram / vramTotal) * 100).toFixed(1) + '%';
+                    gSeg2b.title = 'ComfyUI base: ' + baseVram.toFixed(1) + 'GB (idle)';
+                    gpuTrack.appendChild(gSeg2b);
+                }
+            }
+
             gpuBar.appendChild(gpuTrack);
 
+            // Compact label
             var gpuPct = document.createElement('span');
             gpuPct.className = 'roster-capacity-label';
-            gpuPct.textContent = gpuCap.vram_used_gb + '/' + gpuCap.vram_total_gb + 'GB';
+            gpuPct.textContent = gpuCap.vram_used_gb + '/' + vramTotal + 'GB';
             gpuBar.appendChild(gpuPct);
 
-            // Show GPU model count + names (matches CPU format)
-            var gpuModels = gpuCap.models || [];
-            // Also count GPU tool models (ComfyUI) from crew
-            var gpuToolModels = [];
-            (crew || []).forEach(function(a) {
-                (a.gpu_tools || []).forEach(function(t) {
-                    if (t.model && gpuToolModels.indexOf(t.model) === -1) {
-                        gpuToolModels.push(t.model);
-                    }
-                });
-            });
-            var totalGpuModels = gpuModels.length + gpuToolModels.length;
-            var totalGpuGB = gpuModels.reduce(function(sum, m) { return sum + m.vram_gb; }, 0);
-
-            var gpuModelsLbl = document.createElement('span');
-            gpuModelsLbl.className = 'roster-capacity-label';
-            gpuModelsLbl.style.color = '#32CD32';
-            var gpuModelNames = gpuModels.map(function(m) { return m.name + ' (' + m.vram_gb + 'GB)'; });
-            gpuToolModels.forEach(function(tm) {
-                var shortName = tm.replace('.safetensors', '').replace('.ckpt', '');
-                gpuModelNames.push(shortName + ' (ComfyUI)');
-            });
-            gpuModelsLbl.textContent = totalGpuModels + ' model' + (totalGpuModels !== 1 ? 's' : '') +
-                (totalGpuGB > 0 ? ', ' + totalGpuGB.toFixed(0) + 'GB' : '') +
-                (gpuModelNames.length > 0 ? ' \u2014 ' + gpuModelNames.join(', ') : '');
-            gpuBar.appendChild(gpuModelsLbl);
+            // Legend row
+            var gpuLegend = document.createElement('div');
+            gpuLegend.className = 'roster-capacity-legend';
+            var legendParts = [];
+            if (ollamaVram > 0) legendParts.push('<span class="leg-models">' + ollamaVram.toFixed(1) + 'GB Ollama</span>');
+            legendParts.push('<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + (comfyVram > 0 ? '#8b5cf6' : 'rgba(139,92,246,0.25)') + ';margin-right:3px;vertical-align:middle;' + (comfyVram > 0 ? '' : 'border:1px dashed rgba(139,92,246,0.5);') + '"></span>ComfyUI ' + (comfyStatus === 'loaded' ? comfyVram.toFixed(1) + 'GB active' : 'idle') + '</span>');
+            legendParts.push('<span style="color:var(--archie-text-muted);">' + gpuFreeVram.toFixed(1) + 'GB free</span>');
+            gpuLegend.innerHTML = legendParts.join('');
+            gpuBar.appendChild(gpuLegend);
 
             capWrap.appendChild(gpuBar);
         }
 
-        // CPU / RAM section
+        // CPU / RAM section — segmented bar
         var cpuBar = document.createElement('div');
         cpuBar.className = 'roster-capacity-bar';
+        cpuBar.style.flexWrap = 'wrap';
 
         var cpuLbl = document.createElement('span');
         cpuLbl.className = 'roster-capacity-label';
         cpuLbl.style.fontWeight = '600';
-        cpuLbl.textContent = '\uD83D\uDCBB CPU';
+        cpuLbl.textContent = '\uD83D\uDCBB RAM';
         cpuBar.appendChild(cpuLbl);
+
+        // Calculate segments as % of total RAM
+        var totalGB = ram.total_gb || 1;
+        var modelsGB = capacity.models_ram_gb || 0;
+        var swapTotal = ram.swap_buffer_gb || 0;
+        var agentBudget = ram.agent_budget_gb || 0;
+        var swapUsed = Math.max(0, Math.round((modelsGB - agentBudget) * 10) / 10);
+        var swapFree = Math.max(0, Math.round((swapTotal - swapUsed) * 10) / 10);
+        var reserveGB = ram.reserve_gb || 0;
+        // Models segment = min(modelsGB, agentBudget) — what fits in agent budget
+        var modelsSeg = Math.min(modelsGB, agentBudget);
 
         var cpuTrack = document.createElement('div');
         cpuTrack.className = 'roster-capacity-track';
-        var cpuFill = document.createElement('div');
-        cpuFill.className = 'roster-capacity-fill ' + ram.status;
-        cpuFill.style.width = Math.min(ram.usage_pct || 0, 100) + '%';
-        cpuTrack.appendChild(cpuFill);
+
+        // Segment 1: Loaded models (green)
+        var seg1 = document.createElement('div');
+        seg1.className = 'roster-capacity-seg models';
+        seg1.style.width = ((modelsSeg / totalGB) * 100).toFixed(1) + '%';
+        seg1.title = 'Loaded models: ' + modelsSeg.toFixed(0) + 'GB';
+        cpuTrack.appendChild(seg1);
+
+        // Segment 2: Swap used (solid yellow)
+        if (swapUsed > 0) {
+            var seg2 = document.createElement('div');
+            seg2.className = 'roster-capacity-seg swap-used';
+            seg2.style.width = ((swapUsed / totalGB) * 100).toFixed(1) + '%';
+            seg2.title = 'Swap used: ' + swapUsed.toFixed(1) + 'GB';
+            cpuTrack.appendChild(seg2);
+        }
+
+        // Segment 3: Swap free (dashed yellow)
+        if (swapFree > 0) {
+            var seg3 = document.createElement('div');
+            seg3.className = 'roster-capacity-seg swap-free';
+            seg3.style.width = ((swapFree / totalGB) * 100).toFixed(1) + '%';
+            seg3.title = 'Swap available: ' + swapFree.toFixed(1) + 'GB';
+            cpuTrack.appendChild(seg3);
+        }
+
+        // Segment 4: Host reserve (dashed red)
+        if (reserveGB > 0) {
+            var seg4 = document.createElement('div');
+            seg4.className = 'roster-capacity-seg host-reserve';
+            seg4.style.width = ((reserveGB / totalGB) * 100).toFixed(1) + '%';
+            seg4.title = 'Host reserve: ' + reserveGB + 'GB';
+            cpuTrack.appendChild(seg4);
+        }
+
         cpuBar.appendChild(cpuTrack);
 
+        // Compact size label
         var cpuPct = document.createElement('span');
         cpuPct.className = 'roster-capacity-label';
-        cpuPct.textContent = (ram.usage_pct || 0) + '% \u2014 ' + (ram.available_gb || 0) + 'GB free';
+        cpuPct.textContent = modelsGB.toFixed(0) + '/' + totalGB.toFixed(0) + 'GB';
         cpuBar.appendChild(cpuPct);
 
-        var cpuModelsLbl = document.createElement('span');
-        cpuModelsLbl.className = 'roster-capacity-label';
-        cpuModelsLbl.style.color = 'var(--archie-text-secondary)';
-        cpuModelsLbl.textContent = cpuModelList.length + ' models, ' + cpuModelList.reduce(function(sum, m) { return sum + m.size_gb; }, 0).toFixed(0) + 'GB';
-        cpuBar.appendChild(cpuModelsLbl);
+        // Color legend (second row)
+        var legend = document.createElement('div');
+        legend.className = 'roster-capacity-legend';
+        legend.innerHTML = '<span class="leg-models">' + modelsSeg.toFixed(0) + 'GB models</span>'
+            + '<span class="leg-swap-used">' + swapUsed.toFixed(1) + 'GB swap used</span>'
+            + '<span class="leg-swap-free">' + swapFree.toFixed(1) + 'GB swap free</span>'
+            + '<span class="leg-reserve">' + reserveGB + 'GB reserve</span>';
+        cpuBar.appendChild(legend);
 
         capWrap.appendChild(cpuBar);
         grid.parentNode.insertBefore(capWrap, grid);
 
-        // Gate the Add Agent button
+        // Gate the Add Agent button based on RAM budget + IAAE policy
         var addBtn = document.getElementById('btn-add-agent');
         if (addBtn) {
             addBtn.classList.remove('amber', 'red');
             addBtn.removeAttribute('title');
+            var usableGB = Math.max(0, (ram.available_gb || 0) - reserveGB);
+            var _capInfo = {
+                availableGB: (ram.available_gb || 0).toFixed(1),
+                reserveGB: reserveGB,
+                modelsGB: modelsGB.toFixed(0),
+                usableGB: usableGB.toFixed(1),
+                swapUsed: swapUsed.toFixed(1),
+                swapTotal: swapTotal,
+                swapFree: swapFree.toFixed(1)
+            };
             if (ram.status === 'red') {
                 addBtn.classList.add('red');
-                addBtn.title = 'No capacity \u2014 less than ' + ram.reserve_gb + 'GB free';
-                addBtn.onclick = function(e) { e.preventDefault(); alert('Cannot add agent: less than ' + ram.reserve_gb + 'GB RAM available (' + ram.available_gb + 'GB free)'); };
+                addBtn.title = 'IAAE Policy: RAM reserve breached';
+                addBtn.onclick = function(e) { e.preventDefault(); showIaaeCapacityModal('red', _capInfo); };
             } else if (ram.status === 'amber') {
                 addBtn.classList.add('amber');
-                addBtn.title = 'Limited RAM \u2014 ' + ram.available_gb + 'GB free';
-                addBtn.onclick = function() { openAgentFormModal(); };
+                addBtn.title = 'Limited capacity \u2014 ' + usableGB.toFixed(1) + 'GB usable';
+                addBtn.onclick = function(e) { e.preventDefault(); showIaaeCapacityModal('amber', _capInfo); };
             } else {
                 addBtn.onclick = function() { openAgentFormModal(); };
             }
@@ -17354,7 +17659,11 @@ function renderCrewManifest(crew, capacity) {
     }
 
     if (swapAgents.length > 0) {
-        _addRosterDivider('\u23F3', 'Swap \u2014 On-Demand (' + (capacity && capacity.ram ? capacity.ram.swap_buffer_gb : '~10') + 'GB buffer)', swapAgents.length, 'swap');
+        var _swapTotal = (capacity && capacity.ram) ? capacity.ram.swap_buffer_gb : 0;
+        var _swapUsed = Math.max(0, (capacity ? capacity.models_ram_gb || 0 : 0) - ((capacity && capacity.ram) ? capacity.ram.agent_budget_gb || 0 : 0));
+        _swapUsed = Math.round(_swapUsed * 10) / 10;
+        var _swapFree = Math.max(0, Math.round((_swapTotal - _swapUsed) * 10) / 10);
+        _addRosterDivider('\u23F3', 'Swap \u2014 On-Demand (' + _swapFree + '/' + _swapTotal + 'GB free)', swapAgents.length, 'swap');
         swapAgents.forEach(_renderAgentCard);
     }
 

@@ -169,10 +169,35 @@ def _get_cached_hw_capacity():
             "models": gpu_models,
         }
 
+    # ComfyUI VRAM usage (loads SDXL on-demand, torch_vram_total > 0 when active)
+    comfyui_vram_gb = 0
+    comfyui_status = "idle"
+    try:
+        comfyui_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
+        _cfu_resp = requests.get(f"{comfyui_host}/system_stats", timeout=3)
+        if _cfu_resp.status_code == 200:
+            for dev in _cfu_resp.json().get("devices", []):
+                if dev.get("type") == "cuda":
+                    torch_vram = dev.get("torch_vram_total", 0)
+                    comfyui_vram_gb = round(torch_vram / (1024**3), 1)
+                    comfyui_status = "loaded" if torch_vram > 0 else "idle"
+    except Exception:
+        pass
+    if gpu_info:
+        gpu_info["comfyui_vram_gb"] = comfyui_vram_gb
+        gpu_info["comfyui_status"] = comfyui_status
+
     llm_budget_gb = round(total_gb * 0.80, 1)  # 80% for LLM
     agent_budget_gb = round(llm_budget_gb * 0.90, 1)  # 90% of LLM budget
     swap_buffer_gb = round(llm_budget_gb * 0.10, 1)  # 10% swap buffer
-    ram_status = "green" if available_gb > reserve_gb else ("amber" if available_gb >= reserve_gb * 0.6 else "red")
+    # Status: red if eating into reserve, amber if swap buffer is depleted, green if within agent budget
+    swap_used_gb = max(0, models_ram_gb - agent_budget_gb)
+    if available_gb <= reserve_gb:
+        ram_status = "red"
+    elif swap_used_gb >= swap_buffer_gb or available_gb <= reserve_gb + swap_buffer_gb:
+        ram_status = "amber"
+    else:
+        ram_status = "green"
 
     capacity = {
         "ram": {
@@ -6674,12 +6699,93 @@ def get_crew_manifest():
             wl = workload_map.get(member.get("agent_id") or member.get("id"), {})
             member["workload"] = wl
 
-        resp = {"success": True, "crew": manifest, "total": len(manifest)}
+        # Get fleet mode (workday/weekend)
+        fleet_mode = "workday"
+        try:
+            with get_db_cursor(commit=False) as (_fconn, _fcur):
+                _fcur.execute("SELECT value FROM system_config WHERE key = 'fleet_mode'")
+                _frow = _fcur.fetchone()
+                if _frow:
+                    fleet_mode = _frow["value"]
+        except Exception:
+            pass
+
+        resp = {"success": True, "crew": manifest, "total": len(manifest), "fleet_mode": fleet_mode}
         if capacity:
             resp["capacity"] = capacity
         return jsonify(resp)
     except Exception as e:
         logger.error(f"Error getting crew manifest: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/bridge/fleet-mode", methods=["POST"])
+@login_required
+def toggle_fleet_mode():
+    """Toggle between workday (all models warm) and weekend (all unloaded).
+
+    Body: { "mode": "workday"|"weekend" }
+    """
+    try:
+        if not current_user.is_admin:
+            return jsonify({"success": False, "error": "Admin access required"}), 403
+
+        data = request.get_json() or {}
+        mode = data.get("mode", "").strip().lower()
+        if mode not in ("workday", "weekend"):
+            return jsonify({"success": False, "error": "mode must be 'workday' or 'weekend'"}), 400
+
+        # Save to system_config
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO system_config (key, value, description, updated_at)
+                   VALUES ('fleet_mode', %s, 'Fleet operating mode: workday (warm) or weekend (unloaded)', NOW())
+                   ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()""",
+                (mode, mode),
+            )
+
+        _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+        _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+        ollama_url = f"http://{_ollama_host}:{_ollama_port}"
+
+        import threading
+
+        if mode == "weekend":
+            # Unload all models (keep_alive: 0)
+            def _unload_all():
+                try:
+                    ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
+                    if ps_resp.status_code == 200:
+                        for m in ps_resp.json().get("models", []):
+                            mname = m.get("name", "")
+                            requests.post(
+                                f"{ollama_url}/api/generate",
+                                json={"model": mname, "keep_alive": 0},
+                                timeout=30,
+                            )
+                            logger.info(f"[FleetMode] Weekend: unloaded {mname}")
+                except Exception as e:
+                    logger.error(f"[FleetMode] Weekend unload error: {e}")
+
+            t = threading.Thread(target=_unload_all, daemon=True, name="fleet-weekend")
+            t.start()
+            return jsonify({"success": True, "mode": "weekend", "message": "Unloading all models..."})
+        else:
+            # Workday: trigger warmup
+            def _warmup():
+                try:
+                    from app import _warmup_ollama_models
+
+                    _warmup_ollama_models()
+                except Exception as e:
+                    logger.error(f"[FleetMode] Workday warmup error: {e}")
+
+            t = threading.Thread(target=_warmup, daemon=True, name="fleet-workday")
+            t.start()
+            return jsonify({"success": True, "mode": "workday", "message": "Warming up all models..."})
+
+    except Exception as e:
+        logger.error(f"Error toggling fleet mode: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

@@ -2016,7 +2016,7 @@ def _warmup_ollama_models():
         import requests as req
         import psutil
 
-        ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+        ollama_host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
         if not ollama_host.startswith("http"):
             ollama_host = f"http://{ollama_host}"
 
@@ -2091,7 +2091,21 @@ def _warmup_ollama_models():
     t.start()
 
 
-_warmup_ollama_models()
+# Check fleet mode before warming up — skip if weekend mode
+_fleet_mode = "workday"
+try:
+    with get_db_cursor(commit=False) as (_fm_conn, _fm_cur):
+        _fm_cur.execute("SELECT value FROM system_config WHERE key = 'fleet_mode'")
+        _fm_row = _fm_cur.fetchone()
+        if _fm_row:
+            _fleet_mode = _fm_row["value"]
+except Exception:
+    pass
+
+if _fleet_mode == "weekend":
+    logger.info("Fleet mode: WEEKEND — skipping Ollama warmup (models stay unloaded)")
+else:
+    _warmup_ollama_models()
 
 
 # ============================================================================
@@ -3648,7 +3662,7 @@ def init_consciousness_scheduler(flask_app):
             import requests as req
             import psutil
 
-            ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+            ollama_host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
             if not ollama_host.startswith("http"):
                 ollama_host = f"http://{ollama_host}"
 

@@ -534,7 +534,8 @@ def get_stations():
                                    'title', a.title,
                                    'avatar_url', a.avatar_url,
                                    'model', a.model,
-                                   'assignment_type', sa.assignment_type
+                                   'assignment_type', sa.assignment_type,
+                                   'status', a.status
                                ) ORDER BY sa.priority
                            ) FILTER (WHERE a.id IS NOT NULL),
                            '[]'::json
@@ -543,7 +544,7 @@ def get_stations():
                 LEFT JOIN station_assignments sa
                     ON sa.station_id = bs.id AND sa.is_active = TRUE
                 LEFT JOIN agents a
-                    ON sa.agent_id = a.id AND a.status = 'active'
+                    ON sa.agent_id = a.id
                 WHERE bs.is_active = TRUE
                 GROUP BY bs.id, bs.station_code, bs.station_name, bs.full_name,
                          bs.description, bs.color, bs.icon, bs.default_llm,
@@ -1157,6 +1158,28 @@ def assign_agent_to_station(agent_id):
 
             station_id = station["id"]
 
+            # Block: agent must be active (not paused, resting, etc.)
+            cur.execute(
+                "SELECT name, status FROM agents WHERE id = %s",
+                (agent_id,),
+            )
+            agent_row = cur.fetchone()
+            if not agent_row:
+                return jsonify({"success": False, "error": "Agent not found"}), 404
+            if agent_row["status"] != "active":
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": (
+                                f"{agent_row['name']} is {agent_row['status']} "
+                                f"— only active agents can be assigned to stations"
+                            ),
+                        }
+                    ),
+                    400,
+                )
+
             # Block: cannot reassign fixed agents (ARCHIE, Vigil at COMMAND)
             cur.execute(
                 "SELECT bs.station_code FROM station_assignments sa "
@@ -1678,7 +1701,81 @@ def request_station_support(station_code):
                     404,
                 )
 
-            # Step 2: Check if additional_support slot is already filled
+            # Step 2: Enforce 3-slot model (Primary + Secondary + 1 Auxiliary)
+            # Rule: Primary + Secondary must be filled before auxiliary is allowed
+            cur.execute(
+                "SELECT max_primary, max_auxiliary FROM bridge_stations WHERE id = %s",
+                (station["id"],),
+            )
+            limits = cur.fetchone()
+            max_primary = limits["max_primary"] if limits else 2
+            max_aux = limits["max_auxiliary"] if limits else 1
+
+            cur.execute(
+                """
+                SELECT COUNT(*) as cnt FROM station_assignments
+                WHERE station_id = %s AND assignment_type = 'primary' AND is_active = TRUE
+            """,
+                (station["id"],),
+            )
+            primary_count = cur.fetchone()["cnt"]
+            if primary_count < max_primary:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": (
+                                f"Station has {primary_count}/{max_primary} primary crew. "
+                                f"Primary + Secondary must be filled before auxiliary support."
+                            ),
+                            "slot_status": "primary_incomplete",
+                        }
+                    ),
+                    400,
+                )
+
+            # Count ALL auxiliary-type assignments (auxiliary + additional_support)
+            cur.execute(
+                """
+                SELECT COUNT(*) as cnt FROM station_assignments
+                WHERE station_id = %s
+                AND assignment_type IN ('auxiliary', 'additional_support', 'backup', 'relief')
+                AND is_active = TRUE
+            """,
+                (station["id"],),
+            )
+            current_aux = cur.fetchone()["cnt"]
+
+            # Also count running cross-station jobs targeting this station
+            cur.execute(
+                """
+                SELECT COUNT(*) as cnt FROM bridge_jobs
+                WHERE status = 'running'
+                AND metadata->>'is_cross_station' = 'true'
+                AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
+                AND (
+                    metadata->>'module_station' = %s
+                    OR metadata->>'dispatch_station' = %s
+                )
+            """,
+                (station_code.upper(), station_code.upper()),
+            )
+            cross_station_aux = cur.fetchone()["cnt"]
+            total_aux = current_aux + cross_station_aux
+
+            if total_aux >= max_aux:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "message": f"Station at max auxiliary capacity ({total_aux}/{max_aux})",
+                            "slot_status": "aux_full",
+                        }
+                    ),
+                    400,
+                )
+
+            # Step 2b: Check if additional_support slot is already filled
             cur.execute(
                 """
                 SELECT a.id, a.name, a.model, a.tier, a.title
@@ -8670,11 +8767,68 @@ def agent_profile(agent_id):
                 if m.get("created_at"):
                     m["created_at"] = m["created_at"].isoformat()
 
+            # Voice profile (active)
+            cur.execute(
+                """
+                SELECT profile_name, engine, language, speaker
+                FROM agent_voice_profiles
+                WHERE agent_id = %s AND is_active = true
+                LIMIT 1
+            """,
+                (agent_id,),
+            )
+            voice = cur.fetchone()
+
+            # Emotional history (last 10 entries)
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, energy_level, stress_level,
+                       trigger_event, timestamp
+                FROM agent_emotional_state
+                WHERE agent_id = %s ORDER BY timestamp DESC LIMIT 10
+            """,
+                (agent_id,),
+            )
+            emotional_history = cur.fetchall()
+            for eh in emotional_history:
+                if eh.get("timestamp"):
+                    eh["timestamp"] = eh["timestamp"].isoformat()
+
+            # Identity traits
+            cur.execute(
+                """
+                SELECT identity_key, identity_value, confidence
+                FROM agent_identity WHERE agent_id = %s ORDER BY identity_key
+            """,
+                (agent_id,),
+            )
+            identity = cur.fetchall()
+
+            # Rest cycles (last 5)
+            cur.execute(
+                """
+                SELECT rest_type, started_at, ended_at, reason,
+                       stress_at_start, energy_at_start
+                FROM agent_rest_cycles WHERE agent_id = %s
+                ORDER BY started_at DESC LIMIT 5
+            """,
+                (agent_id,),
+            )
+            rest_cycles = cur.fetchall()
+            for rc in rest_cycles:
+                for k in ["started_at", "ended_at"]:
+                    if rc.get(k):
+                        rc[k] = rc[k].isoformat()
+
             result = {
                 "success": True,
                 "agent": agent,
                 "skills": skills,
                 "emotional_state": emotional,
+                "emotional_history": emotional_history,
+                "identity": identity,
+                "voice": voice,
+                "rest_cycles": rest_cycles,
                 "performance_24h": {
                     "tasks": perf["tasks_24h"],
                     "completed": perf["completed"],

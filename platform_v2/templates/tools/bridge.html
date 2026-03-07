@@ -4122,6 +4122,7 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-status-badge.working { background: rgba(0,206,209,0.15); color: #00CED1; }
 .crew-status-badge.resting { background: rgba(255,215,0,0.15); color: #FFD700; }
 .crew-status-badge.offline { background: rgba(255,68,68,0.15); color: #FF4444; }
+.crew-status-badge.paused { background: rgba(255,165,0,0.15); color: #FFA500; }
 
 .crew-agent-meta {
     font-size: 0.65rem;
@@ -13732,27 +13733,74 @@ function renderCrewTab(agents, stationColor, maxPrimary, maxAuxiliary) {
         panel.appendChild(jobBanner);
     }
 
-    // -- Assigned Crew --
-    if (!agents || agents.length === 0) {
-        var emptyEl = document.createElement('div');
-        emptyEl.className = 'lcars-empty';
-        emptyEl.textContent = 'No crew assigned to this station';
-        panel.appendChild(emptyEl);
-    } else {
+    // -- Assigned Crew: all station_assignments are station crew (Primary/Secondary by position)
+    // Only additional_support (temporary helpers) are separated out
+    var stationCrew = [];
+    var dbAuxAgents = [];
+    if (agents && agents.length) {
+        for (var si = 0; si < agents.length; si++) {
+            var atype = (agents[si].assignment_type || 'primary').toLowerCase();
+            if (atype === 'additional_support') {
+                dbAuxAgents.push(agents[si]);
+            } else {
+                stationCrew.push(agents[si]);
+            }
+        }
+    }
+
+    // Always show all slots (Primary, Secondary, Auxiliary)
+    {
         var label = document.createElement('div');
         label.className = 'lcars-section-label';
-        label.textContent = 'ASSIGNED CREW (' + agents.length + '/' + (maxPrimary || 2) + ')';
+        label.textContent = 'STATION CREW (' + stationCrew.length + '/' + (maxPrimary || 2) + ')';
         panel.appendChild(label);
 
-        for (var i = 0; i < agents.length; i++) {
-            var agent = agents[i];
+        var slotNames = ['PRIMARY', 'SECONDARY'];
+        var slotStyles = [
+            'background:rgba(16,185,129,0.15);color:#10b981;border-color:rgba(16,185,129,0.3);',
+            'background:rgba(59,130,246,0.15);color:#3b82f6;border-color:rgba(59,130,246,0.3);'
+        ];
+
+        for (var i = 0; i < (maxPrimary || 2); i++) {
+            var agent = stationCrew[i];
+
+            if (!agent) {
+                // Empty slot placeholder
+                var emptyRow = document.createElement('div');
+                emptyRow.className = 'lcars-crew-row';
+                emptyRow.style.cssText = 'opacity:0.3;';
+
+                var emptyAvatar = document.createElement('div');
+                emptyAvatar.className = 'lcars-crew-avatar';
+                emptyAvatar.style.cssText = 'background:rgba(255,255,255,0.05);border:1px dashed rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:rgba(255,255,255,0.2);';
+                emptyAvatar.textContent = '?';
+                emptyRow.appendChild(emptyAvatar);
+
+                var emptyInfo = document.createElement('div');
+                emptyInfo.style.cssText = 'flex:1;min-width:0;';
+                var emptyName = document.createElement('div');
+                emptyName.className = 'lcars-crew-name';
+                emptyName.style.fontStyle = 'italic';
+                emptyName.textContent = '— vacant —';
+                emptyInfo.appendChild(emptyName);
+                emptyRow.appendChild(emptyInfo);
+
+                var emptyBadge = document.createElement('span');
+                emptyBadge.className = 'lcars-role-badge';
+                emptyBadge.style.cssText = slotStyles[i] || slotStyles[1];
+                emptyBadge.textContent = slotNames[i] || ('CREW ' + (i + 1));
+                emptyRow.appendChild(emptyBadge);
+
+                panel.appendChild(emptyRow);
+                continue;
+            }
             var awayInfo = awayAgentMap[(agent.name || '').toLowerCase()];
             var isAway = !!awayInfo;
 
+            var isPaused = agent.status && agent.status !== 'active';
             var row = document.createElement('div');
             row.className = 'lcars-crew-row';
-            if (isAway) row.style.opacity = '0.4';
-            if (isAway) row.style.filter = 'grayscale(0.7)';
+            if (isAway || isPaused) { row.style.opacity = '0.4'; row.style.filter = 'grayscale(0.7)'; }
 
             var avatarUrl = agent.avatar_url || ('https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(agent.name || 'agent'));
             var img = document.createElement('img');
@@ -13808,20 +13856,77 @@ function renderCrewTab(agents, stationColor, maxPrimary, maxAuxiliary) {
 
             row.appendChild(info);
 
-            if (isAway) {
+            if (isPaused) {
+                var pausedBadge = document.createElement('span');
+                pausedBadge.className = 'lcars-role-badge';
+                pausedBadge.style.cssText = 'background:rgba(255,165,0,0.15);color:#FFA500;border-color:rgba(255,165,0,0.3);';
+                pausedBadge.textContent = (agent.status || 'PAUSED').toUpperCase();
+                row.appendChild(pausedBadge);
+            } else if (isAway) {
                 var awayBadge = document.createElement('span');
                 awayBadge.className = 'lcars-role-badge';
                 awayBadge.style.cssText = 'background:rgba(245,158,11,0.15);color:#F59E0B;border-color:rgba(245,158,11,0.3);';
                 awayBadge.textContent = 'AWAY';
                 row.appendChild(awayBadge);
-            } else if (agent.assignment_type) {
-                var badge = document.createElement('span');
-                badge.className = 'lcars-role-badge';
-                badge.textContent = agent.assignment_type.toUpperCase();
-                row.appendChild(badge);
+            } else {
+                // Label: 1st crew member = PRIMARY, 2nd = SECONDARY
+                var roleBadge = document.createElement('span');
+                roleBadge.className = 'lcars-role-badge';
+                roleBadge.style.cssText = slotStyles[i] || slotStyles[1];
+                roleBadge.textContent = slotNames[i] || ('CREW ' + (i + 1));
+                row.appendChild(roleBadge);
             }
 
             panel.appendChild(row);
+        }
+    }
+
+    // -- DB-assigned auxiliary agents (separate from cross-station helpers) --
+    if (dbAuxAgents.length > 0) {
+        var dbAuxLabel = document.createElement('div');
+        dbAuxLabel.className = 'lcars-section-label';
+        dbAuxLabel.style.cssText = 'margin-top:12px;color:#a78bfa;';
+        dbAuxLabel.textContent = 'ASSIGNED AUXILIARY (' + dbAuxAgents.length + ')';
+        panel.appendChild(dbAuxLabel);
+
+        for (var di = 0; di < dbAuxAgents.length; di++) {
+            var dAgent = dbAuxAgents[di];
+            var dRow = document.createElement('div');
+            dRow.className = 'lcars-crew-row';
+            dRow.style.opacity = '0.7';
+
+            var dAvatarUrl = dAgent.avatar_url || ('https://api.dicebear.com/7.x/bottts/svg?seed=' + encodeURIComponent(dAgent.name || 'agent'));
+            var dImg = document.createElement('img');
+            dImg.className = 'lcars-crew-avatar';
+            dImg.src = dAvatarUrl;
+            dImg.alt = dAgent.name || '';
+            dImg.onerror = function() { this.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=fallback'; };
+            dRow.appendChild(dImg);
+
+            var dInfo = document.createElement('div');
+            dInfo.style.cssText = 'flex:1;min-width:0;';
+
+            var dName = document.createElement('div');
+            dName.className = 'lcars-crew-name';
+            dName.textContent = [dAgent.first_name, dAgent.last_name].filter(Boolean).join(' ') || dAgent.name || 'Unknown';
+            dInfo.appendChild(dName);
+
+            if (dAgent.title) {
+                var dTitle = document.createElement('div');
+                dTitle.style.cssText = 'font-size:0.7rem;opacity:0.5;';
+                dTitle.textContent = dAgent.title;
+                dInfo.appendChild(dTitle);
+            }
+
+            dRow.appendChild(dInfo);
+
+            var dBadge = document.createElement('span');
+            dBadge.className = 'lcars-role-badge';
+            dBadge.style.cssText = 'background:rgba(167,139,250,0.15);color:#a78bfa;border-color:rgba(167,139,250,0.3);';
+            dBadge.textContent = (dAgent.assignment_type || 'AUXILIARY').toUpperCase();
+            dRow.appendChild(dBadge);
+
+            panel.appendChild(dRow);
         }
     }
 
@@ -13895,10 +14000,33 @@ function renderCrewTab(agents, stationColor, maxPrimary, maxAuxiliary) {
             panel.appendChild(aRow);
         }
     } else {
-        var auxEmpty = document.createElement('div');
-        auxEmpty.style.cssText = 'font-size:0.72rem;color:rgba(255,255,255,0.3);padding:6px 12px;font-style:italic;';
-        auxEmpty.textContent = 'Slot available';
-        panel.appendChild(auxEmpty);
+        // Empty auxiliary slot placeholder
+        var auxRow = document.createElement('div');
+        auxRow.className = 'lcars-crew-row';
+        auxRow.style.cssText = 'opacity:0.3;';
+
+        var auxAvatar = document.createElement('div');
+        auxAvatar.className = 'lcars-crew-avatar';
+        auxAvatar.style.cssText = 'background:rgba(255,255,255,0.05);border:1px dashed rgba(245,158,11,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:rgba(245,158,11,0.3);';
+        auxAvatar.textContent = '?';
+        auxRow.appendChild(auxAvatar);
+
+        var auxInfo = document.createElement('div');
+        auxInfo.style.cssText = 'flex:1;min-width:0;';
+        var auxName = document.createElement('div');
+        auxName.className = 'lcars-crew-name';
+        auxName.style.fontStyle = 'italic';
+        auxName.textContent = '— vacant —';
+        auxInfo.appendChild(auxName);
+        auxRow.appendChild(auxInfo);
+
+        var auxBadge = document.createElement('span');
+        auxBadge.className = 'lcars-role-badge';
+        auxBadge.style.cssText = 'background:rgba(245,158,11,0.1);color:#F59E0B;border-color:rgba(245,158,11,0.2);';
+        auxBadge.textContent = 'AUX';
+        auxRow.appendChild(auxBadge);
+
+        panel.appendChild(auxRow);
     }
 
     // CONTRACTOR section (only if cloud helpers exist)
@@ -17919,6 +18047,85 @@ function _renderFullProfile(data, body, title) {
             }
             html += '</div></div>';
             html += '</div>';
+
+            // Identity traits (from agent_identity table)
+            if (data.identity && data.identity.length > 0) {
+                html += '<div class="briefing-card" style="--card-accent:#e879f9;margin-bottom:10px;">';
+                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Identity Traits</span></div>';
+                html += '<div class="briefing-card-body">';
+                data.identity.forEach(function(t) {
+                    html += '<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.75rem;">';
+                    html += '<span style="color:var(--archie-text-secondary);text-transform:capitalize;">' + esc(t.identity_key) + '</span>';
+                    html += '<span>' + esc(t.identity_value) + '</span>';
+                    html += '</div>';
+                });
+                html += '</div></div>';
+            }
+
+            // Voice DNA + Emotional History — side by side
+            var hasVoice = data.voice;
+            var hasEmHistory = data.emotional_history && data.emotional_history.length > 0;
+            if (hasVoice || hasEmHistory) {
+                var cols = (hasVoice && hasEmHistory) ? '1fr 1fr' : '1fr';
+                html += '<div style="display:grid;grid-template-columns:' + cols + ';gap:10px;margin-bottom:10px;">';
+
+                if (hasVoice) {
+                    var v = data.voice;
+                    html += '<div class="briefing-card" style="--card-accent:#06b6d4;">';
+                    html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Voice DNA</span></div>';
+                    html += '<div class="briefing-card-body">';
+                    if (v.engine) {
+                        html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+                        html += '<span>Engine</span><span>' + esc(v.engine) + '</span></div>';
+                    }
+                    if (v.language) {
+                        html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+                        html += '<span>Language</span><span>' + esc(v.language) + '</span></div>';
+                    }
+                    if (v.profile_name) {
+                        html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+                        html += '<span>Profile</span><span>' + esc(v.profile_name) + '</span></div>';
+                    }
+                    if (v.speaker) {
+                        html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;padding:2px 0;">';
+                        html += '<span>Speaker</span><span style="font-size:0.65rem;color:var(--archie-text-muted);">' + esc(v.speaker) + '</span></div>';
+                    }
+                    html += '</div></div>';
+                }
+
+                if (hasEmHistory) {
+                    html += '<div class="briefing-card" style="--card-accent:#8b5cf6;">';
+                    html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Emotional History</span></div>';
+                    html += '<div class="briefing-card-body" style="max-height:160px;overflow-y:auto;">';
+                    data.emotional_history.forEach(function(e) {
+                        var stressColor = (e.stress_level || 0) <= 0.4 ? '#00ff41' : (e.stress_level || 0) <= 0.7 ? '#ffaa00' : '#ff4444';
+                        html += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.72rem;">';
+                        html += '<span style="text-transform:capitalize;">' + esc(e.current_mood || 'neutral') + '</span>';
+                        html += '<span style="color:' + stressColor + ';font-size:0.65rem;">stress ' + Math.round((e.stress_level || 0) * 100) + '%</span>';
+                        html += '<span style="color:var(--archie-text-tertiary);font-size:0.65rem;">' + ArchieTime.age(e.timestamp) + '</span>';
+                        html += '</div>';
+                    });
+                    html += '</div></div>';
+                }
+
+                html += '</div>';
+            }
+
+            // Rest Cycles
+            if (data.rest_cycles && data.rest_cycles.length > 0) {
+                html += '<div class="briefing-card" style="--card-accent:#a78bfa;margin-bottom:10px;">';
+                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Rest Cycles</span></div>';
+                html += '<div class="briefing-card-body">';
+                data.rest_cycles.forEach(function(rc) {
+                    var ended = rc.ended_at ? ArchieTime.age(rc.ended_at) : '<span style="color:#ffaa00;">ongoing</span>';
+                    html += '<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.72rem;">';
+                    html += '<span>' + esc(rc.rest_type || 'break') + '</span>';
+                    html += '<span style="color:var(--archie-text-muted);">' + esc(rc.reason || '') + '</span>';
+                    html += '<span style="color:var(--archie-text-tertiary);font-size:0.65rem;">' + ended + '</span>';
+                    html += '</div>';
+                });
+                html += '</div></div>';
+            }
 
             // Skills (with add/remove)
             html += '<div class="briefing-card" style="--card-accent:#ffaa00;margin-bottom:10px;">';

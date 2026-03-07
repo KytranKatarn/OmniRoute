@@ -411,6 +411,86 @@ class BridgeDispatcher:
                 "allow_overflow": True,
             }
 
+    def _station_aux_available(self, requesting_station):
+        """Check if a station can accept a cross-station auxiliary agent.
+
+        Rules (3-slot model):
+        1. Primary + Secondary must BOTH be filled before auxiliary is allowed.
+           A station can't request cross-station help if it doesn't have its
+           own crew assigned first.
+        2. Only 1 auxiliary slot per station (max_auxiliary from bridge_stations).
+
+        Returns (available: bool, aux_count: int, max_aux: int, reason: str).
+        """
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT id, max_primary, max_auxiliary FROM bridge_stations "
+                "WHERE station_code = %s AND is_active = true",
+                (requesting_station,),
+            )
+            station = cur.fetchone()
+            if not station:
+                cur.close()
+                conn.close()
+                return True, 0, 1, ""
+
+            max_primary = station["max_primary"] or 2
+            max_aux = station["max_auxiliary"] or 1
+
+            # Rule 1: Both Primary and Secondary must be assigned first
+            cur.execute(
+                """
+                SELECT COUNT(*) as cnt FROM station_assignments
+                WHERE station_id = %s
+                AND assignment_type = 'primary'
+                AND is_active = TRUE
+            """,
+                (station["id"],),
+            )
+            primary_count = cur.fetchone()["cnt"]
+            if primary_count < max_primary:
+                cur.close()
+                conn.close()
+                reason = (
+                    f"{requesting_station} has {primary_count}/{max_primary} "
+                    f"crew assigned. Primary + Secondary must be filled "
+                    f"before auxiliary dispatch."
+                )
+                return False, 0, max_aux, reason
+
+            # Rule 2: Check auxiliary slot availability
+            cur.execute(
+                """
+                SELECT COUNT(*) as cnt FROM bridge_jobs
+                WHERE status = 'running'
+                AND metadata->>'is_cross_station' = 'true'
+                AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
+                AND (
+                    metadata->>'module_station' = %s
+                    OR metadata->>'dispatch_station' = %s
+                )
+            """,
+                (requesting_station, requesting_station),
+            )
+            aux_count = cur.fetchone()["cnt"]
+            cur.close()
+            conn.close()
+
+            if aux_count >= max_aux:
+                return False, aux_count, max_aux, f"Auxiliary slot full ({aux_count}/{max_aux})"
+
+            return True, aux_count, max_aux, ""
+        except Exception as e:
+            logger.warning(
+                f"[CAPACITY] Error checking aux availability at "
+                f"{requesting_station}: {e}"
+            )
+            return True, 0, 1, ""  # Fail open
+
     def _log_capacity_event(
         self,
         station_code,
@@ -664,6 +744,16 @@ class BridgeDispatcher:
         # ------------------------------------------------------------------
         # Hard blocks (score = 0, agent cannot be selected)
         # ------------------------------------------------------------------
+
+        # Agent must be active — paused, resting-in-lounge, or any non-active
+        # status means they are unavailable for dispatch.
+        agent_status = agent_info.get("status", "active")
+        if agent_status != "active":
+            return (
+                0.0,
+                f"{agent_name} is {agent_status} (not available for dispatch)",
+            )
+
         if welfare.get("resting"):
             return (
                 0.0,
@@ -2510,80 +2600,140 @@ class BridgeDispatcher:
             # 2a. Try agents from OTHER worker stations (cross-station dispatch)
             #     Skip COMMAND — ARCHIE is the commander, not a worker.
             #     Only pick agents that actually have the requested skill.
-            all_stations = set(
-                info.get("station_code")
-                for info in self._agent_cache.values()
-                if info.get("station_code")
+            #     Enforce max_auxiliary: only 1 cross-station helper per station.
+            aux_ok, aux_count, max_aux, aux_reason = self._station_aux_available(
+                blocked_station
             )
-            tried_stations = {blocked_station, "COMMAND"}
-            if home_station and capability_station and home_station != capability_station:
-                tried_stations.add(capability_station)
+            if not aux_ok:
+                logger.info(
+                    f"[BridgeDispatcher] {blocked_station} aux blocked: "
+                    f"{aux_reason}. Skipping cross-station → cloud."
+                )
+            else:
+                all_stations = set(
+                    info.get("station_code")
+                    for info in self._agent_cache.values()
+                    if info.get("station_code")
+                )
+                tried_stations = {blocked_station, "COMMAND"}
+                if home_station and capability_station and home_station != capability_station:
+                    tried_stations.add(capability_station)
 
-            for other_station in sorted(all_stations - tried_stations):
-                # Check each agent at this station for the actual skill
-                for agent_name_candidate, info in self._agent_cache.items():
-                    if info.get("station_code") != other_station:
-                        continue
-                    # Must have the skill explicitly (not the generous 0.3 default)
-                    if capability not in (info.get("skills") or {}):
-                        continue
-                    # Score the agent normally (checks busy, welfare, budget)
-                    score, block_reason = self._score_agent(
-                        agent_name_candidate, info, capability, other_station
-                    )
-                    if score <= 0:
-                        continue
+                for other_station in sorted(all_stations - tried_stations):
+                    # Check each agent at this station for the actual skill
+                    for agent_name_candidate, info in self._agent_cache.items():
+                        if info.get("station_code") != other_station:
+                            continue
+                        # Must have the skill explicitly (not the generous 0.3 default)
+                        if capability not in (info.get("skills") or {}):
+                            continue
+                        # Score the agent normally (checks busy, welfare, budget)
+                        score, block_reason = self._score_agent(
+                            agent_name_candidate, info, capability, other_station
+                        )
+                        if score <= 0:
+                            continue
 
-                    # Found a skilled, available agent at another station
-                    display = self._agent_display(agent_name_candidate)
+                        # Found a skilled, available agent at another station
+                        display = self._agent_display(agent_name_candidate)
 
-                    logger.info(
-                        f"[BridgeDispatcher] Cross-station fallback: "
-                        f"{blocked_station} exhausted → {other_station} "
-                        f"({display}) for '{capability}'"
-                    )
+                        logger.info(
+                            f"[BridgeDispatcher] Cross-station fallback: "
+                            f"{blocked_station} exhausted → {other_station} "
+                            f"({display}) for '{capability}'"
+                        )
 
-                    self._telegram_dispatch_advisory(
-                        advisory_type="cross_station",
-                        module_id=module_id,
-                        home_station=blocked_station,
-                        dispatch_station=other_station,
-                        capability=capability,
-                        agent_name=display,
-                        reason=(
-                            f"All agents at {blocked_station} are busy. "
-                            f"Asking {display} at {other_station} to help."
-                        ),
-                    )
+                        self._telegram_dispatch_advisory(
+                            advisory_type="cross_station",
+                            module_id=module_id,
+                            home_station=blocked_station,
+                            dispatch_station=other_station,
+                            capability=capability,
+                            agent_name=display,
+                            reason=(
+                                f"All agents at {blocked_station} are busy. "
+                                f"Asking {display} at {other_station} to help."
+                            ),
+                        )
 
-                    agent = info
-                    station_code = other_station
-                    dispatch_station = other_station
-                    is_cross_station = True
-                    station_exhausted = False
-                    break
-                if agent:
-                    break
+                        agent = info
+                        station_code = other_station
+                        dispatch_station = other_station
+                        is_cross_station = True
+                        station_exhausted = False
+                        break
+                    if agent:
+                        break
 
         if not agent and station_exhausted:
             blocked_station = home_station or capability_station
 
-            # 2b. No agent at any station — Telegram advisory before cloud
-            self._telegram_dispatch_advisory(
-                advisory_type="cross_station",
-                module_id=module_id,
-                home_station=blocked_station,
-                dispatch_station="CLOUD",
-                capability=capability,
-                reason=(
-                    f"All agents across all stations are at capacity "
-                    f"for '{capability}'. Attempting free cloud contractor."
-                ),
-            )
-
-            # 2c. Try free cloud contractors
+            # 2b. All 3 station slots (Primary + Secondary + Auxiliary) are
+            #     full.  Cloud is the 4th slot — requires Telegram approval.
             routing_mode = self._get_routing_mode()
             if routing_mode != "local_only":
+                try:
+                    from agent_loop import request_approval
+
+                    busy_names = [
+                        self._agent_display(aname)
+                        for aname, ainfo in self._agent_cache.items()
+                        if ainfo.get("station_code") == blocked_station
+                    ]
+                    busy_str = ", ".join(busy_names) or blocked_station
+
+                    logger.info(
+                        f"[BridgeDispatcher] {blocked_station} at full capacity "
+                        f"(3 slots). Requesting cloud approval via Telegram."
+                    )
+                    request_approval(
+                        action_type="cloud_throughput_escalation",
+                        action_data={
+                            "original_agent": busy_str,
+                            "busy_job": {
+                                "id": 0,
+                                "description": (
+                                    f"Station {blocked_station} at full capacity "
+                                    f"(Primary + Secondary + Auxiliary filled)"
+                                ),
+                                "progress_pct": 0,
+                            },
+                            "escalated_model": self.FREE_CLOUD_MODELS[0],
+                            "escalated_provider": "ollama_cloud",
+                            "capability": capability,
+                            "module_id": module_id,
+                            "prompt_preview": prompt[:200] if prompt else "",
+                        },
+                        reason=(
+                            f"Station {blocked_station} at full capacity "
+                            f"(all 3 slots filled). Approve cloud contractor "
+                            f"for '{capability}'?"
+                        ),
+                        requested_by="bridge_dispatcher",
+                        tier=2,
+                    )
+                except Exception as cloud_req_err:
+                    logger.warning(
+                        f"[BridgeDispatcher] Cloud approval request failed: "
+                        f"{cloud_req_err}"
+                    )
+
+                # Also send Telegram advisory for visibility
+                self._telegram_dispatch_advisory(
+                    advisory_type="cross_station",
+                    module_id=module_id,
+                    home_station=blocked_station,
+                    dispatch_station="CLOUD",
+                    capability=capability,
+                    reason=(
+                        f"All 3 slots at {blocked_station} are filled "
+                        f"for '{capability}'. Cloud approval requested."
+                    ),
+                )
+
+            # 2c. Try free cloud contractors (only if escalation_mode is auto)
+            escalation_mode = self._get_escalation_mode()
+            if routing_mode != "local_only" and escalation_mode == "auto":
                 for cloud_model in self.FREE_CLOUD_MODELS:
                     logger.info(
                         f"[BridgeDispatcher] Station {blocked_station} exhausted "
@@ -3532,76 +3682,127 @@ class BridgeDispatcher:
                         break
 
             # ── Cross-station fallback (mirrors dispatch() logic) ──
+            #     Enforce max_auxiliary: only 1 cross-station helper per station.
             if not agent:
                 blocked_station = home_station or capability_station
-                all_stations = set(
-                    info.get("station_code")
-                    for info in self._agent_cache.values()
-                    if info.get("station_code")
+                aux_ok, aux_count, max_aux, aux_reason = self._station_aux_available(
+                    blocked_station
                 )
-                tried_stations = {blocked_station, "COMMAND"}
-                if (
-                    home_station
-                    and capability_station
-                    and home_station != capability_station
-                ):
-                    tried_stations.add(capability_station)
 
-                for other_station in sorted(all_stations - tried_stations):
-                    for agent_name_candidate, info in self._agent_cache.items():
-                        if info.get("station_code") != other_station:
-                            continue
-                        if cap_key not in (info.get("skills") or {}):
-                            continue
-                        score, _block = self._score_agent(
-                            agent_name_candidate, info, cap_key, other_station
-                        )
-                        if score <= 0:
-                            continue
+                if not aux_ok:
+                    logger.info(
+                        f"[BridgeDispatcher] create_job: {blocked_station} "
+                        f"aux blocked: {aux_reason}. "
+                        f"Skipping cross-station → cloud approval."
+                    )
+                else:
+                    all_stations = set(
+                        info.get("station_code")
+                        for info in self._agent_cache.values()
+                        if info.get("station_code")
+                    )
+                    tried_stations = {blocked_station, "COMMAND"}
+                    if (
+                        home_station
+                        and capability_station
+                        and home_station != capability_station
+                    ):
+                        tried_stations.add(capability_station)
 
-                        agent = info
-                        agent_name = agent_name_candidate
-                        station_code = other_station
-                        dispatch_station = other_station
-                        is_cross_station = True
-                        logger.info(
-                            f"[BridgeDispatcher] create_job cross-station: "
-                            f"{blocked_station} → {other_station} "
-                            f"({self._agent_display(agent_name_candidate)}) "
-                            f"for '{cap_key}'"
-                        )
-                        break
-                    if agent:
-                        break
+                    for other_station in sorted(all_stations - tried_stations):
+                        for agent_name_candidate, info in self._agent_cache.items():
+                            if info.get("station_code") != other_station:
+                                continue
+                            if cap_key not in (info.get("skills") or {}):
+                                continue
+                            score, _block = self._score_agent(
+                                agent_name_candidate, info, cap_key, other_station
+                            )
+                            if score <= 0:
+                                continue
+
+                            agent = info
+                            agent_name = agent_name_candidate
+                            station_code = other_station
+                            dispatch_station = other_station
+                            is_cross_station = True
+                            logger.info(
+                                f"[BridgeDispatcher] create_job cross-station: "
+                                f"{blocked_station} → {other_station} "
+                                f"({self._agent_display(agent_name_candidate)}) "
+                                f"for '{cap_key}'"
+                            )
+                            break
+                        if agent:
+                            break
 
             if not agent_name:
-                # No agent available at any station — advisory only
+                # All 3 station slots (Primary + Secondary + Auxiliary) are
+                # full.  Request cloud approval via Telegram and REJECT the
+                # job so no orphan (agentless) jobs are created.
                 blocked_station = home_station or capability_station
+                logger.info(
+                    f"[BridgeDispatcher] create_job: {blocked_station} at "
+                    f"full capacity for '{cap_key}'. Requesting cloud approval."
+                )
+
+                try:
+                    from agent_loop import request_approval
+
+                    busy_names = [
+                        self._agent_display(aname)
+                        for aname, ainfo in self._agent_cache.items()
+                        if ainfo.get("station_code") == blocked_station
+                    ]
+                    busy_str = ", ".join(busy_names) or blocked_station
+
+                    request_approval(
+                        action_type="cloud_throughput_escalation",
+                        action_data={
+                            "original_agent": busy_str,
+                            "busy_job": {
+                                "id": 0,
+                                "description": (
+                                    f"Station {blocked_station} at full capacity "
+                                    f"(Primary + Secondary + Auxiliary filled). "
+                                    f"Job: {description or job_type}"
+                                ),
+                                "progress_pct": 0,
+                            },
+                            "escalated_model": self.FREE_CLOUD_MODELS[0],
+                            "escalated_provider": "ollama_cloud",
+                            "capability": cap_key,
+                            "module_id": module_source,
+                        },
+                        reason=(
+                            f"Station {blocked_station} at full capacity. "
+                            f"Approve cloud for '{cap_key}' "
+                            f"({description or job_type})?"
+                        ),
+                        requested_by="bridge_dispatcher",
+                        tier=2,
+                    )
+                except Exception as cloud_err:
+                    logger.warning(
+                        f"[BridgeDispatcher] Cloud approval request failed: "
+                        f"{cloud_err}"
+                    )
+
                 self._telegram_dispatch_advisory(
                     advisory_type="cross_station",
                     module_id=module_source,
                     home_station=blocked_station,
-                    dispatch_station="OVERLOADED",
+                    dispatch_station="CLOUD_PENDING",
                     capability=cap_key,
                     reason=(
-                        f"All agents at {blocked_station} are at capacity "
-                        f"for '{cap_key}'. Job will run but station needs relief."
+                        f"All 3 slots at {blocked_station} are filled "
+                        f"for '{cap_key}'. Cloud approval requested — "
+                        f"job rejected until slot opens."
                     ),
                 )
-                # For LLM-based capabilities, try free cloud contractors
-                llm_caps = {"code_analysis", "translate", "summarize", "classify", "chat"}
-                if cap_key in llm_caps:
-                    for cloud_model in self.FREE_CLOUD_MODELS:
-                        self._telegram_dispatch_advisory(
-                            advisory_type="free_cloud",
-                            module_id=module_source,
-                            capability=cap_key,
-                            home_station=blocked_station,
-                            cloud_model=cloud_model,
-                            cloud_provider="ollama_cloud",
-                            reason=f"Station {blocked_station} at capacity — cloud contractor available",
-                        )
-                        break  # Just advise about first available
+
+                # REJECT — do not create an orphan job with no agent
+                return None
 
             # Enrich metadata with dispatch info
             # agent_station = the agent's actual home station (for visual shading)

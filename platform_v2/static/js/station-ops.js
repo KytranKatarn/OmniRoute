@@ -80,7 +80,8 @@
           crew.push({
             name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
             title: a.title || a.assignment_type || "agent",
-            agentName: a.name || ""
+            agentName: a.name || "",
+            status: a.status || "active"
           });
         });
       });
@@ -141,22 +142,41 @@
 
       var parts = [];
 
-      /* STATION CREW section */
+      /* STATION CREW — always show all 3 slots (Primary, Secondary, Auxiliary) */
       parts.push('<div class="stn-ops-section-label cs-ops-section-label">STATION CREW (' + crew.length + '/' + maxPrimary + ')</div>');
-      if (crew.length) {
-        crew.forEach(function(a) {
+
+      /* Render Primary + Secondary slots (always show both, even if empty) */
+      var slotLabels = ['PRIMARY', 'SECONDARY'];
+      var slotColors = ['#10b981', '#3b82f6'];
+      var slotRgba = ['16,185,129', '59,130,246'];
+      for (var si = 0; si < maxPrimary; si++) {
+        var a = crew[si];
+        var roleLabel = slotLabels[si] || ('CREW ' + (si + 1));
+        var roleColor = slotColors[si] || '#94a3b8';
+        var rgba = slotRgba[si] || '148,163,184';
+        if (a) {
           var busy = busyMap[a.agentName] || busyMap[a.name];
-          parts.push('<div class="stn-ops-agent-row cs-ops-agent-row">');
+          var isPaused = a.status === 'paused';
+          var rowStyle = isPaused ? ' style="opacity:0.4;filter:grayscale(0.7);"' : '';
+          parts.push('<div class="stn-ops-agent-row cs-ops-agent-row"' + rowStyle + '>');
           parts.push('<span class="stn-ops-agent-name cs-ops-agent-name">' + escHtml(a.name) + '</span>');
-          if (busy) parts.push('<span class="stn-ops-agent-badge cs-ops-agent-badge working">WORKING</span>');
-          parts.push('<span class="stn-ops-agent-role cs-ops-agent-role">' + escHtml(a.title) + '</span>');
+          if (isPaused) {
+            parts.push('<span class="stn-ops-agent-badge cs-ops-agent-badge" style="background:rgba(255,165,0,0.15);color:#FFA500;">PAUSED</span>');
+          } else if (busy) {
+            parts.push('<span class="stn-ops-agent-badge cs-ops-agent-badge working">WORKING</span>');
+          }
+          parts.push('<span class="stn-ops-agent-role cs-ops-agent-role" style="color:' + roleColor + '; background:rgba(' + rgba + ',0.15);">' + roleLabel + '</span>');
           parts.push('</div>');
-        });
-      } else {
-        parts.push('<div class="stn-ops-loading" style="padding:3px 8px;">No primary crew assigned</div>');
+        } else {
+          /* Empty slot */
+          parts.push('<div class="stn-ops-agent-row cs-ops-agent-row" style="opacity:0.3;border-left-color:#555;">');
+          parts.push('<span class="stn-ops-agent-name cs-ops-agent-name" style="font-style:italic;">— vacant —</span>');
+          parts.push('<span class="stn-ops-agent-role cs-ops-agent-role" style="color:' + roleColor + '; background:rgba(' + rgba + ',0.1);">' + roleLabel + '</span>');
+          parts.push('</div>');
+        }
       }
 
-      /* AUXILIARY section */
+      /* AUXILIARY slot — always show (1 slot), filled by cross-station helpers */
       parts.push('<div class="stn-ops-section-label cs-ops-section-label" style="margin-top:8px;">AUXILIARY (' + assists.length + '/' + maxAux + ')</div>');
       if (assists.length) {
         assists.forEach(function(a) {
@@ -168,7 +188,11 @@
           parts.push('</div>');
         });
       } else {
-        parts.push('<div class="stn-ops-loading" style="padding:3px 8px;">Slot available</div>');
+        /* Empty auxiliary slot */
+        parts.push('<div class="stn-ops-agent-row cs-ops-agent-row" style="opacity:0.3;border-left-color:#555;">');
+        parts.push('<span class="stn-ops-agent-name cs-ops-agent-name" style="font-style:italic;">— vacant —</span>');
+        parts.push('<span class="stn-ops-agent-role cs-ops-agent-role" style="color:#facc15; background:rgba(250,204,21,0.1);">AUX</span>');
+        parts.push('</div>');
       }
 
       /* CONTRACTOR section (only if active) */

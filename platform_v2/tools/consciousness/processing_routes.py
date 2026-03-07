@@ -376,12 +376,13 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                 # (dolphin3-8k GPU for chat, avoids format:json constraint
                 # that produces empty responses with qwen3 thinking models)
                 if category == "conversations":
-                    result = analyzer.analyze_conversation(content, metadata)
+                    result = analyzer.analyze_conversation(content, metadata, job_id=job_id)
                 else:
                     result = analyzer.analyze_code_file(
                         content,
                         filename=title or "unknown",
                         language=metadata.get("language"),
+                        job_id=job_id,
                     )
 
                 if not result.success:

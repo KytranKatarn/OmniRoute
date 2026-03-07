@@ -1970,10 +1970,7 @@
                 <i data-lucide="book-open"></i>
                 <span data-i18n="consciousness.tabs.knowledge">Knowledge</span>
             </button>
-            <button class="glass-nav-item" data-tab="team">
-                <i data-lucide="users"></i>
-                <span data-i18n="consciousness.tabs.team">Team</span>
-            </button>
+            <!-- Team tab merged into Bridge Command → Crew → Manifest -->
             <button class="glass-nav-item" data-tab="github">
                 <i data-lucide="github"></i>
                 <span data-i18n="consciousness.tabs.github">GitHub</span>
@@ -2323,31 +2320,7 @@
           </div>
         </div>
 
-        <div class="cs-panel" id="panel-team">
-          <div class="cs-subtabs">
-            <button class="cs-subtab active" onclick="switchTeamSubtab('roster')"><span data-i18n="consciousness.roster">Roster</span></button>
-            <button class="cs-subtab" onclick="switchTeamSubtab('voice')"><span data-i18n="consciousness.voice_profiles">Voice Profiles</span></button>
-            <button class="cs-subtab" onclick="switchTeamSubtab('emotions')"><span data-i18n="consciousness.emotional_state">Emotional State</span></button>
-          </div>
-          <div class="cs-subpanel active" id="team-roster">
-            <div class="cs-agent-grid" id="agentRoster">
-              <div class="cs-loading"><span data-i18n="consciousness.loading_agents">Loading agents...</span></div>
-            </div>
-          </div>
-          <div class="cs-subpanel" id="team-voice">
-            <div id="voiceProfileGrid"><div class="cs-loading"><span data-i18n="consciousness.loading_voice_profiles">Loading voice profiles...</span></div></div>
-          </div>
-          <div class="cs-subpanel" id="team-emotions">
-            <div style="display:flex; gap:12px; margin-bottom:16px; align-items:center;">
-              <span style="font-size:0.82rem; color:rgba(255,255,255,0.5);"><span data-i18n="consciousness.current_mood">Current Mood:</span></span>
-              <span id="currentMoodBadge" class="cs-badge purple">--</span>
-              <span style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-left:auto;"><span data-i18n="consciousness.last_30_days">Last 30 days</span></span>
-            </div>
-            <div style="position:relative; height:280px;">
-              <canvas id="emotionalDetailChart"></canvas>
-            </div>
-          </div>
-        </div>
+        <!-- Team panel removed — merged into Bridge Command → Crew → Manifest -->
 
         <!-- ════════════════════════════════════════════════════════ -->
         <!-- Languages Panel — Single-page LCARS layout                -->
@@ -2595,43 +2568,7 @@
 
     </div><!-- /.cs-body -->
 
-    <!-- Agent Profile Modal -->
-    <div class="cs-modal-overlay" id="agentModalOverlay">
-        <div class="cs-modal">
-            <div class="cs-modal-frame">
-                <div class="cs-modal-frame-elbow"></div>
-                <div class="cs-modal-frame-seg purple"></div>
-                <div class="cs-modal-frame-seg amber"></div>
-                <div class="cs-modal-frame-light on"></div>
-                <div class="cs-modal-frame-light amber"></div>
-                <div class="cs-modal-frame-seg cyan"></div>
-                <div class="cs-modal-frame-seg purple"></div>
-                <div class="cs-modal-frame-light cyan"></div>
-                <div class="cs-modal-frame-fill"></div>
-                <div class="cs-modal-frame-bottom"></div>
-            </div>
-            <div class="cs-modal-content">
-                <div class="cs-modal-header">
-                    <span class="cs-modal-header-title" id="agentModalTitle" data-i18n="consciousness.team.agent_profile">Agent Profile</span>
-                    <div class="cs-modal-header-strip">
-                        <span class="cs-modal-header-pip w1"></span>
-                        <span class="cs-modal-header-pip w2"></span>
-                        <span class="cs-modal-header-pip w3"></span>
-                        <span class="cs-modal-header-stardate"></span>
-                        <button class="cs-modal-close" onclick="closeAgentModal()">&times;</button>
-                    </div>
-                </div>
-                <div class="cs-modal-body" id="agentModalBody"></div>
-                <div class="cs-modal-footer">
-                    <div class="cs-modal-footer-strip">
-                        <span class="cs-modal-footer-dot purple"></span>
-                        <span class="cs-modal-footer-dot amber"></span>
-                        <span class="cs-modal-footer-dot cyan"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Agent Profile Modal removed — merged into Bridge Command -->
 
     <!-- Verify Results Modal -->
     <div class="cs-modal-overlay" id="verifyOverlay">

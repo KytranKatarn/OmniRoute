@@ -270,12 +270,18 @@ class KnowledgeAnalyzer:
         max_tokens: int = 4000,
         model: str = None,
         num_ctx: int = None,
+        job_id: int = None,
     ) -> tuple:
         """
         Call LLM via Bridge dispatcher (ADR-013).
 
         All inference routes through Bridge for model management, VRAM
         handling, agent assignment, and escalation.
+
+        Args:
+            job_id: Bridge job ID — when set, the assigned batch agent
+                    is excluded from the busy-agents check so it can
+                    handle every item in the batch.
 
         Returns:
             tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
@@ -291,6 +297,7 @@ class KnowledgeAnalyzer:
             "consciousness",
             json_mode=True,
             timeout=300,
+            job_id=job_id,
         )
         elapsed = int((time.time() - start) * 1000)
 
@@ -339,6 +346,7 @@ class KnowledgeAnalyzer:
         self,
         content: str,
         metadata: Optional[dict] = None,
+        job_id: int = None,
     ) -> AnalysisResult:
         """
         Analyze a conversation and extract knowledge.
@@ -367,7 +375,7 @@ class KnowledgeAnalyzer:
         )
 
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt, job_id=job_id)
             data = self._parse_json_response(response)
             cards = self._parse_cards(data, metadata.get("source_type", "conversation"), metadata.get("source_ref", ""))
             relationships = self._parse_relationships(data)
@@ -390,6 +398,7 @@ class KnowledgeAnalyzer:
         content: str,
         filename: str,
         language: Optional[str] = None,
+        job_id: int = None,
     ) -> AnalysisResult:
         """
         Analyze a code file and extract patterns and knowledge.
@@ -432,7 +441,7 @@ class KnowledgeAnalyzer:
         )
 
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt, job_id=job_id)
             data = self._parse_json_response(response)
             cards = self._parse_cards(data, "github", filename, default_type="pattern", default_techs=[language])
             relationships = self._parse_relationships(data, default_rel="implements")

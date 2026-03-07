@@ -110,7 +110,7 @@ function loadTabData(tab) {
   switch (tab) {
     case "dashboard":   loadDashboard(); break;
     case "knowledge":   loadKnowledge(); break;
-    case "team":        loadTeam(); break;
+    /* team tab merged into Bridge Command */
     case "github":      loadGitHub(); break;
     case "languages":   loadLanguages(); checkActiveJobs(); break;
   }
@@ -401,15 +401,7 @@ function loadEmotionalTimeline() {
 
 /* ── Agent Modal ───────────────────────────────────── */
 
-window.closeAgentModal = function () {
-  var overlay = document.getElementById("agentModalOverlay");
-  if (overlay) overlay.classList.remove("open");
-};
-
-window.openAgentModal = function () {
-  var overlay = document.getElementById("agentModalOverlay");
-  if (overlay) overlay.classList.add("open");
-};
+/* Agent modal removed — profiles now in Bridge Command */
 
 /* ── Header Stats ─────────────────────────────────── */
 
@@ -690,7 +682,7 @@ function checkActiveJobs() {
             _loopNext("embedding");
           } else {
             _enableProcessingBtns();
-            if (status === "failed") { _loopExhausted("analysis"); _loopExhausted("embedding"); }
+            if (status === "failed") { _loopRetry("analysis"); _loopRetry("embedding"); }
           }
           checkActiveJobs();
         });
@@ -716,7 +708,7 @@ function checkActiveJobs() {
             _loopNext("ghEmbed");
           } else {
             _enableGitHubBtns();
-            if (status === "failed") { _loopExhausted("reindex"); _loopExhausted("ghEmbed"); }
+            if (status === "failed") { _loopRetry("reindex"); _loopRetry("ghEmbed"); }
           }
           checkActiveJobs();
         });
@@ -745,7 +737,7 @@ function checkActiveJobs() {
               if (_continuousRun.translate) { _loopNext("translate"); }
               else if (_continuousRun.fullPass) { _loopNext("fullPass"); }
             } else if (status === "failed") {
-              _loopExhausted("translate"); _loopExhausted("fullPass");
+              _loopRetry("translate"); _loopRetry("fullPass");
             }
             checkActiveJobs();
           }, 1500);
@@ -905,6 +897,7 @@ function _updateLoopBtn(opKey) {
 function _loopNext(opKey) {
   /* Called when a job completes — start next batch if still looping */
   if (!_continuousRun[opKey]) return;
+  _loopFailures[opKey] = 0; /* reset failures on success */
   _continuousBatch[opKey] = (_continuousBatch[opKey] || 0) + 1;
   var op = _loopOps[opKey];
   if (op) setTimeout(op.start, 2000); /* 2s pause between batches */
@@ -914,8 +907,28 @@ function _loopExhausted(opKey) {
   /* Called when API says "no items left" — stop loop gracefully */
   _continuousRun[opKey] = false;
   _continuousBatch[opKey] = 0;
+  _loopFailures[opKey] = 0;
   _saveLoopState();
   _updateLoopBtn(opKey);
+}
+
+var _loopFailures = {};
+var LOOP_MAX_RETRIES = 3;
+
+function _loopRetry(opKey) {
+  /* Called when a job fails (reaped, timeout, transient error).
+     Retry up to LOOP_MAX_RETRIES times, then exhaust. */
+  if (!_continuousRun[opKey]) return;
+  _loopFailures[opKey] = (_loopFailures[opKey] || 0) + 1;
+  if (_loopFailures[opKey] >= LOOP_MAX_RETRIES) {
+    console.warn("[Loop] " + opKey + " failed " + _loopFailures[opKey] + " times — stopping");
+    _loopFailures[opKey] = 0;
+    _loopExhausted(opKey);
+    return;
+  }
+  console.log("[Loop] " + opKey + " failed, retrying (" + _loopFailures[opKey] + "/" + LOOP_MAX_RETRIES + ")");
+  var op = _loopOps[opKey];
+  if (op) setTimeout(op.start, 5000); /* 5s pause before retry */
 }
 
 window.startAnalysis = function() {
@@ -984,322 +997,11 @@ window.generateEmbeddings = function() {
   });
 };
 
-/* ── Team Tab ──────────────────────────────────────── */
+/* ── Team Tab — merged into Bridge Command → Crew → Manifest ── */
 
-function loadTeam() {
-  api("/api/team/roster").then(function(data) {
-    if (!data.success) return;
-    var el = document.getElementById("agentRoster");
-    if (!data.agents || !data.agents.length) {
-      setHtml(el, '<div class="cs-empty">No agents found</div>');
-      return;
-    }
-    var html = data.agents.map(function(a) {
-      var moodColor = (a.stress_level || 0) > 0.7 ? "red" : (a.energy_level || 0) > 0.5 ? "green" : "amber";
-      var stationBadge = a.station_name
-        ? '<span class="cs-badge blue">' + escHtml(a.station_name) + '</span>'
-        : '<span class="cs-badge gray">Unassigned</span>';
-      // Live status from Bridge dispatcher
-      var ls = a.live_status || "unknown";
-      var statusDotClass = ls === "working" ? "green" : ls === "resting" ? "amber" : "gray";
-      var statusLabel = ls === "working" ? "Working" : ls === "resting" ? "Resting" : "Idle";
-      // Prefer live wellness over static DB values
-      var w = a.wellness || {};
-      var energy = w.energy != null ? w.energy : (a.energy_level || 0);
-      var stress = w.stress != null ? w.stress : (a.stress_level || 0);
-      // Current job row
-      var jobHtml = "";
-      if (a.current_job) {
-        var pct = a.current_job.progress_pct || 0;
-        jobHtml = '<div class="cs-agent-job">' +
-          '<span class="cs-job-desc">' + escHtml(a.current_job.description || "Processing...") + '</span>' +
-          '<div class="cs-job-bar"><div class="cs-job-fill" style="width:' + pct + '%"></div></div>' +
-          '</div>';
-      }
-      // 24h dispatch count
-      var dispatches = (a.stats_24h && a.stats_24h.dispatches) || 0;
-      return '<div class="cs-agent-card" onclick="showAgentProfile(' + a.id + ')">' +
-        '<div class="cs-agent-header">' +
-          '<div class="cs-agent-avatar">' + escHtml((a.first_name || "?")[0]) + '</div>' +
-          '<div>' +
-            '<div class="cs-agent-name">' + escHtml(a.full_name || a.first_name) + '</div>' +
-            '<div class="cs-agent-role">' + escHtml(a.title || a.agent_type || "Agent") + '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="cs-agent-meta">' +
-          stationBadge +
-          '<span class="cs-status-dot ' + statusDotClass + '" title="' + statusLabel + '"></span>' +
-          '<span class="cs-badge ' + moodColor + '">' + escHtml(a.current_mood || 'neutral') + '</span>' +
-        '</div>' +
-        jobHtml +
-        '<div class="cs-agent-stats">' +
-          '<span>' + (a.skill_count || 0) + ' skills</span>' +
-          (dispatches ? '<span>' + dispatches + ' dispatches/24h</span>' : '') +
-          (a.voice_engine ? '<span>' + escHtml(a.voice_engine) + '</span>' : '') +
-        '</div>' +
-        '<div class="cs-agent-bars">' +
-          '<div class="cs-mini-bar"><div class="cs-mini-fill green" style="width:' + Math.round(energy * 100) + '%"></div></div>' +
-          '<div class="cs-mini-bar"><div class="cs-mini-fill red" style="width:' + Math.round(stress * 100) + '%"></div></div>' +
-        '</div>' +
-        '</div>';
-    }).join("");
-    setHtml(el, html);
-    refreshIcons();
-  }).catch(function(err) {
-    console.error("loadTeam error:", err);
-    setHtml("agentRoster", '<div class="cs-empty">Error loading agents</div>');
-  });
-}
+/* ── Team Sub-tabs — merged into Bridge Command ──── */
 
-window.showAgentProfile = function(agentId) {
-  api("/api/team/agents/" + agentId + "/profile").then(function(data) {
-    if (!data.success) return;
-    var a = data.agent;
-    var html = '<div class="cs-profile-grid">';
-
-    // Identity
-    html += '<div class="cs-profile-section"><h3>Identity</h3>';
-    html += '<p><strong>Name:</strong> ' + escHtml(a.full_name) + '</p>';
-    html += '<p><strong>Role:</strong> ' + escHtml(a.title || a.agent_type) + '</p>';
-    html += '<p><strong>Department:</strong> ' + escHtml(a.department || "\u2014") + '</p>';
-    if (a.bio) html += '<p><strong>Bio:</strong> ' + escHtml(a.bio) + '</p>';
-    if (data.identity && data.identity.length) {
-      data.identity.forEach(function(t) {
-        html += '<p><strong>' + escHtml(t.identity_key) + ':</strong> ' + escHtml(t.identity_value) + '</p>';
-      });
-    }
-    html += '</div>';
-
-    // Skills
-    if (data.skills && data.skills.length) {
-      html += '<div class="cs-profile-section"><h3>Skills (' + data.skills.length + ')</h3>';
-      html += '<div class="cs-skill-grid">';
-      data.skills.forEach(function(s) {
-        var level = s.proficiency_level || 0;
-        var dots = '';
-        for (var i = 0; i < 5; i++) dots += i < level ? '\u25CF' : '\u25CB';
-        html += '<div class="cs-skill-item">' +
-          '<span>' + escHtml(s.skill_name) + '</span>' +
-          '<span class="cs-skill-level">' + dots + '</span>' +
-          '</div>';
-      });
-      html += '</div></div>';
-    }
-
-    // Station
-    if (data.station) {
-      html += '<div class="cs-profile-section"><h3>Station Assignment</h3>';
-      html += '<p>' + escHtml(data.station.station_name) + ' (' + escHtml(data.station.station_code) + ')</p>';
-      html += '<a href="/tools/bridge#crew" class="cs-link">View in Bridge Command \u2192</a>';
-      html += '</div>';
-    }
-
-    // Operations (live Bridge data)
-    var live = data.live || {};
-    if (live.status) {
-      var lsBadge = live.status === "working" ? "working" : live.status === "resting" ? "resting" : "idle";
-      html += '<div class="cs-profile-section"><h3>Operations</h3>';
-      html += '<p><strong>Status:</strong> <span class="cs-badge ' + lsBadge + '">' + escHtml(live.status) + '</span></p>';
-      if (live.current_job) {
-        var pct = live.current_job.progress_pct || 0;
-        html += '<p><strong>Current Job:</strong> ' + escHtml(live.current_job.description || "Processing...") + '</p>';
-        html += '<div class="cs-job-bar" style="margin:6px 0;"><div class="cs-job-fill" style="width:' + pct + '%"></div></div>';
-      }
-      if (live.stats_24h) {
-        var st = live.stats_24h;
-        html += '<p><strong>24h Dispatches:</strong> ' + (st.dispatches || 0) + '</p>';
-        if (st.dispatches > 0) {
-          html += '<p><strong>Success Rate:</strong> ' + Math.round((st.success_rate || 0) * 100) + '%</p>';
-          html += '<p><strong>Avg Duration:</strong> ' + (st.avg_duration_sec || 0) + 's</p>';
-        }
-      }
-      html += '<a href="/tools/bridge#crew" class="cs-link">View Operations in Bridge Command \u2192</a>';
-      html += '</div>';
-    }
-
-    // Voice
-    if (data.voice) {
-      html += '<div class="cs-profile-section"><h3>Voice DNA</h3>';
-      html += '<p><strong>Engine:</strong> ' + escHtml(data.voice.engine || "\u2014") + '</p>';
-      html += '<p><strong>Language:</strong> ' + escHtml(data.voice.language || "en") + '</p>';
-      if (data.voice.profile_name) html += '<p><strong>Profile:</strong> ' + escHtml(data.voice.profile_name) + '</p>';
-      html += '</div>';
-    }
-
-    // Emotional history
-    if (data.emotions && data.emotions.length) {
-      html += '<div class="cs-profile-section"><h3>Recent Emotional States</h3>';
-      html += '<div style="max-height:200px; overflow-y:auto;">';
-      data.emotions.slice(0, 10).forEach(function(e) {
-        html += '<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:0.82rem;">' +
-          '<span style="color:rgba(255,255,255,0.7);">' + escHtml(e.current_mood) + '</span>' +
-          '<span style="color:rgba(255,255,255,0.4);">' + formatAge(e.timestamp) + '</span>' +
-          '</div>';
-      });
-      html += '</div></div>';
-    }
-
-    html += '</div>';
-    setHtml("agentModalBody", html);
-    document.getElementById("agentModalTitle").textContent = (a.full_name || "Agent") + " \u2014 Personnel File";
-    openAgentModal();
-  }).catch(function(err) {
-    console.error("showAgentProfile error:", err);
-  });
-};
-
-/* ── Team Sub-tabs ────────────────────────────────── */
-
-window.switchTeamSubtab = function(sub) {
-  document.querySelectorAll("#panel-team .cs-subtab").forEach(function(b) {
-    b.classList.toggle("active", b.textContent.toLowerCase().replace(/ /g, "") === sub ||
-      (sub === "roster" && b.textContent === "Roster") ||
-      (sub === "voice" && b.textContent === "Voice Profiles") ||
-      (sub === "emotions" && b.textContent === "Emotional State"));
-  });
-  document.querySelectorAll("#panel-team .cs-subpanel").forEach(function(p) {
-    p.classList.toggle("active", p.id === "team-" + sub);
-  });
-  if (sub === "voice") loadVoiceProfiles();
-  if (sub === "emotions") loadEmotionalDetail();
-};
-
-function loadVoiceProfiles() {
-  api("/api/voice/profiles").then(function(data) {
-    if (!data.success || !data.profiles || !data.profiles.length) {
-      setHtml("voiceProfileGrid", '<div class="cs-empty">No voice profiles configured</div>');
-      return;
-    }
-    var html = '<div class="cs-voice-grid">';
-    data.profiles.forEach(function(p) {
-      html += '<div class="cs-voice-card">' +
-        '<div class="cs-voice-header">' +
-          '<div class="cs-agent-avatar" style="width:36px;height:36px;font-size:0.85rem;">' + escHtml((p.agent_first_name || p.agent_name || "?")[0]) + '</div>' +
-          '<div>' +
-            '<div class="cs-agent-name" style="font-size:0.85rem;">' + escHtml(p.agent_name || p.agent_first_name || "Agent #" + p.agent_id) + '</div>' +
-            '<div class="cs-voice-engine">' + escHtml(p.engine || "xtts_v2") + '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="cs-voice-detail">Language: ' + escHtml(p.language || "en") + '</div>' +
-        '<div class="cs-voice-detail">Profile: ' + escHtml(p.profile_name || "Default") + '</div>' +
-        '<div class="cs-voice-detail">Speaker: ' + escHtml(p.speaker_id || "\u2014") + '</div>' +
-        '<div style="display:flex; gap:8px; margin-top:8px;">' +
-          '<span class="cs-badge blue">' + (p.cached_words || 0) + ' cached</span>' +
-          '<span class="cs-badge purple">' + (p.locked_words || 0) + ' locked</span>' +
-        '</div>' +
-        (p.speed ? '<div class="cs-voice-detail" style="margin-top:6px;">Speed: ' + p.speed + 'x | Pitch: ' + (p.pitch_shift || 0) + '</div>' : '') +
-        '</div>';
-    });
-    html += '</div>';
-    setHtml("voiceProfileGrid", html);
-  }).catch(function(err) {
-    console.error("loadVoiceProfiles error:", err);
-    setHtml("voiceProfileGrid", '<div class="cs-empty">Error loading voice profiles</div>');
-  });
-}
-
-var _emotionalDetailChart = null;
-
-function loadEmotionalDetail() {
-  api("/emotions/timeline?days=30").then(function(data) {
-    // Update current mood badge
-    if (data.current_state) {
-      var badge = document.getElementById("currentMoodBadge");
-      if (badge) {
-        badge.textContent = data.current_state.mood || "unknown";
-        badge.className = "cs-badge purple";
-      }
-    }
-
-    if (!data.timeline || !data.timeline.length) {
-      var canvas = document.getElementById("emotionalDetailChart");
-      if (canvas) canvas.parentElement.innerHTML = '<div class="cs-empty" style="padding-top:100px;">No emotional data available</div>';
-      return;
-    }
-
-    var labels = [];
-    var moodScores = [];
-    var energyScores = [];
-    var stressScores = [];
-    var moodLabels = [];
-
-    data.timeline.forEach(function(entry) {
-      labels.push(entry.date || "");
-      moodScores.push(parseFloat(entry.avg_mood_score || 0).toFixed(2));
-      energyScores.push(parseFloat(entry.avg_energy || 0).toFixed(2));
-      stressScores.push(parseFloat(entry.avg_stress || 0).toFixed(2));
-      moodLabels.push(entry.dominant_mood || "");
-    });
-
-    var ctx = document.getElementById("emotionalDetailChart");
-    if (!ctx) return;
-
-    if (_emotionalDetailChart) _emotionalDetailChart.destroy();
-    _emotionalDetailChart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "Mood Score",
-            data: moodScores,
-            borderColor: "#8b5cf6",
-            backgroundColor: "rgba(139,92,246,0.15)",
-            fill: true,
-            tension: 0.4,
-            pointRadius: 3,
-            pointHoverRadius: 6
-          },
-          {
-            label: "Energy",
-            data: energyScores,
-            borderColor: "#22c55e",
-            backgroundColor: "rgba(34,197,94,0.05)",
-            fill: false,
-            tension: 0.4,
-            pointRadius: 2
-          },
-          {
-            label: "Stress",
-            data: stressScores,
-            borderColor: "#ef4444",
-            backgroundColor: "rgba(239,68,68,0.05)",
-            fill: false,
-            tension: 0.4,
-            pointRadius: 2
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { labels: { color: "rgba(255,255,255,0.6)", font: { size: 11 } } },
-          tooltip: {
-            callbacks: {
-              afterLabel: function(ctx) {
-                return ctx.datasetIndex === 0 ? "Mood: " + (moodLabels[ctx.dataIndex] || "") : "";
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            ticks: { color: "rgba(255,255,255,0.3)", font: { size: 10 }, maxTicksLimit: 10 },
-            grid: { color: "rgba(255,255,255,0.04)" }
-          },
-          y: {
-            min: 0, max: 1,
-            ticks: { color: "rgba(255,255,255,0.3)", font: { size: 10 } },
-            grid: { color: "rgba(255,255,255,0.04)" }
-          }
-        }
-      }
-    });
-  }).catch(function(err) {
-    console.error("loadEmotionalDetail error:", err);
-  });
-}
+/* emotionalDetailChart removed — was Team sub-tab only */
 
 /* ── Insights Tab ──────────────────────────────────── */
 
@@ -2402,13 +2104,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   })();
 
-  // Close modals on overlay click
-  var overlay = document.getElementById("agentModalOverlay");
-  if (overlay) {
-    overlay.addEventListener("click", function (e) {
-      if (e.target === overlay) closeAgentModal();
-    });
-  }
+  /* Agent modal overlay removed — profiles now in Bridge Command */
   // Initialize Glass Nav
   var navEl = document.getElementById("csNav");
   if (navEl) {
@@ -2422,14 +2118,28 @@ document.addEventListener("DOMContentLoaded", function () {
     if (_holoSphere) _holoSphere.resize();
   });
 
-  /* Restore loop button states from localStorage */
+  /* Restore loop button states from localStorage.
+     If a loop was active but no job is running (e.g. after restart),
+     auto-kick the next batch after a short delay. */
   _loadLoopState();
   Object.keys(_continuousRun).forEach(function(opKey) {
     _updateLoopBtn(opKey);
   });
+  /* Deferred auto-resume: wait for checkActiveJobs to load, then
+     kick any loop that has no running job */
+  setTimeout(function() {
+    Object.keys(_continuousRun).forEach(function(opKey) {
+      if (!_continuousRun[opKey]) return;
+      var op = _loopOps[opKey];
+      if (op) {
+        console.log("[Loop] Auto-resuming " + opKey + " after page load");
+        op.start();
+      }
+    });
+  }, 3000);
 
   var hash = window.location.hash.replace("#", "");
-  var validTabs = ["dashboard", "knowledge", "team", "github", "languages"];
+  var validTabs = ["dashboard", "knowledge", "github", "languages"];
   if (hash && validTabs.indexOf(hash) !== -1) {
     switchConsciousnessTab(hash);
   } else {

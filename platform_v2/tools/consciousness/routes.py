@@ -7113,7 +7113,7 @@ def translation_generate_async():
                 jsonify(
                     {
                         "success": False,
-                        "error": "A translation job is already running",
+                        "error": "Station at capacity — cloud approval requested via Telegram, or a job is already running",
                         "duplicate": True,
                     }
                 ),

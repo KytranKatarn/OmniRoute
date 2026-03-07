@@ -616,6 +616,21 @@ function _pollJobStatus(jobId, el, onComplete) {
 /* ── Active Job Status + Station Agent Display ─────── */
 
 var _activeJobPolls = {};
+var _jobPollInterval = null;     /* periodic refresh for progress bars */
+
+function _startJobPolling() {
+  if (_jobPollInterval) return;  /* already running */
+  _jobPollInterval = setInterval(function() {
+    checkActiveJobs();
+  }, 5000);
+}
+
+function _stopJobPolling() {
+  if (_jobPollInterval) {
+    clearInterval(_jobPollInterval);
+    _jobPollInterval = null;
+  }
+}
 
 function checkActiveJobs() {
   /* Pull from Bridge Command — single source of truth for agent/station work */
@@ -635,6 +650,7 @@ function checkActiveJobs() {
     _renderStationStatus(data.jobs || [], myJobs);
 
     if (!myJobs.length) {
+      _stopJobPolling();
       _enableProcessingBtns();
       _enableGitHubBtns();
       /* Clear any stale job displays */
@@ -653,6 +669,9 @@ function checkActiveJobs() {
       return;
     }
 
+    /* Start periodic polling so progress bars update smoothly */
+    _startJobPolling();
+
     /* ── Knowledge tab — jobs already rendered by _renderStationStatus above ── */
     _disableProcessingBtns();
     myJobs.forEach(function(job) {
@@ -662,14 +681,16 @@ function checkActiveJobs() {
         _pollJobStatus(job.id, "bjob-kb-" + job.id, function(completedJob) {
           _activeJobPolls[pollKey] = false;
           loadEmbeddingStatus();
-          /* Continuous loop: auto-start next batch if looping */
+          /* Continuous loop: only restart on successful completion, not failed/reaped */
+          var status = completedJob ? completedJob.status : "unknown";
           var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
-          if (jt.indexOf("analysis") > -1 && _continuousRun.analysis) {
+          if (status === "completed" && jt.indexOf("analysis") > -1 && _continuousRun.analysis) {
             _loopNext("analysis");
-          } else if (jt.indexOf("embed") > -1 && _continuousRun.embedding) {
+          } else if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.embedding) {
             _loopNext("embedding");
           } else {
             _enableProcessingBtns();
+            if (status === "failed") { _loopExhausted("analysis"); _loopExhausted("embedding"); }
           }
           checkActiveJobs();
         });
@@ -686,14 +707,16 @@ function checkActiveJobs() {
           _activeJobPolls[pollKey] = false;
           loadGitHub();
           loadGitHubEmbedStats();
-          /* Continuous loop: auto-start next batch if looping */
+          /* Continuous loop: only restart on successful completion, not failed/reaped */
+          var status = completedJob ? completedJob.status : "unknown";
           var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
-          if ((jt.indexOf("reindex") > -1 || jt.indexOf("github_index") > -1) && _continuousRun.reindex) {
+          if (status === "completed" && (jt.indexOf("reindex") > -1 || jt.indexOf("github_index") > -1) && _continuousRun.reindex) {
             _loopNext("reindex");
-          } else if (jt.indexOf("embed") > -1 && _continuousRun.ghEmbed) {
+          } else if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.ghEmbed) {
             _loopNext("ghEmbed");
           } else {
             _enableGitHubBtns();
+            if (status === "failed") { _loopExhausted("reindex"); _loopExhausted("ghEmbed"); }
           }
           checkActiveJobs();
         });
@@ -715,10 +738,14 @@ function checkActiveJobs() {
           _cache.languages = false;
           setTimeout(function() {
             loadLanguages();
+            /* Only loop-next on successful completion, not failed/reaped */
+            var status = completedJob ? completedJob.status : "unknown";
             var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
-            if (jt.indexOf("translate") > -1) {
+            if (status === "completed" && jt.indexOf("translate") > -1) {
               if (_continuousRun.translate) { _loopNext("translate"); }
               else if (_continuousRun.fullPass) { _loopNext("fullPass"); }
+            } else if (status === "failed") {
+              _loopExhausted("translate"); _loopExhausted("fullPass");
             }
             checkActiveJobs();
           }, 1500);
@@ -741,6 +768,11 @@ function _renderStationStatus(allJobs, myJobs) {
   renderKnowledgeOps(null, jobData);
   renderGitHubOps(null, jobData);
   renderLangOps(null, jobData);
+
+  /* Re-sync loop button states — rendering may have recreated buttons */
+  Object.keys(_continuousRun).forEach(function(opKey) {
+    _updateLoopBtn(opKey);
+  });
 }
 
 function _buildJobHtml(job) {

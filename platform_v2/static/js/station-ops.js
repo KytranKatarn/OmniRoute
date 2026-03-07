@@ -200,49 +200,130 @@
     });
   };
 
-  /* ── Render job progress rows in ops terminal ── */
+  /* ── Render job progress rows in ops terminal (in-place DOM updates) ── */
 
   StationOps.prototype.renderJobs = function(jobs) {
     var self = this;
     var jobsEl = document.getElementById(this.jobsElId);
     if (!jobsEl) return;
+
+    /* Filter to station-relevant, deduplicated jobs */
+    var unique = [];
     if (jobs && jobs.length) {
       var seen = {};
-      var unique = jobs.filter(function(j) {
-        if (seen[j.id]) return false;
+      jobs.forEach(function(j) {
+        if (seen[j.id]) return;
         var meta = j.metadata || {};
         var forStation = j.station_code === self.stationCode ||
           meta.module_station === self.stationCode ||
           meta.dispatch_station === self.stationCode;
-        if (j.station_code && !forStation) return false;
+        if (j.station_code && !forStation) return;
         seen[j.id] = true;
-        return true;
+        unique.push(j);
       });
-      if (!unique.length) { setHtml(jobsEl, ""); return; }
-      var parts = ['<div class="stn-ops-section-label cs-ops-section-label">ACTIVE JOBS</div>'];
-      unique.forEach(function(j) {
-        var pct = j.progress_pct || 0;
-        var desc = j.description || j.job_type || "Processing";
-        var agentLabel = j.agent_name || "Queued";
-        var stationLabel = j.station_code || "";
-        if (stationLabel) agentLabel += " \u2022 " + stationLabel;
-        var completed = j.completed_steps || 0;
-        var total = j.total_steps || 0;
-        var countLabel = total > 0 ? ('<span class="stn-ops-job-count cs-ops-job-count">' + completed + ' / ' + total + '</span>') : '';
-        parts.push('<div class="stn-ops-job-row cs-ops-job-row">');
-        parts.push('<div class="stn-ops-job-info cs-ops-job-info">');
-        parts.push('<div class="stn-ops-job-desc cs-ops-job-desc">' + escHtml(desc) + '</div>');
-        parts.push('<div class="stn-ops-job-agent cs-ops-job-agent">' + escHtml(agentLabel) + '</div>');
-        parts.push('</div>');
-        parts.push('<div class="stn-ops-job-bar cs-ops-job-bar"><div class="stn-ops-job-fill cs-ops-job-fill" style="width:' + pct + '%"></div></div>');
-        parts.push(countLabel);
-        parts.push('<div class="stn-ops-job-pct cs-ops-job-pct">' + pct + '%</div>');
-        parts.push('</div>');
-      });
-      setHtml(jobsEl, parts.join(""));
-    } else {
-      setHtml(jobsEl, "");
     }
+
+    if (!unique.length) {
+      if (jobsEl.hasChildNodes()) jobsEl.textContent = "";
+      return;
+    }
+
+    /* Ensure section label exists */
+    var label = jobsEl.querySelector(".stn-ops-section-label");
+    if (!label) {
+      label = document.createElement("div");
+      label.className = "stn-ops-section-label cs-ops-section-label";
+      label.textContent = "ACTIVE JOBS";
+      jobsEl.appendChild(label);
+    }
+
+    /* Build a set of current job IDs for cleanup */
+    var activeIds = {};
+    unique.forEach(function(j) { activeIds[j.id] = true; });
+
+    /* Remove rows for jobs no longer active */
+    var existing = jobsEl.querySelectorAll("[data-job-id]");
+    for (var i = 0; i < existing.length; i++) {
+      var rowId = existing[i].getAttribute("data-job-id");
+      if (!activeIds[rowId]) {
+        jobsEl.removeChild(existing[i]);
+      }
+    }
+
+    /* Update or create each job row in-place */
+    unique.forEach(function(j) {
+      var pct = j.progress_pct || 0;
+      var desc = j.description || j.job_type || "Processing";
+      var agentLabel = j.agent_name || "Queued";
+      var stationLabel = j.station_code || "";
+      if (stationLabel) agentLabel += " \u2022 " + stationLabel;
+      var completed = j.completed_steps || 0;
+      var total = j.total_steps || 0;
+      var countStr = total > 0 ? (completed + " / " + total) : "";
+
+      var row = jobsEl.querySelector("[data-job-id='" + j.id + "']");
+      if (row) {
+        /* Update existing row in-place — CSS transitions animate the bar */
+        var fill = row.querySelector(".stn-ops-job-fill");
+        if (fill) fill.style.width = pct + "%";
+        var pctEl = row.querySelector(".stn-ops-job-pct");
+        if (pctEl) pctEl.textContent = pct + "%";
+        var countEl = row.querySelector(".stn-ops-job-count");
+        if (countEl) {
+          countEl.textContent = countStr;
+        } else if (countStr) {
+          countEl = document.createElement("span");
+          countEl.className = "stn-ops-job-count cs-ops-job-count";
+          countEl.textContent = countStr;
+          var pctDiv = row.querySelector(".stn-ops-job-pct");
+          if (pctDiv) row.insertBefore(countEl, pctDiv);
+        }
+        var descEl = row.querySelector(".stn-ops-job-desc");
+        if (descEl && descEl.textContent !== desc) descEl.textContent = desc;
+        var agentEl = row.querySelector(".stn-ops-job-agent");
+        if (agentEl && agentEl.textContent !== agentLabel) agentEl.textContent = agentLabel;
+      } else {
+        /* Create new job row via DOM methods */
+        row = document.createElement("div");
+        row.className = "stn-ops-job-row cs-ops-job-row";
+        row.setAttribute("data-job-id", j.id);
+
+        var info = document.createElement("div");
+        info.className = "stn-ops-job-info cs-ops-job-info";
+        var descDiv = document.createElement("div");
+        descDiv.className = "stn-ops-job-desc cs-ops-job-desc";
+        descDiv.textContent = desc;
+        var agentDiv = document.createElement("div");
+        agentDiv.className = "stn-ops-job-agent cs-ops-job-agent";
+        agentDiv.textContent = agentLabel;
+        info.appendChild(descDiv);
+        info.appendChild(agentDiv);
+
+        var bar = document.createElement("div");
+        bar.className = "stn-ops-job-bar cs-ops-job-bar";
+        var fillDiv = document.createElement("div");
+        fillDiv.className = "stn-ops-job-fill cs-ops-job-fill";
+        fillDiv.style.width = pct + "%";
+        bar.appendChild(fillDiv);
+
+        row.appendChild(info);
+        row.appendChild(bar);
+
+        if (countStr) {
+          var countSpan = document.createElement("span");
+          countSpan.className = "stn-ops-job-count cs-ops-job-count";
+          countSpan.textContent = countStr;
+          row.appendChild(countSpan);
+        }
+
+        var pctDiv2 = document.createElement("div");
+        pctDiv2.className = "stn-ops-job-pct cs-ops-job-pct";
+        pctDiv2.textContent = pct + "%";
+        row.appendChild(pctDiv2);
+
+        jobsEl.appendChild(row);
+      }
+    });
   };
 
   /* ── Render command buttons (once) ── */

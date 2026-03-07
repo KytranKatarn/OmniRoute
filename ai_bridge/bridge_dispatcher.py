@@ -893,7 +893,7 @@ class BridgeDispatcher:
         if is_xl:
             try:
                 import requests as _req
-                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
                 _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
                 ollama_url = f"http://{_ollama_host}:{_ollama_port}"
                 ps_resp = _req.get(f"{ollama_url}/api/ps", timeout=5)
@@ -949,7 +949,7 @@ class BridgeDispatcher:
                 )
                 logger.info("[BridgeDispatcher] Freed ComfyUI VRAM after SDXL")
                 # Reload Ollama models
-                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
                 _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
                 ollama_url = f"http://{_ollama_host}:{_ollama_port}"
                 for mname in ollama_models_unloaded:
@@ -4073,7 +4073,7 @@ class BridgeDispatcher:
                 import os
 
                 _ollama_host = os.getenv(
-                    "OLLAMA_LOCAL_HOST", "host.docker.internal"
+                    "OLLAMA_LOCAL_HOST", "archie_ollama"
                 )
                 _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
                 _ps_resp = _req.get(

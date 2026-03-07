@@ -53,7 +53,7 @@ def _get_cached_ollama_tags():
     if _ollama_tags_cache["time"] and (now - _ollama_tags_cache["time"]) < _OLLAMA_CACHE_TTL:
         return _ollama_tags_cache["models"], _ollama_tags_cache["count"]
     try:
-        host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+        host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
         if not host.startswith("http"):
             host = f"http://{host}"
         resp = requests.get(f"{host}/api/tags", timeout=3)
@@ -78,7 +78,7 @@ def _get_cached_ollama_ps():
     if _ollama_ps_cache["time"] and (now - _ollama_ps_cache["time"]) < _OLLAMA_CACHE_TTL:
         return _ollama_ps_cache["models"]
     try:
-        host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+        host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
         if not host.startswith("http"):
             host = f"http://{host}"
         resp = requests.get(f"{host}/api/ps", timeout=3)
@@ -879,7 +879,7 @@ def update_agent(agent_id):
             # Model transition: auto-load new model, auto-unload orphaned old model
             model_ops = []
             if new_model and old_model and new_model != old_model:
-                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+                _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
                 _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
                 ollama_url = f"http://{_ollama_host}:{_ollama_port}"
 
@@ -3390,8 +3390,8 @@ def get_archie_status():
 def get_llm_status():
     """Get live LLM status from Ollama + external API key checks"""
     try:
-        ollama_host = "host.docker.internal"
-        ollama_port = 11434
+        ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+        ollama_port = int(os.getenv("OLLAMA_LOCAL_PORT", "11434"))
 
         # 1. Check Ollama health
         status, latency = check_ollama_status(ollama_host, ollama_port)
@@ -5586,9 +5586,10 @@ def get_bridge_available_models():
             # Get local Ollama models (this host)
             local_models = []
             try:
-                ollama_host = os.environ.get("OLLAMA_HOST", "host.docker.internal")
-                ollama_port = os.environ.get("OLLAMA_PORT", "11434")
-                resp = requests.get(f"http://{ollama_host}:{ollama_port}/api/tags", timeout=5)
+                _oh = os.environ.get("OLLAMA_HOST", "archie_ollama:11434")
+                if not _oh.startswith("http"):
+                    _oh = f"http://{_oh}"
+                resp = requests.get(f"{_oh}/api/tags", timeout=5)
                 if resp.status_code == 200:
                     for m in resp.json().get("models", []):
                         size_gb = round(m.get("size", 0) / 1e9, 1)
@@ -6701,7 +6702,7 @@ def model_control():
         if not model_name or action not in ("load", "unload"):
             return jsonify({"success": False, "error": "model and action (load|unload) required"}), 400
 
-        _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+        _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
         _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
         ollama_url = f"http://{_ollama_host}:{_ollama_port}"
 

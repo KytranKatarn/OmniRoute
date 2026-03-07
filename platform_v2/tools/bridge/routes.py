@@ -6751,7 +6751,7 @@ def toggle_fleet_mode():
         import threading
 
         if mode == "weekend":
-            # Unload all models (keep_alive: 0)
+            # Unload all Ollama models + free ComfyUI VRAM
             def _unload_all():
                 try:
                     ps_resp = requests.get(f"{ollama_url}/api/ps", timeout=10)
@@ -6765,20 +6765,41 @@ def toggle_fleet_mode():
                             )
                             logger.info(f"[FleetMode] Weekend: unloaded {mname}")
                 except Exception as e:
-                    logger.error(f"[FleetMode] Weekend unload error: {e}")
+                    logger.error(f"[FleetMode] Weekend Ollama unload error: {e}")
+
+                # Free ComfyUI VRAM
+                try:
+                    comfyui_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
+                    requests.post(
+                        f"{comfyui_host}/free",
+                        json={"unload_models": True},
+                        timeout=10,
+                    )
+                    logger.info("[FleetMode] Weekend: freed ComfyUI VRAM")
+                except Exception as e:
+                    logger.warning(f"[FleetMode] Weekend ComfyUI free error: {e}")
 
             t = threading.Thread(target=_unload_all, daemon=True, name="fleet-weekend")
             t.start()
             return jsonify({"success": True, "mode": "weekend", "message": "Unloading all models..."})
         else:
-            # Workday: trigger warmup
+            # Workday: trigger Ollama warmup + ComfyUI warmup
             def _warmup():
                 try:
                     from app import _warmup_ollama_models
 
                     _warmup_ollama_models()
                 except Exception as e:
-                    logger.error(f"[FleetMode] Workday warmup error: {e}")
+                    logger.error(f"[FleetMode] Workday Ollama warmup error: {e}")
+
+                # ComfyUI warmup after Ollama
+                try:
+                    from ai_bridge.comfyui_service import get_comfyui_service
+
+                    svc = get_comfyui_service()
+                    svc.warmup()
+                except Exception as e:
+                    logger.warning(f"[FleetMode] Workday ComfyUI warmup error: {e}")
 
             t = threading.Thread(target=_warmup, daemon=True, name="fleet-workday")
             t.start()

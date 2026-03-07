@@ -2103,9 +2103,26 @@ except Exception:
     pass
 
 if _fleet_mode == "weekend":
-    logger.info("Fleet mode: WEEKEND — skipping Ollama warmup (models stay unloaded)")
+    logger.info("Fleet mode: WEEKEND — skipping Ollama + ComfyUI warmup (models stay unloaded)")
 else:
     _warmup_ollama_models()
+
+    # ComfyUI warmup — pre-load SDXL checkpoint into VRAM
+    def _warmup_comfyui():
+        import time
+
+        time.sleep(10)  # Let Ollama warmup settle first
+        try:
+            from ai_bridge.comfyui_service import get_comfyui_service
+
+            svc = get_comfyui_service()
+            svc.warmup()
+        except Exception as e:
+            logger.warning(f"ComfyUI warmup failed: {e}")
+
+    import threading
+
+    threading.Thread(target=_warmup_comfyui, daemon=True, name="comfyui-warmup").start()
 
 
 # ============================================================================

@@ -178,6 +178,45 @@ class ComfyUIService:
             },
         }
 
+    def warmup(self, model: str = None) -> bool:
+        """Pre-load a checkpoint into VRAM with a minimal 1-step, 64x64 generation.
+
+        Returns True if warmup succeeded.
+        """
+        if not self.health_check():
+            logger.warning("[ComfyUI] Warmup skipped — not reachable")
+            return False
+
+        if not model:
+            # Use Pixel's default checkpoint
+            model = "sd_xl_base_1.0.safetensors"
+
+        logger.info(f"[ComfyUI] Warming up checkpoint: {model}")
+        try:
+            result = self.generate_image(
+                prompt="warmup",
+                model=model,
+                steps=1,
+                width=64,
+                height=64,
+                cfg=1.0,
+            )
+            if result.success:
+                logger.info(f"[ComfyUI] Warmup complete: {model} loaded into VRAM")
+                # Clean up the tiny warmup image
+                if result.file_path:
+                    try:
+                        Path(result.file_path).unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                return True
+            else:
+                logger.warning(f"[ComfyUI] Warmup failed: {result.error}")
+                return False
+        except Exception as e:
+            logger.warning(f"[ComfyUI] Warmup error: {e}")
+            return False
+
     def generate_image(
         self,
         prompt: str,

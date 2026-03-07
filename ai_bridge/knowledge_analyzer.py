@@ -21,59 +21,14 @@ import os
 import json
 import logging
 import re
-import requests
 from datetime import datetime
 from typing import Optional
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-CLAUDE_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
-
-# Ollama configuration (fallback when no Claude API key)
-# Analysis model — qwen2.5-coder:7b (GPU) for knowledge extraction from
-# conversations and documents.  Override via OLLAMA_ANALYSIS_MODEL env var.
-def _get_analysis_model():
-    return os.getenv("OLLAMA_ANALYSIS_MODEL", "qwen2.5-coder:7b")
-
-OLLAMA_MODEL = _get_analysis_model()
-# Fast model for short entries (disabled by default — model swapping crashes on small-VRAM GPUs)
-# Set OLLAMA_FAST_MODEL=tinyllama:latest to enable on systems with >=16GB VRAM
-OLLAMA_FAST_MODEL = os.getenv("OLLAMA_FAST_MODEL", "")
-
-# Content limits tuned to model context windows
-# qwen3-coder-cpu runs at num_ctx=32768 → ~24K tokens usable for content after prompt+output overhead
-MAX_CONTENT_LENGTH = 30000  # chars for primary model
-FAST_CONTENT_LENGTH = 4000  # chars for fast model (if enabled)
-FAST_MODEL_THRESHOLD = 2000  # entries under this many chars use the fast model
-
-
-# Determine Ollama host - prefer server with qwen model
-def _find_ollama_host():
-    """Find an Ollama host that has the analysis model"""
-    hosts = [
-        "http://host.docker.internal:11434",  # Local Ollama on ARCHIE host
-    ]
-    for host in hosts:
-        try:
-            resp = requests.get(f"{host}/api/tags", timeout=3)
-            if resp.status_code == 200:
-                models = [m["name"] for m in resp.json().get("models", [])]
-                if any(OLLAMA_MODEL in m for m in models):
-                    logger.info(f"Found {OLLAMA_MODEL} at {host}")
-                    return host
-        except Exception:
-            continue
-    # Fallback to main server
-    return "http://192.168.1.200:11434"
-
-
-OLLAMA_HOST = _find_ollama_host()
-
-# Choose backend: "claude" or "ollama" (auto-selects based on API key if not set)
-ANALYZER_BACKEND = os.getenv("ANALYZER_BACKEND", "auto")
+# Content limits for smart truncation before sending to Bridge
+MAX_CONTENT_LENGTH = 30000  # chars max for analysis prompts
 
 
 @dataclass
@@ -243,190 +198,71 @@ def _smart_truncate(content: str, max_chars: int) -> str:
 
 
 class KnowledgeAnalyzer:
-    """Analyzes content using Claude API or Ollama to extract knowledge"""
+    """Analyzes content via Bridge dispatcher to extract knowledge.
 
-    def __init__(self, api_key: str = CLAUDE_API_KEY, backend: str = ANALYZER_BACKEND):
-        self.api_key = api_key
-        self._client = None
-        self._fast_model_available = None  # cached availability check
+    All LLM inference routes through Bridge (ADR-013) for model management,
+    VRAM handling, agent assignment, and escalation.
+    """
 
-        # Determine backend
-        if backend == "auto":
-            self.backend = "claude" if api_key else "ollama"
-        else:
-            self.backend = backend
-
-        logger.info(f"Knowledge analyzer using backend: {self.backend}")
+    def __init__(self):
+        logger.info("Knowledge analyzer using Bridge dispatcher")
 
     def get_current_model(self) -> str:
-        """Return the model name currently used for analysis."""
-        if self.backend == "claude":
-            return CLAUDE_MODEL
-        return OLLAMA_MODEL
-
-    @property
-    def client(self):
-        """Lazy-load anthropic client"""
-        if self._client is None and self.backend == "claude":
-            try:
-                import anthropic
-
-                self._client = anthropic.Anthropic(api_key=self.api_key)
-            except ImportError:
-                logger.error("anthropic package not installed")
-                raise ImportError("pip install anthropic")
-        return self._client
+        """Return the model name — managed by Bridge dispatcher."""
+        return "bridge-managed"
 
     def warmup(self) -> bool:
-        """Warm up Ollama model to avoid cold-start crashes.
-
-        Ollama 0.15.x has a bug where the first API call after model eviction
-        crashes with 'exit status 2'. This method retries up to 3 times.
-        """
-        if self.backend != "ollama":
-            return True
-        import time
-
-        for attempt in range(3):
-            try:
-                resp = requests.post(
-                    f"{OLLAMA_HOST}/api/generate",
-                    json={
-                        "model": OLLAMA_MODEL,
-                        "prompt": "hi",
-                        "stream": False,
-                        "options": {"num_predict": 1},
-                    },
-                    timeout=60,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data.get("response") is not None and "error" not in data:
-                        logger.info(f"Ollama warmup succeeded on attempt {attempt + 1}")
-                        return True
-                    if "error" in data:
-                        logger.warning(
-                            f"Ollama warmup attempt {attempt + 1}: {data['error']}"
-                        )
-                else:
-                    logger.warning(
-                        f"Ollama warmup attempt {attempt + 1}: HTTP {resp.status_code}"
-                    )
-            except Exception as e:
-                logger.warning(f"Ollama warmup attempt {attempt + 1}: {e}")
-            time.sleep(3)
-        logger.error("Ollama warmup failed after 3 attempts")
-        return False
+        """No-op — Bridge dispatcher handles model loading and warmup."""
+        return True
 
     def health_check(self) -> dict:
-        """Check if analyzer is ready, including GPU info"""
-        if self.backend == "ollama":
-            try:
-                resp = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
-                if resp.status_code == 200:
-                    models = [m["name"] for m in resp.json().get("models", [])]
-                    if any(OLLAMA_MODEL in m for m in models):
-                        result = {
-                            "status": "healthy",
-                            "backend": "ollama",
-                            "model": OLLAMA_MODEL,
-                            "host": OLLAMA_HOST,
-                            "fast_model": (
-                                OLLAMA_FAST_MODEL
-                                if self._is_fast_model_available()
-                                else None
-                            ),
-                            "tiered": self._is_fast_model_available(),
-                        }
-                        # Check running models for GPU info
-                        try:
-                            ps_resp = requests.get(f"{OLLAMA_HOST}/api/ps", timeout=3)
-                            if ps_resp.status_code == 200:
-                                running = ps_resp.json().get("models", [])
-                                gpu_info = []
-                                for m in running:
-                                    gpu_info.append(
-                                        {
-                                            "name": m.get("name"),
-                                            "size": m.get("size"),
-                                            "processor": m.get("size_vram", 0) > 0
-                                            and "GPU"
-                                            or "CPU",
-                                        }
-                                    )
-                                if gpu_info:
-                                    result["running_models"] = gpu_info
-                        except Exception:
-                            pass
-                        return result
-                    return {
-                        "status": "unhealthy",
-                        "backend": "ollama",
-                        "error": f"Model {OLLAMA_MODEL} not found",
-                    }
+        """Check if analyzer is ready via Bridge dispatcher."""
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            if dispatcher:
                 return {
-                    "status": "unhealthy",
-                    "backend": "ollama",
-                    "error": "Ollama not responding",
+                    "status": "healthy",
+                    "backend": "bridge",
+                    "model": "managed by Bridge dispatcher",
                 }
-            except Exception as e:
-                return {"status": "unhealthy", "backend": "ollama", "error": str(e)}
-
-        # Claude backend
-        if not self.api_key:
-            return {
-                "status": "unhealthy",
-                "backend": "claude",
-                "error": "No API key configured",
-            }
-
-        try:
-            _ = self.client
-            return {"status": "healthy", "backend": "claude", "model": CLAUDE_MODEL}
+            return {"status": "unhealthy", "backend": "bridge", "error": "No dispatcher"}
         except Exception as e:
-            return {"status": "unhealthy", "backend": "claude", "error": str(e)}
+            return {"status": "unhealthy", "backend": "bridge", "error": str(e)}
 
-    def _is_fast_model_available(self) -> bool:
-        """Check if the fast model is configured and available.
 
-        Disabled by default — model swapping can crash Ollama on small-VRAM GPUs (e.g. 8GB).
-        Enable by setting OLLAMA_FAST_MODEL env var.
-        """
-        if not OLLAMA_FAST_MODEL:
-            return False
-        if self._fast_model_available is not None:
-            return self._fast_model_available
-        try:
-            resp = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=3)
-            if resp.status_code == 200:
-                models = [m["name"] for m in resp.json().get("models", [])]
-                self._fast_model_available = any(
-                    OLLAMA_FAST_MODEL.split(":")[0] in m for m in models
-                )
-            else:
-                self._fast_model_available = False
-        except Exception:
-            self._fast_model_available = False
-        return self._fast_model_available
+    def _parse_cards(self, data, source_type, source_ref, default_type="concept", default_techs=None):
+        """Parse knowledge cards from LLM JSON response."""
+        cards = []
+        for cd in data.get("cards", []):
+            cards.append(KnowledgeCard(
+                title=cd.get("title", "Untitled"),
+                card_type=cd.get("card_type", default_type),
+                summary=cd.get("summary", ""),
+                detailed=cd.get("detailed", ""),
+                code_examples=cd.get("code_examples", []),
+                topics=cd.get("topics", []),
+                technologies=cd.get("technologies", default_techs or []),
+                difficulty=cd.get("difficulty", "intermediate"),
+                confidence=float(cd.get("confidence", 0.7)),
+                source_type=source_type,
+                source_ref=source_ref,
+            ))
+        return cards
 
-    def _select_model(self, content_length: int) -> tuple:
-        """Select the best model based on content size.
-
-        Returns:
-            tuple: (model_name, num_ctx, max_content_chars)
-        """
-        if self.backend != "ollama":
-            return (CLAUDE_MODEL, None, MAX_CONTENT_LENGTH)
-
-        # Short entries → fast model (tinyllama) for speed
-        if content_length <= FAST_MODEL_THRESHOLD and self._is_fast_model_available():
-            logger.info(
-                f"Using fast model {OLLAMA_FAST_MODEL} for {content_length} char entry"
-            )
-            return (OLLAMA_FAST_MODEL, 4096, FAST_CONTENT_LENGTH)
-
-        # Everything else → primary model with expanded context
-        return (OLLAMA_MODEL, 8192, MAX_CONTENT_LENGTH)
+    def _parse_relationships(self, data, default_rel="related_to"):
+        """Parse relationships from LLM JSON response."""
+        rels = []
+        for rd in data.get("relationships", []):
+            rels.append(ExtractedRelationship(
+                from_title=rd.get("from_title", ""),
+                to_title=rd.get("to_title", ""),
+                relationship_type=rd.get("relationship_type", default_rel),
+                strength=float(rd.get("strength", 0.5)),
+                reasoning=rd.get("reasoning", ""),
+            ))
+        return rels
 
     def _call_llm(
         self,
@@ -436,95 +272,44 @@ class KnowledgeAnalyzer:
         num_ctx: int = None,
     ) -> tuple:
         """
-        Call LLM (Claude or Ollama) with prompt.
+        Call LLM via Bridge dispatcher (ADR-013).
 
-        Returns:
-            tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
-        """
-        if self.backend == "ollama":
-            return self._call_ollama(prompt, max_tokens, model=model, num_ctx=num_ctx)
-        return self._call_claude(prompt, max_tokens)
-
-    def _call_ollama(
-        self,
-        prompt: str,
-        max_tokens: int = 4000,
-        model: str = None,
-        num_ctx: int = None,
-    ) -> tuple:
-        """
-        Call Ollama API with prompt.
+        All inference routes through Bridge for model management, VRAM
+        handling, agent assignment, and escalation.
 
         Returns:
             tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
         """
         import time
-
-        model = model or OLLAMA_MODEL
-        options = {
-            "num_predict": max_tokens,
-            "temperature": 0.3,
-        }
-        if num_ctx:
-            options["num_ctx"] = num_ctx
+        from ai_bridge.bridge_dispatcher import get_dispatcher
 
         start = time.time()
-        try:
-            response = requests.post(
-                f"{OLLAMA_HOST}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": options,
-                },
-                timeout=300,
-            )
-            response.raise_for_status()
-            data = response.json()
-            elapsed = int((time.time() - start) * 1000)
+        dispatcher = get_dispatcher()
+        result = dispatcher.request_work(
+            "knowledge_analysis",
+            prompt,
+            "consciousness",
+            json_mode=True,
+            timeout=300,
+        )
+        elapsed = int((time.time() - start) * 1000)
 
+        if result.success:
             logger.info(
-                f"Ollama [{model}] prompt={data.get('prompt_eval_count', 0)} "
-                f"gen={data.get('eval_count', 0)} time={elapsed}ms"
+                f"Bridge [{result.model_used}] "
+                f"prompt={result.prompt_tokens} "
+                f"gen={result.completion_tokens} time={elapsed}ms"
             )
-
             return (
-                data.get("response", ""),
-                data.get("prompt_eval_count", 0),
-                data.get("eval_count", 0),
+                result.response,
+                result.prompt_tokens,
+                result.completion_tokens,
                 elapsed,
             )
-        except Exception as e:
-            logger.error(f"Ollama API error ({model}): {e}")
-            raise
-
-    def _call_claude(self, prompt: str, max_tokens: int = 4000) -> tuple:
-        """
-        Call Claude API with prompt.
-
-        Returns:
-            tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
-        """
-        import time
-
-        start = time.time()
-        try:
-            response = self.client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            elapsed = int((time.time() - start) * 1000)
-            return (
-                response.content[0].text,
-                response.usage.input_tokens,
-                response.usage.output_tokens,
-                elapsed,
-            )
-        except Exception as e:
-            logger.error(f"Claude API error: {e}")
-            raise
+        else:
+            error_msg = getattr(result, "error", "Bridge dispatch failed")
+            logger.error(f"Bridge dispatch failed: {error_msg}")
+            raise RuntimeError(f"Bridge dispatch failed: {error_msg}")
 
     def _parse_json_response(self, response: str) -> dict:
         """Parse JSON from Claude response, handling markdown code blocks"""
@@ -570,12 +355,9 @@ class KnowledgeAnalyzer:
 
         metadata = metadata or {}
 
-        # Select model based on content size
-        orig_len = len(content)
-        model, num_ctx, max_chars = self._select_model(orig_len)
-
         # Smart truncation to fit model context
-        content = _smart_truncate(content, max_chars)
+        orig_len = len(content)
+        content = _smart_truncate(content, MAX_CONTENT_LENGTH)
 
         prompt = CONVERSATION_ANALYSIS_PROMPT.format(
             content=content,
@@ -584,44 +366,11 @@ class KnowledgeAnalyzer:
             date=metadata.get("date", datetime.now().isoformat()),
         )
 
-        # Scale output budget by content size (less content = fewer cards needed)
-        max_tokens = 1500 if orig_len < 3000 else 2500 if orig_len < 10000 else 4000
-
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(
-                prompt, max_tokens=max_tokens, model=model, num_ctx=num_ctx
-            )
+            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt)
             data = self._parse_json_response(response)
-
-            # Parse cards
-            cards = []
-            for card_data in data.get("cards", []):
-                card = KnowledgeCard(
-                    title=card_data.get("title", "Untitled"),
-                    card_type=card_data.get("card_type", "concept"),
-                    summary=card_data.get("summary", ""),
-                    detailed=card_data.get("detailed", ""),
-                    code_examples=card_data.get("code_examples", []),
-                    topics=card_data.get("topics", []),
-                    technologies=card_data.get("technologies", []),
-                    difficulty=card_data.get("difficulty", "intermediate"),
-                    confidence=float(card_data.get("confidence", 0.7)),
-                    source_type=metadata.get("source_type", "conversation"),
-                    source_ref=metadata.get("source_ref", ""),
-                )
-                cards.append(card)
-
-            # Parse relationships
-            relationships = []
-            for rel_data in data.get("relationships", []):
-                rel = ExtractedRelationship(
-                    from_title=rel_data.get("from_title", ""),
-                    to_title=rel_data.get("to_title", ""),
-                    relationship_type=rel_data.get("relationship_type", "related_to"),
-                    strength=float(rel_data.get("strength", 0.5)),
-                    reasoning=rel_data.get("reasoning", ""),
-                )
-                relationships.append(rel)
+            cards = self._parse_cards(data, metadata.get("source_type", "conversation"), metadata.get("source_ref", ""))
+            relationships = self._parse_relationships(data)
 
             return AnalysisResult(
                 success=True,
@@ -675,55 +424,18 @@ class KnowledgeAnalyzer:
             }
             language = language_map.get(ext, "Unknown")
 
-        # Select model based on content size
-        orig_len = len(content)
-        model, num_ctx, max_chars = self._select_model(orig_len)
-
         # Smart truncation to fit model context
-        content = _smart_truncate(content, max_chars)
+        content = _smart_truncate(content, MAX_CONTENT_LENGTH)
 
         prompt = CODE_ANALYSIS_PROMPT.format(
             filename=filename, language=language, content=content
         )
 
-        # Scale output budget by content size
-        max_tokens = 1500 if orig_len < 3000 else 2500 if orig_len < 10000 else 4000
-
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(
-                prompt, max_tokens=max_tokens, model=model, num_ctx=num_ctx
-            )
+            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt)
             data = self._parse_json_response(response)
-
-            # Parse cards
-            cards = []
-            for card_data in data.get("cards", []):
-                card = KnowledgeCard(
-                    title=card_data.get("title", "Untitled"),
-                    card_type=card_data.get("card_type", "pattern"),
-                    summary=card_data.get("summary", ""),
-                    detailed=card_data.get("detailed", ""),
-                    code_examples=card_data.get("code_examples", []),
-                    topics=card_data.get("topics", []),
-                    technologies=card_data.get("technologies", [language]),
-                    difficulty=card_data.get("difficulty", "intermediate"),
-                    confidence=float(card_data.get("confidence", 0.7)),
-                    source_type="github",
-                    source_ref=filename,
-                )
-                cards.append(card)
-
-            # Parse relationships
-            relationships = []
-            for rel_data in data.get("relationships", []):
-                rel = ExtractedRelationship(
-                    from_title=rel_data.get("from_title", ""),
-                    to_title=rel_data.get("to_title", ""),
-                    relationship_type=rel_data.get("relationship_type", "implements"),
-                    strength=float(rel_data.get("strength", 0.5)),
-                    reasoning=rel_data.get("reasoning", ""),
-                )
-                relationships.append(rel)
+            cards = self._parse_cards(data, "github", filename, default_type="pattern", default_techs=[language])
+            relationships = self._parse_relationships(data, default_rel="implements")
 
             return AnalysisResult(
                 success=True,
@@ -758,25 +470,7 @@ def analyzer_health_check() -> dict:
 
 
 if __name__ == "__main__":
-    # Test when run directly
     logging.basicConfig(level=logging.INFO)
-
     print("Testing Knowledge Analyzer...")
-    print("-" * 40)
-
-    # Health check
     health = analyzer_health_check()
     print(f"Health: {health}")
-
-    if health["status"] == "healthy":
-        backend = health.get("backend", "unknown")
-        model = health.get("model", "unknown")
-        print(f"\nAnalyzer ready using {backend} backend with {model}")
-        print("To test analysis, use: analyzer.analyze_conversation(content)")
-    else:
-        print(f"\nAnalyzer not ready: {health.get('error', 'Unknown error')}")
-        backend = health.get("backend", "auto")
-        if backend == "claude":
-            print("Set ANTHROPIC_API_KEY environment variable")
-        else:
-            print(f"Check Ollama at {OLLAMA_HOST}")

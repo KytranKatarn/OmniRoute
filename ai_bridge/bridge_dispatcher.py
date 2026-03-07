@@ -361,24 +361,29 @@ class BridgeDispatcher:
                     "allow_overflow": True,
                 }
 
+            # Count primary crew: jobs at this station that are NOT cross-station or cloud
+            # Count auxiliary: cross-station jobs targeting this station (module_station or dispatch_station)
+            # Count contractors: cloud jobs at this station
             cur.execute(
                 """
                 SELECT
-                    COUNT(*) FILTER (
-                        WHERE (metadata->>'is_cross_station') IS DISTINCT FROM 'true'
-                        AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
+                    (SELECT COUNT(*) FROM bridge_jobs
+                     WHERE status = 'running' AND station_code = %s
+                     AND (metadata->>'is_cross_station') IS DISTINCT FROM 'true'
+                     AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
                     ) AS primary_count,
-                    COUNT(*) FILTER (
-                        WHERE metadata->>'is_cross_station' = 'true'
-                        AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
+                    (SELECT COUNT(*) FROM bridge_jobs
+                     WHERE status = 'running'
+                     AND metadata->>'is_cross_station' = 'true'
+                     AND (metadata->>'is_cloud') IS DISTINCT FROM 'true'
+                     AND (metadata->>'module_station' = %s OR metadata->>'dispatch_station' = %s)
                     ) AS auxiliary_count,
-                    COUNT(*) FILTER (
-                        WHERE metadata->>'is_cloud' = 'true'
+                    (SELECT COUNT(*) FROM bridge_jobs
+                     WHERE status = 'running' AND station_code = %s
+                     AND metadata->>'is_cloud' = 'true'
                     ) AS contractor_count
-                FROM bridge_jobs
-                WHERE station_code = %s AND status = 'running'
             """,
-                (station_code,),
+                (station_code, station_code, station_code, station_code),
             )
             counts = cur.fetchone() or {}
             cur.close()
@@ -3452,15 +3457,17 @@ class BridgeDispatcher:
 
         try:
             if advisory_type == "cross_station":
-                # Get occupancy for narrative context
-                occ = self._get_station_slot_occupancy(dispatch_station or "COMMAND")
+                # Get occupancy at the REQUESTING station (where work is needed),
+                # not the agent's home station
+                requesting = home_station or dispatch_station or "COMMAND"
+                occ = self._get_station_slot_occupancy(requesting)
                 slots_used = occ["total"]
                 max_cap = occ["max_primary"] + occ["max_auxiliary"]
                 is_over = slots_used > max_cap
 
                 agent_label = self._agent_display(agent_name) if agent_name else "an agent"
-                station_label = dispatch_station or "unknown"
-                home_label = home_station or "another station"
+                station_label = requesting
+                home_label = dispatch_station or "another station"
 
                 if is_over:
                     title = "Station Capacity Overflow"

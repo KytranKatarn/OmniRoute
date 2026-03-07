@@ -677,9 +677,9 @@ function checkActiveJobs() {
           var status = completedJob ? completedJob.status : "unknown";
           var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
           if (status === "completed" && jt.indexOf("analysis") > -1 && _continuousRun.analysis) {
-            _loopNext("analysis");
+            _loopNext("analysis", completedJob);
           } else if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.embedding) {
-            _loopNext("embedding");
+            _loopNext("embedding", completedJob);
           } else {
             _enableProcessingBtns();
             if (status === "failed") { _loopRetry("analysis"); _loopRetry("embedding"); }
@@ -703,9 +703,9 @@ function checkActiveJobs() {
           var status = completedJob ? completedJob.status : "unknown";
           var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
           if (status === "completed" && (jt.indexOf("reindex") > -1 || jt.indexOf("github_index") > -1) && _continuousRun.reindex) {
-            _loopNext("reindex");
+            _loopNext("reindex", completedJob);
           } else if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.ghEmbed) {
-            _loopNext("ghEmbed");
+            _loopNext("ghEmbed", completedJob);
           } else {
             _enableGitHubBtns();
             if (status === "failed") { _loopRetry("reindex"); _loopRetry("ghEmbed"); }
@@ -734,8 +734,8 @@ function checkActiveJobs() {
             var status = completedJob ? completedJob.status : "unknown";
             var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
             if (status === "completed" && jt.indexOf("translate") > -1) {
-              if (_continuousRun.translate) { _loopNext("translate"); }
-              else if (_continuousRun.fullPass) { _loopNext("fullPass"); }
+              if (_continuousRun.translate) { _loopNext("translate", completedJob); }
+              else if (_continuousRun.fullPass) { _loopNext("fullPass", completedJob); }
             } else if (status === "failed") {
               _loopRetry("translate"); _loopRetry("fullPass");
             }
@@ -864,6 +864,16 @@ var _loopOps = {
   fullPass:  { start: function() { langFullPass(); },       btnId: "langFullPassBtn",  idle: "\u221E FULL PASS" }
 };
 
+var MAX_STATION_LOOPS = 3;
+
+function _activeLoopCount() {
+  var count = 0;
+  Object.keys(_continuousRun).forEach(function(k) {
+    if (_continuousRun[k]) count++;
+  });
+  return count;
+}
+
 window.toggleLoop = function(opKey) {
   if (_continuousRun[opKey]) {
     /* Stop */
@@ -871,6 +881,11 @@ window.toggleLoop = function(opKey) {
     _continuousBatch[opKey] = 0;
     _updateLoopBtn(opKey);
   } else {
+    /* Guard: max 3 loops at this station (matches 3-slot model) */
+    if (_activeLoopCount() >= MAX_STATION_LOOPS) {
+      console.warn("[Loop] Cannot start " + opKey + " — station at max " + MAX_STATION_LOOPS + " loops");
+      return;
+    }
     /* Start — kick off first batch */
     _continuousRun[opKey] = true;
     _continuousBatch[opKey] = 0;
@@ -894,9 +909,21 @@ function _updateLoopBtn(opKey) {
   }
 }
 
-function _loopNext(opKey) {
+function _isCloudJob(job) {
+  if (!job || !job.metadata) return false;
+  var meta = (typeof job.metadata === "string") ? JSON.parse(job.metadata) : job.metadata;
+  return meta.is_cloud === "true" || meta.is_cloud === true;
+}
+
+function _loopNext(opKey, completedJob) {
   /* Called when a job completes — start next batch if still looping */
   if (!_continuousRun[opKey]) return;
+  /* Never loop on cloud jobs — cloud requires Telegram approval each time */
+  if (_isCloudJob(completedJob)) {
+    console.warn("[Loop] " + opKey + " completed via cloud — stopping loop (no cloud loops)");
+    _loopExhausted(opKey);
+    return;
+  }
   _loopFailures[opKey] = 0; /* reset failures on success */
   _continuousBatch[opKey] = (_continuousBatch[opKey] || 0) + 1;
   var op = _loopOps[opKey];

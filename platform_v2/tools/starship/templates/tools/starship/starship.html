@@ -113,18 +113,54 @@
 .sc-station-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: rgba(255,255,255,0.5); letter-spacing: 1px; text-transform: uppercase; }
 .sc-station-card.active .sc-station-label { color: #fff; }
 
-/* Agent access list */
-.sc-agent-list { display: flex; flex-direction: column; gap: 4px; }
-.sc-agent-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; transition: background 0.2s; }
+/* System Ops bar */
+.sc-ops-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.sc-ops-metric { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 12px 16px; text-align: center; }
+.sc-ops-metric-val { font-family: 'IBM Plex Mono', monospace; font-size: 1.4rem; color: #fff; display: block; }
+.sc-ops-metric-val.warn { color: var(--sc-amber); }
+.sc-ops-metric-val.crit { color: var(--sc-red); }
+.sc-ops-metric-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; display: block; }
+.sc-ops-bar-fill { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+.sc-ops-bar-fill > div { height: 100%; border-radius: 2px; transition: width 0.5s; }
+
+/* Enhanced stations */
+.sc-station-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer; transition: all 0.2s; position: relative; }
+.sc-station-card .sc-station-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: rgba(255,255,255,0.3); }
+.sc-station-card.active .sc-station-meta { color: rgba(255,255,255,0.5); }
+.sc-station-info { flex: 1; min-width: 0; }
+.sc-station-agent-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+.sc-station-card.active .sc-station-agent-count { color: var(--station-color, var(--sc-accent)); }
+.sc-station-summary { display: flex; gap: 16px; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
+.sc-station-summary strong { color: var(--sc-accent); }
+
+/* Agent roster (enhanced) */
+.sc-agent-list { display: flex; flex-direction: column; gap: 6px; }
+.sc-agent-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.04); border-left: 3px solid rgba(255,255,255,0.08); border-radius: 6px; transition: all 0.2s; }
 .sc-agent-row:hover { background: rgba(0,0,0,0.4); }
-.sc-agent-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--sc-accent-dim); display: flex; align-items: center; justify-content: center; font-family: 'Antonio', sans-serif; color: var(--sc-accent); font-size: 0.8rem; flex-shrink: 0; }
+.sc-agent-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--sc-accent-dim); display: flex; align-items: center; justify-content: center; font-family: 'Antonio', sans-serif; color: var(--sc-accent); font-size: 0.85rem; flex-shrink: 0; }
 .sc-agent-info { flex: 1; min-width: 0; }
 .sc-agent-name { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sc-agent-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: rgba(255,255,255,0.35); }
-.sc-agent-stations { display: flex; gap: 4px; flex-wrap: wrap; }
+.sc-agent-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: rgba(255,255,255,0.35); margin-top: 2px; }
+.sc-agent-stations { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .sc-agent-station-tag { padding: 1px 6px; border-radius: 3px; font-size: 0.6rem; font-family: 'IBM Plex Mono', monospace; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.08); }
-.sc-agent-row.restricted { opacity: 0.45; }
+.sc-agent-row.restricted { opacity: 0.4; }
 .sc-agent-row.restricted .sc-agent-name { text-decoration: line-through; }
+.sc-agent-summary { display: flex; gap: 16px; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
+.sc-agent-summary strong { color: var(--sc-accent); }
+.sc-model-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.65rem; font-family: 'IBM Plex Mono', monospace; margin-left: 6px; }
+.sc-model-badge.available { background: rgba(0, 255, 136, 0.1); color: var(--sc-green); }
+.sc-model-badge.unavailable { background: rgba(255, 68, 68, 0.1); color: var(--sc-red); }
+
+/* Enhanced models grid */
+.sc-model-card { background: rgba(0, 229, 255, 0.04); border: 1px solid rgba(0, 229, 255, 0.12); border-radius: 6px; padding: 12px 14px; }
+.sc-model-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.sc-model-name { color: var(--sc-accent); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
+.sc-model-meta { color: rgba(255,255,255,0.4); font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; }
+.sc-model-stats { display: flex; gap: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.04); }
+.sc-model-stat { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: rgba(255,255,255,0.3); }
+.sc-model-stat span { color: rgba(255,255,255,0.6); }
+.sc-model-summary { display: flex; gap: 20px; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
+.sc-model-summary strong { color: var(--sc-accent); }
 
 /* Add Node button */
 .sc-add-btn { display: flex; align-items: center; gap: 8px; padding: 10px 24px; background: var(--sc-accent-dim); border: 1px solid var(--sc-accent); color: var(--sc-accent); font-family: 'Antonio', sans-serif; font-size: 0.95rem; letter-spacing: 2px; cursor: pointer; border-radius: 4px; transition: all 0.2s; text-transform: uppercase; }
@@ -157,6 +193,11 @@
 .sc-btn-secondary:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
 .sc-download-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 20px; background: rgba(0, 255, 136, 0.1); border: 1px solid var(--sc-green); color: var(--sc-green); font-family: 'Antonio', sans-serif; font-size: 0.85rem; letter-spacing: 2px; cursor: pointer; border-radius: 4px; text-decoration: none; margin-top: 8px; }
 .sc-download-btn:hover { background: rgba(0, 255, 136, 0.2); }
+.sc-btn-small { padding: 4px 12px; background: var(--sc-accent-dim); border: 1px solid var(--sc-accent); color: var(--sc-accent); font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; letter-spacing: 1px; cursor: pointer; border-radius: 3px; transition: all 0.2s; }
+.sc-btn-small:hover { background: rgba(0, 229, 255, 0.25); }
+.sc-code-block { background: #0d1117; border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 6px; padding: 12px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--sc-green); white-space: pre-wrap; word-break: break-all; line-height: 1.6; position: relative; margin: 12px 0; user-select: all; cursor: text; }
+.sc-code-block .sc-copy-btn { position: absolute; top: 6px; right: 6px; padding: 3px 8px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); font-size: 0.65rem; cursor: pointer; border-radius: 3px; }
+.sc-code-block .sc-copy-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
 
 @media (max-width: 768px) {
     .sc-fleet-grid { grid-template-columns: 1fr; }
@@ -248,6 +289,31 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         </div>
     </div>
 
+    <!-- RESYNC NODE MODAL -->
+    <div class="sc-modal-overlay" id="resync-modal">
+        <div class="sc-modal">
+            <div class="sc-modal-header">
+                <h2>RESYNC NODE</h2>
+                <button class="sc-modal-close" onclick="closeResyncModal()">&times;</button>
+            </div>
+            <div class="sc-modal-body">
+                <p>On the node machine, open a terminal as Admin and run one command. It will download the latest client, update in place, and restart the heartbeat.</p>
+                <p style="color: var(--sc-amber);">WINDOWS — PowerShell (Run as Administrator):</p>
+                <div class="sc-code-block" id="resync-cmd-win">
+                    <button class="sc-copy-btn" onclick="copyResyncCmd('win')">COPY</button>
+                </div>
+                <p style="color: var(--sc-amber); margin-top: 16px;">LINUX / MAC — Terminal:</p>
+                <div class="sc-code-block" id="resync-cmd-linux">
+                    <button class="sc-copy-btn" onclick="copyResyncCmd('linux')">COPY</button>
+                </div>
+                <p style="margin-top: 16px;">After the update, future versions can be pushed directly from the version badge above — no need to visit the node machine again.</p>
+            </div>
+            <div class="sc-modal-actions">
+                <button class="sc-btn-secondary" onclick="closeResyncModal()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
     {% if nodes|length == 0 %}
     <div class="sc-empty">
         <h3>NO NODES REGISTERED</h3>
@@ -304,18 +370,40 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         <!-- STATUS TAB -->
         <div class="sc-panel active" id="panel-status">
             <div class="sc-section">
+                <h4>SYSTEM OPERATIONS</h4>
+                <div class="sc-ops-bar" id="d-ops-bar">
+                    <div class="sc-ops-metric">
+                        <span class="sc-ops-metric-val" id="ops-cpu">—</span>
+                        <span class="sc-ops-metric-label">CPU LOAD</span>
+                        <div class="sc-ops-bar-fill"><div id="ops-cpu-bar" style="width:0%;background:var(--sc-green)"></div></div>
+                    </div>
+                    <div class="sc-ops-metric">
+                        <span class="sc-ops-metric-val" id="ops-ram">—</span>
+                        <span class="sc-ops-metric-label">MEMORY</span>
+                        <div class="sc-ops-bar-fill"><div id="ops-ram-bar" style="width:0%;background:var(--sc-green)"></div></div>
+                    </div>
+                    <div class="sc-ops-metric">
+                        <span class="sc-ops-metric-val" id="ops-gpu">—</span>
+                        <span class="sc-ops-metric-label">GPU</span>
+                        <div class="sc-ops-bar-fill"><div id="ops-gpu-bar" style="width:0%;background:var(--sc-green)"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="sc-section">
                 <h4>CONNECTION</h4>
                 <div class="sc-row"><span class="sc-label">Status</span><span class="sc-value" id="d-status">—</span></div>
                 <div class="sc-row"><span class="sc-label">Deployment</span><span class="sc-value" id="d-mode">—</span></div>
                 <div class="sc-row"><span class="sc-label">Priority</span><span class="sc-value" id="d-priority">—</span></div>
                 <div class="sc-row"><span class="sc-label">Last Heartbeat</span><span class="sc-value" id="d-heartbeat">—</span></div>
                 <div class="sc-row"><span class="sc-label">Version</span><span class="sc-value" id="d-version">—</span></div>
+                <div class="sc-row"><span class="sc-label">Resync</span><span class="sc-value"><button class="sc-btn-small" id="d-resync-btn" onclick="showResyncModal()">RESYNC NODE</button></span></div>
             </div>
             <div class="sc-section">
-                <h4>CONTRIBUTION</h4>
-                <div class="sc-row"><span class="sc-label">Jobs Processed</span><span class="sc-value" id="d-jobs-total">—</span></div>
-                <div class="sc-row"><span class="sc-label">Jobs Completed</span><span class="sc-value" id="d-jobs-done">—</span></div>
-                <div class="sc-row"><span class="sc-label">Jobs Failed</span><span class="sc-value" id="d-jobs-fail">—</span></div>
+                <h4>FLEET SUMMARY</h4>
+                <div class="sc-row"><span class="sc-label">Active Stations</span><span class="sc-value" id="d-active-stations">—</span></div>
+                <div class="sc-row"><span class="sc-label">Models Available</span><span class="sc-value" id="d-models-avail">—</span></div>
+                <div class="sc-row"><span class="sc-label">Total Model Size</span><span class="sc-value" id="d-models-size">—</span></div>
+                <div class="sc-row"><span class="sc-label">Agents Allowed</span><span class="sc-value" id="d-agents-allowed">—</span></div>
             </div>
         </div>
 
@@ -335,9 +423,10 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         <!-- STATIONS TAB -->
         <div class="sc-panel" id="panel-stations">
             <div class="sc-section">
-                <h4>STATION ACCESS</h4>
+                <h4>STATION ASSIGNMENTS</h4>
+                <div class="sc-station-summary" id="d-station-summary"></div>
                 <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
-                    Enable or disable stations on this node. Active stations can receive dispatched work.
+                    Toggle stations to control what work this node receives. Each station handles a domain of tasks.
                 </p>
                 <div id="d-stations-grid" class="sc-stations-grid">
                     <span class="sc-label">Loading...</span>
@@ -348,9 +437,10 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         <!-- AGENTS TAB -->
         <div class="sc-panel" id="panel-agents">
             <div class="sc-section">
-                <h4>AGENT ACCESS</h4>
+                <h4>CREW ROSTER</h4>
+                <div class="sc-agent-summary" id="d-agent-summary"></div>
                 <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
-                    Control which agents can run on this node. Restricted agents won't be dispatched here.
+                    Agents available to this node. Toggle access to control which crew can be dispatched here.
                 </p>
                 <div id="d-agents-list" class="sc-agent-list">
                     <span class="sc-label">Loading...</span>
@@ -361,7 +451,8 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         <!-- MODELS TAB -->
         <div class="sc-panel" id="panel-models">
             <div class="sc-section">
-                <h4>ASSIGNED MODELS</h4>
+                <h4>OLLAMA MODELS</h4>
+                <div class="sc-model-summary" id="d-model-summary"></div>
                 <div id="d-models-grid" class="sc-models-grid">
                     <span class="sc-label">Loading...</span>
                 </div>
@@ -445,6 +536,27 @@ var selectedNodeId = null;
 var nodeCache = {};
 var pendingConfig = null;
 
+// ── Helper: render ops gauge (CPU/RAM/GPU) ──
+function renderOpsGauge(valId, barId, pct) {
+    pct = pct || 0;
+    var valEl = document.getElementById(valId);
+    var barEl = document.getElementById(barId);
+    valEl.textContent = Math.round(pct) + '%';
+    valEl.className = 'sc-ops-metric-val' + (pct >= 90 ? ' crit' : pct >= 70 ? ' warn' : '');
+    barEl.style.width = Math.min(pct, 100) + '%';
+    barEl.style.background = pct >= 90 ? 'var(--sc-red)' : pct >= 70 ? 'var(--sc-amber)' : 'var(--sc-green)';
+}
+
+// ── Helper: build summary span (<strong>N</strong> label) ──
+function buildSummarySpan(parent, value, label) {
+    var span = document.createElement('span');
+    var strong = document.createElement('strong');
+    strong.textContent = value;
+    span.appendChild(strong);
+    span.appendChild(document.createTextNode(' ' + label));
+    parent.appendChild(span);
+}
+
 // ── Add Node Modal ──
 function openAddNodeModal() {
     document.getElementById('add-node-modal').classList.add('active');
@@ -459,14 +571,50 @@ function closeAddNodeModal() {
     pendingConfig = null;
 }
 
+// Resync modal
+function showResyncModal() {
+    var serverUrl = window.location.origin;
+    var winCmd = document.getElementById('resync-cmd-win');
+    var linuxCmd = document.getElementById('resync-cmd-linux');
+    // Keep the copy buttons, set text before them
+    var winText = 'iwr -useb ' + serverUrl + '/tools/bridge/api/nodes/update.ps1 | iex';
+    var linuxText = 'curl -sL ' + serverUrl + '/tools/bridge/api/nodes/heartbeat.sh -o /opt/archie-node/heartbeat.sh && chmod +x /opt/archie-node/heartbeat.sh && systemctl restart archie-node';
+    // Clear and rebuild
+    var winCopy = winCmd.querySelector('.sc-copy-btn');
+    var linuxCopy = linuxCmd.querySelector('.sc-copy-btn');
+    winCmd.textContent = winText;
+    winCmd.appendChild(winCopy);
+    linuxCmd.textContent = linuxText;
+    linuxCmd.appendChild(linuxCopy);
+    document.getElementById('resync-modal').classList.add('active');
+}
+function closeResyncModal() {
+    document.getElementById('resync-modal').classList.remove('active');
+}
+function copyResyncCmd(os) {
+    var el = document.getElementById('resync-cmd-' + (os === 'win' ? 'win' : 'linux'));
+    var text = el.textContent.replace('COPY', '').trim();
+    // Fallback for HTTP (navigator.clipboard requires HTTPS)
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    scToast('Copied to clipboard', 'success');
+}
+
 // Close modal on overlay click
 document.addEventListener('click', function(e) {
     if (e.target.id === 'add-node-modal') closeAddNodeModal();
+    if (e.target.id === 'resync-modal') closeResyncModal();
 });
 
 // Close on Escape
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeAddNodeModal();
+    if (e.key === 'Escape') { closeAddNodeModal(); closeResyncModal(); }
 });
 
 async function createNode() {
@@ -595,15 +743,40 @@ function renderDetail(data) {
         badge.textContent = 'v' + data.version.current;
         if (data.version.update_available) {
             badge.textContent += ' \u2192 v' + data.version.latest;
-            badge.title = 'Update available! Download the latest node package.';
+            badge.title = 'Click to push update to this node';
+            badge.style.cursor = 'pointer';
+            badge.addEventListener('click', function() {
+                if (!confirm('Push update v' + data.version.latest + ' to this node?\n\nThe node will download and install the update on its next heartbeat (~30s).')) return;
+                fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/request-update', {method:'POST',headers:{'Content-Type':'application/json'}})
+                .then(function(r){return r.json()})
+                .then(function(d){
+                    if (d.success) {
+                        scToast('Update queued — node will update on next heartbeat', 'success');
+                        badge.textContent = 'v' + data.version.current + ' \u2192 UPDATING...';
+                        badge.className = 'sc-version-badge outdated';
+                    } else {
+                        scToast('Failed: ' + (d.error || 'Unknown error'), 'error');
+                    }
+                });
+            });
         }
         verEl.appendChild(badge);
     }
 
-    // Stats
-    document.getElementById('d-jobs-total').textContent = data.stats.total_jobs || 0;
-    document.getElementById('d-jobs-done').textContent = data.stats.completed_jobs || 0;
-    document.getElementById('d-jobs-fail').textContent = data.stats.failed_jobs || 0;
+    // System Ops gauges (live metrics from heartbeat)
+    var lm = data.live_metrics || {};
+    renderOpsGauge('ops-cpu', 'ops-cpu-bar', lm.cpu_usage);
+    renderOpsGauge('ops-ram', 'ops-ram-bar', lm.memory_usage);
+    renderOpsGauge('ops-gpu', 'ops-gpu-bar', lm.gpu_usage);
+
+    // Fleet Summary
+    var ss = data.station_summary || {};
+    var ms = data.model_summary || {};
+    var allowedAgents = (data.agents || []).filter(function(a) { return a.allowed; }).length;
+    document.getElementById('d-active-stations').textContent = (ss.active || 0) + ' / ' + (ss.total || 0);
+    document.getElementById('d-models-avail').textContent = (ms.available || 0) + ' / ' + (ms.total || 0);
+    document.getElementById('d-models-size').textContent = (ms.total_size_gb || 0) + ' GB';
+    document.getElementById('d-agents-allowed').textContent = allowedAgents + ' / ' + (data.agents || []).length;
 
     // Hardware tab
     document.getElementById('d-cpu').textContent = hw.cpu_model || 'Unknown';
@@ -613,7 +786,12 @@ function renderDetail(data) {
     document.getElementById('d-vram').textContent = hw.gpu_vram_gb ? hw.gpu_vram_gb + ' GB' : '—';
     document.getElementById('d-disk').textContent = hw.disk_gb ? hw.disk_gb + ' GB' : '?';
 
-    // Stations tab
+    // Stations tab — summary + enhanced cards
+    var stSummary = document.getElementById('d-station-summary');
+    stSummary.textContent = '';
+    buildSummarySpan(stSummary, ss.active || 0, 'active');
+    buildSummarySpan(stSummary, ss.total || 0, 'total');
+
     var stGrid = document.getElementById('d-stations-grid');
     stGrid.textContent = '';
     if (data.stations && data.stations.length > 0) {
@@ -622,13 +800,28 @@ function renderDetail(data) {
             card.className = 'sc-station-card' + (s.assigned && s.active ? ' active' : '');
             card.style.setProperty('--station-color', s.color);
             card.onclick = function() { toggleStation(s.id, !(s.assigned && s.active), card, s.color); };
+
             var dot = document.createElement('div');
             dot.className = 'sc-station-dot';
-            var label = document.createElement('span');
+
+            var info = document.createElement('div');
+            info.className = 'sc-station-info';
+            var label = document.createElement('div');
             label.className = 'sc-station-label';
             label.textContent = s.station_name;
+            var meta = document.createElement('div');
+            meta.className = 'sc-station-meta';
+            meta.textContent = s.default_llm || 'No default model';
+            info.appendChild(label);
+            info.appendChild(meta);
+
+            var count = document.createElement('div');
+            count.className = 'sc-station-agent-count';
+            count.textContent = (s.agent_count || 0) + ' crew';
+
             card.appendChild(dot);
-            card.appendChild(label);
+            card.appendChild(info);
+            card.appendChild(count);
             stGrid.appendChild(card);
         });
     } else {
@@ -638,7 +831,13 @@ function renderDetail(data) {
         stGrid.appendChild(empty);
     }
 
-    // Agents tab
+    // Agents tab — summary + crew roster with station-colored borders
+    var agSummary = document.getElementById('d-agent-summary');
+    agSummary.textContent = '';
+    var agAllowed = (data.agents || []).filter(function(a) { return a.allowed; }).length;
+    buildSummarySpan(agSummary, agAllowed, 'allowed');
+    buildSummarySpan(agSummary, (data.agents || []).length, 'total crew');
+
     var agList = document.getElementById('d-agents-list');
     agList.textContent = '';
     if (data.agents && data.agents.length > 0) {
@@ -647,24 +846,47 @@ function renderDetail(data) {
             row.className = 'sc-agent-row' + (a.allowed ? '' : ' restricted');
             row.id = 'agent-row-' + a.id;
 
+            // Color left border from first station color
+            var colors = a.station_colors || [];
+            if (colors.length > 0) {
+                row.style.borderLeftColor = colors[0];
+            }
+
             var avatar = document.createElement('div');
             avatar.className = 'sc-agent-avatar';
             avatar.textContent = a.name.substring(0, 2).toUpperCase();
+            if (colors.length > 0) {
+                avatar.style.background = colors[0] + '22';
+                avatar.style.color = colors[0];
+            }
 
             var info = document.createElement('div');
             info.className = 'sc-agent-info';
             var nameEl = document.createElement('div');
             nameEl.className = 'sc-agent-name';
             nameEl.textContent = a.display_name || a.name;
+
+            // Model badge showing availability
+            var modelAvail = (data.models || []).some(function(m) { return m.model_name === a.model && m.is_available; });
+            var mbadge = document.createElement('span');
+            mbadge.className = 'sc-model-badge ' + (modelAvail ? 'available' : 'unavailable');
+            mbadge.textContent = modelAvail ? 'MODEL READY' : 'MODEL OFFLINE';
+            nameEl.appendChild(mbadge);
+
             var meta = document.createElement('div');
             meta.className = 'sc-agent-meta';
-            meta.textContent = a.model;
+            meta.textContent = a.title || a.model || 'No model';
+
             var tags = document.createElement('div');
             tags.className = 'sc-agent-stations';
-            (a.station_codes || []).forEach(function(sc) {
+            (a.station_codes || []).forEach(function(sc, i) {
                 var tag = document.createElement('span');
                 tag.className = 'sc-agent-station-tag';
                 tag.textContent = sc;
+                if (colors[i]) {
+                    tag.style.borderColor = colors[i] + '44';
+                    tag.style.color = colors[i];
+                }
                 tags.appendChild(tag);
             });
             info.appendChild(nameEl);
@@ -694,25 +916,76 @@ function renderDetail(data) {
         agList.appendChild(empty);
     }
 
-    // Models tab
+    // Models tab — summary + enhanced cards with family/params/stats
+    var modSummary = document.getElementById('d-model-summary');
+    modSummary.textContent = '';
+    buildSummarySpan(modSummary, ms.available || 0, 'available');
+    buildSummarySpan(modSummary, ms.total || 0, 'total');
+    buildSummarySpan(modSummary, (ms.total_size_gb || 0) + ' GB', 'combined');
+
     var grid = document.getElementById('d-models-grid');
     grid.textContent = '';
     if (data.models && data.models.length > 0) {
         data.models.forEach(function(m) {
             var card = document.createElement('div');
             card.className = 'sc-model-card';
+
+            // Header row: name + status badge
+            var header = document.createElement('div');
+            header.className = 'sc-model-header';
             var mname = document.createElement('div');
             mname.className = 'sc-model-name';
             mname.textContent = m.model_name;
+            var mbadge = document.createElement('span');
+            mbadge.className = 'sc-badge ' + (m.is_available ? 'available' : 'offline');
+            mbadge.textContent = m.is_available ? 'READY' : 'OFFLINE';
+            header.appendChild(mname);
+            header.appendChild(mbadge);
+
+            // Meta row: family, params, size
             var mmeta = document.createElement('div');
             mmeta.className = 'sc-model-meta';
-            mmeta.textContent = (m.model_size_gb || '?') + ' GB ';
-            var mbadge = document.createElement('span');
-            mbadge.className = 'sc-badge ' + (m.is_loaded ? 'loaded' : m.is_available ? 'available' : 'offline');
-            mbadge.textContent = m.is_loaded ? 'LOADED' : m.is_available ? 'READY' : 'OFFLINE';
-            mmeta.appendChild(mbadge);
-            card.appendChild(mname);
+            var metaParts = [];
+            if (m.model_family) metaParts.push(m.model_family);
+            if (m.parameter_size) metaParts.push(m.parameter_size);
+            if (m.model_size_gb) metaParts.push(m.model_size_gb + ' GB');
+            if (m.quantization) metaParts.push(m.quantization);
+            mmeta.textContent = metaParts.join(' / ') || 'Unknown';
+
+            // Stats row: requests, avg response, context
+            var statsRow = document.createElement('div');
+            statsRow.className = 'sc-model-stats';
+            if (m.total_requests > 0) {
+                var reqStat = document.createElement('span');
+                reqStat.className = 'sc-model-stat';
+                var reqVal = document.createElement('span');
+                reqVal.textContent = m.total_requests;
+                reqStat.appendChild(reqVal);
+                reqStat.appendChild(document.createTextNode(' requests'));
+                statsRow.appendChild(reqStat);
+            }
+            if (m.avg_response_ms) {
+                var avgStat = document.createElement('span');
+                avgStat.className = 'sc-model-stat';
+                var avgVal = document.createElement('span');
+                avgVal.textContent = Math.round(m.avg_response_ms) + 'ms';
+                avgStat.appendChild(avgVal);
+                avgStat.appendChild(document.createTextNode(' avg'));
+                statsRow.appendChild(avgStat);
+            }
+            if (m.context_length) {
+                var ctxStat = document.createElement('span');
+                ctxStat.className = 'sc-model-stat';
+                var ctxVal = document.createElement('span');
+                ctxVal.textContent = m.context_length >= 1000 ? Math.round(m.context_length/1000) + 'K' : m.context_length;
+                ctxStat.appendChild(ctxVal);
+                ctxStat.appendChild(document.createTextNode(' ctx'));
+                statsRow.appendChild(ctxStat);
+            }
+
+            card.appendChild(header);
             card.appendChild(mmeta);
+            if (statsRow.children.length > 0) card.appendChild(statsRow);
             grid.appendChild(card);
         });
     } else {

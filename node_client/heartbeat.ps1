@@ -4,7 +4,7 @@
 # Sends periodic heartbeats with system metrics to the ARCHIE platform
 # =============================================================================
 
-$CLIENT_VERSION = "1.0.0"
+$CLIENT_VERSION = "1.1.2"
 $CONFIG_PATH = "C:\ProgramData\ARCHIE-Node\config.json"
 $LOG_PATH = "C:\ProgramData\ARCHIE-Node\heartbeat.log"
 $MAX_LOG_LINES = 1000
@@ -159,8 +159,9 @@ function Get-SystemUptime {
 }
 
 # -----------------------------------------------------------------------------
-# Send Heartbeat
+# Send Heartbeat (captures response for update signals)
 # -----------------------------------------------------------------------------
+$script:LastHeartbeatResponse = $null
 function Send-Heartbeat {
     param($Config, $Metrics)
 
@@ -172,10 +173,69 @@ function Send-Heartbeat {
     $body = $Metrics | ConvertTo-Json -Depth 5
 
     try {
-        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body -TimeoutSec 15 -ErrorAction Stop
+        $script:LastHeartbeatResponse = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body -TimeoutSec 15 -ErrorAction Stop
         return $true
     } catch {
         Write-Log "ERROR" "Heartbeat POST failed: $_"
+        $script:LastHeartbeatResponse = $null
+        return $false
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Self-Update: download new heartbeat script, replace, restart
+# -----------------------------------------------------------------------------
+function Invoke-SelfUpdate {
+    param($Config, $UpdateUrl)
+
+    $fullUrl = "$($Config.server_url)$UpdateUrl"
+    $installDir = "C:\ProgramData\ARCHIE-Node"
+    $updateDir = "$env:TEMP\archie-node-update"
+    $selfPath = $MyInvocation.ScriptName
+    if (-not $selfPath) { $selfPath = "$installDir\heartbeat.ps1" }
+
+    Write-Log "INFO" "=== SELF-UPDATE STARTING ==="
+    Write-Log "INFO" "Downloading from: $fullUrl"
+
+    # Clean up any previous update attempt
+    if (Test-Path $updateDir) { Remove-Item $updateDir -Recurse -Force }
+    New-Item -ItemType Directory -Path $updateDir -Force | Out-Null
+
+    try {
+        # Download the heartbeat script directly
+        $scriptUrl = "$($Config.server_url)/tools/bridge/api/nodes/heartbeat.ps1"
+        $newScript = "$updateDir\heartbeat.ps1"
+        Invoke-WebRequest -Uri $scriptUrl -OutFile $newScript -TimeoutSec 60 -ErrorAction Stop
+
+        # Verify it looks like a valid PowerShell script
+        $content = Get-Content $newScript -Raw -ErrorAction Stop
+        if ($content -notmatch 'CLIENT_VERSION') {
+            Write-Log "ERROR" "Downloaded file doesn't look like a valid heartbeat script"
+            return $false
+        }
+
+        # Backup current script
+        if (Test-Path $selfPath) {
+            Copy-Item $selfPath "$selfPath.bak" -Force
+            Write-Log "INFO" "Backed up current script to $selfPath.bak"
+        }
+
+        # Replace with new version
+        Copy-Item $newScript $selfPath -Force
+        Write-Log "INFO" "Updated heartbeat script"
+
+        # Clean up
+        Remove-Item $updateDir -Recurse -Force -ErrorAction SilentlyContinue
+
+        Write-Log "INFO" "=== SELF-UPDATE COMPLETE - RESTARTING ==="
+
+        # Restart: launch new script then exit current
+        Start-Process powershell.exe -ArgumentList "-ExecutionPolicy Bypass -File `"$selfPath`"" -WindowStyle Hidden
+        exit 0
+
+    } catch {
+        Write-Log "ERROR" "Self-update failed: $_"
+        Remove-Item $updateDir -Recurse -Force -ErrorAction SilentlyContinue
         return $false
     }
 }
@@ -185,8 +245,8 @@ function Send-Heartbeat {
 # =============================================================================
 Write-Log "INFO" "A.R.C.H.I.E. Node Client v$CLIENT_VERSION starting..."
 $config = Get-Config
-$heartbeatInterval = if ($config.heartbeat_interval) { $config.heartbeat_interval } else { 30 }
-$ollamaPort = if ($config.ollama_port) { $config.ollama_port } else { 11434 }
+$heartbeatInterval = $(if ($config.heartbeat_interval) { $config.heartbeat_interval } else { 30 })
+$ollamaPort = $(if ($config.ollama_port) { $config.ollama_port } else { 11434 })
 Write-Log "INFO" "Node ID: $($config.node_id)"
 Write-Log "INFO" "Server:  $($config.server_url)"
 Write-Log "INFO" "Interval: ${heartbeatInterval}s"
@@ -207,7 +267,7 @@ while ($true) {
             current_load   = $cpuUsage
             cpu_usage      = $cpuUsage
             memory_usage   = $memUsage
-            gpu_usage      = if ($null -ne $gpuUsage) { $gpuUsage } else { 0 }
+            gpu_usage      = $(if ($null -ne $gpuUsage) { $gpuUsage } else { 0 })
             ollama_online  = $ollama.online
             ollama_models  = $ollama.models
             client_version = $CLIENT_VERSION
@@ -221,8 +281,21 @@ while ($true) {
         $success = Send-Heartbeat -Config $config -Metrics $payload
         if ($success) {
             $modelCount = $ollama.models.Count
-            $gpuStr = if ($null -ne $gpuUsage) { "${gpuUsage}%" } else { "N/A" }
-            Write-Log "INFO" "Heartbeat sent - CPU: ${cpuUsage}% | RAM: ${memUsage}% | GPU: $gpuStr | Ollama: $($ollama.online) ($modelCount models)"
+            if ($null -ne $gpuUsage) { $gpuStr = "${gpuUsage}%" } else { $gpuStr = "N/A" }
+            Write-Log "INFO" "Heartbeat sent - CPU: ${cpuUsage}% | RAM: ${memUsage}% | GPU: ${gpuStr} | Ollama: $($ollama.online) ${modelCount} models"
+
+            # Check if server is requesting a self-update
+            if ($script:LastHeartbeatResponse -and $script:LastHeartbeatResponse.update_available -eq $true) {
+                $updateUrl = $script:LastHeartbeatResponse.update_url
+                $latestVer = $script:LastHeartbeatResponse.latest_version
+                Write-Log "INFO" "Server requested update to v$latestVer"
+                if ($updateUrl) {
+                    $updated = Invoke-SelfUpdate -Config $config -UpdateUrl $updateUrl
+                    if (-not $updated) {
+                        Write-Log "WARN" "Self-update failed, continuing with current version"
+                    }
+                }
+            }
         } else {
             Write-Log "WARN" "Heartbeat failed - will retry in ${heartbeatInterval}s"
         }

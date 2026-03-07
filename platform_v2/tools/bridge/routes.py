@@ -3691,6 +3691,29 @@ def get_node_heartbeat_script_windows():
         return "Heartbeat script not found", 404
 
 
+@bridge_bp.route("/api/nodes/update.ps1", methods=["GET"])
+def get_node_update_script_windows():
+    """Serve the Windows PowerShell update script"""
+    import os
+
+    script_path = "/mnt/archie_brain/node_client/update.ps1"
+
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            script_content = f.read()
+
+        return (
+            script_content,
+            200,
+            {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Disposition": 'inline; filename="update.ps1"',
+            },
+        )
+    else:
+        return "Update script not found", 404
+
+
 @bridge_bp.route("/api/nodes/heartbeat.sh", methods=["GET"])
 def get_node_heartbeat_script_linux():
     """Serve the Linux heartbeat script"""
@@ -4087,6 +4110,7 @@ def node_heartbeat(node_id):
 
             if ollama_models_payload:
                 try:
+                    cur.execute("SAVEPOINT model_sync")
                     cur.execute(
                         """
                         SELECT sync_node_models(%s, %s::jsonb)
@@ -4110,17 +4134,37 @@ def node_heartbeat(node_id):
                             """,
                                 (node_id, available_names),
                             )
+                    cur.execute("RELEASE SAVEPOINT model_sync")
                 except Exception as e:
                     logger.warning(f"Model sync error for {node_id}: {e}")
+                    cur.execute("ROLLBACK TO SAVEPOINT model_sync")
 
-            return jsonify(
-                {
-                    "success": True,
-                    "status": status,
-                    "message": "Heartbeat received",
-                    "models_synced": models_synced,
-                }
+            # Check if update was requested for this node
+            cur.execute(
+                "SELECT update_requested FROM remote_nodes WHERE id = %s",
+                (node["id"],),
             )
+            update_row = cur.fetchone()
+            update_requested = update_row["update_requested"] if update_row else False
+
+            response = {
+                "success": True,
+                "status": status,
+                "message": "Heartbeat received",
+                "models_synced": models_synced,
+            }
+
+            if update_requested:
+                response["update_available"] = True
+                response["update_url"] = f"/tools/starship/download/node-package"
+                response["latest_version"] = "1.1.2"
+                # Clear the flag so we only signal once
+                cur.execute(
+                    "UPDATE remote_nodes SET update_requested = false WHERE id = %s",
+                    (node["id"],),
+                )
+
+            return jsonify(response)
 
     except Exception as e:
         logger.error(f"Heartbeat error: {e}")

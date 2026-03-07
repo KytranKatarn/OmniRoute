@@ -5,7 +5,7 @@
 # Sends periodic heartbeats with system metrics to the ARCHIE platform
 # =============================================================================
 
-CLIENT_VERSION="1.0.0"
+CLIENT_VERSION="1.1.0"
 CONFIG_PATH="/etc/archie-node/config.json"
 LOG_PATH="/var/log/archie-node/heartbeat.log"
 MAX_LOG_LINES=1000
@@ -136,19 +136,25 @@ get_uptime_seconds() {
 }
 
 # -----------------------------------------------------------------------------
-# Send Heartbeat
+# Send Heartbeat (captures response for update signals)
 # -----------------------------------------------------------------------------
+HEARTBEAT_RESPONSE=""
 send_heartbeat() {
     local payload="$1"
     local url="${SERVER_URL}/tools/bridge/api/nodes/${NODE_ID}/heartbeat"
+    local tmpfile
+    tmpfile=$(mktemp)
 
     local http_code
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+    http_code=$(curl -s -o "$tmpfile" -w "%{http_code}" \
         --max-time 15 \
         -X POST "$url" \
         -H "X-Node-API-Key: ${API_KEY}" \
         -H "Content-Type: application/json" \
         -d "$payload" 2>/dev/null)
+
+    HEARTBEAT_RESPONSE=$(cat "$tmpfile" 2>/dev/null)
+    rm -f "$tmpfile"
 
     if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
         return 0
@@ -156,6 +162,78 @@ send_heartbeat() {
         log_msg "ERROR" "Heartbeat POST failed with HTTP $http_code"
         return 1
     fi
+}
+
+# -----------------------------------------------------------------------------
+# Self-Update: download new package, extract, restart
+# -----------------------------------------------------------------------------
+self_update() {
+    local update_url="$1"
+    local full_url="${SERVER_URL}${update_url}"
+    local update_dir="/tmp/archie-node-update"
+    local install_dir="/opt/archie-node"
+
+    log_msg "INFO" "=== SELF-UPDATE STARTING ==="
+    log_msg "INFO" "Downloading update from: $full_url"
+
+    rm -rf "$update_dir"
+    mkdir -p "$update_dir"
+
+    # Download the package
+    local http_code
+    http_code=$(curl -s -o "$update_dir/update.tar.gz" -w "%{http_code}" \
+        --max-time 120 \
+        -H "X-Node-API-Key: ${API_KEY}" \
+        "$full_url" 2>/dev/null)
+
+    if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+        log_msg "ERROR" "Update download failed with HTTP $http_code"
+        rm -rf "$update_dir"
+        return 1
+    fi
+
+    # Verify it's a valid archive
+    if ! tar -tzf "$update_dir/update.tar.gz" &>/dev/null; then
+        log_msg "ERROR" "Downloaded file is not a valid tar.gz"
+        rm -rf "$update_dir"
+        return 1
+    fi
+
+    log_msg "INFO" "Download complete, extracting..."
+    tar -xzf "$update_dir/update.tar.gz" -C "$update_dir" 2>/dev/null
+
+    # Look for the new heartbeat script
+    local new_heartbeat
+    new_heartbeat=$(find "$update_dir" -name "heartbeat.sh" -type f | head -1)
+
+    if [ -z "$new_heartbeat" ]; then
+        log_msg "ERROR" "No heartbeat.sh found in update package"
+        rm -rf "$update_dir"
+        return 1
+    fi
+
+    # Backup current script
+    local self_path
+    self_path=$(readlink -f "$0")
+    cp "$self_path" "${self_path}.bak" 2>/dev/null
+    log_msg "INFO" "Backed up current script to ${self_path}.bak"
+
+    # Replace with new version
+    cp "$new_heartbeat" "$self_path"
+    chmod +x "$self_path"
+    log_msg "INFO" "Updated heartbeat script in place"
+
+    # Copy any other updated files to install dir
+    if [ -d "$install_dir" ]; then
+        find "$update_dir" -type f ! -name "update.tar.gz" -exec cp {} "$install_dir/" \; 2>/dev/null
+        log_msg "INFO" "Copied updated files to $install_dir"
+    fi
+
+    rm -rf "$update_dir"
+    log_msg "INFO" "=== SELF-UPDATE COMPLETE — RESTARTING ==="
+
+    # Re-exec self to pick up new code
+    exec "$self_path"
 }
 
 # =============================================================================
@@ -210,6 +288,24 @@ while true; do
         gpu_str="N/A"
         [ "$gpu_usage" != "null" ] && gpu_str="${gpu_usage}%"
         log_msg "INFO" "Heartbeat sent - CPU: ${cpu_usage}% | RAM: ${mem_usage}% | GPU: ${gpu_str} | Ollama: ${ollama_online} (${model_count} models)"
+
+        # Check if server is requesting a self-update
+        if [ -n "$HEARTBEAT_RESPONSE" ]; then
+            local update_flag
+            update_flag=$(echo "$HEARTBEAT_RESPONSE" | jq -r '.update_available // false' 2>/dev/null)
+            if [ "$update_flag" = "true" ]; then
+                local update_url
+                update_url=$(echo "$HEARTBEAT_RESPONSE" | jq -r '.update_url // empty' 2>/dev/null)
+                local latest_ver
+                latest_ver=$(echo "$HEARTBEAT_RESPONSE" | jq -r '.latest_version // "unknown"' 2>/dev/null)
+                log_msg "INFO" "Server requested update to v${latest_ver}"
+                if [ -n "$update_url" ]; then
+                    self_update "$update_url"
+                    # If self_update returns (failed), continue running
+                    log_msg "WARN" "Self-update failed, continuing with current version"
+                fi
+            fi
+        fi
     else
         log_msg "WARN" "Heartbeat failed - will retry in ${HEARTBEAT_INTERVAL}s"
     fi

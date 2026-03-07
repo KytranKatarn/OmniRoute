@@ -769,7 +769,7 @@ function _renderStationStatus(allJobs, myJobs) {
   renderGitHubOps(null, jobData);
   renderLangOps(null, jobData);
 
-  /* Re-sync loop button states — rendering may have recreated buttons */
+  /* Re-sync loop button states — rendering may have created buttons just now */
   Object.keys(_continuousRun).forEach(function(opKey) {
     _updateLoopBtn(opKey);
   });
@@ -835,6 +835,32 @@ function _disableGitHubBtnsByJobType(jobs) {
 /* ── Continuous Run (Loop) Mode ─────────────────────────── */
 var _continuousRun = {};       /* { analysis: true, reindex: true, ... } */
 var _continuousBatch = {};     /* { analysis: 3, ... } — batch counter */
+var _LOOP_STORAGE_KEY = "archie_consciousness_loops";
+
+function _saveLoopState() {
+  try {
+    var active = {};
+    Object.keys(_continuousRun).forEach(function(k) {
+      if (_continuousRun[k]) active[k] = true;
+    });
+    localStorage.setItem(_LOOP_STORAGE_KEY, JSON.stringify(active));
+  } catch (e) { /* localStorage unavailable */ }
+}
+
+function _loadLoopState() {
+  try {
+    var raw = localStorage.getItem(_LOOP_STORAGE_KEY);
+    if (raw) {
+      var saved = JSON.parse(raw);
+      Object.keys(saved).forEach(function(k) {
+        if (saved[k]) {
+          _continuousRun[k] = true;
+          _continuousBatch[k] = 0;
+        }
+      });
+    }
+  } catch (e) { /* localStorage unavailable */ }
+}
 
 /* Map opKey → { startFn, btnId, idleLabel } */
 var _loopOps = {
@@ -860,6 +886,7 @@ window.toggleLoop = function(opKey) {
     var op = _loopOps[opKey];
     if (op) op.start();
   }
+  _saveLoopState();
 };
 
 function _updateLoopBtn(opKey) {
@@ -887,6 +914,7 @@ function _loopExhausted(opKey) {
   /* Called when API says "no items left" — stop loop gracefully */
   _continuousRun[opKey] = false;
   _continuousBatch[opKey] = 0;
+  _saveLoopState();
   _updateLoopBtn(opKey);
 }
 
@@ -2392,6 +2420,12 @@ document.addEventListener("DOMContentLoaded", function () {
   // Resize handler for HoloSphere
   window.addEventListener("resize", function() {
     if (_holoSphere) _holoSphere.resize();
+  });
+
+  /* Restore loop button states from localStorage */
+  _loadLoopState();
+  Object.keys(_continuousRun).forEach(function(opKey) {
+    _updateLoopBtn(opKey);
   });
 
   var hash = window.location.hash.replace("#", "");

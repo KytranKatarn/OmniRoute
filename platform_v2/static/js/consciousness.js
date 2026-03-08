@@ -5,6 +5,10 @@
 var _cache = {};
 var _debounceTimers = {};
 var _holoSphere = null;
+var _neuralCore = null;
+var _prevJobState = {};
+var _prevKnowledgeCounts = {};
+var _knowledgePollTimer = null;
 var _glassNav = null;
 
 /* ── Utilities ─────────────────────────────────────── */
@@ -19,6 +23,14 @@ function escHtml(str) {
 function setHtml(el, html) {
   if (typeof el === "string") el = document.getElementById(el);
   if (el) el.innerHTML = html;
+}
+
+function _jobTypeToNode(jobType) {
+  if (!jobType) return null;
+  if (jobType.indexOf("analysis") > -1 || jobType.indexOf("embed") > -1) return "conversations";
+  if (jobType.indexOf("github") > -1 || jobType.indexOf("reindex") > -1) return "code";
+  if (jobType.indexOf("translate") > -1) return "sessions";
+  return "vault";
 }
 
 /**
@@ -105,6 +117,14 @@ function loadTabData(tab) {
   }
 
   if (_cache[tab]) return;
+
+  // Destroy Neural Core when leaving dashboard to free GPU
+  if (tab !== "dashboard" && _neuralCore) {
+    _neuralCore.destroy();
+    _neuralCore = null;
+    if (_knowledgePollTimer) { clearInterval(_knowledgePollTimer); _knowledgePollTimer = null; }
+  }
+
   _cache[tab] = true;
 
   switch (tab) {
@@ -203,16 +223,16 @@ function loadNeuralCore() {
   var container = document.getElementById("neuralCore");
   if (!container) return;
 
-  // Destroy previous instance if exists
+  // Destroy previous instance
+  if (_neuralCore) { _neuralCore.destroy(); _neuralCore = null; }
   if (_holoSphere) { _holoSphere.destroy(); _holoSphere = null; }
 
-  // Fetch data then build sphere
+  // Fetch data then build scene
   api("/api/dashboard/summary").then(function(data) {
     if (!data.success) return;
     var kb = data.knowledge || {};
     var agents = data.agents || {};
 
-    // Build node array from knowledge data
     var nodes = [
       { id: "conversations", label: "Conv", count: kb.conversations || 0, color: "#3b82f6", tab: "knowledge" },
       { id: "code", label: "Code", count: (kb.github_files || 0) + (kb.code_snippets || 0), color: "#22c55e", tab: "github" },
@@ -222,6 +242,61 @@ function loadNeuralCore() {
       { id: "sessions", label: "Sessions", count: kb.sessions || 0, color: "#ec4899", tab: "knowledge" }
     ];
 
+    // Store counts for change detection
+    _prevKnowledgeCounts = {};
+    nodes.forEach(function(n) { _prevKnowledgeCounts[n.id] = n.count; });
+    _prevKnowledgeCounts.total = kb.total_entries || kb.total || 0;
+
+    // Try WebGL Neural Core, fall back to HoloSphere
+    if (typeof NeuralCore !== "undefined") {
+      NeuralCore.create(container, {
+        nodes: nodes,
+        mood: "focused",
+        particleCount: 200,
+        onNodeClick: function(node) {
+          if (node.tab) switchConsciousnessTab(node.tab);
+        }
+      }).then(function(core) {
+        _neuralCore = core;
+        _loadAgentsIntoCore();
+        _startKnowledgePolling();
+      }).catch(function(err) {
+        console.warn("NeuralCore failed, falling back to HoloSphere:", err.message || err);
+        _fallbackToHoloSphere(container, nodes);
+      });
+    } else {
+      _fallbackToHoloSphere(container, nodes);
+    }
+
+    // Stats HUD (works for both WebGL and fallback)
+    setHtml("ncTotalKnowledge", (kb.total_entries || kb.total || 0).toLocaleString());
+    setHtml("ncActiveAgents", (agents.active || 0) + "/" + (agents.total || 0));
+  }).catch(function(err) {
+    console.error("Neural core data error:", err);
+    var loading = document.getElementById("ncLoading");
+    if (loading) loading.classList.add("hidden");
+  });
+
+  // GitHub stats for embed coverage
+  api("/github/stats").then(function(data) {
+    if (data.success) {
+      setHtml("ncGitHubFiles", (data.total_files || 0).toLocaleString());
+      setHtml("ncEmbedPct", (data.embed_pct || 0) + "%");
+    }
+  }).catch(function() {});
+
+  // Emotional state for mood
+  api("/emotional-state").then(function(data) {
+    var mood = (data.mood || "focused").toLowerCase();
+    if (_neuralCore) _neuralCore.setMood(mood);
+    else if (_holoSphere) _holoSphere.setMood(mood);
+  }).catch(function() {});
+}
+
+function _fallbackToHoloSphere(container, nodes) {
+  var loading = document.getElementById("ncLoading");
+  if (loading) loading.classList.add("hidden");
+  if (typeof HoloSphere === "function") {
     _holoSphere = new HoloSphere(container, {
       nodes: nodes,
       mood: "focused",
@@ -232,32 +307,57 @@ function loadNeuralCore() {
         if (node.tab) switchConsciousnessTab(node.tab);
       }
     });
+  }
+}
 
-    // Stats HUD
-    setHtml("ncTotalKnowledge", (kb.total_entries || kb.total || 0).toLocaleString());
-    setHtml("ncActiveAgents", (agents.active || 0) + "/" + (agents.total || 0));
-  }).catch(function(err) {
-    console.error("Neural core data error:", err);
-  });
-
-  // Fetch GitHub stats for embed coverage
-  api("/github/stats").then(function(data) {
-    if (data.success) {
-      setHtml("ncGitHubFiles", (data.total_files || 0).toLocaleString());
-      setHtml("ncEmbedPct", (data.embed_pct || 0) + "%");
-    }
-  }).catch(function() {});
-
-  // Fetch emotional state
-  api("/emotional-state").then(function(data) {
-    var mood = (data.mood || "focused").toLowerCase();
-    if (_holoSphere) _holoSphere.setMood(mood);
+function _loadAgentsIntoCore() {
+  if (!_neuralCore) return;
+  fetch("/tools/bridge/api/bridge/crew-manifest").then(function(r) { return r.json(); }).then(function(data) {
+    if (!data.success) return;
+    var manifest = data.manifest || [];
+    manifest.forEach(function(agent) {
+      if (agent.status === "active" || agent.status === "paused") {
+        _neuralCore.addAgent({
+          name: agent.name,
+          display_name: agent.display_name || agent.name,
+          station: agent.home_station || agent.station || "COMMAND",
+          status: agent.status
+        });
+      }
+    });
   }).catch(function() {});
 }
 
-/* ── Brain Map ────────────────────────────────────── */
+function _startKnowledgePolling() {
+  if (_knowledgePollTimer) clearInterval(_knowledgePollTimer);
+  _knowledgePollTimer = setInterval(function() {
+    if (!_neuralCore) return;
+    api("/api/dashboard/summary").then(function(data) {
+      if (!data.success) return;
+      var kb = data.knowledge || {};
+      var newCounts = {
+        conversations: kb.conversations || 0,
+        code: (kb.github_files || 0) + (kb.code_snippets || 0),
+        vault: kb.vault_notes || 0,
+        repos: kb.repos || 0,
+        learned: (kb.mistakes || 0) + (kb.improvements || 0),
+        sessions: kb.sessions || 0,
+        total: kb.total_entries || kb.total || 0
+      };
 
-/* Brain map + emotional timeline removed — data now in Bridge Command */
+      var nodeIds = ["conversations", "code", "vault", "repos", "learned", "sessions"];
+      nodeIds.forEach(function(id) {
+        if (newCounts[id] > (_prevKnowledgeCounts[id] || 0)) {
+          _neuralCore.updateNode(id, { count: newCounts[id] });
+          _neuralCore.fireEvent("knowledge:added", { node: id, delta: newCounts[id] - (_prevKnowledgeCounts[id] || 0) });
+        }
+      });
+
+      setHtml("ncTotalKnowledge", (newCounts.total || 0).toLocaleString());
+      _prevKnowledgeCounts = newCounts;
+    }).catch(function() {});
+  }, 20000);
+}
 
 /* ── Agent Modal ───────────────────────────────────── */
 
@@ -497,6 +597,39 @@ function checkActiveJobs() {
     var myJobs = (data.jobs || []).filter(function(j) {
       return j.module_source && j.module_source.indexOf("consciousness") === 0;
     });
+
+    /* ── Neural Core event detection ── */
+    if (_neuralCore) {
+      var currentJobIds = {};
+      (data.jobs || []).forEach(function(j) { currentJobIds[j.id] = j; });
+
+      // Detect newly started jobs
+      Object.keys(currentJobIds).forEach(function(id) {
+        if (!_prevJobState[id]) {
+          var j = currentJobIds[id];
+          _neuralCore.fireEvent("job:started", {
+            agent: j.agent_name,
+            station: j.station_code,
+            jobType: j.job_type,
+            nodeId: _jobTypeToNode(j.job_type)
+          });
+        }
+      });
+
+      // Detect completed/removed jobs
+      Object.keys(_prevJobState).forEach(function(id) {
+        if (!currentJobIds[id]) {
+          var j = _prevJobState[id];
+          _neuralCore.fireEvent("job:completed", {
+            agent: j.agent_name,
+            station: j.station_code,
+            jobType: j.job_type
+          });
+        }
+      });
+
+      _prevJobState = currentJobIds;
+    }
 
     /* Build station status from ALL running jobs */
     _renderStationStatus(data.jobs || [], myJobs);

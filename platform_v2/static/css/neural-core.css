@@ -19,7 +19,7 @@
   border-radius: 4px;
 }
 
-.nc-hero canvas {
+.nc-hero #neuralCore canvas {
   display: block;
   width: 100% !important;
   height: 100% !important;

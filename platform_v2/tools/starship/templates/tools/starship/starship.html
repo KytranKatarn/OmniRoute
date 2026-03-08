@@ -399,6 +399,14 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <div class="sc-row"><span class="sc-label">Resync</span><span class="sc-value"><button class="sc-btn-small" id="d-resync-btn" onclick="showResyncModal()">RESYNC NODE</button></span></div>
             </div>
             <div class="sc-section">
+                <h4>REMOTE UPDATES</h4>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <button class="sc-btn-small" onclick="pushCodeUpdate()">PUSH CODE UPDATE</button>
+                    <span style="color: rgba(255,255,255,0.35); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;">OTA update to latest package</span>
+                </div>
+                <div id="sync-log-list" style="max-height: 200px; overflow-y: auto;"></div>
+            </div>
+            <div class="sc-section">
                 <h4>FLEET SUMMARY</h4>
                 <div class="sc-row"><span class="sc-label">Active Stations</span><span class="sc-value" id="d-active-stations">—</span></div>
                 <div class="sc-row"><span class="sc-label">Models Available</span><span class="sc-value" id="d-models-avail">—</span></div>
@@ -442,8 +450,20 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
                     Agents available to this node. Toggle access to control which crew can be dispatched here.
                 </p>
+                <div id="agent-recommendations" style="display:none; margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <h4 style="color: #a78bfa; margin: 0;">RECOMMENDED CREW</h4>
+                        <button class="sc-btn-small" style="background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3);" onclick="addAllRecommended()">ADD ALL</button>
+                    </div>
+                    <div id="recommendation-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;"></div>
+                    <div id="station-suggestions" style="margin-top: 12px;"></div>
+                </div>
                 <div id="d-agents-list" class="sc-agent-list">
                     <span class="sc-label">Loading...</span>
+                </div>
+                <div id="agent-sync-status" style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding: 10px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(0,229,255,0.1); border-radius: 6px;">
+                    <span id="sync-indicator" style="color: rgba(255,255,255,0.4); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">Agent config not synced</span>
+                    <button class="sc-btn-small" onclick="pushAgentConfig()">PUSH CHANGES TO NODE</button>
                 </div>
             </div>
         </div>
@@ -533,6 +553,7 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
 {% block extra_js %}
 <script>
 var selectedNodeId = null;
+var selectedNodeDbId = null;
 var nodeCache = {};
 var pendingConfig = null;
 
@@ -713,7 +734,12 @@ async function selectNode(nodeId) {
             return;
         }
         nodeCache[nodeId] = data;
+        selectedNodeDbId = data.node.db_id || null;
         renderDetail(data);
+        if (selectedNodeDbId) {
+            loadRecommendations(selectedNodeDbId);
+            loadSyncLog(selectedNodeDbId);
+        }
     } catch (e) {
         scToast('Failed to load node data', 'error');
     }
@@ -904,8 +930,16 @@ function renderDetail(data) {
             toggle.appendChild(input);
             toggle.appendChild(slider);
 
+            var removeBtn = document.createElement('button');
+            removeBtn.className = 'sc-btn-small';
+            removeBtn.style.cssText = 'background:rgba(255,68,68,0.15);color:#ff4444;border:1px solid rgba(255,68,68,0.3);margin-right:8px;font-size:0.7rem;padding:3px 8px;';
+            removeBtn.textContent = 'REMOVE';
+            removeBtn.setAttribute('data-agent-id', a.id);
+            removeBtn.onclick = (function(agentId) { return function() { removeAgentFromNode(agentId); }; })(a.id);
+
             row.appendChild(avatar);
             row.appendChild(info);
+            row.appendChild(removeBtn);
             row.appendChild(toggle);
             agList.appendChild(row);
         });
@@ -1007,6 +1041,267 @@ function renderDetail(data) {
     document.getElementById('d-profile-name').value = n.node_name || '';
     document.getElementById('d-profile-id').textContent = n.node_id;
     document.getElementById('d-profile-host').textContent = data.hardware.cpu_model ? (selectedNodeId || '—') : '—';
+}
+
+// ── Escape HTML helper ──
+function escHtml(str) {
+    if (!str) return '';
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+// ── Recommendations ──
+async function loadRecommendations(nodeDbId) {
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/recommendations');
+        var data = await resp.json();
+        if (data.success) {
+            renderRecommendations(data);
+        }
+    } catch (e) {
+        // silently fail
+    }
+}
+
+function renderRecommendations(data) {
+    var panel = document.getElementById('agent-recommendations');
+    var container = document.getElementById('recommendation-cards');
+    var sugBox = document.getElementById('station-suggestions');
+    container.textContent = '';
+    sugBox.textContent = '';
+
+    var recs = data.recommendations || [];
+    if (recs.length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = '';
+
+    recs.forEach(function(rec) {
+        var card = document.createElement('div');
+        card.style.cssText = 'background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.2);border-radius:8px;padding:14px;';
+        card.setAttribute('data-agent-id', rec.agent_id);
+
+        var nameRow = document.createElement('div');
+        nameRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+        var nameEl = document.createElement('strong');
+        nameEl.style.color = '#a78bfa';
+        nameEl.textContent = rec.display_name || rec.name;
+        nameRow.appendChild(nameEl);
+        card.appendChild(nameRow);
+
+        var titleEl = document.createElement('div');
+        titleEl.style.cssText = 'color:rgba(255,255,255,0.5);font-size:0.8rem;font-family:"IBM Plex Mono",monospace;margin-bottom:6px;';
+        titleEl.textContent = rec.title || '';
+        card.appendChild(titleEl);
+
+        var modelEl = document.createElement('div');
+        modelEl.style.cssText = 'color:rgba(255,255,255,0.4);font-size:0.75rem;margin-bottom:8px;';
+        modelEl.textContent = rec.model || 'No model';
+        card.appendChild(modelEl);
+
+        // Station badges
+        var badgeRow = document.createElement('div');
+        badgeRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;';
+        (rec.station_codes || []).forEach(function(sc) {
+            var badge = document.createElement('span');
+            badge.style.cssText = 'font-size:0.65rem;padding:2px 6px;border:1px solid rgba(167,139,250,0.4);color:#a78bfa;border-radius:3px;font-family:"IBM Plex Mono",monospace;';
+            badge.textContent = sc;
+            badgeRow.appendChild(badge);
+        });
+        card.appendChild(badgeRow);
+
+        // Score bar
+        var scoreWrap = document.createElement('div');
+        scoreWrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;';
+        var barOuter = document.createElement('div');
+        barOuter.style.cssText = 'flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;';
+        var barInner = document.createElement('div');
+        var score = rec.score || 0;
+        barInner.style.cssText = 'height:100%;border-radius:3px;width:' + Math.round(score * 100) + '%;background:' + (score > 0.7 ? '#00ff88' : score > 0.4 ? '#ffab00' : '#666') + ';';
+        barOuter.appendChild(barInner);
+        var scoreLabel = document.createElement('span');
+        scoreLabel.style.cssText = 'color:rgba(255,255,255,0.5);font-size:0.7rem;font-family:"IBM Plex Mono",monospace;min-width:36px;text-align:right;';
+        scoreLabel.textContent = Math.round(score * 100) + '%';
+        scoreWrap.appendChild(barOuter);
+        scoreWrap.appendChild(scoreLabel);
+        card.appendChild(scoreWrap);
+
+        // Add button
+        var addBtn = document.createElement('button');
+        addBtn.className = 'sc-btn-small';
+        addBtn.style.cssText = 'background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);width:100%;';
+        addBtn.textContent = 'ADD TO CREW';
+        addBtn.onclick = (function(agentId) { return function() { addRecommendedAgent(agentId); }; })(rec.agent_id);
+        card.appendChild(addBtn);
+
+        container.appendChild(card);
+    });
+
+    // Station suggestions
+    var suggestions = data.station_suggestions || [];
+    if (suggestions.length > 0) {
+        suggestions.forEach(function(s) {
+            var tip = document.createElement('div');
+            tip.style.cssText = 'color:rgba(255,255,255,0.35);font-size:0.75rem;font-family:"IBM Plex Mono",monospace;padding:4px 0;';
+            tip.textContent = escHtml(s.station_code) + ' — ' + escHtml(s.reason);
+            sugBox.appendChild(tip);
+        });
+    }
+}
+
+async function addRecommendedAgent(agentId) {
+    if (!selectedNodeDbId) return;
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({agent_id: agentId})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            scToast('Agent added to crew', 'success');
+            selectNode(selectedNodeId);
+        } else {
+            scToast(data.error || 'Failed to add agent', 'error');
+        }
+    } catch (e) {
+        scToast('Failed to add agent', 'error');
+    }
+}
+
+async function addAllRecommended() {
+    var cards = document.querySelectorAll('#recommendation-cards [data-agent-id]');
+    if (cards.length === 0) return;
+    if (!confirm('Add all ' + cards.length + ' recommended agents to this node?')) return;
+    for (var i = 0; i < cards.length; i++) {
+        var agentId = parseInt(cards[i].getAttribute('data-agent-id'), 10);
+        if (agentId) await addRecommendedAgent(agentId);
+    }
+}
+
+async function removeAgentFromNode(nodeAgentId) {
+    if (!selectedNodeDbId) return;
+    if (!confirm('Remove this agent from the node crew?')) return;
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + nodeAgentId, {
+            method: 'DELETE'
+        });
+        var data = await resp.json();
+        if (data.success) {
+            scToast('Agent removed', 'success');
+            selectNode(selectedNodeId);
+        } else {
+            scToast(data.error || 'Failed to remove agent', 'error');
+        }
+    } catch (e) {
+        scToast('Failed to remove agent', 'error');
+    }
+}
+
+async function pushAgentConfig() {
+    if (!selectedNodeDbId) return;
+    var indicator = document.getElementById('sync-indicator');
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/push-config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({type: 'agent_config'})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            indicator.textContent = 'Config pushed — ' + data.agent_count + ' agents synced (ID: ' + data.sync_id + ')';
+            indicator.style.color = 'var(--sc-green)';
+            scToast('Agent config pushed to node', 'success');
+            loadSyncLog(selectedNodeDbId);
+        } else {
+            indicator.textContent = 'Push failed: ' + escHtml(data.error || 'Unknown');
+            indicator.style.color = 'var(--sc-red)';
+            scToast(data.error || 'Push failed', 'error');
+        }
+    } catch (e) {
+        indicator.textContent = 'Push failed — network error';
+        indicator.style.color = 'var(--sc-red)';
+        scToast('Failed to push config', 'error');
+    }
+}
+
+// ── OTA Code Update + Sync Log ──
+async function pushCodeUpdate() {
+    if (!selectedNodeDbId) return;
+    if (!confirm('Push a code update to this node? The node will download and install on its next heartbeat.')) return;
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/push-update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        var data = await resp.json();
+        if (data.success) {
+            scToast('Code update v' + escHtml(data.version) + ' pushed (sync ID: ' + data.sync_id + ')', 'success');
+            loadSyncLog(selectedNodeDbId);
+        } else {
+            scToast(data.error || 'Failed to push update', 'error');
+        }
+    } catch (e) {
+        scToast('Failed to push code update', 'error');
+    }
+}
+
+async function loadSyncLog(nodeDbId) {
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/sync-log');
+        var data = await resp.json();
+        if (data.success) {
+            renderSyncLog(data.logs || []);
+        }
+    } catch (e) {
+        // silently fail
+    }
+}
+
+function renderSyncLog(logs) {
+    var container = document.getElementById('sync-log-list');
+    container.textContent = '';
+    if (logs.length === 0) {
+        var empty = document.createElement('span');
+        empty.style.cssText = 'color:rgba(255,255,255,0.3);font-size:0.8rem;font-family:"IBM Plex Mono",monospace;';
+        empty.textContent = 'No sync activity yet.';
+        container.appendChild(empty);
+        return;
+    }
+    logs.forEach(function(log) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-family:"IBM Plex Mono",monospace;font-size:0.78rem;';
+
+        var typeEl = document.createElement('span');
+        typeEl.style.cssText = 'color:var(--sc-accent);min-width:100px;';
+        typeEl.textContent = log.sync_type || '—';
+
+        var statusEl = document.createElement('span');
+        var statusColor = '#ffab00';
+        if (log.status === 'acknowledged') statusColor = '#00ff88';
+        else if (log.status === 'error') statusColor = '#ff4444';
+        statusEl.style.cssText = 'color:' + statusColor + ';min-width:90px;';
+        statusEl.textContent = (log.status || '—').toUpperCase();
+
+        var timeEl = document.createElement('span');
+        timeEl.style.cssText = 'color:rgba(255,255,255,0.4);flex:1;';
+        timeEl.textContent = log.sent_at ? new Date(log.sent_at).toLocaleString() : '—';
+
+        row.appendChild(typeEl);
+        row.appendChild(statusEl);
+        row.appendChild(timeEl);
+
+        if (log.error_message) {
+            var errEl = document.createElement('span');
+            errEl.style.cssText = 'color:#ff4444;font-size:0.7rem;';
+            errEl.textContent = log.error_message;
+            row.appendChild(errEl);
+        }
+
+        container.appendChild(row);
+    });
 }
 
 async function toggleStation(stationId, enable, card, color) {

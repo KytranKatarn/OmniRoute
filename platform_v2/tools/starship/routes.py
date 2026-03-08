@@ -526,6 +526,7 @@ def api_node_status(node_id):
             {
                 "success": True,
                 "node": {
+                    "db_id": node.get("id") or 0,
                     "node_id": node["node_id"],
                     "node_name": node["node_name"],
                     "status": _compute_node_status(node),
@@ -1180,5 +1181,196 @@ def api_remove_agent_from_node(node_id, agent_id):
             if not deleted:
                 return jsonify({"success": False, "error": "Agent not found on this node"}), 404
         return jsonify({"success": True, "message": "Agent removed"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# OTA PUSH — AGENT CONFIG & CODE UPDATES
+# ============================================================================
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/push-config", methods=["POST"])
+@login_required
+def api_push_agent_config(node_id):
+    """Push current agent configuration to a node via mesh_sync_log."""
+    import psycopg2
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            # Get the string node_id from remote_nodes
+            cur.execute(
+                "SELECT id, node_id FROM remote_nodes WHERE id = %s",
+                (node_id,),
+            )
+            node = cur.fetchone()
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
+            node_id_str = node["node_id"]
+
+            # Build crew manifest from node_agents
+            cur.execute(
+                """
+                SELECT na.name, na.display_name, na.title, na.model,
+                       na.system_prompt, na.capabilities, na.station_codes,
+                       na.is_allowed, na.status
+                FROM node_agents na
+                WHERE na.node_id = %s AND na.status = 'active'
+                ORDER BY na.display_name
+                """,
+                (node_id,),
+            )
+            agents = cur.fetchall()
+
+            crew_manifest = []
+            for a in agents:
+                crew_manifest.append(
+                    {
+                        "name": a["name"],
+                        "display_name": a["display_name"],
+                        "title": a["title"],
+                        "model": a["model"],
+                        "system_prompt": a["system_prompt"],
+                        "capabilities": a["capabilities"],
+                        "station_codes": a["station_codes"],
+                        "is_allowed": a["is_allowed"],
+                        "status": a["status"],
+                    }
+                )
+
+            payload = {"agents": crew_manifest, "agent_count": len(crew_manifest)}
+
+            cur.execute(
+                """
+                INSERT INTO mesh_sync_log
+                    (node_id, sync_type, payload, status, sent_at)
+                VALUES (%s, 'agent_config', %s, 'sent', NOW())
+                RETURNING id
+                """,
+                (node_id_str, psycopg2.Json(payload)),
+            )
+            sync_row = cur.fetchone()
+
+        return jsonify(
+            {
+                "success": True,
+                "sync_id": sync_row["id"],
+                "agent_count": len(crew_manifest),
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/push-update", methods=["POST"])
+@login_required
+def api_push_code_update(node_id):
+    """Push a code update request to a node."""
+    import psycopg2
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            # Get the string node_id
+            cur.execute(
+                "SELECT id, node_id FROM remote_nodes WHERE id = %s",
+                (node_id,),
+            )
+            node = cur.fetchone()
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
+            node_id_str = node["node_id"]
+
+            # Get latest deployment package
+            cur.execute(
+                """
+                SELECT id, package_name, version_tag, file_path, created_at
+                FROM deployment_packages
+                ORDER BY created_at DESC LIMIT 1
+                """
+            )
+            pkg = cur.fetchone()
+            version = pkg["version_tag"] if pkg else LATEST_NODE_VERSION
+
+            # Flag node for update
+            cur.execute(
+                """
+                UPDATE remote_nodes
+                SET update_requested = true, update_requested_at = NOW()
+                WHERE id = %s
+                """,
+                (node_id,),
+            )
+
+            # Log to mesh_sync_log
+            payload = {
+                "version": version,
+                "package_name": pkg["package_name"] if pkg else None,
+                "file_path": pkg["file_path"] if pkg else None,
+            }
+            cur.execute(
+                """
+                INSERT INTO mesh_sync_log
+                    (node_id, sync_type, payload, status, sent_at)
+                VALUES (%s, 'code_update', %s, 'sent', NOW())
+                RETURNING id
+                """,
+                (node_id_str, psycopg2.Json(payload)),
+            )
+            sync_row = cur.fetchone()
+
+        return jsonify(
+            {
+                "success": True,
+                "sync_id": sync_row["id"],
+                "version": version,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/sync-log")
+@login_required
+def api_get_sync_log(node_id):
+    """Get recent sync log entries for a node."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Get the string node_id
+            cur.execute(
+                "SELECT node_id FROM remote_nodes WHERE id = %s",
+                (node_id,),
+            )
+            node = cur.fetchone()
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
+            node_id_str = node["node_id"]
+
+            cur.execute(
+                """
+                SELECT id, sync_type, status, sent_at, acknowledged_at,
+                       error_message
+                FROM mesh_sync_log
+                WHERE node_id = %s
+                ORDER BY sent_at DESC
+                LIMIT 10
+                """,
+                (node_id_str,),
+            )
+            rows = cur.fetchall()
+
+        logs = []
+        for r in rows:
+            logs.append(
+                {
+                    "id": r["id"],
+                    "sync_type": r["sync_type"],
+                    "status": r["status"],
+                    "sent_at": r["sent_at"].isoformat() if r["sent_at"] else None,
+                    "acknowledged_at": r["acknowledged_at"].isoformat() if r["acknowledged_at"] else None,
+                    "error_message": r["error_message"],
+                }
+            )
+
+        return jsonify({"success": True, "logs": logs})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

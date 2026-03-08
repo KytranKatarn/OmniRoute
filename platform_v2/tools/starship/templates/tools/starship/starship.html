@@ -475,16 +475,16 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
                     Agents available to this node. Toggle access to control which crew can be dispatched here.
                 </p>
-                <div id="agent-recommendations" style="display:none; margin-bottom: 20px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                        <h4 style="color: #a78bfa; margin: 0;">RECOMMENDED CREW</h4>
-                        <button class="sc-btn-small" style="background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3);" onclick="addAllRecommended()">ADD ALL</button>
-                    </div>
-                    <div id="recommendation-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;"></div>
-                    <div id="station-suggestions" style="margin-top: 12px;"></div>
-                </div>
                 <div id="d-agents-list" class="sc-agent-list">
                     <span class="sc-label">Loading...</span>
+                </div>
+                <div id="agent-recommendations" style="display:none; margin-top: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: #a78bfa; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; letter-spacing: 1px;">RECOMMENDED CREW</span>
+                        <button class="sc-btn-small" style="background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); font-size: 0.65rem; padding: 3px 8px;" onclick="addAllRecommended()">ADD ALL</button>
+                    </div>
+                    <div id="recommendation-cards" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                    <div id="station-suggestions" style="margin-top: 8px;"></div>
                 </div>
                 <div id="agent-sync-status" style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding: 10px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(0,229,255,0.1); border-radius: 6px;">
                     <span id="sync-indicator" style="color: rgba(255,255,255,0.4); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">Agent config not synced</span>
@@ -742,6 +742,7 @@ function closeDetail() {
 }
 
 async function selectNode(nodeId) {
+    var isNewNode = (selectedNodeId !== nodeId);
     selectedNodeId = nodeId;
 
     // Highlight card
@@ -753,8 +754,10 @@ async function selectNode(nodeId) {
     document.getElementById('sc-detail').classList.add('active');
     document.getElementById('detail-title').textContent = 'LOADING...';
 
-    // Reset to status tab
-    switchTab('status');
+    // Only reset to status tab when selecting a different node
+    if (isNewNode) {
+        switchTab('status');
+    }
 
     try {
         var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(nodeId) + '/status');
@@ -1068,59 +1071,35 @@ function renderRecommendations(data) {
 
     recs.forEach(function(rec) {
         var card = document.createElement('div');
-        card.style.cssText = 'background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.2);border-radius:8px;padding:14px;';
+        card.style.cssText = 'background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.15);border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:8px;min-width:200px;max-width:300px;';
         card.setAttribute('data-agent-id', rec.agent_id);
 
-        var nameRow = document.createElement('div');
-        nameRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
-        var nameEl = document.createElement('strong');
-        nameEl.style.color = '#a78bfa';
+        // Avatar
+        var avatar = document.createElement('div');
+        var codeName = rec.name || '';
+        avatar.style.cssText = 'width:28px;height:28px;border-radius:4px;background:rgba(167,139,250,0.15);color:#a78bfa;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:bold;flex-shrink:0;';
+        avatar.textContent = codeName.substring(0, 2).toUpperCase();
+        card.appendChild(avatar);
+
+        // Info column
+        var info = document.createElement('div');
+        info.style.cssText = 'flex:1;min-width:0;';
+        var nameEl = document.createElement('div');
+        nameEl.style.cssText = 'color:#a78bfa;font-size:0.75rem;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
         nameEl.textContent = rec.display_name || rec.name;
-        nameRow.appendChild(nameEl);
-        card.appendChild(nameRow);
-
-        var titleEl = document.createElement('div');
-        titleEl.style.cssText = 'color:rgba(255,255,255,0.5);font-size:0.8rem;font-family:"IBM Plex Mono",monospace;margin-bottom:6px;';
-        titleEl.textContent = rec.title || '';
-        card.appendChild(titleEl);
-
-        var modelEl = document.createElement('div');
-        modelEl.style.cssText = 'color:rgba(255,255,255,0.4);font-size:0.75rem;margin-bottom:8px;';
-        modelEl.textContent = rec.model || 'No model';
-        card.appendChild(modelEl);
-
-        // Station badges
-        var badgeRow = document.createElement('div');
-        badgeRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;';
-        (rec.station_codes || []).forEach(function(sc) {
-            var badge = document.createElement('span');
-            badge.style.cssText = 'font-size:0.65rem;padding:2px 6px;border:1px solid rgba(167,139,250,0.4);color:#a78bfa;border-radius:3px;font-family:"IBM Plex Mono",monospace;';
-            badge.textContent = sc;
-            badgeRow.appendChild(badge);
-        });
-        card.appendChild(badgeRow);
-
-        // Score bar
-        var scoreWrap = document.createElement('div');
-        scoreWrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;';
-        var barOuter = document.createElement('div');
-        barOuter.style.cssText = 'flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;';
-        var barInner = document.createElement('div');
+        info.appendChild(nameEl);
+        var metaEl = document.createElement('div');
+        metaEl.style.cssText = 'color:rgba(255,255,255,0.35);font-size:0.65rem;font-family:"IBM Plex Mono",monospace;';
         var score = rec.score || 0;
-        barInner.style.cssText = 'height:100%;border-radius:3px;width:' + Math.round(score * 100) + '%;background:' + (score > 0.7 ? '#00ff88' : score > 0.4 ? '#ffab00' : '#666') + ';';
-        barOuter.appendChild(barInner);
-        var scoreLabel = document.createElement('span');
-        scoreLabel.style.cssText = 'color:rgba(255,255,255,0.5);font-size:0.7rem;font-family:"IBM Plex Mono",monospace;min-width:36px;text-align:right;';
-        scoreLabel.textContent = Math.round(score * 100) + '%';
-        scoreWrap.appendChild(barOuter);
-        scoreWrap.appendChild(scoreLabel);
-        card.appendChild(scoreWrap);
+        metaEl.textContent = Math.round(score * 100) + '% match \u2022 ' + (rec.station_codes || []).join(', ');
+        info.appendChild(metaEl);
+        card.appendChild(info);
 
         // Add button
         var addBtn = document.createElement('button');
         addBtn.className = 'sc-btn-small';
-        addBtn.style.cssText = 'background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);width:100%;';
-        addBtn.textContent = 'ADD TO CREW';
+        addBtn.style.cssText = 'background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);font-size:0.6rem;padding:3px 8px;flex-shrink:0;';
+        addBtn.textContent = 'ADD';
         addBtn.onclick = (function(agentId) { return function() { addRecommendedAgent(agentId); }; })(rec.agent_id);
         card.appendChild(addBtn);
 

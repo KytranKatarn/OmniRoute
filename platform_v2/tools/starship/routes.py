@@ -520,6 +520,7 @@ def api_node_status(node_id):
         # Compute model totals
         total_model_size = sum(float(m["model_size_gb"]) for m in models if m["model_size_gb"])
         available_count = sum(1 for m in models if m["is_available"])
+        assigned_stations = sum(1 for s in stations if s["assigned"])
         active_stations = sum(1 for s in stations if s["assigned"] and s["station_active"])
 
         return jsonify(
@@ -590,7 +591,7 @@ def api_node_status(node_id):
                     for s in stations
                 ],
                 "station_summary": {
-                    "total": len(stations),
+                    "total": assigned_stations,
                     "active": active_stations,
                 },
                 "agents": agents,

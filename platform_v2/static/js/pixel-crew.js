@@ -593,12 +593,251 @@ PixelSpriteFactory.generate = function(agentConfig) {
   };
 };
 
-/* ── Placeholder for Tasks 3-5 ──────────────────────── */
-/* PixelCrew class (scene renderer, animation loop,
-   agent lifecycle) will be added here. */
+/* ── Deck Renderer ─────────────────────────────────── */
+
+var TILE_SIZE  = 32;
+var GRID_COLS  = 20;
+var GRID_ROWS  = 8;
+
+var CONSOLE_LAYOUT = [
+  { id: "conversations", label: "CONV",     col: 5,  row: 2, color: "#3b82f6" },
+  { id: "code",          label: "CODE",     col: 14, row: 2, color: "#22c55e" },
+  { id: "vault",         label: "VAULT",    col: 2,  row: 4, color: "#8b5cf6" },
+  { id: "repos",         label: "REPOS",    col: 17, row: 4, color: "#f59e0b" },
+  { id: "learned",       label: "LEARN",    col: 5,  row: 6, color: "#06b6d4" },
+  { id: "sessions",      label: "SESSIONS", col: 14, row: 6, color: "#ec4899" }
+];
+
+var CORE_PAD = { col: 10, row: 1 };
+
+var DeckRenderer = {
+  canvas: null,
+  ctx: null,
+  scale: 1,
+  animTime: 0,
+  _container: null,
+  _resizeHandler: null,
+  _offsetX: 0,
+
+  init: function(containerEl) {
+    var self = this;
+    this._container = containerEl;
+    this.canvas = document.createElement("canvas");
+    this.canvas.className = "pc-deck";
+    this.canvas.style.display = "block";
+    containerEl.appendChild(this.canvas);
+    this.ctx = this.canvas.getContext("2d");
+    this.ctx.imageSmoothingEnabled = false;
+    this.resize();
+    this._resizeHandler = function() { self.resize(); };
+    window.addEventListener("resize", this._resizeHandler);
+    return this.canvas;
+  },
+
+  resize: function() {
+    if (!this._container) return;
+    var cw = this._container.clientWidth;
+    var ch = this._container.clientHeight;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var gridW = GRID_COLS * TILE_SIZE;
+    var gridH = GRID_ROWS * TILE_SIZE;
+    this.scale = Math.min(cw / gridW, ch / gridH);
+    var displayW = Math.floor(gridW * this.scale);
+    var displayH = Math.floor(gridH * this.scale);
+    this.canvas.width = displayW * dpr;
+    this.canvas.height = displayH * dpr;
+    this.canvas.style.width = displayW + "px";
+    this.canvas.style.height = displayH + "px";
+    this._offsetX = Math.floor((cw - displayW) / 2);
+    this.canvas.style.marginLeft = this._offsetX + "px";
+    this.ctx = this.canvas.getContext("2d");
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  },
+
+  render: function(characters, dt) {
+    this.animTime += dt;
+    var w = this.canvas.width;
+    var h = this.canvas.height;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.ctx.clearRect(0, 0, w / dpr, h / dpr);
+    this.ctx.save();
+    this.ctx.scale(this.scale, this.scale);
+    this._drawFloor();
+    this._drawCorePad();
+    this._drawConsoles();
+    // Characters drawn later by Task 4
+    this.ctx.restore();
+  },
+
+  _drawFloor: function() {
+    var ctx = this.ctx;
+    var totalW = GRID_COLS * TILE_SIZE;
+    var totalH = GRID_ROWS * TILE_SIZE;
+
+    // Dark background
+    ctx.fillStyle = "rgba(10, 10, 30, 0.7)";
+    ctx.fillRect(0, 0, totalW, totalH);
+
+    // Hex grid pattern — faint hexagonal outlines every 2 tiles
+    var hexR = TILE_SIZE; // radius = 1 tile = 32px (hex spans ~2 tiles)
+    var hexW = hexR * 2;
+    var hexH = Math.floor(hexR * Math.sqrt(3));
+    var row, col, cx, cy, a, angle;
+
+    ctx.strokeStyle = "rgba(10, 42, 58, 0.4)";
+    ctx.lineWidth = 1;
+
+    for (row = -1; row < Math.ceil(totalH / hexH) + 1; row++) {
+      for (col = -1; col < Math.ceil(totalW / (hexW * 0.75)) + 1; col++) {
+        cx = col * hexW * 0.75;
+        cy = row * hexH + ((col % 2) ? hexH * 0.5 : 0);
+        ctx.beginPath();
+        for (a = 0; a < 6; a++) {
+          angle = (Math.PI / 3) * a - Math.PI / 6;
+          var px = cx + hexR * Math.cos(angle);
+          var py = cy + hexR * Math.sin(angle);
+          if (a === 0) {
+            ctx.moveTo(px, py);
+          } else {
+            ctx.lineTo(px, py);
+          }
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+
+    // Radial glow from top-center
+    var gCx = (GRID_COLS / 2) * TILE_SIZE;
+    var gRadius = GRID_COLS * TILE_SIZE * 0.6;
+    var grad = ctx.createRadialGradient(gCx, 0, 0, gCx, 0, gRadius);
+    grad.addColorStop(0, "rgba(139, 92, 246, 0.12)");
+    grad.addColorStop(1, "rgba(139, 92, 246, 0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, totalW, totalH);
+  },
+
+  _drawCorePad: function() {
+    var ctx = this.ctx;
+    var cx = CORE_PAD.col * TILE_SIZE + TILE_SIZE / 2;
+    var cy = CORE_PAD.row * TILE_SIZE + TILE_SIZE / 2;
+    var pulse = 0.3 + 0.2 * Math.sin(this.animTime * 2);
+
+    // Outer circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(139, 92, 246, " + pulse + ")";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Inner circle — brighter
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(139, 92, 246, " + (pulse + 0.2) + ")";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Small cross/plus pattern in center
+    ctx.strokeStyle = "rgba(139, 92, 246, " + (pulse + 0.15) + ")";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - 4, cy);
+    ctx.lineTo(cx + 4, cy);
+    ctx.moveTo(cx, cy - 4);
+    ctx.lineTo(cx, cy + 4);
+    ctx.stroke();
+  },
+
+  _drawConsoles: function() {
+    var ctx = this.ctx;
+    var i, c, x, y;
+
+    for (i = 0; i < CONSOLE_LAYOUT.length; i++) {
+      c = CONSOLE_LAYOUT[i];
+      x = c.col * TILE_SIZE;
+      y = c.row * TILE_SIZE;
+
+      // Desk body — dark base (2x2 tiles = 64x64 area, desk is lower portion)
+      ctx.fillStyle = "#0a0a1e";
+      ctx.fillRect(x + 7, y + 20, 50, 24);
+
+      // Screen panel — lighter, on top half of desk area
+      ctx.fillStyle = "#1a1a3e";
+      ctx.fillRect(x + 12, y + 4, 40, 16);
+
+      // Station-colored glow border around screen
+      ctx.strokeStyle = _hexToRgba(c.color, 0.6);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 12, y + 4, 40, 16);
+
+      // Small station-colored dots on screen (data readouts)
+      ctx.fillStyle = c.color;
+      ctx.fillRect(x + 16, y + 8, 2, 2);
+      ctx.fillRect(x + 22, y + 10, 3, 2);
+      ctx.fillRect(x + 30, y + 8, 2, 2);
+      ctx.fillRect(x + 36, y + 11, 4, 2);
+      ctx.fillRect(x + 28, y + 14, 3, 2);
+
+      // Faint glow dot on desk surface
+      ctx.fillStyle = _hexToRgba(c.color, 0.2);
+      ctx.fillRect(x + 24, y + 28, 16, 2);
+
+      // Label below console
+      ctx.fillStyle = c.color;
+      ctx.font = "9px Antonio, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(c.label, x + 32, y + 56);
+    }
+    ctx.textAlign = "start"; // reset
+  },
+
+  getConsolePosition: function(consoleId) {
+    var i, c;
+    for (i = 0; i < CONSOLE_LAYOUT.length; i++) {
+      c = CONSOLE_LAYOUT[i];
+      if (c.id === consoleId) {
+        // Chair position is the tile directly below the console center
+        return {
+          x: c.col * TILE_SIZE + TILE_SIZE,
+          y: (c.row + 2) * TILE_SIZE
+        };
+      }
+    }
+    return null;
+  },
+
+  getCorePadPosition: function() {
+    return { col: CORE_PAD.col, row: CORE_PAD.row };
+  },
+
+  destroy: function() {
+    if (this._resizeHandler) {
+      window.removeEventListener("resize", this._resizeHandler);
+      this._resizeHandler = null;
+    }
+    if (this.canvas && this.canvas.parentNode) {
+      this.canvas.parentNode.removeChild(this.canvas);
+    }
+    this.canvas = null;
+    this.ctx = null;
+    this._container = null;
+  }
+};
+
+/* Helper: hex color to rgba string */
+function _hexToRgba(hex, alpha) {
+  var c = _hexToRgb(hex);
+  return "rgba(" + c.r + ", " + c.g + ", " + c.b + ", " + alpha + ")";
+}
+
+/* ── Placeholder for Tasks 4-5 ─────────────────────── */
+/* PixelCrew class (animation loop, agent lifecycle)
+   will be added here. */
 
 /* ── Export ──────────────────────────────────────────── */
 
 window.PixelSpriteFactory = PixelSpriteFactory;
+window._DeckRenderer = DeckRenderer;
 
 })();

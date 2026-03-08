@@ -2,6 +2,7 @@
 {% block title %}Starship Command{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="/static/css/station-ops.css">
 <!-- Admin Operations Navigation -->
 {% include 'includes/admin_ops_nav.html' %}
 
@@ -430,14 +431,38 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
 
         <!-- STATIONS TAB -->
         <div class="sc-panel" id="panel-stations">
-            <div class="sc-section">
-                <h4>STATION ASSIGNMENTS</h4>
-                <div class="sc-station-summary" id="d-station-summary"></div>
-                <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
-                    Toggle stations to control what work this node receives. Each station handles a domain of tasks.
-                </p>
-                <div id="d-stations-grid" class="sc-stations-grid">
-                    <span class="sc-label">Loading...</span>
+            <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
+                <!-- OPERATIONS Terminal -->
+                <div class="stn-ops-terminal" style="flex:1; min-width:320px;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-header-bar" style="background:#00e5ff;"></div>
+                        <span class="stn-ops-title">OPERATIONS</span>
+                        <span class="stn-ops-status" id="ops-status">OFFLINE</span>
+                    </div>
+                    <div class="stn-ops-section">
+                        <div class="stn-ops-section-label">CREW ROSTER</div>
+                        <div id="ops-agents"></div>
+                    </div>
+                    <div class="stn-ops-section">
+                        <div class="stn-ops-section-label">ACTIVE JOBS</div>
+                        <div id="ops-jobs"></div>
+                    </div>
+                </div>
+                <!-- ENGINEERING Terminal -->
+                <div class="stn-ops-terminal" style="flex:1; min-width:320px;">
+                    <div class="stn-ops-header">
+                        <div class="stn-ops-header-bar" style="background:#00e5ff;"></div>
+                        <span class="stn-ops-title">ENGINEERING</span>
+                        <span class="stn-ops-status" id="eng-status">OFFLINE</span>
+                    </div>
+                    <div class="stn-ops-section">
+                        <div class="stn-ops-section-label">CREW ROSTER</div>
+                        <div id="eng-agents"></div>
+                    </div>
+                    <div class="stn-ops-section">
+                        <div class="stn-ops-section-label">ACTIVE JOBS</div>
+                        <div id="eng-jobs"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -551,6 +576,7 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
 {% endblock %}
 
 {% block extra_js %}
+<script src="/static/js/station-ops.js"></script>
 <script>
 var selectedNodeId = null;
 var selectedNodeDbId = null;
@@ -703,6 +729,10 @@ function switchTab(tab) {
     document.querySelectorAll('.sc-panel').forEach(function(p) { p.classList.remove('active'); });
     document.querySelector('.sc-tab[data-tab="' + tab + '"]').classList.add('active');
     document.getElementById('panel-' + tab).classList.add('active');
+    if (tab === 'stations' && opsTerminal) {
+        opsTerminal.render();
+        engTerminal.render();
+    }
 }
 
 function closeDetail() {
@@ -739,6 +769,7 @@ async function selectNode(nodeId) {
         if (selectedNodeDbId) {
             loadRecommendations(selectedNodeDbId);
             loadSyncLog(selectedNodeDbId);
+            initStationTerminals(selectedNodeDbId);
         }
     } catch (e) {
         scToast('Failed to load node data', 'error');
@@ -812,50 +843,7 @@ function renderDetail(data) {
     document.getElementById('d-vram').textContent = hw.gpu_vram_gb ? hw.gpu_vram_gb + ' GB' : '—';
     document.getElementById('d-disk').textContent = hw.disk_gb ? hw.disk_gb + ' GB' : '?';
 
-    // Stations tab — summary + enhanced cards
-    var stSummary = document.getElementById('d-station-summary');
-    stSummary.textContent = '';
-    buildSummarySpan(stSummary, ss.active || 0, 'active');
-    buildSummarySpan(stSummary, ss.total || 0, 'total');
-
-    var stGrid = document.getElementById('d-stations-grid');
-    stGrid.textContent = '';
-    if (data.stations && data.stations.length > 0) {
-        data.stations.forEach(function(s) {
-            var card = document.createElement('div');
-            card.className = 'sc-station-card' + (s.assigned && s.active ? ' active' : '');
-            card.style.setProperty('--station-color', s.color);
-            card.onclick = function() { toggleStation(s.id, !(s.assigned && s.active), card, s.color); };
-
-            var dot = document.createElement('div');
-            dot.className = 'sc-station-dot';
-
-            var info = document.createElement('div');
-            info.className = 'sc-station-info';
-            var label = document.createElement('div');
-            label.className = 'sc-station-label';
-            label.textContent = s.station_name;
-            var meta = document.createElement('div');
-            meta.className = 'sc-station-meta';
-            meta.textContent = s.default_llm || 'No default model';
-            info.appendChild(label);
-            info.appendChild(meta);
-
-            var count = document.createElement('div');
-            count.className = 'sc-station-agent-count';
-            count.textContent = (s.agent_count || 0) + ' crew';
-
-            card.appendChild(dot);
-            card.appendChild(info);
-            card.appendChild(count);
-            stGrid.appendChild(card);
-        });
-    } else {
-        var empty = document.createElement('span');
-        empty.className = 'sc-label';
-        empty.textContent = 'No stations available.';
-        stGrid.appendChild(empty);
-    }
+    // Stations tab — now handled by StationOps terminals (see initStationTerminals)
 
     // Agents tab — summary + crew roster with station-colored borders
     var agSummary = document.getElementById('d-agent-summary');
@@ -1324,6 +1312,38 @@ async function toggleStation(stationId, enable, card, color) {
             scToast(data.error || 'Failed', 'error');
         }
     } catch (e) { scToast('Request failed', 'error'); }
+}
+
+// ── Station terminal instances ──
+var opsTerminal = null;
+var engTerminal = null;
+
+function initStationTerminals(nodeDbId) {
+    if (!nodeDbId) return;
+    var dataUrl = '/tools/starship/api/nodes/' + nodeDbId + '/stations-live';
+
+    opsTerminal = new StationOps({
+        stationCode: 'OPERATIONS',
+        moduleSource: 'starship',
+        agentsElId: 'ops-agents',
+        jobsElId: 'ops-jobs',
+        statusElId: 'ops-status',
+        dataUrl: dataUrl,
+        commands: []
+    });
+
+    engTerminal = new StationOps({
+        stationCode: 'ENGINEERING',
+        moduleSource: 'starship',
+        agentsElId: 'eng-agents',
+        jobsElId: 'eng-jobs',
+        statusElId: 'eng-status',
+        dataUrl: dataUrl,
+        commands: []
+    });
+
+    opsTerminal.render();
+    engTerminal.render();
 }
 
 async function toggleAgentAccess(agentId, allowed, row) {

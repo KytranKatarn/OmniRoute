@@ -327,15 +327,15 @@ function _fallbackToHoloSphere(container, nodes) {
 
 function _loadAgentsIntoCore() {
   if (!_neuralCore && !_pixelCrew) return;
-  fetch("/tools/bridge/api/bridge/crew-manifest").then(function(r) { return r.json(); }).then(function(data) {
+  fetch("/tools/bridge/api/bridge/crew/manifest").then(function(r) { return r.json(); }).then(function(data) {
     if (!data.success) return;
-    var manifest = data.manifest || [];
-    manifest.forEach(function(agent) {
-      if (agent.status === "active" || agent.status === "paused") {
+    var crew = data.crew || [];
+    crew.forEach(function(agent) {
+      if (agent.status === "active" || agent.status === "idle" || agent.status === "paused") {
         var agentData = {
           name: agent.name,
-          display_name: agent.display_name || agent.name,
-          station: agent.home_station || agent.station || "COMMAND",
+          display_name: agent.full_name || agent.name,
+          station: agent.station || "COMMAND",
           status: agent.status
         };
         if (_neuralCore) _neuralCore.addAgent(agentData);

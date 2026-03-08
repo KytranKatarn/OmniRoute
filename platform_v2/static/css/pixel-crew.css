@@ -1,0 +1,56 @@
+/* ============================================================
+   Pixel Crew — Station deck Canvas 2D overlay
+   Positioned below the WebGL Neural Core sphere in .nc-hero
+   ============================================================ */
+
+/* ---- Deck canvas ---- */
+.pc-deck {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  z-index: 3;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ---- Glow bridge — sphere bloom bleeds into deck ---- */
+.pc-glow-bridge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 80px;
+  bottom: 40%;
+  z-index: 2;
+  background: radial-gradient(
+    ellipse at 50% 100%,
+    rgba(139, 92, 246, 0.15) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 767px) {
+  .pc-deck {
+    height: 35%;
+  }
+  .pc-glow-bridge {
+    height: 40px;
+  }
+}
+
+@media (max-width: 500px) {
+  .pc-deck {
+    height: 30%;
+  }
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .pc-glow-bridge {
+    display: none;
+  }
+}

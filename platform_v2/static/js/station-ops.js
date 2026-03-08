@@ -50,6 +50,7 @@
     this.commands = config.commands || [];            // [{label, cls, fn, id, title}]
     this.onJobComplete = config.onJobComplete;       // callback(job)
     this.onCapacityChange = config.onCapacityChange; // callback(atCapacity)
+    this.dataUrl = config.dataUrl || null;           // custom data URL (overrides Bridge API)
     this._activePolls = {};
     this._atCapacity = false;
     this._commandsInjected = false;
@@ -62,7 +63,8 @@
     var agentsEl = document.getElementById(this.agentsElId);
     if (!agentsEl) return;
 
-    fetch("/tools/bridge/api/stations").then(function(resp) {
+    var stationsUrl = this.dataUrl || "/tools/bridge/api/stations";
+    fetch(stationsUrl).then(function(resp) {
       var ct = resp.headers.get("content-type") || "";
       if (ct.indexOf("application/json") === -1) return Promise.reject("not json");
       return resp.json();

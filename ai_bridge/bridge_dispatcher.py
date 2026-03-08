@@ -1702,58 +1702,56 @@ class BridgeDispatcher:
             )
             return None  # Never escalate — queue for local
 
-        if escalation_mode == "ask_first":
-            # Request Telegram approval before any cloud escalation (including free)
-            logger.info(
-                f"[BridgeDispatcher] Escalation ask_first: {agent_name} busy "
-                f"({busy_job['description']}, {busy_job['progress_pct']}%). "
-                f"Requesting Telegram approval for cloud escalation."
+        # ALL cloud escalation requires Telegram approval (3-slot model).
+        # Cloud is the 4th slot — always needs human approval.
+        logger.info(
+            f"[BridgeDispatcher] Cloud approval required: {agent_name} busy "
+            f"({busy_job['description']}, {busy_job['progress_pct']}%). "
+            f"Requesting Telegram approval for cloud escalation."
+        )
+        try:
+            from agent_loop import request_approval
+
+            cloud_model = (
+                self.FREE_CLOUD_MODELS[0] if self.FREE_CLOUD_MODELS else "unknown"
             )
-            try:
-                from agent_loop import request_approval
-
-                cloud_model = (
-                    self.FREE_CLOUD_MODELS[0] if self.FREE_CLOUD_MODELS else "unknown"
-                )
-                request_approval(
-                    action_type="cloud_throughput_escalation",
-                    action_data={
-                        "original_agent": agent_name,
-                        "busy_job": busy_job,
-                        "escalated_model": cloud_model,
-                        "escalated_provider": "ollama_cloud",
-                        "capability": capability,
-                        "module_id": module_id,
-                        "prompt_preview": prompt[:200],
-                        "escalation_mode": "ask_first",
-                    },
-                    reason=(
-                        f"{agent_name} busy ({busy_job['description']}, "
-                        f"{busy_job['progress_pct']}%). "
-                        f"Escalate to {cloud_model}? Or queue for local."
-                    ),
-                    requested_by="bridge_dispatcher",
-                    tier=2,
-                )
-                self._log_escalation(
-                    original_agent_id=None,
-                    original_model=agent_name,
-                    escalated_model=cloud_model,
-                    escalated_provider="ollama_cloud",
-                    capability=capability,
-                    module_id=module_id,
-                    reason=f"Throughput: awaiting cloud approval (ask_first)",
-                    failure_count=0,
-                    approval_method="telegram",
-                    success=None,
-                )
-            except Exception as esc_err:
-                logger.warning(
-                    f"[BridgeDispatcher] ask_first approval request failed: {esc_err}"
-                )
-            return None  # Caller proceeds with local (busy) agent
-
-        start = time.time()
+            request_approval(
+                action_type="cloud_throughput_escalation",
+                action_data={
+                    "original_agent": agent_name,
+                    "busy_job": busy_job,
+                    "escalated_model": cloud_model,
+                    "escalated_provider": "ollama_cloud",
+                    "capability": capability,
+                    "module_id": module_id,
+                    "prompt_preview": prompt[:200],
+                    "escalation_mode": escalation_mode,
+                },
+                reason=(
+                    f"{agent_name} busy ({busy_job['description']}, "
+                    f"{busy_job['progress_pct']}%). "
+                    f"Escalate to {cloud_model}? Or queue for local."
+                ),
+                requested_by="bridge_dispatcher",
+                tier=2,
+            )
+            self._log_escalation(
+                original_agent_id=None,
+                original_model=agent_name,
+                escalated_model=cloud_model,
+                escalated_provider="ollama_cloud",
+                capability=capability,
+                module_id=module_id,
+                reason=f"Throughput: awaiting cloud approval",
+                failure_count=0,
+                approval_method="telegram",
+                success=None,
+            )
+        except Exception as esc_err:
+            logger.warning(
+                f"[BridgeDispatcher] Cloud approval request failed: {esc_err}"
+            )
+        return None  # Always return None — no auto-cloud
 
         # --- Try free cloud contractors ---
         for cloud_model in self.FREE_CLOUD_MODELS:

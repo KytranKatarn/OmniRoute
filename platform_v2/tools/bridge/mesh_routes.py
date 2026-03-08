@@ -633,4 +633,108 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh cluster overview failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ========================================================================
+    # AVAILABLE AGENTS (for Request Help modal)
+    # ========================================================================
+
+    @bridge_bp.route("/api/mesh/agents/available", methods=["GET"])
+    @login_required
+    def mesh_available_agents():
+        """Hub admin views agents available for lending across the mesh."""
+        get_db_cursor = _get_db_cursor()
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                # Find lendable agents: node must be online, approved,
+                # bridge_enabled, active, with capacity, and not local_data_only.
+                # Agent must be allowed, active, and not on an active loan.
+                cur.execute(
+                    """
+                    SELECT
+                        na.id AS agent_id,
+                        na.name,
+                        na.display_name,
+                        na.title,
+                        na.model,
+                        na.capabilities,
+                        na.station_codes,
+                        rn.id AS remote_node_pk,
+                        rn.node_id,
+                        rn.node_name,
+                        rn.current_load,
+                        rn.max_concurrent,
+                        rn.privacy_settings
+                    FROM node_agents na
+                    JOIN remote_nodes rn ON rn.id = na.node_id
+                    WHERE rn.status = 'online'
+                      AND rn.approval_status = 'approved'
+                      AND rn.bridge_enabled = true
+                      AND rn.is_active = true
+                      AND rn.current_load < rn.max_concurrent
+                      AND COALESCE(
+                          (rn.privacy_settings->>'local_data_only')::boolean,
+                          false
+                      ) = false
+                      AND na.is_allowed = true
+                      AND na.status = 'active'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM mesh_agent_loans mal
+                          WHERE mal.agent_id = na.id
+                            AND mal.status = 'active'
+                      )
+                    ORDER BY rn.node_name, na.display_name
+                    """
+                )
+                rows = cur.fetchall()
+
+                # Count active loans for summary
+                cur.execute("SELECT COUNT(*) AS cnt FROM mesh_agent_loans WHERE status = 'active'")
+                active_loans = cur.fetchone()["cnt"]
+
+            available_agents = []
+            node_ids_seen = set()
+            for r in rows:
+                # Compute privacy_level from privacy_settings JSONB
+                ps = r["privacy_settings"] or {}
+                if ps.get("share_nothing"):
+                    privacy_level = "restricted"
+                elif ps.get("anonymize_data") or ps.get("strip_pii"):
+                    privacy_level = "anonymized"
+                else:
+                    privacy_level = "open"
+
+                node_ids_seen.add(r["node_id"])
+                available_agents.append(
+                    {
+                        "agent_id": r["agent_id"],
+                        "name": r["name"],
+                        "display_name": r["display_name"],
+                        "title": r["title"],
+                        "model": r["model"],
+                        "capabilities": r["capabilities"],
+                        "station_codes": r["station_codes"],
+                        "node_id": r["node_id"],
+                        "node_name": r["node_name"],
+                        "node_capacity": {
+                            "current_load": r["current_load"],
+                            "max_concurrent": r["max_concurrent"],
+                        },
+                        "privacy_level": privacy_level,
+                    }
+                )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "available_agents": available_agents,
+                    "summary": {
+                        "total_available": len(available_agents),
+                        "nodes_with_capacity": len(node_ids_seen),
+                        "active_loans": active_loans,
+                    },
+                }
+            )
+        except Exception as e:
+            logger.error(f"Mesh available agents fetch failed: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
     logger.info("Mesh API routes registered on bridge blueprint")

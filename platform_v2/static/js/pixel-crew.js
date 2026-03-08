@@ -666,7 +666,7 @@ var DeckRenderer = {
     this._drawFloor();
     this._drawCorePad();
     this._drawConsoles();
-    // Characters drawn later by Task 4
+    CharacterManager.draw(this.ctx);
     this.ctx.restore();
   },
 
@@ -831,7 +831,595 @@ function _hexToRgba(hex, alpha) {
   return "rgba(" + c.r + ", " + c.g + ", " + c.b + ", " + alpha + ")";
 }
 
-/* ── Placeholder for Tasks 4-5 ─────────────────────── */
+/* ── Character State Machine & Pathfinding ────────── */
+
+var ANIM_SPEEDS = {
+  idle:      0.25,   // seconds per frame
+  walk:      0.12,
+  working:   0.30,
+  beamIn:    0.15,
+  beamOut:   0.15,
+  celebrate: 0.20
+};
+var WALK_SPEED = 3; // tiles per second
+
+/* Frame counts per animation (from sprite.frames) */
+var ANIM_FRAME_COUNTS = {
+  idle:      4,
+  walk:      6,
+  working:   4,
+  beamIn:    4,
+  beamOut:   4,
+  celebrate: 3
+};
+
+/* One-shot animations that don't loop */
+var ONE_SHOT_ANIMS = { beamIn: true, beamOut: true, celebrate: true };
+
+/* Station-to-console mapping */
+var STATION_CONSOLE_MAP = {
+  COMMAND:        "vault",
+  SECURITY:       "vault",
+  ANALYTICS:      "conversations",
+  OPERATIONS:     "conversations",
+  CREATIVE:       "sessions",
+  COMMUNICATIONS: "sessions",
+  ENGINEERING:    "code",
+  RESEARCH:       "learned",
+  LOGISTICS:      "repos",
+  DIPLOMATIC:     "conversations"
+};
+
+/**
+ * Build a walkability grid. Returns a GRID_ROWS x GRID_COLS boolean array
+ * where true = walkable.
+ */
+function _buildWalkGrid() {
+  var grid = [];
+  var r, c, i, con;
+  for (r = 0; r < GRID_ROWS; r++) {
+    grid[r] = [];
+    for (c = 0; c < GRID_COLS; c++) {
+      grid[r][c] = true;
+    }
+  }
+  // Mark console tiles (2x2 each) as not walkable
+  for (i = 0; i < CONSOLE_LAYOUT.length; i++) {
+    con = CONSOLE_LAYOUT[i];
+    // Each console occupies 2x2 tiles at (col, row)
+    if (con.row < GRID_ROWS && con.col < GRID_COLS)
+      grid[con.row][con.col] = false;
+    if (con.row < GRID_ROWS && con.col + 1 < GRID_COLS)
+      grid[con.row][con.col + 1] = false;
+    if (con.row + 1 < GRID_ROWS && con.col < GRID_COLS)
+      grid[con.row + 1][con.col] = false;
+    if (con.row + 1 < GRID_ROWS && con.col + 1 < GRID_COLS)
+      grid[con.row + 1][con.col + 1] = false;
+  }
+  return grid;
+}
+
+/**
+ * BFS pathfinding on the tile grid.
+ * Returns array of {col, row} from start to end (exclusive of start, inclusive of end).
+ * occupiedTiles: Set of "col,row" strings to avoid (optional collision).
+ */
+function _bfs(startCol, startRow, endCol, endRow, occupiedTiles) {
+  // Clamp to grid bounds
+  startCol = Math.max(0, Math.min(GRID_COLS - 1, startCol));
+  startRow = Math.max(0, Math.min(GRID_ROWS - 1, startRow));
+  endCol   = Math.max(0, Math.min(GRID_COLS - 1, endCol));
+  endRow   = Math.max(0, Math.min(GRID_ROWS - 1, endRow));
+
+  if (startCol === endCol && startRow === endRow) return [];
+
+  var grid = _buildWalkGrid();
+  var dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]]; // up, down, left, right
+  var visited = {};
+  var parent = {};
+  var queue = [];
+  var startKey = startCol + "," + startRow;
+  var endKey = endCol + "," + endRow;
+
+  visited[startKey] = true;
+  queue.push({ col: startCol, row: startRow });
+
+  var found = false;
+  var useOccupied = occupiedTiles && occupiedTiles.size > 0;
+
+  while (queue.length > 0) {
+    var curr = queue.shift();
+    var currKey = curr.col + "," + curr.row;
+
+    if (currKey === endKey) {
+      found = true;
+      break;
+    }
+
+    for (var d = 0; d < dirs.length; d++) {
+      var nc = curr.col + dirs[d][0];
+      var nr = curr.row + dirs[d][1];
+      if (nc < 0 || nc >= GRID_COLS || nr < 0 || nr >= GRID_ROWS) continue;
+      var nk = nc + "," + nr;
+      if (visited[nk]) continue;
+      if (!grid[nr][nc]) continue;
+      // Allow the destination tile even if occupied
+      if (useOccupied && nk !== endKey && occupiedTiles.has(nk)) continue;
+
+      visited[nk] = true;
+      parent[nk] = currKey;
+      queue.push({ col: nc, row: nr });
+    }
+  }
+
+  if (!found) {
+    // Retry without occupied tiles if collision avoidance blocked the path
+    if (useOccupied) {
+      return _bfs(startCol, startRow, endCol, endRow, null);
+    }
+    return [];
+  }
+
+  // Reconstruct path (end -> start), then reverse, excluding start
+  var path = [];
+  var traceKey = endKey;
+  while (traceKey && traceKey !== startKey) {
+    var parts = traceKey.split(",");
+    path.push({ col: parseInt(parts[0], 10), row: parseInt(parts[1], 10) });
+    traceKey = parent[traceKey];
+  }
+  path.reverse();
+  return path;
+}
+
+/* ── CharacterManager ─────────────────────────────── */
+
+var CharacterManager = {
+  characters: [],
+
+  /**
+   * Create and add a character.
+   * config: { name, displayName, station, status }
+   */
+  addCharacter: function(config) {
+    var name = (config.name || "unknown").toLowerCase();
+    var station = (config.station || "COMMAND").toUpperCase();
+
+    // Generate sprite
+    var sprite = PixelSpriteFactory.generate({
+      name: config.name || name,
+      station: station
+    });
+
+    var homeConsole = this._assignHomeConsole(station);
+
+    var character = {
+      name: name,
+      displayName: config.displayName || config.name || name,
+      station: station,
+      sprite: sprite,
+      state: "beamIn",
+      tileCol: CORE_PAD.col,
+      tileRow: CORE_PAD.row,
+      targetCol: null,
+      targetRow: null,
+      path: [],
+      pathIndex: 0,
+      moveProgress: 0,
+      frame: 0,
+      frameTimer: 0,
+      facing: 1,
+      homeConsole: homeConsole,
+      opacity: 1.0,
+      _pendingState: "idle",   // state to transition to after beam_in
+      _pendingRemove: false,
+      _celebrateReturn: false
+    };
+
+    this.characters.push(character);
+    return character;
+  },
+
+  /**
+   * Start beam-out, then remove.
+   */
+  removeCharacter: function(name) {
+    var ch = this.getCharacter(name);
+    if (!ch) return;
+
+    // If not at core pad, walk there first
+    if (ch.tileCol !== CORE_PAD.col || ch.tileRow !== CORE_PAD.row) {
+      ch.targetCol = CORE_PAD.col;
+      ch.targetRow = CORE_PAD.row;
+      ch.path = _bfs(ch.tileCol, ch.tileRow, CORE_PAD.col, CORE_PAD.row, this._getOccupiedTiles());
+      ch.pathIndex = 0;
+      ch.moveProgress = 0;
+      ch.state = "walk";
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      ch._pendingState = "beamOut";
+      ch._pendingRemove = true;
+    } else {
+      ch.state = "beamOut";
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      ch._pendingRemove = true;
+    }
+  },
+
+  /**
+   * Send character to work at a console.
+   */
+  setWorking: function(name, consoleId) {
+    var ch = this.getCharacter(name);
+    if (!ch) return;
+
+    var targetConsole = consoleId || ch.homeConsole;
+    if (!targetConsole) return;
+
+    var seat = this._getConsoleSeat(targetConsole);
+    if (!seat) return;
+
+    // Already at the seat
+    if (ch.tileCol === seat.col && ch.tileRow === seat.row) {
+      ch.state = "working";
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      return;
+    }
+
+    // Pathfind to seat
+    ch.targetCol = seat.col;
+    ch.targetRow = seat.row;
+    ch.path = _bfs(ch.tileCol, ch.tileRow, seat.col, seat.row, this._getOccupiedTiles());
+    ch.pathIndex = 0;
+    ch.moveProgress = 0;
+    ch.state = "walk";
+    ch.frame = 0;
+    ch.frameTimer = 0;
+    ch._pendingState = "working";
+  },
+
+  /**
+   * Stop working, walk back to home console seat.
+   */
+  setIdle: function(name) {
+    var ch = this.getCharacter(name);
+    if (!ch) return;
+
+    var seat = this._getConsoleSeat(ch.homeConsole);
+    if (!seat) {
+      ch.state = "idle";
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      return;
+    }
+
+    if (ch.tileCol === seat.col && ch.tileRow === seat.row) {
+      ch.state = "idle";
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      return;
+    }
+
+    ch.targetCol = seat.col;
+    ch.targetRow = seat.row;
+    ch.path = _bfs(ch.tileCol, ch.tileRow, seat.col, seat.row, this._getOccupiedTiles());
+    ch.pathIndex = 0;
+    ch.moveProgress = 0;
+    ch.state = "walk";
+    ch.frame = 0;
+    ch.frameTimer = 0;
+    ch._pendingState = "idle";
+  },
+
+  /**
+   * Play celebrate animation, then return to idle.
+   */
+  celebrate: function(name) {
+    var ch = this.getCharacter(name);
+    if (!ch) return;
+
+    ch.state = "celebrate";
+    ch.frame = 0;
+    ch.frameTimer = 0;
+    ch._celebrateReturn = true;
+  },
+
+  /**
+   * Advance all character animations and movement.
+   * dt: delta time in seconds.
+   */
+  update: function(dt) {
+    var i, ch, speed, maxFrames;
+
+    for (i = this.characters.length - 1; i >= 0; i--) {
+      ch = this.characters[i];
+      speed = ANIM_SPEEDS[ch.state] || 0.25;
+      maxFrames = ANIM_FRAME_COUNTS[ch.state] || 4;
+
+      // Advance frame timer
+      ch.frameTimer += dt;
+      if (ch.frameTimer >= speed) {
+        ch.frameTimer -= speed;
+        ch.frame++;
+
+        if (ONE_SHOT_ANIMS[ch.state]) {
+          // One-shot: stop at last frame
+          if (ch.frame >= maxFrames) {
+            ch.frame = maxFrames - 1;
+            this._onAnimComplete(ch, i);
+            continue;
+          }
+        } else {
+          // Looping: wrap
+          ch.frame = ch.frame % maxFrames;
+        }
+      }
+
+      // Walking movement
+      if (ch.state === "walk" && ch.path.length > 0) {
+        ch.moveProgress += dt * WALK_SPEED;
+
+        if (ch.moveProgress >= 1) {
+          // Snap to next tile
+          var nextTile = ch.path[ch.pathIndex];
+          if (nextTile) {
+            // Update facing
+            if (nextTile.col > ch.tileCol) ch.facing = 1;
+            else if (nextTile.col < ch.tileCol) ch.facing = -1;
+
+            ch.tileCol = nextTile.col;
+            ch.tileRow = nextTile.row;
+          }
+          ch.pathIndex++;
+          ch.moveProgress = 0;
+
+          // Path complete?
+          if (ch.pathIndex >= ch.path.length) {
+            ch.path = [];
+            ch.pathIndex = 0;
+            ch.moveProgress = 0;
+            ch.targetCol = null;
+            ch.targetRow = null;
+            // Transition to pending state
+            var next = ch._pendingState || "idle";
+            ch._pendingState = null;
+            ch.state = next;
+            ch.frame = 0;
+            ch.frameTimer = 0;
+
+            // If beam_out after walking, mark pending remove
+            if (next === "beamOut") {
+              ch._pendingRemove = true;
+            }
+          }
+        }
+      }
+
+      // Beam opacity effects
+      if (ch.state === "beamIn") {
+        ch.opacity = Math.min(1.0, (ch.frame + 1) / ANIM_FRAME_COUNTS.beamIn);
+      } else if (ch.state === "beamOut") {
+        ch.opacity = Math.max(0, 1.0 - (ch.frame + 1) / ANIM_FRAME_COUNTS.beamOut);
+      } else {
+        ch.opacity = 1.0;
+      }
+    }
+  },
+
+  /**
+   * Handle end of one-shot animations.
+   */
+  _onAnimComplete: function(ch, index) {
+    if (ch.state === "beamIn") {
+      // Beam-in complete: walk to home console seat
+      var seat = this._getConsoleSeat(ch.homeConsole);
+      if (seat) {
+        ch.targetCol = seat.col;
+        ch.targetRow = seat.row;
+        ch.path = _bfs(ch.tileCol, ch.tileRow, seat.col, seat.row, this._getOccupiedTiles());
+        ch.pathIndex = 0;
+        ch.moveProgress = 0;
+        ch.state = "walk";
+        ch.frame = 0;
+        ch.frameTimer = 0;
+        ch._pendingState = "idle";
+      } else {
+        ch.state = "idle";
+        ch.frame = 0;
+        ch.frameTimer = 0;
+      }
+      ch.opacity = 1.0;
+    } else if (ch.state === "beamOut") {
+      // Beam-out complete: remove
+      if (ch._pendingRemove) {
+        ch.sprite = null;
+        this.characters.splice(index, 1);
+      }
+    } else if (ch.state === "celebrate") {
+      // Celebrate complete: return to idle
+      ch.state = "idle";
+      ch.frame = 0;
+      ch.frameTimer = 0;
+      ch._celebrateReturn = false;
+    }
+  },
+
+  /**
+   * Draw all characters onto the given context.
+   * Characters sorted by tileRow for proper overlap.
+   */
+  draw: function(ctx) {
+    if (this.characters.length === 0) return;
+
+    // Sort by row for painter's algorithm
+    var sorted = this.characters.slice().sort(function(a, b) {
+      return a.tileRow - b.tileRow;
+    });
+
+    var i, ch, sprite, frameIndices, frameIdx, srcX;
+    var px, py, interpX, interpY;
+
+    for (i = 0; i < sorted.length; i++) {
+      ch = sorted[i];
+      if (!ch.sprite) continue;
+
+      sprite = ch.sprite;
+      frameIndices = sprite.frames[ch.state];
+      if (!frameIndices || frameIndices.length === 0) continue;
+
+      var clampedFrame = Math.min(ch.frame, frameIndices.length - 1);
+      frameIdx = frameIndices[clampedFrame];
+      srcX = frameIdx * sprite.frameWidth;
+
+      // Calculate pixel position with interpolation
+      px = ch.tileCol * TILE_SIZE;
+      py = ch.tileRow * TILE_SIZE;
+
+      // Interpolate position during walking
+      if (ch.state === "walk" && ch.path.length > 0 && ch.pathIndex < ch.path.length) {
+        var nextTile = ch.path[ch.pathIndex];
+        if (nextTile) {
+          interpX = (nextTile.col * TILE_SIZE - px) * ch.moveProgress;
+          interpY = (nextTile.row * TILE_SIZE - py) * ch.moveProgress;
+          px += interpX;
+          py += interpY;
+        }
+      }
+
+      // Apply opacity
+      ctx.globalAlpha = ch.opacity;
+
+      // Draw sprite (handle facing)
+      if (ch.facing === -1) {
+        ctx.save();
+        ctx.translate(px + TILE_SIZE, py);
+        ctx.scale(-1, 1);
+        ctx.drawImage(
+          sprite.canvas,
+          srcX, 0, sprite.frameWidth, sprite.frameHeight,
+          0, 0, TILE_SIZE, TILE_SIZE
+        );
+        ctx.restore();
+      } else {
+        ctx.drawImage(
+          sprite.canvas,
+          srcX, 0, sprite.frameWidth, sprite.frameHeight,
+          px, py, TILE_SIZE, TILE_SIZE
+        );
+      }
+
+      ctx.globalAlpha = 1.0;
+
+      // Draw name label above character
+      var labelX = px + TILE_SIZE / 2;
+      var labelY = py - 4;
+      var stationColor = STATION_COLORS[ch.station] || "#ffffff";
+      var labelText = ch.displayName;
+
+      ctx.font = "8px Antonio, sans-serif";
+      ctx.textAlign = "center";
+      var textW = ctx.measureText(labelText).width;
+
+      // Semi-transparent background pill
+      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+      ctx.fillRect(labelX - textW / 2 - 2, labelY - 8, textW + 4, 10);
+
+      // Name text in station color
+      ctx.fillStyle = stationColor;
+      ctx.fillText(labelText, labelX, labelY);
+    }
+    ctx.textAlign = "start"; // reset
+  },
+
+  /**
+   * Find a character by name (case-insensitive).
+   */
+  getCharacter: function(name) {
+    if (!name) return null;
+    var lower = name.toLowerCase();
+    for (var i = 0; i < this.characters.length; i++) {
+      if (this.characters[i].name === lower) return this.characters[i];
+    }
+    return null;
+  },
+
+  /**
+   * Assign a home console based on station.
+   */
+  _assignHomeConsole: function(station) {
+    var preferred = STATION_CONSOLE_MAP[station] || "conversations";
+
+    // Count how many characters already assigned to each console
+    var counts = {};
+    var i;
+    for (i = 0; i < CONSOLE_LAYOUT.length; i++) {
+      counts[CONSOLE_LAYOUT[i].id] = 0;
+    }
+    for (i = 0; i < this.characters.length; i++) {
+      var hc = this.characters[i].homeConsole;
+      if (hc && counts[hc] !== undefined) counts[hc]++;
+    }
+
+    // Use preferred if it has fewer than 2 characters
+    if (counts[preferred] !== undefined && counts[preferred] < 2) {
+      return preferred;
+    }
+
+    // Otherwise pick the console with fewest characters
+    var best = null;
+    var bestCount = Infinity;
+    for (i = 0; i < CONSOLE_LAYOUT.length; i++) {
+      var cid = CONSOLE_LAYOUT[i].id;
+      if (counts[cid] < bestCount) {
+        bestCount = counts[cid];
+        best = cid;
+      }
+    }
+    return best || preferred;
+  },
+
+  /**
+   * Get the seat position for a console (tile below console center).
+   */
+  _getConsoleSeat: function(consoleId) {
+    if (!consoleId) return null;
+    for (var i = 0; i < CONSOLE_LAYOUT.length; i++) {
+      var c = CONSOLE_LAYOUT[i];
+      if (c.id === consoleId) {
+        return { col: c.col, row: c.row + 2 };
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Get occupied tile positions (non-walking characters).
+   */
+  _getOccupiedTiles: function() {
+    var tiles = new Set();
+    for (var i = 0; i < this.characters.length; i++) {
+      var ch = this.characters[i];
+      if (ch.state !== "walk") {
+        tiles.add(ch.tileCol + "," + ch.tileRow);
+      }
+    }
+    return tiles;
+  },
+
+  /**
+   * Remove all characters and null sprite references.
+   */
+  clear: function() {
+    for (var i = 0; i < this.characters.length; i++) {
+      this.characters[i].sprite = null;
+    }
+    this.characters = [];
+  }
+};
+
+/* ── Placeholder for Task 5 ───────────────────────── */
 /* PixelCrew class (animation loop, agent lifecycle)
    will be added here. */
 
@@ -839,5 +1427,6 @@ function _hexToRgba(hex, alpha) {
 
 window.PixelSpriteFactory = PixelSpriteFactory;
 window._DeckRenderer = DeckRenderer;
+window._CharacterManager = CharacterManager;
 
 })();

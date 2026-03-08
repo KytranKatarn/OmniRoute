@@ -260,10 +260,6 @@ function loadNeuralCore() {
         }
       }).then(function(core) {
         _neuralCore = core;
-        var deckEl = document.getElementById("pixelCrewDeck");
-        if (deckEl && typeof PixelCrew !== "undefined") {
-          _pixelCrew = PixelCrew.create(deckEl);
-        }
         _loadAgentsIntoCore();
         _startKnowledgePolling();
       }).catch(function(err) {
@@ -297,6 +293,44 @@ function loadNeuralCore() {
     if (_neuralCore) _neuralCore.setMood(mood);
     else if (_holoSphere) _holoSphere.setMood(mood);
   }).catch(function() {});
+
+  // Pixel Crew — independent of Neural Core
+  try {
+    var deckEl = document.getElementById("pixelCrewDeck");
+    if (deckEl && typeof PixelCrew !== "undefined") {
+      console.log("[consciousness] Initializing PixelCrew...");
+      _pixelCrew = PixelCrew.create(deckEl);
+      if (_pixelCrew) {
+        console.log("[consciousness] PixelCrew created OK");
+        // Load agents after a short delay to let crew manifest load
+        setTimeout(function() {
+          fetch("/tools/bridge/api/bridge/crew-manifest")
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (!data.success) return;
+              var manifest = data.manifest || [];
+              console.log("[consciousness] Loading", manifest.length, "agents into PixelCrew");
+              manifest.forEach(function(agent) {
+                if (agent.status === "active" || agent.status === "paused") {
+                  _pixelCrew.addAgent({
+                    name: agent.name,
+                    display_name: agent.display_name || agent.name,
+                    station: agent.home_station || agent.station || "COMMAND",
+                    status: agent.status
+                  });
+                }
+              });
+            }).catch(function(e) { console.error("[PixelCrew] agent load error:", e); });
+        }, 2000);
+      } else {
+        console.warn("[consciousness] PixelCrew.create() returned null");
+      }
+    } else {
+      console.warn("[consciousness] PixelCrew not available:", !!deckEl, typeof PixelCrew);
+    }
+  } catch (e) {
+    console.error("[consciousness] PixelCrew init error:", e);
+  }
 }
 
 function _fallbackToHoloSphere(container, nodes) {

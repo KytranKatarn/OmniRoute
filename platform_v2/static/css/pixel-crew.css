@@ -5,7 +5,6 @@
 
 /* ---- Deck container ---- */
 #pixelCrewDeck {
-  border: 2px solid #8b5cf6;
   background: linear-gradient(
     180deg,
     rgba(139, 92, 246, 0.08) 0%,

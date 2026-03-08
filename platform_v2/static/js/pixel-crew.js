@@ -666,16 +666,6 @@ var DeckRenderer = {
     this._drawCorePad();
     this._drawConsoles();
     CharacterManager.draw(this.ctx);
-    // Debug: show character count
-    var charCount = CharacterManager.characters.length;
-    this.ctx.fillStyle = "#ffffff";
-    this.ctx.font = "bold 14px Orbitron, monospace";
-    this.ctx.textAlign = "left";
-    this.ctx.fillText("CREW: " + charCount, 8, 20);
-    if (charCount > 0) {
-      var ch0 = CharacterManager.characters[0];
-      this.ctx.fillText(ch0.name + " " + ch0.state + " sprite:" + (!!ch0.sprite), 8, 38);
-    }
     this.ctx.restore();
   },
 
@@ -1538,11 +1528,8 @@ var PixelCrew = {
     this._destroyed = false;
     this._instance = this;
 
-    console.log("[PixelCrew] create() called, container:", container.id, container.clientWidth, "x", container.clientHeight);
-
     // 1. Init DeckRenderer
     DeckRenderer.init(container, opts || {});
-    console.log("[PixelCrew] DeckRenderer initialized, canvas:", DeckRenderer.canvas.width, "x", DeckRenderer.canvas.height, "scale:", DeckRenderer.scale);
 
     // 2. Subscribe to event bus
     _subscribeEvents();
@@ -1568,10 +1555,6 @@ var PixelCrew = {
       // Update and render
       CharacterManager.update(dt);
       DeckRenderer.render(CharacterManager.characters, dt);
-      if (!self._loggedFirstFrame) {
-        self._loggedFirstFrame = true;
-        console.log("[PixelCrew] first frame rendered, chars:", CharacterManager.characters.length);
-      }
     }
 
     self._lastTime = performance.now();

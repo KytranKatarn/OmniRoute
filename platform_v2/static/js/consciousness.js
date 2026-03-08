@@ -902,6 +902,7 @@ window.toggleLoop = function(opKey) {
     _continuousRun[opKey] = false;
     _continuousBatch[opKey] = 0;
     _updateLoopBtn(opKey);
+    _syncServerLoop(opKey, false);
   } else {
     /* Guard: max 3 loops at this station (matches 3-slot model) */
     if (_activeLoopCount() >= MAX_STATION_LOOPS) {
@@ -912,11 +913,20 @@ window.toggleLoop = function(opKey) {
     _continuousRun[opKey] = true;
     _continuousBatch[opKey] = 0;
     _updateLoopBtn(opKey);
+    _syncServerLoop(opKey, true);
     var op = _loopOps[opKey];
     if (op) op.start();
   }
   _saveLoopState();
 };
+
+/* Sync loop state to server so it persists without the browser */
+function _syncServerLoop(opKey, enabled) {
+  api("/api/processing/server-loop/toggle", {
+    method: "POST",
+    body: { op: opKey, enabled: enabled }
+  }).catch(function() {});
+}
 
 function _updateLoopBtn(opKey) {
   var btn = document.getElementById("loopBtn-" + opKey);
@@ -957,6 +967,7 @@ function _loopExhausted(opKey) {
   _continuousRun[opKey] = false;
   _continuousBatch[opKey] = 0;
   _loopFailures[opKey] = 0;
+  _syncServerLoop(opKey, false);
   _saveLoopState();
   _updateLoopBtn(opKey);
 }
@@ -2094,10 +2105,27 @@ document.addEventListener("DOMContentLoaded", function () {
     if (_holoSphere) _holoSphere.resize();
   });
 
-  /* Restore loop button states from localStorage.
-     If a loop was active but no job is running (e.g. after restart),
-     auto-kick the next batch after a short delay. */
+  /* Restore loop button states from localStorage + server state.
+     Server state takes priority — if server has a loop active, enable it locally too. */
   _loadLoopState();
+  api("/api/processing/server-loop/status").then(function(data) {
+    if (!data.success) return;
+    var serverLoops = data.loops || {};
+    Object.keys(serverLoops).forEach(function(opKey) {
+      if (serverLoops[opKey] && !_continuousRun[opKey]) {
+        _continuousRun[opKey] = true;
+        _continuousBatch[opKey] = 0;
+      } else if (!serverLoops[opKey] && _continuousRun[opKey]) {
+        /* Server stopped this loop (e.g. backlog cleared) — sync locally */
+        _continuousRun[opKey] = false;
+        _continuousBatch[opKey] = 0;
+      }
+    });
+    _saveLoopState();
+    Object.keys(_continuousRun).forEach(function(opKey) {
+      _updateLoopBtn(opKey);
+    });
+  }).catch(function() {});
   Object.keys(_continuousRun).forEach(function(opKey) {
     _updateLoopBtn(opKey);
   });

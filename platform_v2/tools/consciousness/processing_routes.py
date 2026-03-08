@@ -1017,3 +1017,276 @@ def get_processing_history():
         cur.close()
 
         conn.close()
+
+
+# ── Server-Side Loop Mode ──────────────────────────────────────
+# Persists loop state in system_config so jobs auto-retrigger
+# even when browser is closed.
+
+VALID_LOOP_OPS = ("analysis", "embedding", "reindex", "translate")
+_LOOP_CONFIG_KEY = "consciousness_server_loops"
+_loop_failures = {}  # { op: count } — reset on success, stop after 3
+
+
+def get_server_loops():
+    """Read loop state from DB. Returns dict like {"analysis": true, ...}"""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM system_config WHERE key = %s", (_LOOP_CONFIG_KEY,))
+        row = cur.fetchone()
+        cur.close()
+        if row and row[0]:
+            return row[0] if isinstance(row[0], dict) else json.loads(row[0])
+        return {}
+    except Exception:
+        return {}
+    finally:
+        if conn:
+            conn.close()
+
+
+def set_server_loop(op, enabled):
+    """Toggle a single loop op in the DB."""
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM system_config WHERE key = %s", (_LOOP_CONFIG_KEY,))
+        row = cur.fetchone()
+        loops = (row[0] if row and isinstance(row[0], dict) else {}) if row else {}
+        loops[op] = bool(enabled)
+        cur.execute(
+            """
+            INSERT INTO system_config (key, value) VALUES (%s, %s::jsonb)
+            ON CONFLICT (key) DO UPDATE SET value = %s::jsonb
+            """,
+            (_LOOP_CONFIG_KEY, json.dumps(loops), json.dumps(loops)),
+        )
+        conn.commit()
+        cur.close()
+        if not enabled:
+            _loop_failures.pop(op, None)
+        return loops
+    finally:
+        if conn:
+            conn.close()
+
+
+def server_loop_retrigger(job_type, module_source, final_status):
+    """Called by bridge_dispatcher.complete_job() to auto-retrigger the next batch.
+
+    Runs in a background thread after a 10s cooldown to avoid hammering.
+    """
+    if module_source != "consciousness":
+        return
+    # Map job_type -> loop op key
+    type_to_op = {
+        "batch_analysis": "analysis",
+        "batch_embedding": "embedding",
+        "github_reindex_all": "reindex",
+        "translate_batch": "translate",
+    }
+    op = type_to_op.get(job_type)
+    if not op:
+        return
+
+    loops = get_server_loops()
+    if not loops.get(op):
+        return
+
+    # Only retrigger on success
+    if final_status != "completed":
+        _loop_failures[op] = _loop_failures.get(op, 0) + 1
+        if _loop_failures.get(op, 0) >= 3:
+            logger.warning(f"[ServerLoop] {op} failed 3 times — auto-disabling")
+            set_server_loop(op, False)
+            _loop_failures.pop(op, None)
+        return
+
+    _loop_failures.pop(op, None)
+
+    def _delayed_trigger():
+        import time
+
+        time.sleep(10)  # Cooldown
+        try:
+            _trigger_loop_op(op)
+        except Exception as e:
+            logger.error(f"[ServerLoop] Failed to retrigger {op}: {e}")
+
+    t = threading.Thread(target=_delayed_trigger, daemon=True)
+    t.start()
+    logger.info(f"[ServerLoop] {op} completed — retriggering in 10s")
+
+
+def _trigger_loop_op(op):
+    """Trigger the next batch for a loop operation (no Flask context needed)."""
+    conn = get_db()
+    cur = conn.cursor()
+
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+
+        if op == "analysis":
+            cur.execute(
+                """
+                SELECT id, title, content, memory_metadata
+                FROM knowledge_base
+                WHERE source_type = 'conversation_log'
+                AND (ai_analysis IS NULL OR analysis_version = 0)
+                AND content IS NOT NULL AND LENGTH(content) > 100
+                ORDER BY created_at DESC LIMIT 10
+                """
+            )
+            items = cur.fetchall()
+            if not items:
+                logger.info("[ServerLoop] analysis: no items left — stopping loop")
+                set_server_loop(op, False)
+                return
+
+            batch_id = str(uuid.uuid4())
+            job_id = dispatcher.create_job(
+                job_type="batch_analysis",
+                module_source="consciousness",
+                description=f"[auto-loop] Analyze {len(items)} entries",
+                total_steps=len(items),
+                capability="knowledge_analysis",
+                metadata={"category": "conversations", "batch_id": batch_id, "batch_size": 10, "server_loop": True},
+            )
+            if not job_id:
+                logger.info("[ServerLoop] analysis: duplicate job running — will retry after it completes")
+                return
+            t = threading.Thread(
+                target=_run_analysis_job, args=(list(items), "conversations", batch_id, job_id), daemon=True
+            )
+            t.start()
+            logger.info(f"[ServerLoop] analysis: started job #{job_id} with {len(items)} items")
+
+        elif op == "embedding":
+            cur.execute(
+                """
+                SELECT id, title, content
+                FROM knowledge_base
+                WHERE embedding IS NULL AND content IS NOT NULL AND LENGTH(content) > 50
+                ORDER BY created_at DESC LIMIT 50
+                """
+            )
+            items = cur.fetchall()
+            if not items:
+                logger.info("[ServerLoop] embedding: no items left — stopping loop")
+                set_server_loop(op, False)
+                return
+
+            job_id = dispatcher.create_job(
+                job_type="batch_embedding",
+                module_source="consciousness",
+                description=f"[auto-loop] Embed {len(items)} entries",
+                total_steps=len(items),
+                capability="embedding",
+                metadata={"batch_size": 50, "server_loop": True},
+            )
+            if not job_id:
+                logger.info("[ServerLoop] embedding: duplicate job running")
+                return
+            t = threading.Thread(target=_run_embedding_job, args=(list(items), job_id), daemon=True)
+            t.start()
+            logger.info(f"[ServerLoop] embedding: started job #{job_id} with {len(items)} items")
+
+        elif op == "reindex":
+            from psycopg2.extras import RealDictCursor
+
+            cur2 = conn.cursor(cursor_factory=RealDictCursor)
+            cur2.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories ORDER BY id")
+            repos = cur2.fetchall()
+            cur2.close()
+            if not repos:
+                logger.info("[ServerLoop] reindex: no repos — stopping loop")
+                set_server_loop(op, False)
+                return
+
+            job_id = dispatcher.create_job(
+                job_type="github_reindex_all",
+                module_source="consciousness",
+                description=f"[auto-loop] Re-index {len(repos)} repos",
+                total_steps=len(repos),
+                capability="code_analysis",
+                metadata={"repo_count": len(repos), "server_loop": True},
+            )
+            if not job_id:
+                logger.info("[ServerLoop] reindex: duplicate job running")
+                return
+            from tools.consciousness.github_routes import run_reindex_background
+
+            t = threading.Thread(target=run_reindex_background, args=(list(repos), job_id), daemon=True)
+            t.start()
+            logger.info(f"[ServerLoop] reindex: started job #{job_id} with {len(repos)} repos")
+
+        elif op == "translate":
+            from tools.consciousness.routes import _run_translate_bg
+
+            languages = ["fr", "es", "pt", "de", "zh", "ar", "he"]
+            job_id = dispatcher.create_job(
+                job_type="translate_batch",
+                module_source="consciousness",
+                description="[auto-loop] Translate missing keys",
+                total_steps=len(languages),
+                capability="translate",
+                metadata={"languages": languages, "server_loop": True},
+            )
+            if not job_id:
+                logger.info("[ServerLoop] translate: duplicate job running")
+                return
+            t = threading.Thread(
+                target=_run_translate_bg,
+                args=(languages, "consciousness_linguistics", job_id),
+                daemon=True,
+            )
+            t.start()
+            logger.info(f"[ServerLoop] translate: started job #{job_id}")
+
+    except Exception as e:
+        logger.error(f"[ServerLoop] _trigger_loop_op({op}) failed: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+@processing_bp.route("/server-loop/status", methods=["GET"])
+def server_loop_status():
+    """Get current server-side loop states."""
+    loops = get_server_loops()
+    return jsonify({"success": True, "loops": loops, "failures": dict(_loop_failures)})
+
+
+@processing_bp.route("/server-loop/toggle", methods=["POST"])
+def server_loop_toggle():
+    """Toggle a server-side loop. Body: {"op": "analysis", "enabled": true}"""
+    data = request.get_json() or {}
+    op = data.get("op")
+    enabled = data.get("enabled", False)
+
+    if op not in VALID_LOOP_OPS:
+        return jsonify({"success": False, "error": f"Invalid op: {op}. Valid: {list(VALID_LOOP_OPS)}"}), 400
+
+    loops = set_server_loop(op, enabled)
+
+    # If enabling, kick off the first batch immediately
+    if enabled:
+
+        def _kickoff():
+            import time
+
+            time.sleep(2)
+            try:
+                _trigger_loop_op(op)
+            except Exception as e:
+                logger.error(f"[ServerLoop] Kickoff {op} failed: {e}")
+
+        t = threading.Thread(target=_kickoff, daemon=True)
+        t.start()
+
+    return jsonify({"success": True, "loops": loops, "kicked_off": enabled})

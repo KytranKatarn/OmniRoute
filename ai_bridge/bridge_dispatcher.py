@@ -4169,6 +4169,14 @@ class BridgeDispatcher:
                     )
                     self._log_execution(batch_result, m_src or "unknown", job_id=job_id)
 
+                # ── Server-side loop: auto-retrigger next batch ──
+                try:
+                    from tools.consciousness.processing_routes import server_loop_retrigger
+
+                    server_loop_retrigger(j_type, m_src, status)
+                except Exception as loop_err:
+                    logger.debug(f"[BridgeDispatcher] server_loop_retrigger skipped: {loop_err}")
+
             return True
         except Exception as e:
             logger.error(f"[BridgeDispatcher] complete_job failed: {e}")

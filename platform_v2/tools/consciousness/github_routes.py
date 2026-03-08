@@ -37,6 +37,54 @@ def _get_db():
     )
 
 
+def run_reindex_background(repos_list, job_id):
+    """Background worker for reindexing all repos. Callable from server-loop."""
+    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    d = get_dispatcher()
+    total_indexed = 0
+    completed_repos = 0
+    error_count = 0
+    try:
+        for repo_row in repos_list:
+            repo_name = repo_row["repo_name"]
+            repo_type = repo_row["repo_type"]
+            repo_max = repo_row.get("max_files")
+            try:
+                parts = repo_name.split("/")
+                indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
+                    parts[0], parts[1], repo_type, max_files=repo_max
+                )
+                total_indexed += indexed
+                if errs:
+                    error_count += 1
+                completed_repos += 1
+            except Exception as e:
+                logger.error(f"[GitHub] Reindex {repo_name} failed: {e}")
+                traceback.print_exc()
+                error_count += 1
+                completed_repos += 1
+            try:
+                d.update_job_progress(
+                    job_id,
+                    completed_repos,
+                    error_count,
+                    {"total_indexed": total_indexed, "last_repo": repo_name},
+                )
+            except Exception as ue:
+                logger.error(f"[GitHub] Job #{job_id} progress update failed: {ue}")
+        d.complete_job(job_id)
+        logger.info(f"[GitHub] Reindex-all job #{job_id} done: {total_indexed} files across {len(repos_list)} repos")
+    except Exception as fatal:
+        logger.error(f"[GitHub] Reindex-all job #{job_id} thread crashed: {fatal}")
+        traceback.print_exc()
+        try:
+            d.update_job_progress(job_id, completed_repos, error_count + 1, {"crash": str(fatal)})
+            d.complete_job(job_id)
+        except Exception:
+            pass
+
+
 # ============================================================================
 # GITHUB CONSTANTS
 # ============================================================================
@@ -894,55 +942,7 @@ def register_github_routes(bp, admin_required):
                     409,
                 )
 
-            def _bg_reindex(repos_list, jid):
-                from ai_bridge.bridge_dispatcher import get_dispatcher as _gd
-
-                d = _gd()
-                total_indexed = 0
-                completed_repos = 0
-                error_count = 0
-                try:
-                    for repo_row in repos_list:
-                        repo_name = repo_row["repo_name"]
-                        repo_type = repo_row["repo_type"]
-                        repo_max = repo_row.get("max_files")
-                        try:
-                            parts = repo_name.split("/")
-                            indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
-                                parts[0], parts[1], repo_type, max_files=repo_max
-                            )
-                            total_indexed += indexed
-                            if errs:
-                                error_count += 1
-                            completed_repos += 1
-                        except Exception as e:
-                            logger.error(f"[GitHub] Reindex {repo_name} failed: {e}")
-                            traceback.print_exc()
-                            error_count += 1
-                            completed_repos += 1
-                        try:
-                            d.update_job_progress(
-                                jid,
-                                completed_repos,
-                                error_count,
-                                {"total_indexed": total_indexed, "last_repo": repo_name},
-                            )
-                        except Exception as ue:
-                            logger.error(f"[GitHub] Job #{jid} progress update failed: {ue}")
-                    d.complete_job(jid)
-                    logger.info(
-                        f"[GitHub] Reindex-all job #{jid} done: {total_indexed} files across {len(repos_list)} repos"
-                    )
-                except Exception as fatal:
-                    logger.error(f"[GitHub] Reindex-all job #{jid} thread crashed: {fatal}")
-                    traceback.print_exc()
-                    try:
-                        d.update_job_progress(jid, completed_repos, error_count + 1, {"crash": str(fatal)})
-                        d.complete_job(jid)
-                    except Exception:
-                        pass
-
-            thread = threading.Thread(target=_bg_reindex, args=(list(repos), job_id), daemon=True)
+            thread = threading.Thread(target=run_reindex_background, args=(list(repos), job_id), daemon=True)
             thread.start()
 
             return jsonify(

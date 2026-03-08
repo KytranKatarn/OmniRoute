@@ -1266,6 +1266,82 @@ def _trigger_loop_op(op):
         conn.close()
 
 
+@processing_bp.route("/knowledge-timeline", methods=["GET"])
+def knowledge_timeline():
+    """Return hourly knowledge counts for the chart popup.
+
+    Returns arrays of {t, total, embedded, unembedded} bucketed by hour
+    for the last 48 hours.
+    """
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Cumulative entries created per hour (last 48h)
+        cur.execute(
+            """
+            WITH hours AS (
+                SELECT generate_series(
+                    date_trunc('hour', NOW() - INTERVAL '48 hours'),
+                    date_trunc('hour', NOW()),
+                    '1 hour'
+                ) AS h
+            ),
+            created AS (
+                SELECT date_trunc('hour', created_at) AS h, COUNT(*) AS n
+                FROM knowledge_base
+                WHERE created_at >= NOW() - INTERVAL '48 hours'
+                GROUP BY 1
+            ),
+            embedded AS (
+                SELECT date_trunc('hour', embedding_generated_at) AS h, COUNT(*) AS n
+                FROM knowledge_base
+                WHERE embedding_generated_at >= NOW() - INTERVAL '48 hours'
+                GROUP BY 1
+            ),
+            baseline AS (
+                SELECT
+                    (SELECT COUNT(*) FROM knowledge_base
+                     WHERE created_at < NOW() - INTERVAL '48 hours') AS total,
+                    (SELECT COUNT(*) FROM knowledge_base
+                     WHERE embedding_generated_at IS NOT NULL
+                     AND embedding_generated_at < NOW() - INTERVAL '48 hours') AS embedded
+            )
+            SELECT
+                hours.h AS t,
+                baseline.total + COALESCE(SUM(created.n) OVER (ORDER BY hours.h), 0) AS total,
+                baseline.embedded + COALESCE(SUM(embedded.n) OVER (ORDER BY hours.h), 0) AS embedded
+            FROM hours
+            CROSS JOIN baseline
+            LEFT JOIN created ON created.h = hours.h
+            LEFT JOIN embedded ON embedded.h = hours.h
+            ORDER BY hours.h
+            """
+        )
+        rows = cur.fetchall()
+        cur.close()
+
+        points = []
+        for t, total, emb in rows:
+            points.append(
+                {
+                    "t": t.isoformat(),
+                    "total": int(total),
+                    "embedded": int(emb),
+                    "unembedded": int(total) - int(emb),
+                }
+            )
+
+        return jsonify({"success": True, "points": points})
+    except Exception as e:
+        logger.error(f"[KnowledgeTimeline] {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
 def startup_resume_loops():
     """Resume any enabled server loops that have no running jobs.
 
@@ -1278,6 +1354,26 @@ def startup_resume_loops():
 
         time.sleep(15)  # Let platform fully boot + warmup
         try:
+            # Reap zombie jobs from previous run — these threads died on restart
+            conn0 = get_db()
+            cur0 = conn0.cursor()
+            cur0.execute(
+                """
+                UPDATE bridge_jobs
+                SET status = 'failed', completed_at = NOW()
+                WHERE status = 'running'
+                AND module_source = 'consciousness'
+                AND created_at < NOW() - INTERVAL '30 seconds'
+                RETURNING id, job_type
+                """
+            )
+            reaped = cur0.fetchall()
+            conn0.commit()
+            cur0.close()
+            conn0.close()
+            for rid, rtype in reaped:
+                logger.info(f"[ServerLoop] Reaped zombie job #{rid} ({rtype})")
+
             loops = get_server_loops()
             if not any(loops.values()):
                 return

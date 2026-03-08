@@ -284,8 +284,14 @@ function loadNeuralCore() {
       _fallbackToHoloSphere(container, nodes);
     }
 
-    // Stats HUD (works for both WebGL and fallback)
-    setHtml("ncTotalKnowledge", (kb.total_entries || kb.total || 0).toLocaleString());
+    // Stats HUD (works for both WebGL and fallback) — clickable for timeline chart
+    var kbEl = document.getElementById("ncTotalKnowledge");
+    if (kbEl) {
+      kbEl.textContent = (kb.total_entries || kb.total || 0).toLocaleString();
+      kbEl.style.cursor = "pointer";
+      kbEl.title = "Click for knowledge timeline";
+      kbEl.onclick = function() { showKnowledgeTimeline(); };
+    }
     setHtml("ncActiveAgents", (agents.active || 0) + "/" + (agents.total || 0));
   }).catch(function(err) {
     console.error("Neural core data error:", err);
@@ -2134,3 +2140,143 @@ document.addEventListener("DOMContentLoaded", function () {
     switchConsciousnessTab("dashboard");
   }
 });
+
+/* ── Knowledge Timeline Chart Popup ──────────────────────── */
+window.showKnowledgeTimeline = function() {
+  /* Remove existing popup if any */
+  var existing = document.getElementById("kbTimelineOverlay");
+  if (existing) { existing.remove(); return; }
+
+  var overlay = document.createElement("div");
+  overlay.id = "kbTimelineOverlay";
+  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;";
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+  var panel = document.createElement("div");
+  panel.style.cssText = "background:#0a0a1a;border:2px solid #8b5cf6;border-radius:12px;padding:24px;width:90%;max-width:700px;position:relative;";
+
+  var title = document.createElement("div");
+  title.style.cssText = "font-family:'Orbitron',sans-serif;color:#8b5cf6;font-size:16px;margin-bottom:16px;text-align:center;";
+  title.textContent = "KNOWLEDGE TIMELINE — 48H";
+
+  var close = document.createElement("span");
+  close.style.cssText = "position:absolute;top:12px;right:16px;color:#666;font-size:20px;cursor:pointer;";
+  close.textContent = "\u2715";
+  close.onclick = function() { overlay.remove(); };
+
+  var canvas = document.createElement("canvas");
+  canvas.width = 650;
+  canvas.height = 300;
+  canvas.style.cssText = "width:100%;height:auto;";
+
+  var legend = document.createElement("div");
+  legend.style.cssText = "display:flex;justify-content:center;gap:24px;margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:12px;";
+  legend.innerHTML = '<span style="color:#8b5cf6">\u25CF Total</span><span style="color:#22c55e">\u25CF Embedded</span><span style="color:#f59e0b">\u25CF Unembedded</span>';
+
+  panel.appendChild(close);
+  panel.appendChild(title);
+  panel.appendChild(canvas);
+  panel.appendChild(legend);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  /* Fetch data and draw */
+  api("/api/processing/knowledge-timeline").then(function(data) {
+    if (!data.success || !data.points || !data.points.length) {
+      title.textContent = "No data available";
+      return;
+    }
+    _drawTimelineChart(canvas, data.points);
+  }).catch(function() {
+    title.textContent = "Failed to load data";
+  });
+};
+
+function _drawTimelineChart(canvas, points) {
+  var ctx = canvas.getContext("2d");
+  var W = canvas.width, H = canvas.height;
+  var pad = { top: 20, right: 20, bottom: 40, left: 60 };
+  var cW = W - pad.left - pad.right;
+  var cH = H - pad.top - pad.bottom;
+
+  /* Find ranges */
+  var maxVal = 0;
+  points.forEach(function(p) {
+    if (p.total > maxVal) maxVal = p.total;
+  });
+  maxVal = Math.ceil(maxVal / 100) * 100 || 100;
+
+  /* Clear */
+  ctx.fillStyle = "#0a0a1a";
+  ctx.fillRect(0, 0, W, H);
+
+  /* Grid lines */
+  ctx.strokeStyle = "#1a1a2e";
+  ctx.lineWidth = 1;
+  for (var g = 0; g <= 4; g++) {
+    var gy = pad.top + cH - (g / 4) * cH;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, gy);
+    ctx.lineTo(W - pad.right, gy);
+    ctx.stroke();
+
+    ctx.fillStyle = "#555";
+    ctx.font = "11px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "right";
+    ctx.fillText(Math.round(maxVal * g / 4).toLocaleString(), pad.left - 8, gy + 4);
+  }
+
+  /* Time labels */
+  ctx.fillStyle = "#555";
+  ctx.textAlign = "center";
+  ctx.font = "10px 'IBM Plex Mono', monospace";
+  var labelStep = Math.max(1, Math.floor(points.length / 6));
+  for (var li = 0; li < points.length; li += labelStep) {
+    var lx = pad.left + (li / (points.length - 1)) * cW;
+    var d = new Date(points[li].t);
+    var lbl = d.getHours() + ":00";
+    if (li === 0 || d.getHours() === 0) lbl = (d.getMonth() + 1) + "/" + d.getDate() + " " + lbl;
+    ctx.fillText(lbl, lx, H - pad.bottom + 20);
+  }
+
+  /* Draw lines */
+  var series = [
+    { key: "total", color: "#8b5cf6" },
+    { key: "embedded", color: "#22c55e" },
+    { key: "unembedded", color: "#f59e0b" }
+  ];
+
+  series.forEach(function(s) {
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    points.forEach(function(p, i) {
+      var x = pad.left + (i / (points.length - 1)) * cW;
+      var y = pad.top + cH - (p[s.key] / maxVal) * cH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    /* Subtle fill */
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = s.color;
+    ctx.lineTo(pad.left + cW, pad.top + cH);
+    ctx.lineTo(pad.left, pad.top + cH);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+  });
+
+  /* Latest values */
+  var last = points[points.length - 1];
+  ctx.font = "bold 12px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "right";
+  var valX = W - pad.right;
+  ctx.fillStyle = "#8b5cf6";
+  ctx.fillText(last.total.toLocaleString(), valX, pad.top + 14);
+  ctx.fillStyle = "#22c55e";
+  ctx.fillText(last.embedded.toLocaleString(), valX, pad.top + 30);
+  ctx.fillStyle = "#f59e0b";
+  ctx.fillText(last.unembedded.toLocaleString(), valX, pad.top + 46);
+}

@@ -5,6 +5,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/holo-sphere.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/neural-core.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/glass-nav.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-frames.css') }}">
 {% endblock %}
@@ -1989,52 +1990,29 @@
         <!-- ════════════════════════════════════════════════════════ -->
         <div class="cs-panel active" id="panel-dashboard">
 
-            <!-- 1. NEURAL CORE — LCARS Frame (purple) -->
-            <div style="--frame-color: #8b5cf6; --frame-rgb: 139,92,246; margin-bottom: 20px;">
-                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
-                        <div class="lcars-elbow-top" style="height: 52px !important; background: #8b5cf6 !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
-                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #a78bfa !important; flex-shrink: 0 !important;"></div>
-                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-                        <div class="lcars-seg-light" style="width: 10px !important; height: 10px !important; border-radius: 50% !important; margin: 2px auto !important; background: #8b5cf6 !important; box-shadow: 0 0 8px #8b5cf6 !important; animation: lcarsFramePulse 3s ease-in-out infinite !important;"></div>
-                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #3b82f6 !important; flex-shrink: 0 !important;"></div>
-                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(139,92,246,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #8b5cf6 !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+            <!-- 1. NEURAL CORE — WebGL Hero -->
+            <div class="nc-hero" id="neuralCoreHero" style="margin-bottom: 20px;">
+                <div class="nc-loading" id="ncLoading">
+                    <span class="nc-loading-text">INITIALIZING NEURAL CORE</span>
+                </div>
+                <div class="nc-flash"></div>
+                <div id="neuralCore" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
+                <div class="nc-hud">
+                    <div class="nc-hud-item purple">
+                        <span class="nc-hud-value" id="ncTotalKnowledge">--</span>
+                        <span class="nc-hud-label">Knowledge</span>
                     </div>
-                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div class="lcars-bar" style="height: 44px !important; background: #8b5cf6 !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">NEURAL CORE</span>
-                            <div style="flex:1"></div>
-                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
-                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                                <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                                <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                            </div>
-                        </div>
-                        <div class="lcars-body" style="flex: 1 !important; padding: 16px !important;">
-                            <!-- Holographic Sphere (rendered by holo-sphere.js) -->
-                            <div id="neuralCore"></div>
-                            <!-- Stats HUD -->
-                            <div class="holo-hud">
-                                <div class="holo-hud-item purple">
-                                    <span class="holo-hud-value" id="ncTotalKnowledge">--</span>
-                                    <span class="holo-hud-label">Knowledge</span>
-                                </div>
-                                <div class="holo-hud-item blue">
-                                    <span class="holo-hud-value" id="ncGitHubFiles">--</span>
-                                    <span class="holo-hud-label">GitHub Files</span>
-                                </div>
-                                <div class="holo-hud-item green">
-                                    <span class="holo-hud-value" id="ncEmbedPct">--</span>
-                                    <span class="holo-hud-label">Embedded</span>
-                                </div>
-                                <div class="holo-hud-item amber">
-                                    <span class="holo-hud-value" id="ncActiveAgents">--</span>
-                                    <span class="holo-hud-label">Agents</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="lcars-footer-bar" style="background: #8b5cf6 !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
+                    <div class="nc-hud-item blue">
+                        <span class="nc-hud-value" id="ncGitHubFiles">--</span>
+                        <span class="nc-hud-label">GitHub Files</span>
+                    </div>
+                    <div class="nc-hud-item green">
+                        <span class="nc-hud-value" id="ncEmbedPct">--</span>
+                        <span class="nc-hud-label">Embedded</span>
+                    </div>
+                    <div class="nc-hud-item amber">
+                        <span class="nc-hud-value" id="ncActiveAgents">--</span>
+                        <span class="nc-hud-label">Agents</span>
                     </div>
                 </div>
             </div>
@@ -2648,6 +2626,7 @@
 
 <!-- Shared Components -->
 <script src="{{ url_for('static', filename='js/holo-sphere.js') }}"></script>
+<script src="{{ url_for('static', filename='js/neural-core.js') }}"></script>
 <script src="{{ url_for('static', filename='js/glass-nav.js') }}"></script>
 <script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
 

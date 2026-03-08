@@ -9,6 +9,7 @@ var _neuralCore = null;
 var _prevJobState = {};
 var _prevKnowledgeCounts = {};
 var _knowledgePollTimer = null;
+var _pixelCrew = null;
 var _glassNav = null;
 
 /* ── Utilities ─────────────────────────────────────── */
@@ -122,6 +123,7 @@ function loadTabData(tab) {
   if (tab !== "dashboard" && _neuralCore) {
     _neuralCore.destroy();
     _neuralCore = null;
+    if (_pixelCrew) { _pixelCrew.destroy(); _pixelCrew = null; }
     if (_knowledgePollTimer) { clearInterval(_knowledgePollTimer); _knowledgePollTimer = null; }
   }
 
@@ -258,6 +260,9 @@ function loadNeuralCore() {
         }
       }).then(function(core) {
         _neuralCore = core;
+        if (typeof PixelCrew !== "undefined") {
+          _pixelCrew = PixelCrew.create(document.getElementById("neuralCoreHero"));
+        }
         _loadAgentsIntoCore();
         _startKnowledgePolling();
       }).catch(function(err) {
@@ -323,6 +328,14 @@ function _loadAgentsIntoCore() {
           station: agent.home_station || agent.station || "COMMAND",
           status: agent.status
         });
+        if (_pixelCrew) {
+          _pixelCrew.addAgent({
+            name: agent.name,
+            display_name: agent.display_name || agent.name,
+            station: agent.home_station || agent.station || "COMMAND",
+            status: agent.status
+          });
+        }
       }
     });
   }).catch(function() {});

@@ -1524,8 +1524,11 @@ var PixelCrew = {
     this._destroyed = false;
     this._instance = this;
 
+    console.log("[PixelCrew] create() called, container:", container.id, container.clientWidth, "x", container.clientHeight);
+
     // 1. Init DeckRenderer
     DeckRenderer.init(container, opts || {});
+    console.log("[PixelCrew] DeckRenderer initialized, canvas:", DeckRenderer.canvas.width, "x", DeckRenderer.canvas.height, "scale:", DeckRenderer.scale);
 
     // 2. Subscribe to event bus
     _subscribeEvents();
@@ -1551,6 +1554,10 @@ var PixelCrew = {
       // Update and render
       CharacterManager.update(dt);
       DeckRenderer.render(CharacterManager.characters, dt);
+      if (!self._loggedFirstFrame) {
+        self._loggedFirstFrame = true;
+        console.log("[PixelCrew] first frame rendered, chars:", CharacterManager.characters.length);
+      }
     }
 
     self._lastTime = performance.now();

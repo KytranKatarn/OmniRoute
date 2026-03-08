@@ -730,6 +730,124 @@ def api_toggle_station(node_id):
 
 
 # ============================================================================
+# NODE STATION TERMINALS (StationOps-compatible live data)
+# ============================================================================
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/stations-live")
+@login_required
+def api_node_stations_live(node_id):
+    """Return node crew in StationOps-compatible format for LCARS terminal rendering."""
+    with get_db_cursor() as (conn, cur):
+        # Get node info (need string node_id for mesh_agent_loans lookup)
+        cur.execute("SELECT id, node_id FROM remote_nodes WHERE id = %s", (node_id,))
+        node = cur.fetchone()
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        node_str_id = node["node_id"]
+
+        # Get enabled stations for this node
+        cur.execute(
+            """
+            SELECT bs.station_code, bs.station_name, bs.color, bs.icon,
+                   bs.max_primary, bs.max_auxiliary
+            FROM node_station_assignments nsa
+            JOIN bridge_stations bs ON bs.id = nsa.station_id
+            WHERE nsa.node_id = %s AND nsa.is_active = true
+            ORDER BY bs.position_row, bs.position_order
+            """,
+            (node_id,),
+        )
+        enabled_stations = cur.fetchall()
+
+        stations = []
+        for st in enabled_stations:
+            code = st["station_code"]
+            max_primary = st.get("max_primary") or 2
+            max_aux = st.get("max_auxiliary") or 1
+
+            # Primary/secondary agents for this station
+            cur.execute(
+                """
+                SELECT na.id, na.name, na.display_name, na.title,
+                       na.model, na.status
+                FROM node_agents na
+                WHERE na.node_id = %s AND na.status = 'active'
+                  AND %s = ANY(na.station_codes)
+                ORDER BY na.id
+                LIMIT %s
+                """,
+                (node_id, code, max_primary),
+            )
+            crew_rows = cur.fetchall()
+
+            assigned_agents = []
+            assignment_labels = ["primary", "secondary"]
+            for i, agent in enumerate(crew_rows):
+                display = agent["display_name"] or agent["name"] or "Unknown"
+                parts = display.split(" ", 1)
+                first_name = parts[0]
+                last_name = parts[1] if len(parts) > 1 else ""
+                label = assignment_labels[i] if i < len(assignment_labels) else "crew"
+                assigned_agents.append(
+                    {
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "name": agent["name"],
+                        "title": agent["title"] or label,
+                        "assignment_type": label,
+                        "status": "active" if agent["status"] == "active" else "paused",
+                    }
+                )
+
+            # Mesh-loaned agents (auxiliary slot)
+            cur.execute(
+                """
+                SELECT mal.id, na.name, na.display_name, na.title,
+                       mal.task_description
+                FROM mesh_agent_loans mal
+                LEFT JOIN node_agents na ON na.id = mal.agent_id
+                WHERE mal.target_node_id = %s AND mal.status = 'active'
+                LIMIT %s
+                """,
+                (node_str_id, max_aux),
+            )
+            loan_rows = cur.fetchall()
+
+            assists = []
+            for loan in loan_rows:
+                display = loan["display_name"] or loan["name"] or "Mesh Helper"
+                parts = display.split(" ", 1)
+                assists.append(
+                    {
+                        "first_name": parts[0],
+                        "last_name": parts[1] if len(parts) > 1 else "",
+                        "name": loan["name"] or "mesh-assist",
+                        "title": "MESH ASSIST",
+                        "assignment_type": "auxiliary",
+                        "status": "active",
+                    }
+                )
+
+            stations.append(
+                {
+                    "code": code,
+                    "station_name": st["station_name"],
+                    "color": st["color"],
+                    "max_primary": max_primary,
+                    "max_auxiliary": max_aux,
+                    "assigned_agents": assigned_agents,
+                    "assists": assists,
+                    "contractors": [],
+                    "jobs": [],
+                }
+            )
+
+        return jsonify({"success": True, "stations": stations})
+
+
+# ============================================================================
 # NODE SETUP / ONBOARDING
 # ============================================================================
 

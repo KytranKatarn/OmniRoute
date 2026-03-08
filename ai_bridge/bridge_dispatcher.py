@@ -2517,6 +2517,7 @@ class BridgeDispatcher:
         prefer_gpu: bool = True,
         job_id: Optional[int] = None,
         prefer_agent: Optional[str] = None,
+        local_only: bool = False,
     ) -> DispatchResult:
         """
         Main entry point — request AI work by capability.
@@ -2534,6 +2535,8 @@ class BridgeDispatcher:
             prefer_gpu: Whether to prefer GPU-capable models
             prefer_agent: Lock dispatch to this agent (for batch consistency).
                           The agent stays assigned for all items in a batch job.
+            local_only: Force local-only routing (no cloud/external models).
+                        Used by batch/loop jobs to avoid cloud escalation.
 
         Returns:
             DispatchResult with response, agent info, and metrics
@@ -2691,7 +2694,7 @@ class BridgeDispatcher:
 
             # 2b. All 3 station slots (Primary + Secondary + Auxiliary) are
             #     full.  Cloud is the 4th slot — requires Telegram approval.
-            routing_mode = self._get_routing_mode()
+            routing_mode = "local_only" if local_only else self._get_routing_mode()
             if routing_mode != "local_only":
                 try:
                     from agent_loop import request_approval
@@ -2934,7 +2937,7 @@ class BridgeDispatcher:
 
         augmented_prompt, model_override = self._augment_for_proficiency(
             agent_name, capability, proficiency_level,
-            system_prompt, self._get_routing_mode(),
+            system_prompt, "local_only" if local_only else self._get_routing_mode(),
         )
         system_prompt = augmented_prompt
         if model_override:
@@ -2970,7 +2973,7 @@ class BridgeDispatcher:
 
         # 3c. Routing mode enforcement
         # Ensures the bridge UI toggle (local_only/local_cloud/full) controls dispatch
-        routing_mode = self._get_routing_mode()
+        routing_mode = "local_only" if local_only else self._get_routing_mode()
         is_cloud = ":cloud" in model or model in ("minimax-m2.5", "qwen3-coder-next")
         is_paid_external = any(
             model.startswith(p) for p in ("gpt-4o", "llama-3.1-sonar", "grok", "claude")

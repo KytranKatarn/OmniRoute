@@ -378,13 +378,14 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                 # (dolphin3-8k GPU for chat, avoids format:json constraint
                 # that produces empty responses with qwen3 thinking models)
                 if category == "conversations":
-                    result = analyzer.analyze_conversation(content, metadata, job_id=job_id)
+                    result = analyzer.analyze_conversation(content, metadata, job_id=job_id, local_only=True)
                 else:
                     result = analyzer.analyze_code_file(
                         content,
                         filename=title or "unknown",
                         language=metadata.get("language"),
                         job_id=job_id,
+                        local_only=True,
                     )
 
                 if not result.success:
@@ -1028,6 +1029,18 @@ _LOOP_CONFIG_KEY = "consciousness_server_loops"
 _loop_failures = {}  # { op: count } — reset on success, stop after 3
 
 
+def _parse_loops(raw):
+    """Safely parse loop state from DB (may be dict or JSON string)."""
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
 def get_server_loops():
     """Read loop state from DB. Returns dict like {"analysis": true, ...}"""
     conn = None
@@ -1037,9 +1050,7 @@ def get_server_loops():
         cur.execute("SELECT value FROM system_config WHERE key = %s", (_LOOP_CONFIG_KEY,))
         row = cur.fetchone()
         cur.close()
-        if row and row[0]:
-            return row[0] if isinstance(row[0], dict) else json.loads(row[0])
-        return {}
+        return _parse_loops(row[0]) if row else {}
     except Exception:
         return {}
     finally:
@@ -1055,7 +1066,7 @@ def set_server_loop(op, enabled):
         cur = conn.cursor()
         cur.execute("SELECT value FROM system_config WHERE key = %s", (_LOOP_CONFIG_KEY,))
         row = cur.fetchone()
-        loops = (row[0] if row and isinstance(row[0], dict) else {}) if row else {}
+        loops = _parse_loops(row[0]) if row else {}
         loops[op] = bool(enabled)
         cur.execute(
             """
@@ -1253,6 +1264,54 @@ def _trigger_loop_op(op):
     finally:
         cur.close()
         conn.close()
+
+
+def startup_resume_loops():
+    """Resume any enabled server loops that have no running jobs.
+
+    Called once at app startup to recover from restarts mid-loop.
+    """
+    import threading
+
+    def _resume():
+        import time
+
+        time.sleep(15)  # Let platform fully boot + warmup
+        try:
+            loops = get_server_loops()
+            if not any(loops.values()):
+                return
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT DISTINCT job_type FROM bridge_jobs WHERE status = 'running'")
+            running_types = {r[0] for r in cur.fetchall()}
+            cur.close()
+            conn.close()
+
+            op_to_job_type = {
+                "analysis": "batch_analysis",
+                "embedding": "batch_embedding",
+                "reindex": "github_reindex_all",
+                "translate": "translate_batch",
+            }
+
+            for op, enabled in loops.items():
+                if not enabled:
+                    continue
+                jtype = op_to_job_type.get(op)
+                if jtype and jtype not in running_types:
+                    logger.info(f"[ServerLoop] Startup resume: kicking off {op}")
+                    try:
+                        _trigger_loop_op(op)
+                    except Exception as e:
+                        logger.error(f"[ServerLoop] Startup resume {op} failed: {e}")
+                    time.sleep(5)  # Stagger launches
+        except Exception as e:
+            logger.error(f"[ServerLoop] startup_resume_loops failed: {e}")
+
+    t = threading.Thread(target=_resume, daemon=True)
+    t.start()
 
 
 @processing_bp.route("/server-loop/status", methods=["GET"])

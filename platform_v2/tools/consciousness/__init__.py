@@ -45,6 +45,14 @@ register_github_routes(consciousness_bp, admin_required)
 # Register integration routes (cross-module health)
 register_integration_routes(consciousness_bp, admin_required)
 
+# Resume any server-side loops that were active before restart
+try:
+    from .processing_routes import startup_resume_loops
+
+    startup_resume_loops()
+except Exception:
+    pass
+
 # Register station actions so Bridge ACTN tab can discover them
 try:
     from services.action_registry import register_station_actions

@@ -271,6 +271,7 @@ class KnowledgeAnalyzer:
         model: str = None,
         num_ctx: int = None,
         job_id: int = None,
+        local_only: bool = False,
     ) -> tuple:
         """
         Call LLM via Bridge dispatcher (ADR-013).
@@ -298,6 +299,7 @@ class KnowledgeAnalyzer:
             json_mode=True,
             timeout=300,
             job_id=job_id,
+            local_only=local_only,
         )
         elapsed = int((time.time() - start) * 1000)
 
@@ -347,6 +349,7 @@ class KnowledgeAnalyzer:
         content: str,
         metadata: Optional[dict] = None,
         job_id: int = None,
+        local_only: bool = False,
     ) -> AnalysisResult:
         """
         Analyze a conversation and extract knowledge.
@@ -375,7 +378,7 @@ class KnowledgeAnalyzer:
         )
 
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt, job_id=job_id)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt, job_id=job_id, local_only=local_only)
             data = self._parse_json_response(response)
             cards = self._parse_cards(data, metadata.get("source_type", "conversation"), metadata.get("source_ref", ""))
             relationships = self._parse_relationships(data)
@@ -399,6 +402,7 @@ class KnowledgeAnalyzer:
         filename: str,
         language: Optional[str] = None,
         job_id: int = None,
+        local_only: bool = False,
     ) -> AnalysisResult:
         """
         Analyze a code file and extract patterns and knowledge.
@@ -441,7 +445,7 @@ class KnowledgeAnalyzer:
         )
 
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt, job_id=job_id)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt, job_id=job_id, local_only=local_only)
             data = self._parse_json_response(response)
             cards = self._parse_cards(data, "github", filename, default_type="pattern", default_techs=[language])
             relationships = self._parse_relationships(data, default_rel="implements")

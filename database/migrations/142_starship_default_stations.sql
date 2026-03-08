@@ -7,7 +7,7 @@ INSERT INTO node_station_assignments (node_id, station_id, is_active)
 SELECT rn.id, bs.id, true
 FROM remote_nodes rn
 CROSS JOIN bridge_stations bs
-WHERE rn.status = 'approved'
+WHERE rn.status IN ('approved', 'online')
   AND bs.station_code IN ('OPERATIONS', 'ENGINEERING')
   AND bs.is_active = true
 ON CONFLICT DO NOTHING;

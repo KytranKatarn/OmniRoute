@@ -1,0 +1,266 @@
+/* ============================================================
+   Neural Core — WebGL hero layout, glass HUD, CSS2D labels
+   Accompanies Three.js scene mounted in #neuralCore inside .nc-hero
+   ============================================================ */
+
+:root {
+  --nc-accent: #8b5cf6;
+  --nc-accent-rgb: 139, 92, 246;
+}
+
+/* ---- Hero container ---- */
+.nc-hero {
+  position: relative;
+  width: 100%;
+  height: 65vh;
+  min-height: 400px;
+  max-height: 800px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.nc-hero canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ---- Loading shimmer ---- */
+.nc-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(var(--nc-accent-rgb), 0.15) 0%,
+    rgba(0, 0, 0, 0.85) 70%
+  );
+  z-index: 10;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+
+.nc-loading.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.nc-loading::after {
+  content: "INITIALIZING NEURAL CORE";
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.25em;
+  color: var(--nc-accent);
+  animation: nc-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes nc-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Shimmer sweep */
+.nc-loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(var(--nc-accent-rgb), 0.08) 50%,
+    transparent 70%
+  );
+  animation: nc-shimmer 2.4s ease-in-out infinite;
+}
+
+@keyframes nc-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ---- Glass HUD overlay ---- */
+.nc-hud {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.nc-hud-item {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 8px 10px;
+  pointer-events: auto;
+}
+
+.nc-hud-value {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.nc-hud-label {
+  font-family: "Antonio", sans-serif;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 2px;
+}
+
+/* HUD color classes */
+.nc-hud-item.purple .nc-hud-value {
+  color: #8b5cf6;
+}
+
+.nc-hud-item.blue .nc-hud-value {
+  color: #3b82f6;
+}
+
+.nc-hud-item.green .nc-hud-value {
+  color: #22c55e;
+}
+
+.nc-hud-item.amber .nc-hud-value {
+  color: #f59e0b;
+}
+
+/* ---- CSS2D node labels ---- */
+.nc-node-label {
+  font-family: "Antonio", sans-serif;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.nc-node-count {
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: var(--nc-accent);
+  text-shadow: 0 0 6px rgba(var(--nc-accent-rgb), 0.6);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.nc-agent-label {
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ---- Flash overlay ---- */
+.nc-flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 8;
+}
+
+.nc-flash.pulse {
+  animation: nc-flash-pulse 0.6s ease-out forwards;
+}
+
+@keyframes nc-flash-pulse {
+  0% {
+    opacity: 0.6;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(var(--nc-accent-rgb), 0.4) 0%,
+      transparent 70%
+    );
+  }
+  100% {
+    opacity: 0;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(var(--nc-accent-rgb), 0) 0%,
+      transparent 70%
+    );
+  }
+}
+
+.nc-flash.error {
+  animation: nc-flash-error 0.6s ease-out forwards;
+}
+
+@keyframes nc-flash-error {
+  0% {
+    opacity: 0.6;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(239, 68, 68, 0.4) 0%,
+      transparent 70%
+    );
+  }
+  100% {
+    opacity: 0;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(239, 68, 68, 0) 0%,
+      transparent 70%
+    );
+  }
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 767px) {
+  .nc-hero {
+    height: 50vh;
+  }
+
+  .nc-hud {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .nc-hero {
+    height: 40vh;
+  }
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .nc-loading::after,
+  .nc-loading::before {
+    animation: none;
+  }
+
+  .nc-flash.pulse,
+  .nc-flash.error {
+    animation: none;
+  }
+
+  .nc-loading {
+    transition: none;
+  }
+}

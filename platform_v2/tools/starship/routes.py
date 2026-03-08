@@ -14,6 +14,62 @@ from flask import Blueprint, render_template, jsonify, request, send_file
 from flask_login import login_required, current_user
 from database import get_db_cursor
 
+# SaaS module to station mapping for agent recommendations
+MODULE_STATION_MAP = {
+    "store-builder": ["OPERATIONS", "ANALYTICS"],
+    "media-hub": ["CREATIVE", "OPERATIONS"],
+    "email-manager": ["OPERATIONS"],
+    "invoicing": ["OPERATIONS", "ANALYTICS"],
+    "website-studio": ["CREATIVE", "ENGINEERING"],
+    "crm": ["OPERATIONS", "ANALYTICS"],
+    "social-media": ["CREATIVE", "OPERATIONS"],
+    "content-studio": ["CREATIVE"],
+    "dev-pipeline": ["ENGINEERING", "QA"],
+    "fitness": ["ANALYTICS", "OPERATIONS"],
+    "therapy": ["ANALYTICS", "RESEARCH"],
+    "game-studio": ["CREATIVE", "ENGINEERING"],
+    "media-studio": ["CREATIVE"],
+    "scheduler": ["OPERATIONS"],
+    "call-center": ["OPERATIONS"],
+    "task-planner": ["OPERATIONS", "ANALYTICS"],
+    "stockbot": ["ANALYTICS", "RESEARCH"],
+}
+
+# Approximate model sizes in GB for efficiency scoring
+MODEL_SIZE_HINTS = {
+    "qwen2.5:0.5b": 0.4,
+    "qwen2.5:1.5b": 1.0,
+    "qwen2.5:3b": 2.0,
+    "qwen2.5:7b": 4.7,
+    "qwen2.5:14b": 9.0,
+    "qwen2.5:32b": 20.0,
+    "qwen2.5:72b": 47.0,
+    "qwen3:0.6b": 0.4,
+    "qwen3:1.7b": 1.1,
+    "qwen3:4b": 2.6,
+    "qwen3:8b": 5.2,
+    "qwen3:14b": 9.2,
+    "qwen3:32b": 20.0,
+    "llama3.2:1b": 0.7,
+    "llama3.2:3b": 2.0,
+    "llama3.1:8b": 4.9,
+    "llama3.1:70b": 43.0,
+    "phi3.5:3.8b": 2.2,
+    "phi4:14b": 9.1,
+    "gemma2:2b": 1.6,
+    "gemma2:9b": 5.4,
+    "gemma2:27b": 16.0,
+    "mistral:7b": 4.1,
+    "codellama:7b": 3.8,
+    "deepseek-r1:1.5b": 1.1,
+    "deepseek-r1:7b": 4.7,
+    "deepseek-r1:8b": 4.9,
+    "deepseek-r1:14b": 9.0,
+    "deepseek-r1:32b": 20.0,
+    "nomic-embed-text": 0.3,
+    "granite3.2-vision:2b": 1.5,
+}
+
 # ── Node crew name pool (unique from Bridge agents) ──
 # Each node gets random picks from this pool — never duplicating Bridge names
 _STARSHIP_FIRST_NAMES = [
@@ -801,3 +857,328 @@ def download_node_package():
             download_name="archie-starship-node.tar.gz",
         )
     return jsonify({"success": False, "error": "Package not found"}), 404
+
+
+# ============================================================================
+# AGENT RECOMMENDATIONS & CREW MANAGEMENT
+# ============================================================================
+
+
+def _add_single_agent_to_node(node_int_id, node_id_str, agent_id):
+    """Add a single cloneable Bridge agent to a node's crew.
+
+    Uses the same name pools and deterministic seeding as _generate_node_crew.
+    Returns (success: bool, message: str, agent_data: dict or None).
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        # Fetch the Bridge agent — must be cloneable
+        cur.execute(
+            """
+            SELECT id, name, title, model, system_prompt, capabilities,
+                   array_agg(DISTINCT bs.station_code) as station_codes
+            FROM agents a
+            JOIN station_assignments sa ON sa.agent_id = a.id
+            JOIN bridge_stations bs ON bs.id = sa.station_id
+            WHERE a.id = %s AND a.is_cloneable = true AND a.status = 'active'
+            GROUP BY a.id
+            """,
+            (agent_id,),
+        )
+        agent = cur.fetchone()
+        if not agent:
+            return False, "Agent not found or not cloneable", None
+
+        # Check not already on this node
+        cur.execute(
+            "SELECT id FROM node_agents WHERE node_id = %s AND source_agent_id = %s",
+            (node_int_id, agent_id),
+        )
+        if cur.fetchone():
+            return False, "Agent already on this node", None
+
+        # Get all used name combos to avoid dupes
+        cur.execute("SELECT first_name, last_name FROM node_agents")
+        used_names = {(r["first_name"], r["last_name"]) for r in cur.fetchall()}
+
+        cur.execute("SELECT first_name, last_name FROM agents WHERE first_name IS NOT NULL")
+        for r in cur.fetchall():
+            used_names.add((r["first_name"], r["last_name"]))
+
+        # Deterministic seed matching _generate_node_crew
+        rng = random.Random(node_id_str)
+        firsts = list(_STARSHIP_FIRST_NAMES)
+        lasts = list(_STARSHIP_LAST_NAMES)
+        rng.shuffle(firsts)
+        rng.shuffle(lasts)
+
+        # Find unused combo
+        fname, lname = None, None
+        fi, li = 0, 0
+        attempts = 0
+        while attempts < 200:
+            f = firsts[fi % len(firsts)]
+            l = lasts[li % len(lasts)]
+            fi += 1
+            if (fi % len(firsts)) == 0:
+                li += 1
+            attempts += 1
+            if (f, l) not in used_names:
+                fname, lname = f, l
+                used_names.add((f, l))
+                break
+
+        if not fname:
+            fname = f"Agent-{node_int_id}-{agent['id']}"
+            lname = ""
+
+        codename = agent["name"]
+        display = f"{fname} {lname} ({codename})" if lname else f"{fname} ({codename})"
+
+        cur.execute(
+            """
+            INSERT INTO node_agents
+                (node_id, source_agent_id, name, first_name, last_name,
+                 display_name, title, model, system_prompt, capabilities,
+                 station_codes, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active')
+            ON CONFLICT (node_id, name) DO NOTHING
+            RETURNING id, display_name, name, model, title, station_codes
+            """,
+            (
+                node_int_id,
+                agent["id"],
+                codename,
+                fname,
+                lname,
+                display,
+                agent["title"],
+                agent["model"],
+                agent["system_prompt"],
+                json.dumps(agent["capabilities"]) if agent["capabilities"] else None,
+                agent["station_codes"],
+            ),
+        )
+        row = cur.fetchone()
+        if not row:
+            return False, "Insert conflict — agent may already exist", None
+
+        return (
+            True,
+            "Agent added",
+            {
+                "id": row["id"],
+                "display_name": row["display_name"],
+                "name": row["name"],
+                "model": row["model"],
+                "title": row["title"],
+                "station_codes": row["station_codes"],
+            },
+        )
+
+
+def get_agent_recommendations(node_int_id):
+    """Score and rank cloneable agents for a node based on station overlap,
+    job volume, success rate, and model efficiency.
+
+    Returns dict with recommendations, station_suggestions, enabled_stations,
+    and existing_crew_count.
+    """
+    with get_db_cursor(commit=False) as (conn, cur):
+        # 1. Node's enabled stations
+        cur.execute(
+            """
+            SELECT bs.station_code
+            FROM node_station_assignments nsa
+            JOIN bridge_stations bs ON bs.id = nsa.station_id
+            WHERE nsa.node_id = %s AND nsa.is_active = true
+            """,
+            (node_int_id,),
+        )
+        enabled_stations = {r["station_code"] for r in cur.fetchall()}
+
+        # 2. Existing crew (source_agent_id set)
+        cur.execute(
+            """
+            SELECT source_agent_id FROM node_agents
+            WHERE node_id = %s AND source_agent_id IS NOT NULL
+            """,
+            (node_int_id,),
+        )
+        existing_crew_ids = {r["source_agent_id"] for r in cur.fetchall()}
+
+        # 3. All cloneable agents with their stations
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.display_name, a.title, a.model,
+                   array_agg(DISTINCT bs.station_code) as station_codes
+            FROM agents a
+            JOIN station_assignments sa ON sa.agent_id = a.id
+            JOIN bridge_stations bs ON bs.id = sa.station_id
+            WHERE a.is_cloneable = true AND a.status = 'active'
+            GROUP BY a.id
+            """
+        )
+        cloneable_agents = cur.fetchall()
+
+        # 4. Job stats from last 30 days
+        cur.execute(
+            """
+            SELECT agent_name,
+                   COUNT(*) as job_count,
+                   COUNT(*) FILTER (WHERE success = true) as success_count
+            FROM task_execution_log
+            WHERE created_at > NOW() - INTERVAL '30 days'
+            GROUP BY agent_name
+            """
+        )
+        job_stats = {}
+        max_job_count = 1
+        for r in cur.fetchall():
+            job_stats[r["agent_name"]] = {
+                "job_count": r["job_count"],
+                "success_count": r["success_count"],
+            }
+            if r["job_count"] > max_job_count:
+                max_job_count = r["job_count"]
+
+    # Score each candidate
+    recommendations = []
+    for agent in cloneable_agents:
+        if agent["id"] in existing_crew_ids:
+            continue
+
+        agent_stations = set(agent["station_codes"] or [])
+
+        # station_match (40%): overlap with enabled stations
+        if agent_stations:
+            matching = len(agent_stations & enabled_stations)
+            station_match = matching / len(agent_stations)
+        else:
+            station_match = 0.0
+
+        # job_volume (30%): popularity
+        stats = job_stats.get(agent["name"], {})
+        jc = stats.get("job_count", 0)
+        job_volume = jc / max_job_count if max_job_count > 0 else 0.0
+
+        # success_rate (20%): reliability
+        if jc > 0:
+            success_rate = stats.get("success_count", 0) / jc
+        else:
+            success_rate = 0.5  # default
+
+        # model_efficiency (10%): smaller = better
+        model_name = (agent["model"] or "").lower()
+        model_size = MODEL_SIZE_HINTS.get(model_name, None)
+        if model_size is None:
+            # Try partial match
+            for hint_name, hint_size in MODEL_SIZE_HINTS.items():
+                if hint_name in model_name or model_name in hint_name:
+                    model_size = hint_size
+                    break
+        if model_size is None:
+            model_size = 5.0  # assume mid-size
+        # Invert: 0.3GB -> ~1.0, 47GB -> ~0.01
+        model_efficiency = min(1.0, 1.0 / (1.0 + model_size * 0.2))
+
+        score = station_match * 0.4 + job_volume * 0.3 + success_rate * 0.2 + model_efficiency * 0.1
+
+        if score > 0.1:
+            recommendations.append(
+                {
+                    "agent_id": agent["id"],
+                    "name": agent["name"],
+                    "display_name": agent["display_name"],
+                    "title": agent["title"],
+                    "model": agent["model"],
+                    "station_codes": agent["station_codes"],
+                    "score": round(score, 3),
+                    "breakdown": {
+                        "station_match": round(station_match, 3),
+                        "job_volume": round(job_volume, 3),
+                        "success_rate": round(success_rate, 3),
+                        "model_efficiency": round(model_efficiency, 3),
+                    },
+                }
+            )
+
+    recommendations.sort(key=lambda r: r["score"], reverse=True)
+
+    # Station suggestions: modules imply stations the node hasn't enabled
+    station_suggestions = []
+    all_suggested = set()
+    for module, stations in MODULE_STATION_MAP.items():
+        for st in stations:
+            if st not in enabled_stations and st not in all_suggested:
+                station_suggestions.append(
+                    {
+                        "station_code": st,
+                        "reason": f"Recommended for {module} module",
+                    }
+                )
+                all_suggested.add(st)
+
+    return {
+        "recommendations": recommendations,
+        "station_suggestions": station_suggestions,
+        "enabled_stations": sorted(enabled_stations),
+        "existing_crew_count": len(existing_crew_ids),
+    }
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/recommendations")
+@login_required
+def api_get_recommendations(node_id):
+    """Get agent recommendations for a node."""
+    try:
+        result = get_agent_recommendations(node_id)
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/agents/add", methods=["POST"])
+@login_required
+def api_add_agent_to_node(node_id):
+    """Add a single cloneable agent to a node's crew."""
+    data = request.get_json() or {}
+    agent_id = data.get("agent_id")
+    if not agent_id:
+        return jsonify({"success": False, "error": "agent_id required"}), 400
+
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT id, node_id FROM remote_nodes WHERE id = %s",
+                (node_id,),
+            )
+            node = cur.fetchone()
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
+            node_id_str = node["node_id"]
+
+        ok, msg, agent_data = _add_single_agent_to_node(node_id, node_id_str, agent_id)
+        if ok:
+            return jsonify({"success": True, "message": msg, "agent": agent_data})
+        else:
+            return jsonify({"success": False, "error": msg}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/agents/<int:agent_id>", methods=["DELETE"])
+@login_required
+def api_remove_agent_from_node(node_id, agent_id):
+    """Remove an agent from a node's crew."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "DELETE FROM node_agents WHERE node_id = %s AND id = %s RETURNING id",
+                (node_id, agent_id),
+            )
+            deleted = cur.fetchone()
+            if not deleted:
+                return jsonify({"success": False, "error": "Agent not found on this node"}), 404
+        return jsonify({"success": True, "message": "Agent removed"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

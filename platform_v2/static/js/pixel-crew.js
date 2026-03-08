@@ -625,6 +625,9 @@ var DeckRenderer = {
     this.canvas = document.createElement("canvas");
     this.canvas.className = "pc-deck";
     this.canvas.style.display = "block";
+    this._glowBridge = document.createElement("div");
+    this._glowBridge.className = "pc-glow-bridge";
+    containerEl.appendChild(this._glowBridge);
     containerEl.appendChild(this.canvas);
     this.ctx = this.canvas.getContext("2d");
     this.ctx.imageSmoothingEnabled = false;
@@ -816,6 +819,10 @@ var DeckRenderer = {
       window.removeEventListener("resize", this._resizeHandler);
       this._resizeHandler = null;
     }
+    if (this._glowBridge && this._glowBridge.parentNode) {
+      this._glowBridge.parentNode.removeChild(this._glowBridge);
+    }
+    this._glowBridge = null;
     if (this.canvas && this.canvas.parentNode) {
       this.canvas.parentNode.removeChild(this.canvas);
     }

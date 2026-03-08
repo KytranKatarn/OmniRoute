@@ -73,7 +73,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD"),
     )
 
 
@@ -183,17 +183,42 @@ def api_dashboard_summary():
         )
         trans = cur.fetchone()
 
+        # Decisions stats
+        cur.execute(
+            """
+            SELECT count(*) as cnt,
+                   count(*) FILTER (WHERE embedding IS NOT NULL) as embedded
+            FROM project_decisions
+        """
+        )
+        decisions = cur.fetchone()
+
+        # Translation embedding stats
+        cur.execute(
+            """
+            SELECT count(*) FILTER (WHERE embedding IS NOT NULL) as embedded
+            FROM translations
+        """
+        )
+        trans_embedded = cur.fetchone()["embedded"]
+
+        # Intelligence total: everything ARCHIE knows
+        intelligence_total = knowledge["total"] + trans["total_translations"] + decisions["cnt"]
+
+        # Embed % against full intelligence
+        total_embedded = knowledge["embedded"] + trans_embedded + decisions["embedded"]
         embed_pct = 0
-        if knowledge["total"] > 0:
-            embed_pct = round(100.0 * knowledge["embedded"] / knowledge["total"], 1)
+        if intelligence_total > 0:
+            embed_pct = round(100.0 * total_embedded / intelligence_total, 1)
 
         return jsonify(
             {
                 "success": True,
                 "knowledge": {
                     "total": knowledge["total"],
-                    "total_entries": knowledge["total"],
-                    "embedded": knowledge["embedded"],
+                    "total_entries": intelligence_total,
+                    "kb_entries": knowledge["total"],
+                    "embedded": total_embedded,
                     "embed_pct": embed_pct,
                     "categories": knowledge["categories"],
                     "conversations": kb_types.get("conversation_memory", 0),
@@ -204,6 +229,10 @@ def api_dashboard_summary():
                     "improvements": kb_types.get("improvement", 0) + kb_types.get("upgrade_suggestion", 0),
                     "repos": repo_count,
                     "sessions": session_count,
+                    "translations": trans["total_translations"],
+                    "translation_keys": trans["total_keys"],
+                    "languages": trans["languages"],
+                    "decisions": decisions["cnt"],
                 },
                 "agents": {
                     "total": agents["total"],

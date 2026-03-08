@@ -523,6 +523,170 @@
     margin-top: 2px;
 }
 
+/* --- GitHub Repository Explorer --- */
+.gh-explorer { margin-top: 16px; }
+.gh-explorer-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    background: linear-gradient(90deg, rgba(139,92,246,0.15) 0%, transparent 100%);
+    border: 1px solid rgba(139,92,246,0.3);
+    border-radius: 8px 8px 0 0;
+}
+.gh-explorer-back {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border: 1px solid rgba(139,92,246,0.4);
+    border-radius: 6px; background: rgba(139,92,246,0.1);
+    color: #c4b5fd; font-size: 0.8rem; cursor: pointer;
+    transition: all 0.2s;
+}
+.gh-explorer-back:hover { background: rgba(139,92,246,0.25); }
+.gh-explorer-back svg { width: 14px; height: 14px; }
+.gh-explorer-breadcrumbs {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 0.8rem; color: rgba(255,255,255,0.5);
+    overflow-x: auto; white-space: nowrap;
+}
+.gh-explorer-breadcrumbs .gh-bc-sep { color: rgba(255,255,255,0.2); margin: 0 2px; }
+.gh-explorer-breadcrumbs .gh-bc-link {
+    color: #c4b5fd; cursor: pointer; text-decoration: none;
+}
+.gh-explorer-breadcrumbs .gh-bc-link:hover { color: #a78bfa; text-decoration: underline; }
+.gh-explorer-breadcrumbs .gh-bc-current { color: rgba(255,255,255,0.8); }
+.gh-explorer-split {
+    display: flex; min-height: 500px;
+    border: 1px solid rgba(139,92,246,0.2);
+    border-top: none; border-radius: 0 0 8px 8px;
+    overflow: hidden;
+}
+.gh-tree-pane {
+    width: 280px; min-width: 240px; max-width: 360px;
+    background: rgba(0,0,0,0.3);
+    border-right: 1px solid rgba(139,92,246,0.2);
+    overflow-y: auto; overflow-x: hidden;
+}
+.gh-tree-header {
+    padding: 10px 14px; font-size: 0.68rem; letter-spacing: 2px;
+    color: rgba(139,92,246,0.6); border-bottom: 1px solid rgba(139,92,246,0.15);
+    font-family: 'Antonio', sans-serif;
+}
+.gh-tree-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 8px; cursor: pointer;
+    font-size: 0.78rem; color: rgba(255,255,255,0.7);
+    transition: background 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gh-tree-item:hover { background: rgba(139,92,246,0.1); }
+.gh-tree-item.active { background: rgba(139,92,246,0.2); color: #fff; }
+.gh-tree-item .gh-tree-icon {
+    width: 16px; text-align: center; flex-shrink: 0;
+    font-size: 0.7rem;
+}
+.gh-tree-item.dir .gh-tree-icon { color: #c4b5fd; }
+.gh-tree-item.file .gh-tree-icon { color: rgba(255,255,255,0.3); }
+.gh-tree-children { padding-left: 16px; display: none; }
+.gh-tree-children.expanded { display: block; }
+.gh-tree-item .gh-tree-size {
+    margin-left: auto; font-size: 0.65rem;
+    color: rgba(255,255,255,0.2); flex-shrink: 0;
+}
+.gh-viewer-pane {
+    flex: 1; overflow-y: auto; background: rgba(0,0,0,0.15);
+    padding: 0;
+}
+.gh-file-header {
+    padding: 10px 16px; font-size: 0.78rem;
+    color: rgba(255,255,255,0.5);
+    border-bottom: 1px solid rgba(139,92,246,0.15);
+    background: rgba(0,0,0,0.2);
+    font-family: 'IBM Plex Mono', monospace;
+}
+.gh-file-content {
+    margin: 0; padding: 16px; overflow-x: auto;
+    font-size: 0.75rem; line-height: 1.5;
+    background: transparent !important;
+}
+.gh-file-content code {
+    background: transparent !important;
+    font-family: 'IBM Plex Mono', monospace;
+}
+.gh-file-viewer .gh-binary-msg {
+    padding: 40px; text-align: center;
+    color: rgba(255,255,255,0.3); font-size: 0.85rem;
+}
+.gh-landing { padding: 24px; }
+.gh-landing-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 20px; padding-bottom: 16px;
+    border-bottom: 1px solid rgba(139,92,246,0.2);
+}
+.gh-landing-header h2 {
+    margin: 0; font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem; color: #c4b5fd;
+}
+.gh-landing-header .gh-landing-type {
+    padding: 3px 10px; border-radius: 4px;
+    background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3);
+    font-size: 0.7rem; color: #a78bfa;
+}
+.gh-landing-stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin-bottom: 20px;
+}
+.gh-landing-stat {
+    padding: 12px; border-radius: 8px;
+    background: rgba(139,92,246,0.08);
+    border: 1px solid rgba(139,92,246,0.15);
+    text-align: center;
+}
+.gh-landing-stat-value {
+    font-size: 1.3rem; font-weight: bold; color: #c4b5fd;
+    font-family: 'Orbitron', sans-serif;
+}
+.gh-landing-stat-label {
+    font-size: 0.68rem; color: rgba(255,255,255,0.4);
+    margin-top: 4px;
+}
+.gh-landing-readme {
+    padding: 20px; border-radius: 8px;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(139,92,246,0.15);
+}
+.gh-landing-readme h3 {
+    margin: 0 0 12px 0; font-size: 0.8rem;
+    color: rgba(255,255,255,0.4); font-family: 'Antonio', sans-serif;
+    letter-spacing: 1px;
+}
+.gh-landing-readme .gh-readme-body {
+    font-size: 0.82rem; line-height: 1.6;
+    color: rgba(255,255,255,0.8);
+}
+.gh-landing-readme .gh-readme-body h1,
+.gh-landing-readme .gh-readme-body h2,
+.gh-landing-readme .gh-readme-body h3 {
+    color: #c4b5fd; margin-top: 16px;
+    border-bottom: 1px solid rgba(139,92,246,0.15);
+    padding-bottom: 4px;
+}
+.gh-landing-readme .gh-readme-body code {
+    background: rgba(139,92,246,0.1); padding: 2px 6px;
+    border-radius: 3px; font-size: 0.78rem;
+}
+.gh-landing-readme .gh-readme-body pre {
+    background: rgba(0,0,0,0.3); padding: 12px;
+    border-radius: 6px; overflow-x: auto;
+}
+.gh-landing-readme .gh-readme-body pre code {
+    background: transparent; padding: 0;
+}
+.gh-landing-readme .gh-readme-body a { color: #a78bfa; }
+.gh-landing-readme .gh-readme-body img { max-width: 100%; border-radius: 6px; }
+@media (max-width: 768px) {
+    .gh-explorer-split { flex-direction: column; }
+    .gh-tree-pane { width: 100%; max-width: 100%; max-height: 200px; border-right: none; border-bottom: 1px solid rgba(139,92,246,0.2); }
+    .gh-landing-stats { grid-template-columns: 1fr; }
+}
+
 /* --- LCARS readout strips (shared: GitHub + Languages) --- */
 #panel-github .cs-gh-readouts,
 #panel-languages .cs-gh-readouts {
@@ -2511,6 +2675,29 @@
                        onkeydown="if(event.key==='Enter')searchGithubSemantic()">
                 <div class="gh-discovery-results" id="ghDiscoveryResults"></div>
             </div>
+
+            <!-- Repository Explorer (full-page takeover) -->
+            <div class="gh-explorer" id="ghRepoExplorer" style="display:none;">
+                <div class="gh-explorer-header">
+                    <button class="gh-explorer-back" onclick="closeRepoExplorer()">
+                        <i data-lucide="arrow-left"></i> Back
+                    </button>
+                    <div class="gh-explorer-breadcrumbs" id="ghBreadcrumbs"></div>
+                </div>
+                <div class="gh-explorer-split">
+                    <div class="gh-tree-pane" id="ghTreePane">
+                        <div class="gh-tree-header">FILE TREE</div>
+                        <div class="gh-tree-root" id="ghTreeRoot"></div>
+                    </div>
+                    <div class="gh-viewer-pane" id="ghViewerPane">
+                        <div class="gh-landing" id="ghLanding"></div>
+                        <div class="gh-file-viewer" id="ghFileViewer" style="display:none;">
+                            <div class="gh-file-header" id="ghFileHeader"></div>
+                            <pre class="gh-file-content"><code id="ghFileCode"></code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
     </div><!-- /.cs-body -->
@@ -2592,6 +2779,9 @@
 
 <!-- External Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
 <!-- Shared Components -->
 <script src="{{ url_for('static', filename='js/holo-sphere.js') }}"></script>

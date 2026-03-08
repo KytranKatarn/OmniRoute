@@ -26,7 +26,7 @@ def get_db_connection():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD"),
     )
 
 

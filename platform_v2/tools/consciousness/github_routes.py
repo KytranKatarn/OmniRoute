@@ -24,7 +24,80 @@ from psycopg2.extras import RealDictCursor
 from flask import jsonify, request
 from flask_login import current_user, login_required
 
+import subprocess
+
 logger = logging.getLogger(__name__)
+
+REPOS_BASE = "/mnt/archie_brain/repos"
+
+
+def _clone_or_pull_repo(repo_name, repo_type):
+    """Clone or pull a GitHub repo to local disk.
+
+    Returns (local_path, action, error) where action is 'cloned', 'pulled', or None on error.
+    """
+    owner, name = repo_name.split("/", 1)
+    local_path = os.path.join(REPOS_BASE, repo_type, name)
+
+    # Use token for authenticated clone (private repos, higher rate limits)
+    _, has_token = _get_github_headers()
+    token = None
+    try:
+        token_path = "/mnt/archie_brain/secrets/api/github_token.txt"
+        if os.path.exists(token_path):
+            with open(token_path, "r") as f:
+                token = f.read().strip()
+    except Exception:
+        pass
+    if not token:
+        token = os.environ.get("GITHUB_TOKEN")
+
+    if token:
+        clone_url = f"https://x-access-token:{token}@github.com/{repo_name}.git"
+    else:
+        clone_url = f"https://github.com/{repo_name}.git"
+
+    try:
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+        if os.path.isdir(os.path.join(local_path, ".git")):
+            # Pull latest
+            result = subprocess.run(
+                ["git", "-C", local_path, "pull", "--ff-only"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                # Try reset if ff-only fails (force-pushed upstream)
+                subprocess.run(
+                    ["git", "-C", local_path, "fetch", "origin"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                subprocess.run(
+                    ["git", "-C", local_path, "reset", "--hard", "origin/HEAD"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+            return local_path, "pulled", None
+        else:
+            # Fresh clone (shallow for speed)
+            result = subprocess.run(
+                ["git", "clone", "--depth", "1", clone_url, local_path],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode != 0:
+                return None, None, f"Clone failed: {result.stderr[:200]}"
+            return local_path, "cloned", None
+    except subprocess.TimeoutExpired:
+        return None, None, f"Timeout cloning {repo_name}"
+    except Exception as e:
+        return None, None, str(e)
 
 
 def _get_db():
@@ -33,12 +106,18 @@ def _get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD"),
     )
 
 
 def run_reindex_background(repos_list, job_id):
-    """Background worker for reindexing all repos. Callable from server-loop."""
+    """Background worker for reindexing all repos. Callable from server-loop.
+
+    For each repo:
+    1. Clone or pull to /mnt/archie_brain/repos/<repo_type>/<name>/
+    2. Index files into knowledge_base via Tree API
+    3. Update github_repositories with local_path, indexed_at, status
+    """
     from ai_bridge.bridge_dispatcher import get_dispatcher
 
     d = get_dispatcher()
@@ -49,8 +128,35 @@ def run_reindex_background(repos_list, job_id):
         for repo_row in repos_list:
             repo_name = repo_row["repo_name"]
             repo_type = repo_row["repo_type"]
+            repo_id = repo_row["id"]
             repo_max = repo_row.get("max_files")
             try:
+                # Step 1: Clone or pull to local disk
+                local_path, action, clone_err = _clone_or_pull_repo(repo_name, repo_type)
+                if clone_err:
+                    logger.warning(f"[GitHub] Clone/pull {repo_name} failed: {clone_err}")
+                    # Continue to index via API even if clone fails
+                else:
+                    logger.info(f"[GitHub] {action} {repo_name} → {local_path}")
+                    # Update local_path in DB
+                    try:
+                        conn_u = _get_db()
+                        cur_u = conn_u.cursor()
+                        cur_u.execute(
+                            """UPDATE github_repositories
+                               SET local_path = %s, status = 'cloned',
+                                   cloned_at = COALESCE(cloned_at, NOW()),
+                                   updated_at = NOW()
+                               WHERE id = %s""",
+                            (local_path, repo_id),
+                        )
+                        conn_u.commit()
+                        cur_u.close()
+                        conn_u.close()
+                    except Exception as db_err:
+                        logger.error(f"[GitHub] DB update for {repo_name} local_path failed: {db_err}")
+
+                # Step 2: Index files into knowledge_base
                 parts = repo_name.split("/")
                 indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
                     parts[0], parts[1], repo_type, max_files=repo_max
@@ -472,15 +578,21 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
             )
             conn.commit()
 
-        # 7. Update github_repositories row
+        # 7. Update github_repositories row — sync indexed_files from actual KB count
         cur.execute(
             """
-            UPDATE github_repositories
-            SET indexed = true, indexed_files = %s, indexed_at = NOW(),
+            UPDATE github_repositories r
+            SET indexed = true,
+                indexed_files = COALESCE((
+                    SELECT count(*) FROM knowledge_base
+                    WHERE knowledge_type = 'github_file'
+                      AND memory_metadata->>'repo' = r.repo_name
+                ), 0),
+                indexed_at = NOW(),
                 status = 'indexed', updated_at = NOW()
-            WHERE repo_type = %s
+            WHERE r.repo_type = %s
             """,
-            (indexed_count, repo_type),
+            (repo_type,),
         )
         conn.commit()
 
@@ -908,16 +1020,53 @@ def register_github_routes(bp, admin_required):
 
         Creates a bridge_job and returns the job_id immediately.
         Work runs in a background thread with progress tracked in Bridge Command.
+        Skips repos indexed within the last 7 days unless force=true.
         """
         try:
             from ai_bridge.bridge_dispatcher import get_dispatcher
 
+            data = request.get_json() or {}
+            force = data.get("force", False)
+
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories ORDER BY id")
+
+            if force:
+                cur.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories ORDER BY id")
+            else:
+                cur.execute(
+                    """SELECT id, repo_name, repo_type, max_files
+                       FROM github_repositories
+                       WHERE indexed_at IS NULL
+                          OR indexed_at < NOW() - INTERVAL '7 days'
+                       ORDER BY indexed_at ASC NULLS FIRST"""
+                )
             repos = cur.fetchall()
+
             if not repos:
-                return jsonify({"success": True, "total_indexed": 0, "total_repos": 0, "results": []})
+                # All repos are fresh — tell the user
+                cur.execute(
+                    """SELECT count(*) as total,
+                              min(indexed_at) as oldest,
+                              max(indexed_at) as newest
+                       FROM github_repositories"""
+                )
+                info = cur.fetchone()
+                oldest = info["oldest"]
+                days_ago = 0
+                if oldest:
+                    from datetime import datetime
+
+                    days_ago = (datetime.utcnow() - oldest).days
+                return jsonify(
+                    {
+                        "success": True,
+                        "total_indexed": 0,
+                        "total_repos": info["total"],
+                        "skipped": True,
+                        "message": f"All {info['total']} repos indexed within 7 days (oldest: {days_ago}d ago). Use force=true to override.",
+                    }
+                )
 
             # ── Create Bridge Job (blocks duplicates) ───
             dispatcher = get_dispatcher()
@@ -1617,6 +1766,17 @@ def register_github_routes(bp, admin_required):
             )
             repos = [dict(r) for r in cur.fetchall()]
             mismatches = [r for r in repos if (r["expected"] or 0) != (r["actual"] or 0)]
+
+            # Freshness: oldest and newest indexed_at
+            cur.execute(
+                """SELECT min(indexed_at) as oldest, max(indexed_at) as newest,
+                          count(*) FILTER (WHERE indexed_at IS NULL
+                              OR indexed_at < NOW() - INTERVAL '7 days') as stale_count,
+                          count(*) as total_repos
+                   FROM github_repositories"""
+            )
+            freshness = cur.fetchone()
+
             return jsonify(
                 success=True,
                 total_files=total,
@@ -1624,6 +1784,12 @@ def register_github_routes(bp, admin_required):
                 embed_pct=pct,
                 repos=repos,
                 mismatches=mismatches,
+                freshness={
+                    "oldest_indexed": freshness["oldest"].isoformat() if freshness["oldest"] else None,
+                    "newest_indexed": freshness["newest"].isoformat() if freshness["newest"] else None,
+                    "stale_repos": freshness["stale_count"],
+                    "total_repos": freshness["total_repos"],
+                },
             )
         except Exception as e:
             logger.error(f"GitHub stats error: {e}")
@@ -1633,6 +1799,266 @@ def register_github_routes(bp, admin_required):
             cur.close()
 
             conn.close()
+
+    # ==================================================================
+    # REPOSITORY EXPLORER API
+    # ==================================================================
+
+    LANG_MAP = {
+        ".py": "python",
+        ".js": "javascript",
+        ".ts": "typescript",
+        ".jsx": "javascript",
+        ".tsx": "typescript",
+        ".html": "html",
+        ".css": "css",
+        ".json": "json",
+        ".yml": "yaml",
+        ".yaml": "yaml",
+        ".md": "markdown",
+        ".sh": "bash",
+        ".sql": "sql",
+        ".go": "go",
+        ".rs": "rust",
+        ".java": "java",
+        ".rb": "ruby",
+        ".php": "php",
+        ".c": "c",
+        ".cpp": "cpp",
+        ".h": "c",
+        ".toml": "toml",
+        ".xml": "xml",
+        ".dockerfile": "dockerfile",
+    }
+
+    @bp.route("/github/repo/<int:repo_id>/tree")
+    @login_required
+    @admin_required
+    def github_repo_tree(repo_id):
+        """Browse local clone directory tree."""
+        rel_path = request.args.get("path", "")
+        conn = None
+        cur = None
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT repo_name, local_path FROM github_repositories WHERE id = %s",
+                (repo_id,),
+            )
+            repo = cur.fetchone()
+            if not repo or not repo["local_path"]:
+                return jsonify({"success": False, "error": "Repository not cloned"}), 404
+
+            base = repo["local_path"]
+            # Security: prevent path traversal
+            full = os.path.normpath(os.path.join(base, rel_path))
+            if not full.startswith(os.path.normpath(base)):
+                return jsonify({"success": False, "error": "Invalid path"}), 400
+            if not os.path.isdir(full):
+                return jsonify({"success": False, "error": "Directory not found"}), 404
+
+            entries = []
+            for name in sorted(os.listdir(full)):
+                if name == ".git":
+                    continue
+                child = os.path.join(full, name)
+                is_dir = os.path.isdir(child)
+                entry = {"name": name, "type": "dir" if is_dir else "file"}
+                if not is_dir:
+                    try:
+                        entry["size"] = os.path.getsize(child)
+                    except OSError:
+                        entry["size"] = 0
+                entries.append(entry)
+
+            # Sort: dirs first, then files
+            entries.sort(key=lambda e: (0 if e["type"] == "dir" else 1, e["name"].lower()))
+
+            return jsonify(
+                {
+                    "success": True,
+                    "repo_name": repo["repo_name"],
+                    "path": rel_path,
+                    "entries": entries,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    @bp.route("/github/repo/<int:repo_id>/file")
+    @login_required
+    @admin_required
+    def github_repo_file(repo_id):
+        """Read a file from local clone."""
+        rel_path = request.args.get("path", "")
+        if not rel_path:
+            return jsonify({"success": False, "error": "Path required"}), 400
+
+        conn = None
+        cur = None
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT repo_name, local_path FROM github_repositories WHERE id = %s",
+                (repo_id,),
+            )
+            repo = cur.fetchone()
+            if not repo or not repo["local_path"]:
+                return jsonify({"success": False, "error": "Repository not cloned"}), 404
+
+            base = repo["local_path"]
+            full = os.path.normpath(os.path.join(base, rel_path))
+            if not full.startswith(os.path.normpath(base)):
+                return jsonify({"success": False, "error": "Invalid path"}), 400
+            if not os.path.isfile(full):
+                return jsonify({"success": False, "error": "File not found"}), 404
+
+            size = os.path.getsize(full)
+            max_size = 1024 * 1024  # 1MB
+            truncated = size > max_size
+
+            ext = os.path.splitext(rel_path)[1].lower()
+            language = LANG_MAP.get(ext, "")
+            # Detect binary
+            binary_exts = {
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".gif",
+                ".ico",
+                ".woff",
+                ".woff2",
+                ".ttf",
+                ".eot",
+                ".zip",
+                ".tar",
+                ".gz",
+                ".exe",
+                ".bin",
+                ".pdf",
+                ".pyc",
+                ".so",
+                ".dll",
+                ".o",
+            }
+            if ext in binary_exts:
+                return jsonify(
+                    {
+                        "success": True,
+                        "repo_name": repo["repo_name"],
+                        "path": rel_path,
+                        "filename": os.path.basename(rel_path),
+                        "content": None,
+                        "binary": True,
+                        "language": "",
+                        "size": size,
+                        "truncated": False,
+                    }
+                )
+
+            with open(full, "r", errors="replace") as f:
+                content = f.read(max_size)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "repo_name": repo["repo_name"],
+                    "path": rel_path,
+                    "filename": os.path.basename(rel_path),
+                    "content": content,
+                    "language": language,
+                    "size": size,
+                    "truncated": truncated,
+                    "binary": False,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+    @bp.route("/github/repo/<int:repo_id>/readme")
+    @login_required
+    @admin_required
+    def github_repo_readme(repo_id):
+        """Get README and basic stats from local clone."""
+        conn = None
+        cur = None
+        try:
+            conn = _get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT repo_name, repo_type, local_path, description, github_url, homepage_url FROM github_repositories WHERE id = %s",
+                (repo_id,),
+            )
+            repo = cur.fetchone()
+            if not repo or not repo["local_path"]:
+                return jsonify({"success": False, "error": "Repository not cloned"}), 404
+
+            base = repo["local_path"]
+            if not os.path.isdir(base):
+                return jsonify({"success": False, "error": "Clone directory missing"}), 404
+
+            # Find README
+            readme_content = None
+            readme_name = None
+            for candidate in ["README.md", "readme.md", "README", "README.rst", "README.txt"]:
+                rpath = os.path.join(base, candidate)
+                if os.path.isfile(rpath):
+                    with open(rpath, "r", errors="replace") as f:
+                        readme_content = f.read(64 * 1024)  # 64KB max
+                    readme_name = candidate
+                    break
+
+            # Basic stats: count files and dirs
+            file_count = 0
+            dir_count = 0
+            total_size = 0
+            for root, dirs, files in os.walk(base):
+                # Skip .git
+                dirs[:] = [d for d in dirs if d != ".git"]
+                dir_count += len(dirs)
+                file_count += len(files)
+                for fn in files:
+                    try:
+                        total_size += os.path.getsize(os.path.join(root, fn))
+                    except OSError:
+                        pass
+
+            return jsonify(
+                {
+                    "success": True,
+                    "repo_name": repo["repo_name"],
+                    "repo_type": repo["repo_type"],
+                    "description": repo.get("description"),
+                    "github_url": repo.get("github_url"),
+                    "homepage_url": repo.get("homepage_url"),
+                    "readme": readme_content,
+                    "readme_file": readme_name,
+                    "stats": {
+                        "files": file_count,
+                        "directories": dir_count,
+                        "total_size": total_size,
+                    },
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     # ==================================================================
     # REPOS SUMMARY API
@@ -1651,7 +2077,8 @@ def register_github_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT id, repo_name, repo_type, local_path, status,
-                       indexed, indexed_files, indexed_at, updated_at
+                       indexed, indexed_files, indexed_at, updated_at,
+                       description, github_url, homepage_url
                 FROM github_repositories
                 ORDER BY repo_name
             """

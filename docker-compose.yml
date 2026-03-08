@@ -98,6 +98,8 @@ services:
       - ./CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
       # Mount .git for git operations (CodeRabbit Local Git management)
       - ./.git:/mnt/archie_brain/.git:rw
+      # GitHub repo clones — ARCHIE's local copies for reading/modifying/sharing
+      - ./repos:/mnt/archie_brain/repos:rw
       # Mount node client package for remote node deployment
       - ./node_client:/mnt/archie_brain/node_client:ro
       # Host command queue (shared with host_monitor.py for storage operations)

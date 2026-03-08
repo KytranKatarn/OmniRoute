@@ -157,7 +157,7 @@ def get_db():
         host=os.getenv("DB_HOST", "archie_database"),
         database=os.getenv("DB_NAME", "archie"),
         user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", "archiepass"),
+        password=os.getenv("DB_PASSWORD"),
     )
 
 
@@ -645,32 +645,50 @@ def _run_embedding_job(item_ids_and_data, job_id):
 
     Runs in a separate thread so the HTTP request can return immediately.
     Updates progress via Bridge dispatcher.
+
+    Items are tuples of (id, title, content) for knowledge_base rows,
+    or (id, title, content, source) where source is 'decisions' or 'translations'.
     """
     from ai_bridge.embedding_service import generate_embedding
     from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    _UPDATE_SQL = {
+        "knowledge_base": """
+            UPDATE knowledge_base
+            SET embedding = %s, has_embedding = true, embedding_generated_at = NOW()
+            WHERE id = %s
+        """,
+        "decisions": """
+            UPDATE project_decisions
+            SET embedding = %s, embedding_generated_at = NOW()
+            WHERE id = %s
+        """,
+        "translations": """
+            UPDATE translations
+            SET embedding = %s, embedding_generated_at = NOW()
+            WHERE id = %s
+        """,
+    }
 
     dispatcher = get_dispatcher()
     processed = 0
     failed = 0
 
     try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        for item_id, title, content in item_ids_and_data:
+        for row in item_ids_and_data:
+            item_id, title, content = row[0], row[1], row[2]
+            source = row[3] if len(row) > 3 else "knowledge_base"
             try:
                 text = f"{title or ''}. {content[:800]}"
                 embedding = generate_embedding(text)
 
                 if embedding:
-                    cur.execute(
-                        """
-                        UPDATE knowledge_base
-                        SET embedding = %s, has_embedding = true, embedding_generated_at = NOW()
-                        WHERE id = %s
-                        """,
-                        (embedding, item_id),
-                    )
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute(_UPDATE_SQL[source], (embedding, item_id))
+                    conn.commit()
+                    cur.close()
+                    conn.close()
                     processed += 1
                 else:
                     failed += 1
@@ -679,27 +697,13 @@ def _run_embedding_job(item_ids_and_data, job_id):
                     dispatcher.update_job_progress(job_id, processed, failed)
 
             except Exception as e:
-                logger.error(f"Embedding for {item_id} failed: {e}")
+                logger.error(f"Embedding for {source}:{item_id} failed: {e}")
                 failed += 1
                 if job_id:
                     dispatcher.update_job_progress(job_id, processed, failed)
-
-        conn.commit()
     except Exception as e:
         logger.error(f"Embedding background job failed: {e}")
-        try:
-            if conn:
-                conn.rollback()
-        except Exception:
-            pass
     finally:
-        try:
-            if cur:
-                cur.close()
-            if conn:
-                conn.close()
-        except Exception:
-            pass
         if job_id:
             dispatcher.complete_job(job_id)
         logger.info(f"[Embedding] Job #{job_id} finished: {processed} ok, {failed} failed")
@@ -723,29 +727,36 @@ def generate_embeddings():
         conn = get_db()
         cur = conn.cursor()
 
-        # Get entries without embeddings
+        # Get unembedded items from all intelligence sources
         cur.execute(
             """
-            SELECT id, title, content
-            FROM knowledge_base
-            WHERE embedding IS NULL
-            AND content IS NOT NULL
-            AND LENGTH(content) > 50
-            ORDER BY created_at DESC
-            LIMIT %s
+            (SELECT id, title, content, 'knowledge_base' AS source
+             FROM knowledge_base
+             WHERE embedding IS NULL AND content IS NOT NULL AND LENGTH(content) > 50
+             ORDER BY created_at DESC LIMIT %s)
+            UNION ALL
+            (SELECT id, title, decision AS content, 'decisions' AS source
+             FROM project_decisions
+             WHERE embedding IS NULL
+             ORDER BY created_at DESC LIMIT %s)
+            UNION ALL
+            (SELECT id, key AS title, text AS content, 'translations' AS source
+             FROM translations
+             WHERE embedding IS NULL
+             ORDER BY created_at DESC LIMIT %s)
             """,
-            (batch_size,),
+            (batch_size, batch_size, batch_size),
         )
         items = cur.fetchall()
         if not items:
-            return jsonify({"success": True, "message": "All entries already embedded", "processed": 0, "total": 0})
+            return jsonify({"success": True, "message": "All intelligence embedded", "processed": 0, "total": 0})
 
         # ── Create Bridge Job (blocks duplicates) ───────────
         dispatcher = get_dispatcher()
         job_id = dispatcher.create_job(
             job_type="batch_embedding",
             module_source="consciousness",
-            description=f"Generate embeddings for {len(items)} knowledge entries",
+            description=f"Generate embeddings for {len(items)} intelligence entries",
             total_steps=len(items),
             capability="embedding",
             metadata={"batch_size": batch_size, "requested_at": datetime.now().isoformat()},
@@ -1110,8 +1121,8 @@ def server_loop_retrigger(job_type, module_source, final_status):
     # Only retrigger on success
     if final_status != "completed":
         _loop_failures[op] = _loop_failures.get(op, 0) + 1
-        if _loop_failures.get(op, 0) >= 3:
-            logger.warning(f"[ServerLoop] {op} failed 3 times — auto-disabling")
+        if _loop_failures.get(op, 0) >= 10:
+            logger.warning(f"[ServerLoop] {op} failed 10 times — auto-disabling")
             set_server_loop(op, False)
             _loop_failures.pop(op, None)
         return
@@ -1180,10 +1191,20 @@ def _trigger_loop_op(op):
         elif op == "embedding":
             cur.execute(
                 """
-                SELECT id, title, content
-                FROM knowledge_base
-                WHERE embedding IS NULL AND content IS NOT NULL AND LENGTH(content) > 50
-                ORDER BY created_at DESC LIMIT 25
+                (SELECT id, title, content, 'knowledge_base' AS source
+                 FROM knowledge_base
+                 WHERE embedding IS NULL AND content IS NOT NULL AND LENGTH(content) > 50
+                 ORDER BY created_at DESC LIMIT 15)
+                UNION ALL
+                (SELECT id, title, decision, 'decisions'
+                 FROM project_decisions
+                 WHERE embedding IS NULL
+                 ORDER BY created_at DESC LIMIT 5)
+                UNION ALL
+                (SELECT id, key, text, 'translations'
+                 FROM translations
+                 WHERE embedding IS NULL
+                 ORDER BY created_at DESC LIMIT 5)
                 """
             )
             items = cur.fetchall()
@@ -1195,7 +1216,7 @@ def _trigger_loop_op(op):
             job_id = dispatcher.create_job(
                 job_type="batch_embedding",
                 module_source="consciousness",
-                description=f"[auto-loop] Embed {len(items)} entries",
+                description=f"[auto-loop] Embed {len(items)} intelligence entries",
                 total_steps=len(items),
                 capability="embedding",
                 metadata={"batch_size": 25, "server_loop": True},
@@ -1211,18 +1232,25 @@ def _trigger_loop_op(op):
             from psycopg2.extras import RealDictCursor
 
             cur2 = conn.cursor(cursor_factory=RealDictCursor)
-            cur2.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories ORDER BY id")
+            # Only reindex repos not indexed in the last 7 days
+            cur2.execute(
+                """SELECT id, repo_name, repo_type, max_files
+                   FROM github_repositories
+                   WHERE indexed_at IS NULL
+                      OR indexed_at < NOW() - INTERVAL '7 days'
+                   ORDER BY indexed_at ASC NULLS FIRST"""
+            )
             repos = cur2.fetchall()
             cur2.close()
             if not repos:
-                logger.info("[ServerLoop] reindex: no repos — stopping loop")
+                logger.info("[ServerLoop] reindex: all repos indexed within 7 days — stopping loop")
                 set_server_loop(op, False)
                 return
 
             job_id = dispatcher.create_job(
                 job_type="github_reindex_all",
                 module_source="consciousness",
-                description=f"[auto-loop] Re-index {len(repos)} repos",
+                description=f"[auto-loop] Re-index {len(repos)} stale repos",
                 total_steps=len(repos),
                 capability="code_analysis",
                 metadata={"repo_count": len(repos), "server_loop": True},
@@ -1234,7 +1262,7 @@ def _trigger_loop_op(op):
 
             t = threading.Thread(target=run_reindex_background, args=(list(repos), job_id), daemon=True)
             t.start()
-            logger.info(f"[ServerLoop] reindex: started job #{job_id} with {len(repos)} repos")
+            logger.info(f"[ServerLoop] reindex: started job #{job_id} with {len(repos)} stale repos")
 
         elif op == "translate":
             from tools.consciousness.routes import _run_translate_bg
@@ -1268,17 +1296,18 @@ def _trigger_loop_op(op):
 
 @processing_bp.route("/knowledge-timeline", methods=["GET"])
 def knowledge_timeline():
-    """Return hourly knowledge counts for the chart popup.
+    """Return hourly intelligence counts for the chart popup.
 
-    Returns arrays of {t, total, embedded, unembedded} bucketed by hour
-    for the last 48 hours.
+    Tracks real cumulative growth of knowledge_base entries, translations,
+    and decisions — all with their own created_at timelines.
+    Returns {t, total, embedded, unembedded, translations, decisions}
+    bucketed by hour for the last 48 hours.
     """
     conn = None
     try:
         conn = get_db()
         cur = conn.cursor()
 
-        # Cumulative entries created per hour (last 48h)
         cur.execute(
             """
             WITH hours AS (
@@ -1288,34 +1317,58 @@ def knowledge_timeline():
                     '1 hour'
                 ) AS h
             ),
-            created AS (
+            -- Knowledge base created per hour
+            kb_created AS (
                 SELECT date_trunc('hour', created_at) AS h, COUNT(*) AS n
                 FROM knowledge_base
                 WHERE created_at >= NOW() - INTERVAL '48 hours'
                 GROUP BY 1
             ),
-            embedded AS (
+            -- Knowledge base embedded per hour
+            kb_embedded AS (
                 SELECT date_trunc('hour', embedding_generated_at) AS h, COUNT(*) AS n
                 FROM knowledge_base
                 WHERE embedding_generated_at >= NOW() - INTERVAL '48 hours'
                 GROUP BY 1
             ),
+            -- Translations created per hour
+            trans_created AS (
+                SELECT date_trunc('hour', created_at) AS h, COUNT(*) AS n
+                FROM translations
+                WHERE created_at >= NOW() - INTERVAL '48 hours'
+                GROUP BY 1
+            ),
+            -- Decisions created per hour
+            dec_created AS (
+                SELECT date_trunc('hour', created_at) AS h, COUNT(*) AS n
+                FROM project_decisions
+                WHERE created_at >= NOW() - INTERVAL '48 hours'
+                GROUP BY 1
+            ),
             baseline AS (
                 SELECT
                     (SELECT COUNT(*) FROM knowledge_base
-                     WHERE created_at < NOW() - INTERVAL '48 hours') AS total,
+                     WHERE created_at < NOW() - INTERVAL '48 hours') AS kb_total,
                     (SELECT COUNT(*) FROM knowledge_base
                      WHERE embedding_generated_at IS NOT NULL
-                     AND embedding_generated_at < NOW() - INTERVAL '48 hours') AS embedded
+                     AND embedding_generated_at < NOW() - INTERVAL '48 hours') AS kb_embedded,
+                    (SELECT COUNT(*) FROM translations
+                     WHERE created_at < NOW() - INTERVAL '48 hours') AS trans_total,
+                    (SELECT COUNT(*) FROM project_decisions
+                     WHERE created_at < NOW() - INTERVAL '48 hours') AS dec_total
             )
             SELECT
                 hours.h AS t,
-                baseline.total + COALESCE(SUM(created.n) OVER (ORDER BY hours.h), 0) AS total,
-                baseline.embedded + COALESCE(SUM(embedded.n) OVER (ORDER BY hours.h), 0) AS embedded
+                baseline.kb_total + COALESCE(SUM(kb_created.n) OVER (ORDER BY hours.h), 0) AS kb,
+                baseline.kb_embedded + COALESCE(SUM(kb_embedded.n) OVER (ORDER BY hours.h), 0) AS embedded,
+                baseline.trans_total + COALESCE(SUM(trans_created.n) OVER (ORDER BY hours.h), 0) AS trans,
+                baseline.dec_total + COALESCE(SUM(dec_created.n) OVER (ORDER BY hours.h), 0) AS decs
             FROM hours
             CROSS JOIN baseline
-            LEFT JOIN created ON created.h = hours.h
-            LEFT JOIN embedded ON embedded.h = hours.h
+            LEFT JOIN kb_created ON kb_created.h = hours.h
+            LEFT JOIN kb_embedded ON kb_embedded.h = hours.h
+            LEFT JOIN trans_created ON trans_created.h = hours.h
+            LEFT JOIN dec_created ON dec_created.h = hours.h
             ORDER BY hours.h
             """
         )
@@ -1323,13 +1376,20 @@ def knowledge_timeline():
         cur.close()
 
         points = []
-        for t, total, emb in rows:
+        for t, kb, emb, trans, decs in rows:
+            kb_val = int(kb)
+            emb_val = int(emb)
+            trans_val = int(trans)
+            decs_val = int(decs)
             points.append(
                 {
                     "t": t.isoformat(),
-                    "total": int(total),
-                    "embedded": int(emb),
-                    "unembedded": int(total) - int(emb),
+                    "total": kb_val + trans_val + decs_val,
+                    "kb": kb_val,
+                    "embedded": emb_val,
+                    "unembedded": kb_val - emb_val,
+                    "translations": trans_val,
+                    "decisions": decs_val,
                 }
             )
 

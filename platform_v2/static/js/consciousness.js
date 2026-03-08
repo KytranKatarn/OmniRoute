@@ -253,7 +253,9 @@ function loadNeuralCore() {
       { id: "vault", label: "Vault", count: kb.vault_notes || 0, color: "#8b5cf6", tab: "knowledge" },
       { id: "repos", label: "Repos", count: kb.repos || 0, color: "#f59e0b", tab: "github" },
       { id: "learned", label: "Learn", count: (kb.mistakes || 0) + (kb.improvements || 0), color: "#06b6d4", tab: "knowledge" },
-      { id: "sessions", label: "Sessions", count: kb.sessions || 0, color: "#ec4899", tab: "knowledge" }
+      { id: "sessions", label: "Sessions", count: kb.sessions || 0, color: "#ec4899", tab: "knowledge" },
+      { id: "translations", label: "Languages", count: kb.translations || 0, color: "#14b8a6", tab: "languages" },
+      { id: "decisions", label: "Decisions", count: kb.decisions || 0, color: "#f97316", tab: "knowledge" }
     ];
 
     // Store counts for change detection
@@ -289,7 +291,7 @@ function loadNeuralCore() {
     if (kbEl) {
       kbEl.textContent = (kb.total_entries || kb.total || 0).toLocaleString();
       kbEl.style.cursor = "pointer";
-      kbEl.title = "Click for knowledge timeline";
+      kbEl.title = "Total intelligence: KB + translations + decisions — click for timeline";
       kbEl.onclick = function() { showKnowledgeTimeline(); };
     }
     setHtml("ncActiveAgents", (agents.active || 0) + "/" + (agents.total || 0));
@@ -375,10 +377,12 @@ function _startKnowledgePolling() {
         repos: kb.repos || 0,
         learned: (kb.mistakes || 0) + (kb.improvements || 0),
         sessions: kb.sessions || 0,
+        translations: kb.translations || 0,
+        decisions: kb.decisions || 0,
         total: kb.total_entries || kb.total || 0
       };
 
-      var nodeIds = ["conversations", "code", "vault", "repos", "learned", "sessions"];
+      var nodeIds = ["conversations", "code", "vault", "repos", "learned", "sessions", "translations", "decisions"];
       nodeIds.forEach(function(id) {
         if (newCounts[id] > (_prevKnowledgeCounts[id] || 0)) {
           if (_neuralCore) _neuralCore.updateNode(id, { count: newCounts[id] });
@@ -400,7 +404,7 @@ function _startKnowledgePolling() {
 /* ── Header Stats ─────────────────────────────────── */
 
 function updateHeaderStats(data) {
-  if (data.knowledge) setHtml("headerKnowledgeCount", data.knowledge.total || "--");
+  if (data.knowledge) setHtml("headerKnowledgeCount", (data.knowledge.total_entries || data.knowledge.total || "--").toLocaleString ? (data.knowledge.total_entries || data.knowledge.total || 0).toLocaleString() : "--");
   if (data.agents) setHtml("headerAgentCount", data.agents.total || "--");
   if (data.translations) setHtml("headerTranslationCount", data.translations || "--");
 }
@@ -813,43 +817,55 @@ function _renderBridgeJobs(jobs, el, prefix) {
   ops.renderBridgeJobs(jobs, el, prefix);
 }
 
+/* Disable/enable action buttons by ID (handles duplicates across tabs via "2" suffix) */
+function _setBtnDisabled(baseId, disabled) {
+  [baseId, baseId + "2"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+}
+
 function _disableProcessingBtns() {
-  var a = document.getElementById("btnStartAnalysis");
-  if (a) a.disabled = true;
+  _setBtnDisabled("btnStartAnalysis", true);
+  _setBtnDisabled("btnGenerateEmbed", true);
 }
 
 function _enableProcessingBtns() {
-  var a = document.getElementById("btnStartAnalysis");
-  if (a) a.disabled = false;
+  /* Only re-enable buttons whose loop is NOT running */
+  if (!_continuousRun.analysis) _setBtnDisabled("btnStartAnalysis", false);
+  if (!_continuousRun.embedding) _setBtnDisabled("btnGenerateEmbed", false);
 }
 
 function _disableGitHubBtns() {
-  var a = document.getElementById("btnReindexAll");
-  var b = document.getElementById("btnEmbedGH");
-  if (a) a.disabled = true;
-  if (b) b.disabled = true;
+  _setBtnDisabled("btnReindexAll", true);
+  _setBtnDisabled("btnStartAnalysis", true);
+  _setBtnDisabled("btnGenerateEmbed", true);
 }
 
 function _enableGitHubBtns() {
-  var a = document.getElementById("btnReindexAll");
-  var b = document.getElementById("btnEmbedGH");
-  if (a) a.disabled = false;
-  if (b) b.disabled = false;
+  if (!_continuousRun.reindex) _setBtnDisabled("btnReindexAll", false);
+  if (!_continuousRun.analysis) _setBtnDisabled("btnStartAnalysis", false);
+  if (!_continuousRun.embedding) _setBtnDisabled("btnGenerateEmbed", false);
 }
 
 function _disableGitHubBtnsByJobType(jobs) {
-  /* Only disable buttons whose job type is currently running */
-  var hasReindex = false;
-  var hasEmbed = false;
+  var hasReindex = false, hasAnalysis = false, hasEmbed = false;
   jobs.forEach(function(j) {
     var jt = j.job_type || "";
     if (jt.indexOf("reindex") !== -1 || jt.indexOf("github_index") !== -1) hasReindex = true;
+    if (jt.indexOf("analysis") !== -1) hasAnalysis = true;
     if (jt.indexOf("embed") !== -1) hasEmbed = true;
   });
-  var a = document.getElementById("btnReindexAll");
-  var b = document.getElementById("btnEmbedGH");
-  if (a) a.disabled = hasReindex;
-  if (b) b.disabled = hasEmbed;
+  if (hasReindex || _continuousRun.reindex) _setBtnDisabled("btnReindexAll", true);
+  if (hasAnalysis || _continuousRun.analysis) _setBtnDisabled("btnStartAnalysis", true);
+  if (hasEmbed || _continuousRun.embedding) _setBtnDisabled("btnGenerateEmbed", true);
+}
+
+/* Sync button disabled state when a loop starts/stops */
+function _syncLoopBtnState(opKey, running) {
+  var btnMap = { analysis: "btnStartAnalysis", embedding: "btnGenerateEmbed", reindex: "btnReindexAll" };
+  var btnId = btnMap[opKey];
+  if (btnId) _setBtnDisabled(btnId, running);
 }
 
 /* ── Continuous Run (Loop) Mode ─────────────────────────── */
@@ -910,6 +926,7 @@ window.toggleLoop = function(opKey) {
     _continuousBatch[opKey] = 0;
     _updateLoopBtn(opKey);
     _syncServerLoop(opKey, false);
+    _syncLoopBtnState(opKey, false);
   } else {
     /* Guard: max 3 loops at this station (matches 3-slot model) */
     if (_activeLoopCount() >= MAX_STATION_LOOPS) {
@@ -918,6 +935,7 @@ window.toggleLoop = function(opKey) {
     }
     /* Start — kick off first batch */
     _continuousRun[opKey] = true;
+    _syncLoopBtnState(opKey, true);
     _continuousBatch[opKey] = 0;
     _updateLoopBtn(opKey);
     _syncServerLoop(opKey, true);
@@ -1601,8 +1619,11 @@ function loadGitHub() {
       var circumference = 2 * Math.PI * 18;
       var dashoffset = circumference; // 0% default, updated by embed stats
 
+      var descSnippet = r.description ? escHtml(r.description.substring(0, 120)) + (r.description.length > 120 ? '...' : '') : '';
+
       html += '<div class="gh-repo-card ' + coverageCls + '" data-repo-id="' + r.id + '">' +
         '<div class="gh-repo-card-name" title="' + escHtml(r.repo_name) + '">' + escHtml(r.repo_name) + '</div>' +
+        (descSnippet ? '<div style="font-size:0.68rem; color:rgba(255,255,255,0.35); margin:-4px 0 6px; line-height:1.3; overflow:hidden; max-height:2.6em;">' + descSnippet + '</div>' : '') +
         '<div class="gh-repo-card-row">' +
           '<svg class="gh-progress-ring" viewBox="0 0 44 44">' +
             '<circle class="gh-progress-ring-bg" cx="22" cy="22" r="18" />' +
@@ -1626,6 +1647,7 @@ function loadGitHub() {
           '<button onclick="event.stopPropagation(); reindexRepo(' + r.id + ')">Re-index</button>' +
           '<button class="danger" onclick="event.stopPropagation(); deleteRepo(' + r.id + ', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')">Delete</button>' +
           '<a href="https://github.com/' + escHtml(r.repo_name) + '" target="_blank" onclick="event.stopPropagation();">Open</a>' +
+          (r.local_path ? '<button onclick="event.stopPropagation(); openRepoExplorer(' + r.id + ', \'' + escHtml(r.repo_name).replace(/'/g, "\\'") + '\')" style="background:rgba(139,92,246,0.2); border-color:rgba(139,92,246,0.4); color:#c4b5fd;">Explore</button>' : '') +
         '</div>' +
       '</div>';
     });
@@ -1953,8 +1975,12 @@ window.reindexAllRepos = function() {
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " repos queued" + batchNum));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " stale repos queued" + batchNum));
       setTimeout(checkActiveJobs, 1000);
+    } else if (data.success && data.skipped) {
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All repos up to date")));
+      _loopExhausted("reindex");
+      _enableGitHubBtns();
     } else if (data.success) {
       setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", "No repos to re-index"));
       _loopExhausted("reindex");
@@ -2114,10 +2140,12 @@ document.addEventListener("DOMContentLoaded", function () {
     _saveLoopState();
     Object.keys(_continuousRun).forEach(function(opKey) {
       _updateLoopBtn(opKey);
+      _syncLoopBtnState(opKey, !!_continuousRun[opKey]);
     });
   }).catch(function() {});
   Object.keys(_continuousRun).forEach(function(opKey) {
     _updateLoopBtn(opKey);
+    _syncLoopBtnState(opKey, !!_continuousRun[opKey]);
   });
   /* Deferred auto-resume: wait for checkActiveJobs to load, then
      kick any loop that has no running job */
@@ -2241,42 +2269,424 @@ function _drawTimelineChart(canvas, points) {
 
   /* Draw lines */
   var series = [
-    { key: "total", color: "#8b5cf6" },
-    { key: "embedded", color: "#22c55e" },
-    { key: "unembedded", color: "#f59e0b" }
+    { key: "total", label: "Intelligence", color: "#8b5cf6" },
+    { key: "kb", label: "Knowledge", color: "#3b82f6" },
+    { key: "embedded", label: "Embedded", color: "#22c55e" },
+    { key: "translations", label: "Languages", color: "#14b8a6" },
+    { key: "decisions", label: "Decisions", color: "#f97316" }
   ];
 
   series.forEach(function(s) {
     ctx.strokeStyle = s.color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = s.key === "total" ? 2.5 : 1.5;
     ctx.beginPath();
     points.forEach(function(p, i) {
+      var val = p[s.key] || 0;
       var x = pad.left + (i / (points.length - 1)) * cW;
-      var y = pad.top + cH - (p[s.key] / maxVal) * cH;
+      var y = pad.top + cH - (val / maxVal) * cH;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
 
-    /* Subtle fill */
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = s.color;
-    ctx.lineTo(pad.left + cW, pad.top + cH);
-    ctx.lineTo(pad.left, pad.top + cH);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1.0;
+    /* Subtle fill only for total line */
+    if (s.key === "total") {
+      ctx.globalAlpha = 0.06;
+      ctx.fillStyle = s.color;
+      ctx.lineTo(pad.left + cW, pad.top + cH);
+      ctx.lineTo(pad.left, pad.top + cH);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+    }
   });
 
-  /* Latest values */
+  /* Legend with latest values */
   var last = points[points.length - 1];
-  ctx.font = "bold 12px 'IBM Plex Mono', monospace";
+  ctx.font = "bold 11px 'IBM Plex Mono', monospace";
   ctx.textAlign = "right";
   var valX = W - pad.right;
-  ctx.fillStyle = "#8b5cf6";
-  ctx.fillText(last.total.toLocaleString(), valX, pad.top + 14);
-  ctx.fillStyle = "#22c55e";
-  ctx.fillText(last.embedded.toLocaleString(), valX, pad.top + 30);
-  ctx.fillStyle = "#f59e0b";
-  ctx.fillText(last.unembedded.toLocaleString(), valX, pad.top + 46);
+  series.forEach(function(s, i) {
+    var val = last[s.key] || 0;
+    ctx.fillStyle = s.color;
+    ctx.fillText(s.label + ": " + val.toLocaleString(), valX, pad.top + 14 + i * 15);
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GITHUB REPOSITORY EXPLORER
+   ══════════════════════════════════════════════════════════════ */
+
+var _explorerRepoId = null;
+var _explorerRepoName = "";
+
+function openRepoExplorer(repoId, repoName) {
+  _explorerRepoId = repoId;
+  _explorerRepoName = repoName;
+
+  // Hide repo list sections, show explorer
+  var sections = ["ghOpsTerminal", "ghRepoGrid", "ghDiscoveryResults",
+    document.querySelector(".gh-intake"),
+    document.querySelector(".cs-gh-readouts"),
+    document.querySelector(".gh-cards-header"),
+    document.querySelector(".gh-discovery")];
+
+  sections.forEach(function(el) {
+    if (typeof el === "string") el = document.getElementById(el);
+    if (el) el.style.display = "none";
+  });
+
+  var explorer = document.getElementById("ghRepoExplorer");
+  if (explorer) explorer.style.display = "block";
+
+  // Load tree and landing page
+  loadRepoTree(repoId, "", document.getElementById("ghTreeRoot"));
+  loadRepoLanding(repoId);
+  updateBreadcrumbs(repoName, "");
+
+  if (typeof lucide !== "undefined") lucide.createIcons();
+}
+
+function closeRepoExplorer() {
+  var explorer = document.getElementById("ghRepoExplorer");
+  if (explorer) explorer.style.display = "none";
+
+  // Show all hidden sections
+  var ids = ["ghOpsTerminal", "ghRepoGrid"];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = "";
+  });
+  var selectors = [".gh-intake", ".cs-gh-readouts", ".gh-cards-header", ".gh-discovery"];
+  selectors.forEach(function(sel) {
+    var el = document.querySelector("#panel-github " + sel);
+    if (el) el.style.display = "";
+  });
+
+  _explorerRepoId = null;
+  _explorerRepoName = "";
+}
+
+function _formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function loadRepoTree(repoId, path, parentEl) {
+  if (!parentEl) return;
+  parentEl.textContent = "";
+  var loading = document.createElement("div");
+  loading.className = "gh-tree-item";
+  loading.style.color = "rgba(255,255,255,0.3)";
+  loading.textContent = "Loading...";
+  parentEl.appendChild(loading);
+
+  api("/github/repo/" + repoId + "/tree?path=" + encodeURIComponent(path))
+    .then(function(data) {
+      parentEl.textContent = "";
+      if (!data.success || !data.entries) {
+        var errEl = document.createElement("div");
+        errEl.className = "gh-tree-item";
+        errEl.style.color = "#f87171";
+        errEl.textContent = data.error || "Failed to load";
+        parentEl.appendChild(errEl);
+        return;
+      }
+
+      data.entries.forEach(function(entry) {
+        var fullPath = path ? path + "/" + entry.name : entry.name;
+        var item = document.createElement("div");
+        item.className = "gh-tree-item " + entry.type;
+        item.dataset.path = fullPath;
+
+        var icon = document.createElement("span");
+        icon.className = "gh-tree-icon";
+        icon.textContent = entry.type === "dir" ? "\u25B8" : "\u00B7";
+        item.appendChild(icon);
+
+        var label = document.createElement("span");
+        label.textContent = entry.name;
+        item.appendChild(label);
+
+        if (entry.type === "file" && entry.size != null) {
+          var sz = document.createElement("span");
+          sz.className = "gh-tree-size";
+          sz.textContent = _formatFileSize(entry.size);
+          item.appendChild(sz);
+        }
+
+        parentEl.appendChild(item);
+
+        if (entry.type === "dir") {
+          var children = document.createElement("div");
+          children.className = "gh-tree-children";
+          parentEl.appendChild(children);
+
+          item.addEventListener("click", function(e) {
+            e.stopPropagation();
+            var expanded = children.classList.contains("expanded");
+            if (expanded) {
+              children.classList.remove("expanded");
+              icon.textContent = "\u25B8";
+            } else {
+              children.classList.add("expanded");
+              icon.textContent = "\u25BE";
+              if (children.childElementCount === 0) {
+                loadRepoTree(repoId, fullPath, children);
+              }
+            }
+          });
+        } else {
+          item.addEventListener("click", function(e) {
+            e.stopPropagation();
+            // Highlight active
+            var prev = document.querySelector(".gh-tree-item.active");
+            if (prev) prev.classList.remove("active");
+            item.classList.add("active");
+            loadRepoFile(repoId, fullPath);
+          });
+        }
+      });
+    })
+    .catch(function(err) {
+      parentEl.textContent = "";
+      var errEl = document.createElement("div");
+      errEl.className = "gh-tree-item";
+      errEl.style.color = "#f87171";
+      errEl.textContent = "Error: " + err;
+      parentEl.appendChild(errEl);
+    });
+}
+
+function loadRepoFile(repoId, path) {
+  var viewer = document.getElementById("ghFileViewer");
+  var landing = document.getElementById("ghLanding");
+  if (landing) landing.style.display = "none";
+  if (viewer) viewer.style.display = "block";
+
+  var header = document.getElementById("ghFileHeader");
+  var codeEl = document.getElementById("ghFileCode");
+  if (header) header.textContent = path;
+  if (codeEl) codeEl.textContent = "Loading...";
+
+  updateBreadcrumbs(_explorerRepoName, path);
+
+  api("/github/repo/" + repoId + "/file?path=" + encodeURIComponent(path))
+    .then(function(data) {
+      if (!data.success) {
+        if (codeEl) codeEl.textContent = data.error || "Failed to load file";
+        return;
+      }
+
+      if (data.binary) {
+        if (viewer) {
+          var pre = viewer.querySelector(".gh-file-content");
+          if (pre) pre.style.display = "none";
+          var existing = viewer.querySelector(".gh-binary-msg");
+          if (existing) existing.remove();
+          var msg = document.createElement("div");
+          msg.className = "gh-binary-msg";
+          msg.textContent = "Binary file (" + _formatFileSize(data.size) + ")";
+          viewer.appendChild(msg);
+        }
+        return;
+      }
+
+      // Remove binary message if present
+      var binMsg = viewer ? viewer.querySelector(".gh-binary-msg") : null;
+      if (binMsg) binMsg.remove();
+      var pre = viewer ? viewer.querySelector(".gh-file-content") : null;
+      if (pre) pre.style.display = "";
+
+      var ext = path.split(".").pop().toLowerCase();
+      if ((ext === "md" || ext === "markdown") && typeof marked !== "undefined") {
+        // Render markdown in viewer pane instead of code block
+        if (pre) pre.style.display = "none";
+        var existing = viewer.querySelector(".gh-readme-rendered");
+        if (existing) existing.remove();
+        var mdDiv = document.createElement("div");
+        mdDiv.className = "gh-readme-rendered gh-landing-readme";
+        var body = document.createElement("div");
+        body.className = "gh-readme-body";
+        body.innerHTML = marked.parse(data.content);
+        mdDiv.appendChild(body);
+        viewer.appendChild(mdDiv);
+        return;
+      }
+
+      // Remove rendered markdown if switching to code file
+      var mdRender = viewer ? viewer.querySelector(".gh-readme-rendered") : null;
+      if (mdRender) mdRender.remove();
+
+      if (codeEl) {
+        codeEl.textContent = data.content;
+        codeEl.className = data.language ? "language-" + data.language : "";
+        if (typeof hljs !== "undefined") {
+          hljs.highlightElement(codeEl);
+        }
+      }
+
+      if (data.truncated && header) {
+        header.textContent = path + " (truncated — " + _formatFileSize(data.size) + ")";
+      }
+    })
+    .catch(function(err) {
+      if (codeEl) codeEl.textContent = "Error loading file: " + err;
+    });
+}
+
+function loadRepoLanding(repoId) {
+  var landing = document.getElementById("ghLanding");
+  var viewer = document.getElementById("ghFileViewer");
+  if (viewer) viewer.style.display = "none";
+  if (!landing) return;
+  landing.style.display = "block";
+  landing.textContent = "";
+
+  var loadingEl = document.createElement("div");
+  loadingEl.style.cssText = "text-align:center; padding:40px; color:rgba(255,255,255,0.3);";
+  loadingEl.textContent = "Loading repository...";
+  landing.appendChild(loadingEl);
+
+  api("/github/repo/" + repoId + "/readme")
+    .then(function(data) {
+      landing.textContent = "";
+      if (!data.success) {
+        landing.textContent = data.error || "Failed to load";
+        return;
+      }
+
+      // Header
+      var hdr = document.createElement("div");
+      hdr.className = "gh-landing-header";
+      var h2 = document.createElement("h2");
+      h2.textContent = data.repo_name;
+      hdr.appendChild(h2);
+      if (data.repo_type) {
+        var tag = document.createElement("span");
+        tag.className = "gh-landing-type";
+        tag.textContent = data.repo_type;
+        hdr.appendChild(tag);
+      }
+      if (data.github_url) {
+        var ghLink = document.createElement("a");
+        ghLink.href = data.github_url;
+        ghLink.target = "_blank";
+        ghLink.textContent = "GitHub";
+        ghLink.style.cssText = "margin-left:auto; font-size:0.75rem; color:#a78bfa; text-decoration:none; border:1px solid rgba(139,92,246,0.3); padding:4px 10px; border-radius:4px;";
+        hdr.appendChild(ghLink);
+      }
+      landing.appendChild(hdr);
+
+      // Description
+      if (data.description) {
+        var descEl = document.createElement("div");
+        descEl.style.cssText = "font-size:0.82rem; color:rgba(255,255,255,0.6); margin-bottom:16px; line-height:1.5;";
+        descEl.textContent = data.description;
+        landing.appendChild(descEl);
+      }
+
+      // Stats
+      if (data.stats) {
+        var statsGrid = document.createElement("div");
+        statsGrid.className = "gh-landing-stats";
+        var statItems = [
+          { value: (data.stats.files || 0).toLocaleString(), label: "Files" },
+          { value: (data.stats.directories || 0).toLocaleString(), label: "Directories" },
+          { value: _formatFileSize(data.stats.total_size || 0), label: "Total Size" }
+        ];
+        statItems.forEach(function(s) {
+          var box = document.createElement("div");
+          box.className = "gh-landing-stat";
+          var val = document.createElement("div");
+          val.className = "gh-landing-stat-value";
+          val.textContent = s.value;
+          box.appendChild(val);
+          var lbl = document.createElement("div");
+          lbl.className = "gh-landing-stat-label";
+          lbl.textContent = s.label;
+          box.appendChild(lbl);
+          statsGrid.appendChild(box);
+        });
+        landing.appendChild(statsGrid);
+      }
+
+      // README
+      if (data.readme) {
+        var readmeBox = document.createElement("div");
+        readmeBox.className = "gh-landing-readme";
+        var readmeTitle = document.createElement("h3");
+        readmeTitle.textContent = data.readme_file || "README";
+        readmeBox.appendChild(readmeTitle);
+        var readmeBody = document.createElement("div");
+        readmeBody.className = "gh-readme-body";
+        if (typeof marked !== "undefined") {
+          readmeBody.innerHTML = marked.parse(data.readme);
+        } else {
+          readmeBody.textContent = data.readme;
+        }
+        readmeBox.appendChild(readmeBody);
+        landing.appendChild(readmeBox);
+      } else {
+        var noReadme = document.createElement("div");
+        noReadme.style.cssText = "text-align:center; padding:40px; color:rgba(255,255,255,0.25); font-size:0.85rem;";
+        noReadme.textContent = "No README found in this repository";
+        landing.appendChild(noReadme);
+      }
+    })
+    .catch(function(err) {
+      landing.textContent = "";
+      var errEl = document.createElement("div");
+      errEl.style.cssText = "text-align:center; padding:40px; color:#f87171;";
+      errEl.textContent = "Error: " + err;
+      landing.appendChild(errEl);
+    });
+}
+
+function updateBreadcrumbs(repoName, path) {
+  var bc = document.getElementById("ghBreadcrumbs");
+  if (!bc) return;
+  bc.textContent = "";
+
+  // Repo name as root
+  var root = document.createElement("span");
+  root.className = "gh-bc-link";
+  root.textContent = repoName.split("/").pop();
+  root.addEventListener("click", function() {
+    loadRepoLanding(_explorerRepoId);
+    updateBreadcrumbs(repoName, "");
+    var active = document.querySelector(".gh-tree-item.active");
+    if (active) active.classList.remove("active");
+  });
+  bc.appendChild(root);
+
+  if (!path) return;
+
+  var parts = path.split("/");
+  parts.forEach(function(part, i) {
+    var sep = document.createElement("span");
+    sep.className = "gh-bc-sep";
+    sep.textContent = "/";
+    bc.appendChild(sep);
+
+    if (i === parts.length - 1) {
+      var current = document.createElement("span");
+      current.className = "gh-bc-current";
+      current.textContent = part;
+      bc.appendChild(current);
+    } else {
+      var link = document.createElement("span");
+      link.className = "gh-bc-link";
+      link.textContent = part;
+      var dirPath = parts.slice(0, i + 1).join("/");
+      link.addEventListener("click", (function(dp) {
+        return function() {
+          loadRepoTree(_explorerRepoId, dp, document.getElementById("ghTreeRoot"));
+          updateBreadcrumbs(repoName, dp);
+        };
+      })(dirPath));
+      bc.appendChild(link);
+    }
+  });
 }

@@ -2036,31 +2036,6 @@ window.togglePipelineTest = function() {
   refreshIcons();
 };
 
-window.testPipeline = function() {
-  var btn = document.getElementById("testPipelineBtn");
-  if (btn) btn.disabled = true;
-  setHtml("pipelineResult", '<div class="cs-loading">Testing pipeline...</div>');
-  api("/api/integration/test-pipeline", { method: "POST" }).then(function(data) {
-    if (!data.success) return;
-    var html = data.steps.map(function(s) {
-      var icon = s.status === "ok" ? "\u2713" : s.status === "warning" ? "\u26A0" : "\u2717";
-      var cls = s.status === "ok" ? "green" : s.status === "warning" ? "amber" : "red";
-      return '<div class="cs-pipeline-step ' + cls + '">' +
-        '<span class="cs-pipeline-icon">' + icon + '</span>' +
-        '<span>' + escHtml(s.step) + '</span>' +
-        (s.ms ? '<span class="cs-pipeline-ms">' + s.ms + 'ms</span>' : '') +
-        (s.model ? '<span class="cs-badge">' + escHtml(s.model) + '</span>' : '') +
-        (s.error ? '<span class="cs-error">' + escHtml(s.error) + '</span>' : '') +
-        '</div>';
-    }).join("");
-    setHtml("pipelineResult", html);
-    if (btn) btn.disabled = false;
-  }).catch(function() {
-    setHtml("pipelineResult", '<div class="cs-empty">Pipeline test failed</div>');
-    if (btn) btn.disabled = false;
-  });
-};
-
 /* ── Init ──────────────────────────────────────────── */
 
 document.addEventListener("DOMContentLoaded", function () {

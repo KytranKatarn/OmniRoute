@@ -2174,42 +2174,7 @@
                 </div>
             </div>
 
-            <!-- 7. PIPELINE TEST — LCARS Frame (cyan) -->
-            <div style="--frame-color: #00ffff; --frame-rgb: 0,255,255; margin-bottom: 20px;">
-                <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
-                    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 48px !important; gap: 4px !important;">
-                        <div class="lcars-elbow-top" style="height: 52px !important; background: #00ffff !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
-                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #00ffff !important; flex-shrink: 0 !important;"></div>
-                        <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: #8b5cf6 !important; flex-shrink: 0 !important;"></div>
-                        <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba(0,255,255,0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
-                        <div class="lcars-elbow-bottom" style="height: 36px !important; background: #00ffff !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
-                    </div>
-                    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important;">
-                        <div class="lcars-bar" style="height: 44px !important; background: #00ffff !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
-                            <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">ADR-013 PIPELINE TEST</span>
-                            <div style="flex:1"></div>
-                            <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
-                                <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
-                            </div>
-                        </div>
-                        <div class="lcars-body" style="flex: 1 !important; padding: 16px !important;">
-                            <p style="font-size:0.82rem; color:rgba(255,255,255,0.5); margin-bottom:12px;">
-                                Verify translations route through Bridge (ADR-013 compliance)
-                            </p>
-                            <div style="margin-bottom:12px;">
-                                <button id="testPipelineBtn" onclick="testPipeline()"
-                                        class="cs-ops-cmd purple" style="font-size:0.8rem;">
-                                    Test Pipeline
-                                </button>
-                            </div>
-                            <div id="pipelineResult"></div>
-                        </div>
-                        <div class="lcars-footer-bar" style="background: #00ffff !important; height: 16px !important; display: flex !important; border-radius: 0 20px 20px 0 !important; flex-shrink: 0 !important;"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 8. Last Updated -->
+            <!-- Last Updated -->
             <div class="cs-dashboard-timestamp" id="dashboardTimestamp"></div>
 
         </div>

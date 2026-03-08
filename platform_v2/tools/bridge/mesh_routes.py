@@ -418,6 +418,41 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh agent return failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
+    @bridge_bp.route("/api/mesh/agents/return-admin", methods=["POST"])
+    @login_required
+    def mesh_return_agent_admin():
+        """Hub admin returns a borrowed agent (no API key needed)."""
+        get_db_cursor = _get_db_cursor()
+        data = request.get_json(force=True) or {}
+        loan_id = data.get("loan_id")
+        if not loan_id:
+            return jsonify({"success": False, "error": "loan_id is required"}), 400
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE mesh_agent_loans
+                       SET status = 'completed', returned_at = NOW(),
+                           work_summary = COALESCE(work_summary, 'Returned by hub admin')
+                       WHERE id = %s AND status = 'active'
+                       RETURNING id""",
+                    (loan_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Loan not found or already completed",
+                            }
+                        ),
+                        404,
+                    )
+            return jsonify({"success": True, "message": "Agent returned successfully"})
+        except Exception as e:
+            logger.error(f"Mesh admin return agent failed: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bridge_bp.route("/api/mesh/agents/loans", methods=["GET"])
     @login_required
     def mesh_get_loans():
@@ -429,13 +464,18 @@ def register_mesh_routes(bridge_bp):
             with get_db_cursor(commit=False) as (conn, cur):
                 query = """
                     SELECT mal.id, mal.agent_id,
-                           mal.source_node_id, sn.node_name AS source_node_name,
-                           mal.target_node_id, tn.node_name AS target_node_name,
+                           mal.source_node_id,
+                           COALESCE(sn.node_name, mal.source_node_id) AS source_node_name,
+                           mal.target_node_id,
+                           COALESCE(tn.node_name, mal.target_node_id) AS target_node_name,
+                           na.display_name AS agent_display_name,
+                           na.name AS agent_name,
                            mal.task_description, mal.status,
                            mal.lent_at, mal.returned_at, mal.work_summary, mal.initiated_by
                     FROM mesh_agent_loans mal
-                    JOIN remote_nodes sn ON sn.node_id = mal.source_node_id
-                    JOIN remote_nodes tn ON tn.node_id = mal.target_node_id
+                    LEFT JOIN remote_nodes sn ON sn.node_id = mal.source_node_id
+                    LEFT JOIN remote_nodes tn ON tn.node_id = mal.target_node_id
+                    LEFT JOIN node_agents na ON na.id = mal.agent_id
                 """
                 params = []
                 if status_filter:
@@ -452,6 +492,8 @@ def register_mesh_routes(bridge_bp):
                     {
                         "id": r["id"],
                         "agent_id": r["agent_id"],
+                        "agent_display_name": r["agent_display_name"],
+                        "agent_name": r["agent_name"],
                         "source_node_id": r["source_node_id"],
                         "source_node_name": r["source_node_name"],
                         "target_node_id": r["target_node_id"],

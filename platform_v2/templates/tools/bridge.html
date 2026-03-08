@@ -15602,7 +15602,7 @@ function renderNodeCard(node) {
                     <button class="reject" onclick="rejectNode('${node.node_id}')">REJECT</button>
                 ` : `
                     <button onclick="testNode(event, '${node.node_id}')">TEST</button>
-                    ${currentLoad > 0 ? '<button style="background: rgba(139,92,246,0.2); color: #a78bfa; border-color: rgba(139,92,246,0.3);" onclick="showRequestHelpModal(\'' + node.node_id + '\', \'' + escapeHtml(node.node_name || node.node_id) + '\', ' + currentLoad + ', ' + maxConcurrent + ')">HELP</button>' : ''}
+                    ${currentLoad > 0 ? '<button style="background: rgba(139,92,246,0.2); color: #a78bfa; border-color: rgba(139,92,246,0.3);" onclick="showRequestHelpModal(\'' + escapeHtml(node.node_id) + '\', \'' + escapeHtml(node.node_name || node.node_id) + '\', ' + currentLoad + ', ' + maxConcurrent + ')">HELP</button>' : ''}
                     <button onclick="showNodeDetail('${node.node_id}')">DETAIL</button>
                     <button class="danger" onclick="removeNode('${node.node_id}', '${escapeHtml(node.node_name || node.node_id)}')">REMOVE</button>
                 `}
@@ -16958,7 +16958,7 @@ function renderMeshLoans(loans) {
 async function returnMeshAgent(loanId) {
     if (!confirm('Return this agent to their home node?')) return;
     try {
-        const response = await fetch('/tools/bridge/api/mesh/agents/return', {
+        const response = await fetch('/tools/bridge/api/mesh/agents/return-admin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ loan_id: loanId })

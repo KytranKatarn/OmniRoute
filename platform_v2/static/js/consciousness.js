@@ -274,6 +274,8 @@ function loadNeuralCore() {
         _neuralCore = core;
         _loadAgentsIntoCore();
         _startKnowledgePolling();
+        _startJobPolling();
+        checkActiveJobs();
       }).catch(function(err) {
         console.warn("NeuralCore failed, falling back to HoloSphere:", err.message || err);
         _fallbackToHoloSphere(container, nodes);
@@ -329,6 +331,8 @@ function _fallbackToHoloSphere(container, nodes) {
   // Load agents and start polling even when NeuralCore failed
   _loadAgentsIntoCore();
   _startKnowledgePolling();
+  _startJobPolling();
+  checkActiveJobs();
 }
 
 function _loadAgentsIntoCore() {

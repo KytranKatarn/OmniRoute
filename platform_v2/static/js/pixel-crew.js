@@ -1252,6 +1252,10 @@ var CharacterManager = {
   draw: function(ctx) {
     if (this.characters.length === 0) return;
 
+    // Character draw size: 2x native sprite for visibility on high-DPI
+    var CHAR_SCALE = 2;
+    var drawSize = TILE_SIZE * CHAR_SCALE;
+
     // Sort by row for painter's algorithm
     var sorted = this.characters.slice().sort(function(a, b) {
       return a.tileRow - b.tileRow;
@@ -1272,16 +1276,16 @@ var CharacterManager = {
       frameIdx = frameIndices[clampedFrame];
       srcX = frameIdx * sprite.frameWidth;
 
-      // Calculate pixel position with interpolation
-      px = ch.tileCol * TILE_SIZE;
-      py = ch.tileRow * TILE_SIZE;
+      // Calculate pixel position centered on tile, offset up so feet align
+      px = ch.tileCol * TILE_SIZE - (drawSize - TILE_SIZE) / 2;
+      py = ch.tileRow * TILE_SIZE - (drawSize - TILE_SIZE);
 
       // Interpolate position during walking
       if (ch.state === "walk" && ch.path.length > 0 && ch.pathIndex < ch.path.length) {
         var nextTile = ch.path[ch.pathIndex];
         if (nextTile) {
-          interpX = (nextTile.col * TILE_SIZE - px) * ch.moveProgress;
-          interpY = (nextTile.row * TILE_SIZE - py) * ch.moveProgress;
+          interpX = (nextTile.col - ch.tileCol) * TILE_SIZE * ch.moveProgress;
+          interpY = (nextTile.row - ch.tileRow) * TILE_SIZE * ch.moveProgress;
           px += interpX;
           py += interpY;
         }
@@ -1290,34 +1294,34 @@ var CharacterManager = {
       // Apply opacity
       ctx.globalAlpha = ch.opacity;
 
-      // Draw sprite (handle facing)
+      // Draw sprite at 2x size (handle facing)
       if (ch.facing === -1) {
         ctx.save();
-        ctx.translate(px + TILE_SIZE, py);
+        ctx.translate(px + drawSize, py);
         ctx.scale(-1, 1);
         ctx.drawImage(
           sprite.canvas,
           srcX, 0, sprite.frameWidth, sprite.frameHeight,
-          0, 0, TILE_SIZE, TILE_SIZE
+          0, 0, drawSize, drawSize
         );
         ctx.restore();
       } else {
         ctx.drawImage(
           sprite.canvas,
           srcX, 0, sprite.frameWidth, sprite.frameHeight,
-          px, py, TILE_SIZE, TILE_SIZE
+          px, py, drawSize, drawSize
         );
       }
 
       ctx.globalAlpha = 1.0;
 
       // Draw name label above character
-      var labelX = px + TILE_SIZE / 2;
-      var labelY = py - 4;
+      var labelX = px + drawSize / 2;
+      var labelY = py - 6;
       var stationColor = STATION_COLORS[ch.station] || "#ffffff";
       var labelText = ch.displayName;
 
-      ctx.font = "8px Antonio, sans-serif";
+      ctx.font = "bold 10px Antonio, sans-serif";
       ctx.textAlign = "center";
       var textW = ctx.measureText(labelText).width;
 

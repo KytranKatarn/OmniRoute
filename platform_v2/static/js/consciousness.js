@@ -725,11 +725,11 @@ function checkActiveJobs() {
           var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
           if (status === "completed" && (jt.indexOf("reindex") > -1 || jt.indexOf("github_index") > -1) && _continuousRun.reindex) {
             _loopNext("reindex", completedJob);
-          } else if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.ghEmbed) {
-            _loopNext("ghEmbed", completedJob);
+          } else if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.embedding) {
+            _loopNext("embedding", completedJob);
           } else {
             _enableGitHubBtns();
-            if (status === "failed") { _loopRetry("reindex"); _loopRetry("ghEmbed"); }
+            if (status === "failed") { _loopRetry("reindex"); _loopRetry("embedding"); }
           }
           setTimeout(checkActiveJobs, 500);
         });
@@ -849,6 +849,7 @@ function _disableGitHubBtnsByJobType(jobs) {
 /* ── Continuous Run (Loop) Mode ─────────────────────────── */
 var _continuousRun = {};       /* { analysis: true, reindex: true, ... } */
 var _continuousBatch = {};     /* { analysis: 3, ... } — batch counter */
+var _serverLoops = {};         /* Server-side loop state — browser defers retrigger when active */
 var _LOOP_STORAGE_KEY = "archie_consciousness_loops";
 
 function _saveLoopState() {
@@ -867,7 +868,8 @@ function _loadLoopState() {
     if (raw) {
       var saved = JSON.parse(raw);
       Object.keys(saved).forEach(function(k) {
-        if (saved[k]) {
+        /* Only restore keys that exist in _loopOps — skip removed ops like ghEmbed */
+        if (saved[k] && _loopOps[k]) {
           _continuousRun[k] = true;
           _continuousBatch[k] = 0;
         }
@@ -879,9 +881,8 @@ function _loadLoopState() {
 /* Map opKey → { startFn, btnId, idleLabel } */
 var _loopOps = {
   analysis:  { start: function() { startAnalysis(); },      btnId: "btnStartAnalysis", idle: "\u221E ANALYZE" },
-  embedding: { start: function() { generateEmbeddings(); }, btnId: "btnStartAnalysis", idle: "\u221E EMBED" },
+  embedding: { start: function() { generateEmbeddings(); }, btnId: "btnGenerateEmbed", idle: "\u221E EMBED" },
   reindex:   { start: function() { reindexAllRepos(); },    btnId: "btnReindexAll",    idle: "\u221E REINDEX" },
-  ghEmbed:   { start: function() { embedGitHubFiles(); },   btnId: "btnEmbedGH",       idle: "\u221E EMBED" },
   translate: { start: function() { langGenerateAll(); },    btnId: "langGenAllBtn",    idle: "\u221E TRANSLATE" },
   fullPass:  { start: function() { langFullPass(); },       btnId: "langFullPassBtn",  idle: "\u221E FULL PASS" }
 };
@@ -890,7 +891,7 @@ var MAX_STATION_LOOPS = 3;
 
 function _activeLoopCount() {
   var count = 0;
-  Object.keys(_continuousRun).forEach(function(k) {
+  Object.keys(_loopOps).forEach(function(k) {
     if (_continuousRun[k]) count++;
   });
   return count;
@@ -922,6 +923,7 @@ window.toggleLoop = function(opKey) {
 
 /* Sync loop state to server so it persists without the browser */
 function _syncServerLoop(opKey, enabled) {
+  _serverLoops[opKey] = enabled;
   api("/api/processing/server-loop/toggle", {
     method: "POST",
     body: { op: opKey, enabled: enabled }
@@ -929,16 +931,20 @@ function _syncServerLoop(opKey, enabled) {
 }
 
 function _updateLoopBtn(opKey) {
-  var btn = document.getElementById("loopBtn-" + opKey);
-  if (!btn) return;
+  /* Update all loop buttons for this op (may exist on multiple tabs) */
+  var ids = ["loopBtn-" + opKey, "loopBtn-" + opKey + "2"];
   var op = _loopOps[opKey];
-  if (_continuousRun[opKey]) {
-    btn.textContent = "\u25A0 STOP";
-    btn.className = "cs-ops-cmd cs-loop-active";
-  } else {
-    btn.textContent = (op && op.idle) || ("\u221E " + opKey.toUpperCase());
-    btn.className = "cs-ops-cmd cs-loop-idle";
-  }
+  ids.forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    if (_continuousRun[opKey]) {
+      btn.textContent = "\u25A0 STOP";
+      btn.className = "cs-ops-cmd cs-loop-active";
+    } else {
+      btn.textContent = (op && op.idle) || ("\u221E " + opKey.toUpperCase());
+      btn.className = "cs-ops-cmd cs-loop-idle";
+    }
+  });
 }
 
 function _isCloudJob(job) {
@@ -958,6 +964,12 @@ function _loopNext(opKey, completedJob) {
   }
   _loopFailures[opKey] = 0; /* reset failures on success */
   _continuousBatch[opKey] = (_continuousBatch[opKey] || 0) + 1;
+  /* If server loop is active for this op, let the server retrigger —
+     avoids race where browser and server both create jobs */
+  if (_serverLoops[opKey]) {
+    console.log("[Loop] " + opKey + " — server loop active, deferring to server");
+    return;
+  }
   var op = _loopOps[opKey];
   if (op) setTimeout(op.start, 2000); /* 2s pause between batches */
 }
@@ -1656,7 +1668,9 @@ function _getOpsInstance(elId) {
         statusElId: "kbOpsOnline",
         commands: [
           { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis" },
-          { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis" }
+          { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis" },
+          { label: "EMBED", cls: "green", fn: "generateEmbeddings()", id: "btnGenerateEmbed" },
+          { label: "\u221E EMBED", cls: "cs-loop-idle", fn: "toggleLoop('embedding')", id: "loopBtn-embedding" }
         ],
         onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
       });
@@ -1675,8 +1689,10 @@ function _getOpsInstance(elId) {
         commands: [
           { label: "REINDEX ALL", cls: "amber", fn: "reindexAllRepos()", id: "btnReindexAll" },
           { label: "\u221E REINDEX", cls: "cs-loop-idle", fn: "toggleLoop('reindex')", id: "loopBtn-reindex" },
-          { label: "EMBED FILES", cls: "green", fn: "embedGitHubFiles()", id: "btnEmbedGH" },
-          { label: "\u221E EMBED", cls: "cs-loop-idle", fn: "toggleLoop('ghEmbed')", id: "loopBtn-ghEmbed" },
+          { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis2" },
+          { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis2" },
+          { label: "EMBED", cls: "green", fn: "generateEmbeddings()", id: "btnGenerateEmbed2" },
+          { label: "\u221E EMBED", cls: "cs-loop-idle", fn: "toggleLoop('embedding')", id: "loopBtn-embedding2" },
           { label: "VERIFY", cls: "cyan", fn: "verifyGitHubData()" }
         ],
         onCapacityChange: function(atCap) { _stationAtCapacity = atCap; _applyStationCapacity(atCap); }
@@ -1949,42 +1965,9 @@ window.reindexAllRepos = function() {
   });
 };
 
-/* ── Embed GitHub files (Bridge job) ─────────────── */
-
-window.embedGitHubFiles = function() {
-  var btn = document.getElementById("btnEmbedGH");
-  if (btn) btn.disabled = true;
-  _disableGitHubBtns();
-  var batchNum = _continuousRun.ghEmbed ? " [batch " + ((_continuousBatch.ghEmbed || 0) + 1) + "]" : "";
-  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to embed files\u2026" + batchNum));
-
-  api("/api/processing/generate-embeddings", {
-    method: "POST",
-    body: { batch_size: 100 }
-  }).then(function(data) {
-    if (data.duplicate || data._status === 409) {
-      setHtml("ghIntakeResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Job already running")));
-      checkActiveJobs();
-      return;
-    }
-    if (data.success && data.job_id) {
-      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued" + batchNum));
-      setTimeout(checkActiveJobs, 1000);
-    } else if (data.success) {
-      setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All files already embedded")));
-      _loopExhausted("ghEmbed");
-      _enableGitHubBtns();
-    } else {
-      setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
-      _loopExhausted("ghEmbed");
-      _enableGitHubBtns();
-    }
-  }).catch(function(err) {
-    setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
-    _loopExhausted("ghEmbed");
-    _enableGitHubBtns();
-  });
-}
+/* embedGitHubFiles removed — unified into generateEmbeddings() which
+   handles all unembedded knowledge_base entries (both KB and GitHub sourced).
+   Both tabs now use the same "embedding" loop op. */
 
 /* Semantic Search (Discovery Console) */
 window.searchGithubSemantic = function() {
@@ -2111,6 +2094,7 @@ document.addEventListener("DOMContentLoaded", function () {
   api("/api/processing/server-loop/status").then(function(data) {
     if (!data.success) return;
     var serverLoops = data.loops || {};
+    _serverLoops = serverLoops;
     Object.keys(serverLoops).forEach(function(opKey) {
       if (serverLoops[opKey] && !_continuousRun[opKey]) {
         _continuousRun[opKey] = true;

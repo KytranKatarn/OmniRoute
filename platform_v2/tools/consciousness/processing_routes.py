@@ -1121,7 +1121,7 @@ def server_loop_retrigger(job_type, module_source, final_status):
     def _delayed_trigger():
         import time
 
-        time.sleep(10)  # Cooldown
+        time.sleep(3)  # Cooldown — must be faster than browser loop (2s + network)
         try:
             _trigger_loop_op(op)
         except Exception as e:
@@ -1183,7 +1183,7 @@ def _trigger_loop_op(op):
                 SELECT id, title, content
                 FROM knowledge_base
                 WHERE embedding IS NULL AND content IS NOT NULL AND LENGTH(content) > 50
-                ORDER BY created_at DESC LIMIT 50
+                ORDER BY created_at DESC LIMIT 25
                 """
             )
             items = cur.fetchall()
@@ -1198,7 +1198,7 @@ def _trigger_loop_op(op):
                 description=f"[auto-loop] Embed {len(items)} entries",
                 total_steps=len(items),
                 capability="embedding",
-                metadata={"batch_size": 50, "server_loop": True},
+                metadata={"batch_size": 25, "server_loop": True},
             )
             if not job_id:
                 logger.info("[ServerLoop] embedding: duplicate job running")

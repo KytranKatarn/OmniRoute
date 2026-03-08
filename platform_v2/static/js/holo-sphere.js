@@ -672,6 +672,46 @@ HoloSphere.prototype._fireGlitch = function() {
   }, 150);
 };
 
+/* ── Event Bridge (matches NeuralCore API) ────────── */
+
+HoloSphere.prototype.fireEvent = function(type, data) {
+  data = data || {};
+  var EVENT_COLORS = {
+    "job:started": "#f59e0b",
+    "job:completed": "#22c55e",
+    "job:failed": "#ef4444",
+    "knowledge:added": "#8b5cf6"
+  };
+
+  switch (type) {
+    case "job:started":
+      this._firePulse(EVENT_COLORS["job:started"]);
+      break;
+
+    case "job:completed":
+      this._firePulse(EVENT_COLORS["job:completed"]);
+      this._fireGlitch();
+      break;
+
+    case "job:failed":
+      this._firePulse(EVENT_COLORS["job:failed"]);
+      break;
+
+    case "knowledge:added":
+      if (data.node && this._nodeEls[data.node]) {
+        this._fireBurst(this._nodeEls[data.node]);
+        this._fireGlitch();
+      } else {
+        this._firePulse(EVENT_COLORS["knowledge:added"]);
+      }
+      break;
+  }
+};
+
+HoloSphere.prototype.addAgent = function() {
+  // Stub — HoloSphere does not render individual agents
+};
+
 /* ── Lifecycle ────────────────────────────────────── */
 
 HoloSphere.prototype.resize = function() {

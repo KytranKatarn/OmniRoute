@@ -65,6 +65,18 @@ function debounceReload(tabName, fn) {
   }, 300);
 }
 
+/* ── Visual Event Helper ──────────────────────────── */
+
+function _fireVisualEvent(type, data) {
+  if (_neuralCore) {
+    // NeuralCore.fireEvent relays to window._neuralEvents internally
+    _neuralCore.fireEvent(type, data);
+  } else {
+    if (_holoSphere && _holoSphere.fireEvent) _holoSphere.fireEvent(type, data);
+    if (window._neuralEvents) window._neuralEvents.emit(type, data);
+  }
+}
+
 /* ── API Helper ────────────────────────────────────── */
 
 function api(path, opts) {
@@ -294,16 +306,9 @@ function loadNeuralCore() {
     else if (_holoSphere) _holoSphere.setMood(mood);
   }).catch(function() {});
 
-  // Pixel Crew — independent of Neural Core
-  // Pixel Crew — init the deck (agents loaded later by _loadAgentsIntoCore)
-  try {
-    var deckEl = document.getElementById("pixelCrewDeck");
-    if (deckEl && typeof PixelCrew !== "undefined") {
-      _pixelCrew = PixelCrew.create(deckEl);
-    }
-  } catch (e) {
-    console.error("[consciousness] PixelCrew init error:", e);
-  }
+  // Pixel Crew — disabled for now (Phase 2)
+  // var deckEl = document.getElementById("pixelCrewDeck");
+  // if (deckEl && typeof PixelCrew !== "undefined") { _pixelCrew = PixelCrew.create(deckEl); }
 }
 
 function _fallbackToHoloSphere(container, nodes) {
@@ -366,13 +371,9 @@ function _startKnowledgePolling() {
       var nodeIds = ["conversations", "code", "vault", "repos", "learned", "sessions"];
       nodeIds.forEach(function(id) {
         if (newCounts[id] > (_prevKnowledgeCounts[id] || 0)) {
-          var evt = { node: id, delta: newCounts[id] - (_prevKnowledgeCounts[id] || 0) };
-          if (_neuralCore) {
-            _neuralCore.updateNode(id, { count: newCounts[id] });
-            _neuralCore.fireEvent("knowledge:added", evt);
-          } else if (window._neuralEvents) {
-            window._neuralEvents.emit("knowledge:added", evt);
-          }
+          if (_neuralCore) _neuralCore.updateNode(id, { count: newCounts[id] });
+          else if (_holoSphere) _holoSphere.updateNode(id, { count: newCounts[id] });
+          _fireVisualEvent("knowledge:added", { node: id, delta: newCounts[id] - (_prevKnowledgeCounts[id] || 0) });
         }
       });
 
@@ -635,8 +636,7 @@ function checkActiveJobs() {
           jobType: j.job_type,
           nodeId: _jobTypeToNode(j.job_type)
         };
-        if (_neuralCore) _neuralCore.fireEvent("job:started", evt);
-        else if (window._neuralEvents) window._neuralEvents.emit("job:started", evt);
+        _fireVisualEvent("job:started", evt);
       }
     });
 
@@ -649,8 +649,7 @@ function checkActiveJobs() {
           station: j.station_code,
           jobType: j.job_type
         };
-        if (_neuralCore) _neuralCore.fireEvent("job:completed", evt);
-        else if (window._neuralEvents) window._neuralEvents.emit("job:completed", evt);
+        _fireVisualEvent("job:completed", evt);
       }
     });
 

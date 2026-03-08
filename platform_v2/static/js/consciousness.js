@@ -260,8 +260,9 @@ function loadNeuralCore() {
         }
       }).then(function(core) {
         _neuralCore = core;
-        if (typeof PixelCrew !== "undefined") {
-          _pixelCrew = PixelCrew.create(document.getElementById("neuralCoreHero"));
+        var deckEl = document.getElementById("pixelCrewDeck");
+        if (deckEl && typeof PixelCrew !== "undefined") {
+          _pixelCrew = PixelCrew.create(deckEl);
         }
         _loadAgentsIntoCore();
         _startKnowledgePolling();

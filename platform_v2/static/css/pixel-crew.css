@@ -3,59 +3,34 @@
    Positioned below the WebGL Neural Core sphere in .nc-hero
    ============================================================ */
 
-/* ---- Constrain WebGL layer so deck can stack above it ---- */
-.nc-hero #neuralCore {
-  z-index: 1;
+/* ---- Deck container ---- */
+#pixelCrewDeck {
+  background: linear-gradient(
+    180deg,
+    rgba(139, 92, 246, 0.08) 0%,
+    rgba(10, 10, 30, 0.95) 15%,
+    rgba(10, 10, 30, 0.95) 100%
+  );
 }
 
 /* ---- Deck canvas ---- */
 .pc-deck {
-  position: absolute;
-  bottom: 0;
-  left: 0;
+  display: block;
   width: 100%;
-  height: 40%;
-  z-index: 4;
-  pointer-events: none;
+  height: 100%;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
 
-/* ---- Glow bridge — sphere bloom bleeds into deck ---- */
-.pc-glow-bridge {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 80px;
-  bottom: 40%;
-  z-index: 3;
-  background: radial-gradient(
-    ellipse at 50% 100%,
-    rgba(139, 92, 246, 0.15) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
-}
-
 /* ---- Responsive ---- */
 @media (max-width: 767px) {
-  .pc-deck {
-    height: 35%;
-  }
-  .pc-glow-bridge {
-    height: 40px;
+  #pixelCrewDeck {
+    height: 220px;
   }
 }
 
 @media (max-width: 500px) {
-  .pc-deck {
-    height: 30%;
-  }
-}
-
-/* ---- Reduced motion ---- */
-@media (prefers-reduced-motion: reduce) {
-  .pc-glow-bridge {
-    display: none;
+  #pixelCrewDeck {
+    height: 180px;
   }
 }

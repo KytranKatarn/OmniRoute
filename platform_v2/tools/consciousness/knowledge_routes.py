@@ -43,7 +43,7 @@ def register_knowledge_routes(bp, admin_required):
     @admin_required
     def search_knowledge():
         """Search across knowledge_base"""
-        print("🔍 [BACKEND] search_knowledge called")
+        logger.debug("[BACKEND] search_knowledge called")
 
         data = request.get_json() or {}
         query = data.get("query", "")
@@ -341,6 +341,12 @@ def register_knowledge_routes(bp, admin_required):
         directory_path = data.get("path", "/mnt/archie_brain/docs")
         category = data.get("category", "documentation")
 
+        # Security: restrict to allowed base directories
+        allowed_bases = ["/mnt/archie_brain/docs", "/mnt/archie_brain/ai_bridge", "/app"]
+        abs_dir = os.path.abspath(directory_path)
+        if not any(abs_dir.startswith(base) for base in allowed_bases):
+            return jsonify({"success": False, "error": "Access denied"}), 403
+
         conn = _get_db()
         cur = conn.cursor()
 
@@ -348,10 +354,10 @@ def register_knowledge_routes(bp, admin_required):
             files_processed = 0
             errors = []
 
-            if not os.path.exists(directory_path):
+            if not os.path.exists(abs_dir):
                 return jsonify({"success": False, "error": "Directory not found"}), 404
 
-            for root, dirs, files in os.walk(directory_path):
+            for root, dirs, files in os.walk(abs_dir):
                 for filename in files:
                     if filename.endswith((".md", ".txt", ".json", ".py", ".js", ".html", ".css")):
                         filepath = os.path.join(root, filename)
@@ -360,25 +366,26 @@ def register_knowledge_routes(bp, admin_required):
                                 content = f.read()
 
                             # Determine subcategory from path
-                            rel_path = os.path.relpath(filepath, directory_path)
+                            rel_path = os.path.relpath(filepath, abs_dir)
                             subcategory = os.path.dirname(rel_path) or "root"
 
-                            # Insert into long_term_memory
                             cur.execute(
                                 """
-                                INSERT INTO long_term_memory
-                                (content, category, tags, source_type, importance_score, metadata)
-                                VALUES (%s, %s, %s, %s, %s, %s)
+                                INSERT INTO knowledge_base
+                                (title, content, knowledge_type, source_type, tags, importance_score, metadata)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                ON CONFLICT DO NOTHING
                             """,
                                 (
-                                    content[:5000],  # Limit content size
+                                    filename,
+                                    content[:5000],
                                     category,
+                                    f"file:{rel_path}",
                                     [
                                         subcategory,
                                         os.path.splitext(filename)[1][1:],
-                                    ],  # tags
-                                    f"file:{rel_path}",
-                                    0.7,  # importance
+                                    ],
+                                    0.7,
                                     json.dumps(
                                         {
                                             "filename": filename,
@@ -427,7 +434,7 @@ def register_knowledge_routes(bp, admin_required):
             # Get all files in directory recursively
             files_info = []
 
-            for root, dirs, files in os.walk(directory_path):
+            for root, dirs, files in os.walk(abs_dir):
                 for file in files:
                     if file.startswith("."):
                         continue

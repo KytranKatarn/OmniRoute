@@ -257,147 +257,7 @@ function loadNeuralCore() {
 
 /* ── Brain Map ────────────────────────────────────── */
 
-var _brainMapColors = [
-  "rgba(139,92,246,0.6)", "rgba(59,130,246,0.6)", "rgba(34,197,94,0.6)",
-  "rgba(245,158,11,0.6)", "rgba(236,72,153,0.6)", "rgba(6,182,212,0.6)",
-  "rgba(168,85,247,0.6)", "rgba(249,115,22,0.6)", "rgba(20,184,166,0.6)",
-  "rgba(99,102,241,0.6)", "rgba(244,63,94,0.6)", "rgba(132,204,22,0.6)"
-];
-
-function loadBrainMap() {
-  api("/brain-map/data").then(function(data) {
-    if (!data.regions || !data.regions.length) {
-      setHtml("brainMapContainer", '<div class="cs-empty">No brain map data</div>');
-      return;
-    }
-
-    var total = 0;
-    data.regions.forEach(function(r) { total += r.count || 0; });
-
-    var html = '<div class="cs-brain-treemap">';
-    data.regions.forEach(function(r, i) {
-      var pct = total > 0 ? Math.max(((r.count || 0) / total) * 100, 8) : 10;
-      var color = _brainMapColors[i % _brainMapColors.length];
-      var growthStr = r.growth_7d ? "+" + r.growth_7d + " (7d)" : "";
-      html += '<div class="cs-brain-region" style="flex:' + Math.max(pct / 10, 1).toFixed(1) + '; background:' + color + ';" title="' + escHtml(r.label || r.type) + ': ' + (r.count || 0) + ' entries">' +
-        '<div class="cs-brain-region-label">' + escHtml(r.label || r.type) + '</div>' +
-        '<div class="cs-brain-region-count">' + (r.count || 0) + '</div>' +
-        (growthStr ? '<div class="cs-brain-region-growth">' + growthStr + '</div>' : '') +
-        '</div>';
-    });
-    html += '</div>';
-
-    // Connections
-    if (data.connections && data.connections.length) {
-      html += '<div class="cs-brain-connections">';
-      data.connections.slice(0, 8).forEach(function(c) {
-        html += '<span class="cs-brain-conn">' + escHtml(c.source) + ' \u2194 ' + escHtml(c.target) +
-          ' (' + (c.strength ? c.strength.toFixed(2) : '?') + ')</span>';
-      });
-      html += '</div>';
-    }
-
-    // Summary stats
-    if (data.stats) {
-      html += '<div style="margin-top:10px; font-size:0.72rem; color:rgba(255,255,255,0.4);">' +
-        'Total: ' + (data.stats.total || 0) + ' | Embedded: ' + (data.stats.embedded || 0) +
-        ' | Types: ' + (data.stats.types || 0) +
-        (data.stats.growth_7d ? ' | Growth: +' + data.stats.growth_7d + ' (7d)' : '') +
-        '</div>';
-    }
-
-    setHtml("brainMapContainer", html);
-  }).catch(function(err) {
-    console.error("loadBrainMap error:", err);
-    setHtml("brainMapContainer", '<div class="cs-empty">Brain map unavailable</div>');
-  });
-}
-
-/* ── Emotional Timeline ──────────────────────────── */
-
-var _emotionalChart = null;
-
-function loadEmotionalTimeline() {
-  api("/emotions/timeline?days=30").then(function(data) {
-    if (!data.timeline || !data.timeline.length) {
-      var canvas = document.getElementById("emotionalChart");
-      if (canvas) canvas.parentElement.innerHTML = '<div class="cs-empty" style="padding-top:80px;">No emotional data available</div>';
-      return;
-    }
-
-    var labels = [];
-    var moodScores = [];
-    var energyScores = [];
-    var stressScores = [];
-
-    data.timeline.forEach(function(entry) {
-      labels.push(entry.date || "");
-      moodScores.push(parseFloat(entry.avg_mood_score || 0).toFixed(2));
-      energyScores.push(parseFloat(entry.avg_energy || 0).toFixed(2));
-      stressScores.push(parseFloat(entry.avg_stress || 0).toFixed(2));
-    });
-
-    var ctx = document.getElementById("emotionalChart");
-    if (!ctx) return;
-
-    if (_emotionalChart) _emotionalChart.destroy();
-    _emotionalChart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "Mood",
-            data: moodScores,
-            borderColor: "#8b5cf6",
-            backgroundColor: "rgba(139,92,246,0.1)",
-            fill: true,
-            tension: 0.3,
-            pointRadius: 2
-          },
-          {
-            label: "Energy",
-            data: energyScores,
-            borderColor: "#22c55e",
-            backgroundColor: "rgba(34,197,94,0.05)",
-            fill: false,
-            tension: 0.3,
-            pointRadius: 2
-          },
-          {
-            label: "Stress",
-            data: stressScores,
-            borderColor: "#ef4444",
-            backgroundColor: "rgba(239,68,68,0.05)",
-            fill: false,
-            tension: 0.3,
-            pointRadius: 2
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { labels: { color: "rgba(255,255,255,0.6)", font: { size: 11 } } }
-        },
-        scales: {
-          x: {
-            ticks: { color: "rgba(255,255,255,0.3)", font: { size: 10 }, maxTicksLimit: 8 },
-            grid: { color: "rgba(255,255,255,0.04)" }
-          },
-          y: {
-            min: 0, max: 1,
-            ticks: { color: "rgba(255,255,255,0.3)", font: { size: 10 } },
-            grid: { color: "rgba(255,255,255,0.04)" }
-          }
-        }
-      }
-    });
-  }).catch(function(err) {
-    console.error("loadEmotionalTimeline error:", err);
-  });
-}
+/* Brain map + emotional timeline removed — data now in Bridge Command */
 
 /* ── Agent Modal ───────────────────────────────────── */
 
@@ -684,7 +544,7 @@ function checkActiveJobs() {
             _enableProcessingBtns();
             if (status === "failed") { _loopRetry("analysis"); _loopRetry("embedding"); }
           }
-          checkActiveJobs();
+          setTimeout(checkActiveJobs, 500);
         });
       }
     });
@@ -710,7 +570,7 @@ function checkActiveJobs() {
             _enableGitHubBtns();
             if (status === "failed") { _loopRetry("reindex"); _loopRetry("ghEmbed"); }
           }
-          checkActiveJobs();
+          setTimeout(checkActiveJobs, 500);
         });
       }
     });
@@ -745,7 +605,8 @@ function checkActiveJobs() {
       }
     });
   }).catch(function() {
-    /* Bridge unavailable — don't block */
+    /* Bridge unavailable — stop polling and unblock buttons */
+    _stopJobPolling();
     _enableProcessingBtns();
     _enableGitHubBtns();
   });
@@ -1032,16 +893,7 @@ window.generateEmbeddings = function() {
 
 /* ── Insights Tab ──────────────────────────────────── */
 
-window.switchInsightsSubtab = function(sub) {
-  document.querySelectorAll("#panel-insights .cs-subtab").forEach(function(b) {
-    b.classList.toggle("active", b.textContent.toLowerCase() === sub);
-  });
-  document.querySelectorAll("#panel-insights .cs-subpanel").forEach(function(p) {
-    p.classList.toggle("active", p.id === "insights-" + sub);
-  });
-  if (sub === "sessions") loadSessions();
-  if (sub === "improvements") loadImprovements();
-};
+/* switchInsightsSubtab removed — Insights sub-tabs (sessions, improvements) no longer in UI */
 
 function loadInsights() {
   api("/api/insights/summary").then(function(data) {
@@ -1056,47 +908,7 @@ function loadInsights() {
   });
 }
 
-function loadSessions() {
-  api("/sessions").then(function(data) {
-    var sessions = data.sessions || [];
-    if (!sessions.length) {
-      setHtml("sessionsList", '<div class="cs-empty">No sessions found</div>');
-      return;
-    }
-    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr><th>Session</th><th>Topic</th><th>Status</th><th>Started</th></tr></thead><tbody>';
-    sessions.slice(0, 20).forEach(function(s) {
-      html += '<tr><td>' + escHtml(s.session_name || s.primary_topic || "Session #" + s.id) + '</td>' +
-        '<td>' + escHtml(s.primary_topic || "\u2014") + '</td>' +
-        '<td><span class="cs-badge">' + escHtml(s.processing_status || "\u2014") + '</span></td>' +
-        '<td>' + formatAge(s.started_at || s.compact_triggered_at) + '</td></tr>';
-    });
-    html += '</tbody></table></div>';
-    setHtml("sessionsList", html);
-  }).catch(function() {
-    setHtml("sessionsList", '<div class="cs-empty">Sessions unavailable</div>');
-  });
-}
-
-function loadImprovements() {
-  api("/improvements").then(function(data) {
-    var items = data.improvements || data.proposals || [];
-    if (!items.length) {
-      setHtml("improvementsList", '<div class="cs-empty">No improvement proposals</div>');
-      return;
-    }
-    var html = '<div class="cs-table-wrap"><table class="cs-table"><thead><tr><th>Title</th><th>Type</th><th>Importance</th><th>Created</th></tr></thead><tbody>';
-    items.slice(0, 20).forEach(function(p) {
-      html += '<tr><td>' + escHtml(p.title || p.description || "Proposal") + '</td>' +
-        '<td><span class="cs-badge">' + escHtml(p.knowledge_type || "\u2014") + '</span></td>' +
-        '<td>' + (p.importance_score ? p.importance_score.toFixed(2) : "\u2014") + '</td>' +
-        '<td>' + formatAge(p.created_at) + '</td></tr>';
-    });
-    html += '</tbody></table></div>';
-    setHtml("improvementsList", html);
-  }).catch(function() {
-    setHtml("improvementsList", '<div class="cs-empty">Improvements unavailable</div>');
-  });
-}
+/* loadSessions / loadImprovements removed — no longer in UI */
 
 /* ── Languages Tab ─────────────────────────────────── */
 
@@ -1144,15 +956,16 @@ function loadLanguages() {
       var barColor = pct >= 100 ? "#22c55e" : pct >= 80 ? "#f59e0b" : "#f87171";
       var rowCls = pct >= 100 ? "complete" : pct >= 80 ? "warning" : "critical";
       var flag = flags[l.code] || "\ud83c\udf10";
-      html += '<div class="cs-lang-row ' + rowCls + '" id="langCard-' + l.code + '">' +
+      var safeCode = escHtml(l.code);
+      html += '<div class="cs-lang-row ' + rowCls + '" id="langCard-' + safeCode + '">' +
         '<span class="cs-lang-flag">' + flag + '</span>' +
         '<span class="cs-lang-name">' + escHtml(l.name) + '</span>' +
         '<div class="cs-lang-bar"><div class="cs-lang-bar-fill" style="width:' + pct + '%; background:' + barColor + ';"></div></div>' +
         '<span class="cs-lang-stats">' + l.translated + '/' + l.total_keys + ' (' + pct + '%)</span>';
       if (l.missing > 0) {
         html += '<span class="cs-lang-badge miss">' + l.missing + ' MISSING</span>' +
-          '<div class="cs-lang-actions"><button class="gen" onclick="langGenerateOne(\'' + l.code + '\')" ' +
-          'id="langGenBtn-' + l.code + '">Generate</button></div>';
+          '<div class="cs-lang-actions"><button class="gen" onclick="langGenerateOne(\'' + safeCode + '\')" ' +
+          'id="langGenBtn-' + safeCode + '">Generate</button></div>';
       } else {
         html += '<span class="cs-lang-badge ok">\u2713 COMPLETE</span>';
       }

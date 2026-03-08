@@ -1990,11 +1990,6 @@ def get_activity_stats():
             )
         except Exception:
             module_count = 0
-        finally:
-
-            cur.close()
-
-            conn.close()
 
         kb_total = embed_row["total"] if embed_row else 0
         footprint_total = (
@@ -2099,10 +2094,10 @@ def get_activity_stats():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 # ============================================================================
@@ -2179,6 +2174,17 @@ def memory_search():
 @admin_required
 def get_memory(memory_type, memory_id):
     """Get a specific memory by type and ID"""
+    VALID_MEMORY_TYPES = {
+        "knowledge_base",
+        "conversation_memory",
+        "vault_note",
+        "code_snippet",
+        "improvement",
+        "mistake_learned",
+    }
+    if memory_type not in VALID_MEMORY_TYPES:
+        return jsonify({"success": False, "error": "Invalid memory type"}), 400
+
     if not MEMORY_SERVICE_AVAILABLE:
         return jsonify({"success": False, "error": "Memory service not available"}), 500
 
@@ -2245,6 +2251,7 @@ def api_record_memory():
 
 @consciousness_bp.route("/save-conversation", methods=["POST"])
 @login_required
+@admin_required
 def save_conversation():
     """
     Save current conversation to consciousness (manual trigger from ARCHIE Chat)
@@ -6434,11 +6441,6 @@ def translation_tag_module():
             conn2.close()
         except Exception:
             pass
-        finally:
-
-            cur.close()
-
-            conn.close()
 
         for line in lines:
             in_skip += len(SKIP_RE_OPEN.findall(line))
@@ -7011,10 +7013,13 @@ def translation_generate():
         logger.error(f"Translation generate error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-
-        cur.close()
-
-        conn.close()
+        try:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+        except Exception:
+            pass
 
 
 @consciousness_bp.route("/api/translations/generate-async", methods=["POST"])

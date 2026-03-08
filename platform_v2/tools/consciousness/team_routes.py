@@ -39,7 +39,7 @@ def register_team_routes(bp, admin_required):
     @admin_required
     def get_team_awareness():
         """Get A.R.C.H.I.E.'s team awareness - all agents and their details"""
-        print("🧠 [BACKEND] get_team_awareness called")
+        logger.debug("get_team_awareness called")
 
         conn = _get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -128,14 +128,11 @@ def register_team_routes(bp, admin_required):
                 },
             }
 
-            print(
-                f"🧠 [BACKEND] Returning {stats['total_agents']} agents across {stats['total_departments']} departments"
-            )
+            logger.debug("Returning %s agents across %s departments", stats["total_agents"], stats["total_departments"])
             return jsonify(result)
 
         except Exception as e:
-            print("❌ [BACKEND] Error in get_team_awareness:")
-            traceback.print_exc()
+            logger.exception("Error in get_team_awareness")
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
 

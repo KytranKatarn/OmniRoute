@@ -225,6 +225,8 @@ def _get_backlog_counts() -> dict:
         "embeddings_missing": 0,
         "total": 0,
     }
+    conn = None
+    cur = None
 
     try:
         conn = get_db()
@@ -684,7 +686,19 @@ def _run_embedding_job(item_ids_and_data, job_id):
         conn.commit()
     except Exception as e:
         logger.error(f"Embedding background job failed: {e}")
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
     finally:
+        try:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+        except Exception:
+            pass
         if job_id:
             dispatcher.complete_job(job_id)
         logger.info(f"[Embedding] Job #{job_id} finished: {processed} ok, {failed} failed")

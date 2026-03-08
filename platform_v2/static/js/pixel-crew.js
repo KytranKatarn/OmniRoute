@@ -1419,12 +1419,248 @@ var CharacterManager = {
   }
 };
 
-/* ── Placeholder for Task 5 ───────────────────────── */
-/* PixelCrew class (animation loop, agent lifecycle)
-   will be added here. */
+/* ── Event Bus Helpers ────────────────────────────── */
+
+function _subscribeEvents() {
+  if (!window._neuralEvents) return;
+  var bus = window._neuralEvents;
+
+  var handlers = [
+    { event: "job:started", fn: function(data) {
+      if (data && data.agent) {
+        PixelCrew.setAgentWorking(data.agent, data.nodeId || null);
+      }
+    }},
+    { event: "job:completed", fn: function(data) {
+      if (data && data.agent) {
+        PixelCrew.celebrateAgent(data.agent);
+      }
+    }},
+    { event: "job:failed", fn: function(data) {
+      if (data && data.agent) {
+        // Flash character at reduced opacity briefly
+        var ch = CharacterManager.getCharacter(data.agent);
+        if (ch) {
+          var origOpacity = ch.opacity;
+          ch.opacity = 0.4;
+          setTimeout(function() { if (ch) ch.opacity = origOpacity; }, 300);
+        }
+        PixelCrew.setAgentIdle(data.agent);
+      }
+    }},
+    { event: "knowledge:added", fn: function() {
+      // Find nearest idle character, do a brief frame jump (head tilt effect)
+      var idle = null;
+      for (var i = 0; i < CharacterManager.characters.length; i++) {
+        if (CharacterManager.characters[i].state === "idle") {
+          idle = CharacterManager.characters[i];
+          break;
+        }
+      }
+      if (idle) {
+        // Brief look-up effect: temporarily shift to frame 1 (breathing) for 0.5s
+        var origFrame = idle.frame;
+        idle.frame = 1;
+        setTimeout(function() { if (idle.state === "idle") idle.frame = origFrame; }, 500);
+      }
+    }},
+    { event: "agent:dispatched", fn: function(data) {
+      if (data && data.agent) {
+        PixelCrew.addAgent({
+          name: data.agent.name || data.agent,
+          display_name: data.agent.display_name || data.agent.name || data.agent,
+          station: data.agent.station || "COMMAND",
+          status: "active"
+        });
+      }
+    }}
+  ];
+
+  handlers.forEach(function(h) {
+    bus.on(h.event, h.fn);
+  });
+
+  PixelCrew._eventHandlers = handlers;
+}
+
+function _unsubscribeEvents() {
+  if (!window._neuralEvents) return;
+  var bus = window._neuralEvents;
+  PixelCrew._eventHandlers.forEach(function(h) {
+    bus.off(h.event, h.fn);
+  });
+  PixelCrew._eventHandlers = [];
+}
+
+/* ── PixelCrew — Public API ──────────────────────── */
+
+var PixelCrew = {
+  _instance: null,
+  _raf: null,
+  _lastTime: 0,
+  _frameSkip: 0,
+  _eventHandlers: [],
+  _destroyed: false,
+  _visibilityHandler: null,
+
+  /**
+   * Initialise the pixel crew scene.
+   * container: the .nc-hero DOM element to render into.
+   * opts: { consoles: [...] } (optional)
+   * Returns PixelCrew on success, null if Canvas 2D unsupported.
+   */
+  create: function(container, opts) {
+    // Canvas 2D support check
+    var testCanvas = document.createElement("canvas");
+    if (!testCanvas.getContext || !testCanvas.getContext("2d")) {
+      return null;
+    }
+    testCanvas = null;
+
+    // If already created, tear down first
+    if (this._instance) {
+      this.destroy();
+    }
+
+    this._destroyed = false;
+    this._instance = this;
+
+    // 1. Init DeckRenderer
+    DeckRenderer.init(container, opts || {});
+
+    // 2. Subscribe to event bus
+    _subscribeEvents();
+
+    // 3. Start animation loop (targeting 30fps)
+    var self = this;
+
+    function _loop(timestamp) {
+      if (self._destroyed) return;
+      self._raf = requestAnimationFrame(_loop);
+
+      var dt = (timestamp - self._lastTime) / 1000;
+      self._lastTime = timestamp;
+
+      // Cap dt to avoid huge jumps (e.g. after tab switch)
+      if (dt > 0.1) dt = 0.016;
+
+      // 30fps frame skip
+      self._frameSkip += dt;
+      if (self._frameSkip < 0.033) return;
+      self._frameSkip -= 0.033;
+
+      // Update and render
+      CharacterManager.update(dt);
+      DeckRenderer.render(CharacterManager.characters, dt);
+    }
+
+    self._lastTime = performance.now();
+    self._raf = requestAnimationFrame(_loop);
+
+    // 4. Visibility change handler — pause when tab hidden
+    self._visibilityHandler = function() {
+      if (document.hidden && self._raf) {
+        cancelAnimationFrame(self._raf);
+        self._raf = null;
+      } else if (!document.hidden && !self._raf && !self._destroyed) {
+        self._lastTime = performance.now();
+        self._raf = requestAnimationFrame(_loop);
+      }
+    };
+    document.addEventListener("visibilitychange", self._visibilityHandler);
+
+    return this;
+  },
+
+  /**
+   * Add an agent character to the scene.
+   * agent: { name, display_name, station, status }
+   */
+  addAgent: function(agent) {
+    if (!agent || !agent.name) return;
+    // Don't add duplicates
+    if (CharacterManager.getCharacter(agent.name)) return;
+
+    var ch = CharacterManager.addCharacter({
+      name: agent.name,
+      displayName: agent.display_name || agent.name,
+      station: agent.station || "COMMAND",
+      status: agent.status || "active"
+    });
+
+    // If already working, go straight to working state after beam-in
+    if (agent.status === "working" && ch) {
+      ch._pendingState = "working";
+    }
+  },
+
+  /**
+   * Remove an agent from the scene (beam-out animation).
+   */
+  removeAgent: function(name) {
+    CharacterManager.removeCharacter(name);
+  },
+
+  /**
+   * Send an agent to work at a specific console node.
+   * nodeId: console id (e.g. "conversations")
+   */
+  setAgentWorking: function(name, nodeId) {
+    CharacterManager.setWorking(name, nodeId);
+  },
+
+  /**
+   * Return an agent to idle state.
+   */
+  setAgentIdle: function(name) {
+    CharacterManager.setIdle(name);
+  },
+
+  /**
+   * Play celebrate animation, then return to idle after 0.8s.
+   */
+  celebrateAgent: function(name) {
+    CharacterManager.celebrate(name);
+    setTimeout(function() {
+      CharacterManager.setIdle(name);
+    }, 800);
+  },
+
+  /**
+   * Tear down the scene and free resources.
+   */
+  destroy: function() {
+    this._destroyed = true;
+
+    // Cancel animation frame
+    if (this._raf) {
+      cancelAnimationFrame(this._raf);
+      this._raf = null;
+    }
+
+    // Unsubscribe event bus
+    _unsubscribeEvents();
+
+    // Remove visibility listener
+    if (this._visibilityHandler) {
+      document.removeEventListener("visibilitychange", this._visibilityHandler);
+      this._visibilityHandler = null;
+    }
+
+    // Clean up subsystems
+    CharacterManager.clear();
+    DeckRenderer.destroy();
+
+    // Null references
+    this._instance = null;
+    this._lastTime = 0;
+    this._frameSkip = 0;
+  }
+};
 
 /* ── Export ──────────────────────────────────────────── */
 
+window.PixelCrew = PixelCrew;
 window.PixelSpriteFactory = PixelSpriteFactory;
 window._DeckRenderer = DeckRenderer;
 window._CharacterManager = CharacterManager;

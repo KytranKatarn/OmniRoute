@@ -883,8 +883,13 @@ function renderDetail(data) {
             nameEl.className = 'sc-agent-name';
             nameEl.textContent = a.display_name || a.name;
 
-            // Model badge showing availability
-            var modelAvail = (data.models || []).some(function(m) { return m.model_name === a.model && m.is_available; });
+            // Model badge showing availability (fuzzy match: compare base name before colon/tag)
+            var agentBase = (a.model || '').split(':')[0].toLowerCase();
+            var modelAvail = (data.models || []).some(function(m) {
+                if (!m.is_available) return false;
+                var nodeBase = (m.model_name || '').split(':')[0].toLowerCase();
+                return m.model_name === a.model || (agentBase && nodeBase === agentBase);
+            });
             var mbadge = document.createElement('span');
             mbadge.className = 'sc-model-badge ' + (modelAvail ? 'available' : 'unavailable');
             mbadge.textContent = modelAvail ? 'MODEL READY' : 'MODEL OFFLINE';

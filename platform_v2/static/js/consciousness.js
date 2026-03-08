@@ -321,8 +321,9 @@ function _fallbackToHoloSphere(container, nodes) {
       }
     });
   }
-  // Load agents into PixelCrew even when NeuralCore failed
+  // Load agents and start polling even when NeuralCore failed
   _loadAgentsIntoCore();
+  _startKnowledgePolling();
 }
 
 function _loadAgentsIntoCore() {
@@ -348,7 +349,7 @@ function _loadAgentsIntoCore() {
 function _startKnowledgePolling() {
   if (_knowledgePollTimer) clearInterval(_knowledgePollTimer);
   _knowledgePollTimer = setInterval(function() {
-    if (!_neuralCore) return;
+    if (!_neuralCore && !_pixelCrew) return;
     api("/api/dashboard/summary").then(function(data) {
       if (!data.success) return;
       var kb = data.knowledge || {};
@@ -365,8 +366,13 @@ function _startKnowledgePolling() {
       var nodeIds = ["conversations", "code", "vault", "repos", "learned", "sessions"];
       nodeIds.forEach(function(id) {
         if (newCounts[id] > (_prevKnowledgeCounts[id] || 0)) {
-          _neuralCore.updateNode(id, { count: newCounts[id] });
-          _neuralCore.fireEvent("knowledge:added", { node: id, delta: newCounts[id] - (_prevKnowledgeCounts[id] || 0) });
+          var evt = { node: id, delta: newCounts[id] - (_prevKnowledgeCounts[id] || 0) };
+          if (_neuralCore) {
+            _neuralCore.updateNode(id, { count: newCounts[id] });
+            _neuralCore.fireEvent("knowledge:added", evt);
+          } else if (window._neuralEvents) {
+            window._neuralEvents.emit("knowledge:added", evt);
+          }
         }
       });
 
@@ -615,38 +621,40 @@ function checkActiveJobs() {
       return j.module_source && j.module_source.indexOf("consciousness") === 0;
     });
 
-    /* ── Neural Core event detection ── */
-    if (_neuralCore) {
-      var currentJobIds = {};
-      (data.jobs || []).forEach(function(j) { currentJobIds[j.id] = j; });
+    /* ── Event detection (Neural Core + Pixel Crew via EventBus) ── */
+    var currentJobIds = {};
+    (data.jobs || []).forEach(function(j) { currentJobIds[j.id] = j; });
 
-      // Detect newly started jobs
-      Object.keys(currentJobIds).forEach(function(id) {
-        if (!_prevJobState[id]) {
-          var j = currentJobIds[id];
-          _neuralCore.fireEvent("job:started", {
-            agent: j.agent_name,
-            station: j.station_code,
-            jobType: j.job_type,
-            nodeId: _jobTypeToNode(j.job_type)
-          });
-        }
-      });
+    // Detect newly started jobs
+    Object.keys(currentJobIds).forEach(function(id) {
+      if (!_prevJobState[id]) {
+        var j = currentJobIds[id];
+        var evt = {
+          agent: j.agent_name,
+          station: j.station_code,
+          jobType: j.job_type,
+          nodeId: _jobTypeToNode(j.job_type)
+        };
+        if (_neuralCore) _neuralCore.fireEvent("job:started", evt);
+        else if (window._neuralEvents) window._neuralEvents.emit("job:started", evt);
+      }
+    });
 
-      // Detect completed/removed jobs
-      Object.keys(_prevJobState).forEach(function(id) {
-        if (!currentJobIds[id]) {
-          var j = _prevJobState[id];
-          _neuralCore.fireEvent("job:completed", {
-            agent: j.agent_name,
-            station: j.station_code,
-            jobType: j.job_type
-          });
-        }
-      });
+    // Detect completed/removed jobs
+    Object.keys(_prevJobState).forEach(function(id) {
+      if (!currentJobIds[id]) {
+        var j = _prevJobState[id];
+        var evt = {
+          agent: j.agent_name,
+          station: j.station_code,
+          jobType: j.job_type
+        };
+        if (_neuralCore) _neuralCore.fireEvent("job:completed", evt);
+        else if (window._neuralEvents) window._neuralEvents.emit("job:completed", evt);
+      }
+    });
 
-      _prevJobState = currentJobIds;
-    }
+    _prevJobState = currentJobIds;
 
     /* Build station status from ALL running jobs */
     _renderStationStatus(data.jobs || [], myJobs);

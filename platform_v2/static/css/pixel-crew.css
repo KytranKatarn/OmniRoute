@@ -3,6 +3,11 @@
    Positioned below the WebGL Neural Core sphere in .nc-hero
    ============================================================ */
 
+/* ---- Constrain WebGL layer so deck can stack above it ---- */
+.nc-hero #neuralCore {
+  z-index: 1;
+}
+
 /* ---- Deck canvas ---- */
 .pc-deck {
   position: absolute;
@@ -10,7 +15,7 @@
   left: 0;
   width: 100%;
   height: 40%;
-  z-index: 3;
+  z-index: 4;
   pointer-events: none;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -23,7 +28,7 @@
   right: 0;
   height: 80px;
   bottom: 40%;
-  z-index: 2;
+  z-index: 3;
   background: radial-gradient(
     ellipse at 50% 100%,
     rgba(139, 92, 246, 0.15) 0%,

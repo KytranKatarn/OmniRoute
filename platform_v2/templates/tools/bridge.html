@@ -8604,6 +8604,7 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                     </div>
                     <div class="mesh-header-stats">
                         <span class="stat"><span id="mesh-loans-count">0</span> <span data-i18n="bridge.nodes.loans">Loans</span></span>
+                        <span class="stat"><span id="mesh-available-count">0</span> Available</span>
                         <span class="stat"><span id="mesh-learning-count">0</span> <span data-i18n="bridge.nodes.learnings">Learnings</span></span>
                     </div>
                     <button class="btn-add-node" onclick="showAddNodeModal()" data-i18n="bridge.nodes.add">+ Add Node</button>
@@ -10049,7 +10050,7 @@ function switchBridgeTab(tabName) {
     }
     if (tabName === 'dispatch') { startDispatchRefresh(); } else { stopDispatchRefresh(); }
     if (tabName === 'crew') { startCrewRefresh(); } else { stopCrewRefresh(); }
-    if (tabName === 'network') { loadNodes(); loadModelAvailability(); }
+    if (tabName === 'network') { loadNodes(); loadModelAvailability(); loadMeshLoans(); loadMeshLearning(); loadMeshAvailableAgents(); }
     // Re-render Lucide icons for any new content
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -15601,6 +15602,7 @@ function renderNodeCard(node) {
                     <button class="reject" onclick="rejectNode('${node.node_id}')">REJECT</button>
                 ` : `
                     <button onclick="testNode(event, '${node.node_id}')">TEST</button>
+                    ${currentLoad > 0 ? '<button style="background: rgba(139,92,246,0.2); color: #a78bfa; border-color: rgba(139,92,246,0.3);" onclick="showRequestHelpModal(\'' + node.node_id + '\', \'' + escapeHtml(node.node_name || node.node_id) + '\', ' + currentLoad + ', ' + maxConcurrent + ')">HELP</button>' : ''}
                     <button onclick="showNodeDetail('${node.node_id}')">DETAIL</button>
                     <button class="danger" onclick="removeNode('${node.node_id}', '${escapeHtml(node.node_name || node.node_id)}')">REMOVE</button>
                 `}
@@ -16870,16 +16872,296 @@ function formatMeshAge(isoStr) {
     return ArchieTime.age(isoStr);
 }
 
+// ============================================================================
+// MESH DATA LOADING + RENDERING (Tasks 2-6)
+// ============================================================================
+
+async function loadMeshLoans() {
+    try {
+        const response = await fetch('/tools/bridge/api/mesh/agents/loans');
+        const data = await response.json();
+        if (data.success) renderMeshLoans(data.loans || []);
+    } catch (error) { console.error('Error loading mesh loans:', error); }
+}
+
+async function loadMeshLearning() {
+    try {
+        const response = await fetch('/tools/bridge/api/mesh/learning');
+        const data = await response.json();
+        if (data.success) renderMeshLearning(data.patterns || []);
+    } catch (error) { console.error('Error loading mesh learning:', error); }
+}
+
+async function loadMeshAvailableAgents() {
+    try {
+        const response = await fetch('/tools/bridge/api/mesh/agents/available');
+        const data = await response.json();
+        if (data.success) {
+            window._meshAvailableAgents = data.available_agents || [];
+            window._meshSummary = data.summary || {};
+            updateMeshHeaderStats(data.summary);
+        }
+    } catch (error) { console.error('Error loading mesh available agents:', error); }
+}
+
+function updateMeshHeaderStats(summary) {
+    if (!summary) return;
+    const loansEl = document.getElementById('mesh-loans-count');
+    const availEl = document.getElementById('mesh-available-count');
+    if (loansEl && summary.active_loans !== undefined) loansEl.textContent = summary.active_loans;
+    if (availEl && summary.total_available !== undefined) availEl.textContent = summary.total_available;
+}
+
+function renderMeshLoans(loans) {
+    const container = document.getElementById('mesh-loans-container');
+    if (!container) return;
+
+    // Update accordion header with active count
+    const activeLoans = loans.filter(l => l.status === 'active');
+    const subCount = document.getElementById('mesh-loans-sub-count');
+    if (subCount) subCount.textContent = activeLoans.length + ' active';
+
+    if (loans.length === 0) {
+        container.innerHTML = '<div class="mesh-empty-state">No agent loans recorded. Use Request Help on a node card to borrow an idle agent.</div>';
+        return;
+    }
+
+    let html = `<table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+        <thead>
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1); color:var(--archie-text-muted);">
+                <th style="text-align:left; padding:6px 8px;">Agent</th>
+                <th style="text-align:left; padding:6px 8px;">Source → Target</th>
+                <th style="text-align:left; padding:6px 8px;">Status</th>
+                <th style="text-align:left; padding:6px 8px;">Duration</th>
+                <th style="text-align:right; padding:6px 8px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    loans.forEach(loan => {
+        const statusColor = loan.status === 'active' ? '#00ff41' : (loan.status === 'returned' ? '#888' : '#ffaa00');
+        html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+            <td style="padding:6px 8px; color:#e0e0e0;">${escapeHtml(loan.agent_display_name || loan.agent_name || 'Unknown')}</td>
+            <td style="padding:6px 8px; color:var(--archie-text-muted);">${escapeHtml(loan.source_node_name || loan.source_node_id || '?')} → ${escapeHtml(loan.target_node_name || loan.target_node_id || '?')}</td>
+            <td style="padding:6px 8px;"><span style="color:${statusColor}; font-weight:600;">${escapeHtml(loan.status || 'unknown')}</span></td>
+            <td style="padding:6px 8px; color:var(--archie-text-muted);">${loan.created_at ? formatMeshAge(loan.created_at) : '—'}</td>
+            <td style="padding:6px 8px; text-align:right;">
+                ${loan.status === 'active' ? '<button onclick="returnMeshAgent(' + loan.id + ')" style="padding:3px 10px; font-size:0.7rem; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:3px; cursor:pointer;">Return</button>' : ''}
+            </td>
+        </tr>`;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+async function returnMeshAgent(loanId) {
+    if (!confirm('Return this agent to their home node?')) return;
+    try {
+        const response = await fetch('/tools/bridge/api/mesh/agents/return', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loan_id: loanId })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast('Agent returned successfully', 'success');
+            loadMeshLoans();
+            loadMeshAvailableAgents();
+        } else {
+            showToast('Failed to return agent: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Error returning mesh agent:', error);
+        showToast('Error returning agent', 'error');
+    }
+}
+
+function renderMeshLearning(patterns) {
+    const container = document.getElementById('mesh-learnings-container');
+    if (!container) return;
+
+    // Update accordion header with count
+    const subCount = document.getElementById('mesh-learning-sub-count');
+    if (subCount) subCount.textContent = patterns.length + ' patterns';
+
+    // Update header stat
+    const countEl = document.getElementById('mesh-learning-count');
+    if (countEl) countEl.textContent = patterns.length;
+
+    if (patterns.length === 0) {
+        container.innerHTML = '<div class="mesh-empty-state">No learning patterns shared yet.</div>';
+        return;
+    }
+
+    const typeColors = {
+        optimization: '#00ff41',
+        error_pattern: '#ef4444',
+        performance: '#00e5ff',
+        security: '#ffaa00'
+    };
+
+    let html = '';
+    patterns.forEach(p => {
+        const color = typeColors[p.type] || '#888';
+        html += `<div style="padding:10px 12px; margin-bottom:6px; background:rgba(255,255,255,0.03); border-radius:6px; border-left:3px solid ${color};">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                <span style="font-size:0.65rem; padding:2px 6px; border-radius:3px; background:${color}22; color:${color}; font-weight:600; text-transform:uppercase;">${escapeHtml(p.type || 'unknown')}</span>
+                ${p.category ? '<span style="font-size:0.7rem; color:var(--archie-text-muted);">' + escapeHtml(p.category) + '</span>' : ''}
+            </div>
+            <div style="font-size:0.8rem; color:#e0e0e0; margin-bottom:4px;">${escapeHtml(p.insight || p.description || 'No details')}</div>
+            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--archie-text-muted);">
+                ${p.metric ? '<span>Metric: ' + escapeHtml(String(p.metric)) + '</span>' : '<span></span>'}
+                <span>${p.created_at ? formatMeshAge(p.created_at) : ''}</span>
+            </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function showRequestHelpModal(targetNodeId, targetNodeName, currentLoad, maxConcurrent) {
+    const agents = window._meshAvailableAgents || [];
+    // Filter out agents from the target node
+    const available = agents.filter(a => a.node_id !== targetNodeId);
+
+    // Group agents by node
+    const byNode = {};
+    available.forEach(a => {
+        const nid = a.node_id || 'unknown';
+        if (!byNode[nid]) byNode[nid] = { name: a.node_name || nid, agents: [] };
+        byNode[nid].agents.push(a);
+    });
+
+    let agentsHtml = '';
+    if (Object.keys(byNode).length === 0) {
+        agentsHtml = '<div class="mesh-empty-state" style="padding:20px; text-align:center; color:var(--archie-text-muted);">No agents available from other nodes right now.</div>';
+    } else {
+        Object.entries(byNode).forEach(([nid, group]) => {
+            agentsHtml += `<div style="margin-bottom:12px;">
+                <div style="font-size:0.75rem; color:var(--archie-text-muted); margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.08);">
+                    <i data-lucide="server" style="width:12px;height:12px;display:inline;"></i> ${escapeHtml(group.name)}
+                </div>`;
+            group.agents.forEach(a => {
+                const stationBadges = (a.station_codes || []).map(s => '<span style="font-size:0.6rem; padding:1px 4px; background:rgba(0,255,255,0.1); color:#00e5ff; border-radius:2px;">' + escapeHtml(s) + '</span>').join(' ');
+                const privacyIcon = a.privacy_level !== 'open' ? ' <i data-lucide="shield" style="width:11px;height:11px;display:inline;color:#ffaa00;" title="Privacy: ' + escapeHtml(a.privacy_level || 'restricted') + '"></i>' : '';
+                agentsHtml += `<label style="display:flex; align-items:flex-start; gap:8px; padding:8px; margin:4px 0; background:rgba(255,255,255,0.03); border-radius:4px; cursor:pointer;">
+                    <input type="checkbox" class="mesh-agent-cb" value="${a.agent_id}" data-source-node="${escapeHtml(nid)}" style="margin-top:3px;">
+                    <div style="flex:1;">
+                        <div style="font-size:0.8rem; color:#e0e0e0;">${escapeHtml(a.display_name || a.name)}${privacyIcon}</div>
+                        <div style="font-size:0.7rem; color:var(--archie-text-muted);">${escapeHtml(a.title || '')} · ${escapeHtml(a.model || 'unknown')}</div>
+                        <div style="margin-top:3px;">${stationBadges}</div>
+                    </div>
+                </label>`;
+            });
+            agentsHtml += '</div>';
+        });
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'node-modal-overlay active';
+    modal.innerHTML = `
+        <div class="node-modal" style="max-width: 560px;">
+            <h2 style="display:flex; align-items:center; gap:8px;">
+                <i data-lucide="life-buoy"></i> Request Help
+            </h2>
+            <div style="margin-bottom:12px; padding:10px; background:rgba(139,92,246,0.1); border-radius:6px; border:1px solid rgba(139,92,246,0.2);">
+                <div style="font-size:0.8rem; color:#a78bfa; margin-bottom:4px;">Target: <strong>${escapeHtml(targetNodeName)}</strong></div>
+                <div style="font-size:0.75rem; color:var(--archie-text-muted);">Current load: ${currentLoad} / ${maxConcurrent}</div>
+            </div>
+
+            <div style="margin-bottom:12px;">
+                <label style="font-size:0.75rem; color:var(--archie-text-muted); display:block; margin-bottom:4px;">Available Agents from Other Nodes</label>
+                <div style="max-height:280px; overflow-y:auto;" id="mesh-help-agents-list">
+                    ${agentsHtml}
+                </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label style="font-size:0.75rem; color:var(--archie-text-muted); display:block; margin-bottom:4px;">Task Description (optional)</label>
+                <textarea id="mesh-help-task-desc" style="width:100%; min-height:60px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#e0e0e0; padding:8px; font-size:0.8rem; resize:vertical;" placeholder="Describe what help is needed..."></textarea>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button onclick="this.closest('.node-modal-overlay').remove()"
+                        style="padding:8px 16px; background:var(--archie-border-default); border:none; color:var(--archie-text-secondary); border-radius:4px; cursor:pointer;">
+                    Cancel
+                </button>
+                ${Object.keys(byNode).length > 0 ? '<button onclick="submitHelpRequest(\'' + targetNodeId + '\')" style="padding:8px 16px; background:rgba(139,92,246,0.3); border:1px solid rgba(139,92,246,0.4); color:#a78bfa; border-radius:4px; cursor:pointer; font-weight:600;">Send Request</button>' : ''}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function submitHelpRequest(targetNodeId) {
+    const checkboxes = document.querySelectorAll('.mesh-agent-cb:checked');
+    if (checkboxes.length === 0) {
+        alert('Please select at least one agent.');
+        return;
+    }
+
+    const taskDesc = (document.getElementById('mesh-help-task-desc') || {}).value || '';
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const cb of checkboxes) {
+        try {
+            const response = await fetch('/tools/bridge/api/mesh/agents/lend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agent_id: parseInt(cb.value),
+                    source_node_id: cb.dataset.sourceNode,
+                    target_node_id: targetNodeId,
+                    task_description: taskDesc
+                })
+            });
+            const data = await response.json();
+            if (data.success) successCount++;
+            else failCount++;
+        } catch (err) {
+            console.error('Error lending agent:', err);
+            failCount++;
+        }
+    }
+
+    // Close modal
+    const overlay = document.querySelector('.node-modal-overlay.active');
+    if (overlay) overlay.remove();
+
+    // Refresh mesh data
+    loadMeshLoans();
+    loadMeshAvailableAgents();
+
+    if (failCount === 0) {
+        showToast(successCount + ' agent(s) dispatched successfully', 'success');
+    } else {
+        showToast(successCount + ' dispatched, ' + failCount + ' failed', 'warning');
+    }
+}
+
 // Load nodes, models, dispatch, and crew on page load (stations loaded separately via main init)
 document.addEventListener('DOMContentLoaded', function() {
     loadNodes();
     loadModelAvailability();
     loadDispatchActivity();
     loadCrewManifest();
+    loadMeshLoans();
+    loadMeshLearning();
+    loadMeshAvailableAgents();
     setInterval(loadNodes, 30000);
     setInterval(loadModelAvailability, 60000);
     setInterval(loadDispatchActivity, 15000);
     setInterval(loadCrewManifest, 15000);
+    setInterval(loadMeshLoans, 30000);
+    setInterval(loadMeshLearning, 60000);
+    setInterval(loadMeshAvailableAgents, 30000);
 });
 
 // ============================================================================

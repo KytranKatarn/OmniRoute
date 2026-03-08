@@ -131,6 +131,7 @@ def _generate_node_crew(node_int_id, node_id):
             JOIN node_station_assignments nsa ON nsa.station_id = bs.id
                 AND nsa.node_id = %s AND nsa.is_active = true
             WHERE a.status = 'active'
+                AND a.is_cloneable = true
             GROUP BY a.id
             """,
             (node_int_id,),

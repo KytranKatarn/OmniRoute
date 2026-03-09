@@ -615,8 +615,8 @@ def _handle_agent_config(config, payload):
                     agent.get("display_name", agent["name"]),
                     agent.get("model", "mistral:latest"),
                     agent.get("system_prompt", ""),
-                    json.dumps(agent.get("station_codes", [])),
-                    json.dumps(agent.get("capabilities", [])),
+                    list(agent.get("station_codes", [])),
+                    [json.dumps(c) if isinstance(c, dict) else str(c) for c in agent.get("capabilities", [])],
                 ),
             )
             saved += 1

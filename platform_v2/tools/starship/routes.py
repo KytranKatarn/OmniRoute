@@ -983,6 +983,173 @@ def api_node_crew_manifest(node_id):
         return jsonify({"success": True, "crew": manifest})
 
 
+@starship_bp.route("/api/nodes/<int:node_id>/agents/<int:agent_id>/profile")
+@login_required
+def api_node_agent_profile(node_id, agent_id):
+    """Get full agent profile — proxies to hub agent via hub_agent_id."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Get hub_agent_id from node_agents
+            cur.execute(
+                "SELECT hub_agent_id FROM node_agents WHERE id = %s AND node_id = %s",
+                (agent_id, node_id),
+            )
+            na = cur.fetchone()
+            if not na or not na["hub_agent_id"]:
+                return jsonify({"success": False, "error": "Agent not linked to hub"}), 404
+            hub_id = na["hub_agent_id"]
+
+            # Agent details (same query pattern as Bridge)
+            cur.execute(
+                """
+                SELECT a.id, a.name, a.first_name, a.last_name, a.title,
+                       a.department, a.bio, a.model, a.status, a.avatar_url,
+                       a.pronouns, a.worker_type, a.cost_tier, a.capabilities,
+                       a.created_at, a.last_used,
+                       bs.station_code, bs.station_name, bs.color as station_color
+                FROM agents a
+                LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                WHERE a.id = %s
+                """,
+                (hub_id,),
+            )
+            agent = cur.fetchone()
+            if not agent:
+                return jsonify({"success": False, "error": "Hub agent not found"}), 404
+            for k in ["created_at", "last_used"]:
+                if agent.get(k):
+                    agent[k] = agent[k].isoformat()
+
+            # Skills
+            cur.execute(
+                """
+                SELECT skill_name, skill_category, proficiency_level, notes
+                FROM agent_skills WHERE agent_id = %s
+                ORDER BY proficiency_level DESC, skill_name
+                """,
+                (hub_id,),
+            )
+            skills = cur.fetchall()
+
+            # Emotional state (latest)
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, stress_level, energy_level,
+                       trigger_event, timestamp
+                FROM agent_emotional_state WHERE agent_id = %s
+                ORDER BY timestamp DESC LIMIT 1
+                """,
+                (hub_id,),
+            )
+            emotional = cur.fetchone()
+            if emotional and emotional.get("timestamp"):
+                emotional["timestamp"] = emotional["timestamp"].isoformat()
+
+            # Performance (24h)
+            cur.execute(
+                """
+                SELECT COUNT(*) as tasks_24h,
+                       COUNT(*) FILTER (WHERE success = TRUE) as completed,
+                       COUNT(*) FILTER (WHERE success = FALSE) as failed,
+                       COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+                FROM task_execution_log
+                WHERE agent_id = %s AND created_at >= NOW() - INTERVAL '24 hours'
+                """,
+                (hub_id,),
+            )
+            perf = cur.fetchone()
+
+            # Identity traits
+            cur.execute(
+                """
+                SELECT identity_key, identity_value, confidence
+                FROM agent_identity WHERE agent_id = %s ORDER BY identity_key
+                """,
+                (hub_id,),
+            )
+            identity = cur.fetchall()
+
+            # Voice profile
+            cur.execute(
+                """
+                SELECT profile_name, engine, language, speaker
+                FROM agent_voice_profiles
+                WHERE agent_id = %s AND is_active = true LIMIT 1
+                """,
+                (hub_id,),
+            )
+            voice = cur.fetchone()
+
+            # Emotional history (last 10)
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, energy_level, stress_level,
+                       trigger_event, timestamp
+                FROM agent_emotional_state
+                WHERE agent_id = %s ORDER BY timestamp DESC LIMIT 10
+                """,
+                (hub_id,),
+            )
+            emotional_history = cur.fetchall()
+            for eh in emotional_history:
+                if eh.get("timestamp"):
+                    eh["timestamp"] = eh["timestamp"].isoformat()
+
+            # Rest cycles (last 5)
+            cur.execute(
+                """
+                SELECT rest_type, started_at, ended_at, reason,
+                       stress_at_start, energy_at_start
+                FROM agent_rest_cycles WHERE agent_id = %s
+                ORDER BY started_at DESC LIMIT 5
+                """,
+                (hub_id,),
+            )
+            rest_cycles = cur.fetchall()
+            for rc in rest_cycles:
+                for k in ["started_at", "ended_at"]:
+                    if rc.get(k):
+                        rc[k] = rc[k].isoformat()
+
+            # Memory highlights (top 5)
+            cur.execute(
+                """
+                SELECT memory_type, content, importance_score, source_module, created_at
+                FROM agent_memory
+                WHERE agent_id = %s AND is_deleted = FALSE
+                ORDER BY importance_score DESC NULLS LAST LIMIT 5
+                """,
+                (hub_id,),
+            )
+            memories = cur.fetchall()
+            for m in memories:
+                if m.get("created_at"):
+                    m["created_at"] = m["created_at"].isoformat()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "agent": dict(agent),
+                    "skills": [dict(s) for s in skills],
+                    "emotional_state": dict(emotional) if emotional else None,
+                    "emotional_history": [dict(eh) for eh in emotional_history],
+                    "identity": [dict(i) for i in identity],
+                    "voice": dict(voice) if voice else None,
+                    "rest_cycles": [dict(rc) for rc in rest_cycles],
+                    "performance_24h": {
+                        "tasks": perf["tasks_24h"],
+                        "completed": perf["completed"],
+                        "failed": perf["failed"],
+                        "avg_duration_ms": round(float(perf["avg_duration_ms"]), 1),
+                    },
+                    "memories": [dict(m) for m in memories],
+                }
+            )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # NODE SETUP / ONBOARDING
 # ============================================================================

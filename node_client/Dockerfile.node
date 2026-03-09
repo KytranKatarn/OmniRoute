@@ -1,0 +1,9 @@
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir flask psycopg2-binary requests
+
+WORKDIR /app
+COPY node_sync.py node_api.py ./
+COPY migrations/ ./migrations/
+
+CMD ["python3", "-u", "node_sync.py"]

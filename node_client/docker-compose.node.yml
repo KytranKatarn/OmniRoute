@@ -1,15 +1,13 @@
 ###############################################################################
-# A.R.C.H.I.E. Starship Node - Docker Compose
+# A.R.C.H.I.E. Starship Node - Docker Compose (Phase 1)
 # ============================================================================
-# 2-service stack: Ollama LLM engine + sync/heartbeat agent
-# The starship contributes compute back to the Archie Starbase.
-# Users access Archie's platform directly — no local UI.
+# 4-service stack: Ollama + Postgres + sync_service + node_api
 #
 # Required env vars (set in .env):
 #   NODE_ID, HUB_URL, HUB_API_KEY
 #
 # Optional:
-#   OLLAMA_PORT (default 11434)
+#   OLLAMA_PORT (default 11434), DB_PASSWORD, NODE_API_PORT (default 3001)
 ###############################################################################
 
 services:
@@ -41,29 +39,71 @@ services:
     networks:
       - starship_net
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: archie_starship_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: archie_node
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-archie_node_default}
+      POSTGRES_DB: archie_node
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archie_node"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - starship_net
+
   sync:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.node
     container_name: archie_starship_sync
     restart: unless-stopped
     depends_on:
       ollama:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     environment:
       NODE_ID: ${NODE_ID}
       HUB_URL: ${HUB_URL}
       HUB_API_KEY: ${HUB_API_KEY}
       OLLAMA_HOST: http://ollama:11434
+      DATABASE_URL: postgresql://archie_node:${DB_PASSWORD:-archie_node_default}@postgres:5432/archie_node
       HEARTBEAT_INTERVAL: "30"
+      SYNC_POLL_INTERVAL: "60"
       DEPLOYMENT_MODE: "starship"
-    volumes:
-      - ./node_sync.py:/app/node_sync.py:ro
-    working_dir: /app
     command: ["python3", "-u", "node_sync.py"]
+    networks:
+      - starship_net
+
+  node_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: archie_starship_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://archie_node:${DB_PASSWORD:-archie_node_default}@postgres:5432/archie_node
+      OLLAMA_HOST: http://ollama:11434
+      NODE_ID: ${NODE_ID}
+    command: ["python3", "-u", "node_api.py"]
+    ports:
+      - "${NODE_API_PORT:-3001}:3001"
     networks:
       - starship_net
 
 volumes:
   ollama_data:
+  pg_data:
 
 networks:
   starship_net:

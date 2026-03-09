@@ -651,7 +651,7 @@ def api_update_privacy(node_id):
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             "UPDATE remote_nodes SET privacy_settings = %s WHERE node_id = %s",
-            (psycopg2.Json(settings), node_id),
+            (json.dumps(settings), node_id),
         )
     return jsonify({"success": True, "privacy_settings": settings})
 
@@ -687,7 +687,7 @@ def api_node_privacy(node_id):
 
         cur.execute(
             "UPDATE remote_nodes SET privacy_settings = %s WHERE id = %s",
-            (psycopg2.Json(settings), node_id),
+            (json.dumps(settings), node_id),
         )
 
         return jsonify({"success": True, "privacy": settings})
@@ -1490,7 +1490,7 @@ def api_push_agent_config(node_id):
                 VALUES (%s, 'agent_config', %s, 'sent', NOW())
                 RETURNING id
                 """,
-                (node_id_str, psycopg2.Json(payload)),
+                (node_id_str, json.dumps(payload)),
             )
             sync_row = cur.fetchone()
 
@@ -1557,7 +1557,7 @@ def api_push_code_update(node_id):
                 VALUES (%s, 'code_update', %s, 'sent', NOW())
                 RETURNING id
                 """,
-                (node_id_str, psycopg2.Json(payload)),
+                (node_id_str, json.dumps(payload)),
             )
             sync_row = cur.fetchone()
 

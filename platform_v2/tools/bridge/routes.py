@@ -3990,9 +3990,65 @@ def get_node_sync_service():
     return jsonify({"success": False, "error": "Sync service script not found"}), 404
 
 
+@bridge_bp.route("/api/nodes/Dockerfile.node", methods=["GET"])
+def get_node_dockerfile():
+    """Serve the node Dockerfile"""
+    script_path = "/mnt/archie_brain/node_client/Dockerfile.node"
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            content = f.read()
+        from flask import Response
+
+        return Response(
+            content,
+            mimetype="text/plain",
+            headers={"Content-Disposition": "attachment; filename=Dockerfile.node"},
+        )
+    return jsonify({"success": False, "error": "Dockerfile.node not found"}), 404
+
+
+@bridge_bp.route("/api/nodes/node_api.py", methods=["GET"])
+def get_node_api_service():
+    """Serve the node API service script"""
+    script_path = "/mnt/archie_brain/node_client/node_api.py"
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            content = f.read()
+        from flask import Response
+
+        return Response(
+            content,
+            mimetype="text/x-python",
+            headers={"Content-Disposition": "attachment; filename=node_api.py"},
+        )
+    return jsonify({"success": False, "error": "node_api.py not found"}), 404
+
+
+@bridge_bp.route("/api/nodes/migrations/<filename>", methods=["GET"])
+def get_node_migration(filename):
+    """Serve node migration SQL files"""
+    import re
+
+    # Sanitize filename — only allow typical migration filenames
+    if not re.match(r"^[0-9a-zA-Z_\-]+\.sql$", filename):
+        return jsonify({"success": False, "error": "Invalid filename"}), 400
+    script_path = f"/mnt/archie_brain/node_client/migrations/{filename}"
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            content = f.read()
+        from flask import Response
+
+        return Response(
+            content,
+            mimetype="application/sql",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    return jsonify({"success": False, "error": f"Migration {filename} not found"}), 404
+
+
 @bridge_bp.route("/api/nodes/archie-node-latest.tar.gz", methods=["GET"])
 def serve_node_image():
-    """Serve the pre-built node Docker image tarball"""
+    """Serve the pre-built node Docker image tarball (legacy fallback)"""
     from flask import send_file
 
     # Check multiple locations: node_client dir (mounted in container) and /tmp (host builds)
@@ -4010,8 +4066,7 @@ def serve_node_image():
             jsonify(
                 {
                     "success": False,
-                    "error": "Node image not built yet. Run: "
-                    "docker save archie-node:latest | gzip > /mnt/archie_brain/node_client/archie-node-latest.tar.gz",
+                    "error": "Node image not built yet. Nodes now build locally from Dockerfile.node.",
                 }
             ),
             404,

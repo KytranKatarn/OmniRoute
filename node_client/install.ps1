@@ -501,6 +501,17 @@ function Install-DockerStack {
         return
     }
 
+    # --- Download Dockerfile.node ---
+    $dockerfileUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/Dockerfile.node"
+    Write-Info "Downloading Dockerfile.node..."
+    try {
+        Invoke-WebRequest -Uri $dockerfileUrl -OutFile (Join-Path $deployDir "Dockerfile.node") -UseBasicParsing
+        Write-Ok "Downloaded Dockerfile.node"
+    } catch {
+        Write-Fail "Failed to download Dockerfile.node: $_"
+        return
+    }
+
     # --- Download node_sync.py ---
     $syncUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/node_sync.py"
     Write-Info "Downloading node_sync.py..."
@@ -512,28 +523,44 @@ function Install-DockerStack {
         return
     }
 
-    # --- Download and load node Docker image ---
-    $imageUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/archie-node-latest.tar.gz"
-    Write-Info "Downloading node Docker image (this may take several minutes)..."
+    # --- Download node_api.py ---
+    $apiUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/node_api.py"
+    Write-Info "Downloading node_api.py..."
     try {
-        Invoke-WebRequest -Uri $imageUrl -OutFile (Join-Path $deployDir "archie-node-latest.tar.gz") -UseBasicParsing
-        Write-Ok "Downloaded node image tarball"
+        Invoke-WebRequest -Uri $apiUrl -OutFile (Join-Path $deployDir "node_api.py") -UseBasicParsing
+        Write-Ok "Downloaded node_api.py"
     } catch {
-        Write-Fail "Failed to download node image: $_"
+        Write-Fail "Failed to download node_api.py: $_"
         return
     }
 
-    Write-Info "Loading Docker image..."
+    # --- Download migrations ---
+    $migrationsDir = Join-Path $deployDir "migrations"
+    if (-not (Test-Path $migrationsDir)) {
+        New-Item -ItemType Directory -Path $migrationsDir -Force | Out-Null
+    }
+    $migrationUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/migrations/001_node_schema.sql"
+    Write-Info "Downloading migrations/001_node_schema.sql..."
     try {
-        & docker load -i (Join-Path $deployDir "archie-node-latest.tar.gz")
-        Write-Ok "Loaded archie-node:latest image"
+        Invoke-WebRequest -Uri $migrationUrl -OutFile (Join-Path $migrationsDir "001_node_schema.sql") -UseBasicParsing
+        Write-Ok "Downloaded migration schema"
     } catch {
-        Write-Fail "Failed to load Docker image: $_"
+        Write-Fail "Failed to download migration: $_"
         return
     }
 
-    # Clean up tarball
-    Remove-Item (Join-Path $deployDir "archie-node-latest.tar.gz") -Force -ErrorAction SilentlyContinue
+    # --- Build node Docker image ---
+    Write-Info "Building node Docker image (this may take a minute)..."
+    try {
+        Push-Location $deployDir
+        & docker compose build --no-cache
+        Pop-Location
+        Write-Ok "Built node containers"
+    } catch {
+        Pop-Location
+        Write-Fail "Failed to build Docker image: $_"
+        return
+    }
 
     # --- Generate credentials and detect host ---
     $dbPassword = -join ((1..32) | ForEach-Object { [char](Get-Random -Minimum 33 -Maximum 126) })
@@ -576,8 +603,9 @@ DEPLOYMENT_MODE=business_node
 
     # --- Print Docker stack info ---
     Write-Host ""
-    Write-Host "      --- Full-Stack Deployment Active ---" -ForegroundColor Green
-    Write-Host "      Platform:   http://${hostIP}:3000"     -ForegroundColor White
+    Write-Host "      --- Full-Stack Deployment Active (4 containers) ---" -ForegroundColor Green
+    Write-Host "      Containers: ollama, postgres, sync, node_api" -ForegroundColor White
+    Write-Host "      Node API:   http://${hostIP}:3001"     -ForegroundColor White
     Write-Host "      Ollama:     http://${hostIP}:$OLLAMA_PORT" -ForegroundColor White
     Write-Host "      Compose:    $deployDir\docker-compose.yml" -ForegroundColor White
     Write-Host "      Env File:   $envPath"                  -ForegroundColor White
@@ -618,8 +646,8 @@ Write-Host "  Ollama:     http://localhost:$OLLAMA_PORT"  -ForegroundColor White
 Write-Host "  Config:     $ARCHIE_DIR\config.json"       -ForegroundColor White
 Write-Host "  Heartbeat:  Scheduled task running"        -ForegroundColor White
 if ($fullStackDeployed) {
-    Write-Host "  Mode:       Full-stack (Docker)"       -ForegroundColor White
-    Write-Host "  Platform:   http://${dockerHostIP}:3000" -ForegroundColor White
+    Write-Host "  Mode:       Full-stack (4 containers: ollama, postgres, sync, node_api)" -ForegroundColor White
+    Write-Host "  Node API:   http://${dockerHostIP}:3001" -ForegroundColor White
     Write-Host "  Compose:    $dockerDeployDir\docker-compose.yml" -ForegroundColor White
 } else {
     Write-Host "  Mode:       Ollama-only"               -ForegroundColor White

@@ -419,24 +419,35 @@ install_docker_stack() {
     curl -fsSL "${COMPOSE_URL}" -o "${DEPLOY_DIR}/docker-compose.yml"
     success "Downloaded docker-compose.yml"
 
+    # --- Download Dockerfile.node ---
+    DOCKERFILE_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/Dockerfile.node"
+    info "Downloading Dockerfile.node from ${DOCKERFILE_URL}..."
+    curl -fsSL "${DOCKERFILE_URL}" -o "${DEPLOY_DIR}/Dockerfile.node"
+    success "Downloaded Dockerfile.node"
+
     # --- Download node_sync.py ---
     SYNC_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/node_sync.py"
     info "Downloading node_sync.py from ${SYNC_URL}..."
     curl -fsSL "${SYNC_URL}" -o "${DEPLOY_DIR}/node_sync.py"
     success "Downloaded node_sync.py"
 
-    # --- Download and load node Docker image ---
-    IMAGE_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/archie-node-latest.tar.gz"
-    info "Downloading node Docker image (this may take several minutes)..."
-    curl -fsSL "${IMAGE_URL}" -o "${DEPLOY_DIR}/archie-node-latest.tar.gz"
-    success "Downloaded node image tarball"
+    # --- Download node_api.py ---
+    API_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/node_api.py"
+    info "Downloading node_api.py from ${API_URL}..."
+    curl -fsSL "${API_URL}" -o "${DEPLOY_DIR}/node_api.py"
+    success "Downloaded node_api.py"
 
-    info "Loading Docker image..."
-    docker load < "${DEPLOY_DIR}/archie-node-latest.tar.gz"
-    success "Loaded archie-node:latest image"
+    # --- Download migrations ---
+    mkdir -p "${DEPLOY_DIR}/migrations"
+    MIGRATION_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/migrations/001_node_schema.sql"
+    info "Downloading migrations/001_node_schema.sql..."
+    curl -fsSL "${MIGRATION_URL}" -o "${DEPLOY_DIR}/migrations/001_node_schema.sql"
+    success "Downloaded migration schema"
 
-    # Clean up tarball to save disk space
-    rm -f "${DEPLOY_DIR}/archie-node-latest.tar.gz"
+    # --- Build node Docker image ---
+    info "Building node Docker image (this may take a minute)..."
+    (cd "${DEPLOY_DIR}" && docker compose build --no-cache)
+    success "Built node containers"
 
     # --- Generate credentials and detect host ---
     DB_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
@@ -467,8 +478,9 @@ DOTENV
 
     # --- Print Docker stack info ---
     echo ""
-    echo -e "  ${GREEN}${BOLD}--- Full-Stack Deployment Active ---${NC}"
-    echo -e "  ${BOLD}Platform:${NC}    http://${HOST_IP}:3000"
+    echo -e "  ${GREEN}${BOLD}--- Full-Stack Deployment Active (4 containers) ---${NC}"
+    echo -e "  ${BOLD}Containers:${NC}  ollama, postgres, sync, node_api"
+    echo -e "  ${BOLD}Node API:${NC}    http://${HOST_IP}:3001"
     echo -e "  ${BOLD}Ollama:${NC}      http://${HOST_IP}:11434"
     echo -e "  ${BOLD}Compose:${NC}     ${DEPLOY_DIR}/docker-compose.yml"
     echo -e "  ${BOLD}Env File:${NC}    ${DEPLOY_DIR}/.env"
@@ -492,8 +504,8 @@ print_summary() {
     echo -e "  ${BOLD}Config:${NC}      /etc/archie-node/config.json"
     echo -e "  ${BOLD}Heartbeat:${NC}   systemctl status archie-node-heartbeat"
     if [ "${FULL_STACK_DEPLOYED}" = true ]; then
-        echo -e "  ${BOLD}Mode:${NC}        Full-stack (Docker)"
-        echo -e "  ${BOLD}Platform:${NC}    http://${HOST_IP:-$LOCAL_IP}:3000"
+        echo -e "  ${BOLD}Mode:${NC}        Full-stack (4 containers: ollama, postgres, sync, node_api)"
+        echo -e "  ${BOLD}Node API:${NC}    http://${HOST_IP:-$LOCAL_IP}:3001"
         echo -e "  ${BOLD}Compose:${NC}     /opt/archie-node/docker-compose.yml"
     else
         echo -e "  ${BOLD}Mode:${NC}        Ollama-only"

@@ -145,6 +145,56 @@ def get_db_connection(cursor_factory=None):
             conn.close()  # _PooledConnection.close() → putconn
 
 
+def check_fleet_model_unique(cur, model, exclude_agent_id=None, exclude_node_agent_id=None):
+    """Check if a model is already in use by any agent across the fleet.
+
+    Args:
+        cur: Database cursor
+        model: Model name to check
+        exclude_agent_id: Hub agent ID to exclude (for updates)
+        exclude_node_agent_id: Node agent ID to exclude (for updates)
+
+    Returns:
+        (is_unique: bool, conflict_msg: str or None)
+    """
+    if not model:
+        return True, None
+
+    # Check hub agents
+    if exclude_agent_id:
+        cur.execute(
+            "SELECT id, name, display_name FROM agents WHERE model = %s AND id != %s AND status = 'active' LIMIT 1",
+            (model, exclude_agent_id),
+        )
+    else:
+        cur.execute(
+            "SELECT id, name, display_name FROM agents WHERE model = %s AND status = 'active' LIMIT 1",
+            (model,),
+        )
+    conflict = cur.fetchone()
+    if conflict:
+        who = conflict.get("display_name") or conflict.get("name")
+        return False, f"Model '{model}' is already assigned to hub agent {who}"
+
+    # Check node agents
+    if exclude_node_agent_id:
+        cur.execute(
+            "SELECT id, name, display_name FROM node_agents WHERE model = %s AND id != %s AND status = 'active' LIMIT 1",
+            (model, exclude_node_agent_id),
+        )
+    else:
+        cur.execute(
+            "SELECT id, name, display_name FROM node_agents WHERE model = %s AND status = 'active' LIMIT 1",
+            (model,),
+        )
+    conflict = cur.fetchone()
+    if conflict:
+        who = conflict.get("display_name") or conflict.get("name")
+        return False, f"Model '{model}' is already assigned to node agent {who}"
+
+    return True, None
+
+
 @contextmanager
 def get_db_cursor(cursor_factory=RealDictCursor, commit=True):
     """

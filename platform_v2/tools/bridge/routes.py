@@ -23,7 +23,7 @@ from flask_login import login_required, current_user
 from rbac import require_permission, Permission
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from database import get_db_cursor
+from database import get_db_cursor, check_fleet_model_unique
 import requests
 
 try:
@@ -824,6 +824,11 @@ def create_agent():
 
     try:
         with get_db_cursor() as (conn, cur):
+            # Fleet-wide unique model constraint
+            is_unique, conflict = check_fleet_model_unique(cur, model)
+            if not is_unique:
+                return jsonify({"success": False, "error": conflict}), 409
+
             cur.execute(
                 """
                 INSERT INTO agents (
@@ -903,6 +908,12 @@ def update_agent(agent_id):
                 row = cur.fetchone()
                 if row:
                     old_model = row["model"]
+
+                # Fleet-wide unique model constraint (skip if model unchanged)
+                if new_model != old_model:
+                    is_unique, conflict = check_fleet_model_unique(cur, new_model, exclude_agent_id=agent_id)
+                    if not is_unique:
+                        return jsonify({"success": False, "error": conflict}), 409
 
             cur.execute(
                 f"UPDATE agents SET {', '.join(sets)} WHERE id = %s RETURNING id, name, first_name, last_name, model, status",

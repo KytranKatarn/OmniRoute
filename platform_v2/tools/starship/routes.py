@@ -12,7 +12,7 @@ import secrets
 
 from flask import Blueprint, render_template, jsonify, request, send_file
 from flask_login import login_required, current_user
-from database import get_db_cursor
+from database import get_db_cursor, check_fleet_model_unique
 
 # SaaS module to station mapping for agent recommendations
 MODULE_STATION_MAP = {
@@ -1200,6 +1200,13 @@ def api_update_node_agent(node_id, agent_id):
             if not agent:
                 return jsonify({"success": False, "error": "Agent not found"}), 404
 
+            # Fleet-wide unique model constraint
+            new_model = data.get("model")
+            if new_model:
+                is_unique, conflict = check_fleet_model_unique(cur, new_model, exclude_node_agent_id=agent_id)
+                if not is_unique:
+                    return jsonify({"success": False, "error": conflict}), 409
+
             # Update fields
             new_version = (agent["config_version"] or 1) + 1
             cur.execute(
@@ -1471,6 +1478,11 @@ def _add_single_agent_to_node(node_int_id, node_id_str, agent_id):
         )
         if cur.fetchone():
             return False, "Agent already on this node", None
+
+        # Fleet-wide unique model constraint
+        is_unique, conflict = check_fleet_model_unique(cur, agent["model"])
+        if not is_unique:
+            return False, conflict, None
 
         # Get all used name combos to avoid dupes
         cur.execute("SELECT first_name, last_name FROM node_agents")

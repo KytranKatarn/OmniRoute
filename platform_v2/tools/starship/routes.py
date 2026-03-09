@@ -848,6 +848,87 @@ def api_node_stations_live(node_id):
         return jsonify({"success": True, "stations": stations})
 
 
+@starship_bp.route("/api/nodes/<int:node_id>/crew-manifest")
+@login_required
+def api_node_crew_manifest(node_id):
+    """Return node agents in Bridge manifest-compatible format for rich card rendering."""
+    with get_db_cursor() as (conn, cur):
+        # Get all node agents
+        cur.execute(
+            """
+            SELECT na.id as agent_id, na.name, na.display_name as full_name,
+                   na.title, na.model, na.status,
+                   na.station_codes, na.is_allowed as allowed
+            FROM node_agents na
+            WHERE na.node_id = %s
+            ORDER BY na.name
+            """,
+            (node_id,),
+        )
+        agents = cur.fetchall()
+
+        # Get node's Ollama models for LLM readiness check
+        cur.execute(
+            "SELECT node_id FROM remote_nodes WHERE id = %s",
+            (node_id,),
+        )
+        node_row = cur.fetchone()
+        if not node_row:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        # Get available models on this node
+        cur.execute(
+            """
+            SELECT model_name, is_available
+            FROM node_ollama_models
+            WHERE node_id = %s
+            """,
+            (node_row["node_id"],),
+        )
+        models = cur.fetchall()
+        available_models = {m["model_name"].split(":")[0].lower() for m in models if m["is_available"]}
+        available_exact = {m["model_name"] for m in models if m["is_available"]}
+
+        # Get station colors
+        cur.execute("SELECT station_code, color FROM bridge_stations")
+        station_colors = {s["station_code"]: s["color"] for s in cur.fetchall()}
+
+        manifest = []
+        for a in agents:
+            agent_model = a["model"] or ""
+            agent_base = agent_model.split(":")[0].lower()
+
+            # Determine LLM readiness
+            if agent_model in available_exact or agent_base in available_models:
+                llm_status = "loaded"
+            else:
+                llm_status = "barracked"
+
+            codes = a["station_codes"] or []
+            colors = [station_colors.get(c, "#00e5ff") for c in codes]
+
+            manifest.append(
+                {
+                    "agent_id": a["agent_id"],
+                    "name": a["name"],
+                    "full_name": a["full_name"] or a["name"],
+                    "title": a["title"] or "",
+                    "model": agent_model,
+                    "status": "active" if a["status"] == "active" else "idle",
+                    "llm_status": llm_status,
+                    "station": codes[0] if codes else "UNASSIGNED",
+                    "station_codes": codes,
+                    "station_colors": colors,
+                    "allowed": bool(a["allowed"]) if a["allowed"] is not None else True,
+                    "wellness": {"stress": 0, "energy": 1.0, "mood": "ready"},
+                    "stats_24h": {"dispatches": 0, "success_rate": 0},
+                    "current_job": None,
+                }
+            )
+
+        return jsonify({"success": True, "crew": manifest})
+
+
 # ============================================================================
 # NODE SETUP / ONBOARDING
 # ============================================================================

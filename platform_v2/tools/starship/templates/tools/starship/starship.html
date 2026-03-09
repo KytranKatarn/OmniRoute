@@ -208,6 +208,108 @@
     .sc-fleet-count { margin-left: 0; }
     .sc-modal { width: 95%; }
 }
+
+/* Crew manifest grid — Bridge Command style cards */
+.crew-manifest-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+.crew-agent-card {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid #00e5ff;
+    border-radius: 8px;
+    padding: 12px;
+    transition: border-color 0.2s;
+}
+.crew-agent-card:hover {
+    border-color: rgba(255,255,255,0.15);
+}
+.crew-agent-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.crew-agent-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #fff;
+    font-family: 'IBM Plex Mono', monospace;
+}
+.crew-agent-badges {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.crew-status-badge {
+    font-size: 0.55rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.crew-status-badge.active {
+    background: rgba(74,222,128,0.15);
+    color: #4ade80;
+    border: 1px solid rgba(74,222,128,0.3);
+}
+.crew-status-badge.idle {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.4);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.crew-llm-badge {
+    font-size: 0.55rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.5px;
+}
+.crew-llm-badge.loaded {
+    background: rgba(74,222,128,0.15);
+    color: #4ade80;
+    border: 1px solid rgba(74,222,128,0.3);
+}
+.crew-llm-badge.barracked {
+    background: rgba(255,68,68,0.1);
+    color: #ff6b6b;
+    border: 1px solid rgba(255,68,68,0.2);
+}
+.crew-agent-meta {
+    display: flex;
+    gap: 8px;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.4);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 4px;
+}
+.crew-agent-job {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.5);
+}
+.crew-job-bar {
+    flex: 1;
+    height: 3px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.crew-job-bar-fill {
+    height: 100%;
+    background: #00e5ff;
+    border-radius: 2px;
+    transition: width 0.3s;
+}
 </style>
 
 <div class="sc-container">
@@ -470,12 +572,12 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         <!-- AGENTS TAB -->
         <div class="sc-panel" id="panel-agents">
             <div class="sc-section">
-                <h4>CREW ROSTER</h4>
+                <h4>CREW MANIFEST</h4>
                 <div class="sc-agent-summary" id="d-agent-summary"></div>
                 <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
                     Agents available to this node. Toggle access to control which crew can be dispatched here.
                 </p>
-                <div id="d-agents-list" class="sc-agent-list">
+                <div id="d-agents-manifest" class="crew-manifest-grid">
                     <span class="sc-label">Loading...</span>
                 </div>
                 <div id="agent-recommendations" style="display:none; margin-top: 20px;">
@@ -848,103 +950,172 @@ function renderDetail(data) {
 
     // Stations tab — now handled by StationOps terminals (see initStationTerminals)
 
-    // Agents tab — summary + crew roster with station-colored borders
-    var agSummary = document.getElementById('d-agent-summary');
-    agSummary.textContent = '';
-    var agAllowed = (data.agents || []).filter(function(a) { return a.allowed; }).length;
-    buildSummarySpan(agSummary, agAllowed, 'allowed');
-    buildSummarySpan(agSummary, (data.agents || []).length, 'total crew');
+    // Agents tab — manifest-style cards (fetched separately)
+    renderNodeManifest(selectedNodeDbId);
 
-    var agList = document.getElementById('d-agents-list');
-    agList.textContent = '';
-    if (data.agents && data.agents.length > 0) {
-        data.agents.forEach(function(a) {
-            var row = document.createElement('div');
-            row.className = 'sc-agent-row' + (a.allowed ? '' : ' restricted');
-            row.id = 'agent-row-' + a.id;
+async function renderNodeManifest(nodeDbId) {
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/crew-manifest');
+        var data = await resp.json();
+        if (!data.success) return;
 
-            // Color left border from first station color
-            var colors = a.station_colors || [];
-            if (colors.length > 0) {
-                row.style.borderLeftColor = colors[0];
-            }
+        var crew = data.crew || [];
+        var grid = document.getElementById('d-agents-manifest');
+        grid.textContent = '';
 
-            var avatar = document.createElement('div');
-            avatar.className = 'sc-agent-avatar';
-            avatar.textContent = a.name.substring(0, 2).toUpperCase();
-            if (colors.length > 0) {
-                avatar.style.background = colors[0] + '22';
-                avatar.style.color = colors[0];
-            }
+        var agSummary = document.getElementById('d-agent-summary');
+        agSummary.textContent = '';
+        var allowed = crew.filter(function(a) { return a.allowed; }).length;
+        var modelReady = crew.filter(function(a) { return a.llm_status === 'loaded'; }).length;
+        buildSummarySpan(agSummary, allowed, 'active');
+        buildSummarySpan(agSummary, modelReady, 'models ready');
+        buildSummarySpan(agSummary, crew.length, 'total crew');
 
-            var info = document.createElement('div');
-            info.className = 'sc-agent-info';
-            var nameEl = document.createElement('div');
-            nameEl.className = 'sc-agent-name';
-            nameEl.textContent = a.display_name || a.name;
-
-            // Model badge showing availability (fuzzy match: compare base name before colon/tag)
-            var agentBase = (a.model || '').split(':')[0].toLowerCase();
-            var modelAvail = (data.models || []).some(function(m) {
-                if (!m.is_available) return false;
-                var nodeBase = (m.model_name || '').split(':')[0].toLowerCase();
-                return m.model_name === a.model || (agentBase && nodeBase === agentBase);
-            });
-            var mbadge = document.createElement('span');
-            mbadge.className = 'sc-model-badge ' + (modelAvail ? 'available' : 'unavailable');
-            mbadge.textContent = modelAvail ? 'MODEL READY' : 'MODEL OFFLINE';
-            nameEl.appendChild(mbadge);
-
-            var meta = document.createElement('div');
-            meta.className = 'sc-agent-meta';
-            meta.textContent = a.title || a.model || 'No model';
-
-            var tags = document.createElement('div');
-            tags.className = 'sc-agent-stations';
-            (a.station_codes || []).forEach(function(sc, i) {
-                var tag = document.createElement('span');
-                tag.className = 'sc-agent-station-tag';
-                tag.textContent = sc;
-                if (colors[i]) {
-                    tag.style.borderColor = colors[i] + '44';
-                    tag.style.color = colors[i];
-                }
-                tags.appendChild(tag);
-            });
-            info.appendChild(nameEl);
-            info.appendChild(meta);
-            info.appendChild(tags);
-
-            var toggle = document.createElement('label');
-            toggle.className = 'sc-switch';
-            var input = document.createElement('input');
-            input.type = 'checkbox';
-            input.checked = a.allowed;
-            input.onchange = function() { toggleAgentAccess(a.id, input.checked, row); };
-            var slider = document.createElement('span');
-            slider.className = 'slider';
-            toggle.appendChild(input);
-            toggle.appendChild(slider);
-
-            var removeBtn = document.createElement('button');
-            removeBtn.className = 'sc-btn-small';
-            removeBtn.style.cssText = 'background:rgba(255,68,68,0.15);color:#ff4444;border:1px solid rgba(255,68,68,0.3);margin-right:8px;font-size:0.7rem;padding:3px 8px;';
-            removeBtn.textContent = 'REMOVE';
-            removeBtn.setAttribute('data-agent-id', a.id);
-            removeBtn.onclick = (function(agentId) { return function() { removeAgentFromNode(agentId); }; })(a.id);
-
-            row.appendChild(avatar);
-            row.appendChild(info);
-            row.appendChild(removeBtn);
-            row.appendChild(toggle);
-            agList.appendChild(row);
+        crew.forEach(function(agent) {
+            grid.appendChild(_renderStarshipAgentCard(agent));
         });
-    } else {
-        var empty = document.createElement('span');
-        empty.className = 'sc-label';
-        empty.textContent = 'No agents available.';
-        agList.appendChild(empty);
+
+        if (crew.length === 0) {
+            var empty = document.createElement('span');
+            empty.className = 'sc-label';
+            empty.textContent = 'No agents assigned to this node.';
+            grid.appendChild(empty);
+        }
+    } catch (e) {
+        console.error('Manifest load failed:', e);
     }
+}
+
+function _renderStarshipAgentCard(agent) {
+    var card = document.createElement('div');
+    card.className = 'crew-agent-card';
+    card.setAttribute('data-station', agent.station);
+
+    var colors = agent.station_colors || [];
+    if (colors.length > 0) {
+        card.style.borderLeftColor = colors[0];
+    }
+
+    // Top row: name + badges
+    var top = document.createElement('div');
+    top.className = 'crew-agent-top';
+
+    var name = document.createElement('span');
+    name.className = 'crew-agent-name';
+    name.textContent = agent.full_name || agent.name;
+
+    var badges = document.createElement('div');
+    badges.className = 'crew-agent-badges';
+
+    // Status badge
+    var statusBadge = document.createElement('span');
+    statusBadge.className = 'crew-status-badge ' + agent.status;
+    statusBadge.textContent = agent.status.toUpperCase();
+    badges.appendChild(statusBadge);
+
+    // LLM readiness badge
+    var llmBadge = document.createElement('span');
+    if (agent.llm_status === 'loaded') {
+        llmBadge.className = 'crew-llm-badge loaded';
+        llmBadge.textContent = 'MODEL READY';
+        llmBadge.title = 'Model available on this node';
+    } else {
+        llmBadge.className = 'crew-llm-badge barracked';
+        llmBadge.textContent = 'MODEL OFFLINE';
+        llmBadge.title = 'Model not available on this node';
+    }
+    badges.appendChild(llmBadge);
+
+    // Sharing badge
+    var shareBadge = document.createElement('span');
+    shareBadge.className = 'crew-status-badge ' + (agent.allowed ? 'active' : 'idle');
+    shareBadge.textContent = agent.allowed ? 'ENABLED' : 'DISABLED';
+    badges.appendChild(shareBadge);
+
+    top.appendChild(name);
+    top.appendChild(badges);
+    card.appendChild(top);
+
+    // Callsign subtitle
+    if (agent.full_name && agent.full_name !== agent.name) {
+        var subtitle = document.createElement('div');
+        subtitle.style.cssText = 'font-size: 0.6rem; color: rgba(255,255,255,0.35); margin-top: -2px;';
+        subtitle.textContent = agent.name + (agent.title ? ' \u2014 ' + agent.title : '');
+        card.appendChild(subtitle);
+    }
+
+    // Meta row: station + model
+    var meta = document.createElement('div');
+    meta.className = 'crew-agent-meta';
+
+    var stationSpan = document.createElement('span');
+    stationSpan.textContent = agent.station;
+    if (colors.length > 0) stationSpan.style.color = colors[0];
+    meta.appendChild(stationSpan);
+
+    var modelSpan = document.createElement('span');
+    modelSpan.textContent = (agent.model || '').replace(':latest', '');
+    meta.appendChild(modelSpan);
+
+    card.appendChild(meta);
+
+    // Station tags
+    if (agent.station_codes && agent.station_codes.length > 0) {
+        var tagsRow = document.createElement('div');
+        tagsRow.style.cssText = 'display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px;';
+        agent.station_codes.forEach(function(sc, i) {
+            var tag = document.createElement('span');
+            tag.className = 'sc-agent-station-tag';
+            tag.textContent = sc;
+            var c = (agent.station_colors || [])[i];
+            if (c) { tag.style.borderColor = c + '44'; tag.style.color = c; }
+            tagsRow.appendChild(tag);
+        });
+        card.appendChild(tagsRow);
+    }
+
+    // Active job progress bar (if any)
+    if (agent.current_job) {
+        var jobRow = document.createElement('div');
+        jobRow.className = 'crew-agent-job';
+        var jobDesc = document.createElement('span');
+        jobDesc.textContent = agent.current_job.description || 'Working...';
+        jobDesc.style.cssText = 'max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+        var jobBar = document.createElement('div');
+        jobBar.className = 'crew-job-bar';
+        var jobFill = document.createElement('div');
+        jobFill.className = 'crew-job-bar-fill';
+        jobFill.style.width = Math.min(agent.current_job.progress_pct || 0, 100) + '%';
+        jobBar.appendChild(jobFill);
+        jobRow.appendChild(jobDesc);
+        jobRow.appendChild(jobBar);
+        card.appendChild(jobRow);
+    }
+
+    // Action buttons
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display: flex; justify-content: flex-end; margin-top: 6px; gap: 6px;';
+
+    var removeBtn = document.createElement('button');
+    removeBtn.className = 'sc-btn-small';
+    removeBtn.style.cssText = 'background:rgba(255,68,68,0.15);color:#ff4444;border:1px solid rgba(255,68,68,0.3);font-size:0.6rem;padding:2px 6px;';
+    removeBtn.textContent = 'REMOVE';
+    removeBtn.onclick = (function(id) { return function(e) { e.stopPropagation(); removeAgentFromNode(id); }; })(agent.agent_id);
+    actions.appendChild(removeBtn);
+
+    var toggleBtn = document.createElement('button');
+    toggleBtn.className = 'sc-btn-small';
+    toggleBtn.style.cssText = agent.allowed
+        ? 'background:rgba(0,229,255,0.15);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);font-size:0.6rem;padding:2px 6px;'
+        : 'background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.3);border:1px solid rgba(255,255,255,0.1);font-size:0.6rem;padding:2px 6px;';
+    toggleBtn.textContent = agent.allowed ? 'DISABLE' : 'ENABLE';
+    toggleBtn.onclick = (function(id, allowed) { return function(e) { e.stopPropagation(); toggleAgentAccess(id, !allowed); }; })(agent.agent_id, agent.allowed);
+    actions.appendChild(toggleBtn);
+
+    card.appendChild(actions);
+
+    return card;
+}
 
     // Models tab — summary + enhanced cards with family/params/stats
     var modSummary = document.getElementById('d-model-summary');

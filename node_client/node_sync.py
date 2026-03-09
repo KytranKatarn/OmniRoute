@@ -34,6 +34,18 @@ except ImportError:
     import urllib.error
 
 # ---------------------------------------------------------------------------
+# Optional psycopg2 import — needed for local DB operations
+# ---------------------------------------------------------------------------
+try:
+    import psycopg2
+    import psycopg2.extras
+
+    _HAS_PSYCOPG2 = True
+except ImportError:
+    psycopg2 = None
+    _HAS_PSYCOPG2 = False
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 logging.basicConfig(
@@ -114,6 +126,28 @@ def load_config():
     config["hub_url"] = config["hub_url"].rstrip("/")
 
     return config
+
+
+# ---------------------------------------------------------------------------
+# Local Database Helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_node_db():
+    """Get a connection to the local node database (if available)."""
+    if not _HAS_PSYCOPG2:
+        logger.warning("psycopg2 not installed — local DB operations disabled")
+        return None
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return None
+    try:
+        conn = psycopg2.connect(db_url)
+        conn.autocommit = False
+        return conn
+    except Exception as e:
+        logger.error("Failed to connect to local DB: %s", e)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -420,19 +454,23 @@ def poll_syncs(config):
 
         ack_status = "acknowledged"
         error_message = None
+        handler_result = {}
         try:
-            handle_sync(config, sync_type, payload)
+            handler_result = handle_sync(config, sync_type, payload) or {}
+            ack_status = handler_result.get("status", "acknowledged")
+            error_message = handler_result.get("error")
         except Exception as exc:
             logger.error("Sync #%s handler failed: %s", sync_id, exc)
             ack_status = "failed"
             error_message = str(exc)
 
-        # Acknowledge the sync
+        # Acknowledge the sync (include handler output for job results)
         ack_url = f"{config['hub_url']}/tools/bridge/api/mesh/sync/{sync_id}/ack"
         ack_payload = {
             "node_id": config["node_id"],
             "status": ack_status,
             "error_message": error_message,
+            "result": handler_result,
         }
         ack_code, ack_resp = http_post(ack_url, ack_payload, _auth_headers(config))
         if 200 <= ack_code < 300:
@@ -446,19 +484,22 @@ def poll_syncs(config):
 def handle_sync(config, sync_type, payload):
     """
     Dispatch a sync command to the appropriate handler.
-    Currently stub implementations for known sync types.
+    Returns a dict with at least {status: str} for the ACK payload.
     """
     handlers = {
         "code_update": _handle_code_update,
         "iaae_policy": _handle_iaae_policy,
         "model_recommend": _handle_model_recommend,
+        "agent_config": _handle_agent_config,
+        "job_request": _handle_job_request,
     }
 
     handler = handlers.get(sync_type)
     if handler:
-        handler(config, payload)
+        return handler(config, payload)
     else:
         logger.warning("Unknown sync_type '%s' — skipping", sync_type)
+        return {"status": "skipped", "error": f"Unknown sync_type: {sync_type}"}
 
 
 def _handle_code_update(config, payload):
@@ -468,6 +509,7 @@ def _handle_code_update(config, payload):
         "[code_update] Hub requests update to version %s — stub, no action taken",
         version,
     )
+    return {"status": "acknowledged"}
 
 
 def _handle_iaae_policy(config, payload):
@@ -476,6 +518,7 @@ def _handle_iaae_policy(config, payload):
     logger.info(
         "[iaae_policy] Received policy '%s' — stub, no action taken", policy_name
     )
+    return {"status": "acknowledged"}
 
 
 def _handle_model_recommend(config, payload):
@@ -484,6 +527,196 @@ def _handle_model_recommend(config, payload):
     logger.info(
         "[model_recommend] Hub recommends model '%s' — stub, no action taken", model
     )
+    return {"status": "acknowledged"}
+
+
+def _handle_agent_config(config, payload):
+    """Handle agent_config sync — save crew manifest to local Postgres."""
+    agents = payload.get("agents", [])
+    if not agents:
+        logger.warning("[agent_config] Empty agents list — skipping")
+        return {"status": "failed", "error": "Empty agents list"}
+
+    conn = _get_node_db()
+    if not conn:
+        logger.error("[agent_config] No local DB — cannot save agent configs")
+        return {"status": "failed", "error": "Local database unavailable"}
+
+    try:
+        cur = conn.cursor()
+        saved = 0
+        for agent in agents:
+            cur.execute(
+                """
+                INSERT INTO node_agent_configs
+                    (agent_name, display_name, model, system_prompt,
+                     station_codes, capabilities, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (agent_name) DO UPDATE SET
+                    display_name = EXCLUDED.display_name,
+                    model = EXCLUDED.model,
+                    system_prompt = EXCLUDED.system_prompt,
+                    station_codes = EXCLUDED.station_codes,
+                    capabilities = EXCLUDED.capabilities,
+                    updated_at = NOW()
+                """,
+                (
+                    agent["name"],
+                    agent.get("display_name", agent["name"]),
+                    agent.get("model", "mistral:latest"),
+                    agent.get("system_prompt", ""),
+                    agent.get("station_codes", []),
+                    agent.get("capabilities", []),
+                ),
+            )
+            saved += 1
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info("[agent_config] Saved %d agent configs to local DB", saved)
+        return {"status": "acknowledged", "agents_saved": saved}
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        logger.error("[agent_config] Failed to save: %s", e)
+        return {"status": "failed", "error": str(e)}
+
+
+def _handle_job_request(config, payload):
+    """Handle job_request sync — save job to local DB and execute via Ollama."""
+    job_id = payload.get("job_id")
+    agent_name = payload.get("agent_name")
+    prompt = payload.get("prompt", "")
+    timeout = payload.get("timeout_seconds", 300)
+
+    if not agent_name or not prompt:
+        return {"status": "failed", "error": "Missing agent_name or prompt"}
+
+    conn = _get_node_db()
+    if not conn:
+        return {"status": "failed", "error": "Local database unavailable"}
+
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Save job to local DB
+        cur.execute(
+            """
+            INSERT INTO node_jobs
+                (hub_job_id, agent_name, job_type, description, prompt,
+                 timeout_seconds, status, started_at)
+            VALUES (%s, %s, %s, %s, %s, %s, 'running', NOW())
+            RETURNING id
+            """,
+            (
+                job_id,
+                agent_name,
+                payload.get("job_type", "inference"),
+                payload.get("description", ""),
+                prompt,
+                timeout,
+            ),
+        )
+        local_job_id = cur.fetchone()["id"]
+        conn.commit()
+
+        # Look up agent config for model + system_prompt
+        cur.execute(
+            "SELECT model, system_prompt FROM node_agent_configs WHERE agent_name = %s",
+            (agent_name,),
+        )
+        agent_cfg = cur.fetchone()
+        if not agent_cfg:
+            cur.execute(
+                "UPDATE node_jobs SET status = 'failed', "
+                "error_message = 'Agent not configured', "
+                "completed_at = NOW() WHERE id = %s",
+                (local_job_id,),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+            return {
+                "status": "failed",
+                "error": f"Agent '{agent_name}' not configured on this node",
+            }
+
+        model = agent_cfg["model"]
+        system_prompt = agent_cfg["system_prompt"] or ""
+
+        # Call Ollama
+        ollama_host = config.get("ollama_host", "http://ollama:11434")
+        ollama_payload = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+        }
+        if system_prompt:
+            ollama_payload["system"] = system_prompt
+
+        logger.info(
+            "[job_request] Executing job %s on agent '%s' (model: %s)",
+            job_id,
+            agent_name,
+            model,
+        )
+
+        try:
+            start = time.time()
+            status_code, resp = http_post(
+                f"{ollama_host}/api/generate",
+                ollama_payload,
+            )
+            elapsed = time.time() - start
+
+            if status_code == 200 and isinstance(resp, dict):
+                output = resp.get("response", "")
+                cur.execute(
+                    "UPDATE node_jobs SET status = 'completed', "
+                    "output = %s, completed_at = NOW() WHERE id = %s",
+                    (output, local_job_id),
+                )
+                conn.commit()
+                logger.info(
+                    "[job_request] Job %s completed in %.1fs (%d chars)",
+                    job_id,
+                    elapsed,
+                    len(output),
+                )
+                result = {
+                    "status": "completed",
+                    "output": output,
+                    "elapsed_seconds": round(elapsed, 1),
+                }
+            else:
+                error = f"Ollama returned HTTP {status_code}"
+                cur.execute(
+                    "UPDATE node_jobs SET status = 'failed', "
+                    "error_message = %s, completed_at = NOW() WHERE id = %s",
+                    (error, local_job_id),
+                )
+                conn.commit()
+                result = {"status": "failed", "error": error}
+
+        except Exception as ollama_err:
+            error = f"Ollama call failed: {ollama_err}"
+            cur.execute(
+                "UPDATE node_jobs SET status = 'failed', "
+                "error_message = %s, completed_at = NOW() WHERE id = %s",
+                (error, local_job_id),
+            )
+            conn.commit()
+            result = {"status": "failed", "error": error}
+
+        cur.close()
+        conn.close()
+        return result
+
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        logger.error("[job_request] Failed: %s", e)
+        return {"status": "failed", "error": str(e)}
 
 
 # ---------------------------------------------------------------------------

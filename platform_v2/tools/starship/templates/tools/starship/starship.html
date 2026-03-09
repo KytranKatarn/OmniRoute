@@ -649,8 +649,11 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                     <div id="station-suggestions" style="margin-top: 8px;"></div>
                 </div>
                 <div id="agent-sync-status" style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding: 10px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(0,229,255,0.1); border-radius: 6px;">
-                    <span id="sync-indicator" style="color: rgba(255,255,255,0.4); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">Agent config not synced</span>
-                    <button class="sc-btn-small" onclick="pushAgentConfig()">PUSH CHANGES TO NODE</button>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;"></span>
+                        <span id="sync-indicator" style="color: rgba(255,255,255,0.4); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">Checking sync...</span>
+                    </div>
+                    <button class="sc-btn-small" onclick="pushAgentConfig()" title="Force push all agent configs">FORCE SYNC</button>
                 </div>
             </div>
         </div>
@@ -1078,6 +1081,9 @@ function switchTab(tab) {
         opsTerminal.render();
         engTerminal.render();
     }
+    if (tab === 'agents' && selectedNodeDbId) {
+        startSyncPolling();
+    }
 }
 
 function closeDetail() {
@@ -1120,6 +1126,7 @@ async function selectNode(nodeId) {
             loadSyncLog(selectedNodeDbId);
             initStationTerminals(selectedNodeDbId);
             loadModelCatalog();
+            startSyncPolling();
         }
     } catch (e) {
         scToast('Failed to load node data', 'error');
@@ -1613,6 +1620,7 @@ async function pushAgentConfig() {
             indicator.style.color = 'var(--sc-green)';
             scToast('Agent config pushed to node', 'success');
             loadSyncLog(selectedNodeDbId);
+            setTimeout(pollSyncStatus, 2000);
         } else {
             indicator.textContent = 'Push failed: ' + escHtml(data.error || 'Unknown');
             indicator.style.color = 'var(--sc-red)';
@@ -1769,6 +1777,7 @@ async function toggleAgentAccess(agentId, allowed, row) {
             if (allowed) { row.classList.remove('restricted'); }
             else { row.classList.add('restricted'); }
             scToast('Agent ' + (allowed ? 'allowed' : 'restricted'), 'success');
+            setTimeout(pollSyncStatus, 1000);
         } else {
             scToast(data.error || 'Failed', 'error');
         }
@@ -2330,6 +2339,39 @@ function _renderNodeAgentProfile(data, body, title) {
     }
 
     body.innerHTML = html;
+}
+
+// ── Sync Status Polling ──
+var _syncPollTimer = null;
+
+function pollSyncStatus() {
+    if (!selectedNodeDbId) return;
+    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/sync-status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var dot = document.getElementById('sync-dot');
+            var indicator = document.getElementById('sync-indicator');
+            if (!dot || !indicator) return;
+
+            if (data.pending_count === 0) {
+                dot.style.background = '#00ff41';
+                indicator.style.color = 'rgba(0,255,65,0.7)';
+                indicator.textContent = 'All synced \u2014 v' + (data.config_version || 1);
+            } else {
+                dot.style.background = '#ffaa00';
+                indicator.style.color = 'rgba(255,170,0,0.8)';
+                indicator.textContent = data.pending_count + ' change' + (data.pending_count > 1 ? 's' : '') + ' pending';
+            }
+        }).catch(function() {
+            // Silently ignore poll failures
+        });
+}
+
+function startSyncPolling() {
+    if (_syncPollTimer) clearInterval(_syncPollTimer);
+    pollSyncStatus();
+    _syncPollTimer = setInterval(pollSyncStatus, 30000);
 }
 </script>
 {% endblock %}

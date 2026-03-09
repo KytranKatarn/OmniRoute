@@ -1986,3 +1986,62 @@ def api_get_sync_log(node_id):
         return jsonify({"success": True, "logs": logs})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/sync-status")
+@login_required
+def api_node_sync_status(node_id):
+    """Return pending sync count and config version info."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Get string node_id
+            cur.execute("SELECT node_id FROM remote_nodes WHERE id = %s", (node_id,))
+            node = cur.fetchone()
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
+            node_id_str = node["node_id"]
+
+            # Pending syncs (sent but not acknowledged)
+            cur.execute(
+                """
+                SELECT COUNT(*) as pending_count
+                FROM mesh_sync_log
+                WHERE node_id = %s AND status = 'sent' AND acknowledged_at IS NULL
+                """,
+                (node_id_str,),
+            )
+            pending = cur.fetchone()["pending_count"]
+
+            # Latest config_version from node_agents
+            cur.execute(
+                "SELECT MAX(config_version) as max_version FROM node_agents WHERE node_id = %s",
+                (node_id,),
+            )
+            version_row = cur.fetchone()
+            max_version = version_row["max_version"] if version_row else 1
+
+            # Last ACK time
+            cur.execute(
+                """
+                SELECT acknowledged_at FROM mesh_sync_log
+                WHERE node_id = %s AND sync_type = 'agent_config'
+                  AND acknowledged_at IS NOT NULL
+                ORDER BY acknowledged_at DESC LIMIT 1
+                """,
+                (node_id_str,),
+            )
+            last_ack = cur.fetchone()
+            last_ack_time = (
+                last_ack["acknowledged_at"].isoformat() if last_ack and last_ack["acknowledged_at"] else None
+            )
+
+            return jsonify(
+                {
+                    "success": True,
+                    "pending_count": pending,
+                    "config_version": max_version,
+                    "last_ack": last_ack_time,
+                }
+            )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

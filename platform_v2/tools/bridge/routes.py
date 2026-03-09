@@ -4355,6 +4355,22 @@ def node_heartbeat(node_id):
                     logger.warning(f"Model sync error for {node_id}: {e}")
                     cur.execute("ROLLBACK TO SAVEPOINT model_sync")
 
+            # Store idle agents in node metadata (for mesh dispatcher)
+            idle_agents = data.get("idle_agents")
+            if idle_agents is not None:
+                try:
+                    cur.execute(
+                        """
+                        UPDATE remote_nodes
+                        SET metadata = COALESCE(metadata, '{}'::jsonb)
+                            || jsonb_build_object('idle_agents', %s::jsonb)
+                        WHERE node_id = %s
+                        """,
+                        (json.dumps(idle_agents), node_id),
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to store idle_agents for {node_id}: {e}")
+
             # Check if update was requested for this node
             cur.execute(
                 "SELECT update_requested FROM remote_nodes WHERE id = %s",

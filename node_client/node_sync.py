@@ -359,6 +359,36 @@ def _auth_headers(config):
     }
 
 
+def _get_idle_agents():
+    """Query local DB for agents not currently running a job."""
+    conn = _get_node_db()
+    if not conn:
+        return []
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            """
+            SELECT nac.agent_name, nac.model, nac.station_codes, nac.capabilities
+            FROM node_agent_configs nac
+            WHERE NOT EXISTS (
+                SELECT 1 FROM node_jobs nj
+                WHERE nj.agent_name = nac.agent_name AND nj.status = 'running'
+            )
+            """
+        )
+        agents = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return agents
+    except Exception as e:
+        logger.warning("Failed to query idle agents: %s", e)
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return []
+
+
 def send_heartbeat(config):
     """
     POST heartbeat with metrics to the Hub.
@@ -388,6 +418,11 @@ def send_heartbeat(config):
             "sync_service": True,
         },
     }
+
+    # Advertise idle agents for mesh sharing
+    idle_agents = _get_idle_agents()
+    if idle_agents:
+        payload["idle_agents"] = idle_agents
 
     url = f"{config['hub_url']}/tools/bridge/api/nodes/{config['node_id']}/heartbeat"
     status, resp = http_post(url, payload, _auth_headers(config))

@@ -9,6 +9,8 @@
 #   -NodeId     "node_xxx"
 #   -HubUrl     "http://192.168.1.200:3000"
 #   -HubApiKey  "your-api-key"
+#
+# Handles: Docker Desktop install, GPU detection, file download, build, start
 ###############################################################################
 
 param(
@@ -28,28 +30,97 @@ Write-Host "  A.R.C.H.I.E. Starship Node Deploy" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# --- Pre-flight checks ---
+# =====================================================================
+# Pre-flight: Docker Desktop
+# =====================================================================
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: Docker not found. Install Docker Desktop first." -ForegroundColor Red
-    exit 1
+    Write-Host "Docker Desktop not found. Installing..." -ForegroundColor Yellow
+
+    $installerUrl = "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
+    $installerPath = "$env:TEMP\DockerDesktopInstaller.exe"
+
+    Write-Host "  Downloading Docker Desktop..." -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+
+    Write-Host "  Running installer (this may take a few minutes)..." -ForegroundColor Cyan
+    Start-Process -FilePath $installerPath -ArgumentList "install", "--quiet", "--accept-license" -Wait
+
+    Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+
+    # Refresh PATH so docker command is available
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Host ""
+        Write-Host "Docker Desktop installed but requires a RESTART." -ForegroundColor Yellow
+        Write-Host "Please restart your computer, then re-run this script." -ForegroundColor Yellow
+        exit 0
+    }
+
+    Write-Host "[OK] Docker Desktop installed" -ForegroundColor Green
 }
 
+# =====================================================================
+# Pre-flight: Docker running
+# =====================================================================
 $dockerRunning = docker info 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Docker is not running. Start Docker Desktop." -ForegroundColor Red
-    exit 1
+    Write-Host "Docker Desktop is installed but not running. Starting..." -ForegroundColor Yellow
+
+    $dockerExe = "${env:ProgramFiles}\Docker\Docker\Docker Desktop.exe"
+    if (Test-Path $dockerExe) {
+        Start-Process $dockerExe
+        Write-Host "  Waiting for Docker to start (up to 90s)..." -ForegroundColor Cyan
+        $waited = 0
+        while ($waited -lt 90) {
+            Start-Sleep -Seconds 5
+            $waited += 5
+            $null = docker info 2>&1
+            if ($LASTEXITCODE -eq 0) { break }
+            Write-Host "  ... waiting ($waited`s)" -ForegroundColor Gray
+        }
+        $null = docker info 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Docker failed to start after 90s. Open Docker Desktop manually and retry." -ForegroundColor Red
+            exit 1
+        }
+    }
+    else {
+        Write-Host "ERROR: Cannot find Docker Desktop. Open it manually and retry." -ForegroundColor Red
+        exit 1
+    }
 }
 
 Write-Host "[OK] Docker is running" -ForegroundColor Green
 
-# --- Create install directory ---
+# =====================================================================
+# Pre-flight: NVIDIA GPU detection
+# =====================================================================
+$gpuAvailable = $false
+try {
+    $null = nvidia-smi 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $gpuAvailable = $true
+        Write-Host "[OK] NVIDIA GPU detected" -ForegroundColor Green
+    }
+}
+catch {}
+if (-not $gpuAvailable) {
+    Write-Host "[INFO] No NVIDIA GPU detected - Ollama will run on CPU" -ForegroundColor Yellow
+}
+
+# =====================================================================
+# Create install directory
+# =====================================================================
 if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     Write-Host "[OK] Created $InstallDir" -ForegroundColor Green
 }
 Set-Location $InstallDir
 
-# --- Fresh install: write .env ---
+# =====================================================================
+# Fresh install: write .env
+# =====================================================================
 if ($Fresh) {
     if (-not $NodeId -or -not $HubApiKey) {
         Write-Host "ERROR: Fresh install requires -NodeId and -HubApiKey" -ForegroundColor Red
@@ -83,7 +154,9 @@ else {
     Write-Host "[OK] Using existing .env" -ForegroundColor Green
 }
 
-# --- Read HUB_URL from .env for downloads ---
+# =====================================================================
+# Read HUB_URL from .env for downloads
+# =====================================================================
 $envContent = Get-Content .env -Raw
 if ($envContent -match 'HUB_URL=(.+)') {
     $DownloadBase = $Matches[1].Trim()
@@ -96,13 +169,17 @@ $ApiBase = "$DownloadBase/tools/bridge/api/nodes"
 Write-Host ""
 Write-Host "Downloading files from $DownloadBase ..." -ForegroundColor Cyan
 
-# --- Stop existing containers ---
+# =====================================================================
+# Stop existing containers
+# =====================================================================
 if (Test-Path "docker-compose.yml") {
     Write-Host "  Stopping existing containers..." -ForegroundColor Yellow
     docker compose down 2>$null
 }
 
-# --- Download node files ---
+# =====================================================================
+# Download node files
+# =====================================================================
 $files = @(
     @{ Url = "$ApiBase/docker-compose.node.yml"; Out = "docker-compose.yml" },
     @{ Url = "$ApiBase/node_sync.py";            Out = "node_sync.py" },
@@ -121,7 +198,7 @@ foreach ($f in $files) {
     }
 }
 
-# --- Download migrations ---
+# Download migrations
 if (-not (Test-Path "migrations")) {
     New-Item -ItemType Directory -Path "migrations" -Force | Out-Null
 }
@@ -134,7 +211,23 @@ catch {
     exit 1
 }
 
-# --- Build and start ---
+# =====================================================================
+# Strip GPU config if no NVIDIA GPU (avoid Docker Compose errors)
+# =====================================================================
+if (-not $gpuAvailable) {
+    Write-Host "  Patching docker-compose.yml for CPU-only mode..." -ForegroundColor Yellow
+    $composeContent = Get-Content "docker-compose.yml" -Raw
+    # Remove the entire deploy block (GPU reservation)
+    $composeContent = $composeContent -replace '(?s)    deploy:\s*\n\s*resources:\s*\n\s*reservations:\s*\n\s*devices:\s*\n\s*- driver: nvidia\s*\n\s*count: all\s*\n\s*capabilities: \[gpu\]\s*\n', ''
+    # Remove NVIDIA_VISIBLE_DEVICES env var
+    $composeContent = $composeContent -replace '      - NVIDIA_VISIBLE_DEVICES=all\n', ''
+    Set-Content "docker-compose.yml" $composeContent -NoNewline
+    Write-Host "  [OK] GPU config removed for CPU-only" -ForegroundColor Green
+}
+
+# =====================================================================
+# Build and start
+# =====================================================================
 Write-Host ""
 Write-Host "Building containers..." -ForegroundColor Cyan
 docker compose build --no-cache
@@ -151,10 +244,12 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# --- Verify ---
+# =====================================================================
+# Verify
+# =====================================================================
 Write-Host ""
 Write-Host "Verifying..." -ForegroundColor Cyan
-Start-Sleep -Seconds 5
+Start-Sleep -Seconds 8
 docker compose ps
 
 Write-Host ""
@@ -164,7 +259,9 @@ Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Ollama:   http://localhost:11434" -ForegroundColor White
 Write-Host "  Node API: http://localhost:3001/health" -ForegroundColor White
+Write-Host "  GPU:      $(if ($gpuAvailable) {'NVIDIA (enabled)'} else {'CPU only'})" -ForegroundColor White
 Write-Host ""
-Write-Host "  Logs:  docker compose logs -f" -ForegroundColor Gray
-Write-Host "  Stop:  docker compose down" -ForegroundColor Gray
+Write-Host "  Logs:     docker compose logs -f" -ForegroundColor Gray
+Write-Host "  Stop:     docker compose down" -ForegroundColor Gray
+Write-Host "  Update:   .\deploy-node.ps1" -ForegroundColor Gray
 Write-Host ""

@@ -6728,6 +6728,20 @@ def get_bridge_job_detail(job_id):
 # ============================================================================
 
 
+@bridge_bp.route("/api/model-catalog")
+@login_required
+def api_model_catalog():
+    """Return model catalog for enriched model dropdowns."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT model_name, display_name, description, tier, category, size_gb, parameter_size "
+            "FROM model_catalog WHERE is_active = true ORDER BY category, size_gb"
+        )
+        models = cur.fetchall()
+        catalog = {m["model_name"]: dict(m) for m in models}
+        return jsonify({"success": True, "catalog": catalog})
+
+
 @bridge_bp.route("/api/bridge/agent-form-context")
 @login_required
 def get_agent_form_context():

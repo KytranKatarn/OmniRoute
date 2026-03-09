@@ -885,6 +885,23 @@ def api_node_stations_live(node_id):
         return jsonify({"success": True, "stations": stations})
 
 
+@starship_bp.route("/api/model-catalog")
+@login_required
+def api_model_catalog():
+    """Return the curated model catalog for browsing and selection."""
+    category = request.args.get("category")
+    with get_db_cursor() as (conn, cur):
+        if category:
+            cur.execute(
+                "SELECT * FROM model_catalog WHERE is_active = true AND category = %s ORDER BY size_gb",
+                (category,),
+            )
+        else:
+            cur.execute("SELECT * FROM model_catalog WHERE is_active = true ORDER BY category, size_gb")
+        models = cur.fetchall()
+        return jsonify({"success": True, "models": [dict(m) for m in models]})
+
+
 @starship_bp.route("/api/nodes/<int:node_id>/crew-manifest")
 @login_required
 def api_node_crew_manifest(node_id):

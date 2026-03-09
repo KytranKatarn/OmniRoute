@@ -79,6 +79,7 @@ services:
       HEARTBEAT_INTERVAL: "30"
       SYNC_POLL_INTERVAL: "60"
       DEPLOYMENT_MODE: "starship"
+      ARCHIE_VERSION: "1.0.0"
     command: ["python3", "-u", "node_sync.py"]
     networks:
       - starship_net

@@ -403,7 +403,7 @@ def api_list_nodes():
 
 
 # Current node package version (update this when releasing new packages)
-LATEST_NODE_VERSION = "1.1.2"
+LATEST_NODE_VERSION = "1.0.0"
 
 
 @starship_bp.route("/api/nodes/<node_id>/status")

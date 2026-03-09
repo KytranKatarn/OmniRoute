@@ -337,6 +337,14 @@
 .profile-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 0.75rem; }
 .profile-row .label { color: rgba(255,255,255,0.5); }
 .profile-row .value { color: #fff; }
+
+/* Agent Edit Form */
+.sc-form-group { margin-bottom: 10px; }
+.sc-form-label { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.sc-form-input { width: 100%; padding: 8px 10px; background: rgba(0,0,0,0.4); border: 1px solid rgba(0,229,255,0.15); border-radius: 4px; color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; box-sizing: border-box; }
+.sc-form-input:focus { outline: none; border-color: rgba(0,229,255,0.4); }
+.sc-form-input option { background: #0d1117; color: #fff; }
+.model-option-desc { font-size: 0.65rem; color: rgba(255,255,255,0.35); padding: 0 10px 4px; font-family: 'IBM Plex Mono', monospace; }
 </style>
 
 <div class="sc-container">
@@ -788,6 +796,53 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             <div class="sc-modal-footer" id="node-profile-footer">
                 <button class="sc-btn-small" onclick="editNodeAgentFromProfile()">EDIT</button>
                 <button class="sc-btn-small" onclick="closeNodeAgentProfile()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Edit Form Modal -->
+    <div class="sc-modal-overlay" id="node-agent-edit-modal" style="display:none;">
+        <div class="sc-modal" style="max-width:580px; max-height:85vh; overflow-y:auto;">
+            <div class="sc-modal-header">
+                <h4 style="margin:0;font-family:'Antonio',sans-serif;font-size:1rem;color:#00e5ff;flex:1;">EDIT AGENT</h4>
+                <button class="sc-btn-small" onclick="closeNodeAgentEdit()">&times;</button>
+            </div>
+            <div class="sc-modal-body" id="node-edit-body">
+                <div class="sc-form-group">
+                    <label class="sc-form-label">Codename</label>
+                    <input type="text" id="edit-agent-codename" class="sc-form-input" readonly style="opacity:0.5;">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">First Name</label>
+                        <input type="text" id="edit-agent-firstname" class="sc-form-input">
+                    </div>
+                    <div class="sc-form-group">
+                        <label class="sc-form-label">Last Name</label>
+                        <input type="text" id="edit-agent-lastname" class="sc-form-input">
+                    </div>
+                </div>
+                <div class="sc-form-group">
+                    <label class="sc-form-label">Title</label>
+                    <input type="text" id="edit-agent-title" class="sc-form-input" placeholder="e.g. Senior Engineer">
+                </div>
+                <div class="sc-form-group">
+                    <label class="sc-form-label">Model</label>
+                    <select id="edit-agent-model" class="sc-form-input"></select>
+                </div>
+                <div class="sc-form-group">
+                    <label class="sc-form-label">System Prompt</label>
+                    <textarea id="edit-agent-prompt" class="sc-form-input" rows="4" style="resize:vertical;"></textarea>
+                </div>
+                <div class="sc-form-group">
+                    <label class="sc-form-label">Bio</label>
+                    <textarea id="edit-agent-bio" class="sc-form-input" rows="2" style="resize:vertical;"></textarea>
+                </div>
+                <div id="edit-sync-feedback" style="display:none; margin-top:8px; padding:8px; border-radius:4px; font-size:0.75rem; font-family:'IBM Plex Mono',monospace;"></div>
+            </div>
+            <div class="sc-modal-footer">
+                <button class="sc-btn-small" onclick="closeNodeAgentEdit()">CANCEL</button>
+                <button class="sc-btn-small" id="edit-save-btn" onclick="saveNodeAgent()" style="background:rgba(0,255,65,0.15);border-color:rgba(0,255,65,0.3);color:#00ff41;">SAVE</button>
             </div>
         </div>
     </div>
@@ -1972,9 +2027,164 @@ function closeNodeAgentProfile() {
     document.getElementById('node-agent-profile-modal').style.display = 'none';
 }
 
+var _editAgentData = null;
+
 function editNodeAgentFromProfile() {
     closeNodeAgentProfile();
-    // Will be wired in Task 6 when edit form exists
+    openNodeAgentEdit(_nodeProfileAgentId);
+}
+
+function openNodeAgentEdit(agentId) {
+    var modal = document.getElementById('node-agent-edit-modal');
+    modal.style.display = 'flex';
+    document.getElementById('edit-sync-feedback').style.display = 'none';
+
+    // Load agent data + form context in parallel
+    Promise.all([
+        fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + agentId + '/profile').then(function(r) { return r.json(); }),
+        fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agent-form-context').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var profileData = results[0];
+        var formCtx = results[1];
+        if (!profileData.success) { alert('Failed to load agent'); return; }
+
+        var a = profileData.agent;
+        _editAgentData = { agentId: agentId, hubAgent: a };
+
+        document.getElementById('edit-agent-codename').value = a.name || '';
+        document.getElementById('edit-agent-firstname').value = a.first_name || '';
+        document.getElementById('edit-agent-lastname').value = a.last_name || '';
+        document.getElementById('edit-agent-title').value = a.title || '';
+        document.getElementById('edit-agent-prompt').value = a.system_prompt || '';
+        document.getElementById('edit-agent-bio').value = a.bio || '';
+
+        // Populate model dropdown with catalog enrichment
+        _populateNodeModelDropdown(
+            formCtx.success ? formCtx.installed_models : [],
+            formCtx.success ? formCtx.catalog : [],
+            a.model || ''
+        );
+    }).catch(function(err) {
+        console.error('Edit form load failed:', err);
+    });
+}
+
+function _populateNodeModelDropdown(installed, catalog, currentModel) {
+    var sel = document.getElementById('edit-agent-model');
+    sel.innerHTML = '';
+
+    var installedSet = new Set(installed);
+    var catalogMap = {};
+    catalog.forEach(function(c) { catalogMap[c.model_name] = c; });
+
+    // Group: installed first, then not-installed catalog entries
+    var installedModels = [];
+    var notInstalled = [];
+
+    // Add installed models
+    installed.forEach(function(m) {
+        installedModels.push({ name: m, info: catalogMap[m] || null, installed: true });
+    });
+
+    // Add catalog models not installed
+    catalog.forEach(function(c) {
+        if (!installedSet.has(c.model_name)) {
+            notInstalled.push({ name: c.model_name, info: c, installed: false });
+        }
+    });
+
+    // If current model not in either list, add it
+    if (currentModel && !installedSet.has(currentModel) && !catalogMap[currentModel]) {
+        installedModels.unshift({ name: currentModel, info: null, installed: true });
+    }
+
+    // Installed group
+    if (installedModels.length > 0) {
+        var grp1 = document.createElement('optgroup');
+        grp1.label = '\u2713 INSTALLED ON NODE';
+        installedModels.forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m.name;
+            var label = m.name;
+            if (m.info) {
+                label = (m.info.display_name || m.name) + ' (' + (m.info.parameter_size || '') + ', ' + (m.info.size_gb || '?') + ' GB)';
+            }
+            opt.textContent = label;
+            if (m.info && m.info.description) opt.title = m.info.description;
+            if (m.name === currentModel) opt.selected = true;
+            grp1.appendChild(opt);
+        });
+        sel.appendChild(grp1);
+    }
+
+    // Not-installed group
+    if (notInstalled.length > 0) {
+        var grp2 = document.createElement('optgroup');
+        grp2.label = '\u2193 NOT INSTALLED (PULL REQUIRED)';
+        notInstalled.forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m.name;
+            var label = (m.info.display_name || m.name) + ' (' + (m.info.parameter_size || '') + ', ' + (m.info.size_gb || '?') + ' GB)';
+            opt.textContent = label;
+            if (m.info.description) opt.title = m.info.description;
+            if (m.name === currentModel) opt.selected = true;
+            grp2.appendChild(opt);
+        });
+        sel.appendChild(grp2);
+    }
+}
+
+function saveNodeAgent() {
+    if (!_editAgentData) return;
+    var btn = document.getElementById('edit-save-btn');
+    btn.disabled = true;
+    btn.textContent = 'SAVING...';
+
+    var payload = {
+        first_name: document.getElementById('edit-agent-firstname').value,
+        last_name: document.getElementById('edit-agent-lastname').value,
+        title: document.getElementById('edit-agent-title').value,
+        model: document.getElementById('edit-agent-model').value,
+        system_prompt: document.getElementById('edit-agent-prompt').value
+    };
+
+    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + _editAgentData.agentId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = 'SAVE';
+        var fb = document.getElementById('edit-sync-feedback');
+        if (data.success) {
+            fb.style.display = 'block';
+            fb.style.background = 'rgba(0,255,65,0.1)';
+            fb.style.border = '1px solid rgba(0,255,65,0.3)';
+            fb.style.color = '#00ff41';
+            var syncMsg = data.sync === 'sent' ? 'Config pushed to node.' :
+                          data.sync === 'debounced' ? 'Config update batched.' :
+                          'Saved (node sync pending).';
+            fb.textContent = '\u2713 Saved. ' + syncMsg + ' v' + data.config_version;
+            // Refresh manifest
+            renderNodeManifest(selectedNodeDbId);
+        } else {
+            fb.style.display = 'block';
+            fb.style.background = 'rgba(244,67,54,0.1)';
+            fb.style.border = '1px solid rgba(244,67,54,0.3)';
+            fb.style.color = '#f44336';
+            fb.textContent = '\u2717 ' + (data.error || 'Save failed');
+        }
+    }).catch(function(err) {
+        btn.disabled = false;
+        btn.textContent = 'SAVE';
+        alert('Save failed: ' + err);
+    });
+}
+
+function closeNodeAgentEdit() {
+    document.getElementById('node-agent-edit-modal').style.display = 'none';
+    _editAgentData = null;
 }
 
 function _renderNodeAgentProfile(data, body, title) {

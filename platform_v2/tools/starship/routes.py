@@ -1150,6 +1150,154 @@ def api_node_agent_profile(node_id, agent_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@starship_bp.route("/api/nodes/<int:node_id>/agent-form-context")
+@login_required
+def api_node_agent_form_context(node_id):
+    """Return models + catalog for agent edit form."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Models installed on this node
+            cur.execute(
+                "SELECT model_name FROM node_ollama_models WHERE node_id = %s",
+                (node_id,),
+            )
+            installed = [r["model_name"] for r in cur.fetchall()]
+
+            # Full catalog
+            cur.execute(
+                "SELECT model_name, display_name, description, tier, category, size_gb, parameter_size "
+                "FROM model_catalog WHERE is_active = true ORDER BY category, size_gb"
+            )
+            catalog = [dict(r) for r in cur.fetchall()]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "installed_models": installed,
+                    "catalog": catalog,
+                }
+            )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@starship_bp.route("/api/nodes/<int:node_id>/agents/<int:agent_id>", methods=["PUT"])
+@login_required
+def api_update_node_agent(node_id, agent_id):
+    """Update a node agent and trigger smart sync."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            # Get current agent
+            cur.execute(
+                "SELECT id, name, config_version FROM node_agents WHERE id = %s AND node_id = %s",
+                (agent_id, node_id),
+            )
+            agent = cur.fetchone()
+            if not agent:
+                return jsonify({"success": False, "error": "Agent not found"}), 404
+
+            # Update fields
+            new_version = (agent["config_version"] or 1) + 1
+            cur.execute(
+                """
+                UPDATE node_agents SET
+                    first_name = COALESCE(%s, first_name),
+                    last_name = COALESCE(%s, last_name),
+                    display_name = COALESCE(%s, display_name),
+                    title = COALESCE(%s, title),
+                    model = COALESCE(%s, model),
+                    system_prompt = COALESCE(%s, system_prompt),
+                    config_version = %s,
+                    updated_at = NOW()
+                WHERE id = %s
+                """,
+                (
+                    data.get("first_name"),
+                    data.get("last_name"),
+                    ((data.get("first_name", "") or "") + " " + (data.get("last_name", "") or "")).strip() or None,
+                    data.get("title"),
+                    data.get("model"),
+                    data.get("system_prompt"),
+                    new_version,
+                    agent_id,
+                ),
+            )
+
+            # Smart sync: write/update agent_config in mesh_sync_log
+            cur.execute("SELECT node_id FROM remote_nodes WHERE id = %s", (node_id,))
+            node = cur.fetchone()
+            if node:
+                node_id_str = node["node_id"]
+
+                # Debounce: check for existing unack'd agent_config sync (5s window)
+                cur.execute(
+                    """
+                    SELECT id FROM mesh_sync_log
+                    WHERE node_id = %s AND sync_type = 'agent_config'
+                      AND status = 'sent' AND ack_at IS NULL
+                      AND sent_at > NOW() - INTERVAL '5 seconds'
+                    ORDER BY sent_at DESC LIMIT 1
+                    """,
+                    (node_id_str,),
+                )
+                existing = cur.fetchone()
+
+                # Build sync payload with updated agent info
+                cur.execute(
+                    """
+                    SELECT na.name, na.display_name, na.title, na.model,
+                           na.system_prompt, na.capabilities, na.station_codes,
+                           na.is_allowed, na.status
+                    FROM node_agents na
+                    WHERE na.node_id = %s AND na.status = 'active'
+                    ORDER BY na.display_name
+                    """,
+                    (node_id,),
+                )
+                agents = cur.fetchall()
+                payload = json.dumps(
+                    {
+                        "agents": [dict(a) for a in agents],
+                        "agent_count": len(agents),
+                        "config_version": new_version,
+                    }
+                )
+
+                if existing:
+                    # Update existing sync entry (debounce)
+                    cur.execute(
+                        "UPDATE mesh_sync_log SET payload = %s, sent_at = NOW() WHERE id = %s",
+                        (payload, existing["id"]),
+                    )
+                    sync_status = "debounced"
+                else:
+                    # Create new sync entry
+                    cur.execute(
+                        """
+                        INSERT INTO mesh_sync_log (node_id, sync_type, payload, status, sent_at)
+                        VALUES (%s, 'agent_config', %s, 'sent', NOW())
+                        """,
+                        (node_id_str, payload),
+                    )
+                    sync_status = "sent"
+            else:
+                sync_status = "no_node"
+
+            return jsonify(
+                {
+                    "success": True,
+                    "config_version": new_version,
+                    "sync": sync_status,
+                }
+            )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # NODE SETUP / ONBOARDING
 # ============================================================================

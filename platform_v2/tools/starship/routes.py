@@ -656,6 +656,43 @@ def api_update_privacy(node_id):
     return jsonify({"success": True, "privacy_settings": settings})
 
 
+@starship_bp.route("/api/nodes/<int:node_id>/privacy", methods=["GET", "POST"])
+@login_required
+def api_node_privacy(node_id):
+    """Get or update node privacy settings (mesh sharing controls)."""
+    import psycopg2
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "SELECT id, privacy_settings FROM remote_nodes WHERE id = %s",
+            (node_id,),
+        )
+        node = cur.fetchone()
+        if not node:
+            return jsonify({"success": False, "error": "Node not found"}), 404
+
+        if request.method == "GET":
+            return jsonify({"success": True, "privacy": node["privacy_settings"] or {}})
+
+        data = request.get_json() or {}
+        settings = node["privacy_settings"] or {}
+
+        if "share_agents" in data:
+            settings["share_agents"] = bool(data["share_agents"])
+        if "max_shared_jobs" in data:
+            settings["max_shared_jobs"] = max(1, min(5, int(data["max_shared_jobs"])))
+
+        # local_first is always True
+        settings["local_first"] = True
+
+        cur.execute(
+            "UPDATE remote_nodes SET privacy_settings = %s WHERE id = %s",
+            (psycopg2.Json(settings), node_id),
+        )
+
+        return jsonify({"success": True, "privacy": settings})
+
+
 # ============================================================================
 # AGENT & STATION CONTROLS
 # ============================================================================
@@ -972,13 +1009,17 @@ def api_request_node():
                     'pending', %s, %s,
                     '{}'::jsonb
                 )
-                RETURNING node_id, node_name
+                RETURNING id, node_id, node_name
                 """,
                 (node_id, node_name, user_id, setup_token),
             )
             row = cur.fetchone()
 
         # Build config for the node
+        hub_url = os.getenv(
+            "STARSHIP_HUB_URL",
+            "https://archie.kytranempowerment.com",
+        )
         config = {
             "node_id": node_id,
             "node_name": node_name,
@@ -986,6 +1027,7 @@ def api_request_node():
             "starbase_url": f"http://{starbase_host}:{starbase_port}",
             "deployment_mode": "starship",
             "heartbeat_interval": 30,
+            "hub_url": hub_url,
         }
 
         return jsonify(
@@ -993,6 +1035,7 @@ def api_request_node():
                 "success": True,
                 "node_id": row["node_id"],
                 "node_name": row["node_name"],
+                "db_id": row["id"],
                 "setup_token": setup_token,
                 "config": config,
             }

@@ -357,33 +357,58 @@
                 <div class="sc-modal-body">
                     <p>Your node <strong id="setup-node-name" style="color: var(--sc-accent);"></strong> is registered and waiting for connection.</p>
 
-                    <ol class="sc-steps">
-                        <li>
-                            Download the starship node package
-                            <br>
-                            <a href="/tools/starship/download/node-package" class="sc-download-btn">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                DOWNLOAD PACKAGE
-                            </a>
-                        </li>
-                        <li>
-                            Extract the package on the target machine
-                            <div class="sc-code-block">tar -xzf archie-starship-node.tar.gz
+                    <!-- Quick Install Tabs -->
+                    <div style="margin: 16px 0 8px;">
+                        <h4 style="color: var(--sc-amber); margin-bottom: 10px;">QUICK INSTALL</h4>
+                        <div style="display: flex; gap: 0; margin-bottom: 0;">
+                            <button class="sc-tab active" id="install-tab-win" onclick="switchInstallTab('win')" style="font-size: 0.7rem; padding: 6px 14px; border-radius: 4px 4px 0 0;">WINDOWS</button>
+                            <button class="sc-tab" id="install-tab-linux" onclick="switchInstallTab('linux')" style="font-size: 0.7rem; padding: 6px 14px; border-radius: 4px 4px 0 0;">LINUX / MAC</button>
+                        </div>
+                        <div id="install-panel-win" style="background: rgba(0,0,0,0.5); border: 1px solid rgba(167,139,250,0.25); border-top: 2px solid var(--sc-accent); border-radius: 0 4px 4px 4px; padding: 12px;">
+                            <p style="color: rgba(255,255,255,0.5); font-size: 0.75rem; margin: 0 0 8px; font-family: 'IBM Plex Mono', monospace;">Run in PowerShell as Administrator:</p>
+                            <div class="sc-code-block" id="install-cmd-win" style="font-size: 0.78rem; word-break: break-all;"><button class="sc-copy-btn" onclick="copyInstallCmd('win')">COPY</button></div>
+                        </div>
+                        <div id="install-panel-linux" style="display:none; background: rgba(0,0,0,0.5); border: 1px solid rgba(167,139,250,0.25); border-top: 2px solid var(--sc-accent); border-radius: 0 4px 4px 4px; padding: 12px;">
+                            <p style="color: rgba(255,255,255,0.5); font-size: 0.75rem; margin: 0 0 8px; font-family: 'IBM Plex Mono', monospace;">Run in terminal:</p>
+                            <div class="sc-code-block" id="install-cmd-linux" style="font-size: 0.78rem; word-break: break-all;"><button class="sc-copy-btn" onclick="copyInstallCmd('linux')">COPY</button></div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Status -->
+                    <div id="node-connection-status" style="margin: 16px 0; padding: 10px 14px; background: rgba(0,0,0,0.4); border: 1px solid rgba(167,139,250,0.15); border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">
+                        <span style="color: var(--sc-amber);">&#9679;</span> Waiting for node to connect...
+                    </div>
+
+                    <details style="margin-top: 12px;">
+                        <summary style="cursor: pointer; color: rgba(255,255,255,0.5); font-size: 0.8rem; font-family: 'IBM Plex Mono', monospace;">MANUAL SETUP (advanced)</summary>
+                        <ol class="sc-steps" style="margin-top: 10px;">
+                            <li>
+                                Download the starship node package
+                                <br>
+                                <a href="/tools/starship/download/node-package" class="sc-download-btn">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    DOWNLOAD PACKAGE
+                                </a>
+                            </li>
+                            <li>
+                                Extract the package on the target machine
+                                <div class="sc-code-block">tar -xzf archie-starship-node.tar.gz
 cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button></div>
-                        </li>
-                        <li>
-                            Save this config as <code style="color: var(--sc-accent);">config.json</code> in the node directory
-                            <div class="sc-config-json" id="setup-config"></div>
-                            <button class="sc-copy-btn" style="position:relative; top:0; right:0; margin-top:6px;" onclick="copyConfig()">COPY CONFIG</button>
-                        </li>
-                        <li>
-                            Start the node with Docker
-                            <div class="sc-code-block">docker compose -f docker-compose.node.yml up -d<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button></div>
-                        </li>
-                        <li>
-                            The node will automatically connect to Archie and appear in your fleet. An admin will approve it and assign models based on your hardware.
-                        </li>
-                    </ol>
+                            </li>
+                            <li>
+                                Save this config as <code style="color: var(--sc-accent);">config.json</code> in the node directory
+                                <div class="sc-config-json" id="setup-config"></div>
+                                <button class="sc-copy-btn" style="position:relative; top:0; right:0; margin-top:6px;" onclick="copyConfig()">COPY CONFIG</button>
+                            </li>
+                            <li>
+                                Start the node with Docker
+                                <div class="sc-code-block">docker compose -f docker-compose.node.yml up -d<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button></div>
+                            </li>
+                            <li>
+                                The node will automatically connect to Archie and appear in your fleet. An admin will approve it and assign models based on your hardware.
+                            </li>
+                        </ol>
+                    </details>
                 </div>
                 <div class="sc-modal-actions">
                     <button class="sc-btn" onclick="closeAddNodeModal(); location.reload();">DONE</button>
@@ -649,6 +674,35 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                     <label class="sc-switch"><input type="checkbox" id="priv-local" onchange="savePrivacy()"><span class="slider"></span></label>
                 </div>
             </div>
+
+            <!-- Mesh Sharing Controls -->
+            <div class="sc-section" style="margin-top: 20px;">
+                <h4>MESH SHARING</h4>
+                <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
+                    Control how this node participates in fleet mesh computing.
+                </p>
+                <div class="sc-toggle-row">
+                    <div class="sc-toggle-info">
+                        <div class="sc-toggle-name">Share Idle Agents with Fleet</div>
+                        <div class="sc-toggle-desc">Allow other fleet nodes to dispatch jobs to this node's idle agents</div>
+                    </div>
+                    <label class="sc-switch"><input type="checkbox" id="priv-share-agents" onchange="saveMeshPrivacy()"><span class="slider"></span></label>
+                </div>
+                <div class="sc-toggle-row" style="align-items: center;">
+                    <div class="sc-toggle-info">
+                        <div class="sc-toggle-name">Max Concurrent Shared Jobs</div>
+                        <div class="sc-toggle-desc">Maximum jobs other nodes can run on this node simultaneously</div>
+                    </div>
+                    <input type="number" id="priv-max-shared-jobs" min="1" max="5" value="2" onchange="saveMeshPrivacy()" style="width: 56px; background: rgba(0,0,0,0.4); border: 1px solid rgba(167,139,250,0.3); border-radius: 4px; color: #fff; padding: 6px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; text-align: center;">
+                </div>
+                <div class="sc-toggle-row">
+                    <div class="sc-toggle-info">
+                        <div class="sc-toggle-name">Priority</div>
+                        <div class="sc-toggle-desc">Local jobs always take precedence over fleet-shared jobs</div>
+                    </div>
+                    <span style="color: var(--sc-green); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; font-weight: bold; padding: 4px 10px; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.25); border-radius: 4px;">LOCAL FIRST</span>
+                </div>
+            </div>
         </div>
 
         <!-- PROFILE TAB -->
@@ -684,6 +738,7 @@ var selectedNodeId = null;
 var selectedNodeDbId = null;
 var nodeCache = {};
 var pendingConfig = null;
+var nodeConnectionPoller = null;
 
 // ── Helper: render ops gauge (CPU/RAM/GPU) ──
 function renderOpsGauge(valId, barId, pct) {
@@ -718,6 +773,7 @@ function openAddNodeModal() {
 function closeAddNodeModal() {
     document.getElementById('add-node-modal').classList.remove('active');
     pendingConfig = null;
+    if (nodeConnectionPoller) { clearInterval(nodeConnectionPoller); nodeConnectionPoller = null; }
 }
 
 // Resync modal
@@ -794,6 +850,26 @@ async function createNode() {
         document.getElementById('setup-node-name').textContent = data.node_name;
         document.getElementById('setup-config').textContent = JSON.stringify(data.config, null, 2);
 
+        // Populate install commands
+        var hubUrl = (data.config && data.config.hub_url) || 'https://archie.kytranempowerment.com';
+        var token = data.setup_token || '';
+        var winCmd = 'irm ' + hubUrl + '/starship/install?token=' + token + ' | iex';
+        var linuxCmd = 'curl -fsSL ' + hubUrl + '/starship/install?token=' + token + ' | bash';
+
+        var winEl = document.getElementById('install-cmd-win');
+        var linuxEl = document.getElementById('install-cmd-linux');
+        var winCopy = winEl.querySelector('.sc-copy-btn');
+        var linuxCopy = linuxEl.querySelector('.sc-copy-btn');
+        winEl.textContent = winCmd;
+        winEl.appendChild(winCopy);
+        linuxEl.textContent = linuxCmd;
+        linuxEl.appendChild(linuxCopy);
+
+        // Start polling for connection
+        var statusEl = document.getElementById('node-connection-status');
+        statusEl.innerHTML = '<span style="color: var(--sc-amber);">&#9679;</span> Waiting for node to connect...';
+        pollNodeConnection(data.node_id, statusEl);
+
         scToast('Node "' + data.node_name + '" registered', 'success');
     } catch (e) {
         scToast('Request failed', 'error');
@@ -816,6 +892,55 @@ function copyConfig() {
     navigator.clipboard.writeText(JSON.stringify(pendingConfig, null, 2)).then(function() {
         scToast('Config copied to clipboard', 'success');
     });
+}
+
+// ── Install tab switcher ──
+function switchInstallTab(os) {
+    document.getElementById('install-tab-win').classList.toggle('active', os === 'win');
+    document.getElementById('install-tab-linux').classList.toggle('active', os === 'linux');
+    document.getElementById('install-panel-win').style.display = os === 'win' ? '' : 'none';
+    document.getElementById('install-panel-linux').style.display = os === 'linux' ? '' : 'none';
+}
+
+function copyInstallCmd(os) {
+    var el = document.getElementById('install-cmd-' + (os === 'win' ? 'win' : 'linux'));
+    var text = el.textContent.replace('COPY', '').replace('COPIED', '').trim();
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    var btn = el.querySelector('.sc-copy-btn');
+    if (btn) { btn.textContent = 'COPIED'; setTimeout(function() { btn.textContent = 'COPY'; }, 1500); }
+    scToast('Copied to clipboard', 'success');
+}
+
+// ── Poll for node connection after creation ──
+function pollNodeConnection(nodeId, statusEl) {
+    if (nodeConnectionPoller) clearInterval(nodeConnectionPoller);
+    nodeConnectionPoller = setInterval(async function() {
+        try {
+            var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(nodeId) + '/status');
+            var data = await resp.json();
+            if (data.status === 'online') {
+                clearInterval(nodeConnectionPoller);
+                nodeConnectionPoller = null;
+                statusEl.innerHTML = '<span style="color: #4ade80;">&#10003; Node connected!</span>';
+                setTimeout(function() { location.reload(); }, 2000);
+            }
+        } catch(e) {}
+    }, 5000);
+    // Stop polling after 5 minutes
+    setTimeout(function() {
+        if (nodeConnectionPoller) {
+            clearInterval(nodeConnectionPoller);
+            nodeConnectionPoller = null;
+            statusEl.innerHTML = '<span style="color: rgba(255,255,255,0.4);">Polling timed out. Refresh the page to check status.</span>';
+        }
+    }, 300000);
 }
 
 function scToast(msg, type) {
@@ -1204,6 +1329,10 @@ function _renderStarshipAgentCard(agent) {
     document.getElementById('priv-hostname').checked = priv.share_hostname === true;
     document.getElementById('priv-local').checked = priv.local_data_only === true;
 
+    // Mesh sharing controls
+    document.getElementById('priv-share-agents').checked = priv.share_agents === true;
+    document.getElementById('priv-max-shared-jobs').value = priv.max_shared_jobs || 2;
+
     // Profile tab
     document.getElementById('d-profile-name').value = n.node_name || '';
     document.getElementById('d-profile-id').textContent = n.node_id;
@@ -1537,6 +1666,26 @@ async function savePrivacy() {
         });
         var data = await resp.json();
         if (data.success) scToast('Privacy updated', 'success');
+        else scToast(data.error || 'Failed', 'error');
+    } catch (e) {
+        scToast('Save failed', 'error');
+    }
+}
+
+async function saveMeshPrivacy() {
+    if (!selectedNodeDbId) return;
+    var settings = {
+        share_agents: document.getElementById('priv-share-agents').checked,
+        max_shared_jobs: parseInt(document.getElementById('priv-max-shared-jobs').value, 10) || 2
+    };
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/privacy', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(settings)
+        });
+        var data = await resp.json();
+        if (data.success) scToast('Mesh sharing updated', 'success');
         else scToast(data.error || 'Failed', 'error');
     } catch (e) {
         scToast('Save failed', 'error');

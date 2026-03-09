@@ -419,6 +419,20 @@ def send_heartbeat(config):
         },
     }
 
+    # Check if ComfyUI is available
+    comfyui_port = os.environ.get("COMFYUI_PORT", "8188")
+    comfyui_available = False
+    try:
+        comfyui_status, _ = http_get(f"http://comfyui:{comfyui_port}/system_stats")
+        if comfyui_status == 200:
+            comfyui_available = True
+    except Exception:
+        pass
+
+    payload["comfyui_available"] = comfyui_available
+    if comfyui_available:
+        payload["comfyui_port"] = int(comfyui_port)
+
     # Advertise idle agents for mesh sharing
     idle_agents = _get_idle_agents()
     if idle_agents:

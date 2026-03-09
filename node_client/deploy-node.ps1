@@ -226,6 +226,44 @@ if (-not $gpuAvailable) {
 }
 
 # =====================================================================
+# Optional: ComfyUI for GPU nodes
+# =====================================================================
+$comfyEnabled = $false
+if ($gpuAvailable) {
+    Write-Host ""
+    $comfyChoice = Read-Host "Enable image generation with ComfyUI? (Y/n)"
+    if ($comfyChoice -ne 'n' -and $comfyChoice -ne 'N') {
+        Write-Host "  Enabling ComfyUI service..." -ForegroundColor Cyan
+        $composeContent = Get-Content "docker-compose.yml" -Raw
+        # Uncomment the ComfyUI service block
+        $composeContent = $composeContent -replace '  # comfyui:', '  comfyui:'
+        $composeContent = $composeContent -replace '  #   image:', '    image:'
+        $composeContent = $composeContent -replace '  #   container_name:', '    container_name:'
+        $composeContent = $composeContent -replace '  #   restart:', '    restart:'
+        $composeContent = $composeContent -replace '  #   deploy:', '    deploy:'
+        $composeContent = $composeContent -replace '  #     resources:', '      resources:'
+        $composeContent = $composeContent -replace '  #       reservations:', '        reservations:'
+        $composeContent = $composeContent -replace '  #         devices:', '          devices:'
+        $composeContent = $composeContent -replace '  #           - driver: nvidia', '            - driver: nvidia'
+        $composeContent = $composeContent -replace '  #             count: all', '              count: all'
+        $composeContent = $composeContent -replace '  #             capabilities: \[gpu\]', '              capabilities: [gpu]'
+        $composeContent = $composeContent -replace '  #   volumes:', '    volumes:'
+        $composeContent = $composeContent -replace '  #     - comfyui_data:', '      - comfyui_data:'
+        $composeContent = $composeContent -replace '  #   ports:', '    ports:'
+        $composeContent = $composeContent -replace '  #     - "\$\{COMFYUI_PORT', '      - "${COMFYUI_PORT'
+        $composeContent = $composeContent -replace '  #   networks:', '    networks:'
+        $composeContent = $composeContent -replace '  #     - starship_net', '      - starship_net'
+        # Uncomment the comfyui_data volume
+        $composeContent = $composeContent -replace '  # comfyui_data:', '  comfyui_data:'
+        Set-Content "docker-compose.yml" $composeContent -NoNewline
+        $comfyEnabled = $true
+        Write-Host "  [OK] ComfyUI enabled" -ForegroundColor Green
+    } else {
+        Write-Host "  [SKIP] ComfyUI not enabled" -ForegroundColor Gray
+    }
+}
+
+# =====================================================================
 # Build and start
 # =====================================================================
 Write-Host ""
@@ -237,7 +275,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "Starting 4-container stack..." -ForegroundColor Cyan
+$containerCount = if ($comfyEnabled) { 5 } else { 4 }
+Write-Host "Starting $containerCount-container stack..." -ForegroundColor Cyan
 docker compose up -d
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Failed to start containers." -ForegroundColor Red
@@ -260,6 +299,7 @@ Write-Host ""
 Write-Host "  Ollama:   http://localhost:11434" -ForegroundColor White
 Write-Host "  Node API: http://localhost:3001/health" -ForegroundColor White
 Write-Host "  GPU:      $(if ($gpuAvailable) {'NVIDIA (enabled)'} else {'CPU only'})" -ForegroundColor White
+Write-Host "  ComfyUI:  $(if ($comfyEnabled) {'http://localhost:8188 (enabled)'} else {'Not enabled'})" -ForegroundColor White
 Write-Host ""
 Write-Host "  Logs:     docker compose logs -f" -ForegroundColor Gray
 Write-Host "  Stop:     docker compose down" -ForegroundColor Gray

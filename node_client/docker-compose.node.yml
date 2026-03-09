@@ -2,6 +2,7 @@
 # A.R.C.H.I.E. Starship Node - Docker Compose (Phase 1)
 # ============================================================================
 # 4-service stack: Ollama + Postgres + sync_service + node_api
+# Optional 5th service: ComfyUI (GPU nodes only, commented out by default)
 #
 # Required env vars (set in .env):
 #   NODE_ID, HUB_URL, HUB_API_KEY
@@ -101,9 +102,32 @@ services:
     networks:
       - starship_net
 
+  # === OPTIONAL: ComfyUI for image/video generation (GPU nodes only) ===
+  # Uncomment this section to enable ComfyUI on nodes with NVIDIA GPUs.
+  # The deploy script will uncomment automatically when GPU is detected.
+  #
+  # comfyui:
+  #   image: comfyanonymous/comfyui:latest
+  #   container_name: archie_starship_comfyui
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+  #   volumes:
+  #     - comfyui_data:/app/models
+  #   ports:
+  #     - "${COMFYUI_PORT:-8188}:8188"
+  #   networks:
+  #     - starship_net
+
 volumes:
   ollama_data:
   pg_data:
+  # comfyui_data:
 
 networks:
   starship_net:

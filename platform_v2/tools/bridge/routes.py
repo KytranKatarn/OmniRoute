@@ -3973,6 +3973,23 @@ def get_node_docker_compose():
     )
 
 
+@bridge_bp.route("/api/nodes/deploy-node.ps1", methods=["GET"])
+def get_node_deploy_script():
+    """Serve the Windows deploy script (no auth needed)"""
+    script_path = "/mnt/archie_brain/node_client/deploy-node.ps1"
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            content = f.read()
+        from flask import Response
+
+        return Response(
+            content,
+            mimetype="text/plain",
+            headers={"Content-Disposition": "attachment; filename=deploy-node.ps1"},
+        )
+    return jsonify({"success": False, "error": "Deploy script not found"}), 404
+
+
 @bridge_bp.route("/api/nodes/node_sync.py", methods=["GET"])
 def get_node_sync_service():
     """Serve the node sync service script"""

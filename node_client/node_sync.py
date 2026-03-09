@@ -527,6 +527,7 @@ def handle_sync(config, sync_type, payload):
         "model_recommend": _handle_model_recommend,
         "agent_config": _handle_agent_config,
         "job_request": _handle_job_request,
+        "model_pull": _handle_model_pull,
     }
 
     handler = handlers.get(sync_type)
@@ -752,6 +753,45 @@ def _handle_job_request(config, payload):
         conn.close()
         logger.error("[job_request] Failed: %s", e)
         return {"status": "failed", "error": str(e)}
+
+
+def _handle_model_pull(config, payload):
+    """Pull an Ollama model on the node."""
+    model_name = payload.get("model_name")
+    if not model_name:
+        return {"status": "error", "error": "No model_name in payload"}
+
+    ollama_host = config.get("ollama_host", "http://ollama:11434")
+    logger.info("[model_pull] Pulling model '%s' from %s", model_name, ollama_host)
+
+    pull_data = {"name": model_name, "stream": False}
+    timeout = 1800  # 30 minutes — model pulls can be very slow
+
+    try:
+        if _HAS_REQUESTS:
+            resp = _requests_lib.post(
+                f"{ollama_host}/api/pull", json=pull_data, timeout=timeout
+            )
+            try:
+                resp_json = resp.json()
+            except Exception:
+                resp_json = {"raw": resp.text}
+        else:
+            body = json.dumps(pull_data).encode("utf-8")
+            req = urllib.request.Request(
+                f"{ollama_host}/api/pull",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                resp_json = json.loads(r.read().decode("utf-8"))
+
+        logger.info("[model_pull] Pull response for '%s': %s", model_name, resp_json)
+        return {"status": "completed", "model": model_name, "response": str(resp_json)}
+    except Exception as e:
+        logger.error("[model_pull] Failed to pull '%s': %s", model_name, e)
+        return {"status": "error", "error": str(e)}
 
 
 # ---------------------------------------------------------------------------

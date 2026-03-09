@@ -1522,6 +1522,43 @@ def api_push_agent_config(node_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@starship_bp.route("/api/nodes/<int:node_id>/pull-model", methods=["POST"])
+@login_required
+def api_pull_model(node_id):
+    """Queue a model pull on a node via mesh_sync_log."""
+    data = request.get_json()
+    model_name = data.get("model_name") if data else None
+    if not model_name:
+        return jsonify({"success": False, "error": "model_name required"}), 400
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "SELECT id, node_id FROM remote_nodes WHERE id = %s",
+                (node_id,),
+            )
+            node = cur.fetchone()
+            if not node:
+                return jsonify({"success": False, "error": "Node not found"}), 404
+
+            node_id_str = node["node_id"]
+
+            cur.execute(
+                """
+                INSERT INTO mesh_sync_log
+                    (node_id, sync_type, payload, status, sent_at)
+                VALUES (%s, 'model_pull', %s, 'sent', NOW())
+                RETURNING id
+                """,
+                (node_id_str, json.dumps({"model_name": model_name})),
+            )
+            sync_row = cur.fetchone()
+
+        return jsonify({"success": True, "sync_id": sync_row["id"], "model": model_name})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @starship_bp.route("/api/nodes/<int:node_id>/push-update", methods=["POST"])
 @login_required
 def api_push_code_update(node_id):

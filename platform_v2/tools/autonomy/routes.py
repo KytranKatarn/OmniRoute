@@ -299,6 +299,60 @@ def reject_action(approval_id):
             pass
 
 
+@autonomy_bp.route("/api/approvals/bulk", methods=["POST"])
+@login_required
+@admin_required
+def bulk_approval_action():
+    """Bulk approve or reject pending actions."""
+    try:
+        data = request.get_json() or {}
+        action = data.get("action")  # "approve" or "reject"
+        ids = data.get("ids", [])
+
+        if action not in ("approve", "reject"):
+            return jsonify({"success": False, "error": "action must be 'approve' or 'reject'"}), 400
+        if not ids or not isinstance(ids, list):
+            return jsonify({"success": False, "error": "ids must be a non-empty list"}), 400
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        if action == "approve":
+            cur.execute(
+                """
+                UPDATE autonomy_approval_queue
+                SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
+                WHERE id = ANY(%s) AND status = 'pending'
+                RETURNING id
+                """,
+                (current_user.id, ids),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE autonomy_approval_queue
+                SET status = 'rejected', approved_by = %s, rejected_reason = 'Bulk rejected', updated_at = NOW()
+                WHERE id = ANY(%s) AND status = 'pending'
+                RETURNING id
+                """,
+                (current_user.id, ids),
+            )
+
+        affected = [r["id"] for r in cur.fetchall()]
+        conn.commit()
+
+        return jsonify({"success": True, "affected": affected, "count": len(affected)})
+    except Exception as e:
+        logger.error(f"Failed to bulk {action} approvals: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
 # ============================================================================
 # Configuration
 # ============================================================================

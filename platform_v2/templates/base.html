@@ -284,6 +284,13 @@
     </div>
     {% endif %}
 
+    <!-- Ops Alert Bar (Admin users only) -->
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ops-alert-bar.css') }}">
+    <div id="opsAlertBar" class="ops-alert-bar"></div>
+    <script src="{{ url_for('static', filename='js/ops-alert-bar.js') }}"></script>
+    {% endif %}
+
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}

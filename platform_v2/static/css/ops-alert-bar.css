@@ -1,0 +1,163 @@
+/* Ops Alert Bar — LCARS-style persistent alert strip for Unified Ops Center */
+
+.ops-alert-bar {
+    display: none;
+    align-items: center;
+    gap: 0;
+    width: 100%;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-bottom: 2px solid #ff9f43;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    color: #e0e0e0;
+    z-index: 9999;
+    position: relative;
+    padding: 0;
+    min-height: 36px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.ops-alert-bar.visible {
+    display: flex;
+}
+
+/* Collapsed state: thin gradient line when no actionable alerts */
+.ops-alert-bar.collapsed {
+    display: block;
+    min-height: 3px;
+    height: 3px;
+    padding: 0;
+    border-bottom: none;
+    background: linear-gradient(90deg, #ff6b6b 0%, #ff9f43 40%, #00e5ff 100%);
+    overflow: hidden;
+}
+
+.ops-alert-bar.collapsed .ops-alert-section,
+.ops-alert-bar.collapsed .ops-alert-right {
+    display: none;
+}
+
+/* Sections — clickable segments */
+.ops-alert-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    transition: background 0.2s ease, border-color 0.2s ease;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.ops-alert-section:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ops-alert-section:active {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Severity indicator dot */
+.ops-alert-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Severity classes */
+.severity-high .ops-alert-dot {
+    background: #ff6b6b;
+    box-shadow: 0 0 6px rgba(255, 107, 107, 0.6);
+    animation: opsAlertPulse 1.5s ease-in-out infinite;
+}
+
+.severity-high {
+    color: #ff6b6b;
+}
+
+.severity-medium .ops-alert-dot {
+    background: #ff9f43;
+    box-shadow: 0 0 4px rgba(255, 159, 67, 0.4);
+}
+
+.severity-medium {
+    color: #ff9f43;
+}
+
+.severity-low .ops-alert-dot {
+    background: #ffd93d;
+    box-shadow: 0 0 4px rgba(255, 217, 61, 0.4);
+}
+
+.severity-low {
+    color: #ffd93d;
+}
+
+.ok .ops-alert-dot {
+    background: #00e5ff;
+    box-shadow: 0 0 4px rgba(0, 229, 255, 0.3);
+}
+
+.ok {
+    color: #00e5ff;
+}
+
+/* Section label text */
+.ops-alert-label {
+    opacity: 0.7;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.ops-alert-value {
+    font-weight: 600;
+}
+
+/* Right-aligned controls */
+.ops-alert-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+}
+
+/* Minimal button style */
+.ops-alert-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e0e0e0;
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    white-space: nowrap;
+}
+
+.ops-alert-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.ops-alert-btn:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Pulse animation for high severity */
+@keyframes opsAlertPulse {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 6px rgba(255, 107, 107, 0.6);
+    }
+    50% {
+        opacity: 0.5;
+        box-shadow: 0 0 12px rgba(255, 107, 107, 0.9);
+    }
+}

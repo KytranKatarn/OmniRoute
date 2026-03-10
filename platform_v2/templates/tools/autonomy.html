@@ -11,7 +11,7 @@
    Autonomy Dashboard — Module-specific styles
    Accent: Amber #FFAA00 (Admin Ops category)
    ═══════════════════════════════════════════════════════════════════════════ */
-:root { --au-accent: #FFAA00; --au-accent-rgb: 255,170,0; --au-cyan: #00FFFF; --au-green: #00ff41; --au-red: #ff4136; --au-bg: #010409; --au-card: #0d1117; --au-border: #21262d; --au-text: #c9d1d9; --au-muted: #8b949e; }
+:root { --au-accent: #FFAA00; --au-accent-rgb: 255,170,0; --au-cyan: #00FFFF; --au-green: #00ff41; --au-red: #ff4136; --au-bg: #010409; --au-card: #0d1117; --au-border: #21262d; --au-text: #c9d1d9; --au-muted: #8b949e; --au-purple: #a29bfe; }
 body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); background: var(--au-bg); color: var(--au-text); }
 
 /* ── Layout ── */
@@ -44,17 +44,6 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 /* ── Section Headers ── */
 .au-section-title { font-family: 'Antonio', sans-serif; font-size: 0.9rem; font-weight: 600; color: var(--au-accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 1rem; padding-left: 12px; border-left: 3px solid var(--au-accent); }
 
-/* ── Job Cards (all 15 jobs) ── */
-.job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
-.job-card { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; position: relative; transition: border-color 0.2s; }
-.job-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--job-color, var(--au-accent)), transparent 80%); border-radius: 2px 0 0 2px; }
-.job-card:hover { border-color: rgba(var(--au-accent-rgb), 0.2); }
-.job-info h3 { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 0.2rem; }
-.job-info .meta { font-size: 0.7rem; color: var(--au-muted); }
-.job-stats { display: flex; gap: 1.25rem; text-align: center; }
-.job-stat-value { font-family: 'Orbitron', sans-serif; font-size: 0.95rem; font-weight: 600; }
-.job-stat-label { font-size: 0.6rem; color: var(--au-muted); font-family: 'Antonio', sans-serif; letter-spacing: 0.5px; text-transform: uppercase; }
-
 /* ── LCARS Buttons ── */
 .btn { padding: 0.5rem 1.25rem; border: 1px solid var(--au-border); background: rgba(255,255,255,0.04); color: var(--au-text); font-family: 'Antonio', sans-serif; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; border-radius: 2px 10px 10px 2px; font-size: 0.8rem; transition: all 0.2s; }
 .btn:hover { border-color: var(--au-muted); background: rgba(255,255,255,0.08); }
@@ -84,16 +73,6 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .pill-expired { background: rgba(139,148,158,0.1); color: var(--au-muted); border-left: 2px solid var(--au-muted); }
 .pill-info { background: rgba(0,255,255,0.1); color: var(--au-cyan); border-left: 2px solid var(--au-cyan); }
 
-/* ── Config Items ── */
-.config-item { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; position: relative; }
-.config-item::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--au-cyan), transparent 80%); border-radius: 2px 0 0 2px; }
-.config-label { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; }
-.config-desc { font-size: 0.7rem; color: var(--au-muted); margin-top: 0.25rem; }
-.config-toggle { width: 48px; height: 24px; border-radius: 12px; background: #21262d; border: 1px solid #30363d; cursor: pointer; position: relative; transition: all 0.3s; }
-.config-toggle.on { background: rgba(0,255,65,0.15); border-color: var(--au-green); box-shadow: 0 0 8px rgba(0,255,65,0.2); }
-.config-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--au-muted); transition: all 0.3s; }
-.config-toggle.on::after { left: 26px; background: var(--au-green); box-shadow: 0 0 6px var(--au-green); }
-
 /* ── Approval Details ── */
 .approval-detail { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 12px 12px 2px; padding: 1.25rem 1.25rem 1.25rem 1.5rem; margin-bottom: 1rem; position: relative; }
 .approval-detail::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--au-accent), transparent 80%); border-radius: 2px 0 0 2px; }
@@ -111,12 +90,87 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
+/* ── Collapsible Section Headers ── */
+.au-section-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; margin-bottom: 0.75rem; background: rgba(var(--au-accent-rgb), 0.04); border: 1px solid rgba(var(--au-accent-rgb), 0.12); border-left: 3px solid var(--au-accent); border-radius: 2px 10px 10px 2px; cursor: pointer; user-select: none; transition: background 0.2s; }
+.au-section-header:hover { background: rgba(var(--au-accent-rgb), 0.08); }
+.au-section-header .section-label { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-accent); letter-spacing: 1.5px; text-transform: uppercase; flex: 1; }
+.au-section-header .section-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 20px; padding: 0 6px; border-radius: 10px; background: rgba(var(--au-accent-rgb), 0.15); color: var(--au-accent); font-family: 'Orbitron', sans-serif; font-size: 0.65rem; font-weight: 600; }
+.au-section-header .section-chevron { color: var(--au-muted); font-size: 0.7rem; transition: transform 0.2s; }
+.au-section-header.collapsed .section-chevron { transform: rotate(-90deg); }
+.au-section-body { margin-bottom: 1.5rem; overflow: hidden; transition: max-height 0.3s ease; }
+.au-section-body.collapsed { max-height: 0 !important; margin-bottom: 0; }
+
+/* ── Bridge Job Cards ── */
+.au-job-card { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; margin-bottom: 0.5rem; position: relative; display: flex; align-items: center; gap: 1rem; }
+.au-job-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--au-cyan), transparent 80%); border-radius: 2px 0 0 2px; }
+.au-job-card .job-desc { flex: 1; min-width: 0; }
+.au-job-card .job-desc h4 { font-family: 'Antonio', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; margin: 0 0 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.au-job-card .job-desc .job-meta { font-size: 0.68rem; color: var(--au-muted); }
+.au-job-card .job-progress { flex: 0 0 120px; }
+.au-job-card .progress-bar { height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; margin-bottom: 0.2rem; }
+.au-job-card .progress-fill { height: 100%; background: linear-gradient(90deg, var(--au-cyan), var(--au-green)); border-radius: 3px; transition: width 0.3s; }
+.au-job-card .progress-label { font-size: 0.6rem; color: var(--au-muted); text-align: right; font-family: 'Orbitron', sans-serif; }
+
+/* ── Loop Toggle Switch ── */
+.au-loop-toggle { display: flex; align-items: center; justify-content: space-between; background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 0.75rem 1rem 0.75rem 1.25rem; margin-bottom: 0.5rem; position: relative; }
+.au-loop-toggle::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--au-purple), transparent 80%); border-radius: 2px 0 0 2px; }
+.au-loop-toggle .loop-label { font-family: 'Antonio', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; }
+.au-loop-toggle .toggle-switch { width: 42px; height: 22px; border-radius: 11px; background: #21262d; border: 1px solid #30363d; cursor: pointer; position: relative; transition: all 0.3s; flex-shrink: 0; }
+.au-loop-toggle .toggle-switch.on { background: rgba(0,255,65,0.15); border-color: var(--au-green); box-shadow: 0 0 8px rgba(0,255,65,0.2); }
+.au-loop-toggle .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--au-muted); transition: all 0.3s; }
+.au-loop-toggle .toggle-switch.on::after { left: 22px; background: var(--au-green); box-shadow: 0 0 6px var(--au-green); }
+
+/* ── Health Grid ── */
+.au-health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.au-health-card { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; position: relative; display: flex; align-items: center; gap: 0.75rem; }
+.au-health-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px 0 0 2px; }
+.au-health-card[data-health="green"]::before { background: var(--au-green); }
+.au-health-card[data-health="amber"]::before { background: var(--au-accent); }
+.au-health-card[data-health="red"]::before { background: var(--au-red); }
+.au-health-card .health-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.au-health-card .health-dot.green { background: var(--au-green); box-shadow: 0 0 6px var(--au-green); }
+.au-health-card .health-dot.amber { background: var(--au-accent); box-shadow: 0 0 6px var(--au-accent); }
+.au-health-card .health-dot.red { background: var(--au-red); box-shadow: 0 0 6px var(--au-red); }
+.au-health-card .health-info { flex: 1; min-width: 0; }
+.au-health-card .health-name { font-family: 'Antonio', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; }
+.au-health-card .health-stats { font-size: 0.68rem; color: var(--au-muted); margin-top: 0.15rem; }
+.au-health-card .health-last-run { font-size: 0.65rem; color: var(--au-muted); }
+
+/* ── Source Badges (History) ── */
+.au-source-badge { display: inline-flex; align-items: center; gap: 0.35rem; font-family: 'Antonio', sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+.au-source-badge .source-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.au-source-badge.bridge .source-dot { background: var(--au-cyan); }
+.au-source-badge.bridge { color: var(--au-cyan); }
+.au-source-badge.agent_loop .source-dot { background: var(--au-purple); }
+.au-source-badge.agent_loop { color: var(--au-purple); }
+
+/* ── Component Status Row ── */
+.au-component-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem 0.75rem 1.25rem; background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; margin-bottom: 0.5rem; position: relative; }
+.au-component-row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px 0 0 2px; }
+.au-component-row[data-status="ok"]::before { background: var(--au-green); }
+.au-component-row[data-status="error"]::before { background: var(--au-red); }
+.au-component-row[data-status="warn"]::before { background: var(--au-accent); }
+.au-component-row .comp-name { font-family: 'Antonio', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; flex: 1; }
+.au-component-row .comp-detail { font-size: 0.68rem; color: var(--au-muted); }
+
+/* ── Bulk Action Bar ── */
+.bulk-action-bar { display: flex; gap: 0.5rem; align-items: center; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; background: rgba(var(--au-accent-rgb), 0.05); border: 1px solid rgba(var(--au-accent-rgb), 0.15); border-radius: 2px 10px 10px 2px; }
+.bulk-action-bar .bulk-label { font-family: 'Antonio', sans-serif; font-size: 0.75rem; color: var(--au-accent); letter-spacing: 1px; text-transform: uppercase; margin-right: auto; }
+
+/* ── Job Grid (agent loop jobs in active tab) ── */
+.job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem; }
+.job-card { background: var(--au-card); border: 1px solid var(--au-border); border-radius: 2px 10px 10px 2px; padding: 1rem 1rem 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; position: relative; transition: border-color 0.2s; }
+.job-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--job-color, var(--au-accent)), transparent 80%); border-radius: 2px 0 0 2px; }
+.job-card:hover { border-color: rgba(var(--au-accent-rgb), 0.2); }
+.job-info h3 { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 0.2rem; }
+.job-info .meta { font-size: 0.7rem; color: var(--au-muted); }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .au-body { padding: 0.75rem 1rem 1.5rem; }
     .job-grid { grid-template-columns: 1fr; }
-    .card-grid { grid-template-columns: 1fr 1fr; }
-    .job-card { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+    .au-health-grid { grid-template-columns: 1fr; }
+    .au-job-card { flex-direction: column; align-items: flex-start; }
 }
 @media (max-width: 500px) {
     .card-grid { grid-template-columns: 1fr; }
@@ -124,12 +178,13 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 
 /* ── Light Mode ── */
 [data-theme="light"] .au-container, [data-theme="light"] body { background: #f0f2f5; color: #1a1a2e; }
-[data-theme="light"] .au-card, [data-theme="light"] .job-card, [data-theme="light"] .config-item, [data-theme="light"] .approval-detail { background: #fff; border-color: #e0e0e0; }
-[data-theme="light"] .au-card-value, [data-theme="light"] .job-info h3 { color: #1a1a2e; }
+[data-theme="light"] .au-card, [data-theme="light"] .job-card, [data-theme="light"] .au-job-card, [data-theme="light"] .au-loop-toggle, [data-theme="light"] .au-health-card, [data-theme="light"] .au-component-row, [data-theme="light"] .approval-detail { background: #fff; border-color: #e0e0e0; }
+[data-theme="light"] .au-card-value, [data-theme="light"] .job-info h3, [data-theme="light"] .au-job-card .job-desc h4 { color: #1a1a2e; }
 [data-theme="light"] .data-table td { border-bottom-color: #f0f0f0; }
 [data-theme="light"] .data-table th { border-bottom-color: rgba(var(--au-accent-rgb), 0.3); }
 [data-theme="light"] .data-table tr:hover { background: rgba(var(--au-accent-rgb), 0.04); }
 [data-theme="light"] .approval-detail .data-preview { background: #f8f9fa; }
+[data-theme="light"] .au-section-header { background: rgba(var(--au-accent-rgb), 0.06); }
 </style>
 {% endblock %}
 
@@ -150,56 +205,17 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         </div>
 
         {{ tab_nav(tabs=[
-            {'id': 'overview', 'label': 'Overview'},
             {'id': 'approvals', 'label': 'Approvals', 'badge_id': 'approvalBadge'},
-            {'id': 'history', 'label': 'History'},
-            {'id': 'config', 'label': 'Config'}
+            {'id': 'active', 'label': 'Active Jobs', 'badge_id': 'activeJobsBadge'},
+            {'id': 'health', 'label': 'Health'},
+            {'id': 'history', 'label': 'History'}
         ], onswitch='switchTab') }}
 
-        <!-- Overview Tab -->
-        <div id="tab-overview" class="tab-content active">
-            <div class="card-grid">
-                <div class="au-card" data-accent="amber">
-                    <div class="au-card-title" data-i18n="autonomy.active_jobs">Active Jobs</div>
-                    <div class="au-card-value" id="activeJobCount">0</div>
-                    <div class="au-card-label" data-i18n="autonomy.scheduled_jobs_running">Scheduled jobs running</div>
-                </div>
-                <div class="au-card" data-accent="green">
-                    <div class="au-card-title" data-i18n="autonomy.processed_24h">Processed (24h)</div>
-                    <div class="au-card-value" id="processedCount" style="color:var(--au-green);">0</div>
-                    <div class="au-card-label" data-i18n="autonomy.items_processed_successfully">Items processed successfully</div>
-                </div>
-                <div class="au-card" data-accent="red">
-                    <div class="au-card-title" data-i18n="autonomy.failed_24h">Failed (24h)</div>
-                    <div class="au-card-value" id="failedCount" style="color:var(--au-red);">0</div>
-                    <div class="au-card-label" data-i18n="autonomy.items_that_failed_processing">Items that failed processing</div>
-                </div>
-                <div class="au-card" data-accent="amber">
-                    <div class="au-card-title" data-i18n="autonomy.pending_approvals">Pending Approvals</div>
-                    <div class="au-card-value" id="pendingCount" style="color:var(--au-accent);">0</div>
-                    <div class="au-card-label" data-i18n="autonomy.actions_awaiting_human_review">Actions awaiting human review</div>
-                </div>
-            </div>
-
-            <div class="au-section-title" data-i18n="autonomy.job_status">Job Status</div>
-            <div id="jobCards" class="job-grid">
-                <div class="empty-state" data-i18n="autonomy.loading_job_data">Loading job data...</div>
-            </div>
-
-            <div class="au-section-title" data-i18n="autonomy.recent_activity">Recent Activity</div>
-            <table class="data-table">
-                <thead>
-                    <tr><th data-i18n="autonomy.th_job">Job</th><th data-i18n="autonomy.th_status">Status</th><th data-i18n="autonomy.th_processed">Processed</th><th data-i18n="autonomy.th_failed">Failed</th><th data-i18n="autonomy.th_duration">Duration</th><th data-i18n="autonomy.th_time">Time</th></tr>
-                </thead>
-                <tbody id="recentLogs">
-                    <tr><td colspan="6" style="text-align:center;color:var(--au-muted);" data-i18n="autonomy.loading">Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Approvals Tab -->
-        <div id="tab-approvals" class="tab-content">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <!-- ═══════════════════════════════════════════════════════════════
+             Tab 1: Approvals (default active)
+             ═══════════════════════════════════════════════════════════════ -->
+        <div id="tab-approvals" class="tab-content active">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
                 <div class="btn-group">
                     <button class="btn btn-sm btn-warning" onclick="loadApprovals('pending')" data-i18n="autonomy.pending">Pending</button>
                     <button class="btn btn-sm btn-success" onclick="loadApprovals('approved')" data-i18n="autonomy.approved">Approved</button>
@@ -207,43 +223,122 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                     <button class="btn btn-sm" onclick="loadApprovals('all')" data-i18n="autonomy.all">All</button>
                 </div>
             </div>
+            <div id="bulkActions" class="bulk-action-bar" style="display:none;">
+                <span class="bulk-label"><span id="bulkCount">0</span> pending items</span>
+                <button class="btn btn-sm btn-success" onclick="bulkApprove('approve')">Bulk Approve All</button>
+                <button class="btn btn-sm btn-danger" onclick="bulkApprove('reject')">Bulk Reject All</button>
+            </div>
             <div id="approvalsList">
                 <div class="empty-state"><div class="icon">&#x2713;</div><span data-i18n="autonomy.no_pending_approvals">No pending approvals</span></div>
             </div>
         </div>
 
-        <!-- History Tab -->
+        <!-- ═══════════════════════════════════════════════════════════════
+             Tab 2: Active Jobs
+             ═══════════════════════════════════════════════════════════════ -->
+        <div id="tab-active" class="tab-content">
+            <!-- Bridge Jobs -->
+            <div class="au-section-header" onclick="toggleSection('bridgeJobs')">
+                <span class="section-label">Bridge Jobs</span>
+                <span class="section-badge" id="bridgeJobsBadge">0</span>
+                <span class="section-chevron">&#9660;</span>
+            </div>
+            <div class="au-section-body" id="bridgeJobs-body">
+                <div id="bridgeJobsList">
+                    <div class="empty-state">Loading bridge jobs...</div>
+                </div>
+            </div>
+
+            <!-- Server Loops -->
+            <div class="au-section-header" onclick="toggleSection('serverLoops')">
+                <span class="section-label">Server Loops</span>
+                <span class="section-badge" id="serverLoopsBadge">0</span>
+                <span class="section-chevron">&#9660;</span>
+            </div>
+            <div class="au-section-body" id="serverLoops-body">
+                <div id="serverLoopsList">
+                    <div class="empty-state">Loading server loops...</div>
+                </div>
+            </div>
+
+            <!-- Agent Loop Jobs -->
+            <div class="au-section-header" onclick="toggleSection('agentLoopJobs')">
+                <span class="section-label">Agent Loop Jobs</span>
+                <span class="section-badge" id="agentLoopJobsBadge">0</span>
+                <span class="section-chevron">&#9660;</span>
+            </div>
+            <div class="au-section-body" id="agentLoopJobs-body">
+                <div id="agentLoopJobsList">
+                    <div class="empty-state">Loading agent loop jobs...</div>
+                </div>
+            </div>
+
+            <!-- Scheduler Jobs -->
+            <div class="au-section-header" onclick="toggleSection('schedulerJobs')">
+                <span class="section-label">Scheduler Jobs</span>
+                <span class="section-badge" id="schedulerJobsBadge">0</span>
+                <span class="section-chevron">&#9660;</span>
+            </div>
+            <div class="au-section-body" id="schedulerJobs-body">
+                <div id="schedulerJobsList">
+                    <div class="empty-state">Loading scheduler jobs...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             Tab 3: Health
+             ═══════════════════════════════════════════════════════════════ -->
+        <div id="tab-health" class="tab-content">
+            <div class="au-section-title">Agent Loop Health (24h)</div>
+            <div class="au-health-grid" id="loopHealthGrid">
+                <div class="empty-state">Loading health data...</div>
+            </div>
+
+            <div class="au-section-title">Bridge Job Health (24h)</div>
+            <div class="au-health-grid" id="bridgeHealthGrid">
+                <div class="empty-state">Loading bridge health...</div>
+            </div>
+
+            <div class="au-section-title">System Components</div>
+            <div id="componentsList">
+                <div class="empty-state">Loading components...</div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             Tab 4: History
+             ═══════════════════════════════════════════════════════════════ -->
         <div id="tab-history" class="tab-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem;">
                 <div class="btn-group">
-                    <button class="btn btn-sm" onclick="loadHistory(null)" data-i18n="autonomy.all_jobs">All Jobs</button>
-                    <button class="btn btn-sm" onclick="loadHistory('hr_tracker')" data-i18n="autonomy.hr">HR</button>
-                    <button class="btn btn-sm" onclick="loadHistory('email_inbox')" data-i18n="autonomy.email">Email</button>
-                    <button class="btn btn-sm" onclick="loadHistory('anomaly_detection')" data-i18n="autonomy.anomaly">Anomaly</button>
-                    <button class="btn btn-sm" onclick="loadHistory('approvals')" data-i18n="autonomy.approvals">Approvals</button>
-                    <button class="btn btn-sm" onclick="loadHistory('ethics_monitoring')" data-i18n="autonomy.ethics">Ethics</button>
+                    <select id="historySystemFilter" onchange="loadHistory()" style="padding:0.35rem 0.75rem;background:var(--au-card);color:var(--au-text);border:1px solid var(--au-border);border-radius:2px 8px 8px 2px;font-family:'Antonio',sans-serif;font-size:0.75rem;letter-spacing:0.5px;text-transform:uppercase;cursor:pointer;">
+                        <option value="all">All Systems</option>
+                        <option value="bridge">Bridge Jobs</option>
+                        <option value="agent_loop">Agent Loop</option>
+                    </select>
                 </div>
-                <div class="btn-group">
-                    <button class="btn btn-sm" onclick="loadHistory(currentHistoryJob, 6)" data-i18n="autonomy.range_6h">6h</button>
-                    <button class="btn btn-sm btn-primary" onclick="loadHistory(currentHistoryJob, 24)" data-i18n="autonomy.range_24h">24h</button>
-                    <button class="btn btn-sm" onclick="loadHistory(currentHistoryJob, 168)" data-i18n="autonomy.range_7d">7d</button>
+                <div class="btn-group" id="historyTimeButtons">
+                    <button class="btn btn-sm" onclick="setHistoryHours(6)">6h</button>
+                    <button class="btn btn-sm btn-primary" onclick="setHistoryHours(24)">24h</button>
+                    <button class="btn btn-sm" onclick="setHistoryHours(168)">7d</button>
                 </div>
             </div>
             <table class="data-table">
                 <thead>
-                    <tr><th data-i18n="autonomy.th_job">Job</th><th data-i18n="autonomy.th_status">Status</th><th data-i18n="autonomy.th_processed">Processed</th><th data-i18n="autonomy.th_failed">Failed</th><th data-i18n="autonomy.th_duration">Duration</th><th data-i18n="autonomy.th_error">Error</th><th data-i18n="autonomy.th_time">Time</th></tr>
+                    <tr>
+                        <th>Source</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Processed</th>
+                        <th>Duration</th>
+                        <th>Time</th>
+                    </tr>
                 </thead>
                 <tbody id="historyLogs">
-                    <tr><td colspan="7" style="text-align:center;color:var(--au-muted);" data-i18n="autonomy.select_filter_to_load_history">Select a filter to load history</td></tr>
+                    <tr><td colspan="6" style="text-align:center;color:var(--au-muted);">Select a filter to load history</td></tr>
                 </tbody>
             </table>
-        </div>
-
-        <!-- Config Tab -->
-        <div id="tab-config" class="tab-content">
-            <div id="configList">
-                <div class="empty-state" data-i18n="autonomy.loading_configuration">Loading configuration...</div>
-            </div>
         </div>
     </div>
 </div>
@@ -252,10 +347,13 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 {% block extra_js %}
 <script>
     var BASE = '/tools/autonomy/api';
-    var currentHistoryJob = null;
-    var refreshInterval = null;
+    var currentApprovalFilter = 'pending';
+    var currentHistoryHours = 24;
+    var activeJobsInterval = null;
+    var healthInterval = null;
+    var pendingApprovalIds = [];
 
-    /* Job metadata - human labels + color accents for all 15 jobs */
+    /* Job metadata - human labels + color accents for all 17 jobs */
     var JOB_META = {
         'agent_email_queue':          {label:'Email Queue',          color:'#00FFFF',  group:'comms'},
         'agent_email_inbox':          {label:'Email Inbox',          color:'#00FFFF',  group:'comms'},
@@ -271,10 +369,11 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         'agent_anomaly_detection':    {label:'Anomaly Detection',    color:'#f59e0b',  group:'intel'},
         'agent_briefings':            {label:'Briefings',            color:'#f59e0b',  group:'intel'},
         'agent_reports':              {label:'Reports',              color:'#f59e0b',  group:'intel'},
-        'agent_browser_tasks':        {label:'Browser Tasks',        color:'#f59e0b',  group:'intel'}
+        'agent_browser_tasks':        {label:'Browser Tasks',        color:'#f59e0b',  group:'intel'},
+        'agent_training':             {label:'Training',             color:'#a78bfa',  group:'core'},
+        'agent_proactive_scan':       {label:'Proactive Scan',       color:'#00ff41',  group:'ops'}
     };
 
-    /* Reverse lookup: log job_name -> scheduler job_id */
     var LOG_TO_ID = {};
     Object.keys(JOB_META).forEach(function(id) {
         LOG_TO_ID[id.replace('agent_', '')] = id;
@@ -287,29 +386,30 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         return (JOB_META[name] || {}).color || (JOB_META[LOG_TO_ID[name]] || {}).color || '#FFAA00';
     }
 
-    /* Tab switching - uses [data-tab] attribute from theme macros */
-    function switchTab(tab) {
-        document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
-        document.querySelectorAll('[data-tab]').forEach(function(el) { el.classList.remove('active'); });
-        document.getElementById('tab-' + tab).classList.add('active');
-        document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
-        if (tab === 'approvals') loadApprovals('pending');
-        if (tab === 'history') loadHistory(null, 24);
-        if (tab === 'config') loadConfig();
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
     }
 
     function statusPill(status) {
         var map = {
-            'success':'pill-success','sent':'pill-success','executed':'pill-success','approved':'pill-success',
-            'pending':'pill-pending','processing':'pill-pending',
+            'success':'pill-success','sent':'pill-success','executed':'pill-success','approved':'pill-success','completed':'pill-success',
+            'pending':'pill-pending','processing':'pill-pending','running':'pill-pending',
             'error':'pill-error','failed':'pill-error','rejected':'pill-error',
             'expired':'pill-expired','skipped':'pill-expired',
             'partial':'pill-info'
         };
+        var cls = map[status] || 'pill-info';
         var el = document.createElement('span');
-        el.className = 'pill ' + (map[status] || 'pill-info');
+        el.className = 'pill ' + cls;
         el.textContent = status;
-        return el.outerHTML;
+        return el;
+    }
+
+    function appendPill(parent, status) {
+        /* Safe: statusPill creates element with textContent only */
+        parent.appendChild(statusPill(status));
     }
 
     function timeAgo(ts) {
@@ -317,19 +417,46 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         return ArchieTime.age(ts);
     }
 
-    function escapeHtml(text) {
-        var div = document.createElement('div');
-        div.textContent = text || '';
-        return div.innerHTML;
+    /* ── Tab switching with hash routing ── */
+    var VALID_TABS = ['approvals', 'active', 'health', 'history'];
+
+    function switchTab(tab) {
+        if (VALID_TABS.indexOf(tab) === -1) tab = 'approvals';
+
+        document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+        document.querySelectorAll('[data-tab]').forEach(function(el) { el.classList.remove('active'); });
+
+        var tabEl = document.getElementById('tab-' + tab);
+        var navEl = document.querySelector('[data-tab="' + tab + '"]');
+        if (tabEl) tabEl.classList.add('active');
+        if (navEl) navEl.classList.add('active');
+
+        window.location.hash = tab;
+
+        /* Stop old intervals */
+        if (activeJobsInterval) { clearInterval(activeJobsInterval); activeJobsInterval = null; }
+        if (healthInterval) { clearInterval(healthInterval); healthInterval = null; }
+
+        /* Load tab data */
+        if (tab === 'approvals') loadApprovals('pending');
+        if (tab === 'active') { loadActiveJobs(); activeJobsInterval = setInterval(loadActiveJobs, 10000); }
+        if (tab === 'health') { loadHealth(); healthInterval = setInterval(loadHealth, 30000); }
+        if (tab === 'history') loadHistory();
     }
 
-    function setPillHTML(td, statusHtml) {
-        /* Safe: statusPill generates from hardcoded class map, no user input in HTML */
-        td.innerHTML = statusHtml;
+    /* ── Collapsible sections ── */
+    function toggleSection(id) {
+        var header = document.querySelector('[onclick="toggleSection(\'' + id + '\')"]');
+        var body = document.getElementById(id + '-body');
+        if (!header || !body) return;
+        header.classList.toggle('collapsed');
+        body.classList.toggle('collapsed');
     }
 
-    // ========== Overview ==========
-    async function loadStatus() {
+    /* ══════════════════════════════════════════════════════════════════════
+       Loop Status (header badge)
+       ══════════════════════════════════════════════════════════════════════ */
+    async function loadLoopStatus() {
         try {
             var resp = await fetch(BASE + '/status');
             var data = await resp.json();
@@ -349,9 +476,6 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 btn.className = 'btn btn-primary';
             }
 
-            document.getElementById('activeJobCount').textContent = data.loop.job_count || 0;
-            document.getElementById('pendingCount').textContent = data.pending_approvals || 0;
-
             var approvalBadge = document.getElementById('approvalBadge');
             if (data.pending_approvals > 0) {
                 approvalBadge.textContent = data.pending_approvals;
@@ -359,120 +483,8 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
             } else {
                 approvalBadge.style.display = 'none';
             }
-
-            var totalProcessed = 0, totalFailed = 0;
-            (data.job_stats_24h || []).forEach(function(s) {
-                totalProcessed += s.total_processed || 0;
-                totalFailed += s.total_failed || 0;
-            });
-            document.getElementById('processedCount').textContent = totalProcessed;
-            document.getElementById('failedCount').textContent = totalFailed;
-
-            // Build job cards for ALL registered jobs
-            var jobCards = document.getElementById('jobCards');
-            var stats = data.job_stats_24h || [];
-            var jobs = data.loop.jobs || [];
-            var jobMap = {};
-            jobs.forEach(function(j) { jobMap[j.id] = j; });
-
-            jobCards.textContent = '';
-            if (jobs.length === 0 && stats.length === 0) {
-                var empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No job data yet. Start the agent loop to begin processing.';
-                jobCards.appendChild(empty);
-            } else {
-                var allJobIds = Object.keys(JOB_META);
-                allJobIds.forEach(function(jobId) {
-                    var meta = JOB_META[jobId];
-                    var shortName = jobId.replace('agent_', '');
-                    var stat = stats.find(function(s) { return s.job_name === shortName; }) || {};
-                    var job = jobMap[jobId];
-
-                    var card = document.createElement('div');
-                    card.className = 'job-card';
-                    card.style.setProperty('--job-color', meta.color);
-
-                    var info = document.createElement('div');
-                    info.className = 'job-info';
-                    var h3 = document.createElement('h3');
-                    h3.textContent = meta.label;
-                    info.appendChild(h3);
-                    var meta1 = document.createElement('div');
-                    meta1.className = 'meta';
-                    if (job) {
-                        meta1.textContent = 'Next: ' + (job.next_run ? ArchieTime.time(job.next_run) : 'N/A');
-                    } else {
-                        meta1.textContent = 'Not registered';
-                        meta1.style.color = 'var(--au-red)';
-                    }
-                    info.appendChild(meta1);
-                    var meta2 = document.createElement('div');
-                    meta2.className = 'meta';
-                    meta2.textContent = 'Last: ' + (stat.last_run ? timeAgo(stat.last_run) : 'Never logged');
-                    info.appendChild(meta2);
-                    card.appendChild(info);
-
-                    var statsDiv = document.createElement('div');
-                    statsDiv.className = 'job-stats';
-                    [
-                        {val: stat.total_processed || 0, label: 'Proc', color: '#00ff41'},
-                        {val: stat.total_failed || 0, label: 'Fail', color: (stat.total_failed || 0) > 0 ? '#ff4136' : '#8b949e'},
-                        {val: stat.cycles || 0, label: 'Runs', color: '#c9d1d9'}
-                    ].forEach(function(s) {
-                        var d = document.createElement('div');
-                        var v = document.createElement('div');
-                        v.className = 'job-stat-value';
-                        v.style.color = s.color;
-                        v.textContent = s.val;
-                        d.appendChild(v);
-                        var l = document.createElement('div');
-                        l.className = 'job-stat-label';
-                        l.textContent = s.label;
-                        d.appendChild(l);
-                        statsDiv.appendChild(d);
-                    });
-                    card.appendChild(statsDiv);
-                    jobCards.appendChild(card);
-                });
-            }
-
-            // Recent logs table
-            var logs = data.recent_logs || [];
-            var tbody = document.getElementById('recentLogs');
-            tbody.textContent = '';
-            if (logs.length === 0) {
-                var tr = document.createElement('tr');
-                var td = document.createElement('td');
-                td.setAttribute('colspan', '6');
-                td.style.textAlign = 'center';
-                td.style.color = 'var(--au-muted)';
-                td.textContent = 'No recent activity';
-                tr.appendChild(td);
-                tbody.appendChild(tr);
-            } else {
-                logs.forEach(function(l) {
-                    var tr = document.createElement('tr');
-                    var cells = [
-                        {text: getJobLabel(l.job_name)},
-                        {pill: statusPill(l.status)},
-                        {text: l.items_processed, color: '#00ff41'},
-                        {text: l.items_failed, color: l.items_failed > 0 ? '#ff4136' : '#8b949e'},
-                        {text: l.duration_ms + 'ms'},
-                        {text: timeAgo(l.created_at)}
-                    ];
-                    cells.forEach(function(c) {
-                        var td = document.createElement('td');
-                        if (c.pill) { setPillHTML(td, c.pill); }
-                        else { td.textContent = c.text; }
-                        if (c.color) td.style.color = c.color;
-                        tr.appendChild(td);
-                    });
-                    tbody.appendChild(tr);
-                });
-            }
         } catch (e) {
-            console.error('Failed to load status:', e);
+            console.error('Failed to load loop status:', e);
         }
     }
 
@@ -483,19 +495,33 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 body: JSON.stringify({action: 'toggle'})
             });
             await resp.json();
-            loadStatus();
+            loadLoopStatus();
         } catch (e) { console.error('Toggle failed:', e); }
     }
 
-    // ========== Approvals ==========
+    /* ══════════════════════════════════════════════════════════════════════
+       Tab 1: Approvals
+       ══════════════════════════════════════════════════════════════════════ */
     async function loadApprovals(status) {
+        currentApprovalFilter = status || 'pending';
         try {
-            var resp = await fetch(BASE + '/approvals?status=' + status);
+            var resp = await fetch(BASE + '/approvals?status=' + currentApprovalFilter);
             var data = await resp.json();
             if (!data.success) return;
             var list = document.getElementById('approvalsList');
             var items = data.items || [];
+            pendingApprovalIds = [];
             list.textContent = '';
+
+            /* Bulk action bar */
+            var bulkBar = document.getElementById('bulkActions');
+            if (currentApprovalFilter === 'pending' && items.length > 1) {
+                items.forEach(function(item) { pendingApprovalIds.push(item.id); });
+                document.getElementById('bulkCount').textContent = items.length;
+                bulkBar.style.display = 'flex';
+            } else {
+                bulkBar.style.display = 'none';
+            }
 
             if (items.length === 0) {
                 var empty = document.createElement('div');
@@ -504,7 +530,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 icon.className = 'icon';
                 icon.textContent = '\u2713';
                 empty.appendChild(icon);
-                var msg = document.createTextNode('No ' + status + ' items');
+                var msg = document.createTextNode('No ' + currentApprovalFilter + ' items');
                 empty.appendChild(msg);
                 list.appendChild(empty);
                 return;
@@ -528,7 +554,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 header.appendChild(left);
 
                 var pillEl = document.createElement('span');
-                setPillHTML(pillEl, statusPill(item.status));
+                appendPill(pillEl, item.status);
                 header.appendChild(pillEl);
                 detail.appendChild(header);
 
@@ -577,7 +603,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         try {
             await fetch(BASE + '/approvals/' + id + '/approve', {method: 'POST', headers: {'Content-Type': 'application/json'}});
             loadApprovals('pending');
-            loadStatus();
+            loadLoopStatus();
         } catch (e) { console.error('Approve failed:', e); }
     }
 
@@ -589,29 +615,397 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 body: JSON.stringify({reason: reason || ''})
             });
             loadApprovals('pending');
-            loadStatus();
+            loadLoopStatus();
         } catch (e) { console.error('Reject failed:', e); }
     }
 
-    // ========== History ==========
-    async function loadHistory(job, hours) {
-        currentHistoryJob = job;
-        hours = hours || 24;
+    async function bulkApprove(action) {
+        if (pendingApprovalIds.length === 0) return;
+        var confirmMsg = action === 'approve'
+            ? 'Approve all ' + pendingApprovalIds.length + ' pending items?'
+            : 'Reject all ' + pendingApprovalIds.length + ' pending items?';
+        if (!confirm(confirmMsg)) return;
+
         try {
-            var url = BASE + '/history?hours=' + hours;
-            if (job) url += '&job=' + job;
+            var resp = await fetch(BASE + '/approvals/bulk', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: action, ids: pendingApprovalIds})
+            });
+            var data = await resp.json();
+            if (data.success) {
+                loadApprovals('pending');
+                loadLoopStatus();
+            }
+        } catch (e) { console.error('Bulk action failed:', e); }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       Tab 2: Active Jobs
+       ══════════════════════════════════════════════════════════════════════ */
+    async function loadActiveJobs() {
+        try {
+            var resp = await fetch(BASE + '/ops-active-jobs');
+            var data = await resp.json();
+            if (data.error) return;
+
+            /* --- Bridge Jobs --- */
+            var bridgeJobs = data.bridge_jobs || [];
+            var bridgeList = document.getElementById('bridgeJobsList');
+            document.getElementById('bridgeJobsBadge').textContent = bridgeJobs.length;
+            bridgeList.textContent = '';
+
+            if (bridgeJobs.length === 0) {
+                var empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No active bridge jobs';
+                bridgeList.appendChild(empty);
+            } else {
+                bridgeJobs.forEach(function(job) {
+                    var card = document.createElement('div');
+                    card.className = 'au-job-card';
+
+                    var desc = document.createElement('div');
+                    desc.className = 'job-desc';
+                    var h4 = document.createElement('h4');
+                    h4.textContent = job.description || job.job_type || 'Unnamed Job';
+                    desc.appendChild(h4);
+                    var meta = document.createElement('div');
+                    meta.className = 'job-meta';
+                    meta.textContent = (job.agent_name || 'Unassigned') + ' \u2022 ' + timeAgo(job.created_at);
+                    desc.appendChild(meta);
+                    card.appendChild(desc);
+
+                    var progressDiv = document.createElement('div');
+                    progressDiv.className = 'job-progress';
+                    var bar = document.createElement('div');
+                    bar.className = 'progress-bar';
+                    var fill = document.createElement('div');
+                    fill.className = 'progress-fill';
+                    var total = job.total_steps || 1;
+                    var completed = job.completed_steps || 0;
+                    var pct = Math.min(100, Math.round((completed / total) * 100));
+                    fill.style.width = pct + '%';
+                    bar.appendChild(fill);
+                    progressDiv.appendChild(bar);
+                    var label = document.createElement('div');
+                    label.className = 'progress-label';
+                    label.textContent = completed + '/' + total + ' (' + pct + '%)';
+                    progressDiv.appendChild(label);
+                    card.appendChild(progressDiv);
+
+                    var pillEl = document.createElement('div');
+                    appendPill(pillEl, job.status);
+                    card.appendChild(pillEl);
+
+                    bridgeList.appendChild(card);
+                });
+            }
+
+            /* --- Server Loops --- */
+            var serverLoops = data.server_loops || {};
+            var loopOps = ['analysis', 'embedding', 'reindex', 'translate'];
+            var loopList = document.getElementById('serverLoopsList');
+            var activeLoopCount = 0;
+            loopList.textContent = '';
+
+            loopOps.forEach(function(op) {
+                var enabled = !!serverLoops[op];
+                if (enabled) activeLoopCount++;
+
+                var row = document.createElement('div');
+                row.className = 'au-loop-toggle';
+
+                var lbl = document.createElement('div');
+                lbl.className = 'loop-label';
+                lbl.textContent = op.charAt(0).toUpperCase() + op.slice(1);
+                row.appendChild(lbl);
+
+                var toggle = document.createElement('div');
+                toggle.className = 'toggle-switch' + (enabled ? ' on' : '');
+                toggle.title = enabled ? 'Disable ' + op : 'Enable ' + op;
+                toggle.addEventListener('click', (function(o, en) {
+                    return function() { toggleServerLoop(o, !en); };
+                })(op, enabled));
+                row.appendChild(toggle);
+                loopList.appendChild(row);
+            });
+            document.getElementById('serverLoopsBadge').textContent = activeLoopCount;
+
+            /* --- Agent Loop Jobs --- */
+            var agentLoop = data.agent_loop || {};
+            var agentJobs = agentLoop.jobs || [];
+            var agentJobsList = document.getElementById('agentLoopJobsList');
+            document.getElementById('agentLoopJobsBadge').textContent = agentJobs.length;
+            agentJobsList.textContent = '';
+
+            if (agentJobs.length === 0) {
+                var emptyAl = document.createElement('div');
+                emptyAl.className = 'empty-state';
+                emptyAl.textContent = agentLoop.running ? 'No registered jobs' : 'Agent loop not running';
+                agentJobsList.appendChild(emptyAl);
+            } else {
+                var grid = document.createElement('div');
+                grid.className = 'job-grid';
+                agentJobs.forEach(function(job) {
+                    var card = document.createElement('div');
+                    card.className = 'job-card';
+                    var meta = JOB_META[job.id] || {};
+                    card.style.setProperty('--job-color', meta.color || '#FFAA00');
+
+                    var info = document.createElement('div');
+                    info.className = 'job-info';
+                    var h3 = document.createElement('h3');
+                    h3.textContent = meta.label || job.id;
+                    info.appendChild(h3);
+                    var nextDiv = document.createElement('div');
+                    nextDiv.className = 'meta';
+                    nextDiv.textContent = 'Next: ' + (job.next_run ? ArchieTime.time(job.next_run) : 'N/A');
+                    info.appendChild(nextDiv);
+                    card.appendChild(info);
+                    grid.appendChild(card);
+                });
+                agentJobsList.appendChild(grid);
+            }
+
+            /* --- Scheduler Jobs --- */
+            var schedulerJobs = data.scheduler_jobs || [];
+            var schedulerList = document.getElementById('schedulerJobsList');
+            document.getElementById('schedulerJobsBadge').textContent = schedulerJobs.length;
+            schedulerList.textContent = '';
+
+            if (schedulerJobs.length === 0) {
+                var emptySch = document.createElement('div');
+                emptySch.className = 'empty-state';
+                emptySch.textContent = 'No scheduler jobs';
+                schedulerList.appendChild(emptySch);
+            } else {
+                var tbl = document.createElement('table');
+                tbl.className = 'data-table';
+                var thead = document.createElement('thead');
+                var hRow = document.createElement('tr');
+                ['Name', 'Next Run'].forEach(function(h) {
+                    var th = document.createElement('th');
+                    th.textContent = h;
+                    hRow.appendChild(th);
+                });
+                thead.appendChild(hRow);
+                tbl.appendChild(thead);
+
+                var tbody = document.createElement('tbody');
+                schedulerJobs.forEach(function(job) {
+                    var tr = document.createElement('tr');
+                    var tdName = document.createElement('td');
+                    tdName.textContent = job.name || job.id;
+                    tr.appendChild(tdName);
+                    var tdNext = document.createElement('td');
+                    tdNext.textContent = job.next_run ? ArchieTime.format(job.next_run, 'short') : 'N/A';
+                    tr.appendChild(tdNext);
+                    tbody.appendChild(tr);
+                });
+                tbl.appendChild(tbody);
+                schedulerList.appendChild(tbl);
+            }
+
+            /* Update active jobs badge */
+            var totalActive = bridgeJobs.filter(function(j) { return j.status === 'running' || j.status === 'pending'; }).length;
+            var ajBadge = document.getElementById('activeJobsBadge');
+            if (totalActive > 0) {
+                ajBadge.textContent = totalActive;
+                ajBadge.style.display = 'inline';
+            } else {
+                ajBadge.style.display = 'none';
+            }
+
+        } catch (e) { console.error('Failed to load active jobs:', e); }
+    }
+
+    async function toggleServerLoop(op, enabled) {
+        try {
+            await fetch('/tools/consciousness/processing/server-loop/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({op: op, enabled: enabled})
+            });
+            loadActiveJobs();
+        } catch (e) { console.error('Toggle server loop failed:', e); }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       Tab 3: Health
+       ══════════════════════════════════════════════════════════════════════ */
+    function healthStatus(lastRun, errCount) {
+        /* Determine green/amber/red based on staleness and error ratio */
+        if (!lastRun) return 'red';
+        var ageMs = Date.now() - new Date(lastRun).getTime();
+        var ageHours = ageMs / (1000 * 60 * 60);
+        if (errCount > 5 || ageHours > 12) return 'red';
+        if (errCount > 0 || ageHours > 4) return 'amber';
+        return 'green';
+    }
+
+    function buildHealthCard(name, lastRun, okCount, errCount) {
+        var status = healthStatus(lastRun, errCount);
+        var card = document.createElement('div');
+        card.className = 'au-health-card';
+        card.setAttribute('data-health', status);
+
+        var dot = document.createElement('div');
+        dot.className = 'health-dot ' + status;
+        card.appendChild(dot);
+
+        var info = document.createElement('div');
+        info.className = 'health-info';
+
+        var nameEl = document.createElement('div');
+        nameEl.className = 'health-name';
+        nameEl.textContent = name;
+        info.appendChild(nameEl);
+
+        var stats = document.createElement('div');
+        stats.className = 'health-stats';
+        stats.textContent = okCount + ' ok / ' + errCount + ' err';
+        info.appendChild(stats);
+
+        var lastRunEl = document.createElement('div');
+        lastRunEl.className = 'health-last-run';
+        lastRunEl.textContent = 'Last: ' + timeAgo(lastRun);
+        info.appendChild(lastRunEl);
+
+        card.appendChild(info);
+        return card;
+    }
+
+    async function loadHealth() {
+        try {
+            var resp = await fetch(BASE + '/ops-health');
+            var data = await resp.json();
+            if (data.error) return;
+
+            /* Loop health grid */
+            var loopGrid = document.getElementById('loopHealthGrid');
+            var loopHealth = data.loop_health || [];
+            loopGrid.textContent = '';
+
+            if (loopHealth.length === 0) {
+                var empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No agent loop data in last 24h';
+                loopGrid.appendChild(empty);
+            } else {
+                loopHealth.forEach(function(h) {
+                    loopGrid.appendChild(buildHealthCard(
+                        getJobLabel(h.job_name),
+                        h.last_run,
+                        h.ok_24h,
+                        h.err_24h
+                    ));
+                });
+            }
+
+            /* Bridge health grid */
+            var bridgeGrid = document.getElementById('bridgeHealthGrid');
+            var bridgeHealth = data.bridge_health || [];
+            bridgeGrid.textContent = '';
+
+            if (bridgeHealth.length === 0) {
+                var emptyB = document.createElement('div');
+                emptyB.className = 'empty-state';
+                emptyB.textContent = 'No bridge job data in last 24h';
+                bridgeGrid.appendChild(emptyB);
+            } else {
+                bridgeHealth.forEach(function(h) {
+                    bridgeGrid.appendChild(buildHealthCard(
+                        h.job_type,
+                        h.last_completed,
+                        h.ok_24h,
+                        h.err_24h
+                    ));
+                });
+            }
+
+            /* System components */
+            var compList = document.getElementById('componentsList');
+            var components = data.components || {};
+            compList.textContent = '';
+
+            /* Ollama */
+            var ollamaStatus = (components.ollama || {}).status || 'error';
+            var ollamaRow = document.createElement('div');
+            ollamaRow.className = 'au-component-row';
+            ollamaRow.setAttribute('data-status', ollamaStatus === 'ok' ? 'ok' : 'error');
+            var ollamaName = document.createElement('div');
+            ollamaName.className = 'comp-name';
+            ollamaName.textContent = 'Ollama';
+            ollamaRow.appendChild(ollamaName);
+            var ollamaDetail = document.createElement('div');
+            ollamaDetail.className = 'comp-detail';
+            if (ollamaStatus === 'ok') {
+                ollamaDetail.textContent = 'Connected (HTTP ' + ((components.ollama || {}).http_code || 200) + ')';
+            } else {
+                ollamaDetail.textContent = 'Error: ' + ((components.ollama || {}).error || 'unreachable');
+            }
+            ollamaRow.appendChild(ollamaDetail);
+            var ollamaDot = document.createElement('div');
+            ollamaDot.className = 'health-dot ' + (ollamaStatus === 'ok' ? 'green' : 'red');
+            ollamaRow.appendChild(ollamaDot);
+            compList.appendChild(ollamaRow);
+
+            /* Telegram */
+            var tg = components.telegram || {};
+            var tgStatus = tg.token_configured ? 'ok' : 'warn';
+            var tgRow = document.createElement('div');
+            tgRow.className = 'au-component-row';
+            tgRow.setAttribute('data-status', tgStatus);
+            var tgName = document.createElement('div');
+            tgName.className = 'comp-name';
+            tgName.textContent = 'Telegram';
+            tgRow.appendChild(tgName);
+            var tgDetail = document.createElement('div');
+            tgDetail.className = 'comp-detail';
+            if (tg.token_configured) {
+                tgDetail.textContent = 'Configured (' + tg.authorized_users + ' authorized user' + (tg.authorized_users !== 1 ? 's' : '') + ')';
+            } else {
+                tgDetail.textContent = 'Token not configured';
+            }
+            tgRow.appendChild(tgDetail);
+            var tgDot = document.createElement('div');
+            tgDot.className = 'health-dot ' + (tg.token_configured ? 'green' : 'amber');
+            tgRow.appendChild(tgDot);
+            compList.appendChild(tgRow);
+
+        } catch (e) { console.error('Failed to load health:', e); }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       Tab 4: History
+       ══════════════════════════════════════════════════════════════════════ */
+    function setHistoryHours(hours) {
+        currentHistoryHours = hours;
+        /* Highlight active button */
+        var btns = document.getElementById('historyTimeButtons').querySelectorAll('.btn');
+        btns.forEach(function(b) { b.className = 'btn btn-sm'; });
+        if (hours === 6) btns[0].classList.add('btn-primary');
+        else if (hours === 24) btns[1].classList.add('btn-primary');
+        else if (hours === 168) btns[2].classList.add('btn-primary');
+        loadHistory();
+    }
+
+    async function loadHistory() {
+        var system = document.getElementById('historySystemFilter').value;
+        try {
+            var url = BASE + '/ops-history?hours=' + currentHistoryHours + '&system=' + system;
             var resp = await fetch(url);
             var data = await resp.json();
-            if (!data.success) return;
 
             var tbody = document.getElementById('historyLogs');
-            var logs = data.logs || [];
+            var rows = data.rows || [];
             tbody.textContent = '';
 
-            if (logs.length === 0) {
+            if (rows.length === 0) {
                 var tr = document.createElement('tr');
                 var td = document.createElement('td');
-                td.setAttribute('colspan', '7');
+                td.setAttribute('colspan', '6');
                 td.style.textAlign = 'center';
                 td.style.color = 'var(--au-muted)';
                 td.textContent = 'No history for this period';
@@ -620,110 +1014,65 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 return;
             }
 
-            logs.forEach(function(l) {
+            rows.forEach(function(row) {
                 var tr = document.createElement('tr');
-                var cells = [
-                    {text: getJobLabel(l.job_name)},
-                    {pill: statusPill(l.status)},
-                    {text: String(l.items_processed), color: '#00ff41'},
-                    {text: String(l.items_failed), color: l.items_failed > 0 ? '#ff4136' : '#8b949e'},
-                    {text: l.duration_ms + 'ms'},
-                    {text: l.error_message || '-', color: l.error_message ? '#ff4136' : null, maxWidth: '200px'},
-                    {text: ArchieTime.format(l.created_at, 'short')}
-                ];
-                cells.forEach(function(c) {
-                    var td = document.createElement('td');
-                    if (c.pill) { setPillHTML(td, c.pill); }
-                    else { td.textContent = c.text; }
-                    if (c.color) td.style.color = c.color;
-                    if (c.maxWidth) { td.style.maxWidth = c.maxWidth; td.style.overflow = 'hidden'; td.style.textOverflow = 'ellipsis'; td.style.whiteSpace = 'nowrap'; td.title = c.text; }
-                    tr.appendChild(td);
-                });
+
+                /* Source badge */
+                var tdSource = document.createElement('td');
+                var sourceBadge = document.createElement('span');
+                sourceBadge.className = 'au-source-badge ' + (row.system || 'agent_loop');
+                var sourceDot = document.createElement('span');
+                sourceDot.className = 'source-dot';
+                sourceBadge.appendChild(sourceDot);
+                var sourceText = document.createTextNode(row.system === 'bridge' ? 'Bridge' : 'Agent Loop');
+                sourceBadge.appendChild(sourceText);
+                tdSource.appendChild(sourceBadge);
+                tr.appendChild(tdSource);
+
+                /* Name */
+                var tdName = document.createElement('td');
+                tdName.textContent = row.system === 'bridge' ? (row.name || '') : getJobLabel(row.name);
+                tr.appendChild(tdName);
+
+                /* Status */
+                var tdStatus = document.createElement('td');
+                appendPill(tdStatus, row.status);
+                tr.appendChild(tdStatus);
+
+                /* Processed */
+                var tdProc = document.createElement('td');
+                tdProc.textContent = row.items_processed != null ? String(row.items_processed) : '-';
+                tdProc.style.color = '#00ff41';
+                tr.appendChild(tdProc);
+
+                /* Duration */
+                var tdDur = document.createElement('td');
+                tdDur.textContent = row.duration_ms != null ? row.duration_ms + 'ms' : '-';
+                tr.appendChild(tdDur);
+
+                /* Time */
+                var tdTime = document.createElement('td');
+                tdTime.textContent = row.timestamp ? ArchieTime.format(row.timestamp, 'short') : '-';
+                tr.appendChild(tdTime);
+
                 tbody.appendChild(tr);
             });
         } catch (e) { console.error('Failed to load history:', e); }
     }
 
-    // ========== Config ==========
-    async function loadConfig() {
-        try {
-            var resp = await fetch(BASE + '/config');
-            var data = await resp.json();
-            if (!data.success) return;
-            var list = document.getElementById('configList');
-            var configs = data.configs || [];
-            list.textContent = '';
+    /* ══════════════════════════════════════════════════════════════════════
+       Init
+       ══════════════════════════════════════════════════════════════════════ */
+    loadLoopStatus();
+    setInterval(loadLoopStatus, 15000);
 
-            configs.forEach(function(c) {
-                var val = c.config_value;
-                var isEnabled = val.enabled !== undefined;
-                var item = document.createElement('div');
-                item.className = 'config-item';
-
-                var left = document.createElement('div');
-                var label = document.createElement('div');
-                label.className = 'config-label';
-                label.textContent = c.config_key;
-                left.appendChild(label);
-                var desc = document.createElement('div');
-                desc.className = 'config-desc';
-                desc.textContent = c.description || '';
-                left.appendChild(desc);
-                item.appendChild(left);
-
-                var right = document.createElement('div');
-                right.style.cssText = 'display:flex;align-items:center;gap:1rem;';
-                if (isEnabled) {
-                    var toggle = document.createElement('div');
-                    toggle.className = 'config-toggle' + (val.enabled ? ' on' : '');
-                    toggle.title = val.enabled ? 'Disable' : 'Enable';
-                    toggle.addEventListener('click', (function(key, enabled) {
-                        return function() { toggleConfig(key, !enabled); };
-                    })(c.config_key, val.enabled));
-                    right.appendChild(toggle);
-                }
-                var editBtn = document.createElement('button');
-                editBtn.className = 'btn btn-sm';
-                editBtn.textContent = 'Edit';
-                editBtn.addEventListener('click', (function(key, v) {
-                    return function() { editConfig(key, v); };
-                })(c.config_key, val));
-                right.appendChild(editBtn);
-                item.appendChild(right);
-                list.appendChild(item);
-            });
-        } catch (e) { console.error('Failed to load config:', e); }
+    /* Hash routing */
+    var hashTab = (window.location.hash || '').replace('#', '');
+    if (VALID_TABS.indexOf(hashTab) !== -1) {
+        switchTab(hashTab);
+    } else {
+        /* Default: approvals tab is already active in HTML, just load data */
+        loadApprovals('pending');
     }
-
-    async function toggleConfig(key, newEnabled) {
-        try {
-            var resp = await fetch(BASE + '/config');
-            var data = await resp.json();
-            var config = data.configs.find(function(c) { return c.config_key === key; });
-            if (!config) return;
-            var newVal = Object.assign({}, config.config_value, {enabled: newEnabled});
-            await fetch(BASE + '/config/' + key, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({value: newVal})
-            });
-            loadConfig();
-        } catch (e) { console.error('Toggle config failed:', e); }
-    }
-
-    function editConfig(key, currentVal) {
-        var newVal = prompt('Edit JSON value for ' + key + ':', JSON.stringify(currentVal, null, 2));
-        if (!newVal) return;
-        try {
-            var parsed = JSON.parse(newVal);
-            fetch(BASE + '/config/' + key, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({value: parsed})
-            }).then(function() { loadConfig(); });
-        } catch (e) { alert('Invalid JSON: ' + e.message); }
-    }
-
-    // Init
-    loadStatus();
-    refreshInterval = setInterval(loadStatus, 15000);
 </script>
 {% endblock %}

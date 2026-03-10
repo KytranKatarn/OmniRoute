@@ -175,6 +175,14 @@ def _generate_node_crew(node_int_id, node_id):
     Only creates agents for stations the node has enabled.
     """
     with get_db_cursor(commit=True) as (conn, cur):
+        # Skip if node has custom (node-native) agents — don't auto-clone over them
+        cur.execute(
+            "SELECT 1 FROM node_agents WHERE node_id = %s AND hub_agent_id IS NULL AND source_agent_id IS NULL LIMIT 1",
+            (node_int_id,),
+        )
+        if cur.fetchone():
+            return
+
         # Get Bridge agents assigned to this node's active stations
         cur.execute(
             """

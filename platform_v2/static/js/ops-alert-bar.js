@@ -72,17 +72,20 @@
 
     function checkNewHighAlerts(data) {
         var currentIds = [];
-        if (data.approvals_pending && data.approvals_pending > 0) {
-            currentIds.push('approvals:' + data.approvals_pending);
+        var pending = (data.approvals && data.approvals.pending) || 0;
+        var e1h = data.errors_1h || {};
+        var errCount = (e1h.bridge_failed || 0) + (e1h.loop_errors || 0);
+        if (pending > 0) {
+            currentIds.push('approvals:' + pending);
         }
-        if (data.errors && data.errors > 0) {
-            currentIds.push('errors:' + data.errors);
+        if (errCount > 0) {
+            currentIds.push('errors:' + errCount);
         }
         var sig = currentIds.join('|');
         var lastSig = localStorage.getItem(LS_LAST_ALERTS) || '';
         localStorage.setItem(LS_LAST_ALERTS, sig);
 
-        if (sig && sig !== lastSig && data.approvals_pending > 0) {
+        if (sig && sig !== lastSig && pending > 0) {
             playChime();
         }
     }
@@ -130,10 +133,18 @@
             bar.removeChild(bar.firstChild);
         }
 
-        var approvals = data.approvals_pending || 0;
-        var jobs = data.jobs_running || 0;
-        var loops = data.loops_active || 0;
-        var errors = data.errors || 0;
+        // Map nested API response to display values
+        var approvals = (data.approvals && data.approvals.pending) || 0;
+        var aj = data.active_jobs || {};
+        var jobs = (aj.bridge_running || 0) + (aj.bridge_pending || 0);
+        var loops = 0;
+        if (aj.server_loops) {
+            Object.keys(aj.server_loops).forEach(function (k) {
+                if (aj.server_loops[k]) loops++;
+            });
+        }
+        var e1h = data.errors_1h || {};
+        var errors = (e1h.bridge_failed || 0) + (e1h.loop_errors || 0);
 
         var hasActionable = approvals > 0 || errors > 0;
 

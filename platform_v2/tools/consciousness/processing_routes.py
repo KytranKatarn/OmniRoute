@@ -1281,7 +1281,7 @@ def _trigger_loop_op(op):
                 return
             t = threading.Thread(
                 target=_run_translate_bg,
-                args=(languages, "consciousness_linguistics", job_id),
+                args=(languages, None, job_id),
                 daemon=True,
             )
             t.start()

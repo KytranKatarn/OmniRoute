@@ -20,6 +20,7 @@ import json
 import logging
 import time
 import os
+from datetime import datetime
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
@@ -629,15 +630,21 @@ class BridgeDispatcher:
             # --- Budget data ---
             cur.execute("""
                 SELECT agent_id, current_task_count, task_queue_limit,
-                       tokens_used_today, token_limit_per_day
+                       tokens_used_today, token_limit_per_day, token_reset_at
                 FROM agent_budgets
             """)
             budget_map = {}
             for r in cur.fetchall():
+                # If reset is overdue, treat as fresh budget (the actual reset
+                # happens on next task dispatch via _increment_agent_budget)
+                reset_overdue = (
+                    r["token_reset_at"] is not None
+                    and r["token_reset_at"] < datetime.now()
+                )
                 budget_map[r["agent_id"]] = {
-                    "current_task_count": r["current_task_count"] or 0,
+                    "current_task_count": 0 if reset_overdue else (r["current_task_count"] or 0),
                     "task_queue_limit": r["task_queue_limit"] or 10,
-                    "tokens_used_today": r["tokens_used_today"] or 0,
+                    "tokens_used_today": 0 if reset_overdue else (r["tokens_used_today"] or 0),
                     "token_limit_per_day": r["token_limit_per_day"] or 100000,
                 }
 

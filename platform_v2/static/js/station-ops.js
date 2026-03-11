@@ -459,6 +459,95 @@
     return this._atCapacity;
   };
 
+  /* ── Auto-render DB-driven action buttons (bidirectional sync) ── */
+
+  /**
+   * Fetch registered actions for this module and render them as buttons
+   * in the commandsElId container. Actions trigger via Bridge API and
+   * poll for job progress — keeping both module page and Bridge ACTN
+   * tab in sync (bidirectional: both see the same running jobs).
+   *
+   * Usage:
+   *   ops.renderActionPanel();  // auto-fetches + renders + wires exec
+   */
+  StationOps.prototype.renderActionPanel = function() {
+    var self = this;
+    var cmdsEl = document.getElementById(this.commandsElId);
+    if (!cmdsEl) return Promise.resolve();
+
+    return StationOps.fetchActions(this.moduleSource).then(function(actions) {
+      if (!actions.length) {
+        cmdsEl.innerHTML = '<span class="stn-ops-no-actions" style="color:var(--archie-text-muted);font-size:11px;">No actions registered</span>';
+        return;
+      }
+
+      cmdsEl.innerHTML = "";
+      actions.forEach(function(act) {
+        var btn = document.createElement("button");
+        btn.className = "stn-ops-cmd cs-ops-cmd " + (act.color_class || "purple");
+        btn.innerHTML = (act.icon ? '<span style="margin-right:4px;">' + act.icon + '</span>' : "") + escHtml(act.label);
+        if (act.description) btn.title = act.description;
+        btn.dataset.actionKey = act.action_key;
+
+        btn.addEventListener("click", function() {
+          btn.disabled = true;
+          btn.dataset.origText = btn.textContent;
+          btn.textContent = "Running...";
+
+          StationOps._execAction(
+            self,
+            act.action_key,
+            act.endpoint_path,
+            act.http_method || "POST",
+            act.creates_job,
+            {},
+            self.jobsElId,
+            function(result, err) {
+              btn.disabled = false;
+              btn.textContent = btn.dataset.origText;
+              if (err) {
+                console.warn("[StationOps] Action failed:", act.action_key, err);
+              }
+              // Refresh jobs display after action completes
+              self.checkJobs().then(function(r) { self.render(r.myJobs); });
+            }
+          );
+        });
+
+        cmdsEl.appendChild(btn);
+      });
+      self._commandsInjected = true;
+    });
+  };
+
+  /**
+   * Start polling loop — checks Bridge for running jobs every `intervalMs`
+   * and re-renders crew + jobs. Call once after initial render.
+   *
+   * Usage:
+   *   ops.startPolling(3000);  // poll every 3 seconds
+   */
+  StationOps.prototype.startPolling = function(intervalMs) {
+    var self = this;
+    var ms = intervalMs || 3000;
+
+    function tick() {
+      self.checkJobs().then(function(r) {
+        self.renderAgents(r.myJobs);
+        self.renderJobs(r.myJobs);
+      });
+    }
+    tick();  // initial fetch
+    this._pollTimer = setInterval(tick, ms);
+  };
+
+  StationOps.prototype.stopPolling = function() {
+    if (this._pollTimer) {
+      clearInterval(this._pollTimer);
+      this._pollTimer = null;
+    }
+  };
+
   /* ── Fetch DB-driven actions for a module ── */
 
   /**

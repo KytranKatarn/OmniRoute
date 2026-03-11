@@ -155,7 +155,7 @@ def _get_node_db():
 # ---------------------------------------------------------------------------
 
 
-def http_post(url, data, headers=None):
+def http_post(url, data, headers=None, timeout=15):
     """
     POST JSON data to *url*. Returns (status_code, response_json).
     Uses `requests` if available, otherwise falls back to urllib.
@@ -166,7 +166,7 @@ def http_post(url, data, headers=None):
 
     if _HAS_REQUESTS:
         try:
-            resp = _requests_lib.post(url, json=data, headers=headers, timeout=15)
+            resp = _requests_lib.post(url, json=data, headers=headers, timeout=timeout)
             try:
                 resp_json = resp.json()
             except Exception:
@@ -178,7 +178,7 @@ def http_post(url, data, headers=None):
     else:
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 resp_body = resp.read().decode("utf-8")
                 try:
                     resp_json = json.loads(resp_body)
@@ -716,6 +716,7 @@ def _handle_job_request(config, payload):
             status_code, resp = http_post(
                 f"{ollama_host}/api/generate",
                 ollama_payload,
+                timeout=timeout,
             )
             elapsed = time.time() - start
 

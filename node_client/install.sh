@@ -442,7 +442,12 @@ install_docker_stack() {
     MIGRATION_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/migrations/001_node_schema.sql"
     info "Downloading migrations/001_node_schema.sql..."
     curl -fsSL "${MIGRATION_URL}" -o "${DEPLOY_DIR}/migrations/001_node_schema.sql"
-    success "Downloaded migration schema"
+    success "Downloaded migration 001"
+
+    MIGRATION2_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/migrations/002_knowledge_projects.sql"
+    info "Downloading migrations/002_knowledge_projects.sql..."
+    curl -fsSL "${MIGRATION2_URL}" -o "${DEPLOY_DIR}/migrations/002_knowledge_projects.sql"
+    success "Downloaded migration 002"
 
     # --- Build node Docker image ---
     info "Building node Docker image (this may take a minute)..."

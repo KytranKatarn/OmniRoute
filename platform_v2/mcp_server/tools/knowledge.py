@@ -94,7 +94,8 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         where_clause = " AND ".join(conditions)
 
-        # Execute search with weighted ranking
+        # Execute search with weighted ranking (type weight * recency bonus)
+        # Recency: entries < 90 days get up to 30% boost, older get no boost
         cur.execute(
             f"""
             SELECT
@@ -110,10 +111,15 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 CASE
                     WHEN knowledge_type = 'mistake_learned' THEN importance_score * 1.3
                     WHEN knowledge_type = 'vault_note' THEN importance_score * 1.2
+                    WHEN knowledge_type LIKE 'knowledge_card%%' THEN importance_score * 1.1
                     WHEN knowledge_type = 'code_snippet' THEN importance_score * 1.1
                     WHEN knowledge_type = 'improvement' THEN importance_score * 1.0
                     ELSE importance_score * 0.8
-                END as weighted_score
+                END
+                * (1.0 + 0.3 * GREATEST(0.0,
+                    1.0 - EXTRACT(EPOCH FROM (NOW() - created_at)) / (86400.0 * 90)
+                  ))
+                as weighted_score
             FROM knowledge_base
             WHERE {where_clause}
             ORDER BY weighted_score DESC, access_count DESC

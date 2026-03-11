@@ -131,11 +131,13 @@ def _recover_idle_welfare(self):
     - Idle (not dispatched in last hour): stress -0.15, energy +0.2
     - Resting (active rest cycle): stress -0.3, energy +0.4
     """
-    if not self._is_enabled("hr_tracker_enabled"):
-        return
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        if not self._is_enabled(cur, "hr_tracker_enabled"):
+            cur.close()
+            conn.close()
+            return
 
         # Find agents with recent dispatches (last hour)
         cur.execute("""
@@ -210,7 +212,7 @@ Add after the last job registration (around line 379, after `agent_proactive_sca
 ```python
 self.scheduler.add_job(
     with_app_context(self._recover_idle_welfare),
-    IntervalTrigger(minutes=30),
+    trigger=IntervalTrigger(minutes=30),
     id="agent_welfare_recovery",
     name="Agent Loop: Welfare Recovery",
     replace_existing=True,
@@ -274,16 +276,19 @@ def _volunteer_idle_agents(self):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Find stations with pending/failed work where primaries are all busy
+        # Find stations with recent failures and no idle primaries
+        # NOTE: Use task_execution_log (verified columns) instead of bridge_jobs
+        # to find stations that need help
         cur.execute("""
-            SELECT bj.id AS job_id, bj.description, bj.capability,
-                   bs.station_code, bs.id AS station_id
-            FROM bridge_jobs bj
-            JOIN bridge_stations bs ON bj.station_code = bs.station_code
-            WHERE bj.status IN ('pending', 'failed')
-              AND bj.created_at > NOW() - INTERVAL '30 minutes'
+            SELECT tel.station_code, bs.id AS station_id,
+                   COUNT(*) AS recent_failures
+            FROM task_execution_log tel
+            JOIN bridge_stations bs ON tel.station_code = bs.station_code
+            WHERE tel.success = FALSE
+              AND tel.created_at > NOW() - INTERVAL '30 minutes'
               AND bs.is_active = TRUE
-            ORDER BY bj.created_at ASC
+            GROUP BY tel.station_code, bs.id
+            ORDER BY recent_failures DESC
             LIMIT 5
         """)
         pending_jobs = cur.fetchall()
@@ -316,16 +321,6 @@ def _volunteer_idle_agents(self):
 
         volunteered = 0
         for job in pending_jobs:
-            # Check if station already has an auxiliary running
-            cur.execute("""
-                SELECT COUNT(*) AS cnt FROM bridge_jobs
-                WHERE status = 'running'
-                  AND metadata->>'is_cross_station' = 'true'
-                  AND station_code = %s
-            """, (job["station_code"],))
-            if cur.fetchone()["cnt"] >= 1:
-                continue  # Aux slot full
-
             # Find an idle agent NOT from this station
             volunteer = None
             for agent in idle_agents:
@@ -337,7 +332,7 @@ def _volunteer_idle_agents(self):
                 # Log the volunteering event
                 logger.info(
                     f"Volunteering {volunteer['name']} from {volunteer['home_station']} "
-                    f"to help {job['station_code']} (job {job['job_id']})"
+                    f"to help {job['station_code']} ({job['recent_failures']} recent failures)"
                 )
                 self._create_notification(
                     f"Fleet: {volunteer['name']} volunteering at {job['station_code']}",
@@ -365,7 +360,7 @@ Add after the welfare recovery job:
 ```python
 self.scheduler.add_job(
     with_app_context(self._volunteer_idle_agents),
-    IntervalTrigger(minutes=5),
+    trigger=IntervalTrigger(minutes=5),
     id="agent_idle_volunteering",
     name="Agent Loop: Idle Volunteering",
     replace_existing=True,
@@ -425,15 +420,12 @@ WINDING_DOWN_SCORE_PENALTY = 0.30  # 30% score penalty when winding down
 Add after `_get_dynamic_specialization()` (around line 756):
 
 ```python
-def _check_shift_transitions(self):
+def _check_shift_transitions(self, cur):
     """
     Check all active agents for shift state transitions.
-    Called periodically from _refresh_welfare_cache().
+    Called from _refresh_welfare_cache() with its existing cursor.
     """
     try:
-        conn = self._get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         cur.execute("""
             SELECT a.id, a.name, a.shift_state, a.model,
                    ab.current_task_count, ab.task_queue_limit,
@@ -478,9 +470,7 @@ def _check_shift_transitions(self):
                     self._transition_shift_state(cur, aid, name, "cooldown",
                         "budget_exhausted" if budget_pct >= COOLDOWN_BUDGET_PCT else "welfare_critical")
 
-        conn.commit()
-        cur.close()
-        conn.close()
+        # No conn.commit()/close() — caller (_refresh_welfare_cache) owns the connection
     except Exception as e:
         logger.error(f"Shift transition check error: {e}")
 
@@ -522,28 +512,32 @@ def _transition_shift_state(self, cur, agent_id, agent_name, new_state, reason):
 
     logger.info(f"Shift transition: {agent_name} -> {new_state} at {station_code} ({reason})")
 
-    # Send notification for rotation events
+    # Send notification for rotation events (uses same cursor — no separate connection)
     try:
+        from psycopg2 import Json
         cur.execute("""
             INSERT INTO system_notifications (title, message, type, metadata, created_at)
             VALUES (%s, %s, 'info', %s, NOW())
         """, (
             f"Fleet: {agent_name} -> {new_state}",
             f"{agent_name} transitioned to {new_state} at {station_code} ({reason})",
-            json.dumps({"agent": agent_name, "state": new_state, "station": station_code, "reason": reason}),
+            Json({"agent": agent_name, "state": new_state, "station": station_code, "reason": reason}),
         ))
     except Exception:
         pass  # Don't block rotation on notification failure
 
-    # If entering cooldown, trigger replacement search
+    # If entering cooldown, trigger replacement search (but not recursively)
     if new_state == "cooldown":
         replacement = self._find_replacement(cur, agent_id, station_id, station_code)
         if replacement:
             cur.execute("""
                 UPDATE agent_rotation_log
                 SET replaced_by = %s
-                WHERE agent_id = %s AND ended_at IS NULL
-                ORDER BY started_at DESC LIMIT 1
+                WHERE id = (
+                    SELECT id FROM agent_rotation_log
+                    WHERE agent_id = %s AND ended_at IS NULL
+                    ORDER BY started_at DESC LIMIT 1
+                )
             """, (replacement["id"], agent_id))
 
 def _find_replacement(self, cur, exhausted_agent_id, station_id, station_code):
@@ -701,8 +695,8 @@ for r in cur.fetchall():
 
 At the end of the method (before `cur.close()`), add:
 ```python
-# Check for shift state transitions
-self._check_shift_transitions()
+# Check for shift state transitions (pass existing cursor, no new connection)
+self._check_shift_transitions(cur)
 ```
 
 - [ ] **Step 5: Modify _refresh_agent_cache() to include shift_state**
@@ -862,7 +856,7 @@ def _update_performance_rankings(self):
 ```python
 self.scheduler.add_job(
     with_app_context(self._update_performance_rankings),
-    IntervalTrigger(minutes=15),
+    trigger=IntervalTrigger(minutes=15),
     id="agent_performance_rankings",
     name="Agent Loop: Performance Rankings",
     replace_existing=True,

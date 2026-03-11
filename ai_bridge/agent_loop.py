@@ -394,8 +394,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._update_performance_rankings),
+            trigger=IntervalTrigger(minutes=15),
+            id="agent_performance_rankings",
+            name="Agent Loop: Performance Rankings",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 19 jobs")
+        logger.info("Agent loop started with 20 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -419,6 +427,7 @@ class AgentLoop:
             "agent_proactive_scan",
             "agent_welfare_recovery",
             "agent_idle_volunteering",
+            "agent_performance_rankings",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -2254,6 +2263,115 @@ class AgentLoop:
             conn.close()
         except Exception as e:
             logger.error(f"Idle volunteering error: {e}")
+
+    def _update_performance_rankings(self):
+        """
+        Calculate comparative performance rankings per capability.
+        Runs every 15 minutes.
+        rank_score = (success_rate * 0.5) + (speed_score * 0.3) + (efficiency_score * 0.2)
+        Minimum 10 tasks for reliable ranking — below that, blend static proficiency.
+        """
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            start = time.time()
+
+            # Get per-agent-per-capability stats (last 30 days)
+            cur.execute("""
+                SELECT agent_id, capability,
+                       COUNT(*) AS tasks_completed,
+                       AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
+                       AVG(duration_ms) AS avg_duration_ms,
+                       AVG(tokens_used) AS avg_tokens_used
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '30 days'
+                  AND agent_id IS NOT NULL
+                  AND capability IS NOT NULL
+                GROUP BY agent_id, capability
+            """)
+            stats = cur.fetchall()
+
+            if not stats:
+                cur.close()
+                conn.close()
+                return
+
+            # Group by capability for comparative scoring
+            by_capability = {}
+            for row in stats:
+                cap = row["capability"]
+                if cap not in by_capability:
+                    by_capability[cap] = []
+                by_capability[cap].append(row)
+
+            updated = 0
+            for capability, agents in by_capability.items():
+                max_duration = max(float(a["avg_duration_ms"] or 1) for a in agents)
+                max_tokens = max(float(a["avg_tokens_used"] or 1) for a in agents)
+
+                scored = []
+                for agent in agents:
+                    sr = float(agent["success_rate"] or 0)
+                    duration = float(agent["avg_duration_ms"] or 0)
+                    tokens = float(agent["avg_tokens_used"] or 0)
+                    sample = int(agent["tasks_completed"] or 0)
+
+                    speed_score = 1.0 - (duration / max_duration) if max_duration > 0 else 0.5
+                    efficiency_score = 1.0 - (tokens / max_tokens) if max_tokens > 0 else 0.5
+
+                    rank_score = (sr * 0.5) + (speed_score * 0.3) + (efficiency_score * 0.2)
+
+                    # Blend with static proficiency if sample too small
+                    if sample < 10:
+                        cur.execute("""
+                            SELECT proficiency_level FROM agent_skills
+                            WHERE agent_id = %s AND skill_name = %s
+                        """, (agent["agent_id"], capability))
+                        skill_row = cur.fetchone()
+                        static_prof = float(skill_row["proficiency_level"] or 3) / 5.0 if skill_row else 0.5
+                        rank_score = (static_prof * 0.7) + (rank_score * 0.3)
+
+                    scored.append({
+                        **agent,
+                        "rank_score": round(rank_score, 4),
+                    })
+
+                scored.sort(key=lambda x: x["rank_score"], reverse=True)
+                for position, agent in enumerate(scored, 1):
+                    cur.execute("""
+                        INSERT INTO agent_performance_rankings
+                        (agent_id, capability, tasks_completed, success_rate,
+                         avg_duration_ms, avg_tokens_used, rank_score, rank_position,
+                         sample_size, last_updated)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                        ON CONFLICT (agent_id, capability)
+                        DO UPDATE SET
+                            tasks_completed = EXCLUDED.tasks_completed,
+                            success_rate = EXCLUDED.success_rate,
+                            avg_duration_ms = EXCLUDED.avg_duration_ms,
+                            avg_tokens_used = EXCLUDED.avg_tokens_used,
+                            rank_score = EXCLUDED.rank_score,
+                            rank_position = EXCLUDED.rank_position,
+                            sample_size = EXCLUDED.sample_size,
+                            last_updated = NOW()
+                    """, (
+                        agent["agent_id"], capability,
+                        agent["tasks_completed"], agent["success_rate"],
+                        agent["avg_duration_ms"], agent["avg_tokens_used"],
+                        agent["rank_score"], position,
+                        agent["tasks_completed"],
+                    ))
+                    updated += 1
+
+            conn.commit()
+            duration_ms = int((time.time() - start) * 1000)
+            if updated > 0:
+                logger.info(f"Performance rankings: updated {updated} entries across {len(by_capability)} capabilities")
+                self._log_cycle("performance_rankings", updated, 0, duration_ms, f"Updated {updated} entries")
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Performance ranking error: {e}")
 
     def _check_proficiency_degradation(self, cur, conn):
         """Check for agents with high failure rates and degrade their proficiency.

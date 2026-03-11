@@ -733,13 +733,11 @@ function checkActiveJobs() {
           /* Continuous loop: only restart on successful completion, not failed/reaped */
           var status = completedJob ? completedJob.status : "unknown";
           var jt = (completedJob && completedJob.job_type) || (job.job_type) || "";
-          if (status === "completed" && (jt.indexOf("reindex") > -1 || jt.indexOf("github_index") > -1) && _continuousRun.reindex) {
-            _loopNext("reindex", completedJob);
-          } else if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.embedding) {
+          if (status === "completed" && jt.indexOf("embed") > -1 && _continuousRun.embedding) {
             _loopNext("embedding", completedJob);
           } else {
             _enableGitHubBtns();
-            if (status === "failed") { _loopRetry("reindex"); _loopRetry("embedding"); }
+            if (status === "failed") { _loopRetry("embedding"); }
           }
           setTimeout(checkActiveJobs, 500);
         });
@@ -843,7 +841,7 @@ function _disableGitHubBtns() {
 }
 
 function _enableGitHubBtns() {
-  if (!_continuousRun.reindex) _setBtnDisabled("btnReindexAll", false);
+  _setBtnDisabled("btnReindexAll", false);
   if (!_continuousRun.analysis) _setBtnDisabled("btnStartAnalysis", false);
   if (!_continuousRun.embedding) _setBtnDisabled("btnGenerateEmbed", false);
 }
@@ -856,14 +854,14 @@ function _disableGitHubBtnsByJobType(jobs) {
     if (jt.indexOf("analysis") !== -1) hasAnalysis = true;
     if (jt.indexOf("embed") !== -1) hasEmbed = true;
   });
-  if (hasReindex || _continuousRun.reindex) _setBtnDisabled("btnReindexAll", true);
+  if (hasReindex) _setBtnDisabled("btnReindexAll", true);
   if (hasAnalysis || _continuousRun.analysis) _setBtnDisabled("btnStartAnalysis", true);
   if (hasEmbed || _continuousRun.embedding) _setBtnDisabled("btnGenerateEmbed", true);
 }
 
 /* Sync button disabled state when a loop starts/stops */
 function _syncLoopBtnState(opKey, running) {
-  var btnMap = { analysis: "btnStartAnalysis", embedding: "btnGenerateEmbed", reindex: "btnReindexAll" };
+  var btnMap = { analysis: "btnStartAnalysis", embedding: "btnGenerateEmbed" };
   var btnId = btnMap[opKey];
   if (btnId) _setBtnDisabled(btnId, running);
 }
@@ -904,7 +902,6 @@ function _loadLoopState() {
 var _loopOps = {
   analysis:  { start: function() { startAnalysis(); },      btnId: "btnStartAnalysis", idle: "\u221E ANALYZE" },
   embedding: { start: function() { generateEmbeddings(); }, btnId: "btnGenerateEmbed", idle: "\u221E EMBED" },
-  reindex:   { start: function() { reindexAllRepos(); },    btnId: "btnReindexAll",    idle: "\u221E REINDEX" },
   translate: { start: function() { langGenerateAll(); },    btnId: "langGenAllBtn",    idle: "\u221E TRANSLATE" },
   fullPass:  { start: function() { langFullPass(); },       btnId: "langFullPassBtn",  idle: "\u221E FULL PASS" }
 };
@@ -1716,7 +1713,6 @@ function _getOpsInstance(elId) {
         statusElId: "ghOpsOnline",
         commands: [
           { label: "REINDEX ALL", cls: "amber", fn: "reindexAllRepos()", id: "btnReindexAll" },
-          { label: "\u221E REINDEX", cls: "cs-loop-idle", fn: "toggleLoop('reindex')", id: "loopBtn-reindex" },
           { label: "ANALYZE", cls: "purple", fn: "startAnalysis()", id: "btnStartAnalysis2" },
           { label: "\u221E ANALYZE", cls: "cs-loop-idle", fn: "toggleLoop('analysis')", id: "loopBtn-analysis2" },
           { label: "EMBED", cls: "green", fn: "generateEmbeddings()", id: "btnGenerateEmbed2" },
@@ -1964,10 +1960,8 @@ window.reindexRepo = function(repoId) {
 };
 
 window.reindexAllRepos = function() {
-  var btn = document.getElementById("btnReindexAll");
   _disableGitHubBtns();
-  var batchNum = _continuousRun.reindex ? " [batch " + ((_continuousBatch.reindex || 0) + 1) + "]" : "";
-  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index all repos\u2026" + batchNum));
+  setHtml("ghIntakeResult", lcarsMsg("info", "\u25CF", "Assigning agent to re-index all repos\u2026"));
   api("/github/reindex-all", { method: "POST" }).then(function(data) {
     if (data.duplicate || data._status === 409) {
       setHtml("ghIntakeResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Reindex job already running")));
@@ -1975,24 +1969,20 @@ window.reindexAllRepos = function() {
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " stale repos queued" + batchNum));
+      setHtml("ghIntakeResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total_repos || 0) + " stale repos queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success && data.skipped) {
       setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All repos up to date")));
-      _loopExhausted("reindex");
       _enableGitHubBtns();
     } else if (data.success) {
       setHtml("ghIntakeResult", lcarsMsg("ok", "\u2713", "No repos to re-index"));
-      _loopExhausted("reindex");
       _enableGitHubBtns();
     } else {
       setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Failed")));
-      _loopExhausted("reindex");
       _enableGitHubBtns();
     }
   }).catch(function(err) {
     setHtml("ghIntakeResult", lcarsMsg("err", "\u2717", escHtml(err.message || "Error")));
-    _loopExhausted("reindex");
     _enableGitHubBtns();
   });
 };

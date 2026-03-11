@@ -181,8 +181,12 @@ def batch_translate(
     language: str,
     parent_job_id: int = None,
     batch_offset: int = 0,
+    model: str = None,
 ) -> List[Dict]:
     """Translate a batch of UI strings via the bridge.
+
+    Each batch is stored to DB immediately after translation for crash
+    resilience — if the job dies mid-run, all completed batches are preserved.
 
     Args:
         strings: List of (key, english_text, context) tuples.
@@ -190,6 +194,7 @@ def batch_translate(
         parent_job_id: If provided, update this job's progress instead of
                        creating a new sub-job. batch_offset is the number
                        of batches already completed in prior languages.
+        model: Model name for generated_by tracking (default: qwen3-coder-cpu).
 
     Returns:
         List of dicts: {"key": str, "translation": str, "success": bool}
@@ -249,7 +254,7 @@ def batch_translate(
     total_ok = 0
     total_fail = 0
 
-    # Process in batches
+    # Process in batches — store each batch immediately for crash resilience
     for batch_start in range(0, len(strings), BATCH_SIZE):
         batch_num = batch_start // BATCH_SIZE + 1
         batch = strings[batch_start : batch_start + BATCH_SIZE]
@@ -278,10 +283,11 @@ def batch_translate(
         # Parse JSON from response
         translations = _parse_batch_response(raw, len(batch))
 
+        batch_results = []
         batch_ok = 0
         for i, (key, english_text, _context) in enumerate(batch):
             if i < len(translations) and translations[i]:
-                all_results.append({
+                batch_results.append({
                     "key": key,
                     "translation": translations[i],
                     "success": True,
@@ -289,17 +295,28 @@ def batch_translate(
                 batch_ok += 1
             else:
                 logger.warning("Missing translation for key=%s in batch", key)
-                all_results.append({
+                batch_results.append({
                     "key": key,
                     "translation": english_text,
                     "success": False,
                 })
 
-        total_ok += batch_ok
-        total_fail += len(batch) - batch_ok
+        # Store this batch to DB immediately — no progress lost on crash
+        if batch_ok > 0:
+            try:
+                batch_stats = store_translations(batch_results, language, model or "qwen3-coder-cpu")
+                total_ok += batch_stats.get("inserted", 0) + batch_stats.get("updated", 0)
+                total_fail += batch_stats.get("failed", 0)
+            except Exception as e:
+                logger.error("[Linguistics] %s batch %d store failed: %s", language, batch_num, e)
+                total_fail += batch_ok
+        else:
+            total_fail += len(batch)
+
+        all_results.extend(batch_results)
 
         logger.info(
-            "[Linguistics] %s batch %d/%d done: %d/%d ok",
+            "[Linguistics] %s batch %d/%d done: %d/%d ok (stored)",
             language, batch_num, total_batches, batch_ok, len(batch),
         )
 

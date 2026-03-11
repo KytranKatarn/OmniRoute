@@ -6009,7 +6009,6 @@ def voice_profile_lock_status(profile_id):
 from ai_bridge.translation_service import (
     get_translation_stats,
     batch_translate,
-    store_translations,
     SUPPORTED_LANGUAGES,
 )
 from module_registry import get_all_modules, ModuleCategory
@@ -7034,8 +7033,11 @@ def translation_generate():
                 }
             )
 
-        results = batch_translate(strings, language)
-        stats = store_translations(results, language, model)
+        results = batch_translate(strings, language, model=model)
+        # batch_translate now stores each batch incrementally
+        inserted = sum(1 for r in results if r.get("success"))
+        failed = sum(1 for r in results if not r.get("success"))
+        stats = {"inserted": inserted, "updated": 0, "failed": failed}
         return jsonify({"success": True, "stats": stats, "total_requested": len(strings)})
 
     except Exception as e:
@@ -7269,21 +7271,22 @@ def _run_translate_bg(languages, module_id, parent_job_id):
 
             try:
                 if strings:
+                    # batch_translate now stores each batch to DB immediately
+                    # (crash-resilient — no progress lost on job restart)
                     results = batch_translate(
                         strings,
                         lang,
                         parent_job_id=parent_job_id,
                         batch_offset=batch_offset,
+                        model="qwen3-coder-cpu",
                     )
                     lang_batches = (len(strings) + BATCH_SIZE - 1) // BATCH_SIZE
                     batch_offset += lang_batches
-                    stats = store_translations(results, lang, "qwen3-coder-cpu")
-                    total_inserted += stats.get("inserted", 0)
-                    total_failed += stats.get("failed", 0)
-                    logger.info(
-                        f"[TranslateBG] {lang_name}: {stats.get('inserted', 0)} "
-                        f"inserted, {stats.get('failed', 0)} failed"
-                    )
+                    inserted = sum(1 for r in results if r.get("success"))
+                    failed = sum(1 for r in results if not r.get("success"))
+                    total_inserted += inserted
+                    total_failed += failed
+                    logger.info(f"[TranslateBG] {lang_name}: {inserted} " f"inserted, {failed} failed")
                 else:
                     logger.info(f"[TranslateBG] {lang_name}: no missing keys")
 

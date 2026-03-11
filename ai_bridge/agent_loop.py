@@ -386,8 +386,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._volunteer_idle_agents),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_idle_volunteering",
+            name="Agent Loop: Idle Volunteering",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 18 jobs")
+        logger.info("Agent loop started with 19 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -410,6 +418,7 @@ class AgentLoop:
             "agent_training_tick",
             "agent_proactive_scan",
             "agent_welfare_recovery",
+            "agent_idle_volunteering",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -2157,6 +2166,94 @@ class AgentLoop:
             logger.error(f"Welfare recovery error: {e}")
             self._log_cycle("welfare_recovery", 0, 1, int((time.time() - start) * 1000),
                             error_message=str(e))
+
+    def _volunteer_idle_agents(self):
+        """
+        Scan for idle agents and volunteer them at stations with pending work.
+        Runs every 5 minutes.
+        - Find stations with recent task failures
+        - Find idle agents not at those stations
+        - Create notifications for volunteering events
+        """
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            start = time.time()
+
+            # Find stations with recent failures and no idle primaries
+            cur.execute("""
+                SELECT tel.station_code, bs.id AS station_id,
+                       COUNT(*) AS recent_failures
+                FROM task_execution_log tel
+                JOIN bridge_stations bs ON tel.station_code = bs.station_code
+                WHERE tel.success = FALSE
+                  AND tel.created_at > NOW() - INTERVAL '30 minutes'
+                  AND bs.is_active = TRUE
+                GROUP BY tel.station_code, bs.id
+                ORDER BY recent_failures DESC
+                LIMIT 5
+            """)
+            pending_jobs = cur.fetchall()
+
+            if not pending_jobs:
+                cur.close()
+                conn.close()
+                return
+
+            # Find idle agents (not busy, not resting, active status)
+            cur.execute("""
+                SELECT a.id, a.name, a.model, sa.station_id,
+                       bs.station_code AS home_station
+                FROM agents a
+                JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
+                JOIN bridge_stations bs ON sa.station_id = bs.id
+                LEFT JOIN bridge_jobs bj ON bj.agent_name = a.name AND bj.status = 'running'
+                LEFT JOIN agent_rest_cycles arc ON a.id = arc.agent_id AND arc.ended_at IS NULL
+                WHERE a.status = 'active'
+                  AND bj.id IS NULL
+                  AND arc.id IS NULL
+                  AND a.shift_state IN ('active', 'winding_down')
+            """)
+            idle_agents = cur.fetchall()
+
+            if not idle_agents:
+                cur.close()
+                conn.close()
+                return
+
+            volunteered = 0
+            for job in pending_jobs:
+                # Find an idle agent NOT from this station
+                volunteer = None
+                for agent in idle_agents:
+                    if agent["home_station"] != job["station_code"]:
+                        volunteer = agent
+                        break
+
+                if volunteer:
+                    logger.info(
+                        f"Volunteering {volunteer['name']} from {volunteer['home_station']} "
+                        f"to help {job['station_code']} ({job['recent_failures']} recent failures)"
+                    )
+                    self._create_notification(
+                        f"Fleet: {volunteer['name']} volunteering at {job['station_code']}",
+                        "info",
+                        {"agent": volunteer["name"], "station": job["station_code"]},
+                    )
+                    volunteered += 1
+                    # Remove from idle list so they don't get double-assigned
+                    idle_agents = [a for a in idle_agents if a["id"] != volunteer["id"]]
+
+            conn.commit()
+            duration_ms = int((time.time() - start) * 1000)
+            if volunteered > 0:
+                logger.info(f"Idle volunteering: {volunteered} agents offered")
+                self._log_cycle("idle_volunteering", volunteered, 0, duration_ms, f"{volunteered} agents volunteered")
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Idle volunteering error: {e}")
 
     def _check_proficiency_degradation(self, cur, conn):
         """Check for agents with high failure rates and degrade their proficiency.

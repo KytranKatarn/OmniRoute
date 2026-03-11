@@ -1035,7 +1035,7 @@ def get_processing_history():
 # Persists loop state in system_config so jobs auto-retrigger
 # even when browser is closed.
 
-VALID_LOOP_OPS = ("analysis", "embedding", "reindex", "translate")
+VALID_LOOP_OPS = ("analysis", "embedding", "translate")
 _LOOP_CONFIG_KEY = "consciousness_server_loops"
 _loop_failures = {}  # { op: count } — reset on success, stop after 3
 
@@ -1107,7 +1107,6 @@ def server_loop_retrigger(job_type, module_source, final_status):
     type_to_op = {
         "batch_analysis": "analysis",
         "batch_embedding": "embedding",
-        "github_reindex_all": "reindex",
         "translate_batch": "translate",
     }
     op = type_to_op.get(job_type)
@@ -1227,42 +1226,6 @@ def _trigger_loop_op(op):
             t = threading.Thread(target=_run_embedding_job, args=(list(items), job_id), daemon=True)
             t.start()
             logger.info(f"[ServerLoop] embedding: started job #{job_id} with {len(items)} items")
-
-        elif op == "reindex":
-            from psycopg2.extras import RealDictCursor
-
-            cur2 = conn.cursor(cursor_factory=RealDictCursor)
-            # Only reindex repos not indexed in the last 7 days
-            cur2.execute(
-                """SELECT id, repo_name, repo_type, max_files
-                   FROM github_repositories
-                   WHERE indexed_at IS NULL
-                      OR indexed_at < NOW() - INTERVAL '7 days'
-                   ORDER BY indexed_at ASC NULLS FIRST"""
-            )
-            repos = cur2.fetchall()
-            cur2.close()
-            if not repos:
-                logger.info("[ServerLoop] reindex: all repos indexed within 7 days — stopping loop")
-                set_server_loop(op, False)
-                return
-
-            job_id = dispatcher.create_job(
-                job_type="github_reindex_all",
-                module_source="consciousness",
-                description=f"[auto-loop] Re-index {len(repos)} stale repos",
-                total_steps=len(repos),
-                capability="code_analysis",
-                metadata={"repo_count": len(repos), "server_loop": True},
-            )
-            if not job_id:
-                logger.info("[ServerLoop] reindex: duplicate job running")
-                return
-            from tools.consciousness.github_routes import run_reindex_background
-
-            t = threading.Thread(target=run_reindex_background, args=(list(repos), job_id), daemon=True)
-            t.start()
-            logger.info(f"[ServerLoop] reindex: started job #{job_id} with {len(repos)} stale repos")
 
         elif op == "translate":
             from tools.consciousness.routes import _run_translate_bg
@@ -1448,7 +1411,6 @@ def startup_resume_loops():
             op_to_job_type = {
                 "analysis": "batch_analysis",
                 "embedding": "batch_embedding",
-                "reindex": "github_reindex_all",
                 "translate": "translate_batch",
             }
 

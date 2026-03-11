@@ -756,7 +756,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 
             /* --- Server Loops --- */
             var serverLoops = data.server_loops || {};
-            var loopOps = ['analysis', 'embedding', 'reindex', 'translate'];
+            var loopOps = ['analysis', 'embedding', 'translate'];
             var loopList = document.getElementById('serverLoopsList');
             var activeLoopCount = 0;
             loopList.textContent = '';

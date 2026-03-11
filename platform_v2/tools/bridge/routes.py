@@ -8079,6 +8079,92 @@ def get_station_actions():
 
 
 # ---------------------------------------------------------------------------
+# Station action metrics (Project #109)
+# ---------------------------------------------------------------------------
+@bridge_bp.route("/api/bridge/stations/<station_code>/action-metrics")
+@login_required
+def get_station_action_metrics(station_code):
+    """Aggregated action metrics for a station: execution count, avg duration,
+    success rate, grouped by job_type. Sources: bridge_jobs + task_execution_log."""
+    try:
+        days = request.args.get("days", 30, type=int)
+        days = min(max(days, 1), 365)
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Bridge jobs metrics by job_type
+            cur.execute(
+                """
+                SELECT job_type,
+                       COUNT(*) AS total,
+                       COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+                       COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+                       ROUND(AVG(EXTRACT(EPOCH FROM (completed_at - created_at)))
+                             FILTER (WHERE completed_at IS NOT NULL))::int AS avg_duration_s,
+                       ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'completed')
+                             / NULLIF(COUNT(*), 0), 1) AS success_rate
+                FROM bridge_jobs
+                WHERE station_code = %s
+                  AND created_at > NOW() - INTERVAL '1 day' * %s
+                GROUP BY job_type
+                ORDER BY total DESC
+                """,
+                (station_code, days),
+            )
+            job_metrics = cur.fetchall()
+
+            # Task execution log metrics by task_type (more granular)
+            cur.execute(
+                """
+                SELECT task_type,
+                       COUNT(*) AS total,
+                       COUNT(*) FILTER (WHERE success = TRUE) AS completed,
+                       COUNT(*) FILTER (WHERE success = FALSE) AS failed,
+                       ROUND(AVG(duration_ms) FILTER (WHERE success = TRUE))::int AS avg_duration_ms,
+                       ROUND(100.0 * COUNT(*) FILTER (WHERE success = TRUE)
+                             / NULLIF(COUNT(*), 0), 1) AS success_rate,
+                       SUM(tokens_used) AS total_tokens
+                FROM task_execution_log
+                WHERE station_code = %s
+                  AND created_at > NOW() - INTERVAL '1 day' * %s
+                GROUP BY task_type
+                ORDER BY total DESC
+                """,
+                (station_code, days),
+            )
+            task_metrics = cur.fetchall()
+
+            # Overall station summary
+            cur.execute(
+                """
+                SELECT COUNT(*) AS total_jobs,
+                       COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+                       COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+                       ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'completed')
+                             / NULLIF(COUNT(*), 0), 1) AS success_rate
+                FROM bridge_jobs
+                WHERE station_code = %s
+                  AND created_at > NOW() - INTERVAL '1 day' * %s
+                """,
+                (station_code, days),
+            )
+            summary = cur.fetchone()
+
+        return jsonify(
+            {
+                "success": True,
+                "station_code": station_code,
+                "period_days": days,
+                "summary": summary,
+                "job_metrics": job_metrics,
+                "task_metrics": task_metrics,
+            }
+        )
+    except Exception as e:
+        logger.error("action-metrics error for %s: %s", station_code, e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # Benchmark endpoints (Project #110)
 # ---------------------------------------------------------------------------
 @bridge_bp.route("/api/benchmarks/start", methods=["POST"])

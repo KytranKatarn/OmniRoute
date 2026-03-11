@@ -7058,6 +7058,47 @@ def get_crew_manifest():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/bridge/rotation-log")
+@admin_required
+def get_rotation_log():
+    """Recent rotation events for the Crew tab live feed."""
+    try:
+        limit = request.args.get("limit", 20, type=int)
+        limit = min(max(limit, 1), 100)  # clamp 1-100
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT rl.shift_state, rl.started_at, rl.reason,
+                       a.name AS agent_name, a.display_name,
+                       bs.station_code,
+                       ra.name AS replaced_by_name
+                FROM agent_rotation_log rl
+                JOIN agents a ON rl.agent_id = a.id
+                LEFT JOIN bridge_stations bs ON rl.station_id = bs.id
+                LEFT JOIN agents ra ON rl.replaced_by = ra.id
+                ORDER BY rl.started_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            events = []
+            for r in cur.fetchall():
+                events.append(
+                    {
+                        "shift_state": r["shift_state"],
+                        "started_at": r["started_at"].isoformat() if r["started_at"] else None,
+                        "reason": r["reason"],
+                        "agent_name": r["display_name"] or r["agent_name"],
+                        "station_code": r["station_code"],
+                        "replaced_by_name": r["replaced_by_name"],
+                    }
+                )
+        return jsonify({"success": True, "events": events})
+    except Exception as e:
+        logger.error(f"Error getting rotation log: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/bridge/fleet-mode", methods=["POST"])
 @login_required
 def toggle_fleet_mode():

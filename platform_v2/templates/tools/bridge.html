@@ -4255,6 +4255,11 @@ body.light-mode .bridge-zone-unstaffed {
 .fleet-stat.reserves strong { color: #888; }
 .fleet-stat:hover { background: rgba(255,255,255,0.05); }
 .fleet-stat.selected { background: rgba(255,255,255,0.08); }
+.rotation-log-panel { margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
+.rotation-log-header { padding: 0.4rem 0.75rem; background: rgba(255,255,255,0.03); font-family: 'Antonio', sans-serif; font-size: 0.7rem; letter-spacing: 1px; cursor: pointer; color: #aaa; }
+.rotation-log-header:hover { background: rgba(255,255,255,0.05); }
+.rotation-log-body { max-height: 200px; overflow-y: auto; }
+.rotation-log-entry { padding: 0.3rem 0.75rem; font-size: 0.7rem; color: #999; border-bottom: 1px solid rgba(255,255,255,0.03); font-family: 'IBM Plex Mono', monospace; }
 .crew-shift-badge {
     font-size: 0.55rem; padding: 1px 5px; border-radius: 3px;
     letter-spacing: 0.5px; font-family: 'Antonio', sans-serif;
@@ -8331,6 +8336,14 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                                 <span class="fleet-stat winding-down" onclick="filterCrewByState('winding_down')">WINDING DOWN: <strong id="fleet-winding">0</strong></span>
                                 <span class="fleet-stat cooldown" onclick="filterCrewByState('cooldown')">RESTING: <strong id="fleet-cooldown">0</strong></span>
                                 <span class="fleet-stat reserves" onclick="filterCrewByState('reserves')">RESERVES: <strong id="fleet-reserves">0</strong></span>
+                            </div>
+                            <div class="rotation-log-panel" id="rotation-log-panel">
+                                <div class="rotation-log-header" onclick="toggleRotationLog()">
+                                    ROTATION LOG <span id="rotation-log-toggle">&#9656;</span>
+                                </div>
+                                <div class="rotation-log-body" id="rotation-log-body" style="display:none">
+                                    <div id="rotation-log-entries"></div>
+                                </div>
                             </div>
                             <div class="crew-manifest-grid" id="crew-manifest-grid">
                                 <span class="briefing-muted"><span data-i18n="bridge.loading_crew_manifest">Loading crew manifest...</span></span>
@@ -17609,10 +17622,71 @@ async function loadCrewManifest() {
             }
             renderCrewManifest(data.crew || [], data.capacity || null);
             if (data.fleet_mode) updateFleetModeButton(data.fleet_mode);
+            // Auto-refresh rotation log if expanded
+            var rlBody = document.getElementById('rotation-log-body');
+            if (rlBody && rlBody.style.display !== 'none') loadRotationLog();
         }
     } catch (e) {
         // Silently fail — crew manifest is supplementary
     }
+}
+
+function toggleRotationLog() {
+    var body = document.getElementById('rotation-log-body');
+    var toggle = document.getElementById('rotation-log-toggle');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        toggle.textContent = '\u25BE';
+        loadRotationLog();
+    } else {
+        body.style.display = 'none';
+        toggle.textContent = '\u25B8';
+    }
+}
+
+function loadRotationLog() {
+    fetch('/tools/bridge/api/bridge/rotation-log?limit=20')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var container = document.getElementById('rotation-log-entries');
+            container.replaceChildren();
+            if (data.events.length === 0) {
+                var empty = document.createElement('div');
+                empty.className = 'rotation-log-entry';
+                empty.textContent = 'No rotation events yet';
+                container.appendChild(empty);
+                return;
+            }
+            data.events.forEach(function(e) {
+                var entry = document.createElement('div');
+                entry.className = 'rotation-log-entry';
+
+                var time = new Date(e.started_at).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                var timeSpan = document.createElement('span');
+                timeSpan.textContent = time + ' ';
+                entry.appendChild(timeSpan);
+
+                var nameEl = document.createElement('strong');
+                nameEl.textContent = e.agent_name;
+                entry.appendChild(nameEl);
+
+                entry.appendChild(document.createTextNode(' \u2192 '));
+
+                var stateColors = {active:'#32CD32', winding_down:'#FFD700', cooldown:'#FF6347', off_duty:'#666'};
+                var stateSpan = document.createElement('span');
+                stateSpan.textContent = e.shift_state.toUpperCase();
+                stateSpan.style.color = stateColors[e.shift_state] || '#999';
+                entry.appendChild(stateSpan);
+
+                var suffix = ' at ' + (e.station_code || '?') + ' (' + (e.reason || 'manual') + ')';
+                if (e.replaced_by_name) suffix += ' \u2192 replaced by ' + e.replaced_by_name;
+                entry.appendChild(document.createTextNode(suffix));
+
+                container.appendChild(entry);
+            });
+        })
+        .catch(function(err) { console.error('Rotation log error:', err); });
 }
 
 function startCrewRefresh() {

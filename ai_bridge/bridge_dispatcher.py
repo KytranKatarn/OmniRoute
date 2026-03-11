@@ -153,6 +153,16 @@ SELECTION_WEIGHTS = {
     "budget": 0.05,
 }
 
+# Shift lifecycle states
+SHIFT_STATES = ("active", "winding_down", "cooldown", "off_duty")
+
+# Thresholds for automatic state transitions
+WINDING_DOWN_BUDGET_PCT = 0.80  # 80% budget used -> winding down
+WINDING_DOWN_STRESS = 0.70  # stress >= 0.7 -> winding down
+COOLDOWN_BUDGET_PCT = 0.95  # 95% budget -> cooldown
+COOLDOWN_STRESS = 0.85  # stress >= 0.85 -> cooldown
+WINDING_DOWN_SCORE_PENALTY = 0.30  # 30% score penalty when winding down
+
 
 @dataclass
 class DispatchResult:
@@ -254,7 +264,7 @@ class BridgeDispatcher:
             cur.execute("""
                 SELECT a.id, a.name, a.model, a.default_model_tier,
                        a.system_prompt, a.capabilities, a.temperature,
-                       a.max_tokens, a.status,
+                       a.max_tokens, a.status, a.shift_state,
                        a.first_name, a.last_name, a.title,
                        a.display_name, a.image_model,
                        bs.station_code, bs.default_llm
@@ -285,6 +295,7 @@ class BridgeDispatcher:
                     "display_name": agent.get("display_name") or "",
                     "title": agent.get("title") or "",
                     "image_model": agent.get("image_model"),
+                    "shift_state": agent.get("shift_state") or "active",
                     "skills": {},  # populated below
                 }
 
@@ -657,6 +668,12 @@ class BridgeDispatcher:
                 """)
                 self._busy_agents = {r["agent_name"] for r in cur.fetchall()}
 
+            # Include shift_state in cache (queried before cursor close)
+            cur.execute("SELECT id, shift_state FROM agents WHERE status = 'active'")
+            shift_state_map = {}
+            for r in cur.fetchall():
+                shift_state_map[r["id"]] = r["shift_state"] or "active"
+
             cur.close()
             conn.close()
 
@@ -678,6 +695,7 @@ class BridgeDispatcher:
                     "mood": emo["mood"],
                     "resting": aid in resting_map,
                     "rest_type": resting_map.get(aid),
+                    "shift_state": shift_state_map.get(aid, "active"),
                     "budget": budget_map.get(
                         aid,
                         {
@@ -694,6 +712,21 @@ class BridgeDispatcher:
             logger.debug(
                 f"[BridgeDispatcher] Welfare cache refreshed: {len(welfare)} agents"
             )
+
+            # Check for shift state transitions (uses own connection)
+            try:
+                from psycopg2.extras import RealDictCursor as RDC2
+
+                conn2 = self._get_db()
+                cur2 = conn2.cursor(cursor_factory=RDC2)
+                self._check_shift_transitions(cur2)
+                conn2.commit()
+                cur2.close()
+                conn2.close()
+            except Exception as te:
+                logger.warning(
+                    f"[BridgeDispatcher] Shift transition check failed: {te}"
+                )
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Welfare cache refresh failed: {e}")
 
@@ -754,6 +787,251 @@ class BridgeDispatcher:
                 e,
             )
             return None
+
+    # ------------------------------------------------------------------
+    # Shift lifecycle engine — graduated handoff
+    # ------------------------------------------------------------------
+
+    def _check_shift_transitions(self, cur):
+        """Check active/winding_down agents for automatic state transitions.
+
+        Called during welfare cache refresh.  Uses the caller's cursor —
+        does NOT commit or close it.
+        """
+        cur.execute("""
+            SELECT a.id, a.name, a.shift_state,
+                   ab.current_task_count, ab.task_queue_limit,
+                   ab.tokens_used_today, ab.token_limit_per_day
+            FROM agents a
+            LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+            WHERE a.status = 'active'
+              AND a.shift_state IN ('active', 'winding_down')
+        """)
+        rows = cur.fetchall()
+
+        for row in rows:
+            agent_id = row["id"]
+            agent_name = row["name"]
+            current_state = row["shift_state"] or "active"
+
+            # Calculate budget percentage (higher of task% and token%)
+            task_count = row["current_task_count"] or 0
+            task_limit = row["task_queue_limit"] or 10
+            tokens_used = row["tokens_used_today"] or 0
+            token_limit = row["token_limit_per_day"] or 100000
+
+            task_pct = task_count / task_limit if task_limit > 0 else 0.0
+            token_pct = tokens_used / token_limit if token_limit > 0 else 0.0
+            budget_pct = max(task_pct, token_pct)
+
+            # Get stress from welfare cache
+            welfare = self._welfare_cache.get(agent_id, {})
+            stress = welfare.get("stress", 0.0)
+
+            # Check cooldown thresholds first (higher priority)
+            if budget_pct >= COOLDOWN_BUDGET_PCT or stress >= COOLDOWN_STRESS:
+                if current_state != "cooldown":
+                    reason = (
+                        f"budget={budget_pct:.0%}"
+                        if budget_pct >= COOLDOWN_BUDGET_PCT
+                        else f"stress={stress:.2f}"
+                    )
+                    self._transition_shift_state(
+                        cur, agent_id, agent_name, "cooldown", reason
+                    )
+            # Then winding_down thresholds
+            elif budget_pct >= WINDING_DOWN_BUDGET_PCT or stress >= WINDING_DOWN_STRESS:
+                if current_state == "active":
+                    reason = (
+                        f"budget={budget_pct:.0%}"
+                        if budget_pct >= WINDING_DOWN_BUDGET_PCT
+                        else f"stress={stress:.2f}"
+                    )
+                    self._transition_shift_state(
+                        cur, agent_id, agent_name, "winding_down", reason
+                    )
+
+    def _transition_shift_state(self, cur, agent_id, agent_name, new_state, reason):
+        """Transition an agent to a new shift state, logging the rotation.
+
+        Does NOT commit — caller owns the transaction.
+        """
+        from psycopg2.extras import Json
+
+        logger.info(
+            "[ShiftLifecycle] %s (%d) → %s (reason: %s)",
+            agent_name, agent_id, new_state, reason,
+        )
+
+        # Get current station
+        cur.execute("""
+            SELECT sa.station_id, bs.station_code
+            FROM station_assignments sa
+            JOIN bridge_stations bs ON sa.station_id = bs.id
+            WHERE sa.agent_id = %s AND sa.is_active = TRUE
+            LIMIT 1
+        """, (agent_id,))
+        station_row = cur.fetchone()
+        station_id = station_row["station_id"] if station_row else None
+        station_code = station_row["station_code"] if station_row else "UNKNOWN"
+
+        # Close previous rotation log entry
+        cur.execute("""
+            UPDATE agent_rotation_log SET ended_at = NOW()
+            WHERE agent_id = %s AND ended_at IS NULL
+        """, (agent_id,))
+
+        # Insert new rotation log entry
+        cur.execute("""
+            INSERT INTO agent_rotation_log
+                (agent_id, station_id, shift_state, reason, started_at)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, (agent_id, station_id, new_state, reason))
+
+        # Update agent shift_state
+        cur.execute(
+            "UPDATE agents SET shift_state = %s WHERE id = %s",
+            (new_state, agent_id),
+        )
+
+        # Create system notification
+        cur.execute("""
+            INSERT INTO system_notifications (type, title, message, metadata, created_at)
+            VALUES ('info', %s, %s, %s, NOW())
+        """, (
+            f"Shift transition: {agent_name}",
+            f"{agent_name} transitioned to {new_state} at {station_code} (reason: {reason})",
+            Json({"agent_id": agent_id, "agent_name": agent_name,
+                  "new_state": new_state, "station_code": station_code,
+                  "reason": reason}),
+        ))
+
+        # If cooldown, find a replacement
+        if new_state == "cooldown" and station_id:
+            replacement = self._find_replacement(
+                cur, agent_id, station_id, station_code
+            )
+            if replacement:
+                # Update the rotation log for the exhausted agent with replaced_by
+                cur.execute("""
+                    UPDATE agent_rotation_log SET replaced_by = %s
+                    WHERE id = (
+                        SELECT id FROM agent_rotation_log
+                        WHERE agent_id = %s AND ended_at IS NULL
+                        ORDER BY started_at DESC LIMIT 1
+                    )
+                """, (replacement["id"], agent_id))
+                logger.info(
+                    "[ShiftLifecycle] Replacement for %s: %s",
+                    agent_name, replacement["name"],
+                )
+
+        # Update welfare cache in-memory
+        if agent_id in self._welfare_cache:
+            self._welfare_cache[agent_id]["shift_state"] = new_state
+
+    def _find_replacement(self, cur, exhausted_agent_id, station_id, station_code):
+        """Find and activate the best replacement agent for a station.
+
+        Scores candidates on skill proficiency, RAM fit, rest time,
+        and historical performance.  Returns the activated agent dict
+        or None.
+        """
+        # Get recent capabilities needed at this station (last 7 days)
+        cur.execute("""
+            SELECT DISTINCT capability FROM task_execution_log
+            WHERE station_code = %s
+              AND created_at > NOW() - INTERVAL '7 days'
+        """, (station_code,))
+        recent_caps = [r["capability"] for r in cur.fetchall()]
+
+        # Find candidate agents
+        cur.execute("""
+            SELECT a.id, a.name
+            FROM agents a
+            WHERE a.status = 'active'
+              AND a.shift_state IN ('active', 'off_duty')
+              AND a.id != %s
+              AND a.name NOT IN (
+                  SELECT DISTINCT agent_name FROM bridge_jobs WHERE status = 'running'
+              )
+              AND a.id NOT IN (
+                  SELECT agent_id FROM agent_rest_cycles WHERE ended_at IS NULL
+              )
+              AND a.id NOT IN (
+                  SELECT agent_id FROM station_assignments
+                  WHERE station_id = %s AND is_active = TRUE
+              )
+        """, (exhausted_agent_id, station_id))
+        candidates = cur.fetchall()
+
+        if not candidates:
+            logger.debug("[ShiftLifecycle] No replacement candidates for station %s", station_code)
+            return None
+
+        best_score = -1.0
+        best_candidate = None
+
+        for cand in candidates:
+            cid = cand["id"]
+
+            # Skill proficiency (40%) — average proficiency across recent capabilities
+            if recent_caps:
+                cur.execute("""
+                    SELECT AVG(proficiency_level) as avg_prof
+                    FROM agent_skills
+                    WHERE agent_id = %s AND skill_name = ANY(%s)
+                """, (cid, recent_caps))
+                skill_row = cur.fetchone()
+                avg_prof = float(skill_row["avg_prof"] or 0) if skill_row else 0.0
+                skill_score = avg_prof / 5.0
+            else:
+                skill_score = 0.3  # generous default
+
+            # RAM fit (30%) — default 0.3 (no easy way to check loaded status from DB)
+            ram_score = 0.3
+
+            # Time since last shift (20%) — hours rested / 8.0, capped at 1.0
+            cur.execute("""
+                SELECT EXTRACT(EPOCH FROM (NOW() - MAX(ended_at))) / 3600.0 as hours_rested
+                FROM agent_rotation_log
+                WHERE agent_id = %s AND ended_at IS NOT NULL
+            """, (cid,))
+            rest_row = cur.fetchone()
+            hours_rested = float(rest_row["hours_rested"] or 0) if rest_row else 8.0
+            rest_score = min(hours_rested / 8.0, 1.0)
+
+            # Historical performance (10%) — average rank_score
+            cur.execute("""
+                SELECT AVG(rank_score) as avg_rank
+                FROM agent_performance_rankings
+                WHERE agent_id = %s
+            """, (cid,))
+            perf_row = cur.fetchone()
+            perf_score = float(perf_row["avg_rank"] or 0.5) if perf_row else 0.5
+
+            # Weighted composite
+            score = (
+                0.40 * skill_score
+                + 0.30 * ram_score
+                + 0.20 * rest_score
+                + 0.10 * perf_score
+            )
+
+            if score > best_score:
+                best_score = score
+                best_candidate = {"id": cid, "name": cand["name"], "score": score}
+
+        if best_candidate:
+            self._transition_shift_state(
+                cur,
+                best_candidate["id"],
+                best_candidate["name"],
+                "active",
+                "replacement_activated",
+            )
+
+        return best_candidate
 
     def _score_agent(
         self,
@@ -862,6 +1140,15 @@ class BridgeDispatcher:
             + SELECTION_WEIGHTS["availability"] * availability_score
             + SELECTION_WEIGHTS["budget"] * budget_score
         )
+
+        # Apply shift state modifiers
+        shift_state = agent_info.get("shift_state", "active")
+        if shift_state == "winding_down":
+            composite *= 1.0 - WINDING_DOWN_SCORE_PENALTY
+        elif shift_state == "cooldown":
+            return (0.0, f"{agent_name} is in cooldown (finishing current job only)")
+        elif shift_state == "off_duty":
+            return (0.0, f"{agent_name} is off duty (resting)")
 
         return (round(composite, 4), None)
 

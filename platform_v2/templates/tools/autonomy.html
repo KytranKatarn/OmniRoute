@@ -165,6 +165,20 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 .job-info h3 { font-family: 'Antonio', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--au-text); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 0.2rem; }
 .job-info .meta { font-size: 0.7rem; color: var(--au-muted); }
 
+/* ── LCARS Confirm Modal ── */
+.au-modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; }
+.au-modal-overlay.active { display: flex; }
+.au-modal { background: var(--au-bg, #0a0e1a); border: 1px solid var(--au-accent); border-radius: 2px 12px 12px 2px; width: 90%; max-width: 480px; position: relative; overflow: hidden; }
+.au-modal::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--au-accent); border-radius: 2px 0 0 2px; }
+.au-modal-header { display: flex; align-items: center; gap: 12px; padding: 18px 24px 14px; border-bottom: 1px solid var(--au-border); }
+.au-modal-header h3 { font-family: 'Antonio', sans-serif; font-size: 1.1rem; font-weight: 600; color: var(--au-accent); letter-spacing: 2px; text-transform: uppercase; margin: 0; flex: 1; }
+.au-modal-close { background: none; border: none; color: var(--au-muted); font-size: 1.3rem; cursor: pointer; padding: 0; line-height: 1; transition: color 0.2s; }
+.au-modal-close:hover { color: var(--au-red); }
+.au-modal-body { padding: 20px 24px; font-size: 0.85rem; color: var(--au-text); line-height: 1.6; }
+.au-modal-body .modal-count { font-family: 'Antonio', sans-serif; font-size: 1.6rem; color: var(--au-accent); display: block; margin-bottom: 6px; }
+.au-modal-actions { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 24px 18px; border-top: 1px solid var(--au-border); }
+.au-modal-actions .btn { min-width: 100px; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .au-body { padding: 0.75rem 1rem 1.5rem; }
@@ -185,6 +199,10 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 [data-theme="light"] .data-table tr:hover { background: rgba(var(--au-accent-rgb), 0.04); }
 [data-theme="light"] .approval-detail .data-preview { background: #f8f9fa; }
 [data-theme="light"] .au-section-header { background: rgba(var(--au-accent-rgb), 0.06); }
+[data-theme="light"] .au-modal { background: #fff; border-color: #e0e0e0; }
+[data-theme="light"] .au-modal-header { border-bottom-color: #e0e0e0; }
+[data-theme="light"] .au-modal-actions { border-top-color: #e0e0e0; }
+[data-theme="light"] .au-modal-body { color: #1a1a2e; }
 </style>
 {% endblock %}
 
@@ -228,6 +246,24 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
                 <button class="btn btn-sm btn-success" onclick="bulkApprove('approve')">Bulk Approve All</button>
                 <button class="btn btn-sm btn-danger" onclick="bulkApprove('reject')">Bulk Reject All</button>
             </div>
+            <!-- LCARS Bulk Confirm Modal -->
+            <div id="auBulkModal" class="au-modal-overlay" onclick="if(event.target===this)closeBulkModal()">
+                <div class="au-modal">
+                    <div class="au-modal-header">
+                        <h3 id="auBulkModalTitle">Confirm Action</h3>
+                        <button class="au-modal-close" onclick="closeBulkModal()">&times;</button>
+                    </div>
+                    <div class="au-modal-body">
+                        <span class="modal-count" id="auBulkModalCount">0</span>
+                        <span id="auBulkModalMsg">pending items will be processed.</span>
+                    </div>
+                    <div class="au-modal-actions">
+                        <button class="btn btn-sm" onclick="closeBulkModal()">Cancel</button>
+                        <button class="btn btn-sm" id="auBulkModalConfirm">Confirm</button>
+                    </div>
+                </div>
+            </div>
+
             <div id="approvalsList">
                 <div class="empty-state"><div class="icon">&#x2713;</div><span data-i18n="autonomy.no_pending_approvals">No pending approvals</span></div>
             </div>
@@ -619,25 +655,41 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
         } catch (e) { console.error('Reject failed:', e); }
     }
 
-    async function bulkApprove(action) {
-        if (pendingApprovalIds.length === 0) return;
-        var confirmMsg = action === 'approve'
-            ? 'Approve all ' + pendingApprovalIds.length + ' pending items?'
-            : 'Reject all ' + pendingApprovalIds.length + ' pending items?';
-        if (!confirm(confirmMsg)) return;
+    function closeBulkModal() {
+        document.getElementById('auBulkModal').classList.remove('active');
+    }
 
-        try {
-            var resp = await fetch(BASE + '/approvals/bulk', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({action: action, ids: pendingApprovalIds})
-            });
-            var data = await resp.json();
-            if (data.success) {
-                loadApprovals('pending');
-                loadLoopStatus();
-            }
-        } catch (e) { console.error('Bulk action failed:', e); }
+    function bulkApprove(action) {
+        if (pendingApprovalIds.length === 0) return;
+        var count = pendingApprovalIds.length;
+        var isApprove = action === 'approve';
+
+        document.getElementById('auBulkModalTitle').textContent = isApprove ? 'BULK APPROVE' : 'BULK REJECT';
+        document.getElementById('auBulkModalCount').textContent = count;
+        document.getElementById('auBulkModalMsg').textContent = isApprove
+            ? 'pending items will be approved.'
+            : 'pending items will be rejected.';
+
+        var confirmBtn = document.getElementById('auBulkModalConfirm');
+        confirmBtn.textContent = isApprove ? 'Approve All' : 'Reject All';
+        confirmBtn.className = 'btn btn-sm ' + (isApprove ? 'btn-success' : 'btn-danger');
+        confirmBtn.onclick = async function() {
+            closeBulkModal();
+            try {
+                var resp = await fetch(BASE + '/approvals/bulk', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: action, ids: pendingApprovalIds})
+                });
+                var data = await resp.json();
+                if (data.success) {
+                    loadApprovals('pending');
+                    loadLoopStatus();
+                }
+            } catch (e) { console.error('Bulk action failed:', e); }
+        };
+
+        document.getElementById('auBulkModal').classList.add('active');
     }
 
     /* ══════════════════════════════════════════════════════════════════════

@@ -537,6 +537,7 @@ def handle_sync(config, sync_type, payload):
     """
     handlers = {
         "code_update": _handle_code_update,
+        "container_restart": _handle_container_restart,
         "iaae_policy": _handle_iaae_policy,
         "model_recommend": _handle_model_recommend,
         "agent_config": _handle_agent_config,
@@ -550,6 +551,65 @@ def handle_sync(config, sync_type, payload):
     else:
         logger.warning("Unknown sync_type '%s' — skipping", sync_type)
         return {"status": "skipped", "error": f"Unknown sync_type: {sync_type}"}
+
+
+def _restart_container(name):
+    """
+    Restart a Docker container by name using the Docker Engine API via socket.
+    Returns (success: bool, message: str).
+    """
+    import http.client
+
+    try:
+        # Use Unix socket to talk to Docker daemon
+        sock_path = "/var/run/docker.sock"
+        if not os.path.exists(sock_path):
+            return False, "Docker socket not found at /var/run/docker.sock"
+
+        conn = http.client.HTTPConnection("localhost")
+        # Override the connection to use the Unix socket
+        import socket
+
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(sock_path)
+        conn.sock = sock
+
+        conn.request("POST", f"/containers/{name}/restart?t=5")
+        resp = conn.getresponse()
+        body = resp.read().decode("utf-8", errors="replace")
+        conn.close()
+
+        if resp.status == 204:
+            return True, f"Container {name} restarted"
+        else:
+            return False, f"HTTP {resp.status}: {body[:200]}"
+    except Exception as e:
+        return False, str(e)
+
+
+def _handle_container_restart(config, payload):
+    """
+    Restart one or more Docker containers by name.
+
+    Expected payload:
+        containers (list[str]): Container names to restart.
+            e.g. ["archie_starship_api", "archie_starship_sync"]
+    """
+    containers = payload.get("containers", [])
+    if not containers:
+        return {"status": "skipped", "error": "No containers specified"}
+
+    results = {}
+    for name in containers:
+        ok, msg = _restart_container(name)
+        results[name] = {"success": ok, "message": msg}
+        logger.info("[container_restart] %s: %s", name, msg)
+
+    all_ok = all(r["success"] for r in results.values())
+    return {
+        "status": "completed" if all_ok else "completed_with_errors",
+        "results": results,
+    }
 
 
 def _handle_code_update(config, payload):
@@ -650,22 +710,31 @@ def _handle_code_update(config, payload):
     }
     logger.info("[code_update] Result: %s", result)
 
-    # If we updated code files, exit so Docker restarts us with new code
+    # If we updated code files, restart affected containers
     code_files_updated = [f for f in updated if not f.startswith("migration:")]
     if code_files_updated:
         logger.info(
-            "[code_update] Code files updated (%s) — restarting in 3s...",
+            "[code_update] Code files updated (%s) — restarting containers...",
             ", ".join(code_files_updated),
         )
 
-        def _delayed_exit():
-            time.sleep(3)
-            logger.info("[code_update] Exiting for restart.")
-            os._exit(0)
+        # Restart node_api first (it doesn't affect us)
+        if "node_api.py" in code_files_updated:
+            ok, msg = _restart_container("archie_starship_api")
+            logger.info("[code_update] node_api restart: %s", msg)
+            result["api_restart"] = msg
 
-        import threading
+        # If sync code changed, exit so Docker restarts us with new code
+        if "node_sync.py" in code_files_updated:
 
-        threading.Thread(target=_delayed_exit, daemon=True).start()
+            def _delayed_exit():
+                time.sleep(3)
+                logger.info("[code_update] Exiting for restart.")
+                os._exit(0)
+
+            import threading
+
+            threading.Thread(target=_delayed_exit, daemon=True).start()
 
     return result
 

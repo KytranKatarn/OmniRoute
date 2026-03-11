@@ -378,8 +378,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._recover_idle_welfare),
+            trigger=IntervalTrigger(minutes=30),
+            id="agent_welfare_recovery",
+            name="Agent Loop: Welfare Recovery",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 17 jobs")
+        logger.info("Agent loop started with 18 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -401,6 +409,7 @@ class AgentLoop:
             "agent_stale_job_reaper",
             "agent_training_tick",
             "agent_proactive_scan",
+            "agent_welfare_recovery",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -2060,6 +2069,93 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"HR tracker failed: {e}")
             self._log_cycle("hr_tracker", 0, 1, int((time.time() - start) * 1000),
+                            error_message=str(e))
+
+    def _recover_idle_welfare(self):
+        """
+        Recover welfare for idle and resting agents.
+        Runs every 30 minutes.
+        - Idle (not dispatched in last hour): stress -0.15, energy +0.2
+        - Resting (active rest cycle): stress -0.3, energy +0.4
+        """
+        start = time.time()
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            if not self._is_enabled(cur, "hr_tracker_enabled"):
+                cur.close()
+                conn.close()
+                return
+
+            # Find agents with recent dispatches (last hour)
+            cur.execute("""
+                SELECT DISTINCT agent_name FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '1 hour'
+            """)
+            busy_names = {r["agent_name"] for r in cur.fetchall()}
+
+            # Find resting agents
+            cur.execute("""
+                SELECT agent_id FROM agent_rest_cycles WHERE ended_at IS NULL
+            """)
+            resting_ids = {r["agent_id"] for r in cur.fetchall()}
+
+            # Get all active agents with current welfare
+            cur.execute("""
+                SELECT DISTINCT ON (a.id)
+                       a.id, a.name, es.stress_level, es.energy_level
+                FROM agents a
+                LEFT JOIN agent_emotional_state es ON a.id = es.agent_id
+                WHERE a.status = 'active'
+                ORDER BY a.id, es.timestamp DESC NULLS LAST
+            """)
+            agents = cur.fetchall()
+
+            recovered = 0
+            for agent in agents:
+                aid = agent["id"]
+                name = agent["name"]
+                stress = float(agent["stress_level"] or 0.2)
+                energy = float(agent["energy_level"] or 0.8)
+
+                if aid in resting_ids:
+                    # Resting: faster recovery
+                    new_stress = max(0.0, stress - 0.3)
+                    new_energy = min(1.0, energy + 0.4)
+                elif name not in busy_names:
+                    # Idle: moderate recovery
+                    new_stress = max(0.0, stress - 0.15)
+                    new_energy = min(1.0, energy + 0.2)
+                else:
+                    continue  # Active agent, skip
+
+                if new_stress == stress and new_energy == energy:
+                    continue  # No change needed
+
+                cur.execute("""
+                    INSERT INTO agent_emotional_state
+                    (agent_id, stress_level, energy_level, current_mood, trigger_event, timestamp)
+                    VALUES (%s, %s, %s,
+                            CASE WHEN %s < 0.3 THEN 'relaxed'
+                                 WHEN %s < 0.6 THEN 'neutral'
+                                 ELSE 'focused' END,
+                            'welfare_recovery', NOW())
+                """, (aid, new_stress, new_energy, new_stress, new_stress))
+                recovered += 1
+
+            conn.commit()
+            duration_ms = int((time.time() - start) * 1000)
+            if recovered > 0:
+                logger.info(f"Welfare recovery: updated {recovered} agents")
+            self._log_cycle(
+                "welfare_recovery", recovered, 0, duration_ms,
+                {"busy_agents": len(busy_names), "resting_agents": len(resting_ids)},
+            )
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Welfare recovery error: {e}")
+            self._log_cycle("welfare_recovery", 0, 1, int((time.time() - start) * 1000),
                             error_message=str(e))
 
     def _check_proficiency_degradation(self, cur, conn):

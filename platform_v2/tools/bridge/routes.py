@@ -7059,7 +7059,7 @@ def get_crew_manifest():
 
 
 @bridge_bp.route("/api/bridge/rotation-log")
-@admin_required
+@login_required
 def get_rotation_log():
     """Recent rotation events for the Crew tab live feed."""
     try:

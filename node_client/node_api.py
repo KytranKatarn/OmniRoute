@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime, timezone, timedelta
 
 from flask import Flask, jsonify, request
 import psycopg2
@@ -31,13 +32,29 @@ DATABASE_URL = os.environ.get(
 )
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
 NODE_ID = os.environ.get("NODE_ID", "unknown")
+NODE_TIMEZONE = os.environ.get("NODE_TIMEZONE", "America/Toronto")
 
 
 def get_db():
     """Get a database connection."""
     conn = psycopg2.connect(DATABASE_URL)
     conn.autocommit = False
+    cur = conn.cursor()
+    cur.execute("SET timezone = %s", (NODE_TIMEZONE,))
+    cur.close()
     return conn
+
+
+def _serialize_row(row):
+    """Convert a DB row dict, formatting timestamps to ET-aware ISO strings."""
+    out = {}
+    for k, v in row.items():
+        if isinstance(v, datetime):
+            # Postgres returns naive timestamps; attach the configured timezone
+            out[k] = v.isoformat()
+        else:
+            out[k] = v
+    return out
 
 
 @app.route("/health")
@@ -71,7 +88,7 @@ def list_agents():
     agents = cur.fetchall()
     cur.close()
     conn.close()
-    return jsonify({"agents": [dict(a) for a in agents]})
+    return jsonify({"agents": [_serialize_row(a) for a in agents]})
 
 
 @app.route("/api/jobs")
@@ -86,7 +103,7 @@ def list_jobs():
     jobs = cur.fetchall()
     cur.close()
     conn.close()
-    return jsonify({"jobs": [dict(j) for j in jobs]})
+    return jsonify({"jobs": [_serialize_row(j) for j in jobs]})
 
 
 @app.route("/api/status")

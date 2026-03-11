@@ -461,6 +461,15 @@ install_docker_stack() {
 
     info "Host IP: ${HOST_IP}"
 
+    # --- Detect timezone ---
+    NODE_TZ="America/Toronto"
+    if [ -f /etc/timezone ]; then
+        NODE_TZ=$(cat /etc/timezone)
+    elif [ -L /etc/localtime ]; then
+        NODE_TZ=$(readlink /etc/localtime | sed 's|.*/zoneinfo/||')
+    fi
+    info "Timezone: ${NODE_TZ}"
+
     # --- Create .env file ---
     cat > "${DEPLOY_DIR}/.env" <<DOTENV
 # A.R.C.H.I.E. Business Node Configuration
@@ -472,6 +481,7 @@ DB_PASSWORD=${DB_PASSWORD}
 ARCHIE_VERSION=${ARCHIE_VERSION}
 HOST_IP=${HOST_IP}
 DEPLOYMENT_MODE=business_node
+NODE_TIMEZONE=${NODE_TZ}
 DOTENV
     chmod 600 "${DEPLOY_DIR}/.env"
     success "Environment file created at ${DEPLOY_DIR}/.env"

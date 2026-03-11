@@ -7,7 +7,9 @@ globs: ["platform_v2/tools/autonomy/**", "ai_bridge/agent_loop.py", "ai_bridge/t
 ## Agent Loop
 - 17 APScheduler jobs | Approval: Tier 1 auto, Tier 2 human (Telegram)
 - Training: `_process_training_tick()` — proficiency Lv1-5, Lv4+ unlocks cloud
-- Tier 1 types: notification, reminder, kb_update, briefing, internal_log, cloud_throughput_escalation, translate, improvement_approve
+- Tier 1 types: notification, reminder, kb_update, briefing, internal_log, translate, improvement_approve
+- Tier 2 types (human approval): cloud_throughput_escalation, create_agent (cost/security sensitive)
+- Dedup: `submit_approval()` skips if a pending approval of the same type already exists
 
 ## Telegram
 - Daemon thread, own asyncio loop, starts if `TELEGRAM_BOT_TOKEN` set

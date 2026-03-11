@@ -160,6 +160,18 @@ def request_approval(
 
         effective_tier = 1 if action_type in tier1_types else tier
 
+        # Dedup: skip if there's already a pending approval of the same type
+        if effective_tier > 1:
+            cur.execute(
+                "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' LIMIT 1",
+                (action_type,),
+            )
+            if cur.fetchone():
+                logger.info(f"Skipping duplicate {action_type} — pending approval already exists")
+                cur.close()
+                conn.close()
+                return None
+
         status = "approved" if effective_tier == 1 else "pending"
         approved_at = "NOW()" if effective_tier == 1 else "NULL"
 

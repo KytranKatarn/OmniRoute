@@ -674,6 +674,22 @@ class BridgeDispatcher:
             for r in cur.fetchall():
                 shift_state_map[r["id"]] = r["shift_state"] or "active"
 
+            # Load performance rankings into cache for dispatch scoring
+            cur.execute("""
+                SELECT agent_id, capability, rank_score, rank_position, sample_size
+                FROM agent_performance_rankings
+            """)
+            perf_map = {}
+            for r in cur.fetchall():
+                aid = r["agent_id"]
+                if aid not in perf_map:
+                    perf_map[aid] = {}
+                perf_map[aid][r["capability"]] = {
+                    "rank_score": float(r["rank_score"]),
+                    "rank_position": r["rank_position"],
+                    "sample_size": r["sample_size"],
+                }
+
             cur.close()
             conn.close()
 
@@ -705,6 +721,7 @@ class BridgeDispatcher:
                             "token_limit_per_day": 100000,
                         },
                     ),
+                    "perf_rankings": perf_map.get(aid, {}),
                 }
 
             self._welfare_cache = welfare
@@ -1098,13 +1115,27 @@ class BridgeDispatcher:
             skills_score = 0.3  # generous default — agent may still handle it
 
         # ------------------------------------------------------------------
-        # Specialization score (dynamic benchmark winner → static fallback)
+        # Specialization score: prefer performance ranking over static mapping
         # ------------------------------------------------------------------
-        preferred = self._get_dynamic_specialization(station_code, capability)
-        if not preferred:
-            station_specs = AGENT_SPECIALIZATION.get(station_code, {})
-            preferred = station_specs.get(capability, station_specs.get("default"))
-        specialization_score = 1.0 if agent_name == preferred else 0.0
+        specialization_score = 0.0
+        agent_id = agent_info.get("id")
+        if agent_id:
+            # Try performance ranking first (data-driven)
+            perf_welfare = self._welfare_cache.get(agent_id, {})
+            rank_data = perf_welfare.get("perf_rankings", {}).get(capability)
+            if rank_data and rank_data.get("sample_size", 0) >= 10:
+                specialization_score = rank_data["rank_score"]
+            else:
+                # Fall back to dynamic benchmark winner
+                dyn_winner = self._get_dynamic_specialization(station_code, capability)
+                if dyn_winner and dyn_winner == agent_name:
+                    specialization_score = 1.0
+                else:
+                    # Fall back to static specialization map
+                    station_specs = AGENT_SPECIALIZATION.get(station_code, {})
+                    default_specs = AGENT_SPECIALIZATION.get("default", {})
+                    preferred = station_specs.get(capability) or default_specs.get(capability)
+                    specialization_score = 1.0 if preferred == agent_name else 0.0
 
         # ------------------------------------------------------------------
         # Welfare score — healthier agents score higher

@@ -4541,6 +4541,31 @@ body.light-mode .bridge-zone-unstaffed {
     display: block;
 }
 
+/* --- Agent Profile Modal: Portrait, Rankings, Shift History, Welfare --- */
+.crew-profile-portrait {
+    width: 64px; height: 64px; border-radius: 6px; object-fit: cover;
+    border: 2px solid var(--archie-accent, #00d4ff);
+}
+.crew-profile-portrait-fallback {
+    width: 64px; height: 64px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; font-family: 'Antonio', sans-serif; color: #0d1117;
+}
+.crew-profile-ranking {
+    display: flex; justify-content: space-between; padding: 0.25rem 0;
+    font-size: 0.75rem; color: #ccc;
+}
+.crew-profile-ranking .rank-pos { color: var(--archie-accent, #00d4ff); font-weight: 600; }
+.crew-profile-shift-row {
+    display: flex; justify-content: space-between; gap: 6px; padding: 0.2rem 0;
+    font-size: 0.7rem; color: #999; font-family: 'IBM Plex Mono', monospace;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.crew-profile-welfare-bar {
+    height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); margin: 0.3rem 0;
+}
+.crew-profile-welfare-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
 /* ============================================================================
    CONTRACTOR FIRMS (External Providers)
    ============================================================================ */
@@ -18263,12 +18288,13 @@ function _renderFullProfile(data, body, title) {
 
             var html = '';
 
-            // Agent header
+            // Agent header — portrait with fallback
             var stColor = a.station_color || 'var(--archie-cyan)';
+            var portraitSrc = (data.portraits && data.portraits.portrait) || '';
+            var initial = (a.first_name || a.name || '?')[0].toUpperCase();
             html += '<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);">';
-            html += '<div style="width:48px;height:48px;border-radius:50%;background:' + esc(stColor) + ';display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;color:#000;">';
-            html += esc((a.first_name || a.name || '?')[0].toUpperCase());
-            html += '</div>';
+            html += '<img class="crew-profile-portrait" src="' + esc(portraitSrc) + '" alt="' + esc(initial) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';">';
+            html += '<div class="crew-profile-portrait-fallback" style="display:none;background:' + esc(stColor) + ';">' + esc(initial) + '</div>';
             html += '<div style="flex:1;">';
             html += '<div style="font-size:1rem;font-weight:600;">' + fullName + '</div>';
             html += '<div style="font-size:0.75rem;color:var(--archie-text-muted);">' + esc(a.name) + (a.title ? ' &mdash; ' + esc(a.title) : '') + '</div>';
@@ -18471,6 +18497,65 @@ function _renderFullProfile(data, body, title) {
                     html += '<div style="color:var(--archie-text-muted);font-size:0.65rem;margin-top:1px;">' + esc(preview) + (m.content && m.content.length > 120 ? '...' : '') + '</div>';
                     html += '</div>';
                 });
+                html += '</div></div>';
+            }
+
+            // Performance Rankings
+            if (data.rankings && data.rankings.length > 0) {
+                html += '<div class="briefing-card" style="--card-accent:#00d4ff;margin-bottom:10px;">';
+                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Performance Rankings</span></div>';
+                html += '<div class="briefing-card-body">';
+                data.rankings.forEach(function(rk) {
+                    html += '<div class="crew-profile-ranking">';
+                    html += '<span>' + esc(rk.capability || '') + '</span>';
+                    html += '<span style="display:flex;gap:8px;">';
+                    html += '<span class="rank-pos">#' + parseInt(rk.rank_position || 0) + '</span>';
+                    html += '<span style="color:var(--archie-gold);">' + (rk.rank_score != null ? parseFloat(rk.rank_score).toFixed(2) : '--') + '</span>';
+                    html += '<span style="color:var(--archie-text-muted);">' + parseInt(rk.tasks_completed || 0) + ' tasks</span>';
+                    var sr = rk.success_rate != null ? Math.round(rk.success_rate * 100) : 0;
+                    var srColor = sr >= 90 ? '#00ff41' : sr >= 70 ? '#ffaa00' : '#ff4444';
+                    html += '<span style="color:' + srColor + ';">' + sr + '%</span>';
+                    html += '</span></div>';
+                });
+                html += '</div></div>';
+            }
+
+            // Shift History (from agent_rotation_log)
+            if (data.shift_history && data.shift_history.length > 0) {
+                html += '<div class="briefing-card" style="--card-accent:#f59e0b;margin-bottom:10px;">';
+                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Shift History</span></div>';
+                html += '<div class="briefing-card-body" style="max-height:180px;overflow-y:auto;">';
+                data.shift_history.forEach(function(sh) {
+                    var stateColors = { active: '#00ff41', winding_down: '#ffaa00', cooldown: '#60a5fa', off_duty: '#888' };
+                    var sColor = stateColors[sh.shift_state] || '#888';
+                    html += '<div class="crew-profile-shift-row">';
+                    html += '<span style="color:' + sColor + ';text-transform:uppercase;font-weight:600;min-width:80px;">' + esc(sh.shift_state || '') + '</span>';
+                    html += '<span style="min-width:70px;">' + esc(sh.station_code || '—') + '</span>';
+                    html += '<span style="flex:1;color:var(--archie-text-muted);">' + esc(sh.reason || '') + '</span>';
+                    html += '<span>' + (sh.tasks_completed ? parseInt(sh.tasks_completed) + '/' + (parseInt(sh.tasks_completed) + parseInt(sh.tasks_failed || 0)) : '') + '</span>';
+                    if (sh.replaced_by_name) {
+                        html += '<span style="color:#e879f9;margin-left:4px;" title="Replaced by">&rarr; ' + esc(sh.replaced_by_name) + '</span>';
+                    }
+                    html += '<span style="min-width:60px;text-align:right;">' + (sh.started_at ? ArchieTime.age(sh.started_at) : '') + '</span>';
+                    html += '</div>';
+                });
+                html += '</div></div>';
+            }
+
+            // Welfare Gauges (stress + energy bars)
+            var wellEm = data.emotional_state;
+            if (wellEm) {
+                var stress = Math.round((wellEm.stress_level || 0) * 100);
+                var energy = Math.round((wellEm.energy_level || 0) * 100);
+                var stressColor = stress <= 40 ? '#00ff41' : stress <= 70 ? '#ffaa00' : '#ff4444';
+                var energyColor = energy >= 60 ? '#00ff41' : energy >= 30 ? '#ffaa00' : '#ff4444';
+                html += '<div class="briefing-card" style="--card-accent:' + stressColor + ';margin-bottom:10px;">';
+                html += '<div class="briefing-card-header" style="font-size:0.7rem;"><span>Welfare Gauges</span></div>';
+                html += '<div class="briefing-card-body">';
+                html += '<div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:2px;"><span>Stress</span><span>' + stress + '%</span></div>';
+                html += '<div class="crew-profile-welfare-bar"><div class="crew-profile-welfare-fill" style="width:' + stress + '%;background:' + stressColor + ';"></div></div>';
+                html += '<div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:2px;margin-top:8px;"><span>Energy</span><span>' + energy + '%</span></div>';
+                html += '<div class="crew-profile-welfare-bar"><div class="crew-profile-welfare-fill" style="width:' + energy + '%;background:' + energyColor + ';"></div></div>';
                 html += '</div></div>';
             }
 

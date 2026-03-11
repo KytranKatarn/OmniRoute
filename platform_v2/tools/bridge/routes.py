@@ -8932,6 +8932,52 @@ def agent_profile(agent_id):
                     if rc.get(k):
                         rc[k] = rc[k].isoformat()
 
+            # Performance rankings (top 5 capabilities)
+            cur.execute(
+                """
+                SELECT capability, rank_score, rank_position,
+                       tasks_completed, success_rate, sample_size
+                FROM agent_performance_rankings
+                WHERE agent_id = %s
+                ORDER BY rank_score DESC LIMIT 5
+            """,
+                (agent_id,),
+            )
+            rankings = cur.fetchall()
+            for rk in rankings:
+                for k in ["rank_score", "success_rate"]:
+                    if rk.get(k) is not None:
+                        rk[k] = float(rk[k])
+
+            # Shift history (last 10 from agent_rotation_log)
+            cur.execute(
+                """
+                SELECT rl.shift_state, rl.started_at, rl.ended_at,
+                       rl.tasks_completed, rl.tasks_failed, rl.reason,
+                       bs.station_code,
+                       ra.name as replaced_by_name
+                FROM agent_rotation_log rl
+                LEFT JOIN bridge_stations bs ON bs.id = rl.station_id
+                LEFT JOIN agents ra ON ra.id = rl.replaced_by
+                WHERE rl.agent_id = %s
+                ORDER BY rl.started_at DESC LIMIT 10
+            """,
+                (agent_id,),
+            )
+            shift_history = cur.fetchall()
+            for sh in shift_history:
+                for k in ["started_at", "ended_at"]:
+                    if sh.get(k):
+                        sh[k] = sh[k].isoformat()
+
+            # Build portrait paths from first_name
+            first = (agent.get("first_name") or agent.get("name") or "").lower()
+            portraits = {
+                "portrait": f"/static/avatars/{first}.svg",
+                "avatar": f"/static/avatars/{first}.svg",
+                "icon": f"/static/avatars/{first}.svg",
+            }
+
             result = {
                 "success": True,
                 "agent": agent,
@@ -8941,6 +8987,9 @@ def agent_profile(agent_id):
                 "identity": identity,
                 "voice": voice,
                 "rest_cycles": rest_cycles,
+                "rankings": rankings,
+                "shift_history": shift_history,
+                "portraits": portraits,
                 "performance_24h": {
                     "tasks": perf["tasks_24h"],
                     "completed": perf["completed"],

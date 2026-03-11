@@ -779,4 +779,70 @@ def register_mesh_routes(bridge_bp):
             logger.error(f"Mesh available agents fetch failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
+    # ========================================================================
+    # OTA CODE UPDATE
+    # ========================================================================
+
+    @bridge_bp.route("/api/mesh/push-update", methods=["POST"])
+    @login_required
+    def mesh_push_code_update():
+        """
+        Push a code_update sync to one or all active nodes.
+
+        POST body:
+            node_id (str, optional): Target node. Omit to push to all active nodes.
+            version (str): Version string for this update.
+            files (list[str]): Python files to update (default: node_sync.py, node_api.py)
+            migrations (list[str]): Migration filenames to download + apply on nodes.
+        """
+        data = request.get_json() or {}
+        target_node_id = data.get("node_id")
+        version = data.get("version", "latest")
+        files = data.get("files", ["node_sync.py", "node_api.py"])
+        migrations = data.get("migrations", [])
+
+        payload = {
+            "version": version,
+            "files": files,
+            "migrations": migrations,
+        }
+
+        get_db_cursor = _get_db_cursor()
+        try:
+            with get_db_cursor() as (conn, cur):
+                if target_node_id:
+                    node_ids = [target_node_id]
+                else:
+                    cur.execute(
+                        "SELECT node_id FROM remote_nodes " "WHERE is_active = true AND approval_status = 'approved'"
+                    )
+                    node_ids = [r["node_id"] for r in cur.fetchall()]
+
+                pushed = []
+                for nid in node_ids:
+                    cur.execute(
+                        """
+                        INSERT INTO mesh_sync_log (node_id, sync_type, payload)
+                        VALUES (%s, 'code_update', %s::jsonb)
+                        RETURNING id
+                        """,
+                        (nid, json.dumps(payload)),
+                    )
+                    sync_id = cur.fetchone()["id"]
+                    pushed.append({"node_id": nid, "sync_id": sync_id})
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Code update pushed to {len(pushed)} node(s)",
+                    "version": version,
+                    "files": files,
+                    "migrations": migrations,
+                    "pushed": pushed,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Mesh push-update failed: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
     logger.info("Mesh API routes registered on bridge blueprint")

@@ -553,13 +553,121 @@ def handle_sync(config, sync_type, payload):
 
 
 def _handle_code_update(config, payload):
-    """Stub: handle a code_update sync command from the Hub."""
+    """
+    Handle a code_update sync command from the Hub.
+
+    Downloads updated Python files and migrations from the hub,
+    applies any new migrations to local Postgres, then exits
+    so Docker auto-restarts the container with the new code.
+
+    Expected payload:
+        version (str): Target version string
+        files (list[str]): File names to update, e.g. ["node_sync.py", "node_api.py"]
+        migrations (list[str]): Migration filenames to download + apply
+    """
     version = payload.get("version", "unknown")
-    logger.info(
-        "[code_update] Hub requests update to version %s — stub, no action taken",
-        version,
-    )
-    return {"status": "acknowledged"}
+    files = payload.get("files", ["node_sync.py", "node_api.py"])
+    migrations = payload.get("migrations", [])
+
+    logger.info("[code_update] Updating to version %s", version)
+
+    hub_url = config["hub_url"]
+    headers = _auth_headers(config)
+    updated = []
+    errors = []
+
+    # --- Download updated Python files ---
+    for fname in files:
+        url = f"{hub_url}/tools/bridge/api/nodes/{fname}"
+        logger.info("[code_update] Downloading %s", fname)
+        status, resp = http_get(url, headers)
+        if status == 200:
+            # http_get returns parsed JSON or {"raw": text}
+            content = resp.get("raw", "")
+            if content:
+                try:
+                    fpath = os.path.join("/app", fname)
+                    with open(fpath, "w") as fh:
+                        fh.write(content)
+                    updated.append(fname)
+                    logger.info("[code_update] Updated %s", fname)
+                except Exception as e:
+                    errors.append(f"{fname}: write failed: {e}")
+                    logger.error("[code_update] Failed to write %s: %s", fname, e)
+            else:
+                errors.append(f"{fname}: empty response")
+        else:
+            errors.append(f"{fname}: HTTP {status}")
+            logger.warning("[code_update] Failed to download %s (HTTP %d)", fname, status)
+
+    # --- Download and apply migrations ---
+    for mig_name in migrations:
+        url = f"{hub_url}/tools/bridge/api/nodes/migrations/{mig_name}"
+        logger.info("[code_update] Downloading migration %s", mig_name)
+        status, resp = http_get(url, headers)
+        if status == 200:
+            sql_content = resp.get("raw", "")
+            if sql_content:
+                mig_path = os.path.join("/app/migrations", mig_name)
+                try:
+                    with open(mig_path, "w") as fh:
+                        fh.write(sql_content)
+                    logger.info("[code_update] Saved migration %s", mig_name)
+                except Exception as e:
+                    errors.append(f"migration {mig_name}: write failed: {e}")
+                    continue
+
+                # Apply migration to local Postgres
+                conn = _get_node_db()
+                if conn:
+                    try:
+                        conn.autocommit = True
+                        cur = conn.cursor()
+                        cur.execute(sql_content)
+                        cur.close()
+                        conn.close()
+                        updated.append(f"migration:{mig_name}")
+                        logger.info("[code_update] Applied migration %s", mig_name)
+                    except Exception as e:
+                        errors.append(f"migration {mig_name}: apply failed: {e}")
+                        logger.error(
+                            "[code_update] Failed to apply %s: %s", mig_name, e
+                        )
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                else:
+                    errors.append(f"migration {mig_name}: no DB connection")
+        else:
+            errors.append(f"migration {mig_name}: HTTP {status}")
+
+    result = {
+        "status": "completed" if not errors else "completed_with_errors",
+        "version": version,
+        "updated": updated,
+        "errors": errors,
+    }
+    logger.info("[code_update] Result: %s", result)
+
+    # If we updated code files, exit so Docker restarts us with new code
+    code_files_updated = [f for f in updated if not f.startswith("migration:")]
+    if code_files_updated:
+        logger.info(
+            "[code_update] Code files updated (%s) — restarting in 3s...",
+            ", ".join(code_files_updated),
+        )
+
+        def _delayed_exit():
+            time.sleep(3)
+            logger.info("[code_update] Exiting for restart.")
+            os._exit(0)
+
+        import threading
+
+        threading.Thread(target=_delayed_exit, daemon=True).start()
+
+    return result
 
 
 def _handle_iaae_policy(config, payload):

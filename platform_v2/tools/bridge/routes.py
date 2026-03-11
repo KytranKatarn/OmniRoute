@@ -7267,6 +7267,116 @@ def model_control():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================================================
+# COMFYUI MODEL CONTROL
+# ============================================================================
+
+
+@bridge_bp.route("/api/bridge/comfyui/models")
+@login_required
+def comfyui_models():
+    """List ComfyUI checkpoint models and current service status."""
+    try:
+        from ai_bridge.comfyui_service import get_comfyui_service
+
+        svc = get_comfyui_service()
+        healthy = svc.health_check()
+        if not healthy:
+            return jsonify(
+                {
+                    "success": True,
+                    "online": False,
+                    "models": [],
+                    "queue": {"running": 0, "pending": 0},
+                }
+            )
+
+        models_data = svc.get_models()
+        queue = svc.get_queue_status()
+        stats = svc.get_system_stats()
+
+        # Determine which model is currently loaded in VRAM
+        loaded_model = None
+        vram_used_gb = 0
+        if stats:
+            devices = stats.get("devices", [])
+            for dev in devices:
+                if dev.get("type") == "cuda":
+                    alloc = dev.get("vram_total", 0) - dev.get("vram_free", 0)
+                    vram_used_gb = round(alloc / (1024**3), 2)
+                    # If significant VRAM allocated, a model is loaded
+                    if vram_used_gb > 0.5:
+                        loaded_model = models_data.get("current")
+
+        return jsonify(
+            {
+                "success": True,
+                "online": True,
+                "models": models_data.get("installed", []),
+                "current_model": loaded_model,
+                "vram_used_gb": vram_used_gb,
+                "queue": {
+                    "running": queue.get("running", 0),
+                    "pending": queue.get("pending", 0),
+                },
+            }
+        )
+    except Exception as e:
+        logger.error(f"comfyui_models error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/bridge/comfyui/control", methods=["POST"])
+@login_required
+def comfyui_control():
+    """Load (warmup) or unload a ComfyUI checkpoint model.
+
+    Body: { "model": "sd_xl_base_1.0.safetensors", "action": "load"|"unload" }
+    """
+    try:
+        if not current_user.is_admin:
+            return jsonify({"success": False, "error": "Admin access required"}), 403
+
+        from ai_bridge.comfyui_service import get_comfyui_service
+
+        svc = get_comfyui_service()
+        if not svc.health_check():
+            return jsonify({"success": False, "error": "ComfyUI is offline"}), 503
+
+        data = request.get_json() or {}
+        model_name = data.get("model", "").strip()
+        action = data.get("action", "").strip()
+
+        if not model_name or action not in ("load", "unload"):
+            return jsonify({"success": False, "error": "model and action (load|unload) required"}), 400
+
+        comfyui_host = svc.host
+
+        if action == "unload":
+            # Free all models from VRAM
+            resp = requests.post(
+                f"{comfyui_host}/free",
+                json={"unload_models": True},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return jsonify({"success": True, "message": "ComfyUI VRAM freed"})
+            return jsonify({"success": False, "error": f"ComfyUI returned {resp.status_code}"}), 502
+
+        # action == "load" — warmup the checkpoint via minimal generation
+        logger.info(f"ComfyUI model load requested: {model_name}")
+        ok = svc.warmup(model=model_name)
+        if ok:
+            return jsonify({"success": True, "message": f"{model_name} loaded into VRAM"})
+        return jsonify({"success": False, "error": f"Failed to warmup {model_name}"}), 502
+
+    except requests.Timeout:
+        return jsonify({"success": False, "error": "ComfyUI warmup timed out"}), 504
+    except Exception as e:
+        logger.error(f"comfyui_control error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @bridge_bp.route("/api/bridge/reassign", methods=["POST"])
 @login_required
 def reassign_agent():

@@ -17839,6 +17839,29 @@ function renderCrewManifest(crew, capacity) {
             gpuBar.appendChild(gpuLegend);
 
             capWrap.appendChild(gpuBar);
+
+            // --- ComfyUI Checkpoint Control Panel ---
+            var comfyPanel = document.createElement('div');
+            comfyPanel.className = 'roster-capacity-bar';
+            comfyPanel.id = 'comfyui-checkpoint-panel';
+            comfyPanel.style.flexWrap = 'wrap';
+            comfyPanel.style.borderLeft = '3px solid #8b5cf6';
+
+            var comfyHdr = document.createElement('span');
+            comfyHdr.className = 'roster-capacity-label';
+            comfyHdr.style.fontWeight = '600';
+            comfyHdr.innerHTML = '<span style="color:#8b5cf6;">&#9670;</span> ComfyUI Checkpoints';
+            comfyPanel.appendChild(comfyHdr);
+
+            var comfyBody = document.createElement('div');
+            comfyBody.id = 'comfyui-checkpoint-body';
+            comfyBody.style.cssText = 'width:100%;font-size:12px;color:var(--archie-text-muted);';
+            comfyBody.textContent = 'Loading...';
+            comfyPanel.appendChild(comfyBody);
+            capWrap.appendChild(comfyPanel);
+
+            // Fetch ComfyUI models and populate
+            _loadComfyCheckpoints();
         }
 
         // CPU / RAM section — segmented bar
@@ -18340,6 +18363,97 @@ function _toggleAgentModel(agent, btn) {
         alert('Request failed — check network');
         btn.disabled = false;
         btn.textContent = isLoaded ? 'Unload' : 'Load';
+    });
+}
+
+// === ComfyUI Checkpoint Control ===
+function _loadComfyCheckpoints() {
+    var body = document.getElementById('comfyui-checkpoint-body');
+    if (!body) return;
+
+    fetch('/tools/bridge/api/bridge/comfyui/models')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success && data.error) {
+            body.textContent = 'Error: ' + data.error;
+            return;
+        }
+        if (!data.online) {
+            body.innerHTML = '<span style="color:#ef4444;">&#9679;</span> ComfyUI offline';
+            return;
+        }
+
+        var models = data.models || [];
+        var current = data.current_model;
+        var vram = data.vram_used_gb || 0;
+        var queue = data.queue || {};
+
+        var html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+            + '<span style="color:#22c55e;">&#9679;</span> Online'
+            + (vram > 0.5 ? ' &mdash; ' + vram.toFixed(1) + 'GB VRAM' : '')
+            + (queue.running > 0 ? ' &mdash; <span style="color:#f59e0b;">' + queue.running + ' generating</span>' : '')
+            + '</div>';
+
+        if (models.length === 0) {
+            html += '<div style="color:var(--archie-text-muted);">No checkpoints installed</div>';
+        } else {
+            html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+            models.forEach(function(m) {
+                var short = m.replace('.safetensors', '').replace('.ckpt', '');
+                var isXl = m.toLowerCase().indexOf('xl') >= 0;
+                var isLoaded = current && m === current;
+                var bgColor = isLoaded ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.05)';
+                var border = isLoaded ? '1px solid #8b5cf6' : '1px solid rgba(255,255,255,0.1)';
+                var badge = isXl ? ' <span style="font-size:9px;background:#8b5cf6;padding:1px 4px;border-radius:3px;">XL</span>' : '';
+
+                html += '<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;'
+                    + 'background:' + bgColor + ';border:' + border + ';border-radius:4px;font-size:11px;">'
+                    + '<span>' + short + badge + '</span>'
+                    + '<button onclick="_comfyControl(\'' + m.replace(/'/g, "\\'") + '\', ' + (isLoaded ? "'unload'" : "'load'") + ', this)" '
+                    + 'style="background:none;border:none;cursor:pointer;padding:2px 4px;font-size:10px;'
+                    + 'color:' + (isLoaded ? '#ef4444' : '#22c55e') + ';">'
+                    + (isLoaded ? '&#9632; Unload' : '&#9654; Load')
+                    + '</button></div>';
+            });
+            html += '</div>';
+        }
+        body.innerHTML = html;
+    })
+    .catch(function() {
+        body.textContent = 'Failed to load';
+    });
+}
+
+function _comfyControl(model, action, btn) {
+    var short = model.replace('.safetensors', '').replace('.ckpt', '');
+    var msg = action === 'load'
+        ? 'Load ' + short + ' into GPU VRAM?\n\nThis runs a warmup generation (~30s for SDXL).'
+        : 'Unload all ComfyUI models from VRAM?';
+    if (!confirm(msg)) return;
+
+    btn.disabled = true;
+    btn.textContent = action === 'load' ? 'Loading...' : 'Unloading...';
+
+    fetch('/tools/bridge/api/bridge/comfyui/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: model, action: action })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            _loadComfyCheckpoints();
+            loadCrewManifest();
+        } else {
+            alert('Failed: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.textContent = action === 'load' ? '▶ Load' : '■ Unload';
+        }
+    })
+    .catch(function() {
+        alert('Request failed');
+        btn.disabled = false;
+        btn.textContent = action === 'load' ? '▶ Load' : '■ Unload';
     });
 }
 

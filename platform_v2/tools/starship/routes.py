@@ -313,7 +313,8 @@ def _compute_node_status(node):
 
 
 def _get_user_nodes(user_id):
-    """Get all starship nodes owned by this user."""
+    """Get all starship nodes owned by or visible to this user.
+    Nodes with NULL registered_by are visible to all authenticated users."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
@@ -323,7 +324,7 @@ def _get_user_nodes(user_id):
                    approval_status, last_heartbeat, client_version,
                    COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
             FROM remote_nodes
-            WHERE user_id = %s
+            WHERE registered_by = %s OR registered_by IS NULL
             ORDER BY bridge_priority DESC, node_name
             """,
             (user_id,),
@@ -332,11 +333,14 @@ def _get_user_nodes(user_id):
 
 
 def _get_node_for_user(node_id, user_id, require_owner=True):
-    """Get a specific node, optionally verifying ownership."""
+    """Get a specific node, optionally verifying ownership.
+    Falls back to showing unregistered nodes (registered_by IS NULL) to any user."""
     with get_db_cursor() as (conn, cur):
         if require_owner:
             cur.execute(
-                "SELECT * FROM remote_nodes WHERE node_id = %s AND user_id = %s",
+                """SELECT * FROM remote_nodes
+                   WHERE node_id = %s
+                     AND (registered_by = %s OR registered_by IS NULL)""",
                 (node_id, user_id),
             )
         else:
@@ -436,7 +440,7 @@ def api_node_status(node_id):
                 WHERE node_id = %s
                 ORDER BY is_available DESC, model_name
                 """,
-                (node_id,),
+                (node["node_id"],),
             )
             models = cur.fetchall()
 

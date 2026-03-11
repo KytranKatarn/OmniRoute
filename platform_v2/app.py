@@ -3481,7 +3481,7 @@ def init_consciousness_scheduler(flask_app):
         from tools.consciousness.log_ingestor import batch_ingest_logs
         from services.scan_pipeline import batch_medium_issues
 
-        scheduler = BackgroundScheduler()
+        scheduler = BackgroundScheduler(timezone="America/Toronto")
 
         # Hourly conversation consolidation (most critical)
         scheduler.add_job(

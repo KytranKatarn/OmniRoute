@@ -591,10 +591,15 @@ def _run_image_benchmark_thread(
             pass
 
     try:
-        # ── Phase 1: ComfyUI local tests ──
+        # ── Phase 1: ComfyUI local tests via Bridge dispatcher ──
+        # Route through dispatcher for proper bridge_job tracking, VRAM management,
+        # and agent welfare integration (ADR-013: all inference through Bridge).
         from ai_bridge.comfyui_service import get_comfyui_service
+        from ai_bridge.bridge_dispatcher import BridgeDispatcher
 
         comfyui = get_comfyui_service()
+        dispatcher = BridgeDispatcher()
+
         if not comfyui.health_check():
             logger.warning("Image benchmark %d: ComfyUI not available", run_id)
         else:
@@ -603,7 +608,7 @@ def _run_image_benchmark_thread(
                 logger.warning("Image benchmark %d: ComfyUI has no models installed", run_id)
             else:
                 logger.info(
-                    "Image benchmark %d: testing %d ComfyUI models × %d prompts",
+                    "Image benchmark %d: testing %d ComfyUI models × %d prompts (via dispatcher)",
                     run_id,
                     len(comfy_models),
                     len(prompts),
@@ -642,25 +647,34 @@ def _run_image_benchmark_thread(
 
                         try:
                             start_ms = int(time.time() * 1000)
-                            result = comfyui.generate_image(
+                            result = dispatcher.request_work(
+                                capability="image_generation",
                                 prompt=prompt_text,
-                                model=ckpt,
-                                steps=steps,
-                                width=width,
-                                height=height,
+                                module_id="benchmark",
+                                prefer_agent="Pixel",
+                                context={
+                                    "image_model": ckpt,
+                                    "width": width,
+                                    "height": height,
+                                    "steps": steps,
+                                },
                             )
                             duration_ms = int(time.time() * 1000) - start_ms
 
                             success = result.success
                             error_msg = result.error if not success else None
-                            file_size = result.metadata.get("file_size_bytes", 0) if success else 0
-                            file_path = result.file_path or ""
+                            file_size = 0
+                            file_path = ""
+                            if success and result.metadata:
+                                file_size = result.metadata.get("file_size_bytes", 0)
+                                file_path = result.metadata.get("file_path", "")
 
                             if success:
                                 response_preview = (
                                     f"Category: {category}\n"
                                     f"Model: {short_model}\n"
-                                    f"Provider: ComfyUI\n"
+                                    f"Provider: ComfyUI (via dispatcher)\n"
+                                    f"Agent: {result.agent_name or 'Pixel'}\n"
                                     f"Prompt: {prompt_text}\n"
                                     f"Size: {width}x{height}, Steps: {steps}\n"
                                     f"File: {file_path} ({file_size} bytes)\n"

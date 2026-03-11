@@ -3394,7 +3394,7 @@ class BridgeDispatcher:
         escalation_info = None  # Tracks failure→cloud escalation for metrics
         original_model = model  # Preserve for escalation metadata
 
-        image_model = agent.get("image_model")
+        image_model = (context or {}).get("image_model") or agent.get("image_model")
         if capability == "image_generation" and image_model:
             # Route to ComfyUI instead of Ollama
             comfyui_result = self._execute_comfyui(

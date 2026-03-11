@@ -7003,6 +7003,35 @@ def get_crew_manifest():
             wl = workload_map.get(member.get("agent_id") or member.get("id"), {})
             member["workload"] = wl
 
+        # Add shift_state to each manifest entry
+        try:
+            with get_db_cursor(commit=False) as (sconn, scur):
+                scur.execute("SELECT id, shift_state FROM agents WHERE status IN ('active', 'inactive')")
+                shift_states = {r["id"]: r["shift_state"] or "active" for r in scur.fetchall()}
+                for entry in manifest:
+                    entry["shift_state"] = shift_states.get(entry.get("agent_id") or entry.get("id"), "active")
+        except Exception:
+            pass
+
+        # Fleet overview counts
+        shift_counts = {
+            "active": 0,
+            "winding_down": 0,
+            "cooldown": 0,
+            "off_duty": 0,
+            "reserves": 0,
+        }
+        for entry in manifest:
+            state = entry.get("shift_state", "active")
+            if state in shift_counts:
+                shift_counts[state] += 1
+        try:
+            with get_db_cursor(commit=False) as (rconn, rcur):
+                rcur.execute("SELECT count(*) AS cnt FROM agents WHERE status = 'inactive'")
+                shift_counts["reserves"] = rcur.fetchone()["cnt"]
+        except Exception:
+            pass
+
         # Get fleet mode (workday/weekend)
         fleet_mode = "workday"
         try:
@@ -7014,7 +7043,13 @@ def get_crew_manifest():
         except Exception:
             pass
 
-        resp = {"success": True, "crew": manifest, "total": len(manifest), "fleet_mode": fleet_mode}
+        resp = {
+            "success": True,
+            "crew": manifest,
+            "total": len(manifest),
+            "fleet_mode": fleet_mode,
+            "fleet_overview": shift_counts,
+        }
         if capacity:
             resp["capacity"] = capacity
         return jsonify(resp)

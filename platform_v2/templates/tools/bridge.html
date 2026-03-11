@@ -4241,6 +4241,25 @@ body.light-mode .bridge-zone-unstaffed {
 .crew-perf-tag.underutilized { background: rgba(255,170,0,0.15); color: #ffaa00; }
 .crew-perf-tag.low-success { background: rgba(255,68,68,0.15); color: #FF4444; }
 
+/* Fleet overview bar */
+.fleet-overview-bar {
+    display: flex; gap: 1rem; padding: 0.5rem 0.75rem;
+    background: rgba(255,255,255,0.03); border-radius: 4px;
+    margin-bottom: 0.75rem; font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem; letter-spacing: 1px; text-transform: uppercase;
+}
+.fleet-stat { cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 3px; transition: background 0.2s; }
+.fleet-stat.active strong { color: #32CD32; }
+.fleet-stat.winding-down strong { color: #FFD700; }
+.fleet-stat.cooldown strong { color: #FF6347; }
+.fleet-stat.reserves strong { color: #888; }
+.fleet-stat:hover { background: rgba(255,255,255,0.05); }
+.fleet-stat.selected { background: rgba(255,255,255,0.08); }
+.crew-shift-badge {
+    font-size: 0.55rem; padding: 1px 5px; border-radius: 3px;
+    letter-spacing: 0.5px; font-family: 'Antonio', sans-serif;
+}
+
 /* RAM capacity bar */
 .roster-capacity-bar {
     display: flex;
@@ -8307,6 +8326,12 @@ body.light-mode .bridge-tab-panel button:not(.bridge-tab):not(.crew-subtab) {
                             <button id="btn-add-agent" class="btn-add-agent" onclick="openAgentFormModal()"><span data-i18n="bridge.add_agent">+ Add Agent</span></button>
                         </div>
                         <div class="briefing-card-body">
+                            <div class="fleet-overview-bar" id="fleet-overview-bar">
+                                <span class="fleet-stat active" onclick="filterCrewByState('active')">ON DUTY: <strong id="fleet-active">0</strong></span>
+                                <span class="fleet-stat winding-down" onclick="filterCrewByState('winding_down')">WINDING DOWN: <strong id="fleet-winding">0</strong></span>
+                                <span class="fleet-stat cooldown" onclick="filterCrewByState('cooldown')">RESTING: <strong id="fleet-cooldown">0</strong></span>
+                                <span class="fleet-stat reserves" onclick="filterCrewByState('reserves')">RESERVES: <strong id="fleet-reserves">0</strong></span>
+                            </div>
                             <div class="crew-manifest-grid" id="crew-manifest-grid">
                                 <span class="briefing-muted"><span data-i18n="bridge.loading_crew_manifest">Loading crew manifest...</span></span>
                             </div>
@@ -17574,6 +17599,14 @@ async function loadCrewManifest() {
                 if (a.workload) _crewWorkloadMap[a.agent_id || a.id] = a.workload;
             });
             window._lastFleetMode = data.fleet_mode || 'workday';
+            // Update fleet overview bar
+            if (data.fleet_overview) {
+                var fo = data.fleet_overview;
+                document.getElementById('fleet-active').textContent = fo.active || 0;
+                document.getElementById('fleet-winding').textContent = fo.winding_down || 0;
+                document.getElementById('fleet-cooldown').textContent = fo.cooldown || 0;
+                document.getElementById('fleet-reserves').textContent = fo.reserves || 0;
+            }
             renderCrewManifest(data.crew || [], data.capacity || null);
             if (data.fleet_mode) updateFleetModeButton(data.fleet_mode);
         }
@@ -17593,6 +17626,35 @@ function stopCrewRefresh() {
         clearInterval(_crewRefreshTimer);
         _crewRefreshTimer = null;
     }
+}
+
+var _activeShiftFilter = null;
+function filterCrewByState(state) {
+    var bar = document.getElementById('fleet-overview-bar');
+    var grid = document.getElementById('crew-manifest-grid');
+    if (!grid) return;
+    // Toggle filter off if clicking same state
+    if (_activeShiftFilter === state) {
+        _activeShiftFilter = null;
+        // Show all cards
+        var allCards = grid.querySelectorAll('.crew-agent-card');
+        allCards.forEach(function(c) { c.style.display = ''; });
+        // Remove selected class from all stats
+        if (bar) bar.querySelectorAll('.fleet-stat').forEach(function(s) { s.classList.remove('selected'); });
+        return;
+    }
+    _activeShiftFilter = state;
+    // Highlight selected stat
+    if (bar) {
+        bar.querySelectorAll('.fleet-stat').forEach(function(s) { s.classList.remove('selected'); });
+        bar.querySelectorAll('.fleet-stat.' + state.replace('_', '-')).forEach(function(s) { s.classList.add('selected'); });
+    }
+    // Filter cards
+    var cards = grid.querySelectorAll('.crew-agent-card');
+    cards.forEach(function(c) {
+        var cardState = c.getAttribute('data-shift-state') || 'active';
+        c.style.display = (cardState === state) ? '' : 'none';
+    });
 }
 
 function makeStatSpan(val, label) {
@@ -17977,6 +18039,24 @@ function renderCrewManifest(crew, capacity) {
             perfTag2.title = 'Success rate below 50% (' + Math.round((agentStats.success_rate || 0) * 100) + '%)';
             badges.appendChild(perfTag2);
         }
+
+        // Shift state badge
+        var shiftState = agent.shift_state || 'active';
+        card.setAttribute('data-shift-state', shiftState);
+        var shiftLabels = {active: 'ON DUTY', winding_down: 'WINDING DOWN', cooldown: 'COOLDOWN', off_duty: 'OFF DUTY'};
+        var shiftColors = {active: '#32CD32', winding_down: '#FFD700', cooldown: '#FF6347', off_duty: '#666'};
+        var shiftBadge = document.createElement('span');
+        shiftBadge.className = 'crew-shift-badge';
+        shiftBadge.textContent = shiftLabels[shiftState] || shiftState.toUpperCase();
+        shiftBadge.style.color = shiftColors[shiftState] || '#888';
+        shiftBadge.style.background = (shiftColors[shiftState] || '#888').replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', '');
+        // Use proper rgba background
+        var sc = shiftColors[shiftState] || '#888';
+        if (sc === '#32CD32') shiftBadge.style.background = 'rgba(50,205,50,0.15)';
+        else if (sc === '#FFD700') shiftBadge.style.background = 'rgba(255,215,0,0.15)';
+        else if (sc === '#FF6347') shiftBadge.style.background = 'rgba(255,99,71,0.15)';
+        else shiftBadge.style.background = 'rgba(102,102,102,0.15)';
+        badges.appendChild(shiftBadge);
 
         top.appendChild(name);
         top.appendChild(badges);

@@ -822,7 +822,7 @@ body { font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); backgr
 
     async function toggleServerLoop(op, enabled) {
         try {
-            await fetch('/tools/consciousness/processing/server-loop/toggle', {
+            await fetch('/tools/consciousness/api/processing/server-loop/toggle', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({op: op, enabled: enabled})

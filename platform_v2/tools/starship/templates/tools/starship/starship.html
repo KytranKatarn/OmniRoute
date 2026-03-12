@@ -2,7 +2,6 @@
 {% block title %}Starship Command{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="/static/css/station-ops.css">
 <!-- Admin Operations Navigation -->
 {% include 'includes/admin_ops_nav.html' %}
 
@@ -68,17 +67,22 @@
 .sc-badge.available { background: rgba(0, 229, 255, 0.1); color: var(--sc-accent); }
 .sc-badge.offline { background: rgba(255, 68, 68, 0.1); color: var(--sc-red); }
 
-/* Privacy toggles */
-.sc-toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.sc-toggle-info { flex: 1; }
-.sc-toggle-name { color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
-.sc-toggle-desc { color: rgba(255,255,255,0.35); font-size: 0.75rem; margin-top: 2px; }
-.sc-switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
-.sc-switch input { opacity: 0; width: 0; height: 0; }
-.sc-switch .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.1); border-radius: 12px; transition: 0.3s; }
-.sc-switch .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: rgba(255,255,255,0.4); border-radius: 50%; transition: 0.3s; }
-.sc-switch input:checked + .slider { background: rgba(0, 229, 255, 0.3); }
-.sc-switch input:checked + .slider:before { transform: translateX(20px); background: var(--sc-accent); }
+/* Starbase card */
+.sc-starbase-card {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.08);
+}
+
+/* Sync log table */
+#sync-log-body tr { border-bottom: 1px solid rgba(255,255,255,0.05); }
+#sync-log-body td { padding: 6px; color: rgba(255,255,255,0.7); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; }
+.sync-status-sent { color: var(--sc-amber); }
+.sync-status-acked { color: var(--sc-green); }
+.sync-status-failed { color: var(--sc-red); }
 
 /* Profile form */
 .sc-input { width: 100%; padding: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(0, 229, 255, 0.2); border-radius: 4px; color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; box-sizing: border-box; }
@@ -485,6 +489,28 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
     </div>
     {% else %}
 
+    <!-- STARBASE (HUB) -->
+    <div class="sc-starbase-card" id="starbase-card">
+        <div class="sc-node-header" style="cursor:default;">
+            <div class="sc-node-dot online"></div>
+            <span class="sc-node-name">A.R.C.H.I.E. STARBASE</span>
+            <span class="sc-node-mode">HUB</span>
+        </div>
+        <div class="sc-node-body">
+            <div class="sc-node-stats" id="starbase-stats">
+                <div class="sc-stat"><span class="sc-stat-val" id="sb-agents">--</span><span class="sc-stat-label">AGENTS</span></div>
+                <div class="sc-stat"><span class="sc-stat-val" id="sb-jobs">--</span><span class="sc-stat-label">ACTIVE JOBS</span></div>
+                <div class="sc-stat"><span class="sc-stat-val" id="sb-models">--</span><span class="sc-stat-label">MODELS</span></div>
+                <div class="sc-stat"><span class="sc-stat-val" id="sb-stations">10</span><span class="sc-stat-label">STATIONS</span></div>
+            </div>
+            <div class="sc-node-stats" style="margin-top:10px;">
+                <div class="sc-stat"><span class="sc-stat-val" id="sb-cpu">--</span><span class="sc-stat-label">CPU</span></div>
+                <div class="sc-stat"><span class="sc-stat-val" id="sb-ram">--</span><span class="sc-stat-label">RAM</span></div>
+                <div class="sc-stat"><span class="sc-stat-val" id="sb-gpu">--</span><span class="sc-stat-label">GPU</span></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Fleet Grid -->
     <div class="sc-fleet-grid" id="sc-fleet-grid">
         {% for node in nodes %}
@@ -523,11 +549,8 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         </div>
         <div class="sc-tabs">
             <button class="sc-tab active" onclick="switchTab('status')" data-tab="status">STATUS</button>
-            <button class="sc-tab" onclick="switchTab('stations')" data-tab="stations">STATIONS</button>
-            <button class="sc-tab" onclick="switchTab('agents')" data-tab="agents">AGENTS</button>
-            <button class="sc-tab" onclick="switchTab('models')" data-tab="models">MODELS</button>
-            <button class="sc-tab" onclick="switchTab('privacy')" data-tab="privacy">PRIVACY</button>
-            <button class="sc-tab" onclick="switchTab('profile')" data-tab="profile">PROFILE</button>
+            <button class="sc-tab" onclick="switchTab('ota')" data-tab="ota">OTA / SYNC</button>
+            <button class="sc-tab" onclick="switchTab('crew')" data-tab="crew">CREW</button>
         </div>
 
         <!-- STATUS TAB -->
@@ -562,80 +585,79 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <div class="sc-row"><span class="sc-label">Resync</span><span class="sc-value"><button class="sc-btn-small" id="d-resync-btn" onclick="showResyncModal()">RESYNC NODE</button></span></div>
             </div>
             <div class="sc-section">
-                <h4>REMOTE UPDATES</h4>
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <button class="sc-btn-small" onclick="pushCodeUpdate()">PUSH CODE UPDATE</button>
-                    <span style="color: rgba(255,255,255,0.35); font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;">OTA update to latest package</span>
-                </div>
-                <div id="sync-log-list" style="max-height: 200px; overflow-y: auto;"></div>
-            </div>
-            <div class="sc-section">
                 <h4>FLEET SUMMARY</h4>
                 <div class="sc-row"><span class="sc-label">Active Stations</span><span class="sc-value" id="d-active-stations">—</span></div>
                 <div class="sc-row"><span class="sc-label">Models Available</span><span class="sc-value" id="d-models-avail">—</span></div>
                 <div class="sc-row"><span class="sc-label">Total Model Size</span><span class="sc-value" id="d-models-size">—</span></div>
                 <div class="sc-row"><span class="sc-label">Agents Allowed</span><span class="sc-value" id="d-agents-allowed">—</span></div>
             </div>
-        </div>
-
-        <!-- HARDWARE TAB -->
-        <div class="sc-panel" id="panel-hardware">
             <div class="sc-section">
-                <h4>COMPUTE RESOURCES</h4>
-                <div class="sc-row"><span class="sc-label">CPU</span><span class="sc-value" id="d-cpu">—</span></div>
-                <div class="sc-row"><span class="sc-label">CPU Cores</span><span class="sc-value" id="d-cores">—</span></div>
-                <div class="sc-row"><span class="sc-label">RAM</span><span class="sc-value" id="d-ram">—</span></div>
-                <div class="sc-row"><span class="sc-label">GPU</span><span class="sc-value" id="d-gpu">—</span></div>
-                <div class="sc-row"><span class="sc-label">VRAM</span><span class="sc-value" id="d-vram">—</span></div>
-                <div class="sc-row"><span class="sc-label">Storage</span><span class="sc-value" id="d-disk">—</span></div>
-            </div>
-        </div>
-
-        <!-- STATIONS TAB -->
-        <div class="sc-panel" id="panel-stations">
-            <div style="display:flex; gap:1.5rem; flex-wrap:wrap;">
-                <!-- OPERATIONS Terminal -->
-                <div class="stn-ops-terminal" style="flex:1; min-width:320px;">
-                    <div class="stn-ops-header">
-                        <div class="stn-ops-header-bar" style="background:#00e5ff;"></div>
-                        <span class="stn-ops-title">OPERATIONS</span>
-                        <span class="stn-ops-status" id="ops-status">OFFLINE</span>
-                    </div>
-                    <div class="stn-ops-section">
-                        <div class="stn-ops-section-label">CREW ROSTER</div>
-                        <div id="ops-agents"></div>
-                    </div>
-                    <div class="stn-ops-section">
-                        <div class="stn-ops-section-label">ACTIVE JOBS</div>
-                        <div id="ops-jobs"></div>
-                    </div>
+                <h4>NODE SETTINGS</h4>
+                <div class="sc-row">
+                    <span class="sc-label">Name</span>
+                    <input type="text" class="sc-input" id="settings-name" style="width:200px;" onchange="saveNodeSettings()">
                 </div>
-                <!-- ENGINEERING Terminal -->
-                <div class="stn-ops-terminal" style="flex:1; min-width:320px;">
-                    <div class="stn-ops-header">
-                        <div class="stn-ops-header-bar" style="background:#00e5ff;"></div>
-                        <span class="stn-ops-title">ENGINEERING</span>
-                        <span class="stn-ops-status" id="eng-status">OFFLINE</span>
-                    </div>
-                    <div class="stn-ops-section">
-                        <div class="stn-ops-section-label">CREW ROSTER</div>
-                        <div id="eng-agents"></div>
-                    </div>
-                    <div class="stn-ops-section">
-                        <div class="stn-ops-section-label">ACTIVE JOBS</div>
-                        <div id="eng-jobs"></div>
-                    </div>
+                <div class="sc-row">
+                    <span class="sc-label">Mode</span>
+                    <select class="sc-input" id="settings-mode" style="width:200px;" onchange="saveNodeSettings()">
+                        <option value="starship">Starship</option>
+                        <option value="satellite">Satellite</option>
+                        <option value="outpost">Outpost</option>
+                    </select>
+                </div>
+                <div class="sc-row">
+                    <span class="sc-label">Priority</span>
+                    <input type="number" class="sc-input" id="settings-priority" min="0" max="100" style="width:200px;" onchange="saveNodeSettings()">
                 </div>
             </div>
         </div>
 
-        <!-- AGENTS TAB -->
-        <div class="sc-panel" id="panel-agents">
+        <!-- OTA / SYNC TAB -->
+        <div class="sc-panel" id="panel-ota">
+            <div class="sc-section">
+                <h4>OTA ACTIONS</h4>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+                    <button class="sc-btn" onclick="pushCodeUpdate()">PUSH UPDATE</button>
+                    <button class="sc-btn" onclick="pushAgentConfig()">PUSH AGENT CONFIG</button>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <select class="sc-input" id="pull-model-select" style="width:250px;">
+                        <option value="">Select model...</option>
+                    </select>
+                    <button class="sc-btn" onclick="pullModelToNode(document.getElementById('pull-model-select').value, this)">PULL MODEL</button>
+                </div>
+            </div>
+            <div class="sc-section">
+                <h4>SYNC STATUS</h4>
+                <div id="sync-status-panel" style="margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;"></span>
+                        <span id="sync-indicator" style="color: rgba(255,255,255,0.4); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">Checking...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="sc-section">
+                <h4>SYNC LOG</h4>
+                <div id="sync-log-container">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead><tr>
+                            <th class="sc-label" style="text-align:left;padding:6px;">Type</th>
+                            <th class="sc-label" style="text-align:left;padding:6px;">Status</th>
+                            <th class="sc-label" style="text-align:left;padding:6px;">Time</th>
+                        </tr></thead>
+                        <tbody id="sync-log-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- CREW TAB -->
+        <div class="sc-panel" id="panel-crew">
             <div class="sc-section">
                 <h4>CREW MANIFEST</h4>
                 <div class="sc-agent-summary" id="d-agent-summary"></div>
                 <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
-                    Agents available to this node. Toggle access to control which crew can be dispatched here.
+                    Agents assigned to this node and their current status.
                 </p>
                 <div id="d-agents-manifest" class="crew-manifest-grid">
                     <span class="sc-label">Loading...</span>
@@ -643,144 +665,10 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <div id="agent-recommendations" style="display:none; margin-top: 20px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                         <span style="color: #a78bfa; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; letter-spacing: 1px;">RECOMMENDED CREW</span>
-                        <button class="sc-btn-small" style="background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); font-size: 0.65rem; padding: 3px 8px;" onclick="addAllRecommended()">ADD ALL</button>
                     </div>
                     <div id="recommendation-cards" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
                     <div id="station-suggestions" style="margin-top: 8px;"></div>
                 </div>
-                <div id="agent-sync-status" style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding: 10px 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(0,229,255,0.1); border-radius: 6px;">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;"></span>
-                        <span id="sync-indicator" style="color: rgba(255,255,255,0.4); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;">Checking sync...</span>
-                    </div>
-                    <button class="sc-btn-small" onclick="pushAgentConfig()" title="Force push all agent configs">FORCE SYNC</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- MODELS TAB -->
-        <div class="sc-panel" id="panel-models">
-            <div class="sc-section">
-                <h4>OLLAMA MODELS</h4>
-                <div class="sc-model-summary" id="d-model-summary"></div>
-                <div id="d-models-grid" class="sc-models-grid">
-                    <span class="sc-label">Loading...</span>
-                </div>
-            </div>
-            <div class="sc-section" style="margin-top: 20px;">
-                <h4>MODEL LIBRARY</h4>
-                <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 12px; font-family: 'IBM Plex Mono', monospace;">
-                    Browse available models. Pull to install on this node.
-                </p>
-                <div id="catalog-filters" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
-                    <button class="sc-btn-small catalog-filter active" data-cat="" onclick="filterCatalog('')">ALL</button>
-                    <button class="sc-btn-small catalog-filter" data-cat="coding" onclick="filterCatalog('coding')">CODING</button>
-                    <button class="sc-btn-small catalog-filter" data-cat="general" onclick="filterCatalog('general')">GENERAL</button>
-                    <button class="sc-btn-small catalog-filter" data-cat="creative" onclick="filterCatalog('creative')">CREATIVE</button>
-                    <button class="sc-btn-small catalog-filter" data-cat="vision" onclick="filterCatalog('vision')">VISION</button>
-                    <button class="sc-btn-small catalog-filter" data-cat="reasoning" onclick="filterCatalog('reasoning')">REASONING</button>
-                    <button class="sc-btn-small catalog-filter" data-cat="small" onclick="filterCatalog('small')">SMALL/EDGE</button>
-                    <button class="sc-btn-small catalog-filter" data-cat="embedding" onclick="filterCatalog('embedding')">EMBEDDING</button>
-                </div>
-                <div id="d-catalog-grid" class="sc-models-grid">
-                    <span class="sc-label">Select a node to browse models</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- PRIVACY TAB -->
-        <div class="sc-panel" id="panel-privacy">
-            <div class="sc-section">
-                <h4>SHARING CONTROLS</h4>
-                <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
-                    Control what this node shares with the fleet. Changes apply immediately.
-                </p>
-                <div class="sc-toggle-row">
-                    <div class="sc-toggle-info">
-                        <div class="sc-toggle-name">Share Hardware Info</div>
-                        <div class="sc-toggle-desc">CPU, RAM, GPU specs visible to fleet admin</div>
-                    </div>
-                    <label class="sc-switch"><input type="checkbox" id="priv-hardware" onchange="savePrivacy()" checked><span class="slider"></span></label>
-                </div>
-                <div class="sc-toggle-row">
-                    <div class="sc-toggle-info">
-                        <div class="sc-toggle-name">Share Model List</div>
-                        <div class="sc-toggle-desc">Which models are loaded on this node</div>
-                    </div>
-                    <label class="sc-switch"><input type="checkbox" id="priv-models" onchange="savePrivacy()" checked><span class="slider"></span></label>
-                </div>
-                <div class="sc-toggle-row">
-                    <div class="sc-toggle-info">
-                        <div class="sc-toggle-name">Share Job Statistics</div>
-                        <div class="sc-toggle-desc">Jobs processed, completion rate</div>
-                    </div>
-                    <label class="sc-switch"><input type="checkbox" id="priv-jobs" onchange="savePrivacy()" checked><span class="slider"></span></label>
-                </div>
-                <div class="sc-toggle-row">
-                    <div class="sc-toggle-info">
-                        <div class="sc-toggle-name">Share Hostname</div>
-                        <div class="sc-toggle-desc">Show machine hostname to fleet admin</div>
-                    </div>
-                    <label class="sc-switch"><input type="checkbox" id="priv-hostname" onchange="savePrivacy()"><span class="slider"></span></label>
-                </div>
-                <div class="sc-toggle-row">
-                    <div class="sc-toggle-info">
-                        <div class="sc-toggle-name">Local Data Only</div>
-                        <div class="sc-toggle-desc">Keep processed data on this node — do not sync results to starbase</div>
-                    </div>
-                    <label class="sc-switch"><input type="checkbox" id="priv-local" onchange="savePrivacy()"><span class="slider"></span></label>
-                </div>
-            </div>
-
-            <!-- Mesh Sharing Controls -->
-            <div class="sc-section" style="margin-top: 20px;">
-                <h4>MESH SHARING</h4>
-                <p style="color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace;">
-                    Control how this node participates in fleet mesh computing.
-                </p>
-                <div class="sc-toggle-row">
-                    <div class="sc-toggle-info">
-                        <div class="sc-toggle-name">Share Idle Agents with Fleet</div>
-                        <div class="sc-toggle-desc">Allow other fleet nodes to dispatch jobs to this node's idle agents</div>
-                    </div>
-                    <label class="sc-switch"><input type="checkbox" id="priv-share-agents" onchange="saveMeshPrivacy()"><span class="slider"></span></label>
-                </div>
-                <div class="sc-toggle-row" style="align-items: center;">
-                    <div class="sc-toggle-info">
-                        <div class="sc-toggle-name">Max Concurrent Shared Jobs</div>
-                        <div class="sc-toggle-desc">Maximum jobs other nodes can run on this node simultaneously</div>
-                    </div>
-                    <input type="number" id="priv-max-shared-jobs" min="1" max="5" value="2" onchange="saveMeshPrivacy()" style="width: 56px; background: rgba(0,0,0,0.4); border: 1px solid rgba(167,139,250,0.3); border-radius: 4px; color: #fff; padding: 6px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; text-align: center;">
-                </div>
-                <div class="sc-toggle-row">
-                    <div class="sc-toggle-info">
-                        <div class="sc-toggle-name">Priority</div>
-                        <div class="sc-toggle-desc">Local jobs always take precedence over fleet-shared jobs</div>
-                    </div>
-                    <span style="color: var(--sc-green); font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; font-weight: bold; padding: 4px 10px; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.25); border-radius: 4px;">LOCAL FIRST</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- PROFILE TAB -->
-        <div class="sc-panel" id="panel-profile">
-            <div class="sc-section">
-                <h4>NODE PROFILE</h4>
-                <form onsubmit="saveProfile(event)">
-                    <div style="margin-bottom: 14px;">
-                        <label class="sc-label" style="display: block; margin-bottom: 6px;">Display Name</label>
-                        <input type="text" id="d-profile-name" class="sc-input" maxlength="100">
-                    </div>
-                    <div style="margin-bottom: 14px;">
-                        <label class="sc-label" style="display: block; margin-bottom: 6px;">Node ID</label>
-                        <span class="sc-value" id="d-profile-id" style="opacity: 0.5;">—</span>
-                    </div>
-                    <div style="margin-bottom: 14px;">
-                        <label class="sc-label" style="display: block; margin-bottom: 6px;">Hostname</label>
-                        <span class="sc-value" id="d-profile-host" style="opacity: 0.5;">—</span>
-                    </div>
-                    <button type="submit" class="sc-btn">SAVE PROFILE</button>
-                </form>
             </div>
         </div>
     </div>
@@ -853,7 +741,6 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
 {% endblock %}
 
 {% block extra_js %}
-<script src="/static/js/station-ops.js"></script>
 <script>
 var selectedNodeId = null;
 var selectedNodeDbId = null;
@@ -974,8 +861,8 @@ async function createNode() {
         // Populate install commands
         var hubUrl = (data.config && data.config.hub_url) || 'https://archie.kytranempowerment.com';
         var token = data.setup_token || '';
-        var winCmd = 'irm ' + hubUrl + '/starship/install?token=' + token + ' | iex';
-        var linuxCmd = 'curl -fsSL ' + hubUrl + '/starship/install?token=' + token + ' | bash';
+        var winCmd = 'irm "' + hubUrl + '/starship/install?token=' + token + '" | iex';
+        var linuxCmd = 'curl -fsSL "' + hubUrl + '/starship/install?token=' + token + '" | bash';
 
         var winEl = document.getElementById('install-cmd-win');
         var linuxEl = document.getElementById('install-cmd-linux');
@@ -1077,11 +964,7 @@ function switchTab(tab) {
     document.querySelectorAll('.sc-panel').forEach(function(p) { p.classList.remove('active'); });
     document.querySelector('.sc-tab[data-tab="' + tab + '"]').classList.add('active');
     document.getElementById('panel-' + tab).classList.add('active');
-    if (tab === 'stations' && opsTerminal) {
-        opsTerminal.render();
-        engTerminal.render();
-    }
-    if (tab === 'agents' && selectedNodeDbId) {
+    if (tab === 'ota' && selectedNodeDbId) {
         startSyncPolling();
     }
 }
@@ -1124,8 +1007,8 @@ async function selectNode(nodeId) {
         if (selectedNodeDbId) {
             loadRecommendations(selectedNodeDbId);
             loadSyncLog(selectedNodeDbId);
-            initStationTerminals(selectedNodeDbId);
-            loadModelCatalog();
+            populatePullModelDropdown();
+            pollSyncStatus();
             startSyncPolling();
         }
     } catch (e) {
@@ -1192,17 +1075,15 @@ function renderDetail(data) {
     document.getElementById('d-models-size').textContent = (ms.total_size_gb || 0) + ' GB';
     document.getElementById('d-agents-allowed').textContent = allowedAgents + ' / ' + (data.agents || []).length;
 
-    // Hardware tab
-    document.getElementById('d-cpu').textContent = hw.cpu_model || 'Unknown';
-    document.getElementById('d-cores').textContent = hw.cpu_cores || '?';
-    document.getElementById('d-ram').textContent = hw.ram_gb ? hw.ram_gb + ' GB' : '?';
-    document.getElementById('d-gpu').textContent = hw.gpu_model || 'None';
-    document.getElementById('d-vram').textContent = hw.gpu_vram_gb ? hw.gpu_vram_gb + ' GB' : '—';
-    document.getElementById('d-disk').textContent = hw.disk_gb ? hw.disk_gb + ' GB' : '?';
+    // Populate inline settings
+    var nameEl = document.getElementById('settings-name');
+    if (nameEl) nameEl.value = n.node_name || '';
+    var modeEl = document.getElementById('settings-mode');
+    if (modeEl) modeEl.value = n.deployment_mode || 'starship';
+    var prioEl = document.getElementById('settings-priority');
+    if (prioEl) prioEl.value = n.bridge_priority || 0;
 
-    // Stations tab — now handled by StationOps terminals (see initStationTerminals)
-
-    // Agents tab — manifest-style cards (fetched separately)
+    // Crew tab — manifest-style cards (fetched separately)
     renderNodeManifest(selectedNodeDbId);
 
 async function renderNodeManifest(nodeDbId) {
@@ -1350,126 +1231,9 @@ function _renderStarshipAgentCard(agent) {
         card.appendChild(jobRow);
     }
 
-    // Action buttons
-    var actions = document.createElement('div');
-    actions.style.cssText = 'display: flex; justify-content: flex-end; margin-top: 6px; gap: 6px;';
-
-    var removeBtn = document.createElement('button');
-    removeBtn.className = 'sc-btn-small';
-    removeBtn.style.cssText = 'background:rgba(255,68,68,0.15);color:#ff4444;border:1px solid rgba(255,68,68,0.3);font-size:0.6rem;padding:2px 6px;';
-    removeBtn.textContent = 'REMOVE';
-    removeBtn.onclick = (function(id) { return function(e) { e.stopPropagation(); removeAgentFromNode(id); }; })(agent.agent_id);
-    actions.appendChild(removeBtn);
-
-    var toggleBtn = document.createElement('button');
-    toggleBtn.className = 'sc-btn-small';
-    toggleBtn.style.cssText = agent.allowed
-        ? 'background:rgba(0,229,255,0.15);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);font-size:0.6rem;padding:2px 6px;'
-        : 'background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.3);border:1px solid rgba(255,255,255,0.1);font-size:0.6rem;padding:2px 6px;';
-    toggleBtn.textContent = agent.allowed ? 'DISABLE' : 'ENABLE';
-    toggleBtn.onclick = (function(id, allowed) { return function(e) { e.stopPropagation(); toggleAgentAccess(id, !allowed); }; })(agent.agent_id, agent.allowed);
-    actions.appendChild(toggleBtn);
-
-    card.appendChild(actions);
-
     return card;
 }
 
-    // Models tab — summary + enhanced cards with family/params/stats
-    var modSummary = document.getElementById('d-model-summary');
-    modSummary.textContent = '';
-    buildSummarySpan(modSummary, ms.available || 0, 'available');
-    buildSummarySpan(modSummary, ms.total || 0, 'total');
-    buildSummarySpan(modSummary, (ms.total_size_gb || 0) + ' GB', 'combined');
-
-    var grid = document.getElementById('d-models-grid');
-    grid.textContent = '';
-    if (data.models && data.models.length > 0) {
-        data.models.forEach(function(m) {
-            var card = document.createElement('div');
-            card.className = 'sc-model-card';
-
-            // Header row: name + status badge
-            var header = document.createElement('div');
-            header.className = 'sc-model-header';
-            var mname = document.createElement('div');
-            mname.className = 'sc-model-name';
-            mname.textContent = m.model_name;
-            var mbadge = document.createElement('span');
-            mbadge.className = 'sc-badge ' + (m.is_available ? 'available' : 'offline');
-            mbadge.textContent = m.is_available ? 'READY' : 'OFFLINE';
-            header.appendChild(mname);
-            header.appendChild(mbadge);
-
-            // Meta row: family, params, size
-            var mmeta = document.createElement('div');
-            mmeta.className = 'sc-model-meta';
-            var metaParts = [];
-            if (m.model_family) metaParts.push(m.model_family);
-            if (m.parameter_size) metaParts.push(m.parameter_size);
-            if (m.model_size_gb) metaParts.push(m.model_size_gb + ' GB');
-            if (m.quantization) metaParts.push(m.quantization);
-            mmeta.textContent = metaParts.join(' / ') || 'Unknown';
-
-            // Stats row: requests, avg response, context
-            var statsRow = document.createElement('div');
-            statsRow.className = 'sc-model-stats';
-            if (m.total_requests > 0) {
-                var reqStat = document.createElement('span');
-                reqStat.className = 'sc-model-stat';
-                var reqVal = document.createElement('span');
-                reqVal.textContent = m.total_requests;
-                reqStat.appendChild(reqVal);
-                reqStat.appendChild(document.createTextNode(' requests'));
-                statsRow.appendChild(reqStat);
-            }
-            if (m.avg_response_ms) {
-                var avgStat = document.createElement('span');
-                avgStat.className = 'sc-model-stat';
-                var avgVal = document.createElement('span');
-                avgVal.textContent = Math.round(m.avg_response_ms) + 'ms';
-                avgStat.appendChild(avgVal);
-                avgStat.appendChild(document.createTextNode(' avg'));
-                statsRow.appendChild(avgStat);
-            }
-            if (m.context_length) {
-                var ctxStat = document.createElement('span');
-                ctxStat.className = 'sc-model-stat';
-                var ctxVal = document.createElement('span');
-                ctxVal.textContent = m.context_length >= 1000 ? Math.round(m.context_length/1000) + 'K' : m.context_length;
-                ctxStat.appendChild(ctxVal);
-                ctxStat.appendChild(document.createTextNode(' ctx'));
-                statsRow.appendChild(ctxStat);
-            }
-
-            card.appendChild(header);
-            card.appendChild(mmeta);
-            if (statsRow.children.length > 0) card.appendChild(statsRow);
-            grid.appendChild(card);
-        });
-    } else {
-        var empty = document.createElement('span');
-        empty.className = 'sc-label';
-        empty.textContent = 'No models assigned yet.';
-        grid.appendChild(empty);
-    }
-
-    // Privacy tab
-    var priv = n.privacy_settings || {};
-    document.getElementById('priv-hardware').checked = priv.share_hardware !== false;
-    document.getElementById('priv-models').checked = priv.share_models !== false;
-    document.getElementById('priv-jobs').checked = priv.share_job_stats !== false;
-    document.getElementById('priv-hostname').checked = priv.share_hostname === true;
-    document.getElementById('priv-local').checked = priv.local_data_only === true;
-
-    // Mesh sharing controls
-    document.getElementById('priv-share-agents').checked = priv.share_agents === true;
-    document.getElementById('priv-max-shared-jobs').value = priv.max_shared_jobs || 2;
-
-    // Profile tab
-    document.getElementById('d-profile-name').value = n.node_name || '';
-    document.getElementById('d-profile-id').textContent = n.node_id;
-    document.getElementById('d-profile-host').textContent = data.hardware.cpu_model ? (selectedNodeId || '—') : '—';
 }
 
 // ── Escape HTML helper ──
@@ -1533,14 +1297,6 @@ function renderRecommendations(data) {
         info.appendChild(metaEl);
         card.appendChild(info);
 
-        // Add button
-        var addBtn = document.createElement('button');
-        addBtn.className = 'sc-btn-small';
-        addBtn.style.cssText = 'background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);font-size:0.6rem;padding:3px 8px;flex-shrink:0;';
-        addBtn.textContent = 'ADD';
-        addBtn.onclick = (function(agentId) { return function() { addRecommendedAgent(agentId); }; })(rec.agent_id);
-        card.appendChild(addBtn);
-
         container.appendChild(card);
     });
 
@@ -1556,54 +1312,6 @@ function renderRecommendations(data) {
     }
 }
 
-async function addRecommendedAgent(agentId) {
-    if (!selectedNodeDbId) return;
-    try {
-        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/add', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({agent_id: agentId})
-        });
-        var data = await resp.json();
-        if (data.success) {
-            scToast('Agent added to crew', 'success');
-            selectNode(selectedNodeId);
-        } else {
-            scToast(data.error || 'Failed to add agent', 'error');
-        }
-    } catch (e) {
-        scToast('Failed to add agent', 'error');
-    }
-}
-
-async function addAllRecommended() {
-    var cards = document.querySelectorAll('#recommendation-cards [data-agent-id]');
-    if (cards.length === 0) return;
-    if (!confirm('Add all ' + cards.length + ' recommended agents to this node?')) return;
-    for (var i = 0; i < cards.length; i++) {
-        var agentId = parseInt(cards[i].getAttribute('data-agent-id'), 10);
-        if (agentId) await addRecommendedAgent(agentId);
-    }
-}
-
-async function removeAgentFromNode(nodeAgentId) {
-    if (!selectedNodeDbId) return;
-    if (!confirm('Remove this agent from the node crew?')) return;
-    try {
-        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + nodeAgentId, {
-            method: 'DELETE'
-        });
-        var data = await resp.json();
-        if (data.success) {
-            scToast('Agent removed', 'success');
-            selectNode(selectedNodeId);
-        } else {
-            scToast(data.error || 'Failed to remove agent', 'error');
-        }
-    } catch (e) {
-        scToast('Failed to remove agent', 'error');
-    }
-}
 
 async function pushAgentConfig() {
     if (!selectedNodeDbId) return;
@@ -1667,193 +1375,67 @@ async function loadSyncLog(nodeDbId) {
 }
 
 function renderSyncLog(logs) {
-    var container = document.getElementById('sync-log-list');
-    container.textContent = '';
+    var tbody = document.getElementById('sync-log-body');
+    tbody.textContent = '';
     if (logs.length === 0) {
-        var empty = document.createElement('span');
-        empty.style.cssText = 'color:rgba(255,255,255,0.3);font-size:0.8rem;font-family:"IBM Plex Mono",monospace;';
-        empty.textContent = 'No sync activity yet.';
-        container.appendChild(empty);
+        var row = document.createElement('tr');
+        var td = document.createElement('td');
+        td.colSpan = 3;
+        td.textContent = 'No sync activity yet.';
+        td.style.color = 'rgba(255,255,255,0.3)';
+        row.appendChild(td);
+        tbody.appendChild(row);
         return;
     }
     logs.forEach(function(log) {
-        var row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-family:"IBM Plex Mono",monospace;font-size:0.78rem;';
+        var row = document.createElement('tr');
 
-        var typeEl = document.createElement('span');
-        typeEl.style.cssText = 'color:var(--sc-accent);min-width:100px;';
-        typeEl.textContent = log.sync_type || '—';
+        var typeTd = document.createElement('td');
+        typeTd.textContent = log.sync_type || '—';
+        typeTd.style.color = 'var(--sc-accent)';
 
-        var statusEl = document.createElement('span');
-        var statusColor = '#ffab00';
-        if (log.status === 'acknowledged') statusColor = '#00ff88';
-        else if (log.status === 'error') statusColor = '#ff4444';
-        statusEl.style.cssText = 'color:' + statusColor + ';min-width:90px;';
-        statusEl.textContent = (log.status || '—').toUpperCase();
+        var statusTd = document.createElement('td');
+        var statusClass = 'sync-status-sent';
+        if (log.status === 'acknowledged') statusClass = 'sync-status-acked';
+        else if (log.status === 'error') statusClass = 'sync-status-failed';
+        statusTd.className = statusClass;
+        statusTd.textContent = (log.status || '—').toUpperCase();
 
-        var timeEl = document.createElement('span');
-        timeEl.style.cssText = 'color:rgba(255,255,255,0.4);flex:1;';
-        timeEl.textContent = log.sent_at ? new Date(log.sent_at).toLocaleString() : '—';
+        var timeTd = document.createElement('td');
+        timeTd.textContent = log.sent_at ? new Date(log.sent_at).toLocaleString() : '—';
 
-        row.appendChild(typeEl);
-        row.appendChild(statusEl);
-        row.appendChild(timeEl);
-
-        if (log.error_message) {
-            var errEl = document.createElement('span');
-            errEl.style.cssText = 'color:#ff4444;font-size:0.7rem;';
-            errEl.textContent = log.error_message;
-            row.appendChild(errEl);
-        }
-
-        container.appendChild(row);
+        row.appendChild(typeTd);
+        row.appendChild(statusTd);
+        row.appendChild(timeTd);
+        tbody.appendChild(row);
     });
 }
 
-async function toggleStation(stationId, enable, card, color) {
-    if (!selectedNodeId) return;
-    try {
-        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/station-toggle', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({station_id: stationId, enabled: enable})
-        });
-        var data = await resp.json();
-        if (data.success) {
-            if (enable) {
-                card.classList.add('active');
-            } else {
-                card.classList.remove('active');
-            }
-            scToast('Station ' + (enable ? 'enabled' : 'disabled'), 'success');
-        } else {
-            scToast(data.error || 'Failed', 'error');
-        }
-    } catch (e) { scToast('Request failed', 'error'); }
-}
-
-// ── Station terminal instances ──
-var opsTerminal = null;
-var engTerminal = null;
-
-function initStationTerminals(nodeDbId) {
-    if (!nodeDbId) return;
-    var dataUrl = '/tools/starship/api/nodes/' + nodeDbId + '/stations-live';
-
-    opsTerminal = new StationOps({
-        stationCode: 'OPERATIONS',
-        moduleSource: 'starship',
-        agentsElId: 'ops-agents',
-        jobsElId: 'ops-jobs',
-        statusElId: 'ops-status',
-        dataUrl: dataUrl,
-        commands: []
-    });
-
-    engTerminal = new StationOps({
-        stationCode: 'ENGINEERING',
-        moduleSource: 'starship',
-        agentsElId: 'eng-agents',
-        jobsElId: 'eng-jobs',
-        statusElId: 'eng-status',
-        dataUrl: dataUrl,
-        commands: []
-    });
-
-    opsTerminal.render();
-    engTerminal.render();
-}
-
-async function toggleAgentAccess(agentId, allowed, row) {
-    if (!selectedNodeId) return;
-    try {
-        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/agent-access', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({agent_id: agentId, is_allowed: allowed})
-        });
-        var data = await resp.json();
-        if (data.success) {
-            if (allowed) { row.classList.remove('restricted'); }
-            else { row.classList.add('restricted'); }
-            scToast('Agent ' + (allowed ? 'allowed' : 'restricted'), 'success');
-            setTimeout(pollSyncStatus, 1000);
-        } else {
-            scToast(data.error || 'Failed', 'error');
-        }
-    } catch (e) { scToast('Request failed', 'error'); }
-}
-
-async function savePrivacy() {
-    if (!selectedNodeId) return;
-    var settings = {
-        share_hardware: document.getElementById('priv-hardware').checked,
-        share_models: document.getElementById('priv-models').checked,
-        share_job_stats: document.getElementById('priv-jobs').checked,
-        share_hostname: document.getElementById('priv-hostname').checked,
-        local_data_only: document.getElementById('priv-local').checked
-    };
-    try {
-        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/privacy', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(settings)
-        });
-        var data = await resp.json();
-        if (data.success) scToast('Privacy updated', 'success');
-        else scToast(data.error || 'Failed', 'error');
-    } catch (e) {
-        scToast('Save failed', 'error');
-    }
-}
-
-async function saveMeshPrivacy() {
+// ── Save Node Settings (inline on STATUS tab) ──
+async function saveNodeSettings() {
     if (!selectedNodeDbId) return;
-    var settings = {
-        share_agents: document.getElementById('priv-share-agents').checked,
-        max_shared_jobs: parseInt(document.getElementById('priv-max-shared-jobs').value, 10) || 2
-    };
+    var name = document.getElementById('settings-name').value.trim();
+    var mode = document.getElementById('settings-mode').value;
+    var priority = parseInt(document.getElementById('settings-priority').value) || 0;
     try {
-        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/privacy', {
-            method: 'POST',
+        var resp = await fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/settings', {
+            method: 'PUT',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(settings)
-        });
-        var data = await resp.json();
-        if (data.success) scToast('Mesh sharing updated', 'success');
-        else scToast(data.error || 'Failed', 'error');
-    } catch (e) {
-        scToast('Save failed', 'error');
-    }
-}
-
-async function saveProfile(e) {
-    e.preventDefault();
-    if (!selectedNodeId) return;
-    var name = document.getElementById('d-profile-name').value.trim();
-    if (!name) return;
-    try {
-        var resp = await fetch('/tools/starship/api/nodes/' + encodeURIComponent(selectedNodeId) + '/profile', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({display_name: name})
+            body: JSON.stringify({node_name: name, deployment_mode: mode, bridge_priority: priority})
         });
         var data = await resp.json();
         if (data.success) {
+            scToast('Settings saved', 'success');
+            // Update card name + detail title
             document.getElementById('detail-title').textContent = name;
-            // Update card name too
             var card = document.getElementById('card-' + selectedNodeId);
             if (card) {
                 var nameEl = card.querySelector('.sc-node-name');
                 if (nameEl) nameEl.textContent = name;
             }
-            scToast('Profile saved', 'success');
-        } else {
-            scToast(data.error || 'Failed', 'error');
         }
-    } catch (e) {
-        scToast('Save failed', 'error');
-    }
+        else scToast(data.error || 'Save failed', 'error');
+    } catch(e) { scToast('Network error', 'error'); }
 }
 
 // Auto-refresh fleet data every 30s
@@ -1876,107 +1458,6 @@ async function refreshFleet() {
 }
 setInterval(refreshFleet, 30000);
 
-// ── Model Library (Catalog) ──
-var _catalogData = [];
-var _installedModels = new Set();
-
-function loadModelCatalog() {
-    if (!selectedNodeDbId) return;
-    // Build installed set from current node models
-    _installedModels.clear();
-    if (window._lastNodeData && window._lastNodeData.models) {
-        window._lastNodeData.models.forEach(function(m) {
-            _installedModels.add(m.model_name);
-        });
-    }
-    fetch('/tools/starship/api/model-catalog')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success) {
-                _catalogData = data.models;
-                renderCatalogGrid(_catalogData);
-            }
-        })
-        .catch(function() { /* silent */ });
-}
-
-function filterCatalog(cat) {
-    document.querySelectorAll('.catalog-filter').forEach(function(b) {
-        b.classList.toggle('active', b.getAttribute('data-cat') === cat);
-    });
-    if (cat) {
-        renderCatalogGrid(_catalogData.filter(function(m) { return m.category === cat; }));
-    } else {
-        renderCatalogGrid(_catalogData);
-    }
-}
-
-function renderCatalogGrid(models) {
-    var grid = document.getElementById('d-catalog-grid');
-    grid.textContent = '';
-    if (!models || models.length === 0) {
-        grid.innerHTML = '<span class="sc-label">No models in this category</span>';
-        return;
-    }
-    models.forEach(function(m) {
-        var card = document.createElement('div');
-        card.className = 'sc-catalog-card';
-
-        var isInstalled = _installedModels.has(m.model_name);
-
-        // Header: name + badges
-        var header = document.createElement('div');
-        header.className = 'cat-header';
-        var name = document.createElement('div');
-        name.className = 'cat-name';
-        name.textContent = m.display_name || m.model_name;
-        var badges = document.createElement('div');
-        badges.className = 'cat-badges';
-        if (isInstalled) {
-            var ib = document.createElement('span');
-            ib.className = 'installed-badge';
-            ib.textContent = 'INSTALLED';
-            badges.appendChild(ib);
-        }
-        var tb = document.createElement('span');
-        tb.className = 'tier-badge ' + (m.tier || 'medium');
-        tb.textContent = (m.tier || 'medium').toUpperCase();
-        badges.appendChild(tb);
-        header.appendChild(name);
-        header.appendChild(badges);
-
-        // Description
-        var desc = document.createElement('div');
-        desc.className = 'cat-desc';
-        desc.textContent = m.description || '';
-
-        // Meta: family / params / size
-        var meta = document.createElement('div');
-        meta.className = 'cat-meta';
-        var parts = [];
-        if (m.family) parts.push(m.family);
-        if (m.parameter_size) parts.push(m.parameter_size);
-        if (m.size_gb) parts.push(m.size_gb + ' GB');
-        meta.textContent = parts.join(' \u00b7 ');
-
-        // Actions
-        var actions = document.createElement('div');
-        actions.className = 'cat-actions';
-        if (!isInstalled) {
-            var pullBtn = document.createElement('button');
-            pullBtn.className = 'sc-btn-small';
-            pullBtn.textContent = 'PULL';
-            pullBtn.onclick = function() { pullModelToNode(m.model_name, pullBtn); };
-            actions.appendChild(pullBtn);
-        }
-
-        card.appendChild(header);
-        card.appendChild(desc);
-        card.appendChild(meta);
-        card.appendChild(actions);
-        grid.appendChild(card);
-    });
-}
 
 function pullModelToNode(modelName, btn) {
     if (!selectedNodeDbId) return;
@@ -2340,6 +1821,57 @@ function _renderNodeAgentProfile(data, body, title) {
 
     body.innerHTML = html;
 }
+
+// ── Populate Pull Model Dropdown (OTA tab) ──
+async function populatePullModelDropdown() {
+    try {
+        var resp = await fetch('/tools/starship/api/model-catalog');
+        var data = await resp.json();
+        if (!data.success) return;
+        var sel = document.getElementById('pull-model-select');
+        while (sel.firstChild) sel.removeChild(sel.firstChild);
+        var defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = 'Select model...';
+        sel.appendChild(defaultOpt);
+        data.models.forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m.name || m.model_name;
+            opt.textContent = (m.name || m.model_name) + ' (' + (m.size_gb || '?') + ' GB)';
+            sel.appendChild(opt);
+        });
+    } catch(e) { console.warn('Model catalog load failed:', e); }
+}
+
+// ── Starbase Stats (Hub card on landing page) ──
+async function loadStarbaseStats() {
+    try {
+        var crewResp = await fetch('/tools/bridge/api/crew-manifest');
+        var crewData = await crewResp.json();
+        if (crewData.agents) {
+            document.getElementById('sb-agents').textContent = crewData.agents.length;
+            var activeJobs = crewData.agents.filter(function(a) { return a.current_job; }).length;
+            document.getElementById('sb-jobs').textContent = activeJobs;
+        }
+
+        var hwResp = await fetch('/tools/bridge/api/hardware-capacity');
+        var hwData = await hwResp.json();
+        if (hwData.success) {
+            document.getElementById('sb-cpu').textContent = hwData.cpu_model || '--';
+            document.getElementById('sb-ram').textContent = hwData.total_ram_gb ? hwData.total_ram_gb + ' GB' : '--';
+            document.getElementById('sb-gpu').textContent = hwData.gpu_name || '--';
+            if (hwData.loaded_models !== undefined || hwData.total_models !== undefined) {
+                document.getElementById('sb-models').textContent = hwData.total_models || hwData.loaded_models || '--';
+            }
+        }
+    } catch(e) {
+        console.warn('Starbase stats load failed:', e);
+    }
+}
+
+// Load starbase stats on page load + interval
+loadStarbaseStats();
+setInterval(loadStarbaseStats, 30000);
 
 // ── Sync Status Polling ──
 var _syncPollTimer = null;

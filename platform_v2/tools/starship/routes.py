@@ -1,8 +1,8 @@
 """
 Starship Command — Fleet node management module.
 
-Fleet owners see all their nodes. Node operators see their own ship.
-Privacy controls let operators choose what to share with the fleet.
+Starbase (hub) overview + fleet node management.
+3 tabs: STATUS, OTA/SYNC, CREW.
 """
 
 import json

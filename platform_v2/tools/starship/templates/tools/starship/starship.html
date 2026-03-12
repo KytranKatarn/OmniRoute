@@ -434,7 +434,7 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             </div>
         </div>
         {% for node in nodes %}
-        {% if node.deployment_mode == 'starbase' %}{% continue %}{% endif %}
+        {% if node.deployment_mode != 'starbase' %}
         <div class="sc-node-card" id="card-{{ node.node_id }}" data-node-id="{{ node.node_id }}">
             <div class="sc-node-header" onclick="selectNode('{{ node.node_id }}')">
                 <div class="sc-node-dot {{ 'online' if node.status == 'online' and node.is_active else 'offline' if node.status == 'offline' else 'pending' }}"></div>
@@ -458,6 +458,7 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 </div>
             </div>
         </div>
+        {% endif %}
         {% endfor %}
     </div>
 

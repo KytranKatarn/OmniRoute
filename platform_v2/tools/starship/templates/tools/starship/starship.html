@@ -34,10 +34,11 @@
 .sc-stat-val { font-family: 'IBM Plex Mono', monospace; color: #fff; font-size: 1.1rem; display: block; }
 .sc-stat-label { font-family: 'IBM Plex Mono', monospace; color: rgba(255,255,255,0.4); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; }
 
-/* Detail Panel */
-.sc-detail { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(0, 229, 255, 0.15); border-radius: 8px; display: none; }
-.sc-detail.active { display: block; }
-.sc-detail-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid rgba(0, 229, 255, 0.1); }
+/* Detail Modal (node + starbase popups) */
+.sc-detail-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 10000; align-items: center; justify-content: center; }
+.sc-detail-overlay.active { display: flex; }
+.sc-detail { background: #0a0e1a; border: 1px solid var(--sc-accent); border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; overflow-y: auto; }
+.sc-detail-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid rgba(0, 229, 255, 0.15); }
 .sc-detail-title { font-family: 'Antonio', sans-serif; color: var(--sc-accent); font-size: 1.3rem; letter-spacing: 3px; }
 .sc-close-btn { margin-left: auto; background: none; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); padding: 4px 12px; cursor: pointer; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; }
 .sc-close-btn:hover { border-color: var(--sc-red); color: var(--sc-red); }
@@ -459,7 +460,8 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         {% endfor %}
     </div>
 
-    <!-- Detail Panel (shown when a node is selected) -->
+    <!-- Node Detail Modal -->
+    <div class="sc-detail-overlay" id="sc-detail-overlay" onclick="if(event.target===this)closeDetail()">
     <div class="sc-detail" id="sc-detail">
         <div class="sc-detail-header">
             <div class="sc-node-dot" id="detail-dot"></div>
@@ -591,8 +593,10 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             </div>
         </div>
     </div>
+    </div>
 
-    <!-- Starbase Detail Panel (same style as node detail) -->
+    <!-- Starbase Detail Modal -->
+    <div class="sc-detail-overlay" id="sc-starbase-overlay" onclick="if(event.target===this)closeStarbaseDetail()">
     <div class="sc-detail" id="sc-starbase-detail">
         <div class="sc-detail-header">
             <div class="sc-node-dot online"></div>
@@ -634,6 +638,7 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <div id="sbd-cpu-models" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
             </div>
         </div>
+    </div>
     </div>
 
     {% endif %}
@@ -744,7 +749,7 @@ document.addEventListener('click', function(e) {
 
 // Close on Escape
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') { closeAddNodeModal(); closeResyncModal(); }
+    if (e.key === 'Escape') { closeAddNodeModal(); closeResyncModal(); closeDetail(); closeStarbaseDetail(); }
 });
 
 async function createNode() {
@@ -887,8 +892,8 @@ function switchTab(tab) {
 }
 
 function closeDetail() {
-    document.getElementById('sc-detail').classList.remove('active');
-    document.getElementById('sc-starbase-detail').classList.remove('active');
+    document.getElementById('sc-detail-overlay').classList.remove('active');
+    document.getElementById('sc-starbase-overlay').classList.remove('active');
     document.querySelectorAll('.sc-node-card').forEach(function(c) { c.classList.remove('selected'); });
     selectedNodeId = null;
 }
@@ -897,16 +902,16 @@ async function selectNode(nodeId) {
     var isNewNode = (selectedNodeId !== nodeId);
     selectedNodeId = nodeId;
 
-    // Close starbase detail if open
-    document.getElementById('sc-starbase-detail').classList.remove('active');
+    // Close starbase modal if open
+    document.getElementById('sc-starbase-overlay').classList.remove('active');
 
     // Highlight card
     document.querySelectorAll('.sc-node-card').forEach(function(c) { c.classList.remove('selected'); });
     var card = document.getElementById('card-' + nodeId);
     if (card) card.classList.add('selected');
 
-    // Show detail panel
-    document.getElementById('sc-detail').classList.add('active');
+    // Show node detail modal
+    document.getElementById('sc-detail-overlay').classList.add('active');
     document.getElementById('detail-title').textContent = 'LOADING...';
 
     // Only reset to status tab when selecting a different node
@@ -1688,14 +1693,14 @@ function _populateStarbaseDetail(crew, activeJobs, cap) {
 }
 
 function openStarbaseDetail() {
-    // Close any open node detail
-    closeDetail();
+    // Close any open node modal
+    document.getElementById('sc-detail-overlay').classList.remove('active');
     // Deselect node cards
     document.querySelectorAll('.sc-node-card.selected').forEach(function(c) { c.classList.remove('selected'); });
     // Select starbase card
     document.getElementById('starbase-card').classList.add('selected');
-    // Show starbase detail
-    document.getElementById('sc-starbase-detail').classList.add('active');
+    // Show starbase modal
+    document.getElementById('sc-starbase-overlay').classList.add('active');
     // Populate from cached data or re-fetch
     if (_starbaseData) {
         var crew = _starbaseData.crew || [];
@@ -1707,7 +1712,7 @@ function openStarbaseDetail() {
 }
 
 function closeStarbaseDetail() {
-    document.getElementById('sc-starbase-detail').classList.remove('active');
+    document.getElementById('sc-starbase-overlay').classList.remove('active');
     document.getElementById('starbase-card').classList.remove('selected');
 }
 

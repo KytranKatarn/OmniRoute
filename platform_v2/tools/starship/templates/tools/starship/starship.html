@@ -57,15 +57,6 @@
 .sc-label { color: rgba(255,255,255,0.5); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
 .sc-value { color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
 
-/* Models grid */
-.sc-models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-.sc-model-card { background: rgba(0, 229, 255, 0.04); border: 1px solid rgba(0, 229, 255, 0.12); border-radius: 6px; padding: 10px 14px; }
-.sc-model-name { color: var(--sc-accent); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; margin-bottom: 4px; }
-.sc-model-meta { color: rgba(255,255,255,0.4); font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; }
-.sc-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-family: 'IBM Plex Mono', monospace; }
-.sc-badge.loaded { background: rgba(0, 255, 136, 0.15); color: var(--sc-green); }
-.sc-badge.available { background: rgba(0, 229, 255, 0.1); color: var(--sc-accent); }
-.sc-badge.offline { background: rgba(255, 68, 68, 0.1); color: var(--sc-red); }
 
 /* Starbase card */
 .sc-starbase-card {
@@ -108,15 +99,6 @@
 .sc-version-badge.outdated { background: rgba(255, 171, 0, 0.1); border: 1px solid rgba(255, 171, 0, 0.3); color: var(--sc-amber); cursor: pointer; }
 .sc-version-badge.outdated:hover { background: rgba(255, 171, 0, 0.2); }
 
-/* Stations mini grid */
-.sc-stations-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.sc-station-card { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer; transition: all 0.2s; position: relative; }
-.sc-station-card:hover { border-color: rgba(255,255,255,0.2); }
-.sc-station-card.active { border-color: var(--station-color, var(--sc-accent)); background: rgba(255,255,255,0.03); }
-.sc-station-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); flex-shrink: 0; }
-.sc-station-card.active .sc-station-dot { background: var(--station-color, var(--sc-accent)); box-shadow: 0 0 6px var(--station-color, var(--sc-accent)); }
-.sc-station-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: rgba(255,255,255,0.5); letter-spacing: 1px; text-transform: uppercase; }
-.sc-station-card.active .sc-station-label { color: #fff; }
 
 /* System Ops bar */
 .sc-ops-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -128,44 +110,8 @@
 .sc-ops-bar-fill { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 6px; overflow: hidden; }
 .sc-ops-bar-fill > div { height: 100%; border-radius: 2px; transition: width 0.5s; }
 
-/* Enhanced stations */
-.sc-station-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; cursor: pointer; transition: all 0.2s; position: relative; }
-.sc-station-card .sc-station-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: rgba(255,255,255,0.3); }
-.sc-station-card.active .sc-station-meta { color: rgba(255,255,255,0.5); }
-.sc-station-info { flex: 1; min-width: 0; }
-.sc-station-agent-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: rgba(255,255,255,0.3); flex-shrink: 0; }
-.sc-station-card.active .sc-station-agent-count { color: var(--station-color, var(--sc-accent)); }
-.sc-station-summary { display: flex; gap: 16px; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
-.sc-station-summary strong { color: var(--sc-accent); }
 
-/* Agent roster (enhanced) */
-.sc-agent-list { display: flex; flex-direction: column; gap: 6px; }
-.sc-agent-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.04); border-left: 3px solid rgba(255,255,255,0.08); border-radius: 6px; transition: all 0.2s; }
-.sc-agent-row:hover { background: rgba(0,0,0,0.4); }
-.sc-agent-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--sc-accent-dim); display: flex; align-items: center; justify-content: center; font-family: 'Antonio', sans-serif; color: var(--sc-accent); font-size: 0.85rem; flex-shrink: 0; }
-.sc-agent-info { flex: 1; min-width: 0; }
-.sc-agent-name { font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sc-agent-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: rgba(255,255,255,0.35); margin-top: 2px; }
-.sc-agent-stations { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-.sc-agent-station-tag { padding: 1px 6px; border-radius: 3px; font-size: 0.6rem; font-family: 'IBM Plex Mono', monospace; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.08); }
-.sc-agent-row.restricted { opacity: 0.4; }
-.sc-agent-row.restricted .sc-agent-name { text-decoration: line-through; }
-.sc-agent-summary { display: flex; gap: 16px; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
-.sc-agent-summary strong { color: var(--sc-accent); }
-.sc-model-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.65rem; font-family: 'IBM Plex Mono', monospace; margin-left: 6px; }
-.sc-model-badge.available { background: rgba(0, 255, 136, 0.1); color: var(--sc-green); }
-.sc-model-badge.unavailable { background: rgba(255, 68, 68, 0.1); color: var(--sc-red); }
 
-/* Enhanced models grid */
-.sc-model-card { background: rgba(0, 229, 255, 0.04); border: 1px solid rgba(0, 229, 255, 0.12); border-radius: 6px; padding: 12px 14px; }
-.sc-model-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.sc-model-name { color: var(--sc-accent); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
-.sc-model-meta { color: rgba(255,255,255,0.4); font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; }
-.sc-model-stats { display: flex; gap: 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.04); }
-.sc-model-stat { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: rgba(255,255,255,0.3); }
-.sc-model-stat span { color: rgba(255,255,255,0.6); }
-.sc-model-summary { display: flex; gap: 20px; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: rgba(255,255,255,0.5); }
-.sc-model-summary strong { color: var(--sc-accent); }
 
 /* Add Node button */
 .sc-add-btn { display: flex; align-items: center; gap: 8px; padding: 10px 24px; background: var(--sc-accent-dim); border: 1px solid var(--sc-accent); color: var(--sc-accent); font-family: 'Antonio', sans-serif; font-size: 0.95rem; letter-spacing: 2px; cursor: pointer; border-radius: 4px; transition: all 0.2s; text-transform: uppercase; }
@@ -207,7 +153,6 @@
 @media (max-width: 768px) {
     .sc-fleet-grid { grid-template-columns: 1fr; }
     .sc-node-stats { grid-template-columns: repeat(2, 1fr); }
-    .sc-models-grid { grid-template-columns: 1fr; }
     .sc-header { flex-direction: column; align-items: flex-start; gap: 8px; }
     .sc-fleet-count { margin-left: 0; }
     .sc-modal { width: 95%; }
@@ -315,23 +260,6 @@
     transition: width 0.3s;
 }
 
-/* Model Library catalog */
-.catalog-filter { opacity: 0.5; transition: opacity 0.2s; }
-.catalog-filter.active { opacity: 1; border-color: #00e5ff; color: #00e5ff; }
-.sc-catalog-card { background: rgba(0,0,0,0.3); border: 1px solid rgba(0,229,255,0.1); border-radius: 8px; padding: 14px; transition: border-color 0.2s; }
-.sc-catalog-card:hover { border-color: rgba(0,229,255,0.3); }
-.sc-catalog-card .cat-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-.sc-catalog-card .cat-name { font-family: 'Antonio', sans-serif; font-size: 1rem; color: #fff; font-weight: 600; }
-.sc-catalog-card .cat-badges { display: flex; gap: 4px; flex-shrink: 0; }
-.sc-catalog-card .cat-desc { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: rgba(255,255,255,0.5); line-height: 1.4; margin-bottom: 8px; }
-.sc-catalog-card .cat-meta { font-size: 0.7rem; color: rgba(255,255,255,0.3); font-family: 'IBM Plex Mono', monospace; }
-.sc-catalog-card .cat-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
-.tier-badge { padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 700; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; }
-.tier-badge.small { background: rgba(76,175,80,0.2); color: #4caf50; border: 1px solid rgba(76,175,80,0.3); }
-.tier-badge.medium { background: rgba(0,229,255,0.15); color: #00e5ff; border: 1px solid rgba(0,229,255,0.2); }
-.tier-badge.large { background: rgba(255,152,0,0.2); color: #ff9800; border: 1px solid rgba(255,152,0,0.3); }
-.tier-badge.xl { background: rgba(244,67,54,0.15); color: #f44336; border: 1px solid rgba(244,67,54,0.2); }
-.installed-badge { padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 700; background: rgba(76,175,80,0.2); color: #4caf50; border: 1px solid rgba(76,175,80,0.3); font-family: 'IBM Plex Mono', monospace; }
 
 /* Agent Profile Modal */
 .sc-modal-footer { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid rgba(0,229,255,0.1); }
@@ -685,58 +613,11 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <span class="sc-label">Loading...</span>
             </div>
             <div class="sc-modal-footer" id="node-profile-footer">
-                <button class="sc-btn-small" onclick="editNodeAgentFromProfile()">EDIT</button>
                 <button class="sc-btn-small" onclick="closeNodeAgentProfile()">CLOSE</button>
             </div>
         </div>
     </div>
 
-    <!-- Agent Edit Form Modal -->
-    <div class="sc-modal-overlay" id="node-agent-edit-modal" style="display:none;">
-        <div class="sc-modal" style="max-width:580px; max-height:85vh; overflow-y:auto;">
-            <div class="sc-modal-header">
-                <h4 style="margin:0;font-family:'Antonio',sans-serif;font-size:1rem;color:#00e5ff;flex:1;">EDIT AGENT</h4>
-                <button class="sc-btn-small" onclick="closeNodeAgentEdit()">&times;</button>
-            </div>
-            <div class="sc-modal-body" id="node-edit-body">
-                <div class="sc-form-group">
-                    <label class="sc-form-label">Codename</label>
-                    <input type="text" id="edit-agent-codename" class="sc-form-input" readonly style="opacity:0.5;">
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                    <div class="sc-form-group">
-                        <label class="sc-form-label">First Name</label>
-                        <input type="text" id="edit-agent-firstname" class="sc-form-input">
-                    </div>
-                    <div class="sc-form-group">
-                        <label class="sc-form-label">Last Name</label>
-                        <input type="text" id="edit-agent-lastname" class="sc-form-input">
-                    </div>
-                </div>
-                <div class="sc-form-group">
-                    <label class="sc-form-label">Title</label>
-                    <input type="text" id="edit-agent-title" class="sc-form-input" placeholder="e.g. Senior Engineer">
-                </div>
-                <div class="sc-form-group">
-                    <label class="sc-form-label">Model</label>
-                    <select id="edit-agent-model" class="sc-form-input"></select>
-                </div>
-                <div class="sc-form-group">
-                    <label class="sc-form-label">System Prompt</label>
-                    <textarea id="edit-agent-prompt" class="sc-form-input" rows="4" style="resize:vertical;"></textarea>
-                </div>
-                <div class="sc-form-group">
-                    <label class="sc-form-label">Bio</label>
-                    <textarea id="edit-agent-bio" class="sc-form-input" rows="2" style="resize:vertical;"></textarea>
-                </div>
-                <div id="edit-sync-feedback" style="display:none; margin-top:8px; padding:8px; border-radius:4px; font-size:0.75rem; font-family:'IBM Plex Mono',monospace;"></div>
-            </div>
-            <div class="sc-modal-footer">
-                <button class="sc-btn-small" onclick="closeNodeAgentEdit()">CANCEL</button>
-                <button class="sc-btn-small" id="edit-save-btn" onclick="saveNodeAgent()" style="background:rgba(0,255,65,0.15);border-color:rgba(0,255,65,0.3);color:#00ff41;">SAVE</button>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -1515,166 +1396,6 @@ function openNodeAgentProfile(agentId) {
 
 function closeNodeAgentProfile() {
     document.getElementById('node-agent-profile-modal').style.display = 'none';
-}
-
-var _editAgentData = null;
-
-function editNodeAgentFromProfile() {
-    closeNodeAgentProfile();
-    openNodeAgentEdit(_nodeProfileAgentId);
-}
-
-function openNodeAgentEdit(agentId) {
-    var modal = document.getElementById('node-agent-edit-modal');
-    modal.style.display = 'flex';
-    document.getElementById('edit-sync-feedback').style.display = 'none';
-
-    // Load agent data + form context in parallel
-    Promise.all([
-        fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + agentId + '/profile').then(function(r) { return r.json(); }),
-        fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agent-form-context').then(function(r) { return r.json(); })
-    ]).then(function(results) {
-        var profileData = results[0];
-        var formCtx = results[1];
-        if (!profileData.success) { alert('Failed to load agent'); return; }
-
-        var a = profileData.agent;
-        _editAgentData = { agentId: agentId, hubAgent: a };
-
-        document.getElementById('edit-agent-codename').value = a.name || '';
-        document.getElementById('edit-agent-firstname').value = a.first_name || '';
-        document.getElementById('edit-agent-lastname').value = a.last_name || '';
-        document.getElementById('edit-agent-title').value = a.title || '';
-        document.getElementById('edit-agent-prompt').value = a.system_prompt || '';
-        document.getElementById('edit-agent-bio').value = a.bio || '';
-
-        // Populate model dropdown with catalog enrichment
-        _populateNodeModelDropdown(
-            formCtx.success ? formCtx.installed_models : [],
-            formCtx.success ? formCtx.catalog : [],
-            a.model || ''
-        );
-    }).catch(function(err) {
-        console.error('Edit form load failed:', err);
-    });
-}
-
-function _populateNodeModelDropdown(installed, catalog, currentModel) {
-    var sel = document.getElementById('edit-agent-model');
-    sel.innerHTML = '';
-
-    var installedSet = new Set(installed);
-    var catalogMap = {};
-    catalog.forEach(function(c) { catalogMap[c.model_name] = c; });
-
-    // Group: installed first, then not-installed catalog entries
-    var installedModels = [];
-    var notInstalled = [];
-
-    // Add installed models
-    installed.forEach(function(m) {
-        installedModels.push({ name: m, info: catalogMap[m] || null, installed: true });
-    });
-
-    // Add catalog models not installed
-    catalog.forEach(function(c) {
-        if (!installedSet.has(c.model_name)) {
-            notInstalled.push({ name: c.model_name, info: c, installed: false });
-        }
-    });
-
-    // If current model not in either list, add it
-    if (currentModel && !installedSet.has(currentModel) && !catalogMap[currentModel]) {
-        installedModels.unshift({ name: currentModel, info: null, installed: true });
-    }
-
-    // Installed group
-    if (installedModels.length > 0) {
-        var grp1 = document.createElement('optgroup');
-        grp1.label = '\u2713 INSTALLED ON NODE';
-        installedModels.forEach(function(m) {
-            var opt = document.createElement('option');
-            opt.value = m.name;
-            var label = m.name;
-            if (m.info) {
-                label = (m.info.display_name || m.name) + ' (' + (m.info.parameter_size || '') + ', ' + (m.info.size_gb || '?') + ' GB)';
-            }
-            opt.textContent = label;
-            if (m.info && m.info.description) opt.title = m.info.description;
-            if (m.name === currentModel) opt.selected = true;
-            grp1.appendChild(opt);
-        });
-        sel.appendChild(grp1);
-    }
-
-    // Not-installed group
-    if (notInstalled.length > 0) {
-        var grp2 = document.createElement('optgroup');
-        grp2.label = '\u2193 NOT INSTALLED (PULL REQUIRED)';
-        notInstalled.forEach(function(m) {
-            var opt = document.createElement('option');
-            opt.value = m.name;
-            var label = (m.info.display_name || m.name) + ' (' + (m.info.parameter_size || '') + ', ' + (m.info.size_gb || '?') + ' GB)';
-            opt.textContent = label;
-            if (m.info.description) opt.title = m.info.description;
-            if (m.name === currentModel) opt.selected = true;
-            grp2.appendChild(opt);
-        });
-        sel.appendChild(grp2);
-    }
-}
-
-function saveNodeAgent() {
-    if (!_editAgentData) return;
-    var btn = document.getElementById('edit-save-btn');
-    btn.disabled = true;
-    btn.textContent = 'SAVING...';
-
-    var payload = {
-        first_name: document.getElementById('edit-agent-firstname').value,
-        last_name: document.getElementById('edit-agent-lastname').value,
-        title: document.getElementById('edit-agent-title').value,
-        model: document.getElementById('edit-agent-model').value,
-        system_prompt: document.getElementById('edit-agent-prompt').value
-    };
-
-    fetch('/tools/starship/api/nodes/' + selectedNodeDbId + '/agents/' + _editAgentData.agentId, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
-    }).then(function(r) { return r.json(); })
-    .then(function(data) {
-        btn.disabled = false;
-        btn.textContent = 'SAVE';
-        var fb = document.getElementById('edit-sync-feedback');
-        if (data.success) {
-            fb.style.display = 'block';
-            fb.style.background = 'rgba(0,255,65,0.1)';
-            fb.style.border = '1px solid rgba(0,255,65,0.3)';
-            fb.style.color = '#00ff41';
-            var syncMsg = data.sync === 'sent' ? 'Config pushed to node.' :
-                          data.sync === 'debounced' ? 'Config update batched.' :
-                          'Saved (node sync pending).';
-            fb.textContent = '\u2713 Saved. ' + syncMsg + ' v' + data.config_version;
-            // Refresh manifest
-            renderNodeManifest(selectedNodeDbId);
-        } else {
-            fb.style.display = 'block';
-            fb.style.background = 'rgba(244,67,54,0.1)';
-            fb.style.border = '1px solid rgba(244,67,54,0.3)';
-            fb.style.color = '#f44336';
-            fb.textContent = '\u2717 ' + (data.error || 'Save failed');
-        }
-    }).catch(function(err) {
-        btn.disabled = false;
-        btn.textContent = 'SAVE';
-        alert('Save failed: ' + err);
-    });
-}
-
-function closeNodeAgentEdit() {
-    document.getElementById('node-agent-edit-modal').style.display = 'none';
-    _editAgentData = null;
 }
 
 function _renderNodeAgentProfile(data, body, title) {

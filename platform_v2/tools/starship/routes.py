@@ -333,18 +333,40 @@ def _get_user_nodes(user_id):
 
 
 def _get_node_for_user(node_id, user_id, require_owner=True):
-    """Get a specific node, optionally verifying ownership.
-    Falls back to showing unregistered nodes (registered_by IS NULL) to any user."""
-    with get_db_cursor() as (conn, cur):
+    """Get a specific node, verifying ownership.
+    Nodes with NULL registered_by are atomically claimed on first access."""
+    with get_db_cursor(commit=True) as (conn, cur):
         if require_owner:
+            # Try to claim orphan nodes atomically
+            cur.execute(
+                """UPDATE remote_nodes SET registered_by = %s
+                   WHERE node_id = %s AND registered_by IS NULL""",
+                (user_id, node_id),
+            )
             cur.execute(
                 """SELECT * FROM remote_nodes
-                   WHERE node_id = %s
-                     AND (registered_by = %s OR registered_by IS NULL)""",
+                   WHERE node_id = %s AND registered_by = %s""",
                 (node_id, user_id),
             )
         else:
             cur.execute("SELECT * FROM remote_nodes WHERE node_id = %s", (node_id,))
+        return cur.fetchone()
+
+
+def _get_node_for_user_by_int_id(int_id, user_id):
+    """Get a node by its integer DB id, verifying ownership."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        # Claim orphan if needed
+        cur.execute(
+            """UPDATE remote_nodes SET registered_by = %s
+               WHERE id = %s AND registered_by IS NULL""",
+            (user_id, int_id),
+        )
+        cur.execute(
+            """SELECT * FROM remote_nodes
+               WHERE id = %s AND registered_by = %s""",
+            (int_id, user_id),
+        )
         return cur.fetchone()
 
 
@@ -618,283 +640,50 @@ def api_node_status(node_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@starship_bp.route("/api/nodes/<node_id>/profile", methods=["POST"])
+@starship_bp.route("/api/nodes/<node_id>/settings", methods=["PUT"])
 @login_required
-def api_update_profile(node_id):
-    """Update node display name."""
+def api_update_node_settings(node_id):
+    """Update node name, deployment mode, and priority (inline edit from STATUS tab)."""
     user_id = current_user.id
     node = _get_node_for_user(node_id, user_id)
     if not node:
         return jsonify({"success": False, "error": "Node not found"}), 404
 
     data = request.get_json() or {}
-    display_name = data.get("display_name", "").strip()
-    if not display_name:
-        return jsonify({"success": False, "error": "Name required"}), 400
 
+    updates = []
+    params = []
+    if "node_name" in data:
+        name = data["node_name"].strip()
+        if not name or len(name) > 100:
+            return jsonify({"success": False, "error": "Invalid name"}), 400
+        updates.append("node_name = %s")
+        params.append(name)
+    if "deployment_mode" in data:
+        mode = data["deployment_mode"]
+        if mode not in ("starship", "satellite", "outpost"):
+            return jsonify({"success": False, "error": "Invalid mode"}), 400
+        updates.append("deployment_mode = %s")
+        params.append(mode)
+    if "bridge_priority" in data:
+        try:
+            prio = int(data["bridge_priority"])
+            prio = max(0, min(100, prio))
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "error": "Invalid priority"}), 400
+        updates.append("bridge_priority = %s")
+        params.append(prio)
+
+    if not updates:
+        return jsonify({"success": False, "error": "No fields to update"}), 400
+
+    params.append(node_id)
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE remote_nodes SET node_name = %s WHERE node_id = %s",
-            (display_name, node_id),
+            f"UPDATE remote_nodes SET {', '.join(updates)} WHERE node_id = %s",
+            params,
         )
     return jsonify({"success": True})
-
-
-@starship_bp.route("/api/nodes/<node_id>/privacy", methods=["POST"])
-@login_required
-def api_update_privacy(node_id):
-    """Update privacy settings for a node."""
-    user_id = current_user.id
-    node = _get_node_for_user(node_id, user_id)
-    if not node:
-        return jsonify({"success": False, "error": "Node not found"}), 404
-
-    import psycopg2
-
-    data = request.get_json() or {}
-    settings = {
-        "share_hardware": data.get("share_hardware", True),
-        "share_models": data.get("share_models", True),
-        "share_job_stats": data.get("share_job_stats", True),
-        "share_hostname": data.get("share_hostname", False),
-        "local_data_only": data.get("local_data_only", False),
-    }
-
-    with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            "UPDATE remote_nodes SET privacy_settings = %s WHERE node_id = %s",
-            (json.dumps(settings), node_id),
-        )
-    return jsonify({"success": True, "privacy_settings": settings})
-
-
-@starship_bp.route("/api/nodes/<int:node_id>/privacy", methods=["GET", "POST"])
-@login_required
-def api_node_privacy(node_id):
-    """Get or update node privacy settings (mesh sharing controls)."""
-    import psycopg2
-
-    with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            "SELECT id, privacy_settings FROM remote_nodes WHERE id = %s",
-            (node_id,),
-        )
-        node = cur.fetchone()
-        if not node:
-            return jsonify({"success": False, "error": "Node not found"}), 404
-
-        if request.method == "GET":
-            return jsonify({"success": True, "privacy": node["privacy_settings"] or {}})
-
-        data = request.get_json() or {}
-        settings = node["privacy_settings"] or {}
-
-        if "share_agents" in data:
-            settings["share_agents"] = bool(data["share_agents"])
-        if "max_shared_jobs" in data:
-            settings["max_shared_jobs"] = max(1, min(5, int(data["max_shared_jobs"])))
-
-        # local_first is always True
-        settings["local_first"] = True
-
-        cur.execute(
-            "UPDATE remote_nodes SET privacy_settings = %s WHERE id = %s",
-            (json.dumps(settings), node_id),
-        )
-
-        return jsonify({"success": True, "privacy": settings})
-
-
-# ============================================================================
-# AGENT & STATION CONTROLS
-# ============================================================================
-
-
-@starship_bp.route("/api/nodes/<node_id>/agent-access", methods=["POST"])
-@login_required
-def api_toggle_agent_access(node_id):
-    """Toggle whether an agent is allowed to run on this node."""
-    user_id = current_user.id
-    node = _get_node_for_user(node_id, user_id)
-    if not node:
-        return jsonify({"success": False, "error": "Node not found"}), 404
-
-    data = request.get_json() or {}
-    agent_id = data.get("agent_id")
-    is_allowed = data.get("is_allowed", True)
-
-    if not agent_id:
-        return jsonify({"success": False, "error": "agent_id required"}), 400
-
-    with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            """
-            UPDATE node_agents SET is_allowed = %s, updated_at = now()
-            WHERE id = %s AND node_id = (
-                SELECT id FROM remote_nodes WHERE node_id = %s
-            )
-            """,
-            (is_allowed, agent_id, node_id),
-        )
-    return jsonify({"success": True, "agent_id": agent_id, "is_allowed": is_allowed})
-
-
-@starship_bp.route("/api/nodes/<node_id>/station-toggle", methods=["POST"])
-@login_required
-def api_toggle_station(node_id):
-    """Toggle a station assignment on/off for this node."""
-    user_id = current_user.id
-    node = _get_node_for_user(node_id, user_id)
-    if not node:
-        return jsonify({"success": False, "error": "Node not found"}), 404
-
-    data = request.get_json() or {}
-    station_id = data.get("station_id")
-    enabled = data.get("enabled", True)
-
-    if not station_id:
-        return jsonify({"success": False, "error": "station_id required"}), 400
-
-    node_db_id = node.get("id") or 0
-    with get_db_cursor(commit=True) as (conn, cur):
-        if enabled:
-            cur.execute(
-                """
-                INSERT INTO node_station_assignments (node_id, station_id, is_active)
-                VALUES (%s, %s, true)
-                ON CONFLICT (node_id, station_id)
-                DO UPDATE SET is_active = true
-                """,
-                (node_db_id, station_id),
-            )
-        else:
-            cur.execute(
-                """
-                UPDATE node_station_assignments
-                SET is_active = false
-                WHERE node_id = %s AND station_id = %s
-                """,
-                (node_db_id, station_id),
-            )
-    return jsonify({"success": True, "station_id": station_id, "enabled": enabled})
-
-
-# ============================================================================
-# NODE STATION TERMINALS (StationOps-compatible live data)
-# ============================================================================
-
-
-@starship_bp.route("/api/nodes/<int:node_id>/stations-live")
-@login_required
-def api_node_stations_live(node_id):
-    """Return node crew in StationOps-compatible format for LCARS terminal rendering."""
-    with get_db_cursor() as (conn, cur):
-        # Get node info (need string node_id for mesh_agent_loans lookup)
-        cur.execute("SELECT id, node_id FROM remote_nodes WHERE id = %s", (node_id,))
-        node = cur.fetchone()
-        if not node:
-            return jsonify({"success": False, "error": "Node not found"}), 404
-
-        node_str_id = node["node_id"]
-
-        # Get enabled stations for this node
-        cur.execute(
-            """
-            SELECT bs.station_code, bs.station_name, bs.color, bs.icon,
-                   bs.max_primary, bs.max_auxiliary
-            FROM node_station_assignments nsa
-            JOIN bridge_stations bs ON bs.id = nsa.station_id
-            WHERE nsa.node_id = %s AND nsa.is_active = true
-            ORDER BY bs.position_row, bs.position_order
-            """,
-            (node_id,),
-        )
-        enabled_stations = cur.fetchall()
-
-        stations = []
-        for st in enabled_stations:
-            code = st["station_code"]
-            max_primary = st.get("max_primary") or 2
-            max_aux = st.get("max_auxiliary") or 1
-
-            # Primary/secondary agents for this station
-            cur.execute(
-                """
-                SELECT na.id, na.name, na.display_name, na.title,
-                       na.model, na.status
-                FROM node_agents na
-                WHERE na.node_id = %s AND na.status = 'active'
-                  AND %s = ANY(na.station_codes)
-                ORDER BY na.id
-                LIMIT %s
-                """,
-                (node_id, code, max_primary),
-            )
-            crew_rows = cur.fetchall()
-
-            assigned_agents = []
-            assignment_labels = ["primary", "secondary"]
-            for i, agent in enumerate(crew_rows):
-                display = agent["display_name"] or agent["name"] or "Unknown"
-                parts = display.split(" ", 1)
-                first_name = parts[0]
-                last_name = parts[1] if len(parts) > 1 else ""
-                label = assignment_labels[i] if i < len(assignment_labels) else "crew"
-                assigned_agents.append(
-                    {
-                        "first_name": first_name,
-                        "last_name": last_name,
-                        "name": agent["name"],
-                        "title": agent["title"] or label,
-                        "assignment_type": label,
-                        "status": "active" if agent["status"] == "active" else "paused",
-                    }
-                )
-
-            # Mesh-loaned agents (auxiliary slot)
-            cur.execute(
-                """
-                SELECT mal.id, na.name, na.display_name, na.title,
-                       mal.task_description
-                FROM mesh_agent_loans mal
-                LEFT JOIN node_agents na ON na.id = mal.agent_id
-                WHERE mal.target_node_id = %s AND mal.status = 'active'
-                LIMIT %s
-                """,
-                (node_str_id, max_aux),
-            )
-            loan_rows = cur.fetchall()
-
-            assists = []
-            for loan in loan_rows:
-                display = loan["display_name"] or loan["name"] or "Mesh Helper"
-                parts = display.split(" ", 1)
-                assists.append(
-                    {
-                        "first_name": parts[0],
-                        "last_name": parts[1] if len(parts) > 1 else "",
-                        "name": loan["name"] or "mesh-assist",
-                        "title": "MESH ASSIST",
-                        "assignment_type": "auxiliary",
-                        "status": "active",
-                    }
-                )
-
-            stations.append(
-                {
-                    "code": code,
-                    "station_name": st["station_name"],
-                    "color": st["color"],
-                    "max_primary": max_primary,
-                    "max_auxiliary": max_aux,
-                    "assigned_agents": assigned_agents,
-                    "assists": assists,
-                    "contractors": [],
-                    "jobs": [],
-                }
-            )
-
-        return jsonify({"success": True, "stations": stations})
 
 
 @starship_bp.route("/api/model-catalog")
@@ -905,11 +694,13 @@ def api_model_catalog():
     with get_db_cursor() as (conn, cur):
         if category:
             cur.execute(
-                "SELECT * FROM model_catalog WHERE is_active = true AND category = %s ORDER BY size_gb",
+                "SELECT id, name, COALESCE(description, '') as description, category, size_gb, quantization, is_active FROM model_catalog WHERE is_active = true AND category = %s ORDER BY size_gb",
                 (category,),
             )
         else:
-            cur.execute("SELECT * FROM model_catalog WHERE is_active = true ORDER BY category, size_gb")
+            cur.execute(
+                "SELECT id, name, COALESCE(description, '') as description, category, size_gb, quantization, is_active FROM model_catalog WHERE is_active = true ORDER BY category, size_gb"
+            )
         models = cur.fetchall()
         return jsonify({"success": True, "models": [dict(m) for m in models]})
 
@@ -1201,6 +992,11 @@ def api_update_node_agent(node_id, agent_id):
     if not data:
         return jsonify({"success": False, "error": "No data provided"}), 400
 
+    user_id = current_user.id
+    node = _get_node_for_user_by_int_id(node_id, user_id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             # Get current agent
@@ -1417,6 +1213,116 @@ def api_setup_instructions(node_id):
     }
 
     return jsonify({"success": True, "config": config})
+
+
+@starship_bp.route("/install")
+def starship_install_script():
+    """Serve OS-appropriate install script authenticated by setup token."""
+    from flask import Response
+
+    token = request.args.get("token", "").strip()
+    if not token:
+        return Response("Error: missing token parameter\n", mimetype="text/plain", status=400)
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT node_id, node_name, setup_token FROM remote_nodes WHERE setup_token = %s",
+            (token,),
+        )
+        node = cur.fetchone()
+        if not node:
+            return Response(
+                "Error: invalid or expired token\n",
+                mimetype="text/plain",
+                status=403,
+            )
+
+    hub_url = os.environ.get("STARSHIP_HUB_URL", "https://archie.kytranempowerment.com")
+    node_id = node["node_id"]
+
+    ua = (request.headers.get("User-Agent") or "").lower()
+    is_powershell = "powershell" in ua or "windowspowershell" in ua
+
+    if is_powershell:
+        script = _generate_powershell_installer(hub_url, node_id, token)
+        return Response(script, mimetype="text/plain", status=200)
+    else:
+        script = _generate_bash_installer(hub_url, node_id, token)
+        return Response(script, mimetype="text/plain", status=200)
+
+
+def _generate_bash_installer(hub_url, node_id, token):
+    """Generate bash install script with credentials injected."""
+    return f"""#!/bin/bash
+set -e
+echo "=== A.R.C.H.I.E. Starship Node Installer ==="
+echo "Hub: {hub_url}"
+echo "Node: {node_id}"
+
+# Download node package
+curl -fsSL "{hub_url}/starship/download/node-package" -o archie-node.tar.gz
+
+# Extract
+mkdir -p archie-node && tar xzf archie-node.tar.gz -C archie-node --strip-components=1
+cd archie-node
+
+# Write .env
+cat > .env << 'ENVEOF'
+HUB_URL={hub_url}
+NODE_ID={node_id}
+HUB_API_KEY={token}
+ENVEOF
+
+# Detect timezone
+if [ -f /etc/timezone ]; then
+    TZ=$(cat /etc/timezone)
+elif [ -L /etc/localtime ]; then
+    TZ=$(readlink /etc/localtime | sed 's|.*/zoneinfo/||')
+else
+    TZ="UTC"
+fi
+echo "NODE_TIMEZONE=$TZ" >> .env
+
+echo "Starting containers..."
+docker compose -f docker-compose.node.yml up -d
+
+echo ""
+echo "=== Installation complete ==="
+echo "Node API: http://localhost:3001/health"
+"""
+
+
+def _generate_powershell_installer(hub_url, node_id, token):
+    """Generate PowerShell install script with credentials injected."""
+    return f"""# A.R.C.H.I.E. Starship Node Installer
+Write-Host "=== A.R.C.H.I.E. Starship Node Installer ===" -ForegroundColor Cyan
+Write-Host "Hub: {hub_url}"
+Write-Host "Node: {node_id}"
+
+# Download node package
+$ProgressPreference = 'SilentlyContinue'
+Invoke-WebRequest -Uri "{hub_url}/starship/download/node-package" -OutFile archie-node.tar.gz
+
+# Extract
+New-Item -ItemType Directory -Force -Path archie-node | Out-Null
+tar xzf archie-node.tar.gz -C archie-node --strip-components=1
+Set-Location archie-node
+
+# Write .env
+@"
+HUB_URL={hub_url}
+NODE_ID={node_id}
+HUB_API_KEY={token}
+NODE_TIMEZONE=$((Get-TimeZone).Id)
+"@ | Set-Content .env
+
+Write-Host "Starting containers..." -ForegroundColor Yellow
+docker compose -f docker-compose.node.yml up -d
+
+Write-Host ""
+Write-Host "=== Installation complete ===" -ForegroundColor Green
+Write-Host "Node API: http://localhost:3001/health"
+"""
 
 
 @starship_bp.route("/api/nodes/<node_id>/request-update", methods=["POST"])
@@ -1746,17 +1652,12 @@ def api_add_agent_to_node(node_id):
     if not agent_id:
         return jsonify({"success": False, "error": "agent_id required"}), 400
 
-    try:
-        with get_db_cursor(commit=False) as (conn, cur):
-            cur.execute(
-                "SELECT id, node_id FROM remote_nodes WHERE id = %s",
-                (node_id,),
-            )
-            node = cur.fetchone()
-            if not node:
-                return jsonify({"success": False, "error": "Node not found"}), 404
-            node_id_str = node["node_id"]
+    node = _get_node_for_user_by_int_id(node_id, current_user.id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+    node_id_str = node["node_id"]
 
+    try:
         ok, msg, agent_data = _add_single_agent_to_node(node_id, node_id_str, agent_id)
         if ok:
             return jsonify({"success": True, "message": msg, "agent": agent_data})
@@ -1770,6 +1671,10 @@ def api_add_agent_to_node(node_id):
 @login_required
 def api_remove_agent_from_node(node_id, agent_id):
     """Remove an agent from a node's crew."""
+    node = _get_node_for_user_by_int_id(node_id, current_user.id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
@@ -1795,18 +1700,13 @@ def api_push_agent_config(node_id):
     """Push current agent configuration to a node via mesh_sync_log."""
     import psycopg2
 
+    node = _get_node_for_user_by_int_id(node_id, current_user.id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+    node_id_str = node["node_id"]
+
     try:
         with get_db_cursor(commit=True) as (conn, cur):
-            # Get the string node_id from remote_nodes
-            cur.execute(
-                "SELECT id, node_id FROM remote_nodes WHERE id = %s",
-                (node_id,),
-            )
-            node = cur.fetchone()
-            if not node:
-                return jsonify({"success": False, "error": "Node not found"}), 404
-            node_id_str = node["node_id"]
-
             # Build crew manifest from node_agents
             cur.execute(
                 """
@@ -1870,18 +1770,13 @@ def api_pull_model(node_id):
     if not model_name:
         return jsonify({"success": False, "error": "model_name required"}), 400
 
+    node = _get_node_for_user_by_int_id(node_id, current_user.id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+    node_id_str = node["node_id"]
+
     try:
         with get_db_cursor(commit=True) as (conn, cur):
-            cur.execute(
-                "SELECT id, node_id FROM remote_nodes WHERE id = %s",
-                (node_id,),
-            )
-            node = cur.fetchone()
-            if not node:
-                return jsonify({"success": False, "error": "Node not found"}), 404
-
-            node_id_str = node["node_id"]
-
             cur.execute(
                 """
                 INSERT INTO mesh_sync_log
@@ -1904,18 +1799,13 @@ def api_push_code_update(node_id):
     """Push a code update request to a node."""
     import psycopg2
 
+    node = _get_node_for_user_by_int_id(node_id, current_user.id)
+    if not node:
+        return jsonify({"success": False, "error": "Node not found"}), 404
+    node_id_str = node["node_id"]
+
     try:
         with get_db_cursor(commit=True) as (conn, cur):
-            # Get the string node_id
-            cur.execute(
-                "SELECT id, node_id FROM remote_nodes WHERE id = %s",
-                (node_id,),
-            )
-            node = cur.fetchone()
-            if not node:
-                return jsonify({"success": False, "error": "Node not found"}), 404
-            node_id_str = node["node_id"]
-
             # Get latest deployment package
             cur.execute(
                 """

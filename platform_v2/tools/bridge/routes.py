@@ -367,7 +367,7 @@ def get_starship_node_for_user(user_id):
                        status, bridge_priority, gpu_model, gpu_vram_gb,
                        cpu_model, cpu_cores, ram_gb, disk_gb
                 FROM remote_nodes
-                WHERE user_id = %s AND deployment_mode = 'starship' AND is_active = true
+                WHERE registered_by = %s AND deployment_mode = 'starship' AND is_active = true
                 LIMIT 1
             """,
                 (user_id,),

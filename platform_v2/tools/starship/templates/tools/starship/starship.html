@@ -1567,24 +1567,30 @@ async function populatePullModelDropdown() {
 // ── Starbase Stats (Hub card on landing page) ──
 async function loadStarbaseStats() {
     try {
-        var crewResp = await fetch('/tools/bridge/api/crew-manifest');
-        var crewData = await crewResp.json();
-        if (crewData.agents) {
-            document.getElementById('sb-agents').textContent = crewData.agents.length;
-            var activeJobs = crewData.agents.filter(function(a) { return a.current_job; }).length;
-            document.getElementById('sb-jobs').textContent = activeJobs;
-        }
+        var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
+        var data = await resp.json();
+        if (!data.success) return;
 
-        var hwResp = await fetch('/tools/bridge/api/hardware-capacity');
-        var hwData = await hwResp.json();
-        if (hwData.success) {
-            document.getElementById('sb-cpu').textContent = hwData.cpu_model || '--';
-            document.getElementById('sb-ram').textContent = hwData.total_ram_gb ? hwData.total_ram_gb + ' GB' : '--';
-            document.getElementById('sb-gpu').textContent = hwData.gpu_name || '--';
-            if (hwData.loaded_models !== undefined || hwData.total_models !== undefined) {
-                document.getElementById('sb-models').textContent = hwData.total_models || hwData.loaded_models || '--';
+        // Crew stats
+        var crew = data.crew || [];
+        document.getElementById('sb-agents').textContent = crew.length;
+        var activeJobs = crew.filter(function(a) { return a.current_job; }).length;
+        document.getElementById('sb-jobs').textContent = activeJobs;
+
+        // Hardware from capacity object
+        var cap = data.capacity;
+        if (cap) {
+            document.getElementById('sb-models').textContent = cap.models_loaded || '--';
+            if (cap.ram) {
+                document.getElementById('sb-ram').textContent = cap.ram.total_gb + ' GB';
+            }
+            if (cap.gpu) {
+                document.getElementById('sb-gpu').textContent = cap.gpu.name || '--';
             }
         }
+
+        // CPU not in capacity — static label
+        document.getElementById('sb-cpu').textContent = 'Xeon E5-2658 v2';
     } catch(e) {
         console.warn('Starbase stats load failed:', e);
     }

@@ -427,13 +427,14 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             </div>
             <div class="sc-node-body">
                 <div class="sc-node-stats">
-                    <div class="sc-stat"><span class="sc-stat-val" id="sb-agents">--</span><span class="sc-stat-label">AGENTS</span></div>
-                    <div class="sc-stat"><span class="sc-stat-val" id="sb-models">--</span><span class="sc-stat-label">MODELS</span></div>
-                    <div class="sc-stat"><span class="sc-stat-val" id="sb-stations">10</span><span class="sc-stat-label">STATIONS</span></div>
+                    <div class="sc-stat"><span class="sc-stat-val" id="sb-cores">--</span><span class="sc-stat-label">Cores</span></div>
+                    <div class="sc-stat"><span class="sc-stat-val" id="sb-ram">--</span><span class="sc-stat-label">RAM GB</span></div>
+                    <div class="sc-stat"><span class="sc-stat-val" id="sb-vram">--</span><span class="sc-stat-label">VRAM GB</span></div>
                 </div>
             </div>
         </div>
         {% for node in nodes %}
+        {% if node.deployment_mode == 'starbase' %}{% continue %}{% endif %}
         <div class="sc-node-card" id="card-{{ node.node_id }}" data-node-id="{{ node.node_id }}">
             <div class="sc-node-header" onclick="selectNode('{{ node.node_id }}')">
                 <div class="sc-node-dot {{ 'online' if node.status == 'online' and node.is_active else 'offline' if node.status == 'offline' else 'pending' }}"></div>
@@ -1623,10 +1624,10 @@ async function loadStarbaseStats() {
         var activeJobs = crew.filter(function(a) { return a.current_job; }).length;
         var cap = data.capacity || {};
 
-        // Card stats (3 compact values)
-        document.getElementById('sb-agents').textContent = crew.length;
-        document.getElementById('sb-models').textContent = cap.models_loaded || '--';
-        // sb-stations is static 10
+        // Card stats — hardware summary
+        document.getElementById('sb-cores').textContent = '20';
+        document.getElementById('sb-ram').textContent = cap.ram ? cap.ram.total_gb : '128';
+        document.getElementById('sb-vram').textContent = cap.gpu ? cap.gpu.vram_total_gb : '8';
 
         // Detail panel stats (if open)
         _populateStarbaseDetail(crew, activeJobs, cap);

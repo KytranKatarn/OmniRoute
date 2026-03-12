@@ -58,15 +58,13 @@
 .sc-value { color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
 
 
-/* Starbase card */
+/* Starbase card — same size as node cards, in the grid */
 .sc-starbase-card {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(0, 229, 255, 0.3);
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 24px;
+    border-color: rgba(0, 229, 255, 0.3);
     box-shadow: 0 0 20px rgba(0, 229, 255, 0.08);
 }
+.sc-starbase-card .sc-node-header { cursor: pointer; }
+.sc-starbase-card .sc-node-name { color: var(--sc-accent); }
 
 /* Sync log table */
 #sync-log-body tr { border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -417,30 +415,23 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
     </div>
     {% else %}
 
-    <!-- STARBASE (HUB) -->
-    <div class="sc-starbase-card" id="starbase-card">
-        <div class="sc-node-header" style="cursor:default;">
-            <div class="sc-node-dot online"></div>
-            <span class="sc-node-name">A.R.C.H.I.E. STARBASE</span>
-            <span class="sc-node-mode">HUB</span>
-        </div>
-        <div class="sc-node-body">
-            <div class="sc-node-stats" id="starbase-stats">
-                <div class="sc-stat"><span class="sc-stat-val" id="sb-agents">--</span><span class="sc-stat-label">AGENTS</span></div>
-                <div class="sc-stat"><span class="sc-stat-val" id="sb-jobs">--</span><span class="sc-stat-label">ACTIVE JOBS</span></div>
-                <div class="sc-stat"><span class="sc-stat-val" id="sb-models">--</span><span class="sc-stat-label">MODELS</span></div>
-                <div class="sc-stat"><span class="sc-stat-val" id="sb-stations">10</span><span class="sc-stat-label">STATIONS</span></div>
-            </div>
-            <div class="sc-node-stats" style="margin-top:10px;">
-                <div class="sc-stat"><span class="sc-stat-val" id="sb-cpu">--</span><span class="sc-stat-label">CPU</span></div>
-                <div class="sc-stat"><span class="sc-stat-val" id="sb-ram">--</span><span class="sc-stat-label">RAM</span></div>
-                <div class="sc-stat"><span class="sc-stat-val" id="sb-gpu">--</span><span class="sc-stat-label">GPU</span></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Fleet Grid -->
+    <!-- Fleet Grid (Starbase first, then nodes) -->
     <div class="sc-fleet-grid" id="sc-fleet-grid">
+        <!-- STARBASE (HUB) — first card in grid -->
+        <div class="sc-node-card sc-starbase-card" id="starbase-card">
+            <div class="sc-node-header" onclick="openStarbaseDetail()">
+                <div class="sc-node-dot online"></div>
+                <span class="sc-node-name">A.R.C.H.I.E. STARBASE</span>
+                <span class="sc-node-mode">HUB</span>
+            </div>
+            <div class="sc-node-body">
+                <div class="sc-node-stats">
+                    <div class="sc-stat"><span class="sc-stat-val" id="sb-agents">--</span><span class="sc-stat-label">AGENTS</span></div>
+                    <div class="sc-stat"><span class="sc-stat-val" id="sb-models">--</span><span class="sc-stat-label">MODELS</span></div>
+                    <div class="sc-stat"><span class="sc-stat-val" id="sb-stations">10</span><span class="sc-stat-label">STATIONS</span></div>
+                </div>
+            </div>
+        </div>
         {% for node in nodes %}
         <div class="sc-node-card" id="card-{{ node.node_id }}" data-node-id="{{ node.node_id }}">
             <div class="sc-node-header" onclick="selectNode('{{ node.node_id }}')">
@@ -600,6 +591,51 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             </div>
         </div>
     </div>
+
+    <!-- Starbase Detail Panel (same style as node detail) -->
+    <div class="sc-detail" id="sc-starbase-detail">
+        <div class="sc-detail-header">
+            <div class="sc-node-dot online"></div>
+            <span class="sc-detail-title">A.R.C.H.I.E. STARBASE</span>
+            <span class="sc-node-mode" style="margin-left:8px;">HUB</span>
+            <button class="sc-close-btn" onclick="closeStarbaseDetail()">CLOSE</button>
+        </div>
+        <div style="padding:20px;">
+            <div class="sc-section">
+                <h4>FLEET OVERVIEW</h4>
+                <div class="sc-row"><span class="sc-label">Agents</span><span class="sc-value" id="sbd-agents">--</span></div>
+                <div class="sc-row"><span class="sc-label">Active Jobs</span><span class="sc-value" id="sbd-jobs">--</span></div>
+                <div class="sc-row"><span class="sc-label">Models Loaded</span><span class="sc-value" id="sbd-models">--</span></div>
+                <div class="sc-row"><span class="sc-label">Stations</span><span class="sc-value">10</span></div>
+            </div>
+            <div class="sc-section">
+                <h4>HARDWARE</h4>
+                <div class="sc-row"><span class="sc-label">CPU</span><span class="sc-value" id="sbd-cpu">--</span></div>
+                <div class="sc-row"><span class="sc-label">RAM</span><span class="sc-value" id="sbd-ram">--</span></div>
+                <div class="sc-row"><span class="sc-label">RAM Available</span><span class="sc-value" id="sbd-ram-avail">--</span></div>
+                <div class="sc-row"><span class="sc-label">GPU</span><span class="sc-value" id="sbd-gpu">--</span></div>
+                <div class="sc-row"><span class="sc-label">GPU VRAM</span><span class="sc-value" id="sbd-vram">--</span></div>
+                <div class="sc-row"><span class="sc-label">Models in RAM</span><span class="sc-value" id="sbd-models-ram">--</span></div>
+            </div>
+            <div class="sc-section">
+                <h4>RAM BUDGET (ADR-078)</h4>
+                <div class="sc-row"><span class="sc-label">LLM Budget (80%)</span><span class="sc-value" id="sbd-llm-budget">--</span></div>
+                <div class="sc-row"><span class="sc-label">Agent Budget (90%)</span><span class="sc-value" id="sbd-agent-budget">--</span></div>
+                <div class="sc-row"><span class="sc-label">Swap Buffer (10%)</span><span class="sc-value" id="sbd-swap-buffer">--</span></div>
+                <div class="sc-row"><span class="sc-label">Host Reserve</span><span class="sc-value" id="sbd-reserve">--</span></div>
+                <div class="sc-row"><span class="sc-label">RAM Status</span><span class="sc-value" id="sbd-ram-status">--</span></div>
+            </div>
+            <div class="sc-section">
+                <h4>GPU MODELS</h4>
+                <div id="sbd-gpu-models" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+            </div>
+            <div class="sc-section">
+                <h4>CPU MODELS</h4>
+                <div id="sbd-cpu-models" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+            </div>
+        </div>
+    </div>
+
     {% endif %}
 
     <!-- Agent Profile Modal -->
@@ -852,6 +888,7 @@ function switchTab(tab) {
 
 function closeDetail() {
     document.getElementById('sc-detail').classList.remove('active');
+    document.getElementById('sc-starbase-detail').classList.remove('active');
     document.querySelectorAll('.sc-node-card').forEach(function(c) { c.classList.remove('selected'); });
     selectedNodeId = null;
 }
@@ -859,6 +896,9 @@ function closeDetail() {
 async function selectNode(nodeId) {
     var isNewNode = (selectedNodeId !== nodeId);
     selectedNodeId = nodeId;
+
+    // Close starbase detail if open
+    document.getElementById('sc-starbase-detail').classList.remove('active');
 
     // Highlight card
     document.querySelectorAll('.sc-node-card').forEach(function(c) { c.classList.remove('selected'); });
@@ -1564,36 +1604,111 @@ async function populatePullModelDropdown() {
     } catch(e) { console.warn('Model catalog load failed:', e); }
 }
 
-// ── Starbase Stats (Hub card on landing page) ──
+// ── Starbase Stats (Hub card + detail panel) ──
+var _starbaseData = null;
+
 async function loadStarbaseStats() {
     try {
         var resp = await fetch('/tools/bridge/api/bridge/crew/manifest');
         var data = await resp.json();
         if (!data.success) return;
+        _starbaseData = data;
 
-        // Crew stats
         var crew = data.crew || [];
-        document.getElementById('sb-agents').textContent = crew.length;
         var activeJobs = crew.filter(function(a) { return a.current_job; }).length;
-        document.getElementById('sb-jobs').textContent = activeJobs;
+        var cap = data.capacity || {};
 
-        // Hardware from capacity object
-        var cap = data.capacity;
-        if (cap) {
-            document.getElementById('sb-models').textContent = cap.models_loaded || '--';
-            if (cap.ram) {
-                document.getElementById('sb-ram').textContent = cap.ram.total_gb + ' GB';
-            }
-            if (cap.gpu) {
-                document.getElementById('sb-gpu').textContent = cap.gpu.name || '--';
-            }
-        }
+        // Card stats (3 compact values)
+        document.getElementById('sb-agents').textContent = crew.length;
+        document.getElementById('sb-models').textContent = cap.models_loaded || '--';
+        // sb-stations is static 10
 
-        // CPU not in capacity — static label
-        document.getElementById('sb-cpu').textContent = 'Xeon E5-2658 v2';
+        // Detail panel stats (if open)
+        _populateStarbaseDetail(crew, activeJobs, cap);
     } catch(e) {
         console.warn('Starbase stats load failed:', e);
     }
+}
+
+function _populateStarbaseDetail(crew, activeJobs, cap) {
+    var el = function(id) { return document.getElementById(id); };
+    if (!el('sbd-agents')) return;
+
+    // Fleet overview
+    el('sbd-agents').textContent = crew.length;
+    el('sbd-jobs').textContent = activeJobs;
+    el('sbd-models').textContent = cap.models_loaded || '--';
+
+    // Hardware
+    el('sbd-cpu').textContent = 'Xeon E5-2658 v2 (10c/20t)';
+    if (cap.ram) {
+        el('sbd-ram').textContent = cap.ram.total_gb + ' GB';
+        el('sbd-ram-avail').textContent = (cap.ram.available_gb || '--') + ' GB';
+    }
+    if (cap.gpu) {
+        el('sbd-gpu').textContent = cap.gpu.name || '--';
+        el('sbd-vram').textContent = (cap.gpu.vram_total_gb || '--') + ' GB';
+    }
+    el('sbd-models-ram').textContent = (cap.models_ram_gb || '--') + ' GB';
+
+    // RAM budget (ADR-078: 80% LLM, 20% reserve)
+    var totalRam = cap.ram ? cap.ram.total_gb : 128;
+    var llmBudget = Math.round(totalRam * 0.8);
+    var agentBudget = Math.round(llmBudget * 0.9);
+    var swapBuffer = Math.round(llmBudget * 0.1);
+    var reserve = Math.round(totalRam * 0.2);
+    el('sbd-llm-budget').textContent = llmBudget + ' GB';
+    el('sbd-agent-budget').textContent = agentBudget + ' GB';
+    el('sbd-swap-buffer').textContent = swapBuffer + ' GB';
+    el('sbd-reserve').textContent = reserve + ' GB';
+    var availGb = cap.ram ? cap.ram.available_gb : 0;
+    if (availGb > reserve) {
+        el('sbd-ram-status').textContent = 'NOMINAL';
+        el('sbd-ram-status').style.color = 'var(--sc-green)';
+    } else {
+        el('sbd-ram-status').textContent = 'LOW';
+        el('sbd-ram-status').style.color = 'var(--sc-amber)';
+    }
+
+    // GPU model badges
+    var gpuDiv = el('sbd-gpu-models');
+    if (gpuDiv && cap.gpu_models) {
+        gpuDiv.innerHTML = cap.gpu_models.map(function(m) {
+            return '<span style="padding:3px 10px;border-radius:4px;font-family:\'IBM Plex Mono\',monospace;font-size:0.75rem;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.2);color:var(--sc-accent);">' + m + '</span>';
+        }).join('') || '<span class="sc-label">None loaded</span>';
+    }
+
+    // CPU model badges
+    var cpuDiv = el('sbd-cpu-models');
+    if (cpuDiv && cap.cpu_models) {
+        cpuDiv.innerHTML = cap.cpu_models.map(function(m) {
+            return '<span style="padding:3px 10px;border-radius:4px;font-family:\'IBM Plex Mono\',monospace;font-size:0.75rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);">' + m + '</span>';
+        }).join('') || '<span class="sc-label">None loaded</span>';
+    }
+}
+
+function openStarbaseDetail() {
+    // Close any open node detail
+    closeDetail();
+    // Deselect node cards
+    document.querySelectorAll('.sc-node-card.selected').forEach(function(c) { c.classList.remove('selected'); });
+    // Select starbase card
+    document.getElementById('starbase-card').classList.add('selected');
+    // Show starbase detail
+    document.getElementById('sc-starbase-detail').classList.add('active');
+    // Populate from cached data or re-fetch
+    if (_starbaseData) {
+        var crew = _starbaseData.crew || [];
+        var activeJobs = crew.filter(function(a) { return a.current_job; }).length;
+        _populateStarbaseDetail(crew, activeJobs, _starbaseData.capacity || {});
+    } else {
+        loadStarbaseStats();
+    }
+}
+
+function closeStarbaseDetail() {
+    document.getElementById('sc-starbase-detail').classList.remove('active');
+    document.getElementById('starbase-card').classList.remove('selected');
 }
 
 // Load starbase stats on page load + interval

@@ -695,6 +695,77 @@
 </div>
 
 
+<!-- ── S22  Edit Modal ── -->
+<div id="msEditModal" class="ms-edit-modal" style="display:none;">
+  <div class="ms-edit-modal-content">
+    <div class="ms-edit-modal-header">
+      <span class="ms-edit-modal-title">Edit Image</span>
+      <button class="ms-edit-modal-close" onclick="closeEditModal()">&times;</button>
+    </div>
+    <div class="ms-edit-tabs">
+      <button class="ms-edit-tab active" data-type="inpaint" onclick="switchEditType('inpaint')">Inpaint</button>
+      <button class="ms-edit-tab" data-type="outpaint" onclick="switchEditType('outpaint')">Outpaint</button>
+      <button class="ms-edit-tab" data-type="upscale" onclick="switchEditType('upscale')">Upscale</button>
+      <button class="ms-edit-tab" data-type="img2img" onclick="switchEditType('img2img')">Img2Img</button>
+      <button class="ms-edit-tab" data-type="style_transfer" onclick="switchEditType('style_transfer')">Style Transfer</button>
+    </div>
+    <div class="ms-edit-body">
+      <div class="ms-edit-canvas-wrap">
+        <canvas id="msEditCanvas"></canvas>
+      </div>
+      <div id="msEditToolbar" class="ms-edit-toolbar">
+        <label>Brush: <input type="range" id="msEditBrushSize" min="5" max="100" value="30"></label>
+        <button id="msEditEraser" onclick="toggleEraser()">Eraser</button>
+        <button onclick="clearMask()">Clear</button>
+        <button onclick="undoStroke()">Undo</button>
+      </div>
+      <!-- Type-specific params -->
+      <div id="msEditParamsInpaint" class="ms-edit-params">
+        <label>Prompt: <textarea id="msEditInpaintPrompt" rows="2" class="ms-input-xs"></textarea></label>
+        <label>Strength: <input type="range" id="msEditInpaintStrength" min="0" max="100" value="75"> <span id="msEditInpaintStrengthVal">0.75</span></label>
+      </div>
+      <div id="msEditParamsOutpaint" class="ms-edit-params" style="display:none;">
+        <label>Direction:
+          <select id="msEditOutpaintDir" class="ms-input-xs">
+            <option value="right">Right</option><option value="left">Left</option>
+            <option value="top">Top</option><option value="bottom">Bottom</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <label>Pixels: <input type="number" id="msEditOutpaintPx" value="128" min="64" max="512" step="64" class="ms-input-xs"></label>
+        <label>Prompt: <textarea id="msEditOutpaintPrompt" rows="2" class="ms-input-xs"></textarea></label>
+      </div>
+      <div id="msEditParamsUpscale" class="ms-edit-params" style="display:none;">
+        <label><input type="radio" name="msEditScale" value="2" checked> 2x</label>
+        <label><input type="radio" name="msEditScale" value="4"> 4x</label>
+        <label><input type="radio" name="msEditMethod" value="ai" checked> AI (RealESRGAN)</label>
+        <label><input type="radio" name="msEditMethod" value="lanczos"> Quick (Lanczos)</label>
+      </div>
+      <div id="msEditParamsImg2img" class="ms-edit-params" style="display:none;">
+        <label>Prompt: <textarea id="msEditImg2imgPrompt" rows="2" class="ms-input-xs"></textarea></label>
+        <label>Strength: <input type="range" id="msEditImg2imgStrength" min="0" max="100" value="60"> <span id="msEditImg2imgStrengthVal">0.60</span></label>
+      </div>
+      <div id="msEditParamsStyle" class="ms-edit-params" style="display:none;">
+        <label>Style Prompt: <textarea id="msEditStylePrompt" rows="2" class="ms-input-xs"></textarea></label>
+        <label>Reference Image ID: <input type="number" id="msEditStyleRef" class="ms-input-xs" placeholder="Optional"></label>
+        <label>Strength: <input type="range" id="msEditStyleStrength" min="0" max="100" value="50"> <span id="msEditStyleStrengthVal">0.50</span></label>
+      </div>
+    </div>
+    <div class="ms-edit-modal-footer">
+      <label class="ms-text-muted">Or <input type="file" id="msEditMaskUpload" accept="image/png" style="display:none;" onchange="onMaskFileSelected(this)"><a href="#" onclick="document.getElementById('msEditMaskUpload').click(); return false;">upload mask</a></label>
+      <button class="ms-btn ms-btn-primary" onclick="submitEdit()">Submit Edit</button>
+    </div>
+  </div>
+</div>
+<!-- Version sidebar -->
+<div id="msVersionSidebar" class="ms-version-sidebar" style="display:none;">
+  <div class="ms-version-sidebar-header">
+    <span>Version History</span>
+    <button onclick="document.getElementById('msVersionSidebar').style.display='none'">&times;</button>
+  </div>
+  <div id="msVersionList"></div>
+</div>
+
 <!-- ================================================================
      JAVASCRIPT
      ================================================================ -->
@@ -1357,6 +1428,22 @@
         card.appendChild(tagBar);
 
         card.onclick = function() { showMediaDetail(item.id); };
+
+        // Edit button
+        var editBtn = document.createElement('button');
+        editBtn.className = 'ms-card-action-btn';
+        editBtn.textContent = 'Edit';
+        editBtn.onclick = function(e) { e.stopPropagation(); openEditModal(item.id, item.file_path || item.thumbnail_path); };
+        card.appendChild(editBtn);
+
+        // Version badge if version > 1
+        if (item.version && item.version > 1) {
+            var vBadge = document.createElement('span');
+            vBadge.className = 'ms-version-badge';
+            vBadge.textContent = 'v' + item.version;
+            vBadge.onclick = function(e) { e.stopPropagation(); loadVersionHistory(item.id); };
+            card.appendChild(vBadge);
+        }
 
         // Mark selected if in list
         if (selectedMediaIds.indexOf(item.id) !== -1) {
@@ -2661,6 +2748,225 @@
             alert('Trigger failed: ' + (err.message || err));
         });
     };
+
+    // ── S22  Image Editing JS ──────────────────────────────────────
+    (function() {
+        var editSourceId = null;
+        var editType = 'inpaint';
+        var isErasing = false;
+        var strokes = [];
+        var canvas, ctx, bgImage;
+        var isDrawing = false;
+
+        window.openEditModal = function(mediaId, filePath) {
+            editSourceId = mediaId;
+            document.getElementById('msEditModal').style.display = 'flex';
+            switchEditType('inpaint');
+            canvas = document.getElementById('msEditCanvas');
+            ctx = canvas.getContext('2d');
+            bgImage = new Image();
+            bgImage.onload = function() {
+                var maxW = 800, maxH = 600;
+                var scale = Math.min(maxW / bgImage.width, maxH / bgImage.height, 1);
+                canvas.width = Math.round(bgImage.width * scale);
+                canvas.height = Math.round(bgImage.height * scale);
+                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            };
+            bgImage.src = filePath;
+        };
+
+        window.closeEditModal = function() {
+            document.getElementById('msEditModal').style.display = 'none';
+            editSourceId = null; strokes = [];
+        };
+
+        window.switchEditType = function(type) {
+            editType = type;
+            document.querySelectorAll('.ms-edit-tab').forEach(function(t) {
+                t.classList.toggle('active', t.dataset.type === type);
+            });
+            var panels = {inpaint:'msEditParamsInpaint', outpaint:'msEditParamsOutpaint',
+                          upscale:'msEditParamsUpscale', img2img:'msEditParamsImg2img',
+                          style_transfer:'msEditParamsStyle'};
+            Object.keys(panels).forEach(function(k) {
+                var el = document.getElementById(panels[k]);
+                if (el) el.style.display = (k === type) ? '' : 'none';
+            });
+            var toolbar = document.getElementById('msEditToolbar');
+            if (toolbar) toolbar.style.display = (type === 'inpaint') ? '' : 'none';
+            if (bgImage && bgImage.complete && ctx) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+                strokes = [];
+            }
+        };
+
+        setTimeout(function() {
+            canvas = document.getElementById('msEditCanvas');
+            if (!canvas) return;
+            canvas.addEventListener('mousedown', function(e) {
+                if (editType !== 'inpaint') return;
+                isDrawing = true; strokes.push([]); draw(e);
+            });
+            canvas.addEventListener('mousemove', function(e) {
+                if (!isDrawing || editType !== 'inpaint') return; draw(e);
+            });
+            canvas.addEventListener('mouseup', function() { isDrawing = false; });
+            canvas.addEventListener('mouseleave', function() { isDrawing = false; });
+        }, 100);
+
+        function draw(e) {
+            var rect = canvas.getBoundingClientRect();
+            var x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            var y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            var size = parseInt(document.getElementById('msEditBrushSize').value);
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.fillStyle = isErasing ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,0.7)';
+            ctx.fill();
+            if (strokes.length > 0) strokes[strokes.length - 1].push({x:x, y:y, size:size, erase:isErasing});
+        }
+
+        window.toggleEraser = function() {
+            isErasing = !isErasing;
+            var btn = document.getElementById('msEditEraser');
+            if (btn) btn.classList.toggle('active', isErasing);
+        };
+
+        window.clearMask = function() {
+            if (bgImage && bgImage.complete && ctx) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+                strokes = [];
+            }
+        };
+
+        window.undoStroke = function() {
+            if (strokes.length === 0) return;
+            strokes.pop();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            strokes.forEach(function(stroke) {
+                stroke.forEach(function(pt) {
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, pt.size / 2, 0, Math.PI * 2);
+                    ctx.fillStyle = pt.erase ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,0.7)';
+                    ctx.fill();
+                });
+            });
+        };
+
+        function getMaskDataUrl() {
+            var maskCanvas = document.createElement('canvas');
+            maskCanvas.width = canvas.width;
+            maskCanvas.height = canvas.height;
+            var mctx = maskCanvas.getContext('2d');
+            mctx.fillStyle = 'black';
+            mctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+            strokes.forEach(function(stroke) {
+                stroke.forEach(function(pt) {
+                    if (!pt.erase) {
+                        mctx.beginPath();
+                        mctx.arc(pt.x, pt.y, pt.size / 2, 0, Math.PI * 2);
+                        mctx.fillStyle = 'white';
+                        mctx.fill();
+                    }
+                });
+            });
+            return maskCanvas.toDataURL('image/png');
+        }
+
+        window.submitEdit = function() {
+            if (!editSourceId) return;
+            var params = {}, maskData = null;
+
+            if (editType === 'inpaint') {
+                params.prompt = document.getElementById('msEditInpaintPrompt').value;
+                params.strength = parseInt(document.getElementById('msEditInpaintStrength').value) / 100;
+                maskData = getMaskDataUrl();
+            } else if (editType === 'outpaint') {
+                params.direction = document.getElementById('msEditOutpaintDir').value;
+                params.pixels = parseInt(document.getElementById('msEditOutpaintPx').value);
+                params.prompt = document.getElementById('msEditOutpaintPrompt').value;
+            } else if (editType === 'upscale') {
+                params.scale_factor = parseInt(document.querySelector('input[name="msEditScale"]:checked').value);
+                params.method = document.querySelector('input[name="msEditMethod"]:checked').value;
+            } else if (editType === 'img2img') {
+                params.prompt = document.getElementById('msEditImg2imgPrompt').value;
+                params.strength = parseInt(document.getElementById('msEditImg2imgStrength').value) / 100;
+            } else if (editType === 'style_transfer') {
+                params.style_prompt = document.getElementById('msEditStylePrompt').value;
+                var refId = document.getElementById('msEditStyleRef').value;
+                if (refId) params.reference_image_id = parseInt(refId);
+                params.strength = parseInt(document.getElementById('msEditStyleStrength').value) / 100;
+            }
+
+            var body = {source_id: editSourceId, edit_type: editType, params: params};
+            if (maskData) body.mask_data = maskData;
+
+            api('POST', '/api/media-studio/edit', body).then(function(data) {
+                if (data.error) { alert(data.error); return; }
+                closeEditModal();
+                if (data.status === 'completed') {
+                    if (typeof loadGallery === 'function') loadGallery();
+                } else {
+                    pollEditStatus(data.edit_id);
+                }
+            });
+        };
+
+        window.pollEditStatus = function(editId) {
+            var interval = setInterval(function() {
+                api('GET', '/api/media-studio/edit/' + editId).then(function(data) {
+                    if (data.status === 'completed' || data.status === 'failed') {
+                        clearInterval(interval);
+                        if (data.status === 'completed' && typeof loadGallery === 'function') loadGallery();
+                        if (data.status === 'failed') alert('Edit failed: ' + (data.error_message || 'Unknown error'));
+                    }
+                });
+            }, 3000);
+        };
+
+        window.loadVersionHistory = function(mediaId) {
+            var sidebar = document.getElementById('msVersionSidebar');
+            var list = document.getElementById('msVersionList');
+            sidebar.style.display = '';
+            _clearChildren(list);
+            api('GET', '/api/media-studio/versions/' + mediaId).then(function(versions) {
+                versions.forEach(function(v) {
+                    var item = document.createElement('div');
+                    item.className = 'ms-version-item';
+                    var thumb = document.createElement('img');
+                    thumb.src = v.thumbnail_path || v.file_path;
+                    thumb.className = 'ms-version-thumb';
+                    var label = document.createElement('span');
+                    label.textContent = 'v' + v.version;
+                    item.appendChild(thumb);
+                    item.appendChild(label);
+                    list.appendChild(item);
+                });
+            });
+        };
+
+        window.onMaskFileSelected = function(input) {
+            if (!input.files || !input.files[0]) return;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var maskImg = new Image();
+                maskImg.onload = function() { ctx.drawImage(maskImg, 0, 0, canvas.width, canvas.height); };
+                maskImg.src = e.target.result;
+            };
+            reader.readAsDataURL(input.files[0]);
+        };
+
+        ['msEditInpaintStrength', 'msEditImg2imgStrength', 'msEditStyleStrength'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('input', function() {
+                var valEl = document.getElementById(id + 'Val');
+                if (valEl) valEl.textContent = (parseInt(el.value) / 100).toFixed(2);
+            });
+        });
+    })();
 
 })();
 </script>

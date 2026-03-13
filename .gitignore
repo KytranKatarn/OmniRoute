@@ -91,6 +91,13 @@ test-results/
 # Audio samples (generated/test WAV files)
 platform_v2/static/voice_*.wav
 
+# Media Studio generated files (keep directory structure via .gitkeep)
+platform_v2/static/media/users/
+platform_v2/static/media/agents/
+platform_v2/static/media/portraits/
+platform_v2/static/media/environments/
+!platform_v2/static/media/.gitkeep
+
 # Node.js (Playwright test runner)
 package.json
 package-lock.json
@@ -104,3 +111,4 @@ host_commands/
 # HTML mockup files in root
 /*.html
 .worktrees/
+repos/

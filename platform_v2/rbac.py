@@ -86,6 +86,8 @@ class Permission(Enum):
     WEBSITE_BUILDER_DEPLOY = "website_builder:deploy"
     SOCIAL_MEDIA_CREATE = "social_media:create"
     SOCIAL_MEDIA_SCHEDULE = "social_media:schedule"
+    MEDIA_STUDIO_GENERATE = "media_studio:generate"
+    MEDIA_STUDIO_MANAGE = "media_studio:manage"
     # DEPRECATED 2026-02-03: Not needed
     # FIGMA_IMPORT = "figma:import"
     ANALYTICS_VIEW = "analytics:view"
@@ -190,6 +192,8 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.WEBSITE_BUILDER_DEPLOY,
         Permission.SOCIAL_MEDIA_CREATE,
         Permission.SOCIAL_MEDIA_SCHEDULE,
+        Permission.MEDIA_STUDIO_GENERATE,
+        Permission.MEDIA_STUDIO_MANAGE,
         # DEPRECATED 2026-02-03: Not needed
         # Permission.FIGMA_IMPORT,
         Permission.ANALYTICS_VIEW,
@@ -219,6 +223,8 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.WEBSITE_BUILDER_DEPLOY,
         Permission.SOCIAL_MEDIA_CREATE,
         Permission.SOCIAL_MEDIA_SCHEDULE,
+        Permission.MEDIA_STUDIO_GENERATE,
+        Permission.MEDIA_STUDIO_MANAGE,
         # DEPRECATED 2026-02-03: Not needed
         # Permission.FIGMA_IMPORT,
         Permission.ANALYTICS_VIEW,

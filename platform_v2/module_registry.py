@@ -184,8 +184,8 @@ def media_studio_health_check() -> Dict:
         import os
 
         paths_to_check = [
-            "/app/templates/tools/media_studio.html",
-            "/mnt/archie_brain/platform_v2/templates/tools/media_studio.html",
+            "/app/tools/media_studio/templates/tools/media_studio/media_studio.html",
+            "/mnt/archie_brain/platform_v2/tools/media_studio/templates/tools/media_studio/media_studio.html",
         ]
         exists = any(os.path.exists(p) for p in paths_to_check)
 

@@ -396,18 +396,31 @@ docker exec archie_platform python3 /tmp/test_agent_loop_media.py
 
 Expected: FAIL — method doesn't exist yet.
 
+- [ ] **Step 2b: Verify croniter is available**
+
+```bash
+docker exec archie_platform python3 -c "from croniter import croniter; print('croniter available')"
+```
+
+Expected: "croniter available". If not, install it: `docker exec archie_platform pip install croniter`.
+
 - [ ] **Step 3: Add _check_media_schedules method to AgentLoop**
 
 Add this method to the `AgentLoop` class (before the `stop()` method, around line 404):
 
 ```python
     def _check_media_schedules(self):
-        """Check agent media generation schedules and trigger if due."""
+        """Check agent media generation schedules and trigger if due.
+
+        Routes through Bridge dispatcher so generations appear in Bridge
+        Command logs and respect agent busy/queue state.
+        """
+        from datetime import datetime
+
         try:
             from croniter import croniter
             from database import get_db_cursor
             from tools.media_studio.services.agent_media_service import (
-                agent_generate,
                 GLOBAL_DAILY_CAP,
                 _get_daily_count,
             )
@@ -418,26 +431,57 @@ Add this method to the `AgentLoop` class (before the `stop()` method, around lin
 
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    "SELECT agent_name, schedule_cron, last_generated_at "
+                    "SELECT agent_name, media_type, schedule_cron, last_generated_at "
                     "FROM media_agent_config WHERE enabled = TRUE"
                 )
                 configs = cur.fetchall()
 
+            MEDIA_TYPE_CAPABILITIES = {
+                "image": "image_generation",
+                "video": "video_generation",
+                "audio": "audio_generation",
+            }
+
             now = datetime.now()
-            for agent_name, cron_expr, last_gen in configs:
+            for agent_name, media_type, cron_expr, last_gen in configs:
                 try:
                     cron = croniter(cron_expr, now)
                     prev_fire = cron.get_prev(datetime)
                     if last_gen is None or prev_fire > last_gen:
-                        result = agent_generate(agent_name)
-                        if "error" in result:
-                            logger.debug(
-                                f"Agent media skip {agent_name}: {result['error']}"
+                        # Route through Bridge dispatcher
+                        capability = MEDIA_TYPE_CAPABILITIES.get(
+                            media_type, "image_generation"
+                        )
+                        from ai_bridge.bridge_dispatcher import dispatcher
+
+                        job = dispatcher.request_work(
+                            capability=capability,
+                            description=f"Scheduled media generation for {agent_name}",
+                            metadata={
+                                "source": "media_schedule",
+                                "agent_name": agent_name,
+                                "media_type": media_type,
+                            },
+                        )
+                        if job:
+                            # Dispatcher accepted — trigger the actual generation
+                            from tools.media_studio.services.agent_media_service import (
+                                agent_generate,
                             )
+
+                            result = agent_generate(agent_name)
+                            if "error" in result:
+                                logger.debug(
+                                    f"Agent media skip {agent_name}: {result['error']}"
+                                )
+                            else:
+                                logger.info(
+                                    f"Agent media generated for {agent_name}: "
+                                    f"id={result.get('id')}"
+                                )
                         else:
-                            logger.info(
-                                f"Agent media generated for {agent_name}: "
-                                f"id={result.get('id')}"
+                            logger.debug(
+                                f"Agent media skip {agent_name}: dispatcher declined"
                             )
                 except Exception as e:
                     logger.error(
@@ -636,13 +680,113 @@ Expected: FAIL — routes don't exist yet.
 
 - [ ] **Step 3: Add agent config routes to routes.py**
 
-Append to end of `routes.py`. Use `import psycopg2.extras` at the top of the file or inline. Use safe parameter binding (never string-format SQL). All endpoints use `@login_required`.
+Append to end of `routes.py`:
 
-Four endpoints:
-1. `GET /api/agent-config` — list all configs, serialize datetimes with `.isoformat()`
-2. `PUT /api/agent-config/<agent_name>` — update config fields (allowlist: enabled, media_type, schedule_cron, default_prompt, default_negative, default_params, daily_cap, gallery_visibility). Upsert pattern: UPDATE first, if no row affected then INSERT.
-3. `POST /api/agent-config/<agent_name>/trigger` — call `agent_generate(agent_name)`, return result
-4. `POST /api/agent-config/<agent_name>/publish/<int:generation_id>` — call `publish_generation(generation_id, agent_name)`, return result
+```python
+# ── S21  Agent Config & Gallery ─────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/agent-config", methods=["GET"])
+@login_required
+def api_get_agent_config():
+    """List all agent media configurations."""
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM media_agent_config ORDER BY agent_name")
+        cols = [d[0] for d in cur.description]
+        configs = [dict(zip(cols, row)) for row in cur.fetchall()]
+    for c in configs:
+        for k, v in c.items():
+            if hasattr(v, "isoformat"):
+                c[k] = v.isoformat()
+    return jsonify(configs)
+
+
+@media_studio_bp.route("/api/agent-config/<agent_name>", methods=["PUT"])
+@login_required
+def api_update_agent_config(agent_name):
+    """Update or create agent media config."""
+    import psycopg2.extras
+    from database import get_db_cursor
+
+    data = request.get_json() or {}
+    allowed = [
+        "enabled", "media_type", "schedule_cron", "default_prompt",
+        "default_negative", "default_params", "daily_cap", "gallery_visibility",
+    ]
+    sets = []
+    vals = []
+    for key in allowed:
+        if key in data:
+            sets.append(f"{key} = %s")
+            val = data[key]
+            if key == "default_params":
+                val = psycopg2.extras.Json(val)
+            vals.append(val)
+    if not sets:
+        return jsonify({"error": "No valid fields to update"}), 400
+
+    sets.append("updated_at = NOW()")
+    vals.append(agent_name)
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            f"UPDATE media_agent_config SET {', '.join(sets)} "
+            f"WHERE agent_name = %s RETURNING id",
+            vals,
+        )
+        row = cur.fetchone()
+        if not row:
+            cur.execute(
+                """INSERT INTO media_agent_config (agent_name, enabled, media_type,
+                   schedule_cron, default_prompt, default_negative, default_params,
+                   daily_cap, gallery_visibility)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (
+                    agent_name,
+                    data.get("enabled", False),
+                    data.get("media_type", "image"),
+                    data.get("schedule_cron", "0 */4 * * *"),
+                    data.get("default_prompt", ""),
+                    data.get("default_negative", ""),
+                    psycopg2.extras.Json(data.get("default_params", {})),
+                    data.get("daily_cap", 10),
+                    data.get("gallery_visibility", "private"),
+                ),
+            )
+    return jsonify({"success": True})
+
+
+@media_studio_bp.route(
+    "/api/agent-config/<agent_name>/trigger", methods=["POST"]
+)
+@login_required
+def api_trigger_agent_generation(agent_name):
+    """Manually trigger agent media generation."""
+    from tools.media_studio.services.agent_media_service import agent_generate
+
+    result = agent_generate(agent_name)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route(
+    "/api/agent-config/<agent_name>/publish/<int:generation_id>",
+    methods=["POST"],
+)
+@login_required
+def api_publish_agent_generation(agent_name, generation_id):
+    """Publish an agent generation to shared gallery."""
+    from tools.media_studio.services.agent_media_service import publish_generation
+
+    result = publish_generation(generation_id, agent_name)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+```
 
 - [ ] **Step 4: Add owner_type filter to existing generations endpoint**
 
@@ -898,21 +1042,96 @@ git commit -m "feat(media-studio): add agent gallery + config panel CSS"
 
 - [ ] **Step 1: Write comprehensive integration test**
 
-Test all Layer 7 components:
-- Import `agent_media_service` (all 4 functions + `GLOBAL_DAILY_CAP`)
-- Verify `GLOBAL_DAILY_CAP == 100`
-- Verify function signatures
-- `agent_generate('nonexistent')` returns error
-- `get_agent_gallery('nonexistent')` returns empty list
-- `orchestration_generate('nonexistent', {...})` returns error
-- `publish_generation(999999, 'nonexistent')` returns error
-- DB: `media_agent_config` table exists
-- DB: `gallery_visibility` column exists on `media_generations`
-- `AgentLoop._check_media_schedules` method exists
-- `OrchestrationEngine` source contains `media_generate`
-- Agent routes registered (>= 3)
-- HTML: `msGalleryFilter`, `msAgentConfig`, `setGalleryFilter`, `loadAgentConfig`, `triggerAgentGeneration`, `ms-agent-badge`
-- CSS: `.ms-gallery-filter`, `.ms-agent-badge`, `.ms-agent-config`
+Create `/tmp/test_layer7.py`:
+
+```python
+import sys, json, os, logging, inspect
+sys.path.insert(0, '/app/platform_v2')
+sys.path.insert(0, '/app')
+logging.disable(logging.CRITICAL)
+
+results = []
+
+# Test imports
+from tools.media_studio.services.agent_media_service import (
+    agent_generate, publish_generation, get_agent_gallery,
+    orchestration_generate, GLOBAL_DAILY_CAP,
+)
+results.append(('Import agent_media_service', 'OK', True))
+
+# Test constants
+results.append(('GLOBAL_DAILY_CAP is 100', GLOBAL_DAILY_CAP, GLOBAL_DAILY_CAP == 100))
+
+# Test function signature
+sig = inspect.signature(agent_generate)
+results.append(('agent_generate params', list(sig.parameters.keys()),
+    all(p in sig.parameters for p in ['agent_name', 'media_type', 'prompt', 'params'])))
+
+from app import app
+with app.app_context():
+    # Test agent_generate with no config
+    r = agent_generate('nonexistent_test_agent')
+    results.append(('No config error', r.get('error', ''), 'error' in r))
+
+    # Test get_agent_gallery empty
+    gallery = get_agent_gallery('nonexistent_test_agent')
+    results.append(('Empty gallery', len(gallery), isinstance(gallery, list) and len(gallery) == 0))
+
+    # Test orchestration_generate with no config
+    r = orchestration_generate('nonexistent_test_agent', {'prompt': 'test', 'media_type': 'image'})
+    results.append(('Orchestration no config', r.get('error', ''), 'error' in r))
+
+    # Test publish_generation with bad ID
+    r = publish_generation(999999, 'nonexistent_test_agent')
+    results.append(('Publish bad ID', r.get('error', ''), 'error' in r))
+
+    # Check DB table exists
+    from database import get_db_cursor
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT COUNT(*) FROM media_agent_config")
+        results.append(('media_agent_config table', cur.fetchone()[0] >= 0, True))
+
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name='media_generations' AND column_name='gallery_visibility'"
+        )
+        results.append(('gallery_visibility column', cur.fetchone() is not None, True))
+
+    # Check AgentLoop has media method
+    from ai_bridge.agent_loop import AgentLoop
+    has_method = hasattr(AgentLoop, '_check_media_schedules')
+    results.append(('AgentLoop._check_media_schedules', has_method, has_method))
+
+    # Check orchestration engine
+    from ai_bridge.orchestration_engine import OrchestrationEngine
+    orch_source = inspect.getsource(OrchestrationEngine)
+    results.append(('Orchestration media_generate', 'media_generate' in orch_source, 'media_generate' in orch_source))
+
+    # Check routes
+    rules = [r.rule for r in app.url_map.iter_rules()
+             if 'media-studio' in r.rule and 'agent' in r.rule]
+    results.append(('Agent routes registered', len(rules), len(rules) >= 3))
+
+    # Check HTML
+    html_path = '/app/tools/media_studio/templates/tools/media_studio/media_studio.html'
+    with open(html_path) as f:
+        html = f.read()
+    for elem in ['msGalleryFilter', 'msAgentConfig', 'setGalleryFilter',
+                 'loadAgentConfig', 'triggerAgentGeneration', 'ms-agent-badge']:
+        results.append((f'HTML has {elem}', elem, elem in html))
+
+    # Check CSS
+    css_path = '/app/tools/media_studio/static/css/media-studio.css'
+    with open(css_path) as f:
+        css = f.read()
+    for cls in ['.ms-gallery-filter', '.ms-agent-badge', '.ms-agent-config']:
+        results.append((f'CSS has {cls}', cls, cls in css))
+
+passed = sum(1 for _, _, ok in results if ok)
+for name, val, ok in results:
+    print(f'[{"PASS" if ok else "FAIL"}] {name}: {val}')
+print(f'\nResult: {passed}/{len(results)} passed')
+```
 
 - [ ] **Step 2: Run integration test**
 

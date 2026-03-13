@@ -47,7 +47,7 @@
             <i data-lucide="image" style="width:16px;height:16px;"></i>
             <span data-i18n="media_studio.gallery">Gallery</span>
         </button>
-        <button class="glass-nav-item disabled" data-tab="portraits">
+        <button class="glass-nav-item" data-tab="portraits">
             <i data-lucide="users" style="width:16px;height:16px;"></i>
             <span data-i18n="media_studio.portraits">Portraits</span>
             <span class="ms-layer-badge">Layer 2</span>
@@ -272,9 +272,99 @@
          TAB: PORTRAITS (Disabled / Layer 2)
          ================================================================ -->
     <div id="ms-tab-portraits" class="ms-tab-pane">
-        <div class="ms-gallery-empty" style="padding:80px 20px;">
-            <i data-lucide="lock" style="display:block;margin:0 auto 12px;width:48px;height:48px;color:rgba(139,92,246,0.2);"></i>
-            <span data-i18n="media_studio.portraits_locked">Portraits module is planned for Layer 2 development.</span>
+        <!-- Agent Grid -->
+        <div class="ms-section-header">
+            <div class="ms-section-line"></div>
+            <h3 data-i18n="media_studio.agent_portraits">Agent Portraits</h3>
+            <div class="ms-section-line"></div>
+        </div>
+
+        <div class="ms-portrait-actions">
+            <button class="ms-btn ms-btn-accent" onclick="generateAllMissing()" data-i18n="media_studio.generate_all_missing">Generate All Missing</button>
+        </div>
+
+        <div id="ms-portrait-grid" class="ms-portrait-grid">
+            <!-- Populated by loadPortraits() -->
+        </div>
+
+        <!-- Agent Detail Panel (hidden until agent clicked) -->
+        <div id="ms-portrait-detail" class="ms-portrait-detail" style="display:none;">
+            <div class="ms-detail-header">
+                <button class="ms-btn ms-btn-ghost" onclick="closePortraitDetail()" data-i18n="media_studio.back_to_grid">Back</button>
+                <h3 id="ms-portrait-agent-name"></h3>
+                <span id="ms-portrait-status" class="ms-status-badge"></span>
+            </div>
+
+            <div class="ms-detail-layout">
+                <div class="ms-canonical-panel">
+                    <div id="ms-canonical-image" class="ms-canonical-image">
+                        <div class="ms-placeholder" data-i18n="media_studio.no_canonical">No canonical portrait</div>
+                    </div>
+                    <div class="ms-canonical-actions">
+                        <button class="ms-btn ms-btn-accent" onclick="generateCanonical()" data-i18n="media_studio.generate_canonical">Generate Canonical</button>
+                        <button class="ms-btn ms-btn-success" id="ms-approve-btn" onclick="approveCanonical()" style="display:none;" data-i18n="media_studio.approve">Approve</button>
+                    </div>
+                </div>
+
+                <div class="ms-identity-panel">
+                    <label data-i18n="media_studio.identity_prompt">Identity Prompt</label>
+                    <textarea id="ms-identity-prompt" class="ms-prompt-area" rows="4"></textarea>
+                    <button class="ms-btn ms-btn-ghost" onclick="saveIdentityPrompt()" data-i18n="media_studio.save_prompt">Save Prompt</button>
+                </div>
+            </div>
+
+            <!-- Variants Section -->
+            <div class="ms-section-header" style="margin-top:24px;">
+                <div class="ms-section-line"></div>
+                <h3 data-i18n="media_studio.variants">Variants</h3>
+                <div class="ms-section-line"></div>
+            </div>
+
+            <div class="ms-variant-actions">
+                <button class="ms-btn ms-btn-accent" id="ms-variant-btn" onclick="generateVariant()" style="display:none;" data-i18n="media_studio.generate_variant">Generate Variant</button>
+                <select id="ms-variant-style" class="ms-model-select">
+                    <option value="">Default style</option>
+                    <option value="professional headshot">Professional</option>
+                    <option value="casual portrait">Casual</option>
+                    <option value="action pose">Action</option>
+                    <option value="LCARS holographic">Holographic</option>
+                </select>
+            </div>
+
+            <div id="ms-variant-grid" class="ms-recent-grid">
+                <!-- Populated by loadPortraitDetail() -->
+            </div>
+        </div>
+
+        <!-- Environment Art Section -->
+        <div class="ms-section-header" style="margin-top:40px;">
+            <div class="ms-section-line"></div>
+            <h3 data-i18n="media_studio.environment_art">Environment Art</h3>
+            <div class="ms-section-line"></div>
+        </div>
+
+        <div class="ms-env-grid">
+            <div class="ms-env-card">
+                <h4 data-i18n="media_studio.hub_background">Hub Background (Starbase)</h4>
+                <div id="ms-env-hub-preview" class="ms-env-preview">
+                    <div class="ms-placeholder" data-i18n="media_studio.no_env">No background set</div>
+                </div>
+                <textarea id="ms-env-hub-prompt" class="ms-prompt-area" rows="3"></textarea>
+                <button class="ms-btn ms-btn-accent" onclick="generateEnvironment('hub')" data-i18n="media_studio.generate_background">Generate</button>
+            </div>
+            <div class="ms-env-card">
+                <h4 data-i18n="media_studio.node_background">Node Background (Starship)</h4>
+                <div id="ms-env-node-select" class="ms-node-select">
+                    <select id="ms-env-node-id" class="ms-model-select">
+                        <!-- Populated from fleet data -->
+                    </select>
+                </div>
+                <div id="ms-env-node-preview" class="ms-env-preview">
+                    <div class="ms-placeholder" data-i18n="media_studio.no_env">No background set</div>
+                </div>
+                <textarea id="ms-env-node-prompt" class="ms-prompt-area" rows="3"></textarea>
+                <button class="ms-btn ms-btn-accent" onclick="generateEnvironment('node')" data-i18n="media_studio.generate_background">Generate</button>
+            </div>
         </div>
     </div>
 
@@ -402,6 +492,7 @@
         else if (tabId === "gallery") loadGallery(1);
         else if (tabId === "queue") loadQueue();
         else if (tabId === "generate") loadModels();
+        else if (tabId === "portraits") loadPortraits();
 
         if (tabId !== "queue" && queuePollTimer) {
             clearInterval(queuePollTimer);
@@ -947,6 +1038,261 @@
             loadQueue();
         }).catch(function(err) {
             console.error("Cancel job failed:", err);
+        });
+    };
+
+    /* ── Portraits ────────────────────────────────── */
+
+    var _currentAgentId = null;
+
+    function _clearChildren(el) {
+        while (el.firstChild) el.removeChild(el.firstChild);
+    }
+
+    window.loadPortraits = function() {
+        fetch(API_BASE + '/api/portraits')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var grid = document.getElementById('ms-portrait-grid');
+                _clearChildren(grid);
+                (data.agents || []).forEach(function(agent) {
+                    var card = document.createElement('div');
+                    card.className = 'ms-portrait-card' + (agent.has_portrait ? ' has-portrait' : '');
+                    card.onclick = function() { openPortraitDetail(agent.id); };
+
+                    var thumb = document.createElement('div');
+                    thumb.className = 'ms-portrait-thumb';
+                    if (agent.avatar_url || agent.canonical_image_path) {
+                        var imgEl = document.createElement('img');
+                        imgEl.src = '/static/' + (agent.canonical_image_path || agent.avatar_url);
+                        imgEl.alt = agent.display_name;
+                        thumb.appendChild(imgEl);
+                    } else {
+                        var placeholder = document.createElement('div');
+                        placeholder.className = 'ms-portrait-placeholder';
+                        placeholder.textContent = (agent.display_name || '?').charAt(0);
+                        thumb.appendChild(placeholder);
+                    }
+                    card.appendChild(thumb);
+
+                    var info = document.createElement('div');
+                    info.className = 'ms-portrait-info';
+                    var name = document.createElement('span');
+                    name.className = 'ms-portrait-name';
+                    name.textContent = agent.display_name;
+                    info.appendChild(name);
+
+                    var status = document.createElement('span');
+                    status.className = 'ms-status-badge ' + (agent.approved ? 'completed' : agent.has_portrait ? 'pending' : 'idle');
+                    status.textContent = agent.approved ? 'Approved' : agent.has_portrait ? 'Pending' : 'No Portrait';
+                    info.appendChild(status);
+
+                    card.appendChild(info);
+                    grid.appendChild(card);
+                });
+                loadEnvironmentPrompts();
+            });
+    };
+
+    window.openPortraitDetail = function(agentId) {
+        _currentAgentId = agentId;
+        document.getElementById('ms-portrait-grid').style.display = 'none';
+        document.querySelector('.ms-portrait-actions').style.display = 'none';
+        document.getElementById('ms-portrait-detail').style.display = 'block';
+        loadPortraitDetail(agentId);
+    };
+
+    window.closePortraitDetail = function() {
+        _currentAgentId = null;
+        document.getElementById('ms-portrait-detail').style.display = 'none';
+        document.getElementById('ms-portrait-grid').style.display = '';
+        document.querySelector('.ms-portrait-actions').style.display = '';
+    };
+
+    window.loadPortraitDetail = function(agentId) {
+        fetch(API_BASE + '/api/portraits/' + agentId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                document.getElementById('ms-portrait-agent-name').textContent = data.display_name;
+
+                var statusBadge = document.getElementById('ms-portrait-status');
+                statusBadge.className = 'ms-status-badge ' + (data.approved ? 'completed' : data.has_portrait ? 'pending' : 'idle');
+                statusBadge.textContent = data.approved ? 'Approved' : 'Pending Approval';
+
+                // Canonical image
+                var canonPanel = document.getElementById('ms-canonical-image');
+                _clearChildren(canonPanel);
+                if (data.canonical_image_path) {
+                    var img = document.createElement('img');
+                    img.src = '/static/' + data.canonical_image_path;
+                    img.alt = 'Canonical portrait';
+                    canonPanel.appendChild(img);
+                } else {
+                    var ph = document.createElement('div');
+                    ph.className = 'ms-placeholder';
+                    ph.textContent = 'No canonical portrait';
+                    canonPanel.appendChild(ph);
+                }
+
+                // Show/hide buttons
+                document.getElementById('ms-approve-btn').style.display = (data.canonical_image_path && !data.approved) ? '' : 'none';
+                document.getElementById('ms-variant-btn').style.display = data.approved ? '' : 'none';
+
+                // Identity prompt
+                document.getElementById('ms-identity-prompt').value = data.identity_prompt || data.default_identity_prompt || '';
+
+                // Variants grid
+                var vGrid = document.getElementById('ms-variant-grid');
+                _clearChildren(vGrid);
+                (data.variants || []).forEach(function(v) {
+                    var item = document.createElement('div');
+                    item.className = 'ms-gallery-item';
+                    item.onclick = function() { showMediaDetail(v.id); };
+
+                    var vImg = document.createElement('img');
+                    vImg.src = '/static/' + (v.thumbnail_path || v.file_path);
+                    vImg.alt = 'Variant';
+                    vImg.loading = 'lazy';
+                    item.appendChild(vImg);
+
+                    vGrid.appendChild(item);
+                });
+            });
+    };
+
+    window.generateCanonical = function() {
+        if (!_currentAgentId) return;
+        var prompt = document.getElementById('ms-identity-prompt').value.trim();
+        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-canonical', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({prompt: prompt || undefined})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); return; }
+            alert('Generation submitted. Check Queue tab for progress.');
+        });
+    };
+
+    window.generateVariant = function() {
+        if (!_currentAgentId) return;
+        var style = document.getElementById('ms-variant-style').value;
+        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-variant', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({style: style || undefined})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); return; }
+            alert('Variant generation submitted. Check Queue tab for progress.');
+        });
+    };
+
+    window.approveCanonical = function() {
+        if (!_currentAgentId) return;
+        fetch(API_BASE + '/api/portraits/' + _currentAgentId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.variants || !data.variants.length) {
+                    alert('No images to approve. Generate a canonical first.');
+                    return;
+                }
+                var mediaId = data.variants[0].id;
+                fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/approve', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({media_id: mediaId})
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    if (result.error) { alert(result.error); return; }
+                    loadPortraitDetail(_currentAgentId);
+                });
+            });
+    };
+
+    window.saveIdentityPrompt = function() {
+        if (!_currentAgentId) return;
+        var prompt = document.getElementById('ms-identity-prompt').value.trim();
+        if (!prompt) return;
+        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/identity-prompt', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({prompt: prompt})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); return; }
+        });
+    };
+
+    window.generateAllMissing = function() {
+        fetch(API_BASE + '/api/portraits')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var missing = (data.agents || []).filter(function(a) { return !a.has_portrait; });
+                if (!missing.length) { alert('All agents have portraits.'); return; }
+                if (!confirm('Generate portraits for ' + missing.length + ' agents?')) return;
+                missing.forEach(function(agent) {
+                    fetch(API_BASE + '/api/portraits/' + agent.id + '/generate-canonical', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({})
+                    });
+                });
+                alert(missing.length + ' portrait generations submitted. Check Queue tab.');
+            });
+    };
+
+    /* ── Environments ─────────────────────────────── */
+
+    window.loadEnvironmentPrompts = function() {
+        fetch(API_BASE + '/api/environments/prompts')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var prompts = data.prompts || {};
+                document.getElementById('ms-env-hub-prompt').value = prompts.hub || '';
+                document.getElementById('ms-env-node-prompt').value = prompts.node || '';
+            });
+
+        // Load hub environment assignment
+        fetch(API_BASE + '/api/assignments/hub/0?type=hub_background')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.assignment && data.assignment.file_path) {
+                    var preview = document.getElementById('ms-env-hub-preview');
+                    _clearChildren(preview);
+                    var img = document.createElement('img');
+                    img.src = '/static/' + data.assignment.file_path;
+                    img.alt = 'Hub background';
+                    preview.appendChild(img);
+                }
+            });
+    };
+
+    window.generateEnvironment = function(targetType) {
+        var promptEl = document.getElementById('ms-env-' + targetType + '-prompt');
+        var prompt = promptEl.value.trim();
+        if (!prompt) { alert('Enter a prompt first.'); return; }
+
+        var body = {target_type: targetType, prompt: prompt};
+        if (targetType === 'node') {
+            var nodeId = document.getElementById('ms-env-node-id').value;
+            if (!nodeId) { alert('Select a node first.'); return; }
+            body.target_id = parseInt(nodeId);
+        }
+
+        fetch(API_BASE + '/api/environments/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); return; }
+            alert('Environment generation submitted. Check Queue tab.');
         });
     };
 

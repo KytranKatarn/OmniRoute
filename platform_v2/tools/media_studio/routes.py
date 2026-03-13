@@ -901,3 +901,134 @@ def api_export_status(job_id):
     if not result:
         return jsonify({"error": "Not found"}), 404
     return jsonify(result)
+
+
+# ─── Batch Generation ────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/batches", methods=["POST"])
+@login_required
+def api_create_batch():
+    """Create a batch generation job."""
+    from .services.batch_service import create_batch
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body required"}), 400
+
+    result = create_batch(
+        name=data.get("name", ""),
+        owner_type="user",
+        owner_id=current_user.id,
+        media_type=data.get("media_type", "image"),
+        prompts=data.get("prompts", []),
+        base_params=data.get("base_params", {}),
+        sweep_param=data.get("sweep_param"),
+        sweep_values=data.get("sweep_values"),
+    )
+    if result.get("error"):
+        return jsonify(result), 400
+    return jsonify(result), 201
+
+
+@media_studio_bp.route("/api/batches", methods=["GET"])
+@login_required
+def api_list_batches():
+    """List user's batches."""
+    from .services.batch_service import list_batches
+
+    status = request.args.get("status")
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 10))
+    return jsonify(list_batches("user", current_user.id, status=status, page=page, per_page=per_page))
+
+
+@media_studio_bp.route("/api/batches/<int:batch_id>", methods=["GET"])
+@login_required
+def api_get_batch(batch_id):
+    """Get batch details with items."""
+    from .services.batch_service import get_batch, get_batch_items
+
+    batch = get_batch(batch_id, "user", current_user.id)
+    if not batch:
+        return jsonify({"error": "Batch not found"}), 404
+    items = get_batch_items(batch_id, "user", current_user.id)
+    return jsonify({"batch": batch, "items": items})
+
+
+@media_studio_bp.route("/api/batches/<int:batch_id>/cancel", methods=["POST"])
+@login_required
+def api_cancel_batch(batch_id):
+    """Cancel remaining items in a batch."""
+    from .services.batch_service import cancel_batch
+
+    cancelled = cancel_batch(batch_id, "user", current_user.id)
+    return jsonify({"cancelled": cancelled})
+
+
+@media_studio_bp.route("/api/batches/<int:batch_id>/retry", methods=["POST"])
+@login_required
+def api_retry_batch(batch_id):
+    """Retry failed items in a batch."""
+    from .services.batch_service import retry_batch_failed
+
+    retried = retry_batch_failed(batch_id, "user", current_user.id)
+    return jsonify({"retried": retried})
+
+
+# ─── Queue Management ────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/queue", methods=["GET"])
+@login_required
+def api_get_queue():
+    """Get paginated queue entries."""
+    from .services.batch_service import get_queue_entries
+
+    status = request.args.get("status")
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 20))
+    return jsonify(get_queue_entries("user", current_user.id, status=status, page=page, per_page=per_page))
+
+
+@media_studio_bp.route("/api/queue/<int:queue_id>/retry", methods=["POST"])
+@login_required
+def api_retry_queue_item(queue_id):
+    """Retry a single failed queue entry."""
+    from .services.batch_service import retry_single
+
+    success = retry_single(queue_id, "user", current_user.id)
+    if not success:
+        return jsonify({"error": "Item not found or not failed"}), 404
+    return jsonify({"status": "retried"})
+
+
+@media_studio_bp.route("/api/queue/<int:queue_id>/cancel", methods=["POST"])
+@login_required
+def api_cancel_queue_item(queue_id):
+    """Cancel a single pending/dispatched queue entry."""
+    from .services.batch_service import cancel_single
+
+    success = cancel_single(queue_id, "user", current_user.id)
+    if not success:
+        return jsonify({"error": "Item not found or not cancellable"}), 404
+    return jsonify({"status": "cancelled"})
+
+
+@media_studio_bp.route("/api/queue/stats", methods=["GET"])
+@login_required
+def api_queue_stats():
+    """Get queue statistics."""
+    from .services.batch_service import get_queue_stats
+
+    return jsonify(get_queue_stats("user", current_user.id))
+
+
+@media_studio_bp.route("/api/queue/clear-completed", methods=["POST"])
+@login_required
+def api_clear_completed():
+    """Clear completed queue entries older than 1 hour."""
+    from .services.batch_service import clear_completed
+
+    cleared = clear_completed("user", current_user.id)
+    return jsonify({"cleared": cleared})

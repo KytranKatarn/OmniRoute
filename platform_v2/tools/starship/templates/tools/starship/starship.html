@@ -363,6 +363,11 @@
 .sc-form-input:focus { outline: none; border-color: rgba(0,229,255,0.4); }
 .sc-form-input option { background: #0d1117; color: #fff; }
 .model-option-desc { font-size: 0.65rem; color: rgba(255,255,255,0.35); padding: 0 10px 4px; font-family: 'IBM Plex Mono', monospace; }
+/* Station command buttons */
+.sc-station-cmd-btn { display:inline-flex; flex-direction:column; align-items:center; padding:6px 12px; margin:3px; background:rgba(0,229,255,0.08); border:1px solid rgba(0,229,255,0.25); border-radius:5px; color:#e0e0e0; cursor:pointer; font-family:'IBM Plex Mono',monospace; font-size:11px; transition:all 0.2s; }
+.sc-station-cmd-btn:hover { background:rgba(0,229,255,0.18); border-color:#00e5ff; }
+.sc-station-cmd-btn .cmd-name { font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.sc-station-cmd-btn .cmd-capability { font-size:9px; opacity:0.6; margin-top:1px; }
 </style>
 
 <div class="sc-container">
@@ -2089,11 +2094,52 @@ function loadStarbaseStations() {
                     (busyCount > 0 ? '<span style="font-size:0.65rem;color:var(--sc-green);margin-left:4px;">' + busyCount + ' active</span>' : '') +
                 '</div>' +
                 '<div style="padding:10px 14px;">' + crewHtml + '</div>' +
+                '<div class="sc-station-commands" id="sb-cmds-' + _escSb(s.code) + '"></div>' +
             '</div>';
         }).join('');
+        // Load commands for each station
+        stations.forEach(function(s) {
+            loadStationCommands(s.code);
+        });
     }).catch(function() {
         grid.innerHTML = '<span class="sc-label">Failed to load stations</span>';
     });
+}
+
+// ── Station commands — load, render, execute ──
+function loadStationCommands(stationCode) {
+    var container = document.getElementById('sb-cmds-' + stationCode);
+    if (!container) return;
+    fetch('/tools/starship/api/station-commands?station_code=' + encodeURIComponent(stationCode))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var cmds = data.commands || [];
+            if (!cmds.length) { container.innerHTML = ''; return; }
+            container.innerHTML = '<div style="padding:6px 14px 10px;border-top:1px solid rgba(255,255,255,0.06);">' +
+                cmds.map(function(cmd) {
+                    return '<button class="sc-station-cmd-btn" onclick="executeStationCommand(' + cmd.id + ')" title="' + _escSb(cmd.description || cmd.command_name) + '">' +
+                        '<span class="cmd-name">' + _escSb(cmd.command_name) + '</span>' +
+                        '<span class="cmd-capability">' + _escSb(cmd.capability) + '</span>' +
+                    '</button>';
+                }).join('') +
+            '</div>';
+        })
+        .catch(function() {});
+}
+function executeStationCommand(cmdId) {
+    var prompt = window.prompt('Enter task details (or leave blank for default):');
+    if (prompt === null) return;
+    fetch('/tools/starship/api/station-commands/execute', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({command_id: parseInt(cmdId), prompt: prompt}),
+    }).then(function(r) { return r.json(); }).then(function(result) {
+        if (result.result) {
+            showToast('Command dispatched to ' + result.station, 'success');
+        } else {
+            showToast('Command failed: ' + (result.error || 'unknown'), 'error');
+        }
+    }).catch(function(e) { showToast('Command failed: ' + e, 'error'); });
 }
 
 // ── Station color map (populated by loadStarbaseStations or inline) ──

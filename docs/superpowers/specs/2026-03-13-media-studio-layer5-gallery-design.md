@@ -45,6 +45,7 @@ Index: `idx_media_tag_map_media` on `(media_id)`, `idx_media_tag_map_tag` on `(t
 | is_shared | BOOLEAN DEFAULT false | Visible to all users |
 | cover_media_id | INTEGER FK→media_library | Optional cover image |
 | created_at | TIMESTAMPTZ | DEFAULT now() |
+| updated_at | TIMESTAMPTZ | DEFAULT now() |
 
 Index: `idx_media_collections_owner` on `(owner_type, owner_id)`.
 
@@ -95,6 +96,8 @@ Index: `idx_media_smart_collections_owner` on `(owner_type, owner_id)`.
 - Index: `idx_media_library_prompt_emb` using ivfflat (pgvector) or GIN (JSONB)
 
 Migration checks for pgvector with `CREATE EXTENSION IF NOT EXISTS vector` and falls back gracefully.
+
+**pgvector vs JSONB fallback:** pgvector is required for production semantic search. The JSONB fallback is for dev/small datasets only — capped at 5,000 rows for semantic queries. If the media_library exceeds 5,000 rows without pgvector, `semantic_search()` logs a warning and returns empty results. Text search and faceted filters always work regardless.
 
 ---
 
@@ -157,13 +160,13 @@ All auto-tags use `tag_type='system'`, created on first use, reused thereafter.
 - Uses `ai_bridge/embedding_service.py` with nomic-embed-text (768-dim)
 - Called after generation completes (in generation_service, after media_library INSERT)
 - pgvector cosine distance: `prompt_embedding <=> %s` operator
-- JSONB fallback: load vectors in Python, compute cosine similarity, slower but functional
+- JSONB fallback: load vectors in Python, compute cosine similarity — dev/small datasets only, capped at 5,000 rows (returns empty if exceeded)
 
 ### `export_service.py` (~100 lines)
 
 | Function | Args | Returns | Notes |
 |----------|------|---------|-------|
-| `create_export_job` | media_ids, owner_type, owner_id | job_id | Validates ownership, creates Bridge job |
+| `create_export_job` | media_ids, owner_type, owner_id | job_id | Validates ALL media_ids belong to owner, creates Bridge job |
 | `generate_zip` | job_id, media_ids | file_path | Reads files, creates ZIP in MEDIA_ROOT/exports/ |
 | `get_export_status` | job_id, owner_type, owner_id | dict | Status + download URL when complete |
 | `cleanup_exports` | max_age_hours=1 | int (deleted) | APScheduler calls this hourly |
@@ -172,7 +175,7 @@ ZIP is generated as a background Bridge job. File saved to `MEDIA_ROOT/exports/e
 
 ---
 
-## API Routes (24 new endpoints)
+## API Routes (25 new endpoints)
 
 ### Tags
 
@@ -181,7 +184,7 @@ ZIP is generated as a background Bridge job. File saved to `MEDIA_ROOT/exports/e
 | GET | `/api/tags` | `?type=user\|system\|shared` | `{tags: [...]}` |
 | POST | `/api/tags` | `{name, tag_type}` | `{id, name, tag_type}` 201 |
 | POST | `/api/gallery/<media_id>/tags` | `{tag_ids: [...]}` | `{status: "tagged"}` |
-| DELETE | `/api/gallery/<media_id>/tags` | `{tag_ids: [...]}` | `{status: "untagged"}` |
+| POST | `/api/gallery/<media_id>/tags/remove` | `{tag_ids: [...]}` | `{status: "untagged"}` |
 | POST | `/api/gallery/bulk/tags` | `{media_ids: [...], tag_ids: [...]}` | `{count: N}` |
 
 ### Collections
@@ -194,7 +197,7 @@ ZIP is generated as a background Bridge job. File saved to `MEDIA_ROOT/exports/e
 | DELETE | `/api/collections/<id>` | | `{status: "deleted"}` |
 | GET | `/api/collections/<id>/items` | `?page=1&per_page=20` | paginated items |
 | POST | `/api/collections/<id>/items` | `{media_ids: [...]}` | `{count: N}` 201 |
-| DELETE | `/api/collections/<id>/items` | `{media_ids: [...]}` | `{count: N}` |
+| POST | `/api/collections/<id>/items/remove` | `{media_ids: [...]}` | `{count: N}` |
 
 ### Smart Collections
 
@@ -202,6 +205,7 @@ ZIP is generated as a background Bridge job. File saved to `MEDIA_ROOT/exports/e
 |--------|------|-------------|---------|
 | GET | `/api/smart-collections` | | `{smart_collections: [...]}` |
 | POST | `/api/smart-collections` | `{name, filters: {...}}` | `{id, name}` 201 |
+| DELETE | `/api/smart-collections/<id>` | | `{status: "deleted"}` |
 | GET | `/api/smart-collections/<id>/results` | `?page=1&per_page=20` | paginated items |
 
 ### Search
@@ -218,8 +222,12 @@ ZIP is generated as a background Bridge job. File saved to `MEDIA_ROOT/exports/e
 | POST | `/api/gallery/bulk/favorite` | `{media_ids: [...], state: bool}` | `{count: N}` |
 | POST | `/api/gallery/bulk/delete` | `{media_ids: [...]}` | `{count: N}` |
 | POST | `/api/gallery/bulk/move` | `{media_ids: [...], collection_id: int}` | `{count: N}` |
-| POST | `/api/gallery/bulk/reassign` | `{media_ids: [...], owner_type, owner_id}` | `{count: N}` |
+| POST | `/api/gallery/bulk/reassign` | `{media_ids: [...], owner_type, owner_id}` | `{count: N}` | **Admin only** |
 | POST | `/api/gallery/bulk/regenerate` | `{media_ids: [...]}` | `{queued: N}` |
+
+**`bulk/reassign`**: Admin-only endpoint (checks `current_user.is_admin`). Transfers media ownership to a different owner_type/owner_id.
+
+**`bulk/regenerate`**: Re-queues each media item with its original generation params (read from `media_library.metadata` + prompt/model/seed columns). Creates new `media_generation_queue` entries and new `media_library` rows on completion — does NOT overwrite originals. Works for all media types (image, video, audio). Items without stored params are skipped (count returned separately as `skipped`).
 
 ### Export
 
@@ -227,6 +235,8 @@ ZIP is generated as a background Bridge job. File saved to `MEDIA_ROOT/exports/e
 |--------|------|-------------|---------|
 | POST | `/api/export` | `{media_ids: [...]}` | `{job_id: N}` 201 |
 | GET | `/api/export/<job_id>` | | `{status, download_url?}` |
+
+All routes use `owner_type="user"` and `owner_id=current_user.id` from the route layer. Export validates all `media_ids` belong to the requesting user before creating the job.
 
 ---
 
@@ -277,7 +287,7 @@ ZIP is generated as a background Bridge job. File saved to `MEDIA_ROOT/exports/e
 - **Trigger:** After generation completes, in `generation_service.py` after `create_media_entry()`
 - **Storage:** `media_library.prompt_embedding` — `VECTOR(768)` with pgvector, `JSONB` fallback
 - **Similarity:** pgvector cosine distance operator `<=>`, or Python cosine for JSONB fallback
-- **Backfill:** Migration includes a note; a one-time script embeds existing media_library prompts
+- **Backfill:** Out of scope for Layer 5 (no existing media data yet). When media accumulates, a one-time backfill script can be added as a follow-up task.
 
 ## Auto-tagging
 
@@ -307,6 +317,6 @@ ZIP is generated as a background Bridge job. File saved to `MEDIA_ROOT/exports/e
 | Create | `services/search_service.py` | Faceted + semantic search |
 | Create | `services/export_service.py` | ZIP export background jobs |
 | Modify | `services/generation_service.py` | Hook auto_tag + embed_prompt after generation |
-| Modify | `routes.py` | 24 new API endpoints |
+| Modify | `routes.py` | 25 new API endpoints |
 | Modify | `templates/.../media_studio.html` | Gallery tab UI overhaul |
 | Modify | `static/css/media-studio.css` | New gallery component styles |

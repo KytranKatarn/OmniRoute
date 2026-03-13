@@ -42,8 +42,8 @@ Every agent in the fleet has a row in `agents`. This table is owned by Bridge Co
 **`node_agents.source_agent_id`** becomes NOT NULL with FK constraint to `agents.id`.
 
 - No orphan node agents allowed
-- `source_agent_id` = which Bridge agent this clone derives from (lineage)
-- `hub_agent_id` = optional, used for config sync push targeting
+- `source_agent_id` = which Bridge agent this clone derives from (lineage) — NOT NULL, ON DELETE RESTRICT
+- `hub_agent_id` = deprecated, redundant with `source_agent_id`. Both reference the same Bridge agent. Will be consolidated to just `source_agent_id` in this migration.
 - Node agents have their own unique names (from `_STARSHIP_FIRST_NAMES`/`_STARSHIP_LAST_NAMES` pools)
 - Node agents inherit station_codes from their source agent's station assignments
 
@@ -91,15 +91,17 @@ Intentionally simple — NOT a copy of the scoring algorithm. Just a checklist:
 
 1. Map request capability → station using `CAPABILITY_STATION_MAP` (synced from Bridge as config)
 2. Find local agents with that station in their `station_codes`
-3. Check each agent passes ALL:
+3. Check each agent passes ALL (mirrors Bridge hard-block conditions exactly):
    - Status = active
    - Shift state not cooldown/off_duty
-   - Stress < 0.9
-   - Energy > 0.15
+   - NOT (stress >= 0.9 AND energy <= 0.15) — critical welfare block
+   - Stress < 0.9 OR energy > 0.15 — at least one must be healthy
    - Task count < queue limit
 4. Check agent's model is loaded locally in Ollama (`/api/ps`)
 5. If any pass → pick lowest current task count → execute
 6. If none pass → escalate to Bridge with full request payload
+
+> **Note:** Local triage mirrors Bridge dispatcher hard-block conditions from `_score_agent()` to avoid dispatching locally to agents Bridge would have rejected.
 
 ### Bridge Fleet-Wide Dispatch
 
@@ -109,6 +111,22 @@ Uses existing `_select_agent()` and `_score_agent()` from `bridge_dispatcher.py`
 2. Factor in node hardware availability (model loaded? VRAM available?)
 3. Factor in network cost (prefer local/Starbase over remote nodes, prefer remote nodes over cloud)
 4. Write dispatch decision to `mesh_sync_log` with `sync_type='job_request'` for remote execution
+
+### Fleet Agent Cache Population
+
+Bridge maintains a fleet-wide agent cache (extension of existing `_agent_cache`):
+
+1. **Source:** Node heartbeats (every 30s) report idle agents with station_codes, model name, loaded status
+2. **Enrichment:** Bridge joins heartbeat data with `node_agents` + `agents` tables to get welfare state, shift state, performance rankings
+3. **Cache TTL:** 60s (matches sync poll interval) — stale entries from offline nodes are excluded from scoring
+4. **Scoring:** Remote node agents scored alongside Starbase agents using same `_score_agent()`, with an additional network-cost penalty for remote dispatch
+5. **Welfare for node agents:** Nodes report stress/energy in heartbeat payload (node_sync.py already tracks local agent state)
+
+### Job Request Timeout & Retry
+
+- Job requests have a 5-minute TTL. If not acknowledged within 5 minutes, Bridge marks the job as `failed` and re-dispatches to the next best agent.
+- If target node's heartbeat is stale (>90s), Bridge skips that node's agents during scoring.
+- Failed jobs increment the agent's failure count in `agent_performance_rankings` to inform future scoring.
 
 ### Result Reporting
 
@@ -225,7 +243,7 @@ Node heartbeat payload extended with `completed_jobs` array. Bridge processes in
 3. Recommendation engine scores available agents (existing 4-factor + new hardware fit)
 4. Admin reviews in Starship UI → approves → Bridge creates `node_agents` → pushes config
 
-### Scoring Factors (extended)
+### Scoring Factors (recommendation weights — distinct from dispatch scoring)
 
 | Factor | Weight | Description |
 |--------|--------|-------------|
@@ -238,6 +256,7 @@ Node heartbeat payload extended with `completed_jobs` array. Bridge processes in
 ### Fleet-Wide LLM Uniqueness
 
 - Recommendations exclude models already assigned to active agents fleet-wide
+- Recommendations exclude agents where `is_cloneable = false` (ARCHIE, Vigil, Kytran)
 - Model catalog (50+ LLMs) is the diversity pool
 - Each agent = 1 unique LLM = trackable performance profile
 - Catalog browsable in Starship UI for manual assignment
@@ -303,29 +322,34 @@ When a large model is loading on Starbase:
 ### Schema Migrations
 
 ```sql
--- Migration: 015_fleet_coordination.sql
+-- Migration: 148_fleet_coordination.sql
 
--- 1. Clean orphan node agents
+-- 1. Clean orphan node agents (any without Bridge parent)
 DELETE FROM node_agents WHERE source_agent_id IS NULL;
 
--- 2. Enforce source_agent_id NOT NULL
+-- 2. Enforce source_agent_id NOT NULL + change ON DELETE to RESTRICT
+-- (prevents deleting Bridge agents that have node clones — must remove clones first)
 ALTER TABLE node_agents ALTER COLUMN source_agent_id SET NOT NULL;
+ALTER TABLE node_agents DROP CONSTRAINT IF EXISTS node_agents_source_agent_id_fkey;
+ALTER TABLE node_agents ADD CONSTRAINT node_agents_source_agent_id_fkey
+    FOREIGN KEY (source_agent_id) REFERENCES agents(id) ON DELETE RESTRICT;
 
 -- 3. Fleet-wide LLM uniqueness (active agents only)
-CREATE UNIQUE INDEX idx_agents_unique_model_active
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_unique_model_active
 ON agents (primary_model) WHERE status = 'active' AND primary_model IS NOT NULL;
 
--- 4. Station commands table
+-- 4. Station commands table (uses station_id FK like rest of codebase)
 CREATE TABLE IF NOT EXISTS station_commands (
     id SERIAL PRIMARY KEY,
-    station_code VARCHAR(50) NOT NULL REFERENCES bridge_stations(station_code),
+    station_id INTEGER NOT NULL REFERENCES bridge_stations(id) ON DELETE CASCADE,
     command_name VARCHAR(100) NOT NULL,
     capability VARCHAR(100) NOT NULL,
     description TEXT,
-    parameters_schema JSONB DEFAULT '{}',
+    parameters_schema JSONB,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(station_code, command_name)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(station_id, command_name)
 );
 
 -- 5. Index for fleet dispatch queries
@@ -339,6 +363,12 @@ CREATE INDEX IF NOT EXISTS idx_node_agents_station ON node_agents USING GIN(stat
 - Mesh sync endpoints are new additions
 - Local triage is new node-side code
 - Dispatcher fleet-wide extension is additive to existing scoring
+- Fleet dispatch flows through the existing orchestration pipeline including IAAE governance checks
+
+### Known Limitations (Initial Implementation)
+
+- **Job dispatch latency:** Node poll interval is 60s, so remote-dispatched jobs may wait up to 60s to start. Acceptable for v1. Future optimization: add a lightweight webhook endpoint on nodes for priority dispatch, or WebSocket/SSE push.
+- **Offline nodes:** If a node goes offline, pending job_requests timeout after 5 minutes and re-dispatch. No real-time push notification of node loss.
 
 ---
 
@@ -346,10 +376,10 @@ CREATE INDEX IF NOT EXISTS idx_node_agents_station ON node_agents USING GIN(stat
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `database/migrations/015_fleet_coordination.sql` | Create | Schema cleanup + new tables |
-| `ai_bridge/bridge_dispatcher.py` | Modify | Extend `_select_agent` for fleet-wide scoring |
+| `database/migrations/148_fleet_coordination.sql` | Create | Schema cleanup + new tables |
+| `ai_bridge/bridge_dispatcher.py` | Modify | Extend `_select_agent` for fleet-wide scoring, fleet agent cache |
 | `ai_bridge/fleet_triage.py` | Create | Lightweight triage logic (shared with nodes) |
-| `platform_v2/tools/bridge/routes.py` | Modify | Add mesh sync endpoints, fleet broadcast |
+| `platform_v2/tools/bridge/mesh_routes.py` | Modify | Add mesh sync endpoints (pending, ack, broadcast) — existing file |
 | `platform_v2/tools/starship/routes.py` | Modify | Station commands UI endpoints, recommendation updates |
 | `platform_v2/tools/starship/templates/tools/starship/starship.html` | Modify | Station command UI, job tracker |
 | `node_client/node_sync.py` | Modify | Add local triage, job execution, result reporting |

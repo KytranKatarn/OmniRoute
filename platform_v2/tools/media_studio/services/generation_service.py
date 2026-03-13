@@ -40,6 +40,23 @@ DEFAULT_IMAGE_PARAMS = {
     "seed": -1,
 }
 
+DEFAULT_VIDEO_PARAMS = {
+    "model": "sd_xl_base_1.0.safetensors",
+    "motion_model": "mm_sd_v15_v2.safetensors",
+    "width": 512,
+    "height": 512,
+    "duration": 2,
+    "fps": 8,
+    "steps": 20,
+    "cfg": 7.0,
+    "sampler": "euler_ancestral",
+    "seed": -1,
+    "motion_strength": 1.0,
+}
+
+# Duration to frame count mapping
+DURATION_FRAMES = {2: 16, 4: 32, 6: 48}
+
 
 def submit_generation(
     user_id: int,
@@ -57,7 +74,16 @@ def submit_generation(
     if media_type not in MEDIA_TYPE_CAPABILITIES:
         return {"error": f"Unsupported media type: {media_type}"}
 
-    merged_params = {**DEFAULT_IMAGE_PARAMS, **(params or {})}
+    if media_type == "video":
+        defaults = DEFAULT_VIDEO_PARAMS
+    else:
+        defaults = DEFAULT_IMAGE_PARAMS
+    merged_params = {**defaults, **(params or {})}
+
+    # Convert duration to frames for video
+    if media_type == "video" and "duration" in merged_params:
+        merged_params["frames"] = DURATION_FRAMES.get(merged_params["duration"], merged_params["duration"] * 8)
+
     merged_params["prompt"] = prompt
     merged_params["negative_prompt"] = negative_prompt
 
@@ -394,5 +420,118 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
 
     except Exception as e:
         logger.error(f"ComfyUI generation failed for queue {queue_id}: {e}")
+        on_generation_failed(queue_id, str(e))
+        return None
+
+
+def generate_video_via_comfyui(queue_id: int) -> Optional[int]:
+    """Direct ComfyUI AnimateDiff generation — called when Bridge assigns video to local Pixel.
+
+    Builds AnimateDiff workflow, submits to ComfyUI API, polls for completion,
+    retrieves output file, calls on_generation_complete.
+    """
+    from ai_bridge.comfyui_service import get_comfyui_service
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM media_generation_queue WHERE id = %s", (queue_id,))
+        queue_row = cur.fetchone()
+
+    if not queue_row:
+        return None
+
+    params = queue_row["params"] or {}
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE media_generation_queue SET status = 'generating', started_at = NOW() WHERE id = %s",
+            (queue_id,),
+        )
+
+    try:
+        from .comfyui_manager import build_animatediff_workflow
+
+        start = time.time()
+        svc = get_comfyui_service()
+
+        workflow = build_animatediff_workflow(
+            prompt=params.get("prompt", ""),
+            negative_prompt=params.get("negative_prompt", ""),
+            model=params.get("model", "sd_xl_base_1.0.safetensors"),
+            motion_model=params.get("motion_model", "mm_sd_v15_v2.safetensors"),
+            width=params.get("width", 512),
+            height=params.get("height", 512),
+            frames=params.get("frames", 16),
+            fps=params.get("fps", 8),
+            seed=params.get("seed", -1),
+            steps=params.get("steps", 20),
+            cfg=params.get("cfg", 7.0),
+            sampler=params.get("sampler", "euler_ancestral"),
+            motion_strength=params.get("motion_strength", 1.0),
+            ref_image=params.get("ref_image"),
+        )
+
+        # Submit workflow directly to ComfyUI /prompt API
+        import requests as http_requests
+
+        comfyui_url = svc.base_url
+        resp = http_requests.post(
+            f"{comfyui_url}/prompt",
+            json=workflow,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        prompt_id = resp.json()["prompt_id"]
+
+        # Poll for completion (video takes longer — up to 5 min)
+        import time as time_mod
+
+        max_wait = 300
+        poll_interval = 3
+        elapsed = 0
+        output_file = None
+
+        while elapsed < max_wait:
+            time_mod.sleep(poll_interval)
+            elapsed += poll_interval
+            hist_resp = http_requests.get(f"{comfyui_url}/history/{prompt_id}", timeout=10)
+            if hist_resp.status_code != 200:
+                continue
+            hist = hist_resp.json()
+            if prompt_id not in hist:
+                continue
+            outputs = hist[prompt_id].get("outputs", {})
+            # VHS_VideoCombine outputs gifs/videos in node "7"
+            node_out = outputs.get("7", {})
+            gifs = node_out.get("gifs", [])
+            if gifs:
+                output_file = gifs[0].get("filename")
+                break
+
+        duration_ms = int((time.time() - start) * 1000)
+
+        if output_file:
+            # Download from ComfyUI
+            dl_resp = http_requests.get(
+                f"{comfyui_url}/view",
+                params={"filename": output_file, "type": "output"},
+                timeout=30,
+            )
+            tmp_path = os.path.join(MEDIA_ROOT, f"tmp_video_{queue_id}.mp4")
+            with open(tmp_path, "wb") as f:
+                f.write(dl_resp.content)
+
+            return on_generation_complete(
+                queue_id=queue_id,
+                file_path=tmp_path,
+                seed=params.get("seed"),
+                duration_ms=duration_ms,
+                provider="comfyui",
+            )
+        else:
+            on_generation_failed(queue_id, "AnimateDiff generation timed out or produced no output")
+            return None
+
+    except Exception as e:
+        logger.error(f"AnimateDiff generation failed for queue {queue_id}: {e}")
         on_generation_failed(queue_id, str(e))
         return None

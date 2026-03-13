@@ -371,6 +371,32 @@ class OrchestrationEngine:
                 response_text = self._handle_memory_command(
                     intent_type, message, user_id, steps
                 )
+            elif intent_type == "media_generate":
+                try:
+                    from tools.media_studio.services.agent_media_service import (
+                        orchestration_generate,
+                    )
+
+                    agent_name = intent.get("agent_name", "")
+                    result = orchestration_generate(agent_name, intent)
+                    if "error" in result:
+                        response_text = f"Media generation failed: {result['error']}"
+                    else:
+                        response_text = (
+                            f"Media generation queued for {agent_name} "
+                            f"(ID: {result.get('id', 'unknown')})"
+                        )
+                    steps.append(
+                        ThinkingStep(
+                            step_type=StepType.EXECUTE.value,
+                            label=f"Media Generate: {agent_name}",
+                            data=result,
+                            duration_ms=0,
+                        )
+                    )
+                except Exception as e:
+                    logger.error(f"Media generate intent failed: {e}")
+                    response_text = f"Media generation error: {e}"
             # Team management intents bypass normal LLM execution
             elif intent_type in (
                 "team_management",

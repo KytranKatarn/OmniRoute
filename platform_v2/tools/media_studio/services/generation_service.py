@@ -535,3 +535,164 @@ def generate_video_via_comfyui(queue_id: int) -> Optional[int]:
         logger.error(f"AnimateDiff generation failed for queue {queue_id}: {e}")
         on_generation_failed(queue_id, str(e))
         return None
+
+
+def submit_external_video(queue_id: int, provider: str) -> Optional[str]:
+    """Submit video generation to an external provider (Runway, Kling, Pika).
+
+    Returns external job_id for polling, or None on failure.
+    Called by Bridge dispatcher when no local ComfyUI node can handle the request.
+    """
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM media_generation_queue WHERE id = %s", (queue_id,))
+        queue_row = cur.fetchone()
+
+    if not queue_row:
+        return None
+
+    params = queue_row["params"] or {}
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE media_generation_queue
+               SET status = 'dispatched', started_at = NOW(),
+                   params = params || %s
+               WHERE id = %s""",
+            (psycopg2.extras.Json({"external_provider": provider}), queue_id),
+        )
+
+    try:
+        from ai_bridge.external_providers import call_external
+
+        result = call_external(
+            provider_key=provider,
+            prompt=params.get("prompt", ""),
+            model=params.get("external_model"),
+        )
+        # Store external job reference for polling
+        if result and not result.startswith("Error"):
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE media_generation_queue
+                       SET params = params || %s
+                       WHERE id = %s""",
+                    (psycopg2.extras.Json({"external_job_id": result}), queue_id),
+                )
+            return result
+        else:
+            on_generation_failed(queue_id, f"External provider {provider} failed: {result}")
+            return None
+    except Exception as e:
+        logger.error(f"External video submission failed: {e}")
+        on_generation_failed(queue_id, str(e))
+        return None
+
+
+def poll_external_video(queue_id: int) -> Optional[int]:
+    """Poll an external video provider for job completion.
+
+    Checks the external_job_id stored in queue params, queries the provider,
+    and if complete, downloads the result and calls on_generation_complete.
+    Returns media_library ID on success, None if still pending or failed.
+    """
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM media_generation_queue WHERE id = %s", (queue_id,))
+        queue_row = cur.fetchone()
+
+    if not queue_row:
+        return None
+
+    params = queue_row["params"] or {}
+    provider = params.get("external_provider")
+    job_id = params.get("external_job_id")
+
+    if not provider or not job_id:
+        logger.warning(f"Queue {queue_id} missing external provider/job_id for polling")
+        return None
+
+    try:
+        from ai_bridge.external_providers import call_external
+
+        # Poll provider — result is either a URL (complete), "pending", or error
+        result = call_external(
+            provider_key=provider,
+            prompt=f"poll:{job_id}",
+            model=None,
+        )
+
+        if result and result.startswith("http"):
+            # Job complete — download result
+            file_path = download_external_result(provider, result, queue_id)
+            if file_path:
+                return on_generation_complete(
+                    queue_id=queue_id,
+                    file_path=file_path,
+                    provider=provider,
+                )
+            else:
+                on_generation_failed(queue_id, f"Failed to download from {provider}")
+                return None
+        elif result == "pending":
+            return None  # Still processing
+        else:
+            on_generation_failed(queue_id, f"External poll failed: {result}")
+            return None
+    except Exception as e:
+        logger.error(f"External video poll failed for queue {queue_id}: {e}")
+        return None
+
+
+def download_external_result(provider: str, url: str, queue_id: int) -> Optional[str]:
+    """Fetch completed video from external API, save locally.
+
+    Downloads the file from the provider URL and saves to MEDIA_ROOT.
+    Returns local file path on success, None on failure.
+    """
+    import requests as http_requests
+
+    try:
+        resp = http_requests.get(url, timeout=60, stream=True)
+        resp.raise_for_status()
+
+        # Determine extension from content-type
+        ct = resp.headers.get("content-type", "")
+        ext = ".mp4"
+        if "gif" in ct:
+            ext = ".gif"
+        elif "webm" in ct:
+            ext = ".webm"
+
+        filename = f"external_{provider}_{queue_id}_{int(time.time())}{ext}"
+        dest_path = os.path.join(MEDIA_ROOT, "tmp", filename)
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+        with open(dest_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        return dest_path
+    except Exception as e:
+        logger.error(f"Failed to download external result from {provider}: {e}")
+        return None
+
+
+def get_video_providers() -> list:
+    """Return available external video providers with capabilities.
+
+    Reads from contractor_providers table where provider supports video.
+    """
+    providers = []
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT provider_key, display_name, capabilities, cost_per_unit
+                   FROM contractor_providers
+                   WHERE is_active = true
+                     AND capabilities ? 'video_generation'
+                   ORDER BY cost_per_unit ASC NULLS LAST"""
+            )
+            for row in cur.fetchall():
+                providers.append(dict(row))
+    except Exception as e:
+        logger.warning(f"Failed to query video providers: {e}")
+    return providers

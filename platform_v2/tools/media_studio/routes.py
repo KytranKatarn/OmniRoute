@@ -117,6 +117,8 @@ def api_gallery():
     req_owner_type = request.args.get("owner_type")
     agent_name = request.args.get("agent_name")
 
+    show_versions = request.args.get("show_versions", "false") == "true"
+
     if req_owner_type == "agent":
         # Shared agent gallery — bypass per-user ownership filter
         conditions = [
@@ -124,6 +126,8 @@ def api_gallery():
             "owner_type = 'agent'",
             "gallery_visibility = 'shared'",
         ]
+        if not show_versions:
+            conditions.append("parent_id IS NULL")
         params: list = []
         if agent_name:
             conditions.append("metadata->>'agent_name' = %s")
@@ -172,6 +176,7 @@ def api_gallery():
         favorites_only=favorites,
         page=page,
         per_page=per_page,
+        show_versions=show_versions,
     )
     return jsonify(result)
 
@@ -1192,3 +1197,73 @@ def api_publish_agent_generation(agent_name, generation_id):
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
+
+
+# ── S22  Image Editing ──
+
+
+@media_studio_bp.route("/api/media-studio/edit", methods=["POST"])
+@login_required
+def api_submit_edit():
+    from tools.media_studio.services.edit_service import submit_edit
+
+    data = request.get_json() or {}
+    source_id = data.get("source_id")
+    edit_type = data.get("edit_type")
+    params = data.get("params", {})
+    mask_data = data.get("mask_data")
+    if not source_id or not edit_type:
+        return jsonify({"error": "source_id and edit_type are required"}), 400
+    result = submit_edit(
+        source_id=source_id,
+        edit_type=edit_type,
+        params=params,
+        mask_data=mask_data,
+        owner_type="user",
+        owner_id=current_user.id,
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/edit/<int:edit_id>", methods=["GET"])
+@login_required
+def api_get_edit_status(edit_id):
+    from tools.media_studio.services.edit_service import get_edit_status
+
+    result = get_edit_status(edit_id)
+    if result is None:
+        return jsonify({"error": "Edit not found"}), 404
+    for k, v in list(result.items()):
+        if hasattr(v, "isoformat"):
+            result[k] = v.isoformat()
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/versions/<int:media_id>", methods=["GET"])
+@login_required
+def api_get_versions(media_id):
+    from tools.media_studio.services.edit_service import get_versions
+
+    versions = get_versions(media_id)
+    for v in versions:
+        for k, val in list(v.items()):
+            if hasattr(val, "isoformat"):
+                v[k] = val.isoformat()
+    return jsonify(versions)
+
+
+@media_studio_bp.route("/api/media-studio/edit/upload-mask", methods=["POST"])
+@login_required
+def api_upload_mask():
+    import base64
+
+    from tools.media_studio.services.edit_service import _save_mask
+
+    if "mask" not in request.files:
+        return jsonify({"error": "No mask file provided"}), 400
+    mask_file = request.files["mask"]
+    mask_b64 = base64.b64encode(mask_file.read()).decode("utf-8")
+    mask_path = _save_mask(mask_b64, source_id=0)
+    return jsonify({"mask_path": mask_path})

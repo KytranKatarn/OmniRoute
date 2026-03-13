@@ -479,3 +479,425 @@ def api_environment_prompts():
     from .services.portrait_service import get_environment_prompts
 
     return jsonify({"prompts": get_environment_prompts()})
+
+
+# ─── Tags ────────────────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/tags")
+@login_required
+def api_tags():
+    """List all tags, optionally filtered by type."""
+    from .services.tagging_service import get_tags
+
+    tag_type = request.args.get("type")
+    return jsonify({"tags": get_tags(tag_type)})
+
+
+@media_studio_bp.route("/api/tags", methods=["POST"])
+@login_required
+def api_create_tag():
+    """Create a new tag."""
+    from .services.tagging_service import create_tag
+
+    data = request.get_json()
+    if not data or not data.get("name"):
+        return jsonify({"error": "name is required"}), 400
+
+    tag_type = data.get("tag_type", "user")
+    if tag_type not in ("user", "shared"):
+        return jsonify({"error": "tag_type must be user or shared"}), 400
+
+    tag_id = create_tag(data["name"], tag_type, current_user.id)
+    return jsonify({"id": tag_id, "name": data["name"], "tag_type": tag_type}), 201
+
+
+@media_studio_bp.route("/api/gallery/<int:media_id>/tags", methods=["POST"])
+@login_required
+def api_add_tags(media_id):
+    """Add tags to a media item."""
+    from .services.tagging_service import tag_media
+
+    data = request.get_json()
+    if not data or not data.get("tag_ids"):
+        return jsonify({"error": "tag_ids is required"}), 400
+
+    tag_media(media_id, data["tag_ids"], "user", current_user.id)
+    return jsonify({"status": "tagged"})
+
+
+@media_studio_bp.route("/api/gallery/<int:media_id>/tags/remove", methods=["POST"])
+@login_required
+def api_remove_tags(media_id):
+    """Remove tags from a media item."""
+    from .services.tagging_service import untag_media
+
+    data = request.get_json()
+    if not data or not data.get("tag_ids"):
+        return jsonify({"error": "tag_ids is required"}), 400
+
+    untag_media(media_id, data["tag_ids"], "user", current_user.id)
+    return jsonify({"status": "untagged"})
+
+
+@media_studio_bp.route("/api/gallery/bulk/tags", methods=["POST"])
+@login_required
+def api_bulk_tags():
+    """Bulk add tags to multiple media items."""
+    from .services.tagging_service import bulk_tag
+
+    data = request.get_json()
+    if not data or not data.get("media_ids") or not data.get("tag_ids"):
+        return jsonify({"error": "media_ids and tag_ids are required"}), 400
+
+    count = bulk_tag(data["media_ids"], data["tag_ids"], "user", current_user.id)
+    return jsonify({"count": count})
+
+
+# ─── Collections ─────────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/collections")
+@login_required
+def api_collections():
+    """List user's collections + shared."""
+    from .services.collection_service import list_collections
+
+    include_shared = request.args.get("include_shared", "true").lower() == "true"
+    return jsonify({"collections": list_collections("user", current_user.id, include_shared)})
+
+
+@media_studio_bp.route("/api/collections", methods=["POST"])
+@login_required
+def api_create_collection():
+    """Create a new collection."""
+    from .services.collection_service import create_collection
+
+    data = request.get_json()
+    if not data or not data.get("name"):
+        return jsonify({"error": "name is required"}), 400
+
+    cid = create_collection(
+        name=data["name"],
+        owner_type="user",
+        owner_id=current_user.id,
+        description=data.get("description", ""),
+        is_shared=data.get("is_shared", False),
+    )
+    return jsonify({"id": cid, "name": data["name"]}), 201
+
+
+@media_studio_bp.route("/api/collections/<int:collection_id>", methods=["PUT"])
+@login_required
+def api_update_collection(collection_id):
+    """Update a collection."""
+    from .services.collection_service import update_collection
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    ok = update_collection(collection_id, "user", current_user.id, **data)
+    if not ok:
+        return jsonify({"error": "Not found or no changes"}), 404
+    return jsonify({"status": "updated"})
+
+
+@media_studio_bp.route("/api/collections/<int:collection_id>", methods=["DELETE"])
+@login_required
+def api_delete_collection(collection_id):
+    """Delete a collection (not the media inside)."""
+    from .services.collection_service import delete_collection
+
+    ok = delete_collection(collection_id, "user", current_user.id)
+    if not ok:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"status": "deleted"})
+
+
+@media_studio_bp.route("/api/collections/<int:collection_id>/items")
+@login_required
+def api_collection_items(collection_id):
+    """Paginated items in a collection."""
+    from .services.collection_service import get_collection_items
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    return jsonify(get_collection_items(collection_id, "user", current_user.id, page, per_page))
+
+
+@media_studio_bp.route("/api/collections/<int:collection_id>/items", methods=["POST"])
+@login_required
+def api_add_to_collection(collection_id):
+    """Add media items to a collection."""
+    from .services.collection_service import add_to_collection
+
+    data = request.get_json()
+    if not data or not data.get("media_ids"):
+        return jsonify({"error": "media_ids is required"}), 400
+
+    count = add_to_collection(collection_id, data["media_ids"], "user", current_user.id)
+    return jsonify({"count": count}), 201
+
+
+@media_studio_bp.route("/api/collections/<int:collection_id>/items/remove", methods=["POST"])
+@login_required
+def api_remove_from_collection(collection_id):
+    """Remove media items from a collection."""
+    from .services.collection_service import remove_from_collection
+
+    data = request.get_json()
+    if not data or not data.get("media_ids"):
+        return jsonify({"error": "media_ids is required"}), 400
+
+    count = remove_from_collection(collection_id, data["media_ids"], "user", current_user.id)
+    return jsonify({"count": count})
+
+
+# ─── Smart Collections ───────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/smart-collections")
+@login_required
+def api_smart_collections():
+    """List user's smart collections."""
+    from .services.collection_service import list_smart_collections
+
+    return jsonify({"smart_collections": list_smart_collections("user", current_user.id)})
+
+
+@media_studio_bp.route("/api/smart-collections", methods=["POST"])
+@login_required
+def api_create_smart_collection():
+    """Create a smart collection (saved filter preset)."""
+    from .services.collection_service import create_smart_collection
+
+    data = request.get_json()
+    if not data or not data.get("name") or not data.get("filters"):
+        return jsonify({"error": "name and filters are required"}), 400
+
+    sid = create_smart_collection(data["name"], data["filters"], "user", current_user.id)
+    return jsonify({"id": sid, "name": data["name"]}), 201
+
+
+@media_studio_bp.route("/api/smart-collections/<int:smart_id>", methods=["DELETE"])
+@login_required
+def api_delete_smart_collection(smart_id):
+    """Delete a smart collection."""
+    from .services.collection_service import delete_smart_collection
+
+    ok = delete_smart_collection(smart_id, "user", current_user.id)
+    if not ok:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"status": "deleted"})
+
+
+@media_studio_bp.route("/api/smart-collections/<int:smart_id>/results")
+@login_required
+def api_smart_collection_results(smart_id):
+    """Execute a smart collection and return matching media."""
+    from .services.collection_service import execute_smart_collection
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+    return jsonify(execute_smart_collection(smart_id, "user", current_user.id, page, per_page))
+
+
+# ─── Search ──────────────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/search")
+@login_required
+def api_search():
+    """Faceted + text + semantic search."""
+    from .services.search_service import search_media
+
+    query = request.args.get("q", "").strip()
+    filters = {}
+    if request.args.get("type"):
+        filters["media_type"] = request.args["type"]
+    if request.args.get("model"):
+        filters["model"] = request.args["model"]
+    if request.args.get("provider"):
+        filters["provider"] = request.args["provider"]
+    if request.args.get("date_from"):
+        filters["date_from"] = request.args["date_from"]
+    if request.args.get("date_to"):
+        filters["date_to"] = request.args["date_to"]
+    if request.args.get("min_width"):
+        filters["min_width"] = request.args.get("min_width", type=int)
+    if request.args.get("min_height"):
+        filters["min_height"] = request.args.get("min_height", type=int)
+    if request.args.get("tags"):
+        try:
+            filters["tags"] = [int(t) for t in request.args["tags"].split(",")]
+        except ValueError:
+            pass
+    if request.args.get("collection_id"):
+        filters["collection_id"] = request.args.get("collection_id", type=int)
+
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 20, type=int)
+
+    return jsonify(search_media("user", current_user.id, query or None, filters or None, page, per_page))
+
+
+@media_studio_bp.route("/api/search/facets")
+@login_required
+def api_search_facets():
+    """Available filter values for dropdowns."""
+    from .services.search_service import get_search_facets
+
+    return jsonify(get_search_facets("user", current_user.id))
+
+
+# ─── Bulk Operations ─────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/gallery/bulk/favorite", methods=["POST"])
+@login_required
+def api_bulk_favorite():
+    """Bulk set/unset favorite on multiple items."""
+    from .services.gallery_service import bulk_set_favorite
+
+    data = request.get_json()
+    if not data or not data.get("media_ids"):
+        return jsonify({"error": "media_ids is required"}), 400
+
+    count = bulk_set_favorite(data["media_ids"], data.get("state", True), "user", current_user.id)
+    return jsonify({"count": count})
+
+
+@media_studio_bp.route("/api/gallery/bulk/delete", methods=["POST"])
+@login_required
+def api_bulk_delete():
+    """Bulk soft-delete multiple items."""
+    from .services.gallery_service import bulk_soft_delete
+
+    data = request.get_json()
+    if not data or not data.get("media_ids"):
+        return jsonify({"error": "media_ids is required"}), 400
+
+    count = bulk_soft_delete(data["media_ids"], "user", current_user.id)
+    return jsonify({"count": count})
+
+
+@media_studio_bp.route("/api/gallery/bulk/move", methods=["POST"])
+@login_required
+def api_bulk_move():
+    """Bulk add items to a collection."""
+    from .services.collection_service import add_to_collection
+
+    data = request.get_json()
+    if not data or not data.get("media_ids") or not data.get("collection_id"):
+        return jsonify({"error": "media_ids and collection_id are required"}), 400
+
+    count = add_to_collection(data["collection_id"], data["media_ids"], "user", current_user.id)
+    return jsonify({"count": count})
+
+
+@media_studio_bp.route("/api/gallery/bulk/reassign", methods=["POST"])
+@login_required
+def api_bulk_reassign():
+    """Bulk reassign media ownership. Admin only."""
+    from .services.gallery_service import bulk_reassign
+
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"error": "Admin access required"}), 403
+
+    data = request.get_json()
+    if not data or not data.get("media_ids") or not data.get("owner_type"):
+        return jsonify({"error": "media_ids, owner_type are required"}), 400
+
+    count = bulk_reassign(data["media_ids"], data["owner_type"], data.get("owner_id"))
+    return jsonify({"count": count})
+
+
+@media_studio_bp.route("/api/gallery/bulk/regenerate", methods=["POST"])
+@login_required
+def api_bulk_regenerate():
+    """Re-queue media items with original generation params."""
+    from .services.generation_service import submit_generation
+
+    data = request.get_json()
+    if not data or not data.get("media_ids"):
+        return jsonify({"error": "media_ids is required"}), 400
+
+    from database import get_db_cursor
+
+    queued = 0
+    skipped = 0
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, media_type, prompt, negative_prompt, model, seed, width, height, metadata
+            FROM media_library
+            WHERE id = ANY(%s) AND owner_type = 'user' AND owner_id = %s AND is_deleted = false
+            """,
+            (data["media_ids"], current_user.id),
+        )
+        rows = cur.fetchall()
+
+    for row in rows:
+        if not row["prompt"]:
+            skipped += 1
+            continue
+
+        params = {}
+        if row["model"]:
+            params["model"] = row["model"]
+        if row["width"]:
+            params["width"] = row["width"]
+        if row["height"]:
+            params["height"] = row["height"]
+        # Merge stored metadata params
+        meta = row["metadata"] or {}
+        for k in ("steps", "cfg", "sampler", "audio_mode", "voice_id", "duration", "fps"):
+            if k in meta:
+                params[k] = meta[k]
+
+        result = submit_generation(
+            user_id=current_user.id,
+            media_type=row["media_type"],
+            prompt=row["prompt"],
+            negative_prompt=row.get("negative_prompt", ""),
+            params=params,
+        )
+        if "error" not in result:
+            queued += 1
+        else:
+            skipped += 1
+
+    return jsonify({"queued": queued, "skipped": skipped})
+
+
+# ─── Export ──────────────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/export", methods=["POST"])
+@login_required
+def api_create_export():
+    """Start a ZIP export job."""
+    from .services.export_service import create_export_job
+
+    data = request.get_json()
+    if not data or not data.get("media_ids"):
+        return jsonify({"error": "media_ids is required"}), 400
+
+    job_id = create_export_job(data["media_ids"], "user", current_user.id)
+    if not job_id:
+        return jsonify({"error": "Invalid media IDs or ownership mismatch"}), 400
+    return jsonify({"job_id": job_id}), 201
+
+
+@media_studio_bp.route("/api/export/<int:job_id>")
+@login_required
+def api_export_status(job_id):
+    """Get export job status."""
+    from .services.export_service import get_export_status
+
+    result = get_export_status(job_id, "user", current_user.id)
+    if not result:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(result)

@@ -203,3 +203,36 @@ def get_active_assignment(assignment_type: str, target_type: str, target_id: Opt
         )
         row = cur.fetchone()
     return dict(row) if row else None
+
+
+def bulk_set_favorite(media_ids, state, owner_type, owner_id):
+    """Bulk set/unset favorite. Returns count updated."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE media_library SET is_favorite = %s
+               WHERE id = ANY(%s) AND owner_type = %s AND owner_id = %s AND is_deleted = false""",
+            (state, media_ids, owner_type, owner_id),
+        )
+        return cur.rowcount
+
+
+def bulk_soft_delete(media_ids, owner_type, owner_id):
+    """Bulk soft-delete. Returns count deleted."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE media_library SET is_deleted = true
+               WHERE id = ANY(%s) AND owner_type = %s AND owner_id = %s AND is_deleted = false""",
+            (media_ids, owner_type, owner_id),
+        )
+        return cur.rowcount
+
+
+def bulk_reassign(media_ids, new_owner_type, new_owner_id):
+    """Bulk reassign ownership (admin only — caller must check). Returns count."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE media_library SET owner_type = %s, owner_id = %s
+               WHERE id = ANY(%s) AND is_deleted = false""",
+            (new_owner_type, new_owner_id, media_ids),
+        )
+        return cur.rowcount

@@ -1650,3 +1650,47 @@
     font-size: 0.8rem;
     font-style: italic;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   S18 · AUDIO CONTROLS
+   ═══════════════════════════════════════════════════════════════ */
+
+.ms-audio-controls {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(138, 92, 246, 0.15);
+    border-radius: 8px;
+}
+
+.ms-audio-mode-btns {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.ms-audio-mode-btn {
+    padding: 0.4rem 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(138, 92, 246, 0.3);
+    color: rgba(255, 255, 255, 0.6);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--ms-font-mono);
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.ms-audio-mode-btn:hover {
+    border-color: rgba(138, 92, 246, 0.6);
+    color: white;
+}
+
+.ms-audio-mode-btn.active {
+    background: rgba(138, 92, 246, 0.3);
+    border-color: #8b5cf6;
+    color: #c4b5fd;
+}
+
+.ms-audio-mode-controls {
+    margin-top: 0.75rem;
+}

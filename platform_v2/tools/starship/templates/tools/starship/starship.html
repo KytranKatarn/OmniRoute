@@ -577,6 +577,7 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         <div class="sc-tabs">
             <button class="sc-tab active" onclick="switchTab('status')" data-tab="status">STATUS</button>
             <button class="sc-tab" onclick="switchTab('ota')" data-tab="ota">OTA / SYNC</button>
+            <button class="sc-tab" onclick="switchTab('stations')" data-tab="stations">STATIONS</button>
             <button class="sc-tab" onclick="switchTab('crew')" data-tab="crew">CREW</button>
         </div>
 
@@ -675,6 +676,17 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                         <tbody id="sync-log-body"></tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- STATIONS TAB -->
+        <div class="sc-panel" id="panel-stations">
+            <div class="sc-section">
+                <h4>NODE STATIONS</h4>
+                <p style="color:rgba(255,255,255,0.35);font-size:0.8rem;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;">
+                    Stations this node's agents are assigned to, with crew and working status.
+                </p>
+                <div id="d-node-stations-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;"></div>
             </div>
         </div>
 
@@ -1046,6 +1058,9 @@ function switchTab(tab) {
     if (tab === 'ota' && selectedNodeDbId) {
         startSyncPolling();
     }
+    if (tab === 'stations' && selectedNodeDbId) {
+        loadNodeStations(selectedNodeDbId);
+    }
 }
 
 function closeDetail() {
@@ -1168,6 +1183,92 @@ function renderDetail(data) {
 
     // Crew tab — manifest-style cards (fetched separately)
     renderNodeManifest(selectedNodeDbId);
+
+// ── Node STATIONS tab — group node agents by station ──
+var _nodeStationsLoaded = {};
+async function loadNodeStations(nodeDbId) {
+    var grid = document.getElementById('d-node-stations-grid');
+    if (!grid) return;
+    if (_nodeStationsLoaded[nodeDbId]) return;
+    grid.innerHTML = '<span class="sc-label">Loading stations...</span>';
+
+    try {
+        var resp = await fetch('/tools/starship/api/nodes/' + nodeDbId + '/crew-manifest');
+        var data = await resp.json();
+        if (!data.success) { grid.innerHTML = '<span class="sc-label">Failed to load</span>'; return; }
+
+        var crew = data.crew || [];
+        _nodeStationsLoaded[nodeDbId] = true;
+
+        // Group agents by station
+        var stationMap = {};
+        crew.forEach(function(a) {
+            var codes = a.station_codes || [a.station || 'UNASSIGNED'];
+            codes.forEach(function(code) {
+                if (!stationMap[code]) stationMap[code] = { agents: [], color: '#00e5ff' };
+                stationMap[code].agents.push(a);
+                // Use station color from the agent's station_colors if available
+                var idx = codes.indexOf(code);
+                var colors = a.station_colors || [];
+                if (colors[idx]) stationMap[code].color = colors[idx];
+            });
+        });
+
+        // Also fetch bridge stations for names and colors of empty stations
+        var stResp = await fetch('/tools/bridge/api/stations');
+        var stData = await stResp.json();
+        var stationNames = {};
+        if (stData.success) {
+            (stData.stations || []).forEach(function(s) {
+                stationNames[s.code] = s.name || s.code;
+                if (!stationMap[s.code]) return; // Only show stations this node has agents for
+                if (s.color) stationMap[s.code].color = s.color;
+            });
+        }
+
+        var stationCodes = Object.keys(stationMap).sort();
+        if (!stationCodes.length) {
+            grid.innerHTML = '<span class="sc-label">No stations — assign agents to stations first</span>';
+            return;
+        }
+
+        grid.innerHTML = stationCodes.map(function(code) {
+            var st = stationMap[code];
+            var color = st.color;
+            var agents = st.agents;
+            var stName = stationNames[code] || code;
+
+            var crewHtml = agents.map(function(a) {
+                var displayName = a.full_name || a.name;
+                var isActive = a.status === 'active';
+                var dotColor = isActive ? 'var(--sc-green)' : 'rgba(255,255,255,0.3)';
+                var llmClass = a.llm_status || 'barracked';
+                var llmLabels = { loaded: 'LOADED', swap: 'SWAP', barracked: 'OFFLINE', cloud: 'CLOUD' };
+                var llmLabel = llmLabels[llmClass] || llmClass.toUpperCase();
+                var model = (a.model || '').replace(':latest', '');
+
+                return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">' +
+                    '<span style="width:6px;height:6px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;"></span>' +
+                    '<span style="color:rgba(255,255,255,0.8);font-size:0.8rem;flex:1;">' + escHtml(displayName) + '</span>' +
+                    '<span class="crew-llm-badge ' + llmClass + '" style="font-size:0.5rem;">' + llmLabel + '</span>' +
+                    '<span style="font-size:0.65rem;color:rgba(255,255,255,0.3);">' + escHtml(model) + '</span>' +
+                '</div>';
+            }).join('');
+
+            return '<div style="background:rgba(0,0,0,0.3);border:1px solid ' + color + '33;border-radius:8px;overflow:hidden;">' +
+                '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid ' + color + '22;">' +
+                    '<span style="width:8px;height:8px;border-radius:50%;background:' + color + ';"></span>' +
+                    '<span style="font-family:Antonio,sans-serif;color:' + color + ';font-size:0.9rem;letter-spacing:2px;">' + escHtml(stName) + '</span>' +
+                    '<span style="margin-left:auto;font-size:0.7rem;color:rgba(255,255,255,0.4);">' + agents.length + ' crew</span>' +
+                '</div>' +
+                '<div style="padding:10px 14px;">' + crewHtml + '</div>' +
+            '</div>';
+        }).join('');
+    } catch (e) {
+        grid.innerHTML = '<span class="sc-label">Failed to load stations</span>';
+        console.error('Node stations load failed:', e);
+    }
+}
 
 async function renderNodeManifest(nodeDbId) {
     try {

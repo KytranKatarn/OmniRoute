@@ -35,7 +35,7 @@ def get_all_agent_portraits() -> List[Dict]:
                    p.style_tags, p.updated_at
             FROM agents a
             LEFT JOIN agent_portraits p ON p.agent_id = a.id
-            WHERE a.is_active = true
+            WHERE a.status = 'active'
             ORDER BY a.display_name
             """
         )

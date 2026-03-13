@@ -338,6 +338,62 @@ class BridgeDispatcher:
                     f"[BridgeDispatcher] Skills cache load failed: {skills_err}"
                 )
 
+            # --- Fleet extension: add remote node agents to cache ---
+            try:
+                conn3 = self._get_db()
+                cur3 = conn3.cursor(cursor_factory=RealDictCursor)
+                cur3.execute("""
+                    SELECT na.id AS node_agent_id, na.name, na.node_id,
+                           na.source_agent_id, na.model AS local_model,
+                           na.station_codes, na.status,
+                           rn.node_id AS node_str_id, rn.hostname,
+                           rn.last_heartbeat, rn.status AS node_status,
+                           rn.gpu_vram_mb, rn.ram_total_mb, rn.ram_available_mb
+                    FROM node_agents na
+                    JOIN remote_nodes rn ON rn.id = na.node_id
+                    WHERE na.status = 'active'
+                      AND rn.status = 'online'
+                      AND rn.last_heartbeat > NOW() - INTERVAL '90 seconds'
+                """)
+                fleet_agents = cur3.fetchall()
+                cur3.close()
+                conn3.close()
+
+                fleet_count = 0
+                for row in fleet_agents:
+                    cache_key = f"fleet:{row['node_str_id']}:{row['name']}"
+                    self._agent_cache[cache_key] = {
+                        "id": row["node_agent_id"],
+                        "source_agent_id": row["source_agent_id"],
+                        "name": row["name"],
+                        "model": row["local_model"],
+                        "station_codes": row["station_codes"] or [],
+                        "status": row["status"],
+                        "node_id": row["node_str_id"],
+                        "node_db_id": row["node_id"],
+                        "hostname": row["hostname"],
+                        "is_remote": True,
+                        "gpu_vram_mb": row["gpu_vram_mb"],
+                        "ram_total_mb": row["ram_total_mb"],
+                        "ram_available_mb": row["ram_available_mb"],
+                        "shift_state": "active",
+                        "stress": 0.0,
+                        "energy": 1.0,
+                        "task_count": 0,
+                        "task_limit": 10,
+                        "skills": {},
+                    }
+                    fleet_count += 1
+
+                if fleet_count:
+                    logger.info(
+                        f"[BridgeDispatcher] Fleet cache: {fleet_count} remote agents"
+                    )
+            except Exception as fleet_err:
+                logger.warning(
+                    f"[BridgeDispatcher] Fleet cache population failed: {fleet_err}"
+                )
+
             self._cache_time = now
             logger.info(f"[BridgeDispatcher] Cached {len(self._agent_cache)} agents")
         except Exception as e:
@@ -1181,6 +1237,12 @@ class BridgeDispatcher:
         elif shift_state == "off_duty":
             return (0.0, f"{agent_name} is off duty (resting)")
 
+        # Fleet: network cost penalty for remote node agents
+        if agent_info.get("is_remote"):
+            composite *= 0.85  # 15% penalty for remote dispatch latency
+            if not agent_info.get("model_loaded", True):
+                composite *= 0.7  # Additional 30% if model not loaded on node
+
         return (round(composite, 4), None)
 
     def _resolve_module_station(self, module_id: str) -> Optional[str]:
@@ -1228,9 +1290,13 @@ class BridgeDispatcher:
         self._refresh_welfare_cache(skip_busy_refresh=skip_busy_refresh)
 
         # Gather all candidates assigned to this station
+        # Handles both local agents (station_code string) and
+        # fleet agents (station_codes array)
         candidates = []
         for name, info in self._agent_cache.items():
-            if info.get("station_code") == station_code:
+            agent_station = info.get("station_code", "")
+            agent_stations = info.get("station_codes", [])
+            if agent_station == station_code or station_code in agent_stations:
                 candidates.append((name, info))
 
         if not candidates:
@@ -2825,6 +2891,85 @@ class BridgeDispatcher:
             return None
 
     # ========================================================================
+    # ========================================================================
+    # FLEET DISPATCH
+    # ========================================================================
+
+    def _dispatch_to_remote_node(
+        self, agent_info, capability, prompt, module_id,
+        system_prompt, station_code, start_time,
+    ):
+        """Dispatch a job to a remote node via mesh_sync_log."""
+        import json as _json
+
+        node_id = agent_info["node_id"]
+        agent_name = agent_info.get("name", "unknown")
+        payload = {
+            "capability": capability,
+            "prompt": prompt,
+            "module_id": module_id,
+            "system_prompt": system_prompt,
+            "target_agent": agent_name,
+            "target_model": agent_info.get("model"),
+            "station_codes": agent_info.get("station_codes", []),
+        }
+
+        try:
+            from psycopg2.extras import RealDictCursor
+
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                INSERT INTO mesh_sync_log
+                    (node_id, sync_type, payload, status, sent_at)
+                VALUES (%s, 'job_request', %s, 'sent', NOW())
+                RETURNING id
+                """,
+                (node_id, _json.dumps(payload)),
+            )
+            sync_id = cur.fetchone()["id"]
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"[BridgeDispatcher] Fleet dispatch DB error: {e}")
+            # Fall back to ARCHIE on failure
+            return DispatchResult(
+                success=False,
+                response=f"Fleet dispatch failed: {e}",
+                agent_name="ARCHIE",
+                agent_id=2,
+                model_used="fallback",
+                station_code=station_code,
+                capability=capability,
+                duration_ms=int((time.time() - start_time) * 1000),
+            )
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.info(
+            f"[BridgeDispatcher] Fleet dispatch: job_request #{sync_id} "
+            f"to {node_id} agent {agent_name} for '{capability}'"
+        )
+
+        return DispatchResult(
+            success=True,
+            response=f"Dispatched to fleet node {node_id} agent {agent_name}",
+            agent_name=agent_name,
+            agent_id=agent_info.get("id"),
+            model_used=agent_info.get("model", "unknown"),
+            station_code=station_code,
+            capability=capability,
+            duration_ms=duration_ms,
+            metadata={
+                "fleet_dispatch": True,
+                "sync_id": sync_id,
+                "node_id": node_id,
+                "hostname": agent_info.get("hostname"),
+            },
+        )
+
+    # ========================================================================
     # PUBLIC API
     # ========================================================================
 
@@ -3241,6 +3386,13 @@ class BridgeDispatcher:
             )
             station_code = "COMMAND"
             dispatch_station = "COMMAND"
+
+        # 2d. Fleet: if selected agent is on a remote node, dispatch via mesh
+        if agent and agent.get("is_remote"):
+            return self._dispatch_to_remote_node(
+                agent, capability, prompt, module_id, system_prompt,
+                station_code, start,
+            )
 
         # 3. Determine model and system prompt
         model = agent.get("model", "dolphin3-8k:latest")

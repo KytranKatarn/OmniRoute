@@ -71,7 +71,11 @@ CREATE INDEX IF NOT EXISTS idx_media_library_parent ON media_library(parent_id);
 7. Submit to ComfyUI (or Lanczos fallback for upscale)
 8. On completion: create new `media_library` row with `parent_id=source_id`, `version=next_version`
 9. Update `media_edits` status to `completed`
-10. Return `{edit_id, generation_id}`
+10. Return `{edit_id, result_id}` (result_id = new media_library row ID)
+
+### Mask cleanup
+
+Uploaded/exported mask files in `media_studio/masks/` are cleaned up after the edit completes (success or failure). The `submit_edit` function deletes the mask file after it has been sent to ComfyUI and the edit row is updated.
 
 ### Per-type param validation
 
@@ -183,9 +187,9 @@ Response: {mask_path} — temporary path to use in subsequent edit request
 
 ### Existing endpoint modification
 
-`GET /api/media-studio/gallery` — Add `parent_id` filter:
-- Default behavior: exclude rows where `parent_id IS NOT NULL` (only show originals/latest versions)
-- `?show_versions=true` includes all versions
+`GET /api/media-studio/gallery` — Add version-aware filtering:
+- Default behavior: for each version chain, show only the latest version (highest `version` number); hide intermediate versions. Unedited originals (`parent_id IS NULL`) show as before.
+- `?show_versions=true` includes all versions in a chain
 
 ## Frontend
 

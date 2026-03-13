@@ -298,6 +298,64 @@ def api_update_identity_prompt(agent_id):
     return jsonify(result)
 
 
+# ─── Video ───────────────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/video/generate", methods=["POST"])
+@login_required
+def api_generate_video():
+    """Submit a video generation request (AnimateDiff or external)."""
+    from .services.generation_service import submit_generation
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    prompt = data.get("prompt", "").strip()
+    if not prompt:
+        return jsonify({"error": "Prompt is required"}), 400
+
+    params = {}
+    for k in (
+        "model",
+        "motion_model",
+        "width",
+        "height",
+        "duration",
+        "fps",
+        "steps",
+        "cfg",
+        "sampler",
+        "seed",
+        "motion_strength",
+        "ref_image",
+        "provider",
+    ):
+        if k in data:
+            params[k] = data[k]
+
+    result = submit_generation(
+        user_id=current_user.id,
+        media_type="video",
+        prompt=prompt,
+        negative_prompt=data.get("negative_prompt", ""),
+        params=params,
+    )
+
+    if "error" in result:
+        return jsonify(result), 400 if "Unsupported" in result["error"] else 500
+    return jsonify(result), 201
+
+
+@media_studio_bp.route("/api/video/providers")
+@login_required
+def api_video_providers():
+    """Get available external video providers."""
+    from .services.generation_service import get_video_providers
+
+    return jsonify({"providers": get_video_providers()})
+
+
 # ─── Environments ───────────────────────────────────────────────────
 
 

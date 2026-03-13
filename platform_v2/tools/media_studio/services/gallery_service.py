@@ -11,11 +11,10 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-MEDIA_ROOT = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    "static",
-    "media",
-)
+# Resolve from known platform_v2 location — works both local and Docker
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_PLATFORM_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
+MEDIA_ROOT = os.path.join(_PLATFORM_DIR, "static", "media")
 
 
 def get_gallery(

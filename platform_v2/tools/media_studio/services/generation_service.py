@@ -17,11 +17,10 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-MEDIA_ROOT = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    "static",
-    "media",
-)
+# Resolve from known platform_v2 location — works both local and Docker
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_PLATFORM_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
+MEDIA_ROOT = os.path.join(_PLATFORM_DIR, "static", "media")
 
 # Capability map: media type → Bridge capability
 MEDIA_TYPE_CAPABILITIES = {
@@ -287,3 +286,107 @@ def get_queue_status(
                 (limit,),
             )
         return [dict(row) for row in cur.fetchall()]
+
+
+def get_dashboard_stats(user_id: int) -> Dict:
+    """Aggregate stats for the dashboard tab."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE media_type = 'image') AS images,
+                COUNT(*) FILTER (WHERE media_type = 'video') AS videos,
+                COUNT(*) FILTER (WHERE media_type = 'audio') AS audio
+            FROM media_library
+            WHERE owner_type = 'user' AND owner_id = %s AND is_deleted = false
+            """,
+            (user_id,),
+        )
+        counts = dict(cur.fetchone())
+
+        cur.execute(
+            """
+            SELECT COUNT(*) AS active
+            FROM media_generation_queue
+            WHERE owner_type = 'user' AND owner_id = %s
+                  AND status IN ('pending', 'dispatched', 'generating')
+            """,
+            (user_id,),
+        )
+        counts["queue_active"] = cur.fetchone()["active"]
+
+        # Recent 8 items for dashboard grid
+        cur.execute(
+            """
+            SELECT id, media_type, file_path, thumbnail_path, prompt, created_at
+            FROM media_library
+            WHERE owner_type = 'user' AND owner_id = %s AND is_deleted = false
+            ORDER BY created_at DESC
+            LIMIT 8
+            """,
+            (user_id,),
+        )
+        counts["recent"] = [dict(row) for row in cur.fetchall()]
+
+    return counts
+
+
+def generate_via_comfyui(queue_id: int) -> Optional[int]:
+    """Direct ComfyUI generation — called when Bridge assigns to local Pixel.
+
+    Builds workflow, submits to ComfyUI API, polls for completion,
+    retrieves output file, calls on_generation_complete.
+    """
+    from ai_bridge.comfyui_service import get_comfyui_service
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM media_generation_queue WHERE id = %s", (queue_id,))
+        queue_row = cur.fetchone()
+
+    if not queue_row:
+        return None
+
+    params = queue_row["params"] or {}
+
+    # Update status
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE media_generation_queue SET status = 'generating', started_at = NOW() WHERE id = %s",
+            (queue_id,),
+        )
+
+    try:
+        start = time.time()
+        svc = get_comfyui_service()
+
+        result = svc.generate_image(
+            prompt=params.get("prompt", ""),
+            model=params.get("model", "sd_xl_base_1.0.safetensors"),
+            steps=params.get("steps", 25),
+            width=params.get("width", 1024),
+            height=params.get("height", 1024),
+            cfg=params.get("cfg", 7.0),
+            sampler=params.get("sampler", "euler_ancestral"),
+            seed=params.get("seed", -1),
+            negative_prompt=params.get("negative_prompt", ""),
+        )
+
+        duration_ms = int((time.time() - start) * 1000)
+
+        if result.success and result.file_path:
+            return on_generation_complete(
+                queue_id=queue_id,
+                file_path=result.file_path,
+                seed=params.get("seed"),
+                duration_ms=duration_ms,
+                provider="comfyui",
+            )
+        else:
+            on_generation_failed(queue_id, result.error or "Unknown ComfyUI error")
+            return None
+
+    except Exception as e:
+        logger.error(f"ComfyUI generation failed for queue {queue_id}: {e}")
+        on_generation_failed(queue_id, str(e))
+        return None

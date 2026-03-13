@@ -1051,10 +1051,13 @@ function scToast(msg, type) {
 }
 
 function switchTab(tab) {
-    document.querySelectorAll('.sc-tab').forEach(function(t) { t.classList.remove('active'); });
-    document.querySelectorAll('.sc-panel').forEach(function(p) { p.classList.remove('active'); });
-    document.querySelector('.sc-tab[data-tab="' + tab + '"]').classList.add('active');
-    document.getElementById('panel-' + tab).classList.add('active');
+    var modal = document.getElementById('sc-detail-overlay');
+    modal.querySelectorAll('.sc-tab[data-tab]').forEach(function(t) { t.classList.remove('active'); });
+    modal.querySelectorAll('.sc-panel').forEach(function(p) { p.classList.remove('active'); });
+    var tabBtn = modal.querySelector('.sc-tab[data-tab="' + tab + '"]');
+    if (tabBtn) tabBtn.classList.add('active');
+    var panel = document.getElementById('panel-' + tab);
+    if (panel) panel.classList.add('active');
     if (tab === 'ota' && selectedNodeDbId) {
         startSyncPolling();
     }
@@ -1183,6 +1186,7 @@ function renderDetail(data) {
 
     // Crew tab — manifest-style cards (fetched separately)
     renderNodeManifest(selectedNodeDbId);
+}
 
 // ── Node STATIONS tab — group node agents by station ──
 var _nodeStationsLoaded = {};
@@ -1416,8 +1420,6 @@ function _renderStarshipAgentCard(agent) {
     }
 
     return card;
-}
-
 }
 
 // ── Escape HTML helper ──

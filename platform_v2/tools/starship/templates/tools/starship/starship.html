@@ -1843,10 +1843,10 @@ function closeStarbaseDetail() {
 
 // ── Starbase tab switching ──
 function switchSbTab(tabId) {
-    document.querySelectorAll('#sc-starbase-detail .sc-tab').forEach(function(t) {
+    document.querySelectorAll('#sc-starbase-overlay .sc-tab').forEach(function(t) {
         t.classList.toggle('active', t.getAttribute('data-sbtab') === tabId);
     });
-    document.querySelectorAll('#sc-starbase-detail .sc-panel').forEach(function(p) {
+    document.querySelectorAll('#sc-starbase-overlay .sc-panel').forEach(function(p) {
         p.classList.toggle('active', p.id === 'panel-' + tabId);
     });
     if (tabId === 'sb-stations') loadStarbaseStations();

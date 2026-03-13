@@ -1959,3 +1959,81 @@ def api_node_sync_status(node_id):
             )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ── Station Commands API ────────────────────────────────────────────────
+
+
+@starship_bp.route("/api/station-commands", methods=["GET"])
+@admin_required
+def api_get_station_commands():
+    """Get all station commands, optionally filtered by station."""
+    station_code = request.args.get("station_code")
+
+    with get_db_cursor() as (conn, cur):
+        if station_code:
+            cur.execute(
+                """
+                SELECT sc.*, bs.station_code
+                FROM station_commands sc
+                JOIN bridge_stations bs ON bs.id = sc.station_id
+                WHERE bs.station_code = %s AND sc.is_active = true
+                ORDER BY sc.command_name
+                """,
+                (station_code,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT sc.*, bs.station_code
+                FROM station_commands sc
+                JOIN bridge_stations bs ON bs.id = sc.station_id
+                WHERE sc.is_active = true
+                ORDER BY bs.station_code, sc.command_name
+                """
+            )
+        commands = cur.fetchall()
+
+    return jsonify({"commands": [dict(c) for c in commands]})
+
+
+@starship_bp.route("/api/station-commands/execute", methods=["POST"])
+@admin_required
+def api_execute_station_command():
+    """Execute a station command via Smart Relay triage flow."""
+    data = request.get_json()
+    command_id = data.get("command_id")
+    prompt = data.get("prompt", "")
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT sc.*, bs.station_code
+            FROM station_commands sc
+            JOIN bridge_stations bs ON bs.id = sc.station_id
+            WHERE sc.id = %s AND sc.is_active = true
+            """,
+            (command_id,),
+        )
+        command = cur.fetchone()
+
+    if not command:
+        return jsonify({"error": "Command not found"}), 404
+
+    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    dispatcher = get_dispatcher()
+
+    result = dispatcher.request_work(
+        capability=command["capability"],
+        prompt=prompt or command["description"],
+        module_id="station_command",
+    )
+
+    return jsonify(
+        {
+            "command": command["command_name"],
+            "station": command["station_code"],
+            "result": result,
+        }
+    )

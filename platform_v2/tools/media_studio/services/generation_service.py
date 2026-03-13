@@ -82,6 +82,7 @@ def submit_generation(
     params: Optional[Dict] = None,
     owner_type: str = "user",
     owner_id: Optional[int] = None,
+    batch_id: Optional[int] = None,
 ) -> Dict:
     """Submit a generation request.
 
@@ -114,11 +115,11 @@ def submit_generation(
         cur.execute(
             """
             INSERT INTO media_generation_queue
-                (owner_type, owner_id, media_type, status, params)
-            VALUES (%s, %s, %s, 'pending', %s)
+                (owner_type, owner_id, media_type, status, params, batch_id)
+            VALUES (%s, %s, %s, 'pending', %s, %s)
             RETURNING id
             """,
-            (actual_owner_type, actual_owner_id, media_type, psycopg2.extras.Json(merged_params)),
+            (actual_owner_type, actual_owner_id, media_type, psycopg2.extras.Json(merged_params), batch_id),
         )
         queue_id = cur.fetchone()["id"]
 
@@ -288,6 +289,15 @@ def on_generation_complete(
     except Exception as e:
         logger.warning(f"Embed prompt failed for media {media_id}: {e}")
 
+    # Update batch counters if this is a batch item
+    if queue_row.get("batch_id"):
+        try:
+            from .batch_service import update_batch_counters
+
+            update_batch_counters(queue_row["batch_id"])
+        except Exception:
+            logger.warning("batch counter update failed for queue %s", queue_id)
+
     # Update queue
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
@@ -313,6 +323,18 @@ def on_generation_failed(queue_id: int, error: str) -> None:
             """,
             (error, queue_id),
         )
+
+    # Update batch counters if this is a batch item
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT batch_id FROM media_generation_queue WHERE id = %s", (queue_id,))
+        row = cur.fetchone()
+        if row and row.get("batch_id"):
+            try:
+                from .batch_service import update_batch_counters
+
+                update_batch_counters(row["batch_id"])
+            except Exception:
+                logger.warning("batch counter update failed for queue %s", queue_id)
 
 
 def cancel_generation(queue_id: int, user_id: int) -> bool:

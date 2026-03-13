@@ -183,6 +183,13 @@ Calls `agent_generate(agent_name)` immediately, bypassing schedule check (still 
 
 Response: `{generation_id}` or `{error}`
 
+#### `POST /api/agent-config/<agent_name>/publish/<generation_id>`
+Publish an agent's generation to the shared gallery. Admin only.
+
+Calls `publish_generation(generation_id, agent_name)`.
+
+Response: `{success: true}` or `{error}`
+
 ## Frontend
 
 **Modified file:** `platform_v2/tools/media_studio/templates/tools/media_studio/media_studio.html`
@@ -192,7 +199,9 @@ Response: `{generation_id}` or `{error}`
 Add filter buttons alongside existing gallery controls:
 
 - **All** | **Mine** | **Agent Art**
-- "Agent Art" queries `GET /api/generations?owner_type=agent`
+- "All" shows the user's own generations plus all agent generations with `gallery_visibility='shared'`
+- "Mine" shows only the current user's generations (existing behavior)
+- "Agent Art" queries `GET /api/generations?owner_type=agent` (shared only)
 - Each generation card shows agent name badge ("by Pixel") instead of user name
 - Clicking agent name filters to that agent's published work
 

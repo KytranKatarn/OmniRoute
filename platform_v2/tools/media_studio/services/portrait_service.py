@@ -29,7 +29,7 @@ def get_all_agent_portraits() -> List[Dict]:
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT a.id, a.name, a.display_name, a.avatar_url, a.station_code,
+            SELECT a.id, a.name, a.display_name, a.avatar_url,
                    p.id AS portrait_id, p.canonical_image_path, p.identity_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
                    p.style_tags, p.updated_at

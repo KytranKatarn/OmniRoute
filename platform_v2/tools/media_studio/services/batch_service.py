@@ -115,15 +115,10 @@ def _expand_batch(
                     params=params,
                     owner_type=owner_type,
                     owner_id=owner_id,
+                    batch_id=batch_id,
                 )
                 if result.get("queue_id"):
                     queue_ids.append(result["queue_id"])
-                    # Link to batch
-                    with get_db_cursor(commit=True) as (conn, cur):
-                        cur.execute(
-                            "UPDATE media_generation_queue SET batch_id = %s WHERE id = %s",
-                            (batch_id, result["queue_id"]),
-                        )
         elif sweep_param == "model" and sweep_values:
             for model_val in sweep_values:
                 params = {**base_params, "model": model_val}
@@ -135,14 +130,10 @@ def _expand_batch(
                     params=params,
                     owner_type=owner_type,
                     owner_id=owner_id,
+                    batch_id=batch_id,
                 )
                 if result.get("queue_id"):
                     queue_ids.append(result["queue_id"])
-                    with get_db_cursor(commit=True) as (conn, cur):
-                        cur.execute(
-                            "UPDATE media_generation_queue SET batch_id = %s WHERE id = %s",
-                            (batch_id, result["queue_id"]),
-                        )
         else:
             result = submit_generation(
                 owner_id,
@@ -152,13 +143,10 @@ def _expand_batch(
                 params=base_params,
                 owner_type=owner_type,
                 owner_id=owner_id,
+                batch_id=batch_id,
             )
             if result.get("queue_id"):
                 queue_ids.append(result["queue_id"])
-                with get_db_cursor(commit=True) as (conn, cur):
-                    cur.execute(
-                        "UPDATE media_generation_queue SET batch_id = %s WHERE id = %s", (batch_id, result["queue_id"])
-                    )
 
     # Update batch status to running
     if queue_ids:

@@ -5,6 +5,7 @@ per-user ownership. ComfyUI fleet status with GPU tiering.
 """
 
 import logging
+import os
 
 from flask import jsonify, request, render_template
 from flask_login import login_required, current_user
@@ -354,6 +355,94 @@ def api_video_providers():
     from .services.generation_service import get_video_providers
 
     return jsonify({"providers": get_video_providers()})
+
+
+# ─── Audio ────────────────────────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/audio/generate", methods=["POST"])
+@login_required
+def api_generate_audio():
+    """Submit an audio generation request (speech/sfx/music)."""
+    from .services.generation_service import submit_generation
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    prompt = data.get("prompt", "").strip()
+    if not prompt:
+        return jsonify({"error": "Prompt is required"}), 400
+
+    audio_mode = data.get("audio_mode", "speech")
+    if audio_mode not in ("speech", "sfx", "music"):
+        return jsonify({"error": "audio_mode must be speech, sfx, or music"}), 400
+
+    if audio_mode == "speech" and not data.get("voice_id"):
+        return jsonify({"error": "voice_id is required for speech mode"}), 400
+
+    params = {}
+    for k in ("audio_mode", "voice_id", "speed", "language", "duration", "provider", "seed"):
+        if k in data:
+            params[k] = data[k]
+
+    result = submit_generation(
+        user_id=current_user.id,
+        media_type="audio",
+        prompt=prompt,
+        negative_prompt="",
+        params=params,
+    )
+
+    if "error" in result:
+        return jsonify(result), 400 if "Unsupported" in result["error"] else 500
+    return jsonify(result), 201
+
+
+@media_studio_bp.route("/api/audio/voices")
+@login_required
+def api_audio_voices():
+    """Get available TTS voices (presets + custom agent voices)."""
+    from .services.tts_service import list_voices
+
+    return jsonify({"voices": list_voices()})
+
+
+@media_studio_bp.route("/api/audio/voices/upload", methods=["POST"])
+@login_required
+def api_upload_voice_sample():
+    """Upload a custom voice sample for an agent."""
+    from .services.tts_service import save_voice_sample
+
+    agent_name = request.form.get("agent_name", "").strip()
+    if not agent_name:
+        return jsonify({"error": "agent_name is required"}), 400
+
+    if "audio" not in request.files:
+        return jsonify({"error": "audio file is required"}), 400
+
+    audio_file = request.files["audio"]
+    if not audio_file.filename:
+        return jsonify({"error": "No file selected"}), 400
+
+    ext = os.path.splitext(audio_file.filename)[1].lower()
+    if ext not in (".wav", ".mp3"):
+        return jsonify({"error": "Only .wav and .mp3 files accepted"}), 400
+
+    result = save_voice_sample(agent_name, audio_file.read(), ext)
+    if "error" in result:
+        return jsonify(result), 500
+    return jsonify(result), 201
+
+
+@media_studio_bp.route("/api/audio/providers")
+@login_required
+def api_audio_providers():
+    """Get available external audio providers for a mode."""
+    from .services.generation_service import get_audio_providers
+
+    mode = request.args.get("mode", "sfx")
+    return jsonify({"providers": get_audio_providers(mode)})
 
 
 # ─── Environments ───────────────────────────────────────────────────

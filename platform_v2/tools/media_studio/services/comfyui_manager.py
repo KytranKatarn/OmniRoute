@@ -472,3 +472,295 @@ def build_animatediff_workflow(
         workflow["prompt"]["5"]["inputs"]["denoise"] = 0.7
 
     return workflow
+
+
+def build_inpaint_workflow(
+    image_path: str,
+    mask_path: str,
+    prompt: str,
+    negative_prompt: str = "",
+    model: str = "sd_xl_base_1.0.safetensors",
+    width: int = 1024,
+    height: int = 1024,
+    seed: int = -1,
+    steps: int = 25,
+    cfg: float = 7.0,
+    sampler: str = "euler_ancestral",
+    denoise: float = 0.75,
+) -> Dict:
+    """Build ComfyUI inpainting workflow.
+
+    Loads image + mask, encodes to latent, applies noise mask,
+    runs KSampler with partial denoise, decodes and saves.
+    """
+    import random
+
+    if seed < 0:
+        seed = random.randint(0, 2**63)
+
+    return {
+        "prompt": {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": model},
+            },
+            "2": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": prompt, "clip": ["1", 1]},
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": negative_prompt or "blurry, low quality, distorted, deformed",
+                    "clip": ["1", 1],
+                },
+            },
+            "4": {
+                "class_type": "LoadImage",
+                "inputs": {"image": image_path},
+            },
+            "5": {
+                "class_type": "LoadImage",
+                "inputs": {"image": mask_path},
+            },
+            "6": {
+                "class_type": "VAEEncode",
+                "inputs": {"pixels": ["4", 0], "vae": ["1", 2]},
+            },
+            "7": {
+                "class_type": "SetLatentNoiseMask",
+                "inputs": {"samples": ["6", 0], "mask": ["5", 1]},
+            },
+            "8": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "model": ["1", 0],
+                    "positive": ["2", 0],
+                    "negative": ["3", 0],
+                    "latent_image": ["7", 0],
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": sampler,
+                    "scheduler": "normal",
+                    "denoise": denoise,
+                },
+            },
+            "9": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["8", 0], "vae": ["1", 2]},
+            },
+            "10": {
+                "class_type": "SaveImage",
+                "inputs": {"images": ["9", 0], "filename_prefix": "edit_inpaint"},
+            },
+        }
+    }
+
+
+def build_outpaint_workflow(
+    image_path: str,
+    prompt: str,
+    negative_prompt: str = "",
+    direction: str = "right",
+    pixels: int = 128,
+    model: str = "sd_xl_base_1.0.safetensors",
+    seed: int = -1,
+    steps: int = 25,
+    cfg: float = 7.0,
+    sampler: str = "euler_ancestral",
+    denoise: float = 0.8,
+) -> Dict:
+    """Build ComfyUI outpainting workflow.
+
+    Uses ImagePadForOutpaint to extend canvas in a given direction,
+    then inpaints the new region via KSampler.
+    direction: 'left' | 'right' | 'top' | 'bottom' | 'all'
+    """
+    import random
+
+    if seed < 0:
+        seed = random.randint(0, 2**63)
+
+    left_px = right_px = top_px = bottom_px = 0
+    if direction == "all":
+        left_px = right_px = top_px = bottom_px = pixels
+    elif direction == "left":
+        left_px = pixels
+    elif direction == "right":
+        right_px = pixels
+    elif direction == "top":
+        top_px = pixels
+    elif direction == "bottom":
+        bottom_px = pixels
+
+    return {
+        "prompt": {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": model},
+            },
+            "2": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": prompt, "clip": ["1", 1]},
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": negative_prompt or "blurry, low quality, distorted, deformed",
+                    "clip": ["1", 1],
+                },
+            },
+            "4": {
+                "class_type": "LoadImage",
+                "inputs": {"image": image_path},
+            },
+            "5": {
+                "class_type": "ImagePadForOutpaint",
+                "inputs": {
+                    "image": ["4", 0],
+                    "left": left_px,
+                    "top": top_px,
+                    "right": right_px,
+                    "bottom": bottom_px,
+                    "feathering": 40,
+                },
+            },
+            "6": {
+                "class_type": "VAEEncode",
+                "inputs": {"pixels": ["5", 0], "vae": ["1", 2]},
+            },
+            "7": {
+                "class_type": "SetLatentNoiseMask",
+                "inputs": {"samples": ["6", 0], "mask": ["5", 1]},
+            },
+            "8": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "model": ["1", 0],
+                    "positive": ["2", 0],
+                    "negative": ["3", 0],
+                    "latent_image": ["7", 0],
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": sampler,
+                    "scheduler": "normal",
+                    "denoise": denoise,
+                },
+            },
+            "9": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["8", 0], "vae": ["1", 2]},
+            },
+            "10": {
+                "class_type": "SaveImage",
+                "inputs": {"images": ["9", 0], "filename_prefix": "edit_outpaint"},
+            },
+        }
+    }
+
+
+def build_upscale_workflow(
+    image_path: str,
+    model_name: str = "RealESRGAN_x4plus.pth",
+    target_scale: int = 4,
+) -> Dict:
+    """Build ComfyUI upscale workflow using a model-based upscaler.
+
+    Loads an upscale model (e.g. RealESRGAN) and applies it to the image.
+    Always outputs at 4x native resolution; caller handles further scaling.
+    """
+    return {
+        "prompt": {
+            "1": {
+                "class_type": "UpscaleModelLoader",
+                "inputs": {"model_name": model_name},
+            },
+            "2": {
+                "class_type": "LoadImage",
+                "inputs": {"image": image_path},
+            },
+            "3": {
+                "class_type": "ImageUpscaleWithModel",
+                "inputs": {"upscale_model": ["1", 0], "image": ["2", 0]},
+            },
+            "4": {
+                "class_type": "SaveImage",
+                "inputs": {"images": ["3", 0], "filename_prefix": "edit_upscale"},
+            },
+        }
+    }
+
+
+def build_img2img_workflow(
+    image_path: str,
+    prompt: str,
+    negative_prompt: str = "",
+    model: str = "sd_xl_base_1.0.safetensors",
+    seed: int = -1,
+    steps: int = 25,
+    cfg: float = 7.0,
+    sampler: str = "euler_ancestral",
+    denoise: float = 0.6,
+) -> Dict:
+    """Build ComfyUI img2img workflow.
+
+    Encodes the input image to latent space, then runs KSampler
+    with partial denoise to produce a variation guided by the prompt.
+    """
+    import random
+
+    if seed < 0:
+        seed = random.randint(0, 2**63)
+
+    return {
+        "prompt": {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": model},
+            },
+            "2": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": prompt, "clip": ["1", 1]},
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": negative_prompt or "blurry, low quality, distorted, deformed",
+                    "clip": ["1", 1],
+                },
+            },
+            "4": {
+                "class_type": "LoadImage",
+                "inputs": {"image": image_path},
+            },
+            "5": {
+                "class_type": "VAEEncode",
+                "inputs": {"pixels": ["4", 0], "vae": ["1", 2]},
+            },
+            "6": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "model": ["1", 0],
+                    "positive": ["2", 0],
+                    "negative": ["3", 0],
+                    "latent_image": ["5", 0],
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": sampler,
+                    "scheduler": "normal",
+                    "denoise": denoise,
+                },
+            },
+            "7": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["6", 0], "vae": ["1", 2]},
+            },
+            "8": {
+                "class_type": "SaveImage",
+                "inputs": {"images": ["7", 0], "filename_prefix": "edit_img2img"},
+            },
+        }
+    }

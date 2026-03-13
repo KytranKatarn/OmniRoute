@@ -813,19 +813,41 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
     {% endif %}
 
     <!-- Agent Profile Modal -->
-    <div class="sc-modal-overlay" id="node-agent-profile-modal" style="display:none;">
-        <div class="sc-modal" style="max-width:640px; max-height:85vh; overflow-y:auto;">
-            <div class="sc-modal-header">
-                <h4 id="node-profile-title" style="margin:0;font-family:'Antonio',sans-serif;font-size:1rem;color:#00e5ff;">AGENT PROFILE</h4>
-                <button class="sc-btn-small" onclick="closeNodeAgentProfile()">&times;</button>
+    <div class="bm-overlay" id="node-agent-profile-modal" onclick="if(event.target===this)closeNodeAgentProfile()">
+    <div class="bm-shell" style="max-width:640px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-light cyan"></div>
+            <div class="bm-frame-seg purple"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title" id="node-profile-title">AGENT PROFILE</span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeNodeAgentProfile()">&times;</button>
+                </div>
             </div>
-            <div class="sc-modal-body" id="node-profile-body">
+            <div class="bm-body" id="node-profile-body">
                 <span class="sc-label">Loading...</span>
             </div>
-            <div class="sc-modal-footer" id="node-profile-footer">
-                <button class="sc-btn-small" onclick="closeNodeAgentProfile()">CLOSE</button>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
             </div>
         </div>
+    </div>
     </div>
 
 </div>
@@ -1682,7 +1704,7 @@ function openNodeAgentProfile(agentId) {
     var modal = document.getElementById('node-agent-profile-modal');
     var body = document.getElementById('node-profile-body');
     var title = document.getElementById('node-profile-title');
-    modal.style.display = 'flex';
+    modal.classList.add('active');
     body.innerHTML = '<span class="sc-label">Loading profile...</span>';
     title.textContent = 'AGENT PROFILE';
 
@@ -1700,7 +1722,7 @@ function openNodeAgentProfile(agentId) {
 }
 
 function closeNodeAgentProfile() {
-    document.getElementById('node-agent-profile-modal').style.display = 'none';
+    document.getElementById('node-agent-profile-modal').classList.remove('active');
 }
 
 function _renderNodeAgentProfile(data, body, title) {

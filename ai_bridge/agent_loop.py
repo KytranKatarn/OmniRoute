@@ -402,8 +402,70 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._check_media_schedules),
+            trigger=IntervalTrigger(minutes=15),
+            id="agent_media_generation",
+            name="Agent Loop: Media Generation Schedules",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 20 jobs")
+        logger.info("Agent loop started with 21 jobs")
+
+    def _check_media_schedules(self):
+        """Check agent media generation schedules and trigger if due."""
+        from datetime import datetime
+
+        try:
+            from croniter import croniter
+            from database import get_db_cursor
+            from tools.media_studio.services.agent_media_service import (
+                agent_generate,
+                GLOBAL_DAILY_CAP,
+                _get_daily_count,
+            )
+
+            if _get_daily_count() >= GLOBAL_DAILY_CAP:
+                return
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT agent_name, media_type, schedule_cron, last_generated_at "
+                    "FROM media_agent_config WHERE enabled = TRUE"
+                )
+                configs = cur.fetchall()
+
+            now = datetime.now()
+            for row in configs:
+                agent_name = row[0] if not hasattr(row, 'get') else row['agent_name']
+                cron_expr = row[2] if not hasattr(row, 'get') else row['schedule_cron']
+                last_gen = row[3] if not hasattr(row, 'get') else row['last_generated_at']
+                try:
+                    cron = croniter(cron_expr, now)
+                    prev_fire = cron.get_prev(datetime)
+                    if last_gen is None or prev_fire > last_gen:
+                        result = agent_generate(agent_name)
+                        if "error" in result:
+                            logger.debug(
+                                "Agent media skip %s: %s",
+                                agent_name,
+                                result["error"],
+                            )
+                        else:
+                            logger.info(
+                                "Agent media generated for %s: id=%s",
+                                agent_name,
+                                result.get("id"),
+                            )
+                except Exception as e:
+                    logger.error(
+                        "Agent media schedule error for %s: %s", agent_name, e
+                    )
+        except ImportError:
+            logger.warning("croniter not available — skipping media schedules")
+        except Exception as e:
+            logger.error("Agent media schedule check failed: %s", e)
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -428,6 +490,7 @@ class AgentLoop:
             "agent_welfare_recovery",
             "agent_idle_volunteering",
             "agent_performance_rankings",
+            "agent_media_generation",
         ]:
             try:
                 self.scheduler.remove_job(job_id)

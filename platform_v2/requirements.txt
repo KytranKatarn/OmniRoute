@@ -99,3 +99,6 @@ python-telegram-bot>=21.0
 
 # Browser Automation (Project Autonomy)
 playwright>=1.40.0
+
+# Media Studio — cron schedule parsing
+croniter>=2.0.0

@@ -28,7 +28,8 @@ New service wrapping XTTS v2 inference:
 - `list_voices()` — returns preset voices + custom agent voice samples
 - `save_voice_sample(agent_id, audio_file)` — stores uploaded voice clip to `MEDIA_ROOT/voices/`
 - XTTS v2 loaded on-demand, auto-unloaded after generation (same VRAM swap pattern as ComfyUI SDXL)
-- Voice samples: 6-second WAV/MP3 clips stored in `MEDIA_ROOT/voices/`
+- Voice samples: 6-second WAV/MP3 clips stored in `MEDIA_ROOT/voices/` (MEDIA_ROOT = `/mnt/archie_brain/platform_v2/media`, Docker-mounted)
+- `os.makedirs(MEDIA_ROOT + "/voices", exist_ok=True)` in service init (same pattern as `MEDIA_ROOT/tmp/` in generation_service)
 - Preset voices: 3-4 built-in XTTS speaker embeddings shipped as static files in `static/voices/`
 - Output format: WAV (lossless), optionally converted to MP3
 
@@ -40,7 +41,7 @@ New service wrapping XTTS v2 inference:
   - `sfx` / `music` → `call_external()` stubs
 - Add `submit_external_audio(queue_id, provider)` — mirrors `submit_external_video()`
 - Add `poll_external_audio(queue_id)` — mirrors `poll_external_video()`
-- Add `get_audio_providers(audio_mode)` — queries `contractor_providers` WHERE `capabilities ? 'audio_sfx'` or `capabilities ? 'audio_music'`
+- Add `get_audio_providers(audio_mode)` — queries `contractor_providers` WHERE `capabilities ? 'audio_sfx'` or `capabilities ? 'audio_music'` (JSONB `?` operator works on arrays, same pattern as video `capabilities ? 'video_generation'`)
 - Update `submit_generation()` to handle `media_type="audio"` with merged defaults
 
 ### External Provider Stubs
@@ -83,14 +84,35 @@ Added to `routes.py`:
 }
 ```
 
+### Validation Rules
+
+- `audio_mode` required, must be one of: `speech`, `sfx`, `music`
+- **Speech mode**: `prompt` required (text to speak), `voice_id` required (preset or agent voice)
+- **SFX mode**: `prompt` required (description), `duration` required (1/3/5/10)
+- **Music mode**: `prompt` required (description), `duration` required (10/30/60)
+- `provider` defaults to `"auto"` (local for speech, first available external for sfx/music)
+
 ## Database Migration
 
 `150_audio_voice_samples.sql`:
 
 ```sql
+-- Add voice_sample column to agents
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS voice_sample VARCHAR(500);
 COMMENT ON COLUMN agents.voice_sample IS 'Path to custom XTTS voice clone sample (6s WAV/MP3)';
+
+-- Seed audio capabilities into contractor_providers (stubbed — no real API keys yet)
+-- The capabilities column is JSONB array from migration 117
+INSERT INTO contractor_providers (provider_key, display_name, capabilities, is_active, cost_per_unit)
+VALUES
+    ('elevenlabs', 'ElevenLabs', '["text_chat", "audio_sfx"]'::jsonb, false, 0.30),
+    ('stability_audio', 'Stability Audio', '["audio_music", "audio_sfx"]'::jsonb, false, 0.10),
+    ('replicate_audio', 'Replicate Audio', '["audio_music", "audio_sfx"]'::jsonb, false, 0.05)
+ON CONFLICT (provider_key) DO UPDATE
+    SET capabilities = EXCLUDED.capabilities || contractor_providers.capabilities;
 ```
+
+**Note on capabilities column**: Migration 117 created `capabilities JSONB` as an array (e.g., `'["text_chat"]'`). The `?` operator works on JSONB arrays to check containment — same pattern as Layer 3 video (`capabilities ? 'video_generation'`). Existing providers like Gemini already have `audio_tts` capability.
 
 ## UI Changes
 
@@ -151,7 +173,8 @@ When user clicks Audio type button:
 ## VRAM Impact
 
 - XTTS v2: ~2GB VRAM, loaded on-demand for speech generation
-- Follows existing swap pattern: auto-unloads before generation if needed
+- **VRAM swap lifecycle**: Before TTS generation, `tts_service` calls Ollama `/api/generate` with `keep_alive=0` on any GPU-loaded model to free VRAM (same pattern as ComfyUI SDXL swap in `generation_service.py`). After TTS completes, the model is unloaded from GPU via Python garbage collection + `torch.cuda.empty_cache()`. Ollama's warmup will reload agent models on next dispatch.
+- No orchestration_engine integration needed — TTS is a synchronous call within the generation queue worker, not a routed agent task
 - External SFX/music: zero VRAM impact (API calls only)
 - Within 8GB M4000 budget alongside Ollama agent models
 

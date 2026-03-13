@@ -3754,6 +3754,45 @@ def init_consciousness_scheduler(flask_app):
             replace_existing=True,
         )
 
+        # Media Studio cleanup jobs
+        from tools.media_studio.services.batch_service import cleanup_stale_queue, cleanup_expired_exports
+
+        def scheduled_queue_cleanup():
+            with flask_app.app_context():
+                try:
+                    cleaned = cleanup_stale_queue(max_age_hours=24)
+                    if cleaned:
+                        logger.info(f"Media queue cleanup: removed {cleaned} stale entries")
+                except Exception as e:
+                    logger.warning(f"Media queue cleanup failed: {e}")
+
+        scheduler.add_job(
+            scheduled_queue_cleanup,
+            trigger=IntervalTrigger(hours=1),
+            id="media_queue_cleanup",
+            name="Media Queue Cleanup",
+            misfire_grace_time=300,
+            replace_existing=True,
+        )
+
+        def scheduled_export_cleanup():
+            with flask_app.app_context():
+                try:
+                    cleaned = cleanup_expired_exports()
+                    if cleaned:
+                        logger.info(f"Media export cleanup: removed {cleaned} expired exports")
+                except Exception as e:
+                    logger.warning(f"Media export cleanup failed: {e}")
+
+        scheduler.add_job(
+            scheduled_export_cleanup,
+            trigger=IntervalTrigger(hours=1),
+            id="media_export_cleanup",
+            name="Media Export Cleanup",
+            misfire_grace_time=300,
+            replace_existing=True,
+        )
+
         scheduler.start()
         flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
         logger.info("Consciousness scheduler started with 9 scheduled tasks")

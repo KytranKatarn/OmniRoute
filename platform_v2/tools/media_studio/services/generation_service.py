@@ -263,6 +263,31 @@ def on_generation_complete(
         duration_ms=duration_ms,
     )
 
+    # Auto-tag and embed prompt
+    try:
+        from .tagging_service import auto_tag
+
+        auto_tag(
+            media_id,
+            {
+                "media_type": queue_row["media_type"],
+                "model": params.get("model"),
+                "provider": provider,
+                "width": params.get("width"),
+                "height": params.get("height"),
+                "audio_mode": params.get("audio_mode"),
+            },
+        )
+    except Exception as e:
+        logger.warning(f"Auto-tag failed for media {media_id}: {e}")
+
+    try:
+        from .search_service import embed_prompt
+
+        embed_prompt(media_id, params.get("prompt", ""))
+    except Exception as e:
+        logger.warning(f"Embed prompt failed for media {media_id}: {e}")
+
     # Update queue
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(

@@ -102,16 +102,16 @@ CREATE INDEX IF NOT EXISTS idx_media_pipeline_exec_status ON media_pipeline_exec
 ### `update_template(template_id, owner_type, owner_id, updates)`
 Creates a new version:
 1. Verify ownership
-2. Copy existing template to new row with `parent_id=template_id`, `version=max+1`
+2. Copy existing template to new row with `parent_id=original_root_id`, `version=max+1`. The root (first version with `parent_id=NULL`) serves as the canonical reference. All versions share the same root via `parent_id`.
 3. Copy steps if not provided in updates, otherwise use new steps
 4. Apply field updates (name, description, tags, visibility)
-5. Return `{template_id: new_id, version: new_version}`
+5. Return `{template_id: new_id, version: new_version}`. Callers holding old IDs can still load that specific version; `list_templates` returns only the latest version per root.
 
 ### `get_template(template_id, include_steps=True)`
 Load template + optionally its steps ordered by `step_order`. Return dict.
 
 ### `list_templates(owner_type, owner_id, visibility_filter=None, tag_filter=None)`
-Query templates filtered by owner and/or visibility. Shared templates visible to all. Return list of dicts (without steps for performance).
+Query templates filtered by owner and/or visibility. Shared templates visible to all. Returns only the latest version per root (highest version where `parent_id=root` or `parent_id IS NULL`). Return list of dicts with `updated_at` included (without steps for performance).
 
 ### `delete_template(template_id, owner_type, owner_id)`
 Verify ownership, DELETE (cascade removes steps). Return success/error.
@@ -137,10 +137,12 @@ Validate each step dict has:
 1. Load template + steps via `template_service.get_template()`
 2. Apply `overrides` dict — keys are step indices (as strings), values are param dicts merged over saved params
 3. Insert `media_pipeline_executions` row with status `running`, `total_steps=len(steps)`
-4. Launch background thread for sequential execution
+4. Launch background thread with `app.app_context()` for Flask/DB access (same pattern as batch_service.py)
 5. Return `{execution_id, status: "running"}` immediately
 
 ### Background execution loop
+
+Runs inside `with app.app_context():` to ensure `get_db_cursor()` works.
 
 For each step in order:
 - **`generate`**: Call `submit_generation()` with step params. Poll `media_generation_queue` until completed. Store resulting `media_library.id`.
@@ -153,8 +155,8 @@ For each step in order:
 ### `get_pipeline_status(execution_id)`
 Simple SELECT from `media_pipeline_executions`, return dict.
 
-### `_wait_for_step(step_type, step_id, timeout=300)`
-Poll appropriate status endpoint every 3 seconds until completed/failed or timeout.
+### `_wait_for_step(step_type, step_id, timeout=600)`
+Poll appropriate status endpoint every 3 seconds until completed/failed or timeout. Default 600s (10 min) to accommodate video generation. Batch steps use 1800s (30 min).
 
 ## API Routes
 

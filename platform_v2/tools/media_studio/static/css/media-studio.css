@@ -1997,3 +1997,156 @@
 .ms-similar-thumb:hover {
     border-color: #ff9900;
 }
+
+/* ── S20 Queue Panel + Batch Modal ──────────────────────────────────── */
+
+/* Queue toggle button */
+.ms-queue-toggle {
+    background: rgba(102, 153, 204, 0.15);
+    border: 1px solid rgba(102, 153, 204, 0.4);
+    color: #6699cc;
+    padding: 4px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin-left: 12px;
+}
+.ms-queue-toggle:hover { background: rgba(102, 153, 204, 0.25); }
+
+/* Queue panel */
+.ms-queue-panel {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(102, 153, 204, 0.2);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.ms-queue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(102, 153, 204, 0.15);
+}
+.ms-queue-stats { color: #8899aa; font-size: 0.85rem; }
+
+/* Queue sections */
+.ms-queue-section { margin-bottom: 12px; }
+.ms-queue-section h4 {
+    color: #6699cc;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 0 0 8px 0;
+}
+.ms-queue-failed-section h4 { color: #cc4444; }
+
+/* Queue cards */
+.ms-queue-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+.ms-queue-card:hover { background: rgba(255, 255, 255, 0.06); }
+.ms-queue-card-body {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+.ms-queue-prompt {
+    color: #ccc;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ms-queue-meta { color: #667; font-size: 0.75rem; white-space: nowrap; }
+.ms-queue-error { color: #cc4444; font-size: 0.75rem; }
+.ms-queue-thumb {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+/* Queue card types */
+.ms-queue-active { border-left: 3px solid #6699cc; }
+.ms-queue-failed { border-left: 3px solid #cc4444; }
+.ms-queue-recent { border-left: 3px solid #44aa44; opacity: 0.7; }
+
+/* Batch group */
+.ms-queue-batch-group {
+    border: 1px solid rgba(102, 153, 204, 0.15);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+.ms-queue-batch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: rgba(102, 153, 204, 0.08);
+    font-size: 0.85rem;
+    color: #aab;
+}
+
+/* Spinner (queue cards use smaller version) */
+.ms-queue-card .ms-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(102, 153, 204, 0.3);
+    border-top-color: #6699cc;
+    border-radius: 50%;
+    animation: ms-spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes ms-spin { to { transform: rotate(360deg); } }
+
+/* Small buttons */
+.ms-btn-xs {
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    border: 1px solid rgba(102, 153, 204, 0.4);
+    background: transparent;
+    color: #6699cc;
+    cursor: pointer;
+}
+.ms-btn-xs:hover { background: rgba(102, 153, 204, 0.15); }
+.ms-btn-xs.ms-btn-danger { border-color: rgba(204, 68, 68, 0.4); color: #cc4444; }
+.ms-btn-xs.ms-btn-danger:hover { background: rgba(204, 68, 68, 0.15); }
+
+/* Small button (queue header) */
+.ms-btn-sm {
+    padding: 3px 10px;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    border: 1px solid rgba(102, 153, 204, 0.4);
+    background: transparent;
+    color: #6699cc;
+    cursor: pointer;
+}
+.ms-btn-sm:hover { background: rgba(102, 153, 204, 0.15); }
+
+/* Batch modal */
+.ms-batch-modal { max-width: 600px; }
+.ms-batch-preview {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(102, 153, 204, 0.08);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: #aab;
+}
+.ms-batch-over-limit { border: 1px solid #cc4444; }
+.ms-text-danger { color: #cc4444; }

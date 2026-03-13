@@ -277,6 +277,45 @@
     color: #ff6b6b;
     border: 1px solid rgba(255,68,68,0.2);
 }
+.crew-llm-badge.swap {
+    background: rgba(251,191,36,0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(251,191,36,0.25);
+}
+.crew-llm-badge.cloud {
+    background: rgba(139,92,246,0.12);
+    color: #a78bfa;
+    border: 1px solid rgba(139,92,246,0.25);
+}
+.crew-status-badge.working {
+    background: rgba(0,229,255,0.15);
+    color: #00e5ff;
+    border: 1px solid rgba(0,229,255,0.3);
+}
+.crew-status-badge.resting {
+    background: rgba(139,92,246,0.12);
+    color: #a78bfa;
+    border: 1px solid rgba(139,92,246,0.25);
+}
+.crew-status-badge.cooldown, .crew-status-badge.winding_down {
+    background: rgba(251,191,36,0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(251,191,36,0.25);
+}
+.crew-status-badge.off_duty {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+.sc-agent-station-tag {
+    font-size: 0.55rem;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(0,229,255,0.2);
+    color: #00e5ff;
+}
 .crew-agent-meta {
     display: flex;
     gap: 8px;
@@ -1855,6 +1894,7 @@ function switchSbTab(tabId) {
 
 // ── Stations tab — fetch all 10 stations with live crew ──
 var _sbStationsLoaded = false;
+var _sbStationsData = null;
 function loadStarbaseStations() {
     var grid = document.getElementById('sb-stations-grid');
     if (!grid) return;
@@ -1871,6 +1911,7 @@ function loadStarbaseStations() {
         if (!data.success) { grid.innerHTML = '<span class="sc-label">Failed to load</span>'; return; }
         _sbStationsLoaded = true;
         var stations = data.stations || [];
+        _sbStationsData = stations;
         grid.innerHTML = stations.map(function(s) {
             var agents = s.assigned_agents || [];
             var color = s.color || '#00e5ff';
@@ -1903,6 +1944,14 @@ function loadStarbaseStations() {
     });
 }
 
+// ── Station color map (populated by loadStarbaseStations or inline) ──
+var _stationColorMap = {
+    COMMAND: '#00e5ff', ANALYTICS: '#8b5cf6', CREATIVE: '#f472b6',
+    ENGINEERING: '#fbbf24', COMMUNICATIONS: '#22d3ee', RESEARCH: '#10b981',
+    SECURITY: '#ef4444', LOGISTICS: '#f97316', DIPLOMATIC: '#818cf8',
+    OPERATIONS: '#a3e635'
+};
+
 // ── Agents tab — render active crew manifest ──
 function renderStarbaseCrew() {
     var grid = document.getElementById('sb-crew-manifest');
@@ -1911,29 +1960,128 @@ function renderStarbaseCrew() {
     if (!data) { grid.innerHTML = '<span class="sc-label">Loading...</span>'; loadStarbaseStats(); return; }
     var crew = data.crew || [];
     if (!crew.length) { grid.innerHTML = '<span class="sc-label">No agents in manifest</span>'; return; }
-    grid.innerHTML = crew.map(function(a) {
-        var name = a.display_name || a.name || 'Unknown';
-        var model = (a.model || '').replace(':latest', '');
-        var station = a.station || '--';
-        var status = a.shift_state || 'active';
-        var hasJob = !!a.current_job;
-        var statusColor = status === 'active' ? 'var(--sc-green)' : status === 'cooldown' ? 'var(--sc-amber)' : 'rgba(255,255,255,0.3)';
-        var jobLabel = hasJob ? '<div style="margin-top:6px;padding:4px 8px;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);border-radius:4px;font-size:0.7rem;color:var(--sc-green);">' + _escSb(a.current_job) + '</div>' : '';
+
+    // Update station color map from stations data if available
+    if (_sbStationsData) {
+        _sbStationsData.forEach(function(s) { if (s.color) _stationColorMap[s.code] = s.color; });
+    }
+
+    grid.textContent = '';
+    crew.forEach(function(a) {
+        var card = document.createElement('div');
+        card.className = 'crew-agent-card';
+        var stColor = _stationColorMap[a.station] || '#00e5ff';
+        card.style.borderLeftColor = stColor;
+
+        // Top row: name + badges
+        var top = document.createElement('div');
+        top.className = 'crew-agent-top';
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'crew-agent-name';
+        nameEl.textContent = a.full_name || a.display_name || a.name || 'Unknown';
+        top.appendChild(nameEl);
+
+        var badges = document.createElement('div');
+        badges.className = 'crew-agent-badges';
+
+        // Status badge (working/idle/resting)
+        var statusBadge = document.createElement('span');
+        statusBadge.className = 'crew-status-badge ' + (a.status || 'idle');
+        statusBadge.textContent = (a.status || 'idle').toUpperCase();
+        badges.appendChild(statusBadge);
+
+        // Shift state badge
+        var shift = a.shift_state || 'active';
+        if (shift !== 'active' && shift !== a.status) {
+            var shiftBadge = document.createElement('span');
+            shiftBadge.className = 'crew-status-badge ' + shift;
+            shiftBadge.textContent = shift.replace('_', ' ').toUpperCase();
+            badges.appendChild(shiftBadge);
+        }
+
+        // LLM readiness badge
+        var llmBadge = document.createElement('span');
+        var llmStatus = a.llm_status || 'barracked';
+        llmBadge.className = 'crew-llm-badge ' + llmStatus;
+        var llmLabels = { loaded: 'LOADED', swap: 'SWAP', barracked: 'OFFLINE', cloud: 'CLOUD' };
+        llmBadge.textContent = llmLabels[llmStatus] || llmStatus.toUpperCase();
+        if (a.llm_size_gb) llmBadge.title = a.llm_size_gb + ' GB';
+        badges.appendChild(llmBadge);
+
+        // Hardware badge
+        if (a.hardware) {
+            var hwBadge = document.createElement('span');
+            hwBadge.className = 'crew-status-badge ' + (a.hardware === 'GPU' ? 'active' : 'idle');
+            hwBadge.textContent = a.hardware;
+            badges.appendChild(hwBadge);
+        }
+
+        top.appendChild(badges);
+        card.appendChild(top);
+
+        // Callsign subtitle
+        if (a.full_name && a.full_name !== a.name) {
+            var sub = document.createElement('div');
+            sub.style.cssText = 'font-size:0.6rem;color:rgba(255,255,255,0.35);margin-top:-2px;';
+            sub.textContent = a.name + (a.title ? ' \u2014 ' + a.title : '');
+            card.appendChild(sub);
+        }
+
+        // Meta row: station + model
+        var meta = document.createElement('div');
+        meta.className = 'crew-agent-meta';
+        var stSpan = document.createElement('span');
+        stSpan.textContent = a.station || '--';
+        stSpan.style.color = stColor;
+        meta.appendChild(stSpan);
+        var mdSpan = document.createElement('span');
+        mdSpan.textContent = (a.model || '').replace(':latest', '');
+        meta.appendChild(mdSpan);
+        // Workload risk
         var wl = a.workload || {};
-        var riskColor = wl.risk_level === 'healthy' ? 'var(--sc-green)' : wl.risk_level === 'elevated' ? 'var(--sc-amber)' : wl.risk_level === 'critical' ? 'var(--sc-red)' : 'rgba(255,255,255,0.4)';
-        return '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(0,229,255,0.12);border-radius:8px;padding:14px;">' +
-            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-                '<span style="width:8px;height:8px;border-radius:50%;background:' + statusColor + ';"></span>' +
-                '<span style="font-family:Antonio,sans-serif;color:#fff;font-size:0.95rem;letter-spacing:1px;">' + _escSb(name) + '</span>' +
-            '</div>' +
-            '<div style="display:flex;gap:16px;font-size:0.78rem;color:rgba(255,255,255,0.5);font-family:\'IBM Plex Mono\',monospace;">' +
-                '<span>' + _escSb(station) + '</span>' +
-                '<span>' + _escSb(model) + '</span>' +
-                '<span style="color:' + riskColor + ';">' + _escSb(status.toUpperCase()) + '</span>' +
-            '</div>' +
-            jobLabel +
-        '</div>';
-    }).join('');
+        if (wl.risk_level) {
+            var riskSpan = document.createElement('span');
+            var riskColors = { healthy: '#4ade80', elevated: '#fbbf24', critical: '#ef4444', overloaded: '#ef4444' };
+            riskSpan.style.color = riskColors[wl.risk_level] || 'rgba(255,255,255,0.4)';
+            riskSpan.textContent = wl.risk_level.toUpperCase();
+            meta.appendChild(riskSpan);
+        }
+        card.appendChild(meta);
+
+        // Station tag
+        if (a.station) {
+            var tagRow = document.createElement('div');
+            tagRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;';
+            var tag = document.createElement('span');
+            tag.className = 'sc-agent-station-tag';
+            tag.textContent = a.station;
+            tag.style.borderColor = stColor + '44';
+            tag.style.color = stColor;
+            tagRow.appendChild(tag);
+            card.appendChild(tagRow);
+        }
+
+        // Active job with progress bar
+        if (a.current_job) {
+            var jobRow = document.createElement('div');
+            jobRow.className = 'crew-agent-job';
+            var jobDesc = document.createElement('span');
+            jobDesc.textContent = a.current_job.description || 'Working...';
+            jobDesc.style.cssText = 'max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+            var jobBar = document.createElement('div');
+            jobBar.className = 'crew-job-bar';
+            var jobFill = document.createElement('div');
+            jobFill.className = 'crew-job-bar-fill';
+            jobFill.style.width = Math.min(a.current_job.progress_pct || 0, 100) + '%';
+            jobBar.appendChild(jobFill);
+            jobRow.appendChild(jobDesc);
+            jobRow.appendChild(jobBar);
+            card.appendChild(jobRow);
+        }
+
+        grid.appendChild(card);
+    });
 }
 
 function _escSb(str) {

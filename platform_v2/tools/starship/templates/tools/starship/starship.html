@@ -1695,9 +1695,31 @@ function pullModelToNode(modelName, btn) {
 }
 
 // ============================================================================
-// AGENT PROFILE MODAL
+// AGENT PROFILE MODAL (shared by Starbase + Node agents)
 // ============================================================================
 var _nodeProfileAgentId = null;
+
+function openHubAgentProfile(hubAgentId) {
+    _nodeProfileAgentId = hubAgentId;
+    var modal = document.getElementById('node-agent-profile-modal');
+    var body = document.getElementById('node-profile-body');
+    var title = document.getElementById('node-profile-title');
+    modal.classList.add('active');
+    body.innerHTML = '<span class="sc-label">Loading profile...</span>';
+    title.textContent = 'AGENT PROFILE';
+
+    fetch('/tools/bridge/api/agents/' + parseInt(hubAgentId) + '/profile')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                body.textContent = data.error || 'Failed to load profile';
+                return;
+            }
+            _renderNodeAgentProfile(data, body, title);
+        }).catch(function(err) {
+            body.textContent = 'Failed to load profile: ' + err;
+        });
+}
 
 function openNodeAgentProfile(agentId) {
     _nodeProfileAgentId = agentId;
@@ -1733,17 +1755,22 @@ function _renderNodeAgentProfile(data, body, title) {
 
     var html = '';
 
-    // Agent header
+    // Agent header — portrait with fallback (matches Bridge)
     var stColor = a.station_color || '#00e5ff';
+    var portraitSrc = (data.portraits && data.portraits.portrait) || '';
+    var initial = (a.first_name || a.name || '?')[0].toUpperCase();
     html += '<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);">';
-    html += '<div style="width:48px;height:48px;border-radius:50%;background:' + esc(stColor) + ';display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;color:#000;">';
-    html += esc((a.first_name || a.name || '?')[0].toUpperCase());
+    if (portraitSrc) {
+        html += '<img style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid ' + esc(stColor) + ';" src="' + esc(portraitSrc) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';">';
+    }
+    html += '<div style="width:48px;height:48px;border-radius:50%;background:' + esc(stColor) + ';display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;color:#000;' + (portraitSrc ? 'display:none;' : '') + '">';
+    html += esc(initial);
     html += '</div>';
     html += '<div style="flex:1;">';
     html += '<div style="font-size:1rem;font-weight:600;color:#fff;">' + esc(fullName) + '</div>';
     html += '<div style="font-size:0.75rem;color:rgba(255,255,255,0.5);">' + esc(a.name) + (a.title ? ' — ' + esc(a.title) : '') + '</div>';
     html += '<div style="font-size:0.7rem;color:rgba(255,255,255,0.3);">';
-    html += esc(a.department || '') + ' • ' + esc(a.model || '') + ' • ' + esc(a.worker_type || '');
+    html += esc(a.department || '') + ' • ' + esc(a.model || '') + ' • ' + esc(a.worker_type || '') + (a.pronouns ? ' • ' + esc(a.pronouns) : '');
     html += '</div></div>';
     html += '<span class="crew-status-badge ' + esc(a.status) + '" style="font-size:0.7rem;">' + esc(a.status || 'active').toUpperCase() + '</span>';
     html += '</div>';
@@ -2095,6 +2122,11 @@ function renderStarbaseCrew() {
     crew.forEach(function(a) {
         var card = document.createElement('div');
         card.className = 'crew-agent-card';
+        card.style.cursor = 'pointer';
+        var agentId = a.agent_id || a.id;
+        if (agentId) {
+            card.onclick = (function(id) { return function() { openHubAgentProfile(id); }; })(agentId);
+        }
         var stColor = _stationColorMap[a.station] || '#00e5ff';
         card.style.borderLeftColor = stColor;
 

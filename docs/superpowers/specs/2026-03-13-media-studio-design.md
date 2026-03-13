@@ -37,7 +37,7 @@ Rebuild the existing Media Studio module as ARCHIE's central AI media generation
 
 ```
 media_studio/
-  __init__.py                          # Blueprint registration
+  __init__.py                          # Blueprint registration (template_folder="templates")
   routes.py                            # API endpoints (rebuild)
   services/
     generation_service.py              # Orchestrates generation → Bridge dispatch
@@ -80,11 +80,31 @@ User/Agent → Media Studio UI → generation_service → Bridge Dispatcher
 
 **Primary agent**: Pixel (ComfyUI specialist, `gpu_tools: ["comfyui"]`)
 
-**Escalation chain**:
-1. Local ComfyUI (Starbase — Pixel agent)
-2. Node ComfyUI (fleet nodes with GPU + ComfyUI container)
-3. Free cloud providers (if configured in external_providers)
-4. Paid cloud providers / contractors (Telegram approval for cost)
+**GPU-Tiered Dispatch** (best-first ordering):
+
+Each node reports its GPU capability at heartbeat via ComfyUI `/system_stats`. Bridge ranks nodes by VRAM and dispatches to the most capable first:
+
+| Tier | VRAM | Example GPUs | Capabilities |
+|------|------|-------------|-------------|
+| **High** | 24GB+ | RTX 3090, RTX 4090 | All features: SDXL, AnimateDiff SDXL, IP-Adapter, large batch, video |
+| **Mid** | 10-23GB | RTX 3060 12GB, RTX 4070 | SDXL, AnimateDiff SD1.5, IP-Adapter, moderate batch |
+| **Base** | 6-9GB | Quadro M4000 (8GB) | SD1.5, SDXL (single), IP-Adapter (tight), AnimateDiff SD1.5 only |
+| **CPU** | 0GB (no GPU) | Any | SD1.5 only (very slow), TTS, basic operations |
+| **Cloud** | N/A | External APIs | All features via provider API (cost-based) |
+
+**Dispatch order**: High GPU → Mid GPU → Base GPU → CPU → Free Cloud → Paid Cloud (Telegram approval)
+
+Bridge selects the best available node that:
+1. Has ComfyUI running and healthy
+2. Has sufficient VRAM for the requested operation (checked against capability tier)
+3. Is not currently busy with another generation
+4. Has the required ComfyUI plugins installed
+
+**Hardware capability discovery:**
+- Node heartbeat includes `gpu_vram_total_mb` from ComfyUI `/system_stats`
+- Stored in `remote_nodes.metadata` JSONB as `{"gpu": {"vram_mb": 8192, "name": "Quadro M4000", "tier": "base"}}`
+- `comfyui_manager.py` maps VRAM to tier and available features
+- Feature gating: Bridge checks tier before dispatching (e.g., rejects AnimateDiff SDXL for base-tier nodes)
 
 **VRAM management**: Existing ComfyUI VRAM swap behavior — auto-unloads Ollama GPU models before generation. Bridge tracks ComfyUI VRAM state via `/system_stats`.
 
@@ -112,8 +132,8 @@ platform_v2/static/media/
 ```sql
 CREATE TABLE IF NOT EXISTS media_library (
     id SERIAL PRIMARY KEY,
-    owner_type VARCHAR(20) NOT NULL,         -- 'user' or 'agent'
-    owner_id INTEGER NOT NULL,
+    owner_type VARCHAR(20) NOT NULL,         -- 'user', 'agent', or 'system'
+    owner_id INTEGER,                        -- NULL for system-owned (environment art)
     media_type VARCHAR(20) NOT NULL,         -- 'image', 'video', 'audio'
     file_path TEXT NOT NULL,
     thumbnail_path TEXT,
@@ -148,7 +168,7 @@ CREATE TABLE IF NOT EXISTS media_generation_queue (
     owner_id INTEGER NOT NULL,
     media_type VARCHAR(20) NOT NULL,
     status VARCHAR(20) DEFAULT 'pending',    -- pending/dispatched/generating/completed/failed/cancelled
-    bridge_job_id INTEGER,
+    bridge_job_id INTEGER REFERENCES bridge_jobs(id) ON DELETE SET NULL,
     params JSONB NOT NULL,
     result_media_id INTEGER REFERENCES media_library(id),
     error_message TEXT,
@@ -159,6 +179,7 @@ CREATE TABLE IF NOT EXISTS media_generation_queue (
 
 CREATE INDEX idx_media_queue_status ON media_generation_queue(status);
 CREATE INDEX idx_media_queue_owner ON media_generation_queue(owner_type, owner_id);
+CREATE INDEX idx_media_queue_bridge_job ON media_generation_queue(bridge_job_id);
 ```
 
 ### 3.3 `agent_portraits` — Face Identity System
@@ -294,8 +315,19 @@ def assign_media(media_id, assignment_type, target_type, target_id):
 
 **`comfyui_manager.py`:**
 ```python
+# GPU tier constants
+GPU_TIERS = {
+    "high":  {"min_vram_mb": 24576, "features": ["sdxl", "animatediff_sdxl", "ip_adapter", "instantid", "large_batch"]},
+    "mid":   {"min_vram_mb": 10240, "features": ["sdxl", "animatediff_sd15", "ip_adapter", "instantid"]},
+    "base":  {"min_vram_mb": 6144,  "features": ["sd15", "sdxl_single", "animatediff_sd15", "ip_adapter_tight"]},
+    "cpu":   {"min_vram_mb": 0,     "features": ["sd15_slow", "tts"]},
+}
+
+def classify_gpu_tier(vram_mb):
+    """Classify a node's GPU into a capability tier."""
+
 def get_fleet_comfyui_status():
-    """Health check all ComfyUI instances (Starbase + nodes)."""
+    """Health check all ComfyUI instances (Starbase + nodes), including GPU tier."""
     # Query Starbase ComfyUI /system_stats
     # Query each online node's ComfyUI via heartbeat data
     # Return aggregated status
@@ -311,6 +343,15 @@ def sync_plugins_to_nodes(plugin_list):
 def build_workflow(prompt, negative_prompt, model, width, height, seed, steps, cfg, sampler):
     """Build ComfyUI API workflow JSON for image generation."""
     # Return workflow dict ready for ComfyUI /prompt endpoint
+
+def can_node_handle(node_id, operation):
+    """Check if a node's GPU tier supports the requested operation."""
+    # e.g., can_node_handle(67, "animatediff_sdxl") → False for M4000
+
+def rank_nodes_for_operation(operation):
+    """Return fleet nodes ranked best-first for a given operation."""
+    # Filters to capable nodes, sorts by VRAM desc (best GPU first)
+    # Returns list of (node_id, tier, vram_mb) tuples
 ```
 
 ### 4.3 API Endpoints
@@ -479,6 +520,16 @@ Video request → Bridge Dispatcher (capability: video_generation)
 - `mm_sd_v15_v2.safetensors` (AnimateDiff motion model for SD1.5)
 - `mm_sdxl_v10_beta.safetensors` (AnimateDiff motion model for SDXL)
 
+**VRAM constraints by GPU tier** (enforced by Bridge before dispatch):
+
+| Operation | Min Tier | VRAM Needed | Notes |
+|-----------|----------|-------------|-------|
+| AnimateDiff SD1.5 | Base (6GB+) | ~6GB | Available on Starbase M4000 |
+| AnimateDiff SDXL | Mid (10GB+) | 10-12GB | Requires 12GB+ node or cloud |
+| AnimateDiff SDXL + IP-Adapter | High (24GB+) | ~18GB | Only on high-tier nodes |
+
+Bridge checks node GPU tier before dispatching video jobs. If no node meets the VRAM requirement, escalates to cloud providers.
+
 ### 6.5 External Provider Integration
 
 Extend `ai_bridge/external_providers.py`:
@@ -643,3 +694,50 @@ POST /api/voices/preview               — generate quick voice sample
 - Training custom LoRA models (may add later as premium feature)
 - Social media posting from Media Studio (exists in social_media module)
 - Media Hub integration (Plex/Jellyfin — separate module, no overlap)
+
+---
+
+## 11. Platform Conventions
+
+### 11.1 Blueprint Registration
+
+`__init__.py` must set `template_folder="templates"` per ADR-021:
+```python
+bp = Blueprint("media_studio", __name__, template_folder="templates",
+               static_folder="static", url_prefix="/tools/media-studio")
+```
+
+### 11.2 Module Registry + RBAC
+
+Module must be registered in BOTH:
+- `platform_v2/module_registry.py` — ModuleConfig entry (category `MEDIA_HOME`, `minimum_role="USER"`)
+- `platform_v2/rbac.py` — permission entries (e.g., `MEDIA_STUDIO_GENERATE`, `MEDIA_STUDIO_MANAGE`)
+
+### 11.3 Database Access
+
+All services use the `get_db_cursor` context manager pattern:
+```python
+from database import get_db_cursor
+
+with get_db_cursor(commit=True) as (conn, cur):
+    cur.execute("INSERT INTO media_library ...")
+```
+
+Never use raw `psycopg2.connect()` or `get_db()` in new code.
+
+### 11.4 Timestamp Formatting
+
+- Jinja2 templates: use `|localtime` filter for all timestamps
+- JavaScript: use `archie-time.js` global formatter for client-side rendering
+- DB columns: `TIMESTAMPTZ` (not naive timestamps)
+
+### 11.5 Frontend Standards
+
+- LCARS aesthetic with standard fonts: Antonio (nav), Orbitron (titles), IBM Plex Mono (code)
+- CSS class prefix: `ms-` (media studio namespace)
+- Use `escHtml()` for user-provided content in DOM
+- Agent names: `display_name` for UI, `name` for code/API
+
+### 11.6 Service Function Deduplication
+
+`assign_media()` lives exclusively in `gallery_service.py`. The `portrait_service.py` calls `gallery_service.assign_media()` rather than duplicating the function.

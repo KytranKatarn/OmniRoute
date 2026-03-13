@@ -129,6 +129,12 @@ def load_config():
 
 
 # ---------------------------------------------------------------------------
+# Fleet coordination — completed job tracking
+# ---------------------------------------------------------------------------
+_completed_jobs = []
+
+
+# ---------------------------------------------------------------------------
 # Local Database Helpers
 # ---------------------------------------------------------------------------
 
@@ -389,6 +395,61 @@ def _get_idle_agents():
         return []
 
 
+def _get_agent_welfare():
+    """Get local agent welfare state for heartbeat reporting.
+
+    Returns dict: {agent_name: {stress, energy, shift_state, task_count, model_loaded}}
+    """
+    conn = _get_node_db()
+    if not conn:
+        return {}
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            """
+            SELECT nac.agent_name, nac.model,
+                   COUNT(nj.id) FILTER (WHERE nj.status = 'running') AS task_count
+            FROM node_agent_configs nac
+            LEFT JOIN node_jobs nj ON nj.agent_name = nac.agent_name
+            GROUP BY nac.agent_name, nac.model
+            """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Check which models are loaded in Ollama
+        ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
+        loaded_models = set()
+        try:
+            ps_status, ps_data = http_get(f"{ollama_host}/api/ps")
+            if ps_status == 200 and isinstance(ps_data, dict):
+                loaded_models = {
+                    m["name"].split(":")[0] for m in ps_data.get("models", [])
+                }
+        except Exception:
+            pass
+
+        welfare = {}
+        for row in rows:
+            model_base = (row["model"] or "").split(":")[0]
+            welfare[row["agent_name"]] = {
+                "stress": 0.0,  # Node agents don't have emotional state yet
+                "energy": 1.0,
+                "shift_state": "active",
+                "task_count": row["task_count"] or 0,
+                "model_loaded": model_base in loaded_models,
+            }
+        return welfare
+    except Exception as e:
+        logger.warning("Failed to get agent welfare: %s", e)
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return {}
+
+
 def send_heartbeat(config):
     """
     POST heartbeat with metrics to the Hub.
@@ -437,6 +498,17 @@ def send_heartbeat(config):
     idle_agents = _get_idle_agents()
     if idle_agents:
         payload["idle_agents"] = idle_agents
+
+    # Fleet coordination: report completed jobs since last heartbeat
+    global _completed_jobs
+    if _completed_jobs:
+        payload["completed_jobs"] = _completed_jobs
+        _completed_jobs = []  # Clear after sending
+
+    # Fleet coordination: report agent welfare state
+    agent_welfare = _get_agent_welfare()
+    if agent_welfare:
+        payload["agent_welfare"] = agent_welfare
 
     url = f"{config['hub_url']}/tools/bridge/api/nodes/{config['node_id']}/heartbeat"
     status, resp = http_post(url, payload, _auth_headers(config))
@@ -905,12 +977,25 @@ def _handle_job_request(config, payload):
                     (output, local_job_id),
                 )
                 conn.commit()
+                duration_ms = int(elapsed * 1000)
                 logger.info(
                     "[job_request] Job %s completed in %.1fs (%d chars)",
                     job_id,
                     elapsed,
                     len(output),
                 )
+
+                # Track for heartbeat reporting
+                _completed_jobs.append(
+                    {
+                        "agent_name": agent_name,
+                        "capability": payload.get("capability", "unknown"),
+                        "success": True,
+                        "duration_ms": duration_ms,
+                        "station_code": payload.get("station_code", "UNKNOWN"),
+                    }
+                )
+
                 result = {
                     "status": "completed",
                     "output": output,
@@ -934,6 +1019,18 @@ def _handle_job_request(config, payload):
                 (error, local_job_id),
             )
             conn.commit()
+
+            # Track failed job for heartbeat reporting
+            _completed_jobs.append(
+                {
+                    "agent_name": agent_name,
+                    "capability": payload.get("capability", "unknown"),
+                    "success": False,
+                    "duration_ms": int((time.time() - start) * 1000),
+                    "station_code": payload.get("station_code", "UNKNOWN"),
+                }
+            )
+
             result = {"status": "failed", "error": error}
 
         cur.close()

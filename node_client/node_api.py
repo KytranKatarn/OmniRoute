@@ -128,6 +128,69 @@ def node_status():
     )
 
 
+@app.route("/api/jobs/execute", methods=["POST"])
+def execute_job():
+    """Execute a job request from Bridge dispatch."""
+    import time
+    import requests as req_lib
+
+    data = request.get_json()
+    capability = data.get("capability")
+    prompt = data.get("prompt")
+    target_agent = data.get("target_agent")
+    target_model = data.get("target_model")
+
+    if not all([capability, prompt, target_agent]):
+        return jsonify({"error": "capability, prompt, target_agent required"}), 400
+
+    start = time.time()
+    try:
+        resp = req_lib.post(
+            f"{OLLAMA_HOST}/api/generate",
+            json={"model": target_model, "prompt": prompt, "stream": False},
+            timeout=300,
+        )
+        duration_ms = int((time.time() - start) * 1000)
+
+        if resp.ok:
+            result = resp.json()
+            return jsonify(
+                {
+                    "success": True,
+                    "agent_name": target_agent,
+                    "capability": capability,
+                    "duration_ms": duration_ms,
+                    "response": result.get("response", ""),
+                }
+            )
+        else:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "agent_name": target_agent,
+                        "capability": capability,
+                        "duration_ms": int((time.time() - start) * 1000),
+                        "error": resp.text,
+                    }
+                ),
+                500,
+            )
+
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "agent_name": target_agent,
+                    "error": str(e),
+                    "duration_ms": int((time.time() - start) * 1000),
+                }
+            ),
+            500,
+        )
+
+
 if __name__ == "__main__":
     logger.info("Starting Node API on port 3001 (node: %s)", NODE_ID)
     app.run(host="0.0.0.0", port=3001, debug=False)

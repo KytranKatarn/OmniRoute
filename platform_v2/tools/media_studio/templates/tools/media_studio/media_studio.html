@@ -233,6 +233,7 @@
                 <i data-lucide="zap" style="width:18px;height:18px;"></i>
                 <span data-i18n="media_studio.generate_action">Generate</span>
             </button>
+            <button class="ms-btn ms-btn-secondary" onclick="openBatchModal(document.getElementById('msMediaType').value)">Batch</button>
 
             <!-- Video Controls (hidden when media_type != video) -->
             <div id="msVideoControls" class="ms-video-controls" style="display:none;">
@@ -352,6 +353,79 @@
                 <span class="ms-search-icon">&#x1F50D;</span>
                 <input type="text" id="msGallerySearch" class="ms-search-input"
                        placeholder="Search prompts..." autocomplete="off">
+            </div>
+            <!-- Queue Panel Toggle -->
+            <button class="ms-queue-toggle" onclick="toggleQueuePanel()" id="msQueueToggle">
+                Queue (<span id="msQueueActiveCount">0</span> active)
+            </button>
+        </div>
+
+        <!-- Queue Panel (collapsible) -->
+        <div id="msQueuePanel" class="ms-queue-panel" style="display:none;">
+            <div class="ms-queue-header">
+                <span class="ms-queue-stats" id="msQueueStats"></span>
+                <button class="ms-btn-sm" onclick="clearCompleted()">Clear Completed</button>
+            </div>
+            <div class="ms-queue-section" id="msQueueActive">
+                <h4>Active</h4>
+                <div id="msQueueActiveList"></div>
+            </div>
+            <div class="ms-queue-section ms-queue-failed-section" id="msQueueFailed" style="display:none;">
+                <h4>Failed</h4>
+                <div id="msQueueFailedList"></div>
+            </div>
+            <div class="ms-queue-section" id="msQueueRecent" style="display:none;">
+                <h4>Recent</h4>
+                <div id="msQueueRecentList"></div>
+            </div>
+        </div>
+
+        <!-- Batch Creation Modal -->
+        <div id="msBatchModal" class="ms-modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+            <div class="ms-modal-content ms-batch-modal">
+                <div class="ms-modal-header">
+                    <h3>Batch Generate</h3>
+                    <button class="ms-modal-close" onclick="document.getElementById('msBatchModal').style.display='none'">&times;</button>
+                </div>
+                <div class="ms-modal-body">
+                    <label>Batch Name (optional)</label>
+                    <input type="text" id="msBatchName" placeholder="Auto-generated from first prompt" class="ms-input">
+                    <label>Prompts (one per line)</label>
+                    <textarea id="msBatchPrompts" rows="6" class="ms-textarea" oninput="updateBatchPreview()"></textarea>
+                    <small id="msBatchPromptCount">0 prompts</small>
+                    <label><input type="checkbox" id="msBatchSweepToggle" onchange="toggleSweepSection()"> Enable Parameter Sweep</label>
+                    <div id="msBatchSweepSection" style="display:none;">
+                        <label>Sweep Parameter</label>
+                        <select id="msBatchSweepParam" class="ms-select" onchange="updateSweepInputs()">
+                            <option value="seed">Seed</option>
+                            <option value="model">Model</option>
+                        </select>
+                        <div id="msBatchSweepSeedInput">
+                            <label>Seeds (comma-separated)</label>
+                            <input type="text" id="msBatchSweepSeeds" placeholder="42, 123, 777, 999" class="ms-input" oninput="updateBatchPreview()">
+                        </div>
+                        <div id="msBatchSweepModelInput" style="display:none;">
+                            <label>Models</label>
+                            <div id="msBatchModelCheckboxes"></div>
+                        </div>
+                    </div>
+                    <label>Media Type</label>
+                    <select id="msBatchMediaType" class="ms-select">
+                        <option value="image">Image</option>
+                        <option value="video">Video</option>
+                        <option value="audio">Audio</option>
+                    </select>
+                    <div id="msBatchSharedParams">
+                        <label>Model</label>
+                        <select id="msBatchModel" class="ms-select"></select>
+                        <label>Negative Prompt</label>
+                        <input type="text" id="msBatchNegPrompt" class="ms-input" placeholder="Optional negative prompt">
+                    </div>
+                    <p id="msBatchPreview" class="ms-batch-preview">This will create <strong>0</strong> generations</p>
+                </div>
+                <div class="ms-modal-footer">
+                    <button id="msBatchSubmit" class="ms-btn ms-btn-primary" onclick="submitBatch()" disabled>Start Batch</button>
+                </div>
             </div>
         </div>
 
@@ -2112,6 +2186,302 @@
             loadDashboard();
         }
     });
+
+    // ── Queue Panel ─────────────────────────────────────────────────────
+
+    var _queuePollInterval = null;
+    var _queueItemsInterval = null;
+
+    window.toggleQueuePanel = function() {
+        var panel = document.getElementById('msQueuePanel');
+        var isHidden = panel.style.display === 'none';
+        panel.style.display = isHidden ? 'block' : 'none';
+
+        if (isHidden) {
+            loadQueueStats();
+            loadQueueItems();
+            _queuePollInterval = setInterval(loadQueueStats, 5000);
+            _queueItemsInterval = setInterval(loadQueueItems, 10000);
+        } else {
+            if (_queuePollInterval) clearInterval(_queuePollInterval);
+            if (_queueItemsInterval) clearInterval(_queueItemsInterval);
+            _queuePollInterval = null;
+            _queueItemsInterval = null;
+        }
+    };
+
+    window.loadQueueStats = function() {
+        api('/api/queue/stats').then(function(stats) {
+            document.getElementById('msQueueStats').textContent =
+                (stats.pending || 0) + ' active / ' + (stats.failed || 0) + ' failed / ' + (stats.completed || 0) + ' completed';
+            document.getElementById('msQueueActiveCount').textContent = (stats.pending || 0) + (stats.running || 0);
+        });
+    };
+
+    window.loadQueueItems = function() {
+        Promise.all([
+            api('/api/queue?status=pending&per_page=50'),
+            api('/api/queue?status=dispatched&per_page=50'),
+            api('/api/queue?status=generating&per_page=50')
+        ]).then(function(results) {
+            var active = (results[0].items || []).concat(results[1].items || []).concat(results[2].items || []);
+            _renderQueueSection('msQueueActiveList', active, 'active');
+            document.getElementById('msQueueActive').style.display = active.length ? 'block' : 'none';
+        });
+
+        api('/api/queue?status=failed&per_page=20').then(function(data) {
+            _renderQueueSection('msQueueFailedList', data.items || [], 'failed');
+            document.getElementById('msQueueFailed').style.display = (data.items || []).length ? 'block' : 'none';
+        });
+
+        api('/api/queue?status=completed&per_page=5').then(function(data) {
+            _renderQueueSection('msQueueRecentList', data.items || [], 'recent');
+            document.getElementById('msQueueRecent').style.display = (data.items || []).length ? 'block' : 'none';
+        });
+    };
+
+    function _renderQueueSection(containerId, items, type) {
+        var container = document.getElementById(containerId);
+        _clearChildren(container);
+
+        var batches = {};
+        var singles = [];
+        items.forEach(function(item) {
+            if (item.batch_id) {
+                if (!batches[item.batch_id]) batches[item.batch_id] = [];
+                batches[item.batch_id].push(item);
+            } else {
+                singles.push(item);
+            }
+        });
+
+        Object.keys(batches).forEach(function(batchId) {
+            var group = batches[batchId];
+            var div = document.createElement('div');
+            div.className = 'ms-queue-batch-group';
+
+            var header = document.createElement('div');
+            header.className = 'ms-queue-batch-header';
+            var prompt = (group[0].params && group[0].params.prompt) || group[0].prompt || 'Batch ' + batchId;
+            var headerSpan = document.createElement('span');
+            headerSpan.textContent = prompt.substring(0, 60) + ' (' + group.length + ' items)';
+            header.appendChild(headerSpan);
+
+            if (type === 'failed') {
+                var retryBtn = document.createElement('button');
+                retryBtn.className = 'ms-btn-xs';
+                retryBtn.textContent = 'Retry All';
+                retryBtn.onclick = function() { retryBatchFailed(batchId); };
+                header.appendChild(retryBtn);
+            }
+            if (type === 'active') {
+                var cancelBtn = document.createElement('button');
+                cancelBtn.className = 'ms-btn-xs ms-btn-danger';
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.onclick = function() { cancelBatch(batchId); };
+                header.appendChild(cancelBtn);
+            }
+            div.appendChild(header);
+
+            group.forEach(function(item) {
+                div.appendChild(_createQueueCard(item, type));
+            });
+            container.appendChild(div);
+        });
+
+        singles.forEach(function(item) {
+            container.appendChild(_createQueueCard(item, type));
+        });
+    }
+
+    function _createQueueCard(item, type) {
+        var card = document.createElement('div');
+        card.className = 'ms-queue-card ms-queue-' + type;
+        var prompt = (item.params && item.params.prompt) || item.prompt || '';
+        var elapsed = item.started_at ? _formatElapsed(item.started_at) : '';
+
+        var body = document.createElement('div');
+        body.className = 'ms-queue-card-body';
+
+        if (item.thumbnail_path) {
+            var img = document.createElement('img');
+            img.src = item.thumbnail_path;
+            img.className = 'ms-queue-thumb';
+            body.appendChild(img);
+        }
+        if (type === 'active') {
+            var spinner = document.createElement('span');
+            spinner.className = 'ms-spinner';
+            body.appendChild(spinner);
+        }
+
+        var promptSpan = document.createElement('span');
+        promptSpan.className = 'ms-queue-prompt';
+        promptSpan.textContent = prompt.substring(0, 60);
+        body.appendChild(promptSpan);
+
+        var metaSpan = document.createElement('span');
+        metaSpan.className = 'ms-queue-meta';
+        metaSpan.textContent = item.media_type + (elapsed ? ' \u00b7 ' + elapsed : '');
+        body.appendChild(metaSpan);
+
+        if (item.error_message) {
+            var errorSpan = document.createElement('span');
+            errorSpan.className = 'ms-queue-error';
+            errorSpan.textContent = item.error_message;
+            body.appendChild(errorSpan);
+        }
+
+        card.appendChild(body);
+
+        var actions = document.createElement('div');
+        actions.className = 'ms-queue-card-actions';
+        if (type === 'active') {
+            var cb = document.createElement('button');
+            cb.className = 'ms-btn-xs ms-btn-danger';
+            cb.textContent = 'Cancel';
+            cb.onclick = function() { cancelQueueItem(item.id); };
+            actions.appendChild(cb);
+        } else if (type === 'failed') {
+            var rb = document.createElement('button');
+            rb.className = 'ms-btn-xs';
+            rb.textContent = 'Retry';
+            rb.onclick = function() { retryQueueItem(item.id); };
+            actions.appendChild(rb);
+        }
+        card.appendChild(actions);
+
+        return card;
+    }
+
+    function _formatElapsed(startedAt) {
+        var start = new Date(startedAt);
+        var now = new Date();
+        var secs = Math.floor((now - start) / 1000);
+        if (secs < 60) return secs + 's';
+        return Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+    }
+
+    window.cancelQueueItem = function(id) {
+        api('/api/queue/' + id + '/cancel', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+    };
+
+    window.retryQueueItem = function(id) {
+        api('/api/queue/' + id + '/retry', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+    };
+
+    window.cancelBatch = function(id) {
+        api('/api/batches/' + id + '/cancel', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+    };
+
+    window.retryBatchFailed = function(id) {
+        api('/api/batches/' + id + '/retry', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+    };
+
+    window.clearCompleted = function() {
+        api('/api/queue/clear-completed', {method: 'POST'}).then(function() { loadQueueItems(); loadQueueStats(); });
+    };
+
+    // ── Batch Modal ─────────────────────────────────────────────────────
+
+    window.openBatchModal = function(mediaType) {
+        document.getElementById('msBatchMediaType').value = mediaType;
+        document.getElementById('msBatchModal').style.display = 'flex';
+        document.getElementById('msBatchPrompts').value = '';
+        document.getElementById('msBatchName').value = '';
+        document.getElementById('msBatchSweepToggle').checked = false;
+        document.getElementById('msBatchSweepSection').style.display = 'none';
+        updateBatchPreview();
+    };
+
+    window.toggleSweepSection = function() {
+        var show = document.getElementById('msBatchSweepToggle').checked;
+        document.getElementById('msBatchSweepSection').style.display = show ? 'block' : 'none';
+        updateBatchPreview();
+    };
+
+    window.updateSweepInputs = function() {
+        var param = document.getElementById('msBatchSweepParam').value;
+        document.getElementById('msBatchSweepSeedInput').style.display = param === 'seed' ? 'block' : 'none';
+        document.getElementById('msBatchSweepModelInput').style.display = param === 'model' ? 'block' : 'none';
+        updateBatchPreview();
+    };
+
+    window.updateBatchPreview = function() {
+        var lines = document.getElementById('msBatchPrompts').value.split('\n').filter(function(l) { return l.trim(); });
+        var count = lines.length;
+        document.getElementById('msBatchPromptCount').textContent = count + ' prompt' + (count !== 1 ? 's' : '');
+
+        if (document.getElementById('msBatchSweepToggle').checked) {
+            var param = document.getElementById('msBatchSweepParam').value;
+            var sweepCount = 0;
+            if (param === 'seed') {
+                var seeds = document.getElementById('msBatchSweepSeeds').value.split(',').filter(function(s) { return s.trim(); });
+                sweepCount = seeds.length;
+            } else if (param === 'model') {
+                sweepCount = document.querySelectorAll('#msBatchModelCheckboxes input:checked').length;
+            }
+            count = count * Math.max(sweepCount, 1);
+        }
+
+        var preview = document.getElementById('msBatchPreview');
+        var strong = document.createElement('strong');
+        strong.textContent = count;
+        preview.textContent = 'This will create ';
+        preview.appendChild(strong);
+        preview.appendChild(document.createTextNode(' generation' + (count !== 1 ? 's' : '')));
+
+        if (count > 50) {
+            preview.classList.add('ms-batch-over-limit');
+            var warning = document.createElement('span');
+            warning.className = 'ms-text-danger';
+            warning.textContent = ' (Maximum 50 per batch)';
+            preview.appendChild(warning);
+        } else {
+            preview.classList.remove('ms-batch-over-limit');
+        }
+
+        document.getElementById('msBatchSubmit').disabled = count === 0 || count > 50;
+    };
+
+    window.submitBatch = function() {
+        var prompts = document.getElementById('msBatchPrompts').value.split('\n').filter(function(l) { return l.trim(); });
+        var body = {
+            name: document.getElementById('msBatchName').value,
+            media_type: document.getElementById('msBatchMediaType').value,
+            prompts: prompts,
+            base_params: {
+                model: document.getElementById('msBatchModel').value,
+                negative_prompt: document.getElementById('msBatchNegPrompt').value
+            }
+        };
+
+        if (document.getElementById('msBatchSweepToggle').checked) {
+            body.sweep_param = document.getElementById('msBatchSweepParam').value;
+            if (body.sweep_param === 'seed') {
+                body.sweep_values = document.getElementById('msBatchSweepSeeds').value
+                    .split(',').map(function(s) { return parseInt(s.trim()); }).filter(function(n) { return !isNaN(n); });
+            } else if (body.sweep_param === 'model') {
+                body.sweep_values = Array.from(document.querySelectorAll('#msBatchModelCheckboxes input:checked'))
+                    .map(function(cb) { return cb.value; });
+            }
+        }
+
+        document.getElementById('msBatchSubmit').disabled = true;
+        api('/api/batches', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        }).then(function(result) {
+            document.getElementById('msBatchModal').style.display = 'none';
+            var panel = document.getElementById('msQueuePanel');
+            if (panel.style.display === 'none') toggleQueuePanel();
+            else { loadQueueStats(); loadQueueItems(); }
+        }).catch(function(err) {
+            alert('Batch creation failed: ' + (err.message || err));
+            document.getElementById('msBatchSubmit').disabled = false;
+        });
+    };
 
 })();
 </script>

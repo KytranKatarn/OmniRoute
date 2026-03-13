@@ -34,12 +34,60 @@
 .sc-stat-val { font-family: 'IBM Plex Mono', monospace; color: #fff; font-size: 1.1rem; display: block; }
 .sc-stat-label { font-family: 'IBM Plex Mono', monospace; color: rgba(255,255,255,0.4); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; }
 
-/* Detail Modal (node + starbase popups) */
-.sc-detail-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 10000; align-items: center; justify-content: center; }
-.sc-detail-overlay.active { display: flex; }
-.sc-detail { background: #0a0e1a; border: 1px solid var(--sc-accent); border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; overflow-y: auto; }
-.sc-detail-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid rgba(0, 229, 255, 0.15); }
-.sc-detail-title { font-family: 'Antonio', sans-serif; color: var(--sc-accent); font-size: 1.3rem; letter-spacing: 3px; }
+/* Bridge Modal (bm-) — LCARS tablet design from Bridge Command */
+.bm-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); z-index:10000; justify-content:center; align-items:center; }
+.bm-overlay.active { display:flex; }
+.bm-shell { background:#06060c; border:none; border-radius:24px; width:90%; max-width:720px; max-height:85vh; overflow:hidden; display:flex; flex-direction:row; box-shadow:0 0 0 2px #1e1e35,0 0 0 4px rgba(0,229,255,0.12),0 24px 80px rgba(0,0,0,0.8),0 0 60px rgba(0,229,255,0.06); animation:bmTabletIn 0.3s cubic-bezier(0.22,1,0.36,1); }
+@keyframes bmTabletIn { from{opacity:0;transform:scale(0.9) translateY(20px);} to{opacity:1;transform:scale(1) translateY(0);} }
+.bm-frame { flex-shrink:0; width:48px; display:flex; flex-direction:column; gap:3px; background:transparent; }
+.bm-frame-elbow-top { height:52px; background:var(--sc-accent); border-radius:20px 0 0 0; position:relative; }
+.bm-frame-elbow-top::after { content:''; position:absolute; bottom:0; right:0; width:18px; height:18px; background:#06060c; border-radius:0 10px 0 0; }
+.bm-frame-seg { height:28px; border-radius:0 8px 8px 0; margin-right:6px; background:var(--sc-accent); }
+.bm-frame-seg.dim { opacity:0.6; }
+.bm-frame-seg.amber { background:#FFAA00; }
+.bm-frame-seg.purple { background:#8b5cf6; }
+.bm-frame-light { width:10px; height:10px; border-radius:50%; margin:4px auto; animation:bmLightPulse 2s ease-in-out infinite; }
+.bm-frame-light.on { background:#10b981; box-shadow:0 0 8px #10b981; }
+.bm-frame-light.amber { background:#FFAA00; box-shadow:0 0 8px #FFAA00; animation-delay:0.7s; }
+.bm-frame-light.cyan { background:var(--sc-accent); box-shadow:0 0 8px var(--sc-accent); animation-delay:1.4s; }
+@keyframes bmLightPulse { 0%,100%{opacity:1;} 40%{opacity:0.3;} 60%{opacity:0.3;} }
+.bm-frame-fill { flex:1; background:rgba(0,229,255,0.25); border-radius:0 8px 0 0; margin-right:6px; min-height:20px; }
+.bm-frame-elbow-bottom { height:36px; background:var(--sc-accent); border-radius:0 0 0 20px; position:relative; }
+.bm-frame-elbow-bottom::after { content:''; position:absolute; top:0; right:0; width:18px; height:14px; background:#06060c; border-radius:0 0 0 10px; }
+.bm-content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.bm-header { display:flex; align-items:stretch; gap:3px; min-height:44px; flex-shrink:0; }
+.bm-header-title { display:flex; align-items:center; gap:8px; padding:0 18px; background:var(--sc-accent); font-family:'Antonio',sans-serif; font-size:0.9rem; font-weight:600; letter-spacing:0.15em; text-transform:uppercase; color:#fff; white-space:nowrap; }
+.bm-header-strip { flex:1; background:rgba(0,229,255,0.18); display:flex; align-items:center; justify-content:flex-end; padding:0 8px; border-radius:0 20px 0 0; gap:6px; }
+.bm-header-pip { height:8px; border-radius:4px; flex-shrink:0; }
+.bm-header-pip.w1 { width:20px; background:rgba(0,229,255,0.35); }
+.bm-header-pip.w2 { width:35px; background:rgba(255,170,0,0.3); }
+.bm-header-pip.w3 { width:14px; background:rgba(0,212,255,0.3); }
+.bm-close { background:rgba(0,229,255,0.15); border:1px solid rgba(0,229,255,0.3); color:rgba(255,255,255,0.6); font-size:1rem; width:30px; height:30px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; flex-shrink:0; }
+.bm-close:hover { background:rgba(0,229,255,0.3); color:#fff; box-shadow:0 0 10px rgba(0,229,255,0.2); }
+.bm-body { padding:20px 24px; overflow-y:auto; flex:1; font-family:'Antonio',sans-serif; }
+.bm-body * { font-family:'Antonio',sans-serif; }
+.bm-body code, .bm-body pre { font-family:'IBM Plex Mono',monospace; }
+.bm-body::-webkit-scrollbar { width:4px; }
+.bm-body::-webkit-scrollbar-thumb { background:rgba(0,229,255,0.3); border-radius:2px; }
+.bm-body label { font-family:'Antonio',sans-serif; letter-spacing:0.1em; text-transform:uppercase; font-size:0.72rem; color:rgba(0,229,255,0.6); display:block; margin-bottom:4px; }
+.bm-footer { display:flex; align-items:stretch; min-height:14px; flex-shrink:0; gap:3px; }
+.bm-footer-strip { flex:1; background:rgba(0,229,255,0.18); border-radius:0 0 20px 0; display:flex; align-items:center; padding:0 12px; gap:4px; }
+.bm-footer-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.bm-footer-dot.cyan { background:rgba(0,229,255,0.4); }
+.bm-footer-dot.gold { background:rgba(255,170,0,0.4); }
+.bm-footer-dot.green { background:rgba(16,185,129,0.4); }
+@media (max-width:768px) {
+    .bm-shell { width:95%; max-height:90vh; border-radius:16px; }
+    .bm-frame { width:32px; }
+    .bm-frame-elbow-top { height:38px; border-radius:14px 0 0 0; }
+    .bm-frame-elbow-bottom { height:26px; border-radius:0 0 0 14px; }
+    .bm-frame-seg { height:20px; }
+    .bm-header { min-height:36px; }
+    .bm-header-title { font-size:0.75rem; padding:0 10px; }
+    .bm-header-pip.w2 { display:none; }
+    .bm-body { padding:16px; }
+}
+/* Detail panel legacy compat — keep for .sc-close-btn used elsewhere */
 .sc-close-btn { margin-left: auto; background: none; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); padding: 4px 12px; cursor: pointer; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; }
 .sc-close-btn:hover { border-color: var(--sc-red); color: var(--sc-red); }
 
@@ -462,14 +510,31 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         {% endfor %}
     </div>
 
-    <!-- Node Detail Modal -->
-    <div class="sc-detail-overlay" id="sc-detail-overlay" onclick="if(event.target===this)closeDetail()">
-    <div class="sc-detail" id="sc-detail">
-        <div class="sc-detail-header">
-            <div class="sc-node-dot" id="detail-dot"></div>
-            <span class="sc-detail-title" id="detail-title">—</span>
-            <button class="sc-close-btn" onclick="closeDetail()">CLOSE</button>
+    <!-- Node Detail Modal (LCARS tablet) -->
+    <div class="bm-overlay" id="sc-detail-overlay" onclick="if(event.target===this)closeDetail()">
+    <div class="bm-shell" style="max-width:720px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-light cyan"></div>
+            <div class="bm-frame-seg amber"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title"><span class="sc-node-dot" id="detail-dot" style="width:8px;height:8px;display:inline-block;margin-right:4px;"></span> <span id="detail-title">—</span></span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeDetail()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" style="padding:0;">
         <div class="sc-tabs">
             <button class="sc-tab active" onclick="switchTab('status')" data-tab="status">STATUS</button>
             <button class="sc-tab" onclick="switchTab('ota')" data-tab="ota">OTA / SYNC</button>
@@ -594,18 +659,43 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 </div>
             </div>
         </div>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
+            </div>
+        </div>
     </div>
     </div>
 
-    <!-- Starbase Detail Modal -->
-    <div class="sc-detail-overlay" id="sc-starbase-overlay" onclick="if(event.target===this)closeStarbaseDetail()">
-    <div class="sc-detail" id="sc-starbase-detail">
-        <div class="sc-detail-header">
-            <div class="sc-node-dot online"></div>
-            <span class="sc-detail-title">A.R.C.H.I.E. STARBASE</span>
-            <span class="sc-node-mode" style="margin-left:8px;">HUB</span>
-            <button class="sc-close-btn" onclick="closeStarbaseDetail()">CLOSE</button>
+    <!-- Starbase Detail Modal (LCARS tablet) -->
+    <div class="bm-overlay" id="sc-starbase-overlay" onclick="if(event.target===this)closeStarbaseDetail()">
+    <div class="bm-shell" style="max-width:720px;">
+        <div class="bm-frame">
+            <div class="bm-frame-elbow-top"></div>
+            <div class="bm-frame-seg"></div>
+            <div class="bm-frame-seg dim"></div>
+            <div class="bm-frame-light on"></div>
+            <div class="bm-frame-light amber"></div>
+            <div class="bm-frame-light cyan"></div>
+            <div class="bm-frame-seg purple"></div>
+            <div class="bm-frame-fill"></div>
+            <div class="bm-frame-elbow-bottom"></div>
         </div>
+        <div class="bm-content">
+            <div class="bm-header">
+                <span class="bm-header-title"><span class="sc-node-dot online" style="width:8px;height:8px;display:inline-block;margin-right:4px;"></span> A.R.C.H.I.E. STARBASE</span>
+                <div class="bm-header-strip">
+                    <span class="bm-header-pip w1"></span>
+                    <span class="bm-header-pip w2"></span>
+                    <span class="bm-header-pip w3"></span>
+                    <button class="bm-close" onclick="closeStarbaseDetail()">&times;</button>
+                </div>
+            </div>
+            <div class="bm-body" style="padding:0;">
         <div class="sc-tabs">
             <button class="sc-tab active" onclick="switchSbTab('sb-status')" data-sbtab="sb-status">STATUS</button>
             <button class="sc-tab" onclick="switchSbTab('sb-stations')" data-sbtab="sb-stations">STATIONS</button>
@@ -656,6 +746,15 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
         <!-- AGENTS TAB -->
         <div class="sc-panel" id="panel-sb-agents">
             <div id="sb-crew-manifest" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
+        </div>
+            </div>
+            <div class="bm-footer">
+                <div class="bm-footer-strip">
+                    <span class="bm-footer-dot cyan"></span>
+                    <span class="bm-footer-dot gold"></span>
+                    <span class="bm-footer-dot green"></span>
+                </div>
+            </div>
         </div>
     </div>
     </div>

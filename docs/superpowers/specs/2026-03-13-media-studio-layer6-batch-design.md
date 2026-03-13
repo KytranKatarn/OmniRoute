@@ -20,7 +20,7 @@
 | owner_id | INTEGER NOT NULL | |
 | media_type | VARCHAR(20) NOT NULL | `image`, `video`, `audio` |
 | base_params | JSONB NOT NULL | Shared params (model, size, negative_prompt, etc.) |
-| sweep_param | VARCHAR(50) | Which param varies: `seed`, `model`, `prompt`, or NULL |
+| sweep_param | VARCHAR(50) | Which param varies: `seed`, `model`, or NULL |
 | sweep_values | JSONB | Array of sweep values, e.g., `[42, 123, 777, 999]` |
 | total_items | INTEGER NOT NULL | Pre-computed count |
 | completed_items | INTEGER DEFAULT 0 | Incremented on each completion |
@@ -63,7 +63,7 @@ Index: `idx_media_batches_owner` on `(owner_type, owner_id)`, `idx_media_batches
 - If `sweep_param` is `model`: each prompt x each model (N prompts x M models)
 - **Cap: 50 items max per batch.** Reject with error if expansion exceeds 50.
 
-Each expanded entry calls `submit_generation()` from generation_service.py with the merged params and gets `batch_id` set on the resulting queue entry.
+**`batch_id` linkage:** `submit_generation()` gains an optional `batch_id=None` parameter. When provided, the INSERT into `media_generation_queue` includes the `batch_id` value. This is the only change to `submit_generation()`'s signature. For agent-owned batches, `expand_batch` passes `owner_type` and `owner_id` directly to `submit_generation()` — the existing `user_id` parameter is renamed to `owner_id` (with `owner_type` added) for consistency. All existing callers pass `owner_type="user"` so this is backward-compatible.
 
 **Auto-naming:** If `name` is empty, auto-generate from first prompt truncated to 50 chars + sweep summary. E.g., "A space battle scene... x 4 seeds".
 
@@ -151,7 +151,27 @@ if queue_entry.get("batch_id"):
         logger.warning("batch counter update failed for queue %s", queue_id)
 ```
 
-Same pattern needed for failure handling — if a queue entry transitions to `failed`, also call `update_batch_counters`.
+**Failure hook:** Add an `on_generation_failed(queue_id, error_message)` function to generation_service.py (if not already present). It updates the queue entry to `status='failed'` with the error_message, then calls the same batch counter hook:
+
+```python
+# In on_generation_failed(), after setting status='failed':
+if queue_entry.get("batch_id"):
+    try:
+        from .batch_service import update_batch_counters
+        update_batch_counters(queue_entry["batch_id"])
+    except Exception:
+        logger.warning("batch counter update failed for queue %s", queue_id)
+```
+
+**`submit_generation()` signature change:** Add optional `batch_id=None` parameter. When provided, include in the INSERT:
+
+```python
+def submit_generation(owner_type, owner_id, media_type, prompt, params, batch_id=None):
+    # ... existing logic ...
+    # INSERT INTO media_generation_queue (..., batch_id) VALUES (..., %s)
+```
+
+All existing callers (single generation from routes) pass no `batch_id` — defaults to NULL. Only `expand_batch` passes it.
 
 ---
 
@@ -214,7 +234,7 @@ Triggered from a "Batch" button next to existing "Generate" button on each media
 |--------|------|---------|
 | Create | `database/migrations/152_batch_generation.sql` | `media_batches` table + `batch_id` column on queue |
 | Create | `services/batch_service.py` | Batch creation, expansion, status, queue mgmt, cleanup |
-| Modify | `services/generation_service.py` | Hook `update_batch_counters` in completion/failure callbacks |
+| Modify | `services/generation_service.py` | Add `batch_id` param to `submit_generation()`, add `on_generation_failed()`, hook `update_batch_counters` in both completion and failure callbacks |
 | Modify | `routes.py` | 10 new API endpoints (batches + queue) |
 | Modify | `__init__.py` | Register 2 APScheduler cleanup jobs |
 | Modify | `templates/.../media_studio.html` | Queue panel + batch creation modal + JS |

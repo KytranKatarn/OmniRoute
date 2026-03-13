@@ -4454,6 +4454,50 @@ def node_heartbeat(node_id):
                 except Exception as e:
                     logger.warning(f"Failed to store idle_agents for {node_id}: {e}")
 
+            # Process completed jobs from node (Fleet Coordination)
+            completed_jobs = data.get("completed_jobs", [])
+            for job in completed_jobs:
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO task_execution_log
+                            (agent_name, station_code, capability,
+                             module_source, success, duration_ms, created_at)
+                        VALUES (%s, %s, %s, 'remote', %s, %s, NOW())
+                    """,
+                        (
+                            job.get("agent_name"),
+                            job.get("station_code", "UNKNOWN"),
+                            job.get("capability"),
+                            job.get("success", False),
+                            job.get("duration_ms", 0),
+                        ),
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to log completed job: {e}")
+
+            # Update fleet agent cache with node welfare data
+            agent_welfare = data.get("agent_welfare", {})
+            if agent_welfare:
+                try:
+                    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                    dispatcher = get_dispatcher()
+                    for agent_name, welfare in agent_welfare.items():
+                        cache_key = f"fleet:{node_id}:{agent_name}"
+                        if cache_key in dispatcher._agent_cache:
+                            dispatcher._agent_cache[cache_key].update(
+                                {
+                                    "stress": welfare.get("stress", 0.0),
+                                    "energy": welfare.get("energy", 1.0),
+                                    "shift_state": welfare.get("shift_state", "active"),
+                                    "task_count": welfare.get("task_count", 0),
+                                    "model_loaded": welfare.get("model_loaded", False),
+                                }
+                            )
+                except Exception as e:
+                    logger.warning(f"Failed to update fleet welfare cache: {e}")
+
             # Check if update was requested for this node
             cur.execute(
                 "SELECT update_requested FROM remote_nodes WHERE id = %s",

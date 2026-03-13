@@ -1,0 +1,289 @@
+"""Generation service — orchestrates media creation through Bridge dispatch.
+
+Submits jobs to Bridge dispatcher which handles agent selection,
+GPU-tiered fleet routing, and escalation chain.
+"""
+
+import logging
+import os
+import shutil
+import time
+from datetime import datetime, timezone
+from typing import Dict, Optional
+
+import psycopg2.extras
+
+from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
+
+MEDIA_ROOT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+    "static",
+    "media",
+)
+
+# Capability map: media type → Bridge capability
+MEDIA_TYPE_CAPABILITIES = {
+    "image": "image_generation",
+    "video": "video_generation",
+    "audio": "audio_generation",
+}
+
+# Default generation params
+DEFAULT_IMAGE_PARAMS = {
+    "model": "sd_xl_base_1.0.safetensors",
+    "width": 1024,
+    "height": 1024,
+    "steps": 25,
+    "cfg": 7.0,
+    "sampler": "euler_ancestral",
+    "seed": -1,
+}
+
+
+def submit_generation(
+    user_id: int,
+    media_type: str,
+    prompt: str,
+    negative_prompt: str = "",
+    params: Optional[Dict] = None,
+) -> Dict:
+    """Submit a generation request.
+
+    Creates queue entry, dispatches to Bridge, returns queue_id for polling.
+    """
+    if media_type not in MEDIA_TYPE_CAPABILITIES:
+        return {"error": f"Unsupported media type: {media_type}"}
+
+    merged_params = {**DEFAULT_IMAGE_PARAMS, **(params or {})}
+    merged_params["prompt"] = prompt
+    merged_params["negative_prompt"] = negative_prompt
+
+    # Create queue entry
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            INSERT INTO media_generation_queue
+                (owner_type, owner_id, media_type, status, params)
+            VALUES ('user', %s, %s, 'pending', %s)
+            RETURNING id
+            """,
+            (user_id, media_type, psycopg2.extras.Json(merged_params)),
+        )
+        queue_id = cur.fetchone()["id"]
+
+    # Dispatch to Bridge
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        capability = MEDIA_TYPE_CAPABILITIES[media_type]
+
+        # Build a generation-specific prompt for Bridge
+        bridge_prompt = (
+            f"Generate {media_type}: {prompt}\n"
+            f"Model: {merged_params.get('model')}\n"
+            f"Size: {merged_params.get('width')}x{merged_params.get('height')}\n"
+            f"Steps: {merged_params.get('steps')}"
+        )
+
+        result = dispatcher.request_work(
+            capability=capability,
+            prompt=bridge_prompt,
+            module_id="media_studio",
+            context={
+                "queue_id": queue_id,
+                "params": merged_params,
+                "media_type": media_type,
+            },
+            user_id=user_id,
+            priority="normal",
+            prefer_gpu=True,
+            prefer_agent="Pixel",
+        )
+
+        # Update queue with Bridge job info
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE media_generation_queue
+                SET status = 'dispatched', started_at = NOW()
+                WHERE id = %s
+                """,
+                (queue_id,),
+            )
+
+        return {
+            "queue_id": queue_id,
+            "status": "dispatched",
+            "agent": getattr(result, "agent_name", None),
+        }
+
+    except Exception as e:
+        logger.error(f"Bridge dispatch failed for queue {queue_id}: {e}")
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE media_generation_queue
+                SET status = 'failed', error_message = %s, completed_at = NOW()
+                WHERE id = %s
+                """,
+                (str(e), queue_id),
+            )
+        return {"queue_id": queue_id, "status": "failed", "error": str(e)}
+
+
+def on_generation_complete(
+    queue_id: int,
+    file_path: str,
+    seed: Optional[int] = None,
+    duration_ms: Optional[int] = None,
+    provider: str = "comfyui",
+    node_id: Optional[int] = None,
+) -> Optional[int]:
+    """Handle completed generation — save to library, update queue.
+
+    Returns media_library ID or None on failure.
+    """
+    from .gallery_service import create_media_entry
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM media_generation_queue WHERE id = %s", (queue_id,))
+        queue_row = cur.fetchone()
+
+    if not queue_row:
+        logger.error(f"Queue entry {queue_id} not found")
+        return None
+
+    params = queue_row["params"] or {}
+
+    # Move file to user's media directory
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    owner_dir = os.path.join(
+        MEDIA_ROOT,
+        f"{queue_row['owner_type']}s",
+        str(queue_row["owner_id"] or "system"),
+        date_str,
+    )
+    os.makedirs(owner_dir, exist_ok=True)
+
+    filename = f"media_{queue_id}_{int(time.time())}.png"
+    dest_path = os.path.join(owner_dir, filename)
+
+    try:
+        shutil.copy2(file_path, dest_path)
+    except Exception as e:
+        logger.error(f"Failed to copy media file: {e}")
+        dest_path = file_path
+
+    # Relative path for DB storage (from static/)
+    rel_path = os.path.relpath(dest_path, os.path.join(MEDIA_ROOT, ".."))
+
+    # Create thumbnail (256px wide)
+    thumb_path = None
+    try:
+        from PIL import Image
+
+        img = Image.open(dest_path)
+        thumb_w = 256
+        thumb_h = int(img.height * (thumb_w / img.width))
+        img.thumbnail((thumb_w, thumb_h))
+        thumb_filename = f"thumb_{filename}"
+        thumb_full = os.path.join(owner_dir, thumb_filename)
+        img.save(thumb_full, "PNG")
+        thumb_path = os.path.relpath(thumb_full, os.path.join(MEDIA_ROOT, ".."))
+    except Exception as e:
+        logger.warning(f"Thumbnail generation failed: {e}")
+
+    # Insert into media_library
+    media_id = create_media_entry(
+        owner_type=queue_row["owner_type"],
+        owner_id=queue_row["owner_id"],
+        media_type=queue_row["media_type"],
+        file_path=rel_path,
+        thumbnail_path=thumb_path,
+        prompt=params.get("prompt"),
+        negative_prompt=params.get("negative_prompt"),
+        model=params.get("model"),
+        provider=provider,
+        node_id=node_id,
+        seed=seed,
+        width=params.get("width"),
+        height=params.get("height"),
+        duration_ms=duration_ms,
+    )
+
+    # Update queue
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE media_generation_queue
+            SET status = 'completed', result_media_id = %s, completed_at = NOW()
+            WHERE id = %s
+            """,
+            (media_id, queue_id),
+        )
+
+    return media_id
+
+
+def on_generation_failed(queue_id: int, error: str) -> None:
+    """Handle failed generation — update queue status."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE media_generation_queue
+            SET status = 'failed', error_message = %s, completed_at = NOW()
+            WHERE id = %s
+            """,
+            (error, queue_id),
+        )
+
+
+def cancel_generation(queue_id: int, user_id: int) -> bool:
+    """Cancel a pending/dispatched generation. Returns True if cancelled."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE media_generation_queue
+            SET status = 'cancelled', completed_at = NOW()
+            WHERE id = %s AND owner_type = 'user' AND owner_id = %s
+                  AND status IN ('pending', 'dispatched')
+            """,
+            (queue_id, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def get_queue_status(
+    owner_type: str = "user",
+    owner_id: Optional[int] = None,
+    limit: int = 20,
+) -> list:
+    """Get recent queue entries for polling."""
+    with get_db_cursor() as (conn, cur):
+        if owner_id:
+            cur.execute(
+                """
+                SELECT q.*, ml.thumbnail_path
+                FROM media_generation_queue q
+                LEFT JOIN media_library ml ON ml.id = q.result_media_id
+                WHERE q.owner_type = %s AND q.owner_id = %s
+                ORDER BY q.created_at DESC
+                LIMIT %s
+                """,
+                (owner_type, owner_id, limit),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT q.*, ml.thumbnail_path
+                FROM media_generation_queue q
+                LEFT JOIN media_library ml ON ml.id = q.result_media_id
+                ORDER BY q.created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+        return [dict(row) for row in cur.fetchall()]

@@ -1,0 +1,206 @@
+"""Gallery service — media library CRUD with ownership tracking.
+
+All queries filter by owner for access control. Soft-delete only.
+"""
+
+import logging
+import os
+from typing import Dict, List, Optional
+
+from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
+
+MEDIA_ROOT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+    "static",
+    "media",
+)
+
+
+def get_gallery(
+    owner_type: str,
+    owner_id: int,
+    media_type: Optional[str] = None,
+    favorites_only: bool = False,
+    page: int = 1,
+    per_page: int = 20,
+) -> Dict:
+    """Paginated media library query with filters."""
+    offset = (page - 1) * per_page
+    conditions = ["is_deleted = false", "owner_type = %s", "owner_id = %s"]
+    params = [owner_type, owner_id]
+
+    if media_type:
+        conditions.append("media_type = %s")
+        params.append(media_type)
+    if favorites_only:
+        conditions.append("is_favorite = true")
+
+    where = " AND ".join(conditions)
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
+        total = cur.fetchone()["total"]
+
+        cur.execute(
+            f"""
+            SELECT id, media_type, file_path, thumbnail_path, prompt, model,
+                   provider, seed, width, height, duration_ms, cost,
+                   is_favorite, metadata, created_at
+            FROM media_library
+            WHERE {where}
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+            """,
+            params + [per_page, offset],
+        )
+        items = cur.fetchall()
+
+    return {
+        "items": [dict(row) for row in items],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": (total + per_page - 1) // per_page,
+    }
+
+
+def get_media_detail(media_id: int, owner_type: str, owner_id: int) -> Optional[Dict]:
+    """Full metadata with ownership check."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT * FROM media_library
+            WHERE id = %s AND owner_type = %s AND owner_id = %s AND is_deleted = false
+            """,
+            (media_id, owner_type, owner_id),
+        )
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def create_media_entry(
+    owner_type: str,
+    owner_id: Optional[int],
+    media_type: str,
+    file_path: str,
+    thumbnail_path: Optional[str] = None,
+    prompt: Optional[str] = None,
+    negative_prompt: Optional[str] = None,
+    model: Optional[str] = None,
+    provider: Optional[str] = None,
+    node_id: Optional[int] = None,
+    seed: Optional[int] = None,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    duration_ms: Optional[int] = None,
+    cost: float = 0,
+    metadata: Optional[Dict] = None,
+) -> int:
+    """Insert a new media library entry. Returns the new ID."""
+    import psycopg2.extras
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            INSERT INTO media_library
+                (owner_type, owner_id, media_type, file_path, thumbnail_path,
+                 prompt, negative_prompt, model, provider, node_id, seed,
+                 width, height, duration_ms, cost, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                owner_type,
+                owner_id,
+                media_type,
+                file_path,
+                thumbnail_path,
+                prompt,
+                negative_prompt,
+                model,
+                provider,
+                node_id,
+                seed,
+                width,
+                height,
+                duration_ms,
+                cost,
+                psycopg2.extras.Json(metadata or {}),
+            ),
+        )
+        return cur.fetchone()["id"]
+
+
+def delete_media(media_id: int, owner_type: str, owner_id: int) -> bool:
+    """Soft delete with ownership verification."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE media_library SET is_deleted = true
+            WHERE id = %s AND owner_type = %s AND owner_id = %s AND is_deleted = false
+            """,
+            (media_id, owner_type, owner_id),
+        )
+        return cur.rowcount > 0
+
+
+def toggle_favorite(media_id: int, owner_type: str, owner_id: int) -> Optional[bool]:
+    """Toggle is_favorite flag. Returns new state or None if not found."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE media_library SET is_favorite = NOT is_favorite
+            WHERE id = %s AND owner_type = %s AND owner_id = %s AND is_deleted = false
+            RETURNING is_favorite
+            """,
+            (media_id, owner_type, owner_id),
+        )
+        row = cur.fetchone()
+    return row["is_favorite"] if row else None
+
+
+def assign_media(
+    media_id: int,
+    assignment_type: str,
+    target_type: str,
+    target_id: Optional[int] = None,
+) -> int:
+    """Link media to a UI location. Deactivates previous assignment for same target+type."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        # Deactivate previous
+        cur.execute(
+            """
+            UPDATE media_assignments SET is_active = false
+            WHERE assignment_type = %s AND target_type = %s AND target_id = %s
+                  AND is_active = true
+            """,
+            (assignment_type, target_type, target_id),
+        )
+        # Create new
+        cur.execute(
+            """
+            INSERT INTO media_assignments (media_id, assignment_type, target_type, target_id)
+            VALUES (%s, %s, %s, %s) RETURNING id
+            """,
+            (media_id, assignment_type, target_type, target_id),
+        )
+        return cur.fetchone()["id"]
+
+
+def get_active_assignment(assignment_type: str, target_type: str, target_id: Optional[int] = None) -> Optional[Dict]:
+    """Get active media assignment for a target."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT ma.*, ml.file_path, ml.thumbnail_path
+            FROM media_assignments ma
+            JOIN media_library ml ON ml.id = ma.media_id
+            WHERE ma.assignment_type = %s AND ma.target_type = %s
+                  AND ma.target_id = %s AND ma.is_active = true
+            """,
+            (assignment_type, target_type, target_id),
+        )
+        row = cur.fetchone()
+    return dict(row) if row else None

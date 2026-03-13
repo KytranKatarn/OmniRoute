@@ -127,10 +127,9 @@
                         <i data-lucide="image" style="width:16px;height:16px;"></i>
                         <span data-i18n="media_studio.image">Image</span>
                     </button>
-                    <button class="ms-type-btn disabled" data-type="video">
+                    <button class="ms-type-btn" data-type="video" onclick="selectMediaType('video')">
                         <i data-lucide="film" style="width:16px;height:16px;"></i>
                         <span data-i18n="media_studio.video">Video</span>
-                        <span class="ms-coming-soon" data-i18n="media_studio.coming_soon">Coming Soon</span>
                     </button>
                     <button class="ms-type-btn disabled" data-type="audio">
                         <i data-lucide="music" style="width:16px;height:16px;"></i>
@@ -235,6 +234,47 @@
                 <i data-lucide="zap" style="width:18px;height:18px;"></i>
                 <span data-i18n="media_studio.generate_action">Generate</span>
             </button>
+
+            <!-- Video Controls (hidden when media_type != video) -->
+            <div id="msVideoControls" class="ms-video-controls" style="display:none;">
+                <div class="ms-section-header">Video Settings</div>
+                <div class="ms-form-group">
+                    <label class="ms-form-label">Duration</label>
+                    <div class="ms-duration-btns">
+                        <button class="ms-duration-btn active" data-dur="2" onclick="setVideoDuration(2)">2s</button>
+                        <button class="ms-duration-btn" data-dur="4" onclick="setVideoDuration(4)">4s</button>
+                        <button class="ms-duration-btn" data-dur="6" onclick="setVideoDuration(6)">6s</button>
+                    </div>
+                </div>
+                <div class="ms-form-group">
+                    <label class="ms-form-label">FPS</label>
+                    <div class="ms-fps-btns">
+                        <button class="ms-fps-btn active" data-fps="8" onclick="setVideoFPS(8)">8</button>
+                        <button class="ms-fps-btn" data-fps="12" onclick="setVideoFPS(12)">12</button>
+                        <button class="ms-fps-btn" data-fps="24" onclick="setVideoFPS(24)">24</button>
+                    </div>
+                </div>
+                <div class="ms-form-group">
+                    <label class="ms-form-label">Motion Strength</label>
+                    <input type="range" id="msMotionStrength" class="ms-slider" min="0" max="2" step="0.1" value="1.0">
+                    <span id="msMotionStrengthVal" class="ms-slider-val">1.0</span>
+                </div>
+                <div class="ms-form-group">
+                    <label class="ms-form-label">Reference Image (optional — for image-to-video)</label>
+                    <div class="ms-ref-upload">
+                        <input type="file" id="msRefImageFile" accept="image/*" style="display:none;">
+                        <button class="ms-btn ms-btn-secondary" onclick="document.getElementById('msRefImageFile').click()">Choose Image</button>
+                        <span id="msRefImageName" class="ms-ref-name">No file selected</span>
+                    </div>
+                </div>
+                <div class="ms-form-group">
+                    <label class="ms-form-label">Provider</label>
+                    <select id="msVideoProvider" class="ms-select">
+                        <option value="auto">Auto (Local First)</option>
+                        <option value="local">Local ComfyUI Only</option>
+                    </select>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -491,7 +531,7 @@
         if (tabId === "dashboard") loadDashboard();
         else if (tabId === "gallery") loadGallery(1);
         else if (tabId === "queue") loadQueue();
-        else if (tabId === "generate") loadModels();
+        else if (tabId === "generate") { loadModels(); loadVideoProviders(); }
         else if (tabId === "portraits") loadPortraits();
 
         if (tabId !== "queue" && queuePollTimer) {
@@ -688,6 +728,95 @@
         document.getElementById("msCharCount").textContent = len;
     };
 
+    /* ── Video Controls ──────────────────────────── */
+
+    var _currentMediaType = "image";
+    var _videoDuration = 2;
+    var _videoFPS = 8;
+
+    // Override selectMediaType to also toggle video controls
+    window.selectMediaType = function(type) {
+        if (type === "audio") return; // Layer 4
+        _currentMediaType = type;
+        var btns = document.querySelectorAll(".ms-type-btn");
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.toggle("active", btns[i].dataset.type === type);
+        }
+        var vc = document.getElementById("msVideoControls");
+        if (vc) vc.style.display = type === "video" ? "" : "none";
+        // Update generate button text
+        var genBtn = document.getElementById("msGenerateBtn");
+        if (genBtn) {
+            _clearChildren(genBtn);
+            var spinner = document.createElement("div");
+            spinner.className = "ms-spinner";
+            genBtn.appendChild(spinner);
+            var icon = document.createElement("i");
+            icon.setAttribute("data-lucide", type === "video" ? "film" : "zap");
+            icon.style.cssText = "width:18px;height:18px;";
+            genBtn.appendChild(icon);
+            genBtn.appendChild(document.createTextNode(type === "video" ? " Generate Video" : " Generate"));
+            if (window.lucide) lucide.createIcons();
+        }
+    };
+
+    window.setVideoDuration = function(dur) {
+        _videoDuration = dur;
+        var btns = document.querySelectorAll(".ms-duration-btn");
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.toggle("active", parseInt(btns[i].dataset.dur) === dur);
+        }
+    };
+
+    window.setVideoFPS = function(fps) {
+        _videoFPS = fps;
+        var btns = document.querySelectorAll(".ms-fps-btn");
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.toggle("active", parseInt(btns[i].dataset.fps) === fps);
+        }
+    };
+
+    // Motion strength slider live update
+    (function() {
+        var slider = document.getElementById("msMotionStrength");
+        var valSpan = document.getElementById("msMotionStrengthVal");
+        if (slider && valSpan) {
+            slider.addEventListener("input", function() {
+                valSpan.textContent = this.value;
+            });
+        }
+    })();
+
+    // Reference image file name display
+    (function() {
+        var fileInput = document.getElementById("msRefImageFile");
+        var nameSpan = document.getElementById("msRefImageName");
+        if (fileInput && nameSpan) {
+            fileInput.addEventListener("change", function() {
+                nameSpan.textContent = this.files.length ? this.files[0].name : "No file selected";
+            });
+        }
+    })();
+
+    // Load external video providers into dropdown
+    window.loadVideoProviders = function() {
+        api("GET", "/api/video/providers").then(function(data) {
+            var sel = document.getElementById("msVideoProvider");
+            if (!sel) return;
+            (data.providers || []).forEach(function(p) {
+                var opt = document.createElement("option");
+                opt.value = p.provider_key;
+                opt.textContent = p.display_name || p.provider_key;
+                if (p.cost_per_unit) {
+                    opt.textContent += " ($" + p.cost_per_unit + "/gen)";
+                }
+                sel.appendChild(opt);
+            });
+        }).catch(function(e) {
+            console.warn("Failed to load video providers:", e);
+        });
+    };
+
     window.submitGeneration = function() {
         var prompt = document.getElementById("msPrompt").value.trim();
         if (!prompt) {
@@ -695,27 +824,43 @@
             return;
         }
 
-        var sizeBtn = document.querySelector(".ms-size-btn.active");
-        var sizeParts = (sizeBtn ? sizeBtn.dataset.size : "1024x1024").split("x");
-
-        var payload = {
-            prompt: prompt,
-            negative_prompt: document.getElementById("msNegPrompt").value.trim() || "",
-            model: document.getElementById("msModel").value,
-            width: parseInt(sizeParts[0], 10),
-            height: parseInt(sizeParts[1], 10),
-            steps: parseInt(document.getElementById("msSteps").value, 10),
-            cfg_scale: parseFloat(document.getElementById("msCfg").value),
-            sampler: document.getElementById("msSampler").value,
-            seed: parseInt(document.getElementById("msSeed").value, 10),
-            media_type: "image"
-        };
-
         var btn = document.getElementById("msGenerateBtn");
         btn.disabled = true;
         btn.classList.add("loading");
 
-        api("POST", "/api/generate", payload).then(function(data) {
+        var url, payload;
+
+        if (_currentMediaType === "video") {
+            url = "/api/video/generate";
+            payload = {
+                prompt: prompt,
+                negative_prompt: document.getElementById("msNegPrompt").value.trim() || "",
+                model: document.getElementById("msModel").value,
+                duration: _videoDuration,
+                fps: _videoFPS,
+                motion_strength: parseFloat(document.getElementById("msMotionStrength").value || "1.0"),
+                provider: document.getElementById("msVideoProvider").value || "auto",
+                seed: parseInt(document.getElementById("msSeed").value, 10),
+            };
+        } else {
+            url = "/api/generate";
+            var sizeBtn = document.querySelector(".ms-size-btn.active");
+            var sizeParts = (sizeBtn ? sizeBtn.dataset.size : "1024x1024").split("x");
+            payload = {
+                prompt: prompt,
+                negative_prompt: document.getElementById("msNegPrompt").value.trim() || "",
+                model: document.getElementById("msModel").value,
+                width: parseInt(sizeParts[0], 10),
+                height: parseInt(sizeParts[1], 10),
+                steps: parseInt(document.getElementById("msSteps").value, 10),
+                cfg_scale: parseFloat(document.getElementById("msCfg").value),
+                sampler: document.getElementById("msSampler").value,
+                seed: parseInt(document.getElementById("msSeed").value, 10),
+                media_type: "image",
+            };
+        }
+
+        api("POST", url, payload).then(function(data) {
             btn.disabled = false;
             btn.classList.remove("loading");
             if (window._msGlassNav) window._msGlassNav.setActive("queue");

@@ -1587,3 +1587,66 @@
 .ms-env-card .ms-btn {
     width: 100%;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   S17 · VIDEO CONTROLS
+   ═══════════════════════════════════════════════════════════════ */
+
+.ms-video-controls {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(138, 92, 246, 0.15);
+    border-radius: 8px;
+}
+
+.ms-duration-btns,
+.ms-fps-btns {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.ms-duration-btn,
+.ms-fps-btn {
+    padding: 0.4rem 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(138, 92, 246, 0.3);
+    color: rgba(255, 255, 255, 0.6);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--ms-font-mono);
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.ms-duration-btn:hover,
+.ms-fps-btn:hover {
+    border-color: rgba(138, 92, 246, 0.6);
+    color: white;
+}
+
+.ms-duration-btn.active,
+.ms-fps-btn.active {
+    background: rgba(138, 92, 246, 0.3);
+    border-color: #8b5cf6;
+    color: #c4b5fd;
+}
+
+.ms-slider-val {
+    color: #c4b5fd;
+    font-family: var(--ms-font-mono);
+    font-size: 0.85rem;
+    margin-left: 0.5rem;
+}
+
+.ms-ref-upload {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ms-ref-name {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+    font-style: italic;
+}

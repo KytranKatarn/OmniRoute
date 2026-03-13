@@ -2244,3 +2244,114 @@
   font-size: 0.8rem;
   font-style: italic;
 }
+
+/* ── S22  Image Editing ──────────────────────────────────────────────── */
+.ms-edit-modal {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+}
+.ms-edit-modal-content {
+    background: var(--ms-bg, #1a1a2e);
+    border: 1px solid var(--ms-accent, #f90);
+    border-radius: 8px;
+    width: 90vw; max-width: 1000px; max-height: 90vh;
+    display: flex; flex-direction: column; overflow: hidden;
+}
+.ms-edit-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--ms-border, #334);
+    font-family: 'Antonio', sans-serif; text-transform: uppercase;
+    color: var(--ms-accent, #f90);
+}
+.ms-edit-modal-close {
+    background: none; border: none; color: var(--ms-text, #aab);
+    font-size: 1.5rem; cursor: pointer;
+}
+.ms-edit-tabs {
+    display: flex; gap: 0; border-bottom: 1px solid var(--ms-border, #334);
+}
+.ms-edit-tab {
+    flex: 1; padding: 0.5rem; border: none; background: transparent;
+    color: var(--ms-text, #aab); font-family: 'Antonio', sans-serif;
+    text-transform: uppercase; font-size: 0.75rem; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.2s;
+}
+.ms-edit-tab:hover { color: var(--ms-accent, #f90); }
+.ms-edit-tab.active {
+    color: var(--ms-accent, #f90);
+    border-bottom-color: var(--ms-accent, #f90);
+}
+.ms-edit-body { padding: 1rem; overflow-y: auto; flex: 1; }
+.ms-edit-canvas-wrap {
+    display: flex; justify-content: center;
+    background: #000; border-radius: 4px; margin-bottom: 0.75rem;
+    max-height: 50vh; overflow: hidden;
+}
+.ms-edit-canvas-wrap canvas { max-width: 100%; max-height: 50vh; cursor: crosshair; }
+.ms-edit-toolbar {
+    display: flex; gap: 0.5rem; align-items: center;
+    padding: 0.5rem; background: rgba(255,255,255,0.03);
+    border-radius: 4px; margin-bottom: 0.75rem;
+    font-size: 0.75rem; color: var(--ms-text, #aab);
+}
+.ms-edit-toolbar button {
+    padding: 0.25rem 0.5rem; border: 1px solid var(--ms-border, #334);
+    background: transparent; color: var(--ms-text, #aab); border-radius: 3px;
+    cursor: pointer; font-size: 0.7rem;
+}
+.ms-edit-toolbar button.active { background: var(--ms-accent, #f90); color: #000; }
+.ms-edit-params {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    font-size: 0.75rem; color: var(--ms-text, #aab);
+}
+.ms-edit-params label { display: flex; flex-direction: column; gap: 0.25rem; }
+.ms-edit-params textarea { resize: vertical; min-height: 2rem; }
+.ms-edit-modal-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--ms-border, #334);
+}
+.ms-btn-primary {
+    padding: 0.4rem 1rem; background: var(--ms-accent, #f90); color: #000;
+    border: none; border-radius: 4px; font-family: 'Antonio', sans-serif;
+    text-transform: uppercase; cursor: pointer; font-size: 0.8rem;
+}
+.ms-btn-primary:hover { opacity: 0.9; }
+.ms-card-action-btn {
+    position: absolute; bottom: 4px; right: 4px;
+    padding: 2px 8px; font-size: 0.65rem;
+    background: rgba(0,0,0,0.7); color: var(--ms-accent, #f90);
+    border: 1px solid var(--ms-accent, #f90); border-radius: 3px;
+    cursor: pointer; font-family: 'Antonio', sans-serif;
+    text-transform: uppercase; opacity: 0; transition: opacity 0.2s;
+}
+.ms-gallery-card:hover .ms-card-action-btn { opacity: 1; }
+.ms-version-badge {
+    position: absolute; top: 4px; right: 4px;
+    background: var(--ms-accent, #f90); color: #000;
+    font-size: 0.6rem; padding: 1px 4px; border-radius: 3px;
+    font-family: 'Antonio', sans-serif; cursor: pointer;
+}
+.ms-version-sidebar {
+    position: fixed; right: 0; top: 0; bottom: 0; width: 220px;
+    background: var(--ms-bg, #1a1a2e);
+    border-left: 1px solid var(--ms-accent, #f90);
+    z-index: 9998; overflow-y: auto; padding: 0.5rem;
+}
+.ms-version-sidebar-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'Antonio', sans-serif; text-transform: uppercase;
+    color: var(--ms-accent, #f90); padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--ms-border, #334);
+}
+.ms-version-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem; cursor: pointer; border-radius: 4px;
+}
+.ms-version-item:hover { background: rgba(255, 153, 0, 0.05); }
+.ms-version-thumb {
+    width: 60px; height: 60px; object-fit: cover; border-radius: 3px;
+    border: 1px solid var(--ms-border, #334);
+}

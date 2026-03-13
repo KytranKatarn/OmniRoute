@@ -358,6 +358,24 @@
             <button class="ms-queue-toggle" onclick="toggleQueuePanel()" id="msQueueToggle">
                 Queue (<span id="msQueueActiveCount">0</span> active)
             </button>
+            <!-- Owner Filter -->
+            <div class="ms-gallery-filter" id="msGalleryFilter">
+                <button class="ms-btn-xs ms-gallery-filter-btn active" data-filter="mine" onclick="setOwnerFilter('mine')">Mine</button>
+                <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="agents" onclick="setOwnerFilter('agents')">Agent Art</button>
+                <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="all" onclick="setOwnerFilter('all')">All</button>
+            </div>
+            <!-- Agent Config Toggle -->
+            <button class="ms-btn-xs" onclick="toggleAgentConfig()" style="margin-left:8px">
+                <i data-lucide="bot"></i> Agent Config
+            </button>
+        </div>
+
+        <!-- Agent Config Panel (collapsible) -->
+        <div class="ms-agent-config" id="msAgentConfig" style="display:none;">
+            <div class="ms-section-header">
+                <span>Agent Media Config</span>
+            </div>
+            <div id="msAgentConfigBody"></div>
         </div>
 
         <!-- Queue Panel (collapsible) -->
@@ -2480,6 +2498,167 @@
         }).catch(function(err) {
             alert('Batch creation failed: ' + (err.message || err));
             document.getElementById('msBatchSubmit').disabled = false;
+        });
+    };
+
+    // ── S21  Agent Gallery & Config ──────────────────────────────
+    var _ownerFilter = 'mine';
+
+    window.setOwnerFilter = function(filter) {
+        _ownerFilter = filter;
+        document.querySelectorAll('.ms-gallery-filter-btn').forEach(function(b) {
+            b.classList.toggle('active', b.dataset.filter === filter);
+        });
+        if (filter === 'agents') {
+            loadAgentGallery();
+        } else {
+            loadGallery(1);
+        }
+    };
+
+    window.loadAgentGallery = function() {
+        api('GET', '/api/generations?owner_type=agent').then(function(data) {
+            var grid = document.getElementById('msGalleryGrid');
+            if (!grid) return;
+            _clearChildren(grid);
+            var items = data.generations || data || [];
+            items.forEach(function(g) {
+                var card = _createGalleryCard(g);
+                var info = card.querySelector('.ms-gallery-card-info');
+                if (info && g.metadata) {
+                    var meta = (typeof g.metadata === 'string') ? JSON.parse(g.metadata) : g.metadata;
+                    var agentName = meta.agent_name;
+                    if (agentName) {
+                        var badge = document.createElement('span');
+                        badge.className = 'ms-agent-badge';
+                        badge.textContent = 'by ' + agentName;
+                        info.prepend(badge);
+                    }
+                }
+                grid.appendChild(card);
+            });
+        }).catch(function() {});
+    };
+
+    window.toggleAgentConfig = function() {
+        var panel = document.getElementById('msAgentConfig');
+        if (!panel) return;
+        if (panel.style.display === 'none') {
+            panel.style.display = 'block';
+            loadAgentConfig();
+        } else {
+            panel.style.display = 'none';
+        }
+    };
+
+    window.loadAgentConfig = function() {
+        var body = document.getElementById('msAgentConfigBody');
+        if (!body) return;
+        api('GET', '/api/agent-config').then(function(configs) {
+            _clearChildren(body);
+            if (!configs.length) {
+                var p = document.createElement('p');
+                p.className = 'ms-text-muted';
+                p.textContent = 'No agent media configs yet.';
+                body.appendChild(p);
+                return;
+            }
+            var table = document.createElement('table');
+            table.className = 'ms-agent-config-table';
+
+            var thead = document.createElement('thead');
+            var headerRow = document.createElement('tr');
+            ['Agent', 'Enabled', 'Type', 'Schedule', 'Cap', 'Last Gen', 'Actions'].forEach(function(h) {
+                var th = document.createElement('th');
+                th.textContent = h;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            var tbody = document.createElement('tbody');
+            configs.forEach(function(c) {
+                var tr = document.createElement('tr');
+                tr.className = 'ms-agent-config-row';
+
+                var td1 = document.createElement('td');
+                td1.textContent = c.agent_name;
+                tr.appendChild(td1);
+
+                var td2 = document.createElement('td');
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = c.enabled;
+                cb.addEventListener('change', function() {
+                    updateAgentConfig(c.agent_name, 'enabled', cb.checked);
+                });
+                td2.appendChild(cb);
+                tr.appendChild(td2);
+
+                var td3 = document.createElement('td');
+                td3.textContent = c.media_type;
+                tr.appendChild(td3);
+
+                var td4 = document.createElement('td');
+                var cronInput = document.createElement('input');
+                cronInput.type = 'text';
+                cronInput.value = c.schedule_cron;
+                cronInput.className = 'ms-input-xs';
+                cronInput.addEventListener('change', function() {
+                    updateAgentConfig(c.agent_name, 'schedule_cron', cronInput.value);
+                });
+                td4.appendChild(cronInput);
+                tr.appendChild(td4);
+
+                var td5 = document.createElement('td');
+                var capInput = document.createElement('input');
+                capInput.type = 'number';
+                capInput.value = c.daily_cap;
+                capInput.className = 'ms-input-xs';
+                capInput.style.width = '50px';
+                capInput.addEventListener('change', function() {
+                    updateAgentConfig(c.agent_name, 'daily_cap', parseInt(capInput.value, 10));
+                });
+                td5.appendChild(capInput);
+                tr.appendChild(td5);
+
+                var td6 = document.createElement('td');
+                td6.textContent = c.last_generated_at ? new Date(c.last_generated_at).toLocaleString() : 'Never';
+                tr.appendChild(td6);
+
+                var td7 = document.createElement('td');
+                var btn = document.createElement('button');
+                btn.className = 'ms-btn-xs';
+                btn.textContent = 'Generate';
+                btn.addEventListener('click', function() {
+                    triggerAgentGeneration(c.agent_name);
+                });
+                td7.appendChild(btn);
+                tr.appendChild(td7);
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            body.appendChild(table);
+        }).catch(function() {});
+    };
+
+    window.updateAgentConfig = function(agentName, field, value) {
+        var payload = {};
+        payload[field] = value;
+        api('PUT', '/api/agent-config/' + encodeURIComponent(agentName), payload);
+    };
+
+    window.triggerAgentGeneration = function(agentName) {
+        api('POST', '/api/agent-config/' + encodeURIComponent(agentName) + '/trigger').then(function(data) {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                alert('Generation queued: ID ' + (data.id || 'unknown'));
+                loadAgentConfig();
+            }
+        }).catch(function(err) {
+            alert('Trigger failed: ' + (err.message || err));
         });
     };
 

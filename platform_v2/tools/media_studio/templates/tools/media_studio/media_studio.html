@@ -346,30 +346,112 @@
          TAB: GALLERY
          ================================================================ -->
     <div id="ms-tab-gallery" class="ms-tab-pane">
-
-        <!-- Filter bar -->
-        <div class="ms-filter-bar">
-            <button class="ms-filter-btn active" data-filter="all" onclick="filterGallery('all', this)" data-i18n="media_studio.all">All</button>
-            <button class="ms-filter-btn" data-filter="image" onclick="filterGallery('image', this)" data-i18n="media_studio.images">Images</button>
-            <button class="ms-filter-btn" data-filter="video" onclick="filterGallery('video', this)" data-i18n="media_studio.video">Video</button>
-            <button class="ms-filter-btn" data-filter="audio" onclick="filterGallery('audio', this)" data-i18n="media_studio.audio">Audio</button>
-            <div class="ms-filter-divider"></div>
-            <button class="ms-fav-toggle" id="msFavToggle" onclick="toggleFavoriteFilter()">
-                <i data-lucide="star" style="width:14px;height:14px;"></i>
-                <span data-i18n="media_studio.favorites">Favorites</span>
-            </button>
-        </div>
-
-        <!-- Gallery grid -->
-        <div class="ms-gallery-grid" id="msGalleryGrid">
-            <div class="ms-gallery-empty">
-                <i data-lucide="image-off"></i>
-                <span data-i18n="media_studio.gallery_empty">No media found. Create something in the Generate tab!</span>
+        <!-- Search Bar -->
+        <div class="ms-gallery-search">
+            <div class="ms-search-input-wrap">
+                <span class="ms-search-icon">&#x1F50D;</span>
+                <input type="text" id="msGallerySearch" class="ms-search-input"
+                       placeholder="Search prompts..." autocomplete="off">
             </div>
         </div>
 
-        <!-- Load more -->
-        <button class="ms-load-more" id="msLoadMore" style="display:none;" onclick="loadGallery(currentGalleryPage + 1)" data-i18n="media_studio.load_more">Load More</button>
+        <div class="ms-gallery-layout">
+            <!-- Filter Sidebar (collapsible) -->
+            <button class="ms-sidebar-toggle" id="msSidebarToggle" onclick="toggleGallerySidebar()">&#x25C0; Filters</button>
+            <div class="ms-gallery-sidebar" id="msGallerySidebar">
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">Type</h4>
+                    <div class="ms-filter-pills" id="msTypeFilters">
+                        <button class="ms-filter-btn active" data-filter="all" onclick="setGalleryFilter('type', 'all', this)">All</button>
+                        <button class="ms-filter-btn" data-filter="image" onclick="setGalleryFilter('type', 'image', this)">Images</button>
+                        <button class="ms-filter-btn" data-filter="video" onclick="setGalleryFilter('type', 'video', this)">Video</button>
+                        <button class="ms-filter-btn" data-filter="audio" onclick="setGalleryFilter('type', 'audio', this)">Audio</button>
+                    </div>
+                </div>
+
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">Tags</h4>
+                    <div class="ms-tag-filter-list" id="msTagFilters"></div>
+                </div>
+
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">Model</h4>
+                    <select id="msModelFilter" class="ms-filter-select" onchange="applyGalleryFilters()">
+                        <option value="">All Models</option>
+                    </select>
+                </div>
+
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">Provider</h4>
+                    <select id="msProviderFilter" class="ms-filter-select" onchange="applyGalleryFilters()">
+                        <option value="">All Providers</option>
+                    </select>
+                </div>
+
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">Date Range</h4>
+                    <input type="date" id="msDateFrom" class="ms-filter-date" onchange="applyGalleryFilters()">
+                    <input type="date" id="msDateTo" class="ms-filter-date" onchange="applyGalleryFilters()">
+                </div>
+
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">Min Resolution</h4>
+                    <div class="ms-resolution-inputs">
+                        <input type="number" id="msMinWidth" class="ms-filter-input" placeholder="Width" min="0" step="64" onchange="applyGalleryFilters()">
+                        <span class="ms-resolution-x">&times;</span>
+                        <input type="number" id="msMinHeight" class="ms-filter-input" placeholder="Height" min="0" step="64" onchange="applyGalleryFilters()">
+                    </div>
+                </div>
+
+                <button class="ms-btn ms-btn-secondary" onclick="saveAsSmartCollection()">Save as Smart Collection</button>
+
+                <!-- Collections Panel -->
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">My Collections</h4>
+                    <div id="msMyCollectionsList"></div>
+                    <div class="ms-new-collection">
+                        <input type="text" id="msNewCollectionName" class="ms-filter-input" placeholder="New collection...">
+                        <button class="ms-btn-icon" onclick="createNewCollection()">+</button>
+                    </div>
+                </div>
+
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">Shared Collections</h4>
+                    <div id="msSharedCollectionsList"></div>
+                </div>
+
+                <div class="ms-sidebar-section">
+                    <h4 class="ms-sidebar-title">Smart Collections</h4>
+                    <div id="msSmartCollectionsList"></div>
+                </div>
+            </div>
+
+            <!-- Main Gallery Area -->
+            <div class="ms-gallery-main">
+                <!-- Bulk Action Toolbar (hidden until selection) -->
+                <div class="ms-bulk-toolbar" id="msBulkToolbar" style="display:none;">
+                    <span class="ms-bulk-count" id="msBulkCount">0 selected</span>
+                    <button class="ms-bulk-btn" onclick="bulkSelectAll()">Select All</button>
+                    <button class="ms-bulk-btn" onclick="bulkDeselectAll()">Deselect</button>
+                    <button class="ms-bulk-btn" onclick="bulkFavorite()">Favorite</button>
+                    <button class="ms-bulk-btn" onclick="bulkTag()">Tag</button>
+                    <button class="ms-bulk-btn" onclick="bulkMoveToCollection()">Move</button>
+                    <button class="ms-bulk-btn" onclick="bulkExport()">Export ZIP</button>
+                    <button class="ms-bulk-btn" onclick="bulkRegenerate()">Regenerate</button>
+                    <button class="ms-bulk-btn ms-bulk-btn-danger" onclick="bulkDelete()">Delete</button>
+                </div>
+
+                <div class="ms-gallery-grid" id="msGalleryGrid">
+                    <div class="ms-empty-state" id="msGalleryEmpty">
+                        <p>No media yet. Generate something in the Generate tab!</p>
+                    </div>
+                </div>
+
+                <div class="ms-gallery-footer">
+                    <button class="ms-btn ms-btn-secondary" id="msLoadMoreBtn" style="display:none;" onclick="loadGalleryMore()">Load More</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ================================================================
@@ -593,7 +675,7 @@
         history.replaceState(null, "", "#" + tabId);
 
         if (tabId === "dashboard") loadDashboard();
-        else if (tabId === "gallery") loadGallery(1);
+        else if (tabId === "gallery") { loadGallery(1); loadGalleryFacets(); loadCollections(); }
         else if (tabId === "queue") loadQueue();
         else if (tabId === "generate") { loadModels(); loadVideoProviders(); loadAudioVoices(); loadAudioProviders(); }
         else if (tabId === "portraits") loadPortraits();
@@ -1039,90 +1121,487 @@
 
     window.currentGalleryPage = 1;
 
+    // ─── Gallery Enhancement State ──────────────────────────────────
+    var galleryFilters = { type: 'all', tags: [], model: '', provider: '', date_from: '', date_to: '', min_width: '', min_height: '' };
+    var gallerySearchQuery = '';
+    var selectedMediaIds = [];
+    var gallerySearchTimeout = null;
+    var currentCollectionFilter = null;
+    var lastSelectedIndex = -1;
+
+    // ─── Search ─────────────────────────────────────────────────────
+    var searchInput = document.getElementById('msGallerySearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(gallerySearchTimeout);
+            gallerySearchTimeout = setTimeout(function() {
+                gallerySearchQuery = searchInput.value.trim();
+                loadGallery(1);
+            }, 300);
+        });
+    }
+
+    // ─── Filter Helpers ─────────────────────────────────────────────
+    window.setGalleryFilter = function(key, value, btn) {
+        galleryFilters[key] = value;
+        if (btn) {
+            var parent = btn.parentElement;
+            var btns = parent.querySelectorAll('.ms-filter-btn');
+            for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+            btn.classList.add('active');
+        }
+        loadGallery(1);
+    };
+
+    window.applyGalleryFilters = function() {
+        galleryFilters.model = document.getElementById('msModelFilter').value;
+        galleryFilters.provider = document.getElementById('msProviderFilter').value;
+        galleryFilters.date_from = document.getElementById('msDateFrom').value;
+        galleryFilters.date_to = document.getElementById('msDateTo').value;
+        galleryFilters.min_width = document.getElementById('msMinWidth').value;
+        galleryFilters.min_height = document.getElementById('msMinHeight').value;
+        loadGallery(1);
+    };
+
+    // ─── Enhanced Gallery Load ──────────────────────────────────────
     window.loadGallery = function(page) {
-        if (page === undefined) page = 1;
         currentGalleryPage = page;
-        window.currentGalleryPage = page;
+        var params = '?page=' + page + '&per_page=20';
 
-        var params = "?page=" + page + "&filter=" + encodeURIComponent(currentFilter);
-        if (favoritesOnly) params += "&favorites=1";
+        if (gallerySearchQuery) params += '&q=' + encodeURIComponent(gallerySearchQuery);
+        if (galleryFilters.type && galleryFilters.type !== 'all') params += '&type=' + galleryFilters.type;
+        if (galleryFilters.model) params += '&model=' + encodeURIComponent(galleryFilters.model);
+        if (galleryFilters.provider) params += '&provider=' + encodeURIComponent(galleryFilters.provider);
+        if (galleryFilters.date_from) params += '&date_from=' + galleryFilters.date_from;
+        if (galleryFilters.date_to) params += '&date_to=' + galleryFilters.date_to;
+        if (galleryFilters.tags.length) params += '&tags=' + galleryFilters.tags.join(',');
+        if (galleryFilters.min_width) params += '&min_width=' + galleryFilters.min_width;
+        if (galleryFilters.min_height) params += '&min_height=' + galleryFilters.min_height;
+        if (currentCollectionFilter) params += '&collection_id=' + currentCollectionFilter;
 
-        api("GET", "/api/gallery" + params).then(function(data) {
+        var endpoint = gallerySearchQuery ? '/api/search' : '/api/gallery';
+
+        api('GET', endpoint + params).then(function(data) {
+            var grid = document.getElementById('msGalleryGrid');
+            var empty = document.getElementById('msGalleryEmpty');
+            var loadMore = document.getElementById('msLoadMoreBtn');
+
+            if (page === 1) _clearChildren(grid);
+
             var items = data.items || [];
-            var grid = document.getElementById("msGalleryGrid");
-
-            if (page === 1) grid.textContent = "";
-
-            if (!items.length && page === 1) {
-                var empty = document.createElement("div");
-                empty.className = "ms-gallery-empty";
-                var icon = document.createElement("i");
-                icon.setAttribute("data-lucide", "image-off");
-                empty.appendChild(icon);
-                var txt = document.createElement("span");
-                txt.setAttribute("data-i18n", "media_studio.gallery_empty");
-                txt.textContent = "No media found. Create something in the Generate tab!";
-                empty.appendChild(txt);
-                grid.appendChild(empty);
-                document.getElementById("msLoadMore").style.display = "none";
-                if (typeof lucide !== "undefined") lucide.createIcons();
+            if (items.length === 0 && page === 1) {
+                if (empty) empty.style.display = 'block';
+                if (loadMore) loadMore.style.display = 'none';
                 return;
             }
+            if (empty) empty.style.display = 'none';
 
             for (var i = 0; i < items.length; i++) {
-                var item = items[i];
-                var div = document.createElement("div");
-                div.className = "ms-gallery-item";
-                div.setAttribute("data-media-id", item.id);
-                div.addEventListener("click", (function(id) {
-                    return function() { showMediaDetail(id); };
-                })(item.id));
-
-                var img = document.createElement("img");
-                img.src = item.thumbnail_url || item.url || "";
-                img.alt = "";
-                img.loading = "lazy";
-                div.appendChild(img);
-
-                var overlay = document.createElement("div");
-                overlay.className = "ms-gallery-overlay";
-
-                var promptEl = document.createElement("span");
-                promptEl.className = "ms-gallery-overlay-prompt";
-                promptEl.textContent = truncate(item.prompt, 100);
-                overlay.appendChild(promptEl);
-
-                var meta = document.createElement("div");
-                meta.className = "ms-gallery-overlay-meta";
-                var modelSpan = document.createElement("span");
-                modelSpan.textContent = item.model || "";
-                meta.appendChild(modelSpan);
-                var timeSpan = document.createElement("span");
-                timeSpan.setAttribute("data-utc", item.created_at || "");
-                timeSpan.setAttribute("data-fmt", "age");
-                meta.appendChild(timeSpan);
-                overlay.appendChild(meta);
-
-                div.appendChild(overlay);
-                grid.appendChild(div);
+                grid.appendChild(_createGalleryCard(items[i]));
             }
 
-            var more = document.getElementById("msLoadMore");
-            more.style.display = (data.has_more) ? "block" : "none";
-
-            if (typeof lucide !== "undefined") lucide.createIcons();
-            if (typeof ArchieTime !== "undefined") ArchieTime.refresh();
-        }).catch(function(err) {
-            console.error("Gallery load failed:", err);
+            if (loadMore) {
+                loadMore.style.display = (data.page < data.pages) ? 'inline-block' : 'none';
+            }
         });
     };
 
-    window.filterGallery = function(filter, btn) {
-        currentFilter = filter;
-        var btns = document.querySelectorAll(".ms-filter-btn");
-        for (var i = 0; i < btns.length; i++) btns[i].classList.remove("active");
-        btn.classList.add("active");
-        loadGallery(1);
+    function _createGalleryCard(item) {
+        var card = document.createElement('div');
+        card.className = 'ms-gallery-card';
+        card.dataset.mediaId = item.id;
+
+        // Checkbox for selection (supports shift+click range)
+        var cb = document.createElement('div');
+        cb.className = 'ms-gallery-checkbox';
+        cb.onclick = function(e) {
+            e.stopPropagation();
+            var cards = document.querySelectorAll('.ms-gallery-card');
+            var myIndex = Array.prototype.indexOf.call(cards, card);
+            if (e.shiftKey && lastSelectedIndex >= 0 && lastSelectedIndex !== myIndex) {
+                var start = Math.min(lastSelectedIndex, myIndex);
+                var end = Math.max(lastSelectedIndex, myIndex);
+                for (var si = start; si <= end; si++) {
+                    var sid = parseInt(cards[si].dataset.mediaId);
+                    if (selectedMediaIds.indexOf(sid) === -1) selectedMediaIds.push(sid);
+                }
+                _updateSelectionUI();
+            } else {
+                toggleMediaSelection(item.id);
+            }
+            lastSelectedIndex = myIndex;
+        };
+        card.appendChild(cb);
+
+        // Thumbnail
+        var img = document.createElement('div');
+        img.className = 'ms-gallery-thumb';
+        if (item.thumbnail_path) {
+            var imgEl = document.createElement('img');
+            imgEl.src = item.thumbnail_path;
+            imgEl.alt = (item.prompt || '').substring(0, 50);
+            img.appendChild(imgEl);
+        } else {
+            var icon = document.createElement('span');
+            icon.className = 'ms-gallery-type-icon';
+            icon.textContent = item.media_type === 'video' ? '▶' : item.media_type === 'audio' ? '♪' : '□';
+            img.appendChild(icon);
+        }
+        card.appendChild(img);
+
+        // Info bar
+        var info = document.createElement('div');
+        info.className = 'ms-gallery-info';
+        var p = document.createElement('p');
+        p.className = 'ms-gallery-prompt';
+        p.textContent = (item.prompt || 'No prompt').substring(0, 60);
+        info.appendChild(p);
+        card.appendChild(info);
+
+        // Tag pills (loaded lazily)
+        var tagBar = document.createElement('div');
+        tagBar.className = 'ms-gallery-tags';
+        tagBar.id = 'tags-' + item.id;
+        card.appendChild(tagBar);
+
+        card.onclick = function() { showMediaDetail(item.id); };
+
+        // Mark selected if in list
+        if (selectedMediaIds.indexOf(item.id) !== -1) {
+            card.classList.add('ms-selected');
+        }
+
+        return card;
+    }
+
+    window.loadGalleryMore = function() {
+        loadGallery(currentGalleryPage + 1);
+    };
+
+    // ─── Selection Mode ─────────────────────────────────────────────
+    window.toggleMediaSelection = function(mediaId) {
+        var idx = selectedMediaIds.indexOf(mediaId);
+        if (idx === -1) {
+            selectedMediaIds.push(mediaId);
+        } else {
+            selectedMediaIds.splice(idx, 1);
+        }
+        _updateSelectionUI();
+    };
+
+    window.bulkSelectAll = function() {
+        var cards = document.querySelectorAll('.ms-gallery-card');
+        selectedMediaIds = [];
+        for (var i = 0; i < cards.length; i++) {
+            selectedMediaIds.push(parseInt(cards[i].dataset.mediaId));
+        }
+        _updateSelectionUI();
+    };
+
+    window.bulkDeselectAll = function() {
+        selectedMediaIds = [];
+        _updateSelectionUI();
+    };
+
+    function _updateSelectionUI() {
+        var toolbar = document.getElementById('msBulkToolbar');
+        var countEl = document.getElementById('msBulkCount');
+        if (toolbar) toolbar.style.display = selectedMediaIds.length > 0 ? 'flex' : 'none';
+        if (countEl) countEl.textContent = selectedMediaIds.length + ' selected';
+
+        var cards = document.querySelectorAll('.ms-gallery-card');
+        for (var i = 0; i < cards.length; i++) {
+            var id = parseInt(cards[i].dataset.mediaId);
+            if (selectedMediaIds.indexOf(id) !== -1) {
+                cards[i].classList.add('ms-selected');
+            } else {
+                cards[i].classList.remove('ms-selected');
+            }
+        }
+    }
+
+    // ─── Bulk Actions ───────────────────────────────────────────────
+    window.bulkFavorite = function() {
+        api('POST', '/api/gallery/bulk/favorite', { media_ids: selectedMediaIds, state: true })
+            .then(function() { bulkDeselectAll(); loadGallery(1); });
+    };
+
+    window.bulkDelete = function() {
+        if (!confirm('Delete ' + selectedMediaIds.length + ' items?')) return;
+        api('POST', '/api/gallery/bulk/delete', { media_ids: selectedMediaIds })
+            .then(function() { bulkDeselectAll(); loadGallery(1); });
+    };
+
+    window.bulkTag = function() {
+        var tagName = prompt('Enter tag name:');
+        if (!tagName) return;
+        api('POST', '/api/tags', { name: tagName, tag_type: 'user' }).then(function(tag) {
+            return api('POST', '/api/gallery/bulk/tags', { media_ids: selectedMediaIds, tag_ids: [tag.id] });
+        }).then(function() { bulkDeselectAll(); loadGallery(1); });
+    };
+
+    window.bulkMoveToCollection = function() {
+        api('GET', '/api/collections').then(function(data) {
+            var names = data.collections.map(function(c) { return c.id + ': ' + c.name; });
+            var choice = prompt('Enter collection ID:\n' + names.join('\n'));
+            if (!choice) return;
+            var cid = parseInt(choice);
+            if (isNaN(cid)) return;
+            return api('POST', '/api/gallery/bulk/move', { media_ids: selectedMediaIds, collection_id: cid });
+        }).then(function() { bulkDeselectAll(); });
+    };
+
+    window.bulkExport = function() {
+        api('POST', '/api/export', { media_ids: selectedMediaIds }).then(function(data) {
+            alert('Export started! Job ID: ' + data.job_id + '. Check queue for download link.');
+            bulkDeselectAll();
+        });
+    };
+
+    window.bulkRegenerate = function() {
+        if (!confirm('Re-queue ' + selectedMediaIds.length + ' items for regeneration?')) return;
+        api('POST', '/api/gallery/bulk/regenerate', { media_ids: selectedMediaIds }).then(function(data) {
+            alert('Queued: ' + data.queued + ', Skipped: ' + data.skipped);
+            bulkDeselectAll();
+        });
+    };
+
+    // ─── Facets + Collections Load ──────────────────────────────────
+    window.loadGalleryFacets = function() {
+        api('GET', '/api/search/facets').then(function(data) {
+            // Populate model dropdown
+            var modelSel = document.getElementById('msModelFilter');
+            if (modelSel) {
+                _clearChildren(modelSel);
+                var opt = document.createElement('option');
+                opt.value = ''; opt.textContent = 'All Models';
+                modelSel.appendChild(opt);
+                (data.models || []).forEach(function(m) {
+                    var o = document.createElement('option');
+                    o.value = m; o.textContent = m;
+                    modelSel.appendChild(o);
+                });
+            }
+
+            // Populate provider dropdown
+            var provSel = document.getElementById('msProviderFilter');
+            if (provSel) {
+                _clearChildren(provSel);
+                var opt2 = document.createElement('option');
+                opt2.value = ''; opt2.textContent = 'All Providers';
+                provSel.appendChild(opt2);
+                (data.providers || []).forEach(function(p) {
+                    var o = document.createElement('option');
+                    o.value = p; o.textContent = p;
+                    provSel.appendChild(o);
+                });
+            }
+
+            // Populate tag filters
+            var tagList = document.getElementById('msTagFilters');
+            if (tagList) {
+                _clearChildren(tagList);
+                (data.tags || []).forEach(function(t) {
+                    var pill = document.createElement('button');
+                    pill.className = 'ms-tag-pill ms-tag-' + t.tag_type;
+                    pill.textContent = t.name;
+                    pill.dataset.tagId = t.id;
+                    pill.onclick = function() {
+                        pill.classList.toggle('active');
+                        var idx = galleryFilters.tags.indexOf(t.id);
+                        if (idx === -1) galleryFilters.tags.push(t.id);
+                        else galleryFilters.tags.splice(idx, 1);
+                        loadGallery(1);
+                    };
+                    tagList.appendChild(pill);
+                });
+            }
+        });
+    };
+
+    window.loadCollections = function() {
+        api('GET', '/api/collections').then(function(data) {
+            var myList = document.getElementById('msMyCollectionsList');
+            var sharedList = document.getElementById('msSharedCollectionsList');
+            if (myList) _clearChildren(myList);
+            if (sharedList) _clearChildren(sharedList);
+
+            (data.collections || []).forEach(function(c) {
+                var item = document.createElement('div');
+                item.className = 'ms-collection-item';
+                if (currentCollectionFilter === c.id) item.classList.add('active');
+                var nameSpan = document.createElement('span');
+                nameSpan.textContent = c.name;
+                var countSpan = document.createElement('span');
+                countSpan.className = 'ms-collection-count';
+                countSpan.textContent = c.item_count || 0;
+                item.appendChild(nameSpan);
+                item.appendChild(countSpan);
+                item.onclick = function() {
+                    currentCollectionFilter = (currentCollectionFilter === c.id) ? null : c.id;
+                    loadCollections();
+                    loadGallery(1);
+                };
+                // Split into my vs shared sections
+                if (c.is_shared && sharedList) sharedList.appendChild(item);
+                else if (myList) myList.appendChild(item);
+            });
+        });
+
+        api('GET', '/api/smart-collections').then(function(data) {
+            var list = document.getElementById('msSmartCollectionsList');
+            if (!list) return;
+            _clearChildren(list);
+            (data.smart_collections || []).forEach(function(sc) {
+                var item = document.createElement('div');
+                item.className = 'ms-collection-item ms-smart-collection';
+                var nameSpan = document.createElement('span');
+                nameSpan.textContent = sc.name;
+                var playBtn = document.createElement('button');
+                playBtn.className = 'ms-btn-icon';
+                playBtn.textContent = '▶';
+                playBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    api('GET', '/api/smart-collections/' + sc.id + '/results').then(function(data) {
+                        var grid = document.getElementById('msGalleryGrid');
+                        _clearChildren(grid);
+                        (data.items || []).forEach(function(item) {
+                            grid.appendChild(_createGalleryCard(item));
+                        });
+                    });
+                };
+                item.appendChild(nameSpan);
+                item.appendChild(playBtn);
+                list.appendChild(item);
+            });
+        });
+    };
+
+    window.createNewCollection = function() {
+        var nameInput = document.getElementById('msNewCollectionName');
+        var name = nameInput ? nameInput.value.trim() : '';
+        if (!name) return;
+        api('POST', '/api/collections', { name: name }).then(function() {
+            if (nameInput) nameInput.value = '';
+            loadCollections();
+        });
+    };
+
+    window.saveAsSmartCollection = function() {
+        var name = prompt('Smart collection name:');
+        if (!name) return;
+        var filters = {};
+        if (galleryFilters.type !== 'all') filters.media_type = galleryFilters.type;
+        if (galleryFilters.model) filters.model = galleryFilters.model;
+        if (galleryFilters.provider) filters.provider = galleryFilters.provider;
+        if (galleryFilters.date_from) filters.date_from = galleryFilters.date_from;
+        if (galleryFilters.date_to) filters.date_to = galleryFilters.date_to;
+        if (galleryFilters.tags.length) filters.tags = galleryFilters.tags;
+        if (galleryFilters.min_width) filters.min_width = parseInt(galleryFilters.min_width);
+        if (galleryFilters.min_height) filters.min_height = parseInt(galleryFilters.min_height);
+        if (gallerySearchQuery) filters.prompt_query = gallerySearchQuery;
+        api('POST', '/api/smart-collections', { name: name, filters: filters }).then(function() {
+            loadCollections();
+        });
+    };
+
+    // ─── Sidebar Toggle ─────────────────────────────────────────────
+    window.toggleGallerySidebar = function() {
+        var sidebar = document.getElementById('msGallerySidebar');
+        var toggle = document.getElementById('msSidebarToggle');
+        if (sidebar) {
+            sidebar.classList.toggle('collapsed');
+            if (toggle) toggle.textContent = sidebar.classList.contains('collapsed') ? '\u25B6 Filters' : '\u25C0 Filters';
+        }
+    };
+
+    // ─── Media Detail Modal Enhancements ────────────────────────────
+    // Override existing showMediaDetail to add tag editor, collection picker, similar media
+    var _origShowMediaDetail = window.showMediaDetail;
+    window.showMediaDetail = function(mediaId) {
+        // Call original detail view first
+        if (_origShowMediaDetail) _origShowMediaDetail(mediaId);
+
+        // Then enhance with tags, collections, similar media
+        api('GET', '/api/gallery/' + mediaId + '/tags').then(function(data) {
+            // Render tag editor in detail modal (look for detail container)
+            var tagContainer = document.getElementById('msDetailTags');
+            if (!tagContainer) return;
+            _clearChildren(tagContainer);
+            (data.tags || []).forEach(function(t) {
+                var pill = document.createElement('span');
+                pill.className = 'ms-tag-pill ms-tag-' + t.tag_type;
+                pill.textContent = t.name;
+                var removeBtn = document.createElement('button');
+                removeBtn.className = 'ms-tag-remove';
+                removeBtn.textContent = '\u00d7';
+                removeBtn.onclick = function() {
+                    api('POST', '/api/gallery/' + mediaId + '/tags/remove', { tag_ids: [t.id] }).then(function() {
+                        showMediaDetail(mediaId);
+                    });
+                };
+                pill.appendChild(removeBtn);
+                tagContainer.appendChild(pill);
+            });
+
+            // Add tag input with autocomplete
+            var addInput = document.createElement('input');
+            addInput.type = 'text';
+            addInput.className = 'ms-filter-input ms-tag-add-input';
+            addInput.placeholder = 'Add tag...';
+            addInput.onkeydown = function(e) {
+                if (e.key === 'Enter' && addInput.value.trim()) {
+                    api('POST', '/api/tags', { name: addInput.value.trim(), tag_type: 'user' }).then(function(tag) {
+                        return api('POST', '/api/gallery/' + mediaId + '/tags', { tag_ids: [tag.id] });
+                    }).then(function() { showMediaDetail(mediaId); });
+                }
+            };
+            tagContainer.appendChild(addInput);
+        });
+
+        // Add to Collection dropdown
+        api('GET', '/api/collections').then(function(data) {
+            var collContainer = document.getElementById('msDetailCollection');
+            if (!collContainer) return;
+            _clearChildren(collContainer);
+            var sel = document.createElement('select');
+            sel.className = 'ms-filter-select';
+            var defOpt = document.createElement('option');
+            defOpt.value = ''; defOpt.textContent = 'Add to collection...';
+            sel.appendChild(defOpt);
+            (data.collections || []).forEach(function(c) {
+                var o = document.createElement('option');
+                o.value = c.id; o.textContent = c.name;
+                sel.appendChild(o);
+            });
+            sel.onchange = function() {
+                if (sel.value) {
+                    api('POST', '/api/collections/' + sel.value + '/items', { media_ids: [mediaId] }).then(function() {
+                        sel.value = '';
+                    });
+                }
+            };
+            collContainer.appendChild(sel);
+        });
+
+        // Similar media (semantic search)
+        api('GET', '/api/search?similar_to=' + mediaId + '&per_page=6').then(function(data) {
+            var simContainer = document.getElementById('msDetailSimilar');
+            if (!simContainer) return;
+            _clearChildren(simContainer);
+            (data.items || []).forEach(function(sim) {
+                if (sim.id === mediaId) return;
+                var thumb = document.createElement('div');
+                thumb.className = 'ms-similar-thumb';
+                if (sim.thumbnail_path) {
+                    var img = document.createElement('img');
+                    img.src = sim.thumbnail_path;
+                    thumb.appendChild(img);
+                }
+                thumb.onclick = function() { showMediaDetail(sim.id); };
+                simContainer.appendChild(thumb);
+            });
+        });
     };
 
     window.toggleFavoriteFilter = function() {

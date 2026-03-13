@@ -1694,3 +1694,306 @@
 .ms-audio-mode-controls {
     margin-top: 0.75rem;
 }
+
+/* ─── S19 Gallery Enhancement ─────────────────────────────────────── */
+
+.ms-gallery-search {
+    padding: 0.75rem 0;
+}
+
+.ms-search-input-wrap {
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 153, 0, 0.3);
+    border-radius: 4px;
+    padding: 0 0.75rem;
+}
+
+.ms-search-icon {
+    margin-right: 0.5rem;
+    opacity: 0.6;
+}
+
+.ms-search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #ff9900;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    padding: 0.5rem 0;
+    outline: none;
+}
+
+.ms-gallery-layout {
+    display: flex;
+    gap: 1rem;
+}
+
+.ms-sidebar-toggle {
+    background: rgba(255, 153, 0, 0.15);
+    border: 1px solid rgba(255, 153, 0, 0.3);
+    color: #ff9900;
+    border-radius: 3px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    font-family: 'IBM Plex Mono', monospace;
+    cursor: pointer;
+    align-self: flex-start;
+    margin-top: 0.25rem;
+}
+
+.ms-gallery-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid rgba(255, 153, 0, 0.15);
+    padding-right: 1rem;
+    transition: width 0.2s, opacity 0.2s, padding 0.2s;
+    overflow: hidden;
+}
+
+.ms-gallery-sidebar.collapsed {
+    width: 0;
+    padding-right: 0;
+    opacity: 0;
+    border-right: none;
+}
+
+.ms-gallery-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.ms-sidebar-section {
+    margin-bottom: 1rem;
+}
+
+.ms-sidebar-title {
+    color: rgba(255, 153, 0, 0.7);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.ms-filter-select,
+.ms-filter-date,
+.ms-filter-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 153, 0, 0.2);
+    border-radius: 3px;
+    color: #ff9900;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.ms-filter-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+/* Tag pills */
+.ms-tag-pill {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-family: 'IBM Plex Mono', monospace;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.2);
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+}
+
+.ms-tag-pill.active {
+    border-color: #ff9900;
+    color: #ff9900;
+}
+
+.ms-tag-system { border-color: rgba(100, 149, 237, 0.4); color: rgba(100, 149, 237, 0.8); }
+.ms-tag-user { border-color: rgba(100, 200, 100, 0.4); color: rgba(100, 200, 100, 0.8); }
+.ms-tag-shared { border-color: rgba(255, 165, 0, 0.4); color: rgba(255, 165, 0, 0.8); }
+
+/* Collections panel */
+.ms-collection-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0.5rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.ms-collection-item:hover { background: rgba(255, 153, 0, 0.1); }
+.ms-collection-item.active { background: rgba(255, 153, 0, 0.2); color: #ff9900; }
+
+.ms-collection-count {
+    background: rgba(255, 153, 0, 0.15);
+    padding: 0.1rem 0.4rem;
+    border-radius: 8px;
+    font-size: 0.65rem;
+}
+
+.ms-new-collection {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.ms-btn-icon {
+    background: rgba(255, 153, 0, 0.2);
+    border: 1px solid rgba(255, 153, 0, 0.3);
+    color: #ff9900;
+    border-radius: 3px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+
+.ms-btn-icon:hover { background: rgba(255, 153, 0, 0.35); }
+
+/* Bulk toolbar */
+.ms-bulk-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 153, 0, 0.1);
+    border: 1px solid rgba(255, 153, 0, 0.3);
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.ms-bulk-count {
+    color: #ff9900;
+    font-weight: bold;
+    font-size: 0.8rem;
+    margin-right: 0.5rem;
+}
+
+.ms-bulk-btn {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 153, 0, 0.25);
+    color: rgba(255, 255, 255, 0.8);
+    border-radius: 3px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.7rem;
+    font-family: 'IBM Plex Mono', monospace;
+    cursor: pointer;
+}
+
+.ms-bulk-btn:hover { background: rgba(255, 153, 0, 0.2); color: #ff9900; }
+.ms-bulk-btn-danger { border-color: rgba(255, 80, 80, 0.3); }
+.ms-bulk-btn-danger:hover { background: rgba(255, 80, 80, 0.2); color: #ff5050; }
+
+/* Gallery card enhancements */
+.ms-gallery-card {
+    position: relative;
+    cursor: pointer;
+}
+
+.ms-gallery-checkbox {
+    position: absolute;
+    top: 0.35rem;
+    left: 0.35rem;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 2;
+    cursor: pointer;
+}
+
+.ms-selected .ms-gallery-checkbox {
+    background: #ff9900;
+    border-color: #ff9900;
+}
+
+.ms-selected {
+    outline: 2px solid #ff9900;
+    outline-offset: -2px;
+}
+
+.ms-gallery-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem;
+    padding: 0.15rem 0.35rem;
+}
+
+.ms-gallery-footer {
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.ms-smart-collection {
+    font-style: italic;
+}
+
+/* Resolution filter inputs */
+.ms-resolution-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.ms-resolution-inputs .ms-filter-input {
+    width: 80px;
+    margin-bottom: 0;
+}
+
+.ms-resolution-x {
+    color: rgba(255, 153, 0, 0.5);
+    font-size: 0.75rem;
+}
+
+/* Tag editor in detail modal */
+.ms-tag-remove {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 0.7rem;
+    margin-left: 0.25rem;
+    padding: 0;
+}
+
+.ms-tag-remove:hover { color: #ff5050; }
+
+.ms-tag-add-input {
+    width: 120px;
+    display: inline-block;
+    margin-left: 0.25rem;
+}
+
+/* Similar media thumbnails */
+.ms-similar-thumb {
+    display: inline-block;
+    width: 80px;
+    height: 80px;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid rgba(255, 153, 0, 0.2);
+    margin: 0.15rem;
+}
+
+.ms-similar-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ms-similar-thumb:hover {
+    border-color: #ff9900;
+}

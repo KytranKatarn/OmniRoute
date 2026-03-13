@@ -47,6 +47,8 @@ def submit_generation(
     prompt: str,
     negative_prompt: str = "",
     params: Optional[Dict] = None,
+    owner_type: str = "user",
+    owner_id: Optional[int] = None,
 ) -> Dict:
     """Submit a generation request.
 
@@ -59,16 +61,20 @@ def submit_generation(
     merged_params["prompt"] = prompt
     merged_params["negative_prompt"] = negative_prompt
 
+    # Use provided owner_type/owner_id, fallback to user
+    actual_owner_type = owner_type
+    actual_owner_id = owner_id if owner_id is not None else user_id
+
     # Create queue entry
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """
             INSERT INTO media_generation_queue
                 (owner_type, owner_id, media_type, status, params)
-            VALUES ('user', %s, %s, 'pending', %s)
+            VALUES (%s, %s, %s, 'pending', %s)
             RETURNING id
             """,
-            (user_id, media_type, psycopg2.extras.Json(merged_params)),
+            (actual_owner_type, actual_owner_id, media_type, psycopg2.extras.Json(merged_params)),
         )
         queue_id = cur.fetchone()["id"]
 

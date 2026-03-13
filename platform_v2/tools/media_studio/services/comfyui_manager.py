@@ -256,3 +256,99 @@ def build_txt2img_workflow(
             },
         }
     }
+
+
+def build_ipadapter_workflow(
+    prompt: str,
+    negative_prompt: str = "",
+    model: str = "sd_xl_base_1.0.safetensors",
+    width: int = 1024,
+    height: int = 1024,
+    seed: int = -1,
+    steps: int = 30,
+    cfg: float = 7.0,
+    sampler: str = "euler_ancestral",
+    ip_adapter_ref: str = "",
+    ip_adapter_weight: float = 0.85,
+) -> Dict:
+    """Build ComfyUI workflow with IP-Adapter for face-consistent generation.
+
+    Requires ComfyUI_IPAdapter_plus custom node.
+    ip_adapter_ref: path to the reference face image.
+    """
+    import random
+
+    if seed < 0:
+        seed = random.randint(0, 2**63)
+
+    return {
+        "prompt": {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": model},
+            },
+            "2": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"width": width, "height": height, "batch_size": 1},
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": prompt, "clip": ["1", 1]},
+            },
+            "4": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": negative_prompt or "blurry, low quality, distorted, deformed",
+                    "clip": ["1", 1],
+                },
+            },
+            "10": {
+                "class_type": "IPAdapterModelLoader",
+                "inputs": {"ipadapter_file": "ip-adapter-faceid-plusv2_sdxl.bin"},
+            },
+            "11": {
+                "class_type": "LoadImage",
+                "inputs": {"image": ip_adapter_ref},
+            },
+            "12": {
+                "class_type": "IPAdapterApply",
+                "inputs": {
+                    "ipadapter": ["10", 0],
+                    "clip_vision": ["10", 1],
+                    "image": ["11", 0],
+                    "model": ["1", 0],
+                    "weight": ip_adapter_weight,
+                    "noise": 0.0,
+                    "weight_type": "original",
+                    "start_at": 0.0,
+                    "end_at": 1.0,
+                },
+            },
+            "5": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "model": ["12", 0],
+                    "positive": ["3", 0],
+                    "negative": ["4", 0],
+                    "latent_image": ["2", 0],
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": sampler,
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                },
+            },
+            "6": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
+            },
+            "7": {
+                "class_type": "SaveImage",
+                "inputs": {
+                    "images": ["6", 0],
+                    "filename_prefix": "portrait_variant",
+                },
+            },
+        }
+    }

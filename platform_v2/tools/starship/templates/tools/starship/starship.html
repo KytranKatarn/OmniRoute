@@ -606,7 +606,14 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
             <span class="sc-node-mode" style="margin-left:8px;">HUB</span>
             <button class="sc-close-btn" onclick="closeStarbaseDetail()">CLOSE</button>
         </div>
-        <div style="padding:20px;">
+        <div class="sc-tabs">
+            <button class="sc-tab active" onclick="switchSbTab('sb-status')" data-sbtab="sb-status">STATUS</button>
+            <button class="sc-tab" onclick="switchSbTab('sb-stations')" data-sbtab="sb-stations">STATIONS</button>
+            <button class="sc-tab" onclick="switchSbTab('sb-agents')" data-sbtab="sb-agents">AGENTS</button>
+        </div>
+
+        <!-- STATUS TAB -->
+        <div class="sc-panel active" id="panel-sb-status">
             <div class="sc-section">
                 <h4>FLEET OVERVIEW</h4>
                 <div class="sc-row"><span class="sc-label">Agents</span><span class="sc-value" id="sbd-agents">--</span></div>
@@ -639,6 +646,16 @@ cd archie-node<button class="sc-copy-btn" onclick="copyCode(this)">COPY</button>
                 <h4>CPU MODELS</h4>
                 <div id="sbd-cpu-models" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
             </div>
+        </div>
+
+        <!-- STATIONS TAB -->
+        <div class="sc-panel" id="panel-sb-stations">
+            <div id="sb-stations-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;"></div>
+        </div>
+
+        <!-- AGENTS TAB -->
+        <div class="sc-panel" id="panel-sb-agents">
+            <div id="sb-crew-manifest" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;"></div>
         </div>
     </div>
     </div>
@@ -1708,6 +1725,8 @@ function openStarbaseDetail() {
     document.getElementById('starbase-card').classList.add('selected');
     // Show starbase modal
     document.getElementById('sc-starbase-overlay').classList.add('active');
+    // Reset stations cache so next tab click re-fetches
+    _sbStationsLoaded = false;
     // Populate from cached data or re-fetch
     if (_starbaseData) {
         var crew = _starbaseData.crew || [];
@@ -1721,6 +1740,108 @@ function openStarbaseDetail() {
 function closeStarbaseDetail() {
     document.getElementById('sc-starbase-overlay').classList.remove('active');
     document.getElementById('starbase-card').classList.remove('selected');
+}
+
+// ── Starbase tab switching ──
+function switchSbTab(tabId) {
+    document.querySelectorAll('#sc-starbase-detail .sc-tab').forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-sbtab') === tabId);
+    });
+    document.querySelectorAll('#sc-starbase-detail .sc-panel').forEach(function(p) {
+        p.classList.toggle('active', p.id === 'panel-' + tabId);
+    });
+    if (tabId === 'sb-stations') loadStarbaseStations();
+    if (tabId === 'sb-agents') renderStarbaseCrew();
+}
+
+// ── Stations tab — fetch all 10 stations with live crew ──
+var _sbStationsLoaded = false;
+function loadStarbaseStations() {
+    var grid = document.getElementById('sb-stations-grid');
+    if (!grid) return;
+    if (_sbStationsLoaded) return;
+    grid.innerHTML = '<span class="sc-label">Loading stations...</span>';
+    // Build a map of busy agents from crew manifest
+    var busyAgents = {};
+    if (_starbaseData && _starbaseData.crew) {
+        _starbaseData.crew.forEach(function(a) {
+            if (a.current_job) busyAgents[a.name] = a.current_job;
+        });
+    }
+    fetch('/tools/bridge/api/stations').then(function(r) { return r.json(); }).then(function(data) {
+        if (!data.success) { grid.innerHTML = '<span class="sc-label">Failed to load</span>'; return; }
+        _sbStationsLoaded = true;
+        var stations = data.stations || [];
+        grid.innerHTML = stations.map(function(s) {
+            var agents = s.assigned_agents || [];
+            var color = s.color || '#00e5ff';
+            var busyCount = 0;
+            var crewHtml = agents.length ? agents.map(function(a) {
+                var busy = !!busyAgents[a.name];
+                if (busy) busyCount++;
+                var dotColor = busy ? 'var(--sc-green)' : 'rgba(255,255,255,0.3)';
+                var displayName = (a.first_name || '') + ' ' + (a.last_name || '');
+                if (!displayName.trim()) displayName = a.name;
+                var typeTag = a.assignment_type === 'auxiliary' ? ' <span style="font-size:0.6rem;color:rgba(255,255,255,0.3);">AUX</span>' : '';
+                return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">' +
+                    '<span style="width:6px;height:6px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;"></span>' +
+                    '<span style="color:rgba(255,255,255,0.8);font-size:0.8rem;">' + _escSb(displayName) + typeTag + '</span>' +
+                    (busy ? '<span style="margin-left:auto;font-size:0.65rem;color:var(--sc-green);">WORKING</span>' : '') +
+                '</div>';
+            }).join('') : '<span style="color:rgba(255,255,255,0.25);font-size:0.8rem;">No crew assigned</span>';
+            return '<div style="background:rgba(0,0,0,0.3);border:1px solid ' + color + '33;border-radius:8px;overflow:hidden;">' +
+                '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid ' + color + '22;">' +
+                    '<span style="width:8px;height:8px;border-radius:50%;background:' + color + ';"></span>' +
+                    '<span style="font-family:Antonio,sans-serif;color:' + color + ';font-size:0.9rem;letter-spacing:2px;">' + _escSb(s.station_name) + '</span>' +
+                    '<span style="margin-left:auto;font-size:0.7rem;color:rgba(255,255,255,0.4);">' + agents.length + ' crew</span>' +
+                    (busyCount > 0 ? '<span style="font-size:0.65rem;color:var(--sc-green);margin-left:4px;">' + busyCount + ' active</span>' : '') +
+                '</div>' +
+                '<div style="padding:10px 14px;">' + crewHtml + '</div>' +
+            '</div>';
+        }).join('');
+    }).catch(function() {
+        grid.innerHTML = '<span class="sc-label">Failed to load stations</span>';
+    });
+}
+
+// ── Agents tab — render active crew manifest ──
+function renderStarbaseCrew() {
+    var grid = document.getElementById('sb-crew-manifest');
+    if (!grid) return;
+    var data = _starbaseData;
+    if (!data) { grid.innerHTML = '<span class="sc-label">Loading...</span>'; loadStarbaseStats(); return; }
+    var crew = data.crew || [];
+    if (!crew.length) { grid.innerHTML = '<span class="sc-label">No agents in manifest</span>'; return; }
+    grid.innerHTML = crew.map(function(a) {
+        var name = a.display_name || a.name || 'Unknown';
+        var model = (a.model || '').replace(':latest', '');
+        var station = a.station || '--';
+        var status = a.shift_state || 'active';
+        var hasJob = !!a.current_job;
+        var statusColor = status === 'active' ? 'var(--sc-green)' : status === 'cooldown' ? 'var(--sc-amber)' : 'rgba(255,255,255,0.3)';
+        var jobLabel = hasJob ? '<div style="margin-top:6px;padding:4px 8px;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);border-radius:4px;font-size:0.7rem;color:var(--sc-green);">' + _escSb(a.current_job) + '</div>' : '';
+        var wl = a.workload || {};
+        var riskColor = wl.risk_level === 'healthy' ? 'var(--sc-green)' : wl.risk_level === 'elevated' ? 'var(--sc-amber)' : wl.risk_level === 'critical' ? 'var(--sc-red)' : 'rgba(255,255,255,0.4)';
+        return '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(0,229,255,0.12);border-radius:8px;padding:14px;">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+                '<span style="width:8px;height:8px;border-radius:50%;background:' + statusColor + ';"></span>' +
+                '<span style="font-family:Antonio,sans-serif;color:#fff;font-size:0.95rem;letter-spacing:1px;">' + _escSb(name) + '</span>' +
+            '</div>' +
+            '<div style="display:flex;gap:16px;font-size:0.78rem;color:rgba(255,255,255,0.5);font-family:\'IBM Plex Mono\',monospace;">' +
+                '<span>' + _escSb(station) + '</span>' +
+                '<span>' + _escSb(model) + '</span>' +
+                '<span style="color:' + riskColor + ';">' + _escSb(status.toUpperCase()) + '</span>' +
+            '</div>' +
+            jobLabel +
+        '</div>';
+    }).join('');
+}
+
+function _escSb(str) {
+    if (!str) return '';
+    var d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
 }
 
 // Load starbase stats on page load + interval

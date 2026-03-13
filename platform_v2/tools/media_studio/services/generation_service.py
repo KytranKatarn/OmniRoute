@@ -57,6 +57,22 @@ DEFAULT_VIDEO_PARAMS = {
 # Duration to frame count mapping
 DURATION_FRAMES = {2: 16, 4: 32, 6: 48}
 
+DEFAULT_AUDIO_PARAMS = {
+    "audio_mode": "speech",
+    "voice_id": "preset_female_1",
+    "speed": 1.0,
+    "language": "en",
+    "duration": 5,
+    "seed": -1,
+}
+
+# Audio duration presets per mode
+AUDIO_DURATIONS = {
+    "speech": [5, 10, 30, 60],
+    "sfx": [1, 3, 5, 10],
+    "music": [10, 30, 60],
+}
+
 
 def submit_generation(
     user_id: int,
@@ -76,6 +92,8 @@ def submit_generation(
 
     if media_type == "video":
         defaults = DEFAULT_VIDEO_PARAMS
+    elif media_type == "audio":
+        defaults = DEFAULT_AUDIO_PARAMS
     else:
         defaults = DEFAULT_IMAGE_PARAMS
     merged_params = {**defaults, **(params or {})}
@@ -685,14 +703,209 @@ def get_video_providers() -> list:
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT provider_key, display_name, capabilities, cost_per_unit
+                """SELECT provider_key, display_name, capabilities
                    FROM contractor_providers
                    WHERE is_active = true
                      AND capabilities ? 'video_generation'
-                   ORDER BY cost_per_unit ASC NULLS LAST"""
+                   ORDER BY display_name"""
             )
             for row in cur.fetchall():
                 providers.append(dict(row))
     except Exception as e:
         logger.warning(f"Failed to query video providers: {e}")
+    return providers
+
+
+# ─── Audio ────────────────────────────────────────────────────────────
+
+
+def generate_audio(queue_id: int) -> Optional[str]:
+    """Generate audio via local XTTS v2 (speech) or external provider (sfx/music).
+
+    Called by the queue worker when processing an audio generation request.
+    Returns the output file path on success, None on failure.
+    """
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT prompt, params FROM media_generation_queue WHERE id = %s",
+            (queue_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            logger.error(f"Audio gen: queue entry {queue_id} not found")
+            return None
+
+    prompt = row["prompt"] if "prompt" in row.keys() else (row["params"] or {}).get("prompt", "")
+    params = row["params"] or {}
+    audio_mode = params.get("audio_mode", "speech")
+
+    if audio_mode == "speech":
+        return _generate_speech_local(queue_id, prompt, params)
+    else:
+        provider = params.get("provider", "auto")
+        if provider == "local":
+            logger.warning(f"No local provider for audio mode '{audio_mode}'")
+            _update_queue_status(queue_id, "failed", error=f"No local provider for {audio_mode}")
+            return None
+        return _submit_and_poll_external_audio(queue_id, prompt, params, audio_mode)
+
+
+def _generate_speech_local(queue_id: int, prompt: str, params: dict) -> Optional[str]:
+    """Generate speech using local XTTS v2."""
+    from .tts_service import generate_speech
+
+    _update_queue_status(queue_id, "processing")
+
+    result = generate_speech(
+        text=prompt,
+        voice_id=params.get("voice_id", "preset_female_1"),
+        speed=params.get("speed", 1.0),
+        language=params.get("language", "en"),
+    )
+
+    if "error" in result:
+        _update_queue_status(queue_id, "failed", error=result["error"])
+        return None
+
+    file_path = result["file_path"]
+    _update_queue_status(queue_id, "completed", output_path=file_path)
+    return file_path
+
+
+def _submit_and_poll_external_audio(queue_id: int, prompt: str, params: dict, audio_mode: str) -> Optional[str]:
+    """Submit to external audio provider and poll for completion."""
+    import json
+
+    provider = params.get("provider", "auto")
+
+    if provider == "auto":
+        providers = get_audio_providers(audio_mode)
+        if not providers:
+            _update_queue_status(
+                queue_id,
+                "failed",
+                error=f"No external providers available for {audio_mode}",
+            )
+            return None
+        provider = providers[0]["provider_key"]
+
+    _update_queue_status(queue_id, "dispatched")
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE media_generation_queue
+               SET params = params || %s
+               WHERE id = %s""",
+            (psycopg2.extras.Json({"external_provider": provider}), queue_id),
+        )
+
+    try:
+        job_id = _call_external_audio(
+            provider,
+            "submit",
+            {
+                "prompt": prompt,
+                "audio_mode": audio_mode,
+                "duration": params.get("duration", 5),
+            },
+        )
+
+        if not job_id:
+            _update_queue_status(queue_id, "failed", error=f"External submit to {provider} failed")
+            return None
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE media_generation_queue
+                   SET params = params || %s
+                   WHERE id = %s""",
+                (psycopg2.extras.Json({"external_job_id": job_id}), queue_id),
+            )
+
+        import time as time_mod
+
+        for _ in range(60):
+            time_mod.sleep(5)
+            status = _call_external_audio(provider, "poll", {"job_id": job_id})
+            if status and status.get("status") == "completed":
+                url = status.get("output_url")
+                if url:
+                    file_path = download_external_result(provider, url, queue_id)
+                    if file_path:
+                        _update_queue_status(queue_id, "completed", output_path=file_path)
+                        return file_path
+            elif status and status.get("status") == "failed":
+                _update_queue_status(queue_id, "failed", error=status.get("error", "External failed"))
+                return None
+
+        _update_queue_status(queue_id, "failed", error=f"External {provider} timed out")
+        return None
+    except Exception as e:
+        logger.error(f"External audio generation failed: {e}")
+        _update_queue_status(queue_id, "failed", error=str(e))
+        return None
+
+
+def _call_external_audio(provider: str, action: str, params: dict):
+    """Stub for external audio provider API calls.
+
+    Returns job_id string for 'submit', status dict for 'poll'.
+    Real implementations will be added when API keys are configured.
+    """
+    logger.info(f"External audio stub: {provider}/{action} — params={params}")
+    return None
+
+
+def _update_queue_status(queue_id: int, status: str, output_path: str = None, error: str = None):
+    """Update queue entry status."""
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            if output_path:
+                cur.execute(
+                    """UPDATE media_generation_queue
+                       SET status = %s, output_path = %s, completed_at = NOW()
+                       WHERE id = %s""",
+                    (status, output_path, queue_id),
+                )
+            elif error:
+                cur.execute(
+                    """UPDATE media_generation_queue
+                       SET status = %s, error_message = %s, completed_at = NOW()
+                       WHERE id = %s""",
+                    (status, error, queue_id),
+                )
+            else:
+                cur.execute(
+                    "UPDATE media_generation_queue SET status = %s WHERE id = %s",
+                    (status, queue_id),
+                )
+    except Exception as e:
+        logger.error(f"Failed to update queue status: {e}")
+
+
+def get_audio_providers(audio_mode: str = "sfx") -> list:
+    """Return available external audio providers for a given mode.
+
+    Args:
+        audio_mode: 'sfx' or 'music'
+
+    Returns:
+        List of provider dicts with provider_key, display_name, capabilities
+    """
+    cap_key = f"audio_{audio_mode}"
+    providers = []
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT provider_key, display_name, capabilities
+                   FROM contractor_providers
+                   WHERE is_active = true
+                     AND capabilities ? %s
+                   ORDER BY display_name""",
+                (cap_key,),
+            )
+            for row in cur.fetchall():
+                providers.append(dict(row))
+    except Exception as e:
+        logger.warning(f"Failed to query audio providers: {e}")
     return providers

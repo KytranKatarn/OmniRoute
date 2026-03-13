@@ -352,3 +352,123 @@ def build_ipadapter_workflow(
             },
         }
     }
+
+
+def build_animatediff_workflow(
+    prompt: str,
+    negative_prompt: str = "",
+    model: str = "sd_xl_base_1.0.safetensors",
+    motion_model: str = "mm_sd_v15_v2.safetensors",
+    width: int = 512,
+    height: int = 512,
+    frames: int = 16,
+    fps: int = 8,
+    seed: int = -1,
+    steps: int = 20,
+    cfg: float = 7.0,
+    sampler: str = "euler_ancestral",
+    motion_strength: float = 1.0,
+    ref_image: Optional[str] = None,
+) -> Dict:
+    """Build ComfyUI AnimateDiff workflow for video generation.
+
+    Requires ComfyUI-AnimateDiff-Evolved and ComfyUI-VideoHelperSuite.
+    ref_image: optional basename for image-to-video mode (must be in ComfyUI input dir).
+    Returns workflow dict for /prompt API.
+    """
+    import random
+
+    if seed < 0:
+        seed = random.randint(0, 2**63)
+
+    # Sanitize ref_image to prevent path traversal
+    if ref_image:
+        ref_image = os.path.basename(ref_image)
+
+    workflow = {
+        "prompt": {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": model},
+            },
+            "2": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {
+                    "width": width,
+                    "height": height,
+                    "batch_size": frames,
+                },
+            },
+            "3": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": prompt, "clip": ["1", 1]},
+            },
+            "4": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": negative_prompt or "blurry, low quality, distorted, deformed, static",
+                    "clip": ["1", 1],
+                },
+            },
+            "10": {
+                "class_type": "ADE_AnimateDiffLoaderWithContext",
+                "inputs": {
+                    "model_name": motion_model,
+                    "beta_schedule": "sqrt_linear (AnimateDiff)",
+                    "motion_scale": motion_strength,
+                    "model": ["1", 0],
+                },
+            },
+            "5": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "model": ["10", 0],
+                    "positive": ["3", 0],
+                    "negative": ["4", 0],
+                    "latent_image": ["2", 0],
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": sampler,
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                },
+            },
+            "6": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
+            },
+            "7": {
+                "class_type": "VHS_VideoCombine",
+                "inputs": {
+                    "images": ["6", 0],
+                    "frame_rate": fps,
+                    "loop_count": 0,
+                    "filename_prefix": "animatediff",
+                    "format": "video/h264-mp4",
+                    "save_output": True,
+                },
+            },
+        }
+    }
+
+    # Image-to-video: load reference image and use as init latent
+    if ref_image:
+        workflow["prompt"]["20"] = {
+            "class_type": "LoadImage",
+            "inputs": {"image": ref_image},
+        }
+        workflow["prompt"]["21"] = {
+            "class_type": "VAEEncode",
+            "inputs": {"pixels": ["20", 0], "vae": ["1", 2]},
+        }
+        # Replace empty latent with encoded reference repeated across frames
+        workflow["prompt"]["22"] = {
+            "class_type": "RepeatLatentBatch",
+            "inputs": {"samples": ["21", 0], "amount": frames},
+        }
+        # Point KSampler to repeated latent instead of empty
+        workflow["prompt"]["5"]["inputs"]["latent_image"] = ["22", 0]
+        workflow["prompt"]["5"]["inputs"]["denoise"] = 0.7
+
+    return workflow

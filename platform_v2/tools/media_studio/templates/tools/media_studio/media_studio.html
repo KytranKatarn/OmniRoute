@@ -1,0 +1,986 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/glass-nav.css') }}">
+<link rel="stylesheet" href="{{ url_for('media_studio.static', filename='css/media-studio.css') }}">
+{% endblock %}
+
+{% block title %}Media Studio - A.R.C.H.I.E.{% endblock %}
+{% block module_name %}media_studio{% endblock %}
+
+{% block content %}
+{% include 'includes/admin_ops_nav.html' %}
+
+<style>
+    /* Override glass-nav accent for CREATIVE station purple */
+    .glass-nav {
+        --glass-accent: #8b5cf6;
+        --glass-accent-rgb: 139, 92, 246;
+        --glass-border: rgba(139, 92, 246, 0.15);
+    }
+    /* Disabled nav item */
+    .glass-nav-item.disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+</style>
+
+<!-- ================================================================
+     GLASS NAV — 5 Tabs
+     ================================================================ -->
+<nav class="glass-nav" id="msNav">
+    <div class="glass-nav-track">
+        <div class="glass-nav-indicator"></div>
+        <button class="glass-nav-item active" data-tab="dashboard">
+            <i data-lucide="layout-dashboard" style="width:16px;height:16px;"></i>
+            <span data-i18n="media_studio.dashboard">Dashboard</span>
+        </button>
+        <button class="glass-nav-item" data-tab="generate">
+            <i data-lucide="wand-2" style="width:16px;height:16px;"></i>
+            <span data-i18n="media_studio.generate">Generate</span>
+        </button>
+        <button class="glass-nav-item" data-tab="gallery">
+            <i data-lucide="image" style="width:16px;height:16px;"></i>
+            <span data-i18n="media_studio.gallery">Gallery</span>
+        </button>
+        <button class="glass-nav-item disabled" data-tab="portraits">
+            <i data-lucide="users" style="width:16px;height:16px;"></i>
+            <span data-i18n="media_studio.portraits">Portraits</span>
+            <span class="ms-layer-badge">Layer 2</span>
+        </button>
+        <button class="glass-nav-item" data-tab="queue">
+            <i data-lucide="list-ordered" style="width:16px;height:16px;"></i>
+            <span data-i18n="media_studio.queue">Queue</span>
+        </button>
+    </div>
+</nav>
+
+<div class="ms-page">
+
+    <!-- ================================================================
+         TAB: DASHBOARD
+         ================================================================ -->
+    <div id="ms-tab-dashboard" class="ms-tab-pane active">
+
+        <!-- Stats counters -->
+        <div class="ms-section-header">
+            <div class="ms-section-cap"></div>
+            <span class="ms-section-title" data-i18n="media_studio.overview">Overview</span>
+        </div>
+        <div class="ms-dashboard-grid" id="msDashStats">
+            <div class="ms-stat-card">
+                <div class="ms-stat-label" data-i18n="media_studio.total_generated">Total Generated</div>
+                <div class="ms-stat-value" id="msStatTotal">--</div>
+                <i data-lucide="layers" class="ms-stat-icon"></i>
+            </div>
+            <div class="ms-stat-card">
+                <div class="ms-stat-label" data-i18n="media_studio.images">Images</div>
+                <div class="ms-stat-value" id="msStatImages">--</div>
+                <i data-lucide="image" class="ms-stat-icon"></i>
+            </div>
+            <div class="ms-stat-card">
+                <div class="ms-stat-label" data-i18n="media_studio.videos">Videos</div>
+                <div class="ms-stat-value" id="msStatVideos">--</div>
+                <i data-lucide="film" class="ms-stat-icon"></i>
+            </div>
+            <div class="ms-stat-card">
+                <div class="ms-stat-label" data-i18n="media_studio.queue_active">Queue Active</div>
+                <div class="ms-stat-value" id="msStatQueue">--</div>
+                <i data-lucide="activity" class="ms-stat-icon"></i>
+            </div>
+        </div>
+
+        <!-- Recent creations -->
+        <div class="ms-section-header">
+            <div class="ms-section-cap"></div>
+            <span class="ms-section-title" data-i18n="media_studio.recent_creations">Recent Creations</span>
+        </div>
+        <div class="ms-recent-grid" id="msDashRecent">
+            <div class="ms-recent-empty" data-i18n="media_studio.no_recent">No recent media. Start generating!</div>
+        </div>
+
+        <!-- GPU Fleet -->
+        <div class="ms-section-header">
+            <div class="ms-section-cap"></div>
+            <span class="ms-section-title" data-i18n="media_studio.gpu_fleet">GPU Fleet</span>
+        </div>
+        <div class="ms-dashboard-grid" id="msDashFleet">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+
+    <!-- ================================================================
+         TAB: GENERATE
+         ================================================================ -->
+    <div id="ms-tab-generate" class="ms-tab-pane">
+
+        <div class="ms-generate-form">
+            <!-- Media type selector -->
+            <div class="ms-form-group">
+                <label class="ms-form-label" data-i18n="media_studio.media_type">Media Type</label>
+                <div class="ms-type-selector">
+                    <button class="ms-type-btn active" data-type="image" onclick="selectMediaType('image')">
+                        <i data-lucide="image" style="width:16px;height:16px;"></i>
+                        <span data-i18n="media_studio.image">Image</span>
+                    </button>
+                    <button class="ms-type-btn disabled" data-type="video">
+                        <i data-lucide="film" style="width:16px;height:16px;"></i>
+                        <span data-i18n="media_studio.video">Video</span>
+                        <span class="ms-coming-soon" data-i18n="media_studio.coming_soon">Coming Soon</span>
+                    </button>
+                    <button class="ms-type-btn disabled" data-type="audio">
+                        <i data-lucide="music" style="width:16px;height:16px;"></i>
+                        <span data-i18n="media_studio.audio">Audio</span>
+                        <span class="ms-coming-soon" data-i18n="media_studio.coming_soon">Coming Soon</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Model dropdown -->
+            <div class="ms-form-group">
+                <label class="ms-form-label" for="msModel" data-i18n="media_studio.model">Model</label>
+                <select class="ms-select" id="msModel">
+                    <option value="" data-i18n="media_studio.loading_models">Loading models...</option>
+                </select>
+            </div>
+
+            <!-- Prompt -->
+            <div class="ms-form-group">
+                <label class="ms-form-label" for="msPrompt" data-i18n="media_studio.prompt">Prompt</label>
+                <textarea class="ms-prompt-area" id="msPrompt"
+                    placeholder="Describe what you want to create..."
+                    maxlength="2000"
+                    oninput="updateCharCount()"></textarea>
+                <div class="ms-char-count"><span id="msCharCount">0</span> / 2000</div>
+            </div>
+
+            <!-- Negative prompt (collapsible) -->
+            <div class="ms-form-group">
+                <button class="ms-advanced-toggle" onclick="toggleSection('msNegPromptSection', this)">
+                    <i data-lucide="chevron-down" class="ms-toggle-arrow"></i>
+                    <span data-i18n="media_studio.negative_prompt">Negative Prompt</span>
+                </button>
+                <div class="ms-advanced-section" id="msNegPromptSection">
+                    <textarea class="ms-prompt-area" id="msNegPrompt"
+                        placeholder="What to exclude from the generation..."
+                        style="min-height: 80px;"></textarea>
+                </div>
+            </div>
+
+            <!-- Size presets -->
+            <div class="ms-form-group">
+                <label class="ms-form-label" data-i18n="media_studio.size">Size</label>
+                <div class="ms-size-presets" id="msSizePresets">
+                    <button class="ms-size-btn active" data-size="1024x1024" onclick="selectSize(this)">1024 x 1024</button>
+                    <button class="ms-size-btn" data-size="768x1024" onclick="selectSize(this)">768 x 1024</button>
+                    <button class="ms-size-btn" data-size="1024x768" onclick="selectSize(this)">1024 x 768</button>
+                    <button class="ms-size-btn" data-size="512x512" onclick="selectSize(this)">512 x 512</button>
+                </div>
+            </div>
+
+            <!-- Advanced controls (collapsible) -->
+            <button class="ms-advanced-toggle" onclick="toggleSection('msAdvancedSection', this)">
+                <i data-lucide="chevron-down" class="ms-toggle-arrow"></i>
+                <span data-i18n="media_studio.advanced_settings">Advanced Settings</span>
+            </button>
+            <div class="ms-advanced-section" id="msAdvancedSection">
+                <!-- Steps slider -->
+                <div class="ms-slider-group">
+                    <div class="ms-slider-header">
+                        <label class="ms-form-label" data-i18n="media_studio.steps">Steps</label>
+                        <span class="ms-slider-value" id="msStepsValue">20</span>
+                    </div>
+                    <input type="range" class="ms-slider" id="msSteps" min="1" max="100" value="20"
+                        oninput="document.getElementById('msStepsValue').textContent = this.value">
+                </div>
+
+                <!-- CFG slider -->
+                <div class="ms-slider-group">
+                    <div class="ms-slider-header">
+                        <label class="ms-form-label" data-i18n="media_studio.cfg_scale">CFG Scale</label>
+                        <span class="ms-slider-value" id="msCfgValue">7.0</span>
+                    </div>
+                    <input type="range" class="ms-slider" id="msCfg" min="1" max="30" value="7" step="0.5"
+                        oninput="document.getElementById('msCfgValue').textContent = parseFloat(this.value).toFixed(1)">
+                </div>
+
+                <!-- Sampler dropdown -->
+                <div class="ms-form-group">
+                    <label class="ms-form-label" for="msSampler" data-i18n="media_studio.sampler">Sampler</label>
+                    <select class="ms-select" id="msSampler">
+                        <option value="euler">Euler</option>
+                        <option value="euler_a">Euler Ancestral</option>
+                        <option value="dpmpp_2m" selected>DPM++ 2M</option>
+                        <option value="dpmpp_2m_sde">DPM++ 2M SDE</option>
+                        <option value="dpmpp_sde">DPM++ SDE</option>
+                        <option value="ddim">DDIM</option>
+                        <option value="uni_pc">UniPC</option>
+                    </select>
+                </div>
+
+                <!-- Seed -->
+                <div class="ms-form-group">
+                    <label class="ms-form-label" for="msSeed" data-i18n="media_studio.seed">Seed</label>
+                    <input type="number" class="ms-seed-input" id="msSeed" placeholder="-1 (random)" value="-1">
+                </div>
+            </div>
+
+            <!-- Generate button -->
+            <button class="ms-generate-btn" id="msGenerateBtn" onclick="submitGeneration()">
+                <div class="ms-spinner"></div>
+                <i data-lucide="zap" style="width:18px;height:18px;"></i>
+                <span data-i18n="media_studio.generate_action">Generate</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ================================================================
+         TAB: GALLERY
+         ================================================================ -->
+    <div id="ms-tab-gallery" class="ms-tab-pane">
+
+        <!-- Filter bar -->
+        <div class="ms-filter-bar">
+            <button class="ms-filter-btn active" data-filter="all" onclick="filterGallery('all', this)" data-i18n="media_studio.all">All</button>
+            <button class="ms-filter-btn" data-filter="image" onclick="filterGallery('image', this)" data-i18n="media_studio.images">Images</button>
+            <button class="ms-filter-btn" data-filter="video" onclick="filterGallery('video', this)" data-i18n="media_studio.video">Video</button>
+            <button class="ms-filter-btn" data-filter="audio" onclick="filterGallery('audio', this)" data-i18n="media_studio.audio">Audio</button>
+            <div class="ms-filter-divider"></div>
+            <button class="ms-fav-toggle" id="msFavToggle" onclick="toggleFavoriteFilter()">
+                <i data-lucide="star" style="width:14px;height:14px;"></i>
+                <span data-i18n="media_studio.favorites">Favorites</span>
+            </button>
+        </div>
+
+        <!-- Gallery grid -->
+        <div class="ms-gallery-grid" id="msGalleryGrid">
+            <div class="ms-gallery-empty">
+                <i data-lucide="image-off"></i>
+                <span data-i18n="media_studio.gallery_empty">No media found. Create something in the Generate tab!</span>
+            </div>
+        </div>
+
+        <!-- Load more -->
+        <button class="ms-load-more" id="msLoadMore" style="display:none;" onclick="loadGallery(currentGalleryPage + 1)" data-i18n="media_studio.load_more">Load More</button>
+    </div>
+
+    <!-- ================================================================
+         TAB: PORTRAITS (Disabled / Layer 2)
+         ================================================================ -->
+    <div id="ms-tab-portraits" class="ms-tab-pane">
+        <div class="ms-gallery-empty" style="padding:80px 20px;">
+            <i data-lucide="lock" style="display:block;margin:0 auto 12px;width:48px;height:48px;color:rgba(139,92,246,0.2);"></i>
+            <span data-i18n="media_studio.portraits_locked">Portraits module is planned for Layer 2 development.</span>
+        </div>
+    </div>
+
+    <!-- ================================================================
+         TAB: QUEUE
+         ================================================================ -->
+    <div id="ms-tab-queue" class="ms-tab-pane">
+        <div class="ms-section-header">
+            <div class="ms-section-cap"></div>
+            <span class="ms-section-title" data-i18n="media_studio.generation_queue">Generation Queue</span>
+        </div>
+        <div class="ms-queue-list" id="msQueueList">
+            <div class="ms-queue-empty" data-i18n="media_studio.queue_empty">Queue is empty. Submit a generation to see it here.</div>
+        </div>
+    </div>
+
+</div><!-- /.ms-page -->
+
+
+<!-- ================================================================
+     MEDIA DETAIL MODAL (LCARS Tablet Frame)
+     ================================================================ -->
+<div class="ms-media-modal" id="msMediaModal">
+    <div class="ms-modal-backdrop" onclick="closeMediaModal()"></div>
+    <div class="ms-modal-frame">
+        <!-- LCARS sidebar -->
+        <div class="ms-modal-sidebar">
+            <div class="ms-modal-elbow-top"></div>
+            <div class="ms-modal-seg" style="background:#8b5cf6;"></div>
+            <div class="ms-modal-seg" style="background:#00ffff;"></div>
+            <div class="ms-modal-seg" style="background:#ffaa00;"></div>
+            <div class="ms-modal-seg-fill"></div>
+            <div class="ms-modal-elbow-bottom"></div>
+        </div>
+        <!-- Content -->
+        <div class="ms-modal-content">
+            <div class="ms-modal-bar">
+                <span class="ms-modal-bar-title" data-i18n="media_studio.media_detail">Media Detail</span>
+                <div class="ms-modal-bar-spacer"></div>
+                <button class="ms-modal-close" onclick="closeMediaModal()" title="Close">
+                    <i data-lucide="x" style="width:16px;height:16px;"></i>
+                </button>
+            </div>
+            <div class="ms-modal-body" id="msModalBody">
+                <!-- Populated by showMediaDetail() -->
+            </div>
+            <div class="ms-modal-footer"></div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ================================================================
+     JAVASCRIPT
+     ================================================================ -->
+<script src="{{ url_for('static', filename='js/glass-nav.js') }}"></script>
+<script>
+(function() {
+    "use strict";
+
+    var API_BASE = "/tools/media-studio";
+    var queuePollTimer = null;
+    var currentGalleryPage = 1;
+    var currentFilter = "all";
+    var favoritesOnly = false;
+
+    /* ── Helpers ──────────────────────────────────── */
+
+    function escHtml(str) {
+        if (str == null) return "";
+        var div = document.createElement("div");
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
+
+    function api(method, path, body) {
+        var opts = {
+            method: method,
+            headers: { "Content-Type": "application/json" }
+        };
+        if (body) opts.body = JSON.stringify(body);
+        return fetch(API_BASE + path, opts).then(function(r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+        });
+    }
+
+    function formatNumber(n) {
+        if (n == null) return "--";
+        return Number(n).toLocaleString();
+    }
+
+    function truncate(str, len) {
+        if (!str) return "";
+        return str.length > len ? str.substring(0, len) + "..." : str;
+    }
+
+    function typeIcon(mediaType) {
+        switch (mediaType) {
+            case "video": return "film";
+            case "audio": return "music";
+            default: return "image";
+        }
+    }
+
+    /* ── Safe DOM Builder ─────────────────────────── */
+    /* Builds HTML strings from escaped data only.
+       All user-supplied values pass through escHtml()
+       before concatenation — same pattern as station-ops.js
+       and consciousness.js (setHtml/escHtml). */
+
+    /* ── Tab Switching ────────────────────────────── */
+
+    window.switchMsTab = function(tabId) {
+        var panes = document.querySelectorAll(".ms-tab-pane");
+        for (var i = 0; i < panes.length; i++) {
+            panes[i].classList.remove("active");
+        }
+        var target = document.getElementById("ms-tab-" + tabId);
+        if (target) target.classList.add("active");
+
+        history.replaceState(null, "", "#" + tabId);
+
+        if (tabId === "dashboard") loadDashboard();
+        else if (tabId === "gallery") loadGallery(1);
+        else if (tabId === "queue") loadQueue();
+        else if (tabId === "generate") loadModels();
+
+        if (tabId !== "queue" && queuePollTimer) {
+            clearInterval(queuePollTimer);
+            queuePollTimer = null;
+        }
+    };
+
+    /* ── Dashboard ────────────────────────────────── */
+
+    window.loadDashboard = function() {
+        api("GET", "/api/dashboard").then(function(data) {
+            document.getElementById("msStatTotal").textContent = formatNumber(data.total_generated);
+            document.getElementById("msStatImages").textContent = formatNumber(data.images);
+            document.getElementById("msStatVideos").textContent = formatNumber(data.videos);
+            document.getElementById("msStatQueue").textContent = formatNumber(data.queue_active);
+
+            renderRecent(data.recent || []);
+            renderFleet(data.fleet || []);
+        }).catch(function(err) {
+            console.error("Dashboard load failed:", err);
+        });
+    };
+
+    function renderRecent(items) {
+        var el = document.getElementById("msDashRecent");
+        if (!items.length) {
+            el.textContent = "";
+            var empty = document.createElement("div");
+            empty.className = "ms-recent-empty";
+            empty.setAttribute("data-i18n", "media_studio.no_recent");
+            empty.textContent = "No recent media. Start generating!";
+            el.appendChild(empty);
+            return;
+        }
+        el.textContent = "";
+        var limit = Math.min(items.length, 8);
+        for (var i = 0; i < limit; i++) {
+            var item = items[i];
+            var thumb = document.createElement("div");
+            thumb.className = "ms-recent-thumb";
+            thumb.setAttribute("data-media-id", item.id);
+            thumb.addEventListener("click", (function(id) {
+                return function() { showMediaDetail(id); };
+            })(item.id));
+
+            var img = document.createElement("img");
+            img.src = item.thumbnail_url || item.url || "";
+            img.alt = "";
+            img.loading = "lazy";
+            thumb.appendChild(img);
+
+            var overlay = document.createElement("div");
+            overlay.className = "ms-thumb-overlay";
+            var promptSpan = document.createElement("span");
+            promptSpan.className = "ms-thumb-prompt";
+            promptSpan.textContent = truncate(item.prompt, 80);
+            overlay.appendChild(promptSpan);
+            thumb.appendChild(overlay);
+
+            el.appendChild(thumb);
+        }
+        if (typeof lucide !== "undefined") lucide.createIcons();
+    }
+
+    function renderFleet(nodes) {
+        var el = document.getElementById("msDashFleet");
+        el.textContent = "";
+        if (!nodes.length) {
+            var empty = document.createElement("div");
+            empty.className = "ms-recent-empty";
+            empty.setAttribute("data-i18n", "media_studio.no_gpu_nodes");
+            empty.textContent = "No GPU nodes detected.";
+            el.appendChild(empty);
+            return;
+        }
+        for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            var pct = n.vram_total > 0 ? Math.round((n.vram_used / n.vram_total) * 100) : 0;
+            var tierCls = (n.tier || "base").toLowerCase();
+            var healthCls = (n.health || "online").toLowerCase();
+
+            var card = document.createElement("div");
+            card.className = "ms-gpu-card";
+
+            var header = document.createElement("div");
+            header.className = "ms-gpu-card-header";
+
+            var nameWrap = document.createElement("div");
+            var gpuName = document.createElement("div");
+            gpuName.className = "ms-gpu-name";
+            gpuName.textContent = n.gpu_name || "";
+            var nodeName = document.createElement("div");
+            nodeName.className = "ms-gpu-node";
+            nodeName.textContent = n.node_name || "";
+            nameWrap.appendChild(gpuName);
+            nameWrap.appendChild(nodeName);
+
+            var badge = document.createElement("span");
+            badge.className = "ms-tier-badge " + tierCls;
+            badge.textContent = (n.tier || "BASE").toUpperCase();
+
+            header.appendChild(nameWrap);
+            header.appendChild(badge);
+            card.appendChild(header);
+
+            var bar = document.createElement("div");
+            bar.className = "ms-vram-bar";
+            var fill = document.createElement("div");
+            fill.className = "ms-vram-fill" + (pct > 85 ? " warn" : "");
+            fill.style.width = pct + "%";
+            bar.appendChild(fill);
+            card.appendChild(bar);
+
+            var vramText = document.createElement("div");
+            vramText.className = "ms-vram-text";
+            var usedSpan = document.createElement("span");
+            usedSpan.textContent = n.vram_used_label || (pct + "%");
+            var totalSpan = document.createElement("span");
+            totalSpan.textContent = n.vram_total_label || "";
+            vramText.appendChild(usedSpan);
+            vramText.appendChild(totalSpan);
+            card.appendChild(vramText);
+
+            var health = document.createElement("div");
+            health.className = "ms-gpu-health";
+            var dot = document.createElement("span");
+            dot.className = "ms-gpu-health-dot " + healthCls;
+            health.appendChild(dot);
+            health.appendChild(document.createTextNode(" " + (n.health || "Online")));
+            card.appendChild(health);
+
+            el.appendChild(card);
+        }
+    }
+
+    /* ── Generate ─────────────────────────────────── */
+
+    var modelsLoaded = false;
+
+    function loadModels() {
+        if (modelsLoaded) return;
+        api("GET", "/api/models").then(function(data) {
+            var sel = document.getElementById("msModel");
+            sel.textContent = "";
+            var models = data.models || data || [];
+            if (!models.length) {
+                var opt = document.createElement("option");
+                opt.value = "";
+                opt.textContent = "No models available";
+                sel.appendChild(opt);
+                return;
+            }
+            for (var i = 0; i < models.length; i++) {
+                var m = models[i];
+                var opt = document.createElement("option");
+                opt.value = m.id || m.name || m;
+                opt.textContent = m.display_name || m.name || m;
+                sel.appendChild(opt);
+            }
+            modelsLoaded = true;
+        }).catch(function(err) {
+            console.error("Model load failed:", err);
+            var sel = document.getElementById("msModel");
+            sel.textContent = "";
+            var opt = document.createElement("option");
+            opt.value = "";
+            opt.textContent = "Failed to load models";
+            sel.appendChild(opt);
+        });
+    }
+
+    window.selectMediaType = function(type) {
+        var btns = document.querySelectorAll(".ms-type-btn");
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.toggle("active", btns[i].dataset.type === type);
+        }
+    };
+
+    window.selectSize = function(btn) {
+        var siblings = document.querySelectorAll(".ms-size-btn");
+        for (var i = 0; i < siblings.length; i++) siblings[i].classList.remove("active");
+        btn.classList.add("active");
+    };
+
+    window.toggleSection = function(sectionId, toggleBtn) {
+        var section = document.getElementById(sectionId);
+        var isOpen = section.classList.toggle("open");
+        toggleBtn.classList.toggle("open", isOpen);
+    };
+
+    window.updateCharCount = function() {
+        var len = (document.getElementById("msPrompt").value || "").length;
+        document.getElementById("msCharCount").textContent = len;
+    };
+
+    window.submitGeneration = function() {
+        var prompt = document.getElementById("msPrompt").value.trim();
+        if (!prompt) {
+            alert("Please enter a prompt.");
+            return;
+        }
+
+        var sizeBtn = document.querySelector(".ms-size-btn.active");
+        var sizeParts = (sizeBtn ? sizeBtn.dataset.size : "1024x1024").split("x");
+
+        var payload = {
+            prompt: prompt,
+            negative_prompt: document.getElementById("msNegPrompt").value.trim() || "",
+            model: document.getElementById("msModel").value,
+            width: parseInt(sizeParts[0], 10),
+            height: parseInt(sizeParts[1], 10),
+            steps: parseInt(document.getElementById("msSteps").value, 10),
+            cfg_scale: parseFloat(document.getElementById("msCfg").value),
+            sampler: document.getElementById("msSampler").value,
+            seed: parseInt(document.getElementById("msSeed").value, 10),
+            media_type: "image"
+        };
+
+        var btn = document.getElementById("msGenerateBtn");
+        btn.disabled = true;
+        btn.classList.add("loading");
+
+        api("POST", "/api/generate", payload).then(function(data) {
+            btn.disabled = false;
+            btn.classList.remove("loading");
+            if (window._msGlassNav) window._msGlassNav.setActive("queue");
+            switchMsTab("queue");
+        }).catch(function(err) {
+            btn.disabled = false;
+            btn.classList.remove("loading");
+            console.error("Generation failed:", err);
+            alert("Generation request failed. Check console for details.");
+        });
+    };
+
+    /* ── Gallery ──────────────────────────────────── */
+
+    window.currentGalleryPage = 1;
+
+    window.loadGallery = function(page) {
+        if (page === undefined) page = 1;
+        currentGalleryPage = page;
+        window.currentGalleryPage = page;
+
+        var params = "?page=" + page + "&filter=" + encodeURIComponent(currentFilter);
+        if (favoritesOnly) params += "&favorites=1";
+
+        api("GET", "/api/gallery" + params).then(function(data) {
+            var items = data.items || [];
+            var grid = document.getElementById("msGalleryGrid");
+
+            if (page === 1) grid.textContent = "";
+
+            if (!items.length && page === 1) {
+                var empty = document.createElement("div");
+                empty.className = "ms-gallery-empty";
+                var icon = document.createElement("i");
+                icon.setAttribute("data-lucide", "image-off");
+                empty.appendChild(icon);
+                var txt = document.createElement("span");
+                txt.setAttribute("data-i18n", "media_studio.gallery_empty");
+                txt.textContent = "No media found. Create something in the Generate tab!";
+                empty.appendChild(txt);
+                grid.appendChild(empty);
+                document.getElementById("msLoadMore").style.display = "none";
+                if (typeof lucide !== "undefined") lucide.createIcons();
+                return;
+            }
+
+            for (var i = 0; i < items.length; i++) {
+                var item = items[i];
+                var div = document.createElement("div");
+                div.className = "ms-gallery-item";
+                div.setAttribute("data-media-id", item.id);
+                div.addEventListener("click", (function(id) {
+                    return function() { showMediaDetail(id); };
+                })(item.id));
+
+                var img = document.createElement("img");
+                img.src = item.thumbnail_url || item.url || "";
+                img.alt = "";
+                img.loading = "lazy";
+                div.appendChild(img);
+
+                var overlay = document.createElement("div");
+                overlay.className = "ms-gallery-overlay";
+
+                var promptEl = document.createElement("span");
+                promptEl.className = "ms-gallery-overlay-prompt";
+                promptEl.textContent = truncate(item.prompt, 100);
+                overlay.appendChild(promptEl);
+
+                var meta = document.createElement("div");
+                meta.className = "ms-gallery-overlay-meta";
+                var modelSpan = document.createElement("span");
+                modelSpan.textContent = item.model || "";
+                meta.appendChild(modelSpan);
+                var timeSpan = document.createElement("span");
+                timeSpan.setAttribute("data-utc", item.created_at || "");
+                timeSpan.setAttribute("data-fmt", "age");
+                meta.appendChild(timeSpan);
+                overlay.appendChild(meta);
+
+                div.appendChild(overlay);
+                grid.appendChild(div);
+            }
+
+            var more = document.getElementById("msLoadMore");
+            more.style.display = (data.has_more) ? "block" : "none";
+
+            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof ArchieTime !== "undefined") ArchieTime.refresh();
+        }).catch(function(err) {
+            console.error("Gallery load failed:", err);
+        });
+    };
+
+    window.filterGallery = function(filter, btn) {
+        currentFilter = filter;
+        var btns = document.querySelectorAll(".ms-filter-btn");
+        for (var i = 0; i < btns.length; i++) btns[i].classList.remove("active");
+        btn.classList.add("active");
+        loadGallery(1);
+    };
+
+    window.toggleFavoriteFilter = function() {
+        favoritesOnly = !favoritesOnly;
+        document.getElementById("msFavToggle").classList.toggle("active", favoritesOnly);
+        loadGallery(1);
+    };
+
+    /* ── Media Detail Modal ───────────────────────── */
+
+    window.showMediaDetail = function(id) {
+        api("GET", "/api/gallery/" + encodeURIComponent(id)).then(function(item) {
+            var body = document.getElementById("msModalBody");
+            body.textContent = "";
+
+            // Image
+            var img = document.createElement("img");
+            img.className = "ms-modal-image";
+            img.src = item.url || "";
+            img.alt = "";
+            body.appendChild(img);
+
+            // Metadata grid
+            var metaGrid = document.createElement("div");
+            metaGrid.className = "ms-modal-meta";
+
+            function addMeta(labelKey, labelText, value, isTime) {
+                var label = document.createElement("span");
+                label.className = "ms-modal-meta-label";
+                label.setAttribute("data-i18n", "media_studio." + labelKey);
+                label.textContent = labelText;
+                metaGrid.appendChild(label);
+
+                var val = document.createElement("span");
+                val.className = "ms-modal-meta-value";
+                if (isTime) {
+                    val.setAttribute("data-utc", value || "");
+                    val.setAttribute("data-fmt", "datetime");
+                } else {
+                    val.textContent = (value != null) ? String(value) : "";
+                }
+                metaGrid.appendChild(val);
+            }
+
+            addMeta("prompt", "Prompt", item.prompt);
+            addMeta("model", "Model", item.model);
+            addMeta("size", "Size", (item.width || "?") + " x " + (item.height || "?"));
+            addMeta("steps", "Steps", item.steps);
+            addMeta("cfg_scale", "CFG", item.cfg_scale);
+            addMeta("seed", "Seed", item.seed);
+            addMeta("created", "Created", item.created_at, true);
+            body.appendChild(metaGrid);
+
+            // Negative prompt (optional)
+            if (item.negative_prompt) {
+                var negGrid = document.createElement("div");
+                negGrid.className = "ms-modal-meta";
+                var negLabel = document.createElement("span");
+                negLabel.className = "ms-modal-meta-label";
+                negLabel.setAttribute("data-i18n", "media_studio.negative_prompt");
+                negLabel.textContent = "Neg. Prompt";
+                negGrid.appendChild(negLabel);
+                var negVal = document.createElement("span");
+                negVal.className = "ms-modal-meta-value";
+                negVal.textContent = item.negative_prompt;
+                negGrid.appendChild(negVal);
+                body.appendChild(negGrid);
+            }
+
+            // Action buttons
+            var actions = document.createElement("div");
+            actions.className = "ms-modal-actions";
+
+            var favBtn = document.createElement("button");
+            favBtn.className = "ms-modal-action-btn" + (item.is_favorite ? " fav-active" : "");
+            favBtn.addEventListener("click", function() { toggleFavorite(item.id); });
+            var favIcon = document.createElement("i");
+            favIcon.setAttribute("data-lucide", "star");
+            favIcon.style.cssText = "width:14px;height:14px;";
+            favBtn.appendChild(favIcon);
+            var favText = document.createElement("span");
+            favText.setAttribute("data-i18n", "media_studio.favorite");
+            favText.textContent = " Favorite";
+            favBtn.appendChild(favText);
+            actions.appendChild(favBtn);
+
+            var delBtn = document.createElement("button");
+            delBtn.className = "ms-modal-action-btn danger";
+            delBtn.addEventListener("click", function() {
+                if (confirm("Delete this media?")) deleteMedia(item.id);
+            });
+            var delIcon = document.createElement("i");
+            delIcon.setAttribute("data-lucide", "trash-2");
+            delIcon.style.cssText = "width:14px;height:14px;";
+            delBtn.appendChild(delIcon);
+            var delText = document.createElement("span");
+            delText.setAttribute("data-i18n", "media_studio.delete");
+            delText.textContent = " Delete";
+            delBtn.appendChild(delText);
+            actions.appendChild(delBtn);
+
+            body.appendChild(actions);
+
+            document.getElementById("msMediaModal").classList.add("open");
+            if (typeof lucide !== "undefined") lucide.createIcons();
+            if (typeof ArchieTime !== "undefined") ArchieTime.refresh();
+        }).catch(function(err) {
+            console.error("Media detail failed:", err);
+        });
+    };
+
+    window.closeMediaModal = function() {
+        document.getElementById("msMediaModal").classList.remove("open");
+    };
+
+    window.toggleFavorite = function(mediaId) {
+        api("POST", "/api/gallery/" + encodeURIComponent(mediaId) + "/favorite").then(function(data) {
+            showMediaDetail(mediaId);
+        }).catch(function(err) {
+            console.error("Toggle favorite failed:", err);
+        });
+    };
+
+    window.deleteMedia = function(mediaId) {
+        api("DELETE", "/api/gallery/" + encodeURIComponent(mediaId)).then(function() {
+            closeMediaModal();
+            loadGallery(1);
+        }).catch(function(err) {
+            console.error("Delete failed:", err);
+        });
+    };
+
+    /* ── Queue ────────────────────────────────────── */
+
+    window.loadQueue = function() {
+        api("GET", "/api/queue").then(function(data) {
+            renderQueue(data.jobs || []);
+        }).catch(function(err) {
+            console.error("Queue load failed:", err);
+        });
+
+        if (queuePollTimer) clearInterval(queuePollTimer);
+        queuePollTimer = setInterval(function() {
+            api("GET", "/api/queue").then(function(data) {
+                renderQueue(data.jobs || []);
+            }).catch(function() {});
+        }, 5000);
+    };
+
+    function renderQueue(jobs) {
+        var el = document.getElementById("msQueueList");
+        el.textContent = "";
+
+        if (!jobs.length) {
+            var empty = document.createElement("div");
+            empty.className = "ms-queue-empty";
+            empty.setAttribute("data-i18n", "media_studio.queue_empty");
+            empty.textContent = "Queue is empty. Submit a generation to see it here.";
+            el.appendChild(empty);
+            return;
+        }
+
+        for (var i = 0; i < jobs.length; i++) {
+            var j = jobs[i];
+            var status = (j.status || "pending").toLowerCase();
+            var canCancel = (status === "pending");
+
+            var row = document.createElement("div");
+            row.className = "ms-queue-item";
+
+            // Type icon
+            var iconWrap = document.createElement("div");
+            iconWrap.className = "ms-queue-type-icon";
+            var icon = document.createElement("i");
+            icon.setAttribute("data-lucide", typeIcon(j.media_type));
+            iconWrap.appendChild(icon);
+            row.appendChild(iconWrap);
+
+            // Info
+            var info = document.createElement("div");
+            info.className = "ms-queue-info";
+            var prompt = document.createElement("div");
+            prompt.className = "ms-queue-prompt";
+            prompt.textContent = truncate(j.prompt, 80);
+            info.appendChild(prompt);
+            var time = document.createElement("div");
+            time.className = "ms-queue-time";
+            time.setAttribute("data-utc", j.created_at || "");
+            time.setAttribute("data-fmt", "age");
+            info.appendChild(time);
+            row.appendChild(info);
+
+            // Status badge
+            var badge = document.createElement("span");
+            badge.className = "ms-status-badge " + status;
+            badge.textContent = j.status || "Pending";
+            row.appendChild(badge);
+
+            // Cancel button
+            if (canCancel) {
+                var cancelBtn = document.createElement("button");
+                cancelBtn.className = "ms-queue-cancel";
+                cancelBtn.setAttribute("data-i18n", "media_studio.cancel");
+                cancelBtn.textContent = "Cancel";
+                cancelBtn.addEventListener("click", (function(queueId) {
+                    return function() { cancelJob(queueId); };
+                })(j.id));
+                row.appendChild(cancelBtn);
+            }
+
+            el.appendChild(row);
+        }
+
+        if (typeof lucide !== "undefined") lucide.createIcons();
+        if (typeof ArchieTime !== "undefined") ArchieTime.refresh();
+    }
+
+    window.cancelJob = function(queueId) {
+        api("POST", "/api/queue/" + encodeURIComponent(queueId) + "/cancel").then(function() {
+            loadQueue();
+        }).catch(function(err) {
+            console.error("Cancel job failed:", err);
+        });
+    };
+
+    /* ── Keyboard Shortcuts ───────────────────────── */
+
+    document.addEventListener("keydown", function(e) {
+        if (e.key === "Escape") {
+            closeMediaModal();
+        }
+    });
+
+    /* ── Init ─────────────────────────────────────── */
+
+    document.addEventListener("DOMContentLoaded", function() {
+        var navEl = document.getElementById("msNav");
+        if (navEl && typeof GlassNav !== "undefined") {
+            window._msGlassNav = new GlassNav(navEl, {
+                onSwitch: function(tab) {
+                    switchMsTab(tab);
+                }
+            });
+        }
+
+        if (typeof lucide !== "undefined") lucide.createIcons();
+
+        var hash = (window.location.hash || "").replace("#", "");
+        if (hash && document.getElementById("ms-tab-" + hash)) {
+            if (window._msGlassNav) window._msGlassNav.setActive(hash);
+            switchMsTab(hash);
+        } else {
+            loadDashboard();
+        }
+    });
+
+})();
+</script>
+{% endblock %}

@@ -1965,7 +1965,7 @@ def api_node_sync_status(node_id):
 
 
 @starship_bp.route("/api/station-commands", methods=["GET"])
-@admin_required
+@login_required
 def api_get_station_commands():
     """Get all station commands, optionally filtered by station."""
     station_code = request.args.get("station_code")
@@ -1998,7 +1998,7 @@ def api_get_station_commands():
 
 
 @starship_bp.route("/api/station-commands/execute", methods=["POST"])
-@admin_required
+@login_required
 def api_execute_station_command():
     """Execute a station command via Smart Relay triage flow."""
     data = request.get_json()

@@ -608,31 +608,74 @@ def register_mesh_routes(bridge_bp):
 
         status = data.get("status", "acknowledged")
         error_message = data.get("error_message")
+        ack_payload = data.get("result")  # Job result payload from node
 
         get_db_cursor = _get_db_cursor()
         try:
             with get_db_cursor() as (conn, cur):
+                # Fetch sync entry first to check type
+                cur.execute(
+                    """
+                    SELECT id, sync_type, payload
+                    FROM mesh_sync_log
+                    WHERE id = %s AND node_id = %s AND status = 'sent'
+                    """,
+                    (sync_id, node_id),
+                )
+                sync_entry = cur.fetchone()
+
+                if not sync_entry:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Sync not found or already acknowledged",
+                            }
+                        ),
+                        404,
+                    )
+
+                # Update status
                 cur.execute(
                     """
                     UPDATE mesh_sync_log
                     SET status = %s, acknowledged_at = NOW(), error_message = %s
-                    WHERE id = %s AND node_id = %s AND status = 'sent'
+                    WHERE id = %s
                     RETURNING id, acknowledged_at
                     """,
-                    (status, error_message, sync_id, node_id),
+                    (status, error_message, sync_id),
                 )
                 row = cur.fetchone()
 
-            if not row:
-                return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "error": "Sync not found or already acknowledged",
-                        }
-                    ),
-                    404,
-                )
+                # Process job_request results — log to task_execution_log
+                if sync_entry["sync_type"] == "job_request" and ack_payload:
+                    try:
+                        original = sync_entry["payload"] or {}
+                        if isinstance(original, str):
+                            original = json.loads(original)
+                        station_codes = original.get("station_codes", [])
+                        cur.execute(
+                            """
+                            INSERT INTO task_execution_log
+                                (agent_name, station_code, capability,
+                                 module_source, success, duration_ms,
+                                 created_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                            """,
+                            (
+                                ack_payload.get(
+                                    "agent_name",
+                                    original.get("target_agent"),
+                                ),
+                                station_codes[0] if station_codes else "UNKNOWN",
+                                original.get("capability"),
+                                original.get("module_id", "remote"),
+                                ack_payload.get("success", False),
+                                ack_payload.get("duration_ms", 0),
+                            ),
+                        )
+                    except Exception as job_err:
+                        logger.warning(f"Mesh ack job result logging failed: {job_err}")
 
             return jsonify(
                 {
@@ -645,6 +688,69 @@ def register_mesh_routes(bridge_bp):
         except Exception as e:
             logger.error(f"Mesh sync ack failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+
+    # ========================================================================
+    # FLEET BROADCAST + CONFIG VERSION
+    # ========================================================================
+
+    @bridge_bp.route("/api/mesh/broadcast", methods=["POST"])
+    @login_required
+    def mesh_broadcast():
+        """Broadcast a sync entry to all active online nodes."""
+        data = request.get_json() or {}
+        sync_type = data.get("sync_type")
+        payload = data.get("payload", {})
+
+        if not sync_type:
+            return jsonify({"success": False, "error": "sync_type required"}), 400
+
+        get_db_cursor = _get_db_cursor()
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT node_id FROM remote_nodes
+                    WHERE status = 'online'
+                      AND last_heartbeat > NOW() - INTERVAL '90 seconds'
+                    """
+                )
+                nodes = cur.fetchall()
+
+                created = 0
+                for node in nodes:
+                    cur.execute(
+                        """
+                        INSERT INTO mesh_sync_log
+                            (node_id, sync_type, payload, status, sent_at)
+                        VALUES (%s, %s, %s, 'sent', NOW())
+                        """,
+                        (node["node_id"], sync_type, json.dumps(payload)),
+                    )
+                    created += 1
+
+            return jsonify(
+                {
+                    "success": True,
+                    "broadcast": True,
+                    "nodes_targeted": created,
+                    "sync_type": sync_type,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Mesh broadcast failed: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bridge_bp.route("/api/mesh/version", methods=["GET"])
+    def mesh_config_version():
+        """Return current config versions for sync checks."""
+        return jsonify(
+            {
+                "success": True,
+                "capability_map_version": 1,
+                "station_commands_version": 1,
+                "agent_config_version": 1,
+            }
+        )
 
     # ========================================================================
     # CLUSTER OVERVIEW

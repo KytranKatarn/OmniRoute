@@ -105,13 +105,65 @@ def api_cancel_job(queue_id):
 @media_studio_bp.route("/api/gallery")
 @login_required
 def api_gallery():
-    """Paginated gallery for current user."""
+    """Paginated gallery for current user, or shared agent gallery."""
+    from database import get_db_cursor
+
     from .services.gallery_service import get_gallery
 
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     media_type = request.args.get("type")
     favorites = request.args.get("favorites", "false").lower() == "true"
+    req_owner_type = request.args.get("owner_type")
+    agent_name = request.args.get("agent_name")
+
+    if req_owner_type == "agent":
+        # Shared agent gallery — bypass per-user ownership filter
+        conditions = [
+            "is_deleted = false",
+            "owner_type = 'agent'",
+            "gallery_visibility = 'shared'",
+        ]
+        params: list = []
+        if agent_name:
+            conditions.append("metadata->>'agent_name' = %s")
+            params.append(agent_name)
+        if media_type:
+            conditions.append("media_type = %s")
+            params.append(media_type)
+        where = " AND ".join(conditions)
+        with get_db_cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
+            total = cur.fetchone()["total"]
+            cur.execute(
+                f"""
+                SELECT id, media_type, file_path, thumbnail_path, prompt, model,
+                       provider, seed, width, height, duration_ms, cost,
+                       is_favorite, metadata, created_at
+                FROM media_library
+                WHERE {where}
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                params + [per_page, (page - 1) * per_page],
+            )
+            cols = [d[0] for d in cur.description]
+            items = []
+            for row in cur.fetchall():
+                item = dict(zip(cols, row))
+                for k, v in item.items():
+                    if hasattr(v, "isoformat"):
+                        item[k] = v.isoformat()
+                items.append(item)
+        return jsonify(
+            {
+                "items": items,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "pages": (total + per_page - 1) // per_page if per_page else 1,
+            }
+        )
 
     result = get_gallery(
         owner_type="user",
@@ -1032,3 +1084,111 @@ def api_clear_completed():
 
     cleared = clear_completed("user", current_user.id)
     return jsonify({"cleared": cleared})
+
+
+# ── S21  Agent Config & Gallery ─────────────────────────────────────────
+
+
+@media_studio_bp.route("/api/agent-config", methods=["GET"])
+@login_required
+def api_get_agent_config():
+    """List all agent media configurations."""
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM media_agent_config ORDER BY agent_name")
+        cols = [d[0] for d in cur.description]
+        configs = [dict(zip(cols, row)) for row in cur.fetchall()]
+    for c in configs:
+        for k, v in c.items():
+            if hasattr(v, "isoformat"):
+                c[k] = v.isoformat()
+    return jsonify(configs)
+
+
+@media_studio_bp.route("/api/agent-config/<agent_name>", methods=["PUT"])
+@login_required
+def api_update_agent_config(agent_name):
+    """Update or create agent media config."""
+    import psycopg2.extras
+    from database import get_db_cursor
+
+    data = request.get_json() or {}
+    allowed = [
+        "enabled",
+        "media_type",
+        "schedule_cron",
+        "default_prompt",
+        "default_negative",
+        "default_params",
+        "daily_cap",
+        "gallery_visibility",
+    ]
+    sets = []
+    vals = []
+    for key in allowed:
+        if key in data:
+            sets.append(f"{key} = %s")
+            val = data[key]
+            if key == "default_params":
+                val = psycopg2.extras.Json(val)
+            vals.append(val)
+    if not sets:
+        return jsonify({"error": "No valid fields to update"}), 400
+
+    sets.append("updated_at = NOW()")
+    vals.append(agent_name)
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            f"UPDATE media_agent_config SET {', '.join(sets)} " f"WHERE agent_name = %s RETURNING id",
+            vals,
+        )
+        row = cur.fetchone()
+        if not row:
+            cur.execute(
+                """INSERT INTO media_agent_config (agent_name, enabled, media_type,
+                   schedule_cron, default_prompt, default_negative, default_params,
+                   daily_cap, gallery_visibility)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (
+                    agent_name,
+                    data.get("enabled", False),
+                    data.get("media_type", "image"),
+                    data.get("schedule_cron", "0 */4 * * *"),
+                    data.get("default_prompt", ""),
+                    data.get("default_negative", ""),
+                    psycopg2.extras.Json(data.get("default_params", {})),
+                    data.get("daily_cap", 10),
+                    data.get("gallery_visibility", "private"),
+                ),
+            )
+    return jsonify({"success": True})
+
+
+@media_studio_bp.route("/api/agent-config/<agent_name>/trigger", methods=["POST"])
+@login_required
+def api_trigger_agent_generation(agent_name):
+    """Manually trigger agent media generation."""
+    from tools.media_studio.services.agent_media_service import agent_generate
+
+    result = agent_generate(agent_name)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route(
+    "/api/agent-config/<agent_name>/publish/<int:generation_id>",
+    methods=["POST"],
+)
+@login_required
+def api_publish_agent_generation(agent_name, generation_id):
+    """Publish an agent generation to shared gallery."""
+    from tools.media_studio.services.agent_media_service import publish_generation
+
+    result = publish_generation(generation_id, agent_name)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)

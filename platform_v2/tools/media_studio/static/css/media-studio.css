@@ -2150,3 +2150,97 @@
 }
 .ms-batch-over-limit { border: 1px solid #cc4444; }
 .ms-text-danger { color: #cc4444; }
+
+/* ── S21  Agent Gallery & Config ──────────────────────────────────────── */
+
+.ms-gallery-filter {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.ms-gallery-filter-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--ms-border, #334);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ms-text, #aab);
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.ms-gallery-filter-btn:hover {
+  border-color: var(--ms-accent, #f90);
+}
+
+.ms-gallery-filter-btn.active {
+  background: var(--ms-accent, #f90);
+  color: #000;
+  border-color: var(--ms-accent, #f90);
+}
+
+.ms-agent-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+  font-size: 0.7rem;
+  font-family: 'IBM Plex Mono', monospace;
+  margin-right: 6px;
+}
+
+.ms-agent-config {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--ms-border, #334);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.ms-agent-config-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.ms-agent-config-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ms-border, #334);
+  color: var(--ms-accent, #f90);
+  font-family: 'Antonio', sans-serif;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
+.ms-agent-config-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(51, 51, 68, 0.3);
+}
+
+.ms-agent-config-row:hover {
+  background: rgba(255, 153, 0, 0.05);
+}
+
+.ms-input-xs {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--ms-border, #334);
+  color: var(--ms-text, #aab);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.ms-input-xs:focus {
+  border-color: var(--ms-accent, #f90);
+  outline: none;
+}
+
+.ms-text-muted {
+  color: rgba(170, 170, 187, 0.5);
+  font-size: 0.8rem;
+  font-style: italic;
+}

@@ -417,9 +417,16 @@ class AgentLoop:
             name="Agent Loop: Media Analytics Snapshot",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._process_agent_emails),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_email_processing",
+            name="Agent Loop: Gmail Processing",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 22 jobs")
+        logger.info("Agent loop started with 23 jobs")
 
     def _check_media_schedules(self):
         """Check agent media generation schedules and trigger if due."""
@@ -488,6 +495,32 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"[Analytics] Snapshot failed: {e}")
 
+    def _process_agent_emails(self):
+        """Process inboxes for all agent Gmail accounts."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT id FROM google_accounts WHERE owner_type = 'agent'"
+                )
+                accounts = cur.fetchall()
+            if not accounts:
+                return
+            from tools.google_work_suite.services.gmail_service import (
+                process_agent_inbox,
+            )
+
+            for acc in accounts:
+                try:
+                    process_agent_inbox(acc["id"])
+                except Exception as e:
+                    logger.warning(
+                        f"Agent email processing failed for account {acc['id']}: {e}"
+                    )
+        except Exception as e:
+            logger.error(f"Agent email job failed: {e}")
+
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
         for job_id in [
@@ -513,6 +546,7 @@ class AgentLoop:
             "agent_performance_rankings",
             "agent_media_generation",
             "media_analytics_snapshot",
+            "agent_email_processing",
         ]:
             try:
                 self.scheduler.remove_job(job_id)

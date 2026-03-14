@@ -834,6 +834,8 @@
         html += '<scr' + 'ipt src="/static/js/game-module-explorer.js"></scr' + 'ipt>';
         html += '<scr' + 'ipt src="/static/js/game-module-builder.js"></scr' + 'ipt>';
         html += '<scr' + 'ipt src="/static/js/scene-editor.js"></scr' + 'ipt>';
+        html += '<scr' + 'ipt src="/static/js/socket.io.min.js"></scr' + 'ipt>';
+        html += '<scr' + 'ipt src="/static/js/game-network.js"></scr' + 'ipt>';
         html += '</body></html>';
 
         iframe.srcdoc = html;

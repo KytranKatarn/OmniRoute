@@ -136,11 +136,26 @@
         if (this._module) {
             this._module.update(this, dt);
         }
+        if (window._network && window._network.isMultiplayer) {
+            window._network.sendPlayerState();
+        }
     };
 
     GameEngine.prototype.render = function () {
         if (this._module) {
             this._module.render(this, this.ctx);
+        }
+        if (window._network && window._network.isMultiplayer) {
+            var others = window._network.getOtherPlayers();
+            var self = this;
+            Object.keys(others).forEach(function (pid) {
+                var p = others[pid];
+                self.ctx.save();
+                self.ctx.globalAlpha = 0.8;
+                self.drawCircle(p.x, p.y, p.size || 16, p.color || '#aaf');
+                if (self.drawText) self.drawText(p.name || 'Player', p.x, p.y - 20, { color: '#fff', size: 10, align: 'center' });
+                self.ctx.restore();
+            });
         }
     };
 

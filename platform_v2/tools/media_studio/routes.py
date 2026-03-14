@@ -1267,3 +1267,134 @@ def api_upload_mask():
     mask_b64 = base64.b64encode(mask_file.read()).decode("utf-8")
     mask_path = _save_mask(mask_b64, source_id=0)
     return jsonify({"mask_path": mask_path})
+
+
+# ── S23  Workflow Templates ──
+
+
+@media_studio_bp.route("/api/media-studio/templates", methods=["POST"])
+@login_required
+def api_create_template():
+    from tools.media_studio.services.template_service import create_template
+
+    data = request.get_json() or {}
+    name = data.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+    result = create_template(
+        name=name,
+        description=data.get("description", ""),
+        steps=data.get("steps", []),
+        owner_type="user",
+        owner_id=current_user.id,
+        visibility=data.get("visibility", "private"),
+        tags=data.get("tags"),
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/templates", methods=["GET"])
+@login_required
+def api_list_templates():
+    from tools.media_studio.services.template_service import list_templates
+
+    visibility = request.args.get("visibility")
+    owner_type = request.args.get("owner_type")
+    tag = request.args.get("tag")
+    templates = list_templates(
+        owner_type=owner_type or "user",
+        owner_id=current_user.id,
+        visibility_filter=visibility,
+        tag_filter=tag,
+    )
+    for t in templates:
+        for k, v in list(t.items()):
+            if hasattr(v, "isoformat"):
+                t[k] = v.isoformat()
+    return jsonify(templates)
+
+
+@media_studio_bp.route("/api/media-studio/templates/<int:template_id>", methods=["GET"])
+@login_required
+def api_get_template(template_id):
+    from tools.media_studio.services.template_service import get_template
+
+    result = get_template(template_id)
+    if result is None:
+        return jsonify({"error": "Template not found"}), 404
+    for k, v in list(result.items()):
+        if hasattr(v, "isoformat"):
+            result[k] = v.isoformat()
+    if "steps" in result:
+        for s in result["steps"]:
+            for k, v in list(s.items()):
+                if hasattr(v, "isoformat"):
+                    s[k] = v.isoformat()
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/templates/<int:template_id>", methods=["PUT"])
+@login_required
+def api_update_template(template_id):
+    from tools.media_studio.services.template_service import update_template
+
+    data = request.get_json() or {}
+    result = update_template(template_id, "user", current_user.id, data)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/templates/<int:template_id>", methods=["DELETE"])
+@login_required
+def api_delete_template(template_id):
+    from tools.media_studio.services.template_service import delete_template
+
+    result = delete_template(template_id, "user", current_user.id)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/templates/<int:template_id>/clone", methods=["POST"])
+@login_required
+def api_clone_template(template_id):
+    from tools.media_studio.services.template_service import clone_template
+
+    result = clone_template(template_id, "user", current_user.id)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/templates/<int:template_id>/run", methods=["POST"])
+@login_required
+def api_run_pipeline(template_id):
+    from tools.media_studio.services.pipeline_executor import execute_pipeline
+
+    data = request.get_json() or {}
+    result = execute_pipeline(
+        template_id=template_id,
+        overrides=data.get("overrides"),
+        owner_type="user",
+        owner_id=current_user.id,
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/pipeline/<int:execution_id>", methods=["GET"])
+@login_required
+def api_get_pipeline_status(execution_id):
+    from tools.media_studio.services.pipeline_executor import get_pipeline_status
+
+    result = get_pipeline_status(execution_id)
+    if result is None:
+        return jsonify({"error": "Execution not found"}), 404
+    for k, v in list(result.items()):
+        if hasattr(v, "isoformat"):
+            result[k] = v.isoformat()
+    return jsonify(result)

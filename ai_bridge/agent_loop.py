@@ -424,9 +424,23 @@ class AgentLoop:
             name="Agent Loop: Gmail Processing",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._process_world_events),
+            trigger=IntervalTrigger(seconds=30),
+            id="game_world_event_processor",
+            name="Agent Loop: Game World Events",
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            with_app_context(self._update_market_prices),
+            trigger=IntervalTrigger(minutes=5),
+            id="game_market_price_update",
+            name="Agent Loop: Game Market Prices",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 23 jobs")
+        logger.info("Agent loop started with 25 jobs")
 
     def _check_media_schedules(self):
         """Check agent media generation schedules and trigger if due."""
@@ -547,6 +561,8 @@ class AgentLoop:
             "agent_media_generation",
             "media_analytics_snapshot",
             "agent_email_processing",
+            "game_world_event_processor",
+            "game_market_price_update",
         ]:
             try:
                 self.scheduler.remove_job(job_id)
@@ -3078,3 +3094,19 @@ class AgentLoop:
             conn.close()
         except Exception as e:
             logger.error(f"Failed to log agent cycle: {e}")
+
+    def _process_world_events(self):
+        try:
+            from tools.game_studio.world_engine import process_pending_events
+            count = process_pending_events()
+            if count > 0:
+                logger.info(f"[World Engine] Processed {count} events")
+        except Exception as e:
+            logger.error(f"[World Engine] Error: {e}")
+
+    def _update_market_prices(self):
+        try:
+            from tools.game_studio.market_service import update_market_prices
+            update_market_prices()
+        except Exception as e:
+            logger.error(f"[Market] Price update error: {e}")

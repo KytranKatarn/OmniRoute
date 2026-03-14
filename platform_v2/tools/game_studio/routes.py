@@ -1340,3 +1340,117 @@ def get_world_state():
     resources = get_world_resources()
     events = get_pending_events("all", limit=20)
     return jsonify({"resources": resources, "events": events})
+
+
+# ===========================================================================
+# WORLD — Effects, Map, Trade (Phase 5)
+# ===========================================================================
+
+
+@game_studio_bp.route("/api/world/effects", methods=["GET"])
+@login_required
+def get_world_effects():
+    """Return active bonuses + pending world changes for a given game_type."""
+    from world_engine import get_active_bonuses, get_pending_world_changes
+
+    game_type = request.args.get("game_type", "top_down_shooter")
+    bonuses = get_active_bonuses(game_type)
+    changes = get_pending_world_changes(game_type)
+    # Serialize datetimes
+    for item in bonuses + changes:
+        for k, v in list(item.items()):
+            if hasattr(v, "isoformat"):
+                item[k] = v.isoformat()
+    return jsonify({"bonuses": bonuses, "changes": changes})
+
+
+@game_studio_bp.route("/api/world/map", methods=["GET"])
+@login_required
+def get_world_map():
+    """Return aggregated cross-game activity for the world map canvas."""
+    from database import get_db_cursor
+    from datetime import datetime, timedelta
+
+    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    result = {
+        "shooter_battles": [],
+        "explorer_routes": [],
+        "builder_colonies": [],
+        "recent_events": [],
+    }
+    try:
+        with get_db_cursor() as (conn, cur):
+            # Recent events from last hour (all game types)
+            cur.execute(
+                """
+                SELECT id, event_type, source_game_type, data, created_at
+                  FROM game_world_events
+                 WHERE created_at >= %s
+                 ORDER BY created_at DESC LIMIT 50
+                """,
+                (one_hour_ago,),
+            )
+            for r in cur.fetchall():
+                d = dict(r)
+                if d.get("created_at"):
+                    d["created_at"] = d["created_at"].isoformat()
+                result["recent_events"].append(d)
+                src = d.get("source_game_type", "")
+                data = d.get("data") or {}
+                if src == "top_down_shooter":
+                    result["shooter_battles"].append(
+                        {
+                            "x": data.get("x", 0),
+                            "y": data.get("y", 0),
+                            "age_s": (
+                                (datetime.utcnow() - r["created_at"].replace(tzinfo=None)).total_seconds()
+                                if r["created_at"]
+                                else 999
+                            ),
+                        }
+                    )
+                elif src == "space_explorer":
+                    result["explorer_routes"].append(
+                        {
+                            "from_star": data.get("from_star"),
+                            "to_star": data.get("to_star"),
+                        }
+                    )
+                elif src == "base_builder":
+                    result["builder_colonies"].append(
+                        {
+                            "star": data.get("star"),
+                            "colony": data.get("colony"),
+                        }
+                    )
+    except Exception as e:
+        logger.error(f"[world map] {e}")
+    return jsonify(result)
+
+
+@game_studio_bp.route("/api/world/trade", methods=["POST"])
+@login_required
+def execute_world_trade():
+    """Execute a resource trade at current market rates."""
+    from market_service import trade
+    from world_state_service import get_profile_by_user
+
+    data = request.get_json() or {}
+    from_resource = data.get("from")
+    to_resource = data.get("to")
+    amount = data.get("amount")
+
+    if not from_resource or not to_resource or amount is None:
+        return jsonify({"success": False, "error": "Missing from/to/amount"}), 400
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "amount must be numeric"}), 400
+
+    profile = get_profile_by_user(current_user.id)
+    profile_id = profile["id"] if profile else None
+
+    result = trade(from_resource, to_resource, amount, profile_id=profile_id)
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result)

@@ -500,6 +500,21 @@ class AgentLoop:
             except Exception as strat_err:
                 logger.error(f"evaluate_strategies error: {strat_err}")
 
+            # Phase 4: Sentiment scan for top 3 watchlist tickers
+            try:
+                from tools.stockbot.services.sentiment_service import analyze_sentiment
+
+                top_tickers = tickers[:3] if tickers else []
+                for t in top_tickers:
+                    try:
+                        analyze_sentiment(t)
+                    except Exception:
+                        pass
+                if top_tickers:
+                    logger.debug(f"Stock sentiment scan: updated {len(top_tickers)} ticker(s)")
+            except Exception as sent_err:
+                logger.error(f"sentiment_scan error: {sent_err}")
+
         except Exception as e:
             logger.error(f"_update_stock_prices error: {e}")
 

@@ -3,7 +3,8 @@ StockBot Routes - AI Stock Screener
 Phase 1 backend: market data, portfolio, watchlist, alerts + AI chat
 Phase 2 backend: 5-agent parallel analysis engine + analysis routes
 Phase 3 backend: paper trading, strategies, Alpaca integration
-Updated: 2026-03-14 - Added Phase 3 routes
+Phase 4 backend: sentiment analysis, backtesting
+Updated: 2026-03-14 - Added Phase 4 routes
 """
 
 import re
@@ -38,6 +39,16 @@ from .services.portfolio_service import (
     create_alert,
     get_alerts,
     check_alerts,
+)
+from .services.sentiment_service import (
+    analyze_sentiment,
+    get_sentiment_history,
+)
+from .services.backtest_service import (
+    run_backtest,
+    save_backtest,
+    get_backtest_results,
+    get_backtest,
 )
 
 # Add ai_bridge to path for archie_bridge import
@@ -889,4 +900,82 @@ def toggle_strategy_route(strategy_id):
         return jsonify(result), 200 if result.get("success") else 404
     except Exception as e:
         logger.error(f"toggle_strategy_route({strategy_id}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ── Phase 4: Sentiment Routes ─────────────────────────────────────────────────
+
+
+@stockbot_bp.route("/api/sentiment/<ticker>", methods=["GET"])
+@login_required
+def api_sentiment(ticker):
+    """GET /api/sentiment/<ticker> — analyze news sentiment for ticker."""
+    try:
+        result = analyze_sentiment(ticker.upper())
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"api_sentiment({ticker}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ── Phase 4: Backtest Routes ──────────────────────────────────────────────────
+
+
+@stockbot_bp.route("/api/backtest", methods=["POST"])
+@login_required
+def api_run_backtest():
+    """POST /api/backtest — run a strategy backtest. Body: {strategy_rules, ticker, period, strategy_name}."""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    data = request.get_json() or {}
+
+    strategy_rules = data.get("strategy_rules")
+    ticker = data.get("ticker", "").strip().upper()
+    period = data.get("period", "1y")
+    strategy_name = data.get("strategy_name", "Custom Strategy")
+
+    if not strategy_rules or not ticker:
+        return jsonify({"success": False, "error": "strategy_rules and ticker required"}), 400
+
+    try:
+        result = run_backtest(
+            strategy_rules=strategy_rules,
+            ticker=ticker,
+            period=period,
+            strategy_name=strategy_name,
+        )
+        if result.get("error"):
+            return jsonify({"success": False, "error": result["error"]}), 400
+
+        backtest_id = save_backtest(user_id, result)
+        return jsonify({"success": True, "backtest_id": backtest_id, **result})
+    except Exception as e:
+        logger.error(f"api_run_backtest error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/backtest/results", methods=["GET"])
+@login_required
+def api_backtest_results():
+    """GET /api/backtest/results — list past backtest results for current user."""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    try:
+        limit = int(request.args.get("limit", 10))
+        results = get_backtest_results(user_id, limit)
+        return jsonify({"success": True, "results": results, "count": len(results)})
+    except Exception as e:
+        logger.error(f"api_backtest_results error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/backtest/<int:backtest_id>", methods=["GET"])
+@login_required
+def api_backtest_detail(backtest_id):
+    """GET /api/backtest/<id> — get full backtest with equity_curve and trades."""
+    try:
+        result = get_backtest(backtest_id)
+        if not result:
+            return jsonify({"success": False, "error": "Not found"}), 404
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"api_backtest_detail({backtest_id}) error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

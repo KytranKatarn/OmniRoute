@@ -968,6 +968,39 @@ def ai_chat():
         if context_config:
             system_prompt += "\nCurrent game config:\n" + str(context_config)[:3000]
 
+        # Role detection — classify message intent and trigger build pipeline if needed
+        DESIGN_KW = ["theme", "color", "look", "feel", "style", "aesthetic", "sprite", "visual", "art"]
+        LEVEL_KW = ["level", "map", "place", "spawn", "position", "layout", "area", "zone", "terrain"]
+        MECHANICS_KW = [
+            "behavior",
+            "speed",
+            "health",
+            "damage",
+            "ability",
+            "power",
+            "rule",
+            "logic",
+            "code",
+            "function",
+            "movement",
+        ]
+        BUILD_KW = ["build me", "create a game", "make a game", "new game about", "generate a", "scaffold"]
+
+        msg_lower = message.lower()
+
+        if any(k in msg_lower for k in BUILD_KW):
+            from game_builder_service import start_build
+
+            result = start_build(current_user.id, message)
+            return jsonify({"success": True, "response": "Building your game...", "build_session": result})
+
+        if any(k in msg_lower for k in DESIGN_KW):
+            system_prompt += "\nFocus on visual design, themes, and aesthetics."
+        elif any(k in msg_lower for k in LEVEL_KW):
+            system_prompt += "\nFocus on level layout, entity placement, and map design. Return config_patch JSON."
+        elif any(k in msg_lower for k in MECHANICS_KW):
+            system_prompt += '\nFocus on game mechanics. When appropriate, return behaviors JSON: {"behaviors": [{"name": "...", "code": "function(entity, engine, dt) {...}"}]}'
+
         result = ai_bridge(
             prompt=message,
             system_prompt=system_prompt,
@@ -1066,4 +1099,85 @@ def export_game(game_id):
 
     except Exception as e:
         logger.error(f"Export failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# BUILD PIPELINE API
+# ============================================================================
+
+
+@game_studio_bp.route("/api/ai/build", methods=["POST"])
+@login_required
+def start_build():
+    """Start an AI build pipeline session"""
+    try:
+        from game_builder_service import start_build as _start_build
+
+        data = request.get_json()
+        description = data.get("description", "")
+        game_type = data.get("game_type", "")
+
+        if not description:
+            return jsonify({"success": False, "error": "No description provided"}), 400
+
+        result = _start_build(current_user.id, description, game_type=game_type)
+        return jsonify({"success": True, "session": result})
+
+    except Exception as e:
+        logger.error(f"Build start failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@game_studio_bp.route("/api/ai/build/<int:session_id>", methods=["GET"])
+@login_required
+def get_build_status(session_id):
+    """Get status of a build pipeline session"""
+    try:
+        from game_builder_service import get_build_status as _get_build_status
+
+        result = _get_build_status(session_id, current_user.id)
+        if result is None:
+            return jsonify({"success": False, "error": "Session not found"}), 404
+
+        # Serialize datetimes
+        for key in list(result.keys()):
+            val = result[key]
+            if hasattr(val, "isoformat"):
+                result[key] = val.isoformat()
+
+        return jsonify({"success": True, "session": result})
+
+    except Exception as e:
+        logger.error(f"Build status failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@game_studio_bp.route("/api/ai/build/<int:session_id>/approve", methods=["POST"])
+@login_required
+def approve_build_checkpoint(session_id):
+    """Approve a build checkpoint and continue pipeline"""
+    try:
+        from game_builder_service import approve_checkpoint as _approve_checkpoint
+
+        result = _approve_checkpoint(session_id, current_user.id)
+        return jsonify({"success": True, "session": result})
+
+    except Exception as e:
+        logger.error(f"Build approve failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@game_studio_bp.route("/api/ai/build/<int:session_id>/apply", methods=["POST"])
+@login_required
+def apply_build_result(session_id):
+    """Apply completed build result to create a game project"""
+    try:
+        from game_builder_service import apply_build_result as _apply_build_result
+
+        result = _apply_build_result(session_id, current_user.id)
+        return jsonify({"success": True, "game": result})
+
+    except Exception as e:
+        logger.error(f"Build apply failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

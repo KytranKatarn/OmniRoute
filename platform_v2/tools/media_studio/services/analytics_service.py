@@ -367,9 +367,11 @@ def get_cost_rates() -> List[Dict]:
             )
             return [
                 {
-                    "model_name": r[0],
-                    "cost_per_generation": float(r[1]) if r[1] is not None else None,
-                    "vram_gb_per_sec": float(r[2]) if r[2] is not None else None,
+                    "model_name": r["model_name"],
+                    "cost_per_generation": (
+                        float(r["cost_per_generation"]) if r["cost_per_generation"] is not None else None
+                    ),
+                    "vram_gb_per_sec": float(r["vram_gb_per_sec"]) if r["vram_gb_per_sec"] is not None else None,
                 }
                 for r in cur.fetchall()
             ]

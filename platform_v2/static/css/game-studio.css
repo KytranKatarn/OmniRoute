@@ -1,0 +1,458 @@
+/* Game Studio — LCARS Theme | gs- prefix | Green accent */
+
+:root {
+  --gs-bg: #0d0d1a;
+  --gs-border: #232;
+  --gs-accent: #4f6;
+  --gs-text: #aab;
+  --gs-panel-bg: #111120;
+  --gs-hover-bg: #1a1a2e;
+  --gs-muted: #667;
+}
+
+/* ── Layout ──────────────────────────────────────────────── */
+
+.gs-layout {
+  display: grid;
+  grid-template-columns: 250px 1fr 280px;
+  height: calc(100vh - 60px);
+  background: var(--gs-bg);
+  color: var(--gs-text);
+  overflow: hidden;
+}
+
+.gs-layout.gs-right-collapsed {
+  grid-template-columns: 250px 1fr 0;
+}
+
+.gs-layout.gs-right-collapsed .gs-panel:last-child {
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Panels ──────────────────────────────────────────────── */
+
+.gs-panel {
+  background: var(--gs-panel-bg);
+  border-right: 1px solid var(--gs-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gs-panel:last-child {
+  border-right: none;
+  border-left: 1px solid var(--gs-border);
+}
+
+.gs-panel-header {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gs-accent);
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--gs-border);
+  flex-shrink: 0;
+}
+
+.gs-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Scene List ──────────────────────────────────────────── */
+
+.gs-scene-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+}
+
+.gs-scene-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--gs-text);
+  transition: background 0.15s;
+}
+
+.gs-scene-item:hover {
+  background: var(--gs-hover-bg);
+}
+
+.gs-scene-item.active {
+  background: rgba(68, 255, 102, 0.08);
+  color: var(--gs-accent);
+}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+
+.gs-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--gs-border);
+  background: var(--gs-panel-bg);
+  flex-shrink: 0;
+}
+
+.gs-tab {
+  font-size: 0.7rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  color: var(--gs-muted);
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.gs-tab:hover {
+  color: var(--gs-text);
+}
+
+.gs-tab.active {
+  color: var(--gs-accent);
+  border-bottom-color: var(--gs-accent);
+}
+
+/* ── Toolbar ─────────────────────────────────────────────── */
+
+.gs-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--gs-border);
+  flex-shrink: 0;
+}
+
+.gs-toolbar-btn {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.7rem;
+  padding: 0.3rem 0.55rem;
+  background: transparent;
+  border: 1px solid var(--gs-border);
+  color: var(--gs-text);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  letter-spacing: 0.05em;
+}
+
+.gs-toolbar-btn:hover {
+  border-color: var(--gs-accent);
+  color: var(--gs-accent);
+}
+
+.gs-toolbar-btn.active {
+  background: var(--gs-accent);
+  border-color: var(--gs-accent);
+  color: #000;
+}
+
+/* ── Config Editor ───────────────────────────────────────── */
+
+.gs-config-editor {
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.gs-config-section {
+  margin-bottom: 1rem;
+}
+
+.gs-config-section-title {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gs-accent);
+  cursor: pointer;
+  padding: 0.3rem 0;
+  user-select: none;
+}
+
+.gs-config-section-title:hover {
+  opacity: 0.8;
+}
+
+.gs-entity-card {
+  border: 1px solid var(--gs-border);
+  border-radius: 4px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.5rem;
+  background: var(--gs-bg);
+  transition: border-color 0.15s;
+}
+
+.gs-entity-card:hover {
+  border-color: rgba(68, 255, 102, 0.35);
+}
+
+.gs-entity-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+/* ── Preview ─────────────────────────────────────────────── */
+
+.gs-preview-container {
+  flex: 1;
+  min-height: 200px;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gs-preview-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* ── AI Chat Bar ─────────────────────────────────────────── */
+
+.gs-ai-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--gs-border);
+  background: #0a0a14;
+  flex-shrink: 0;
+}
+
+.gs-ai-input {
+  flex: 1;
+  background: #0d0d1a;
+  border: 1px solid var(--gs-border);
+  border-radius: 3px;
+  color: var(--gs-text);
+  font-size: 0.8rem;
+  padding: 0.4rem 0.6rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.gs-ai-input:focus {
+  border-color: var(--gs-accent);
+}
+
+.gs-ai-send {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  padding: 0.4rem 0.8rem;
+  background: var(--gs-accent);
+  border: none;
+  color: #000;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: opacity 0.15s;
+}
+
+.gs-ai-send:hover {
+  opacity: 0.85;
+}
+
+/* ── Dashboard ───────────────────────────────────────────── */
+
+.gs-dashboard {
+  padding: 1.5rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.gs-dashboard-title {
+  font-family: 'Antonio', sans-serif;
+  font-size: 1.2rem;
+  color: var(--gs-accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.gs-project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.gs-project-card {
+  background: var(--gs-panel-bg);
+  border: 1px solid var(--gs-border);
+  border-radius: 6px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.gs-project-card:hover {
+  border-color: var(--gs-accent);
+}
+
+.gs-project-card-name {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.9rem;
+  color: var(--gs-accent);
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
+.gs-project-card-meta {
+  font-size: 0.65rem;
+  color: var(--gs-muted);
+}
+
+.gs-new-project-card {
+  border: 1px dashed var(--gs-border);
+  border-radius: 6px;
+  padding: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gs-muted);
+  font-size: 0.8rem;
+  transition: border-color 0.2s, color 0.2s;
+  min-height: 80px;
+}
+
+.gs-new-project-card:hover {
+  border-color: var(--gs-accent);
+  color: var(--gs-accent);
+}
+
+/* ── Templates ───────────────────────────────────────────── */
+
+.gs-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.gs-template-card {
+  background: var(--gs-panel-bg);
+  border: 1px solid var(--gs-border);
+  border-radius: 5px;
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  font-size: 0.8rem;
+}
+
+.gs-template-card:hover {
+  border-color: var(--gs-accent);
+}
+
+.gs-coming-soon {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ── Properties Panel ────────────────────────────────────── */
+
+.gs-properties {
+  padding: 0.5rem;
+}
+
+.gs-prop-group {
+  margin-bottom: 0.75rem;
+}
+
+.gs-prop-group-title {
+  font-family: 'Antonio', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gs-accent);
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--gs-border);
+  margin-bottom: 0.4rem;
+}
+
+.gs-prop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  font-size: 0.75rem;
+}
+
+.gs-prop-input {
+  background: var(--gs-bg);
+  border: 1px solid var(--gs-border);
+  border-radius: 2px;
+  color: var(--gs-text);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  width: 120px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.gs-prop-input:focus {
+  border-color: var(--gs-accent);
+}
+
+/* ── Modals ──────────────────────────────────────────────── */
+
+.gs-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.gs-modal-content {
+  background: var(--gs-panel-bg);
+  border: 1px solid var(--gs-accent);
+  border-radius: 6px;
+  max-width: 500px;
+  width: 90%;
+  padding: 1.5rem;
+}
+
+.gs-modal-title {
+  font-family: 'Antonio', sans-serif;
+  font-size: 1rem;
+  color: var(--gs-accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+/* ── Toast ───────────────────────────────────────────────── */
+
+.gs-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--gs-accent);
+  color: #000;
+  font-size: 0.8rem;
+  font-family: 'Antonio', sans-serif;
+  letter-spacing: 0.05em;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 10000;
+}
+
+.gs-toast.visible {
+  opacity: 1;
+}

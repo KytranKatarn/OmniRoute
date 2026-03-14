@@ -858,6 +858,28 @@
   </div>
 </div>
 
+<!-- ── S25  Social Media Share ── -->
+<div id="msShareModal" class="ms-share-modal" style="display:none;">
+  <div class="ms-share-modal-content">
+    <div class="ms-share-modal-header">
+      <span>Share to Social Media</span>
+      <button class="ms-edit-modal-close" onclick="closeShareModal()">&times;</button>
+    </div>
+    <div class="ms-share-modal-body">
+      <div id="msSharePreview" class="ms-share-preview"></div>
+      <label>Caption: <textarea id="msShareCaption" rows="3" class="ms-input-xs" placeholder="Leave empty for AI-generated caption, or type your own"></textarea></label>
+      <div class="ms-share-platforms-label">Platforms:</div>
+      <div id="msSharePlatforms" class="ms-share-platforms"></div>
+      <label>Schedule (optional): <input type="datetime-local" id="msShareSchedule" class="ms-input-xs"></label>
+    </div>
+    <div class="ms-share-modal-footer">
+      <button class="ms-btn-xs" onclick="submitShare('draft')">Save Draft</button>
+      <button class="ms-btn-xs" onclick="submitShare('schedule')">Schedule</button>
+      <button class="ms-btn ms-btn-primary" onclick="submitShare('now')">Post Now</button>
+    </div>
+  </div>
+</div>
+
 <!-- ================================================================
      JAVASCRIPT
      ================================================================ -->
@@ -1527,6 +1549,12 @@
         editBtn.textContent = 'Edit';
         editBtn.onclick = function(e) { e.stopPropagation(); openEditModal(item.id, item.file_path || item.thumbnail_path); };
         card.appendChild(editBtn);
+        // Share button
+        var shareBtn = document.createElement('button');
+        shareBtn.className = 'ms-card-action-btn';
+        shareBtn.textContent = 'Share';
+        shareBtn.onclick = function(e) { e.stopPropagation(); openShareModal(item.id); };
+        card.appendChild(shareBtn);
 
         // Version badge if version > 1
         if (item.version && item.version > 1) {
@@ -3707,6 +3735,106 @@
             }).catch(function() {});
         };
     })();
+
+    // ── S25  Social Media Share JS ──────────────────────────────────────
+
+    var _shareMediaId = null;
+
+    window.openShareModal = function(mediaId) {
+        _shareMediaId = mediaId;
+        document.getElementById('msShareModal').style.display = 'flex';
+        document.getElementById('msShareCaption').value = '';
+        document.getElementById('msShareSchedule').value = '';
+        _clearChildren(document.getElementById('msSharePlatforms'));
+
+        // Load preview thumbnail
+        var preview = document.getElementById('msSharePreview');
+        _clearChildren(preview);
+        var card = document.querySelector('[data-media-id="' + mediaId + '"]');
+        if (card) {
+            var imgEl = card.querySelector('img');
+            if (imgEl) {
+                var img = document.createElement('img');
+                img.src = imgEl.src;
+                img.className = 'ms-share-thumb';
+                preview.appendChild(img);
+            }
+        }
+
+        // Load connected platforms
+        api('GET', '/api/social-media/connected-platforms').then(function(platforms) {
+            var container = document.getElementById('msSharePlatforms');
+            _clearChildren(container);
+            if (!Array.isArray(platforms) || platforms.length === 0) {
+                container.textContent = 'No connected accounts. Connect in Social Media Manager.';
+                return;
+            }
+            platforms.forEach(function(p) {
+                var label = document.createElement('label');
+                label.className = 'ms-share-platform-option';
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = p.platform;
+                cb.checked = true;
+                cb.dataset.accountId = p.account_id;
+                var span = document.createElement('span');
+                span.textContent = p.platform + ' (' + p.account_name + ')';
+                label.appendChild(cb);
+                label.appendChild(span);
+                container.appendChild(label);
+            });
+        });
+
+        // Caption: leave empty, server generates on submit if blank
+        document.getElementById('msShareCaption').placeholder = 'Leave empty for AI-generated caption, or type your own';
+    };
+
+    window.closeShareModal = function() {
+        document.getElementById('msShareModal').style.display = 'none';
+        _shareMediaId = null;
+    };
+
+    window.submitShare = function(mode) {
+        if (!_shareMediaId) return;
+
+        var platforms = [];
+        document.querySelectorAll('#msSharePlatforms input[type="checkbox"]:checked').forEach(function(cb) {
+            platforms.push(cb.value);
+        });
+        if (platforms.length === 0) { alert('Select at least one platform'); return; }
+
+        var caption = document.getElementById('msShareCaption').value.trim() || null;
+        var scheduleVal = document.getElementById('msShareSchedule').value;
+        var schedule_at = null;
+
+        if (mode === 'schedule') {
+            if (!scheduleVal) { alert('Select a schedule time'); return; }
+            schedule_at = new Date(scheduleVal).toISOString();
+        }
+
+        if (mode === 'draft') {
+            api('POST', '/api/media-studio/share/bulk', {
+                media_library_ids: [_shareMediaId],
+                platforms: platforms,
+            }).then(function(data) {
+                if (data.error) { alert(data.error); return; }
+                closeShareModal();
+                alert('Saved as draft (' + data.count + ' posts). Review in Social Media Manager.');
+            });
+            return;
+        }
+
+        api('POST', '/api/media-studio/share', {
+            media_library_id: _shareMediaId,
+            platforms: platforms,
+            caption: caption,
+            schedule_at: schedule_at,
+        }).then(function(data) {
+            if (data.error) { alert(data.error); return; }
+            closeShareModal();
+            alert(data.status === 'scheduled' ? 'Post scheduled!' : 'Post queued for publishing!');
+        });
+    };
 
 })();
 </script>

@@ -270,6 +270,12 @@ var DEFAULT_EXPLORER_CONFIG = {
 
     ExplorerModule.prototype._updateEncounter = function (dt) {
         var enc = this._encounter;
+
+        // Custom behavior hook for pirate entity
+        if (enc.behavior && this.engine && this.engine._behaviors && this.engine._behaviors[enc.behavior]) {
+            this.engine.runBehavior(enc.behavior, enc, dt);
+        }
+
         enc.fireTimer -= dt;
         if (enc.fireTimer <= 0) {
             enc.fireTimer = 0.5;

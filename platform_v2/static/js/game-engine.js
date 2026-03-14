@@ -50,7 +50,42 @@
         this._boundTouchStart = this._onTouchStart.bind(this);
         this._boundTouchMove = this._onTouchMove.bind(this);
         this._boundTouchEnd = this._onTouchEnd.bind(this);
+
+        // Behavior sandbox
+        this._behaviors = {};
     }
+
+    // --- Behavior sandbox ---
+    GameEngine.createSandboxedBehavior = function(codeStr) {
+        try {
+            var wrapper = '"use strict";\n' +
+                'var document=void 0,window=void 0,fetch=void 0,XMLHttpRequest=void 0;\n' +
+                'return (' + codeStr + ');';
+            var result = (new (Function.bind.apply(Function, [null, 'entity', 'engine', 'dt', wrapper])))();
+            return typeof result === 'function' ? result : null;
+        } catch(e) {
+            console.warn('Invalid behavior code:', e.message);
+            return null;
+        }
+    };
+
+    GameEngine.prototype.loadBehaviors = function(behaviors) {
+        this._behaviors = {};
+        var self = this;
+        (behaviors || []).forEach(function(b) {
+            if (b.name && b.code) {
+                var fn = GameEngine.createSandboxedBehavior(b.code);
+                if (fn) self._behaviors[b.name] = fn;
+            }
+        });
+    };
+
+    GameEngine.prototype.runBehavior = function(name, entity, dt) {
+        if (this._behaviors && this._behaviors[name]) {
+            try { this._behaviors[name](entity, this, dt); }
+            catch(e) { console.warn('Behavior error [' + name + ']:', e.message); }
+        }
+    };
 
     // --- Static module registry ---
     GameEngine.MODULES = {};
@@ -315,6 +350,9 @@
         }
         if (e.data && e.data.type === 'restart' && window._engine && window._engine._module) {
             window._engine._module.init(window._engine, window._engine.config);
+        }
+        if (e.data && e.data.type === 'loadBehaviors') {
+            if (window._engine) window._engine.loadBehaviors(e.data.behaviors);
         }
     });
 

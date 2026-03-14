@@ -178,6 +178,11 @@
                 }
             }
 
+            // Custom behavior hook
+            if (en.behavior && engine._behaviors && engine._behaviors[en.behavior]) {
+                engine.runBehavior(en.behavior, en, dt);
+            }
+
             // Clamp enemies to canvas
             en.x = Math.max(en.radius, Math.min(cw - en.radius, en.x));
             en.y = Math.max(en.radius, Math.min(ch - en.radius, en.y));

@@ -383,9 +383,15 @@
         var self = this;
         var hasRaiders = this.raiders.length > 0;
 
+        var engine = this.engine;
         this.colonists.forEach(function (c) {
             if (c.health <= 0) return;
             c._moveTimer = (c._moveTimer || 0) + dt;
+
+            // Custom behavior hook
+            if (c.behavior && engine && engine._behaviors && engine._behaviors[c.behavior]) {
+                engine.runBehavior(c.behavior, c, dt);
+            }
 
             if (hasRaiders) {
                 // Flee to nearest shelter
@@ -447,8 +453,15 @@
         var self = this;
         var toRemove = [];
 
+        var rEngine = this.engine;
         this.raiders.forEach(function (r) {
             r._moveTimer = (r._moveTimer || 0) + dt;
+
+            // Custom behavior hook
+            if (r.behavior && rEngine && rEngine._behaviors && rEngine._behaviors[r.behavior]) {
+                rEngine.runBehavior(r.behavior, r, dt);
+            }
+
             // Find nearest building
             var target = self._nearestBuilding(r.gridX, r.gridY, null);
             if (!target) return;

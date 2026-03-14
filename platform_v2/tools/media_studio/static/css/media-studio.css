@@ -2355,3 +2355,108 @@
     width: 60px; height: 60px; object-fit: cover; border-radius: 3px;
     border: 1px solid var(--ms-border, #334);
 }
+
+/* ── S23  Workflow Templates ── */
+.ms-template-header {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.5rem 0; margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--ms-border, #334);
+}
+.ms-template-title {
+    font-family: 'Antonio', sans-serif; text-transform: uppercase;
+    color: var(--ms-accent, #f90); font-size: 1rem;
+}
+.ms-template-filter { display: flex; gap: 0.25rem; }
+.ms-template-filter-btn { font-size: 0.7rem; }
+.ms-template-filter-btn.active { background: var(--ms-accent, #f90); color: #000; }
+.ms-template-list {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem;
+}
+.ms-template-card {
+    background: rgba(255,255,255,0.02); border: 1px solid var(--ms-border, #334);
+    border-radius: 6px; padding: 0.75rem;
+    display: flex; flex-direction: column; gap: 0.5rem; transition: border-color 0.2s;
+}
+.ms-template-card:hover { border-color: var(--ms-accent, #f90); }
+.ms-template-card-name {
+    font-family: 'Antonio', sans-serif; color: var(--ms-accent, #f90);
+    font-size: 0.9rem; text-transform: uppercase;
+}
+.ms-template-card-desc {
+    font-size: 0.7rem; color: var(--ms-text, #aab);
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.ms-template-card-meta {
+    display: flex; gap: 0.5rem; align-items: center;
+    font-size: 0.65rem; color: var(--ms-text, #aab);
+}
+.ms-template-shared-badge {
+    background: #4a9; color: #000; padding: 1px 4px; border-radius: 3px; font-size: 0.55rem;
+}
+.ms-template-card-actions { display: flex; gap: 0.25rem; margin-top: auto; }
+.ms-btn-danger { color: #f44; border-color: #f44; }
+.ms-btn-danger:hover { background: rgba(255,68,68,0.1); }
+.ms-template-modal {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+}
+.ms-template-modal-content {
+    background: var(--ms-bg, #1a1a2e); border: 1px solid var(--ms-accent, #f90);
+    border-radius: 8px; width: 90vw; max-width: 800px; max-height: 90vh;
+    display: flex; flex-direction: column; overflow: hidden;
+}
+.ms-template-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 1rem; border-bottom: 1px solid var(--ms-border, #334);
+    font-family: 'Antonio', sans-serif; text-transform: uppercase; color: var(--ms-accent, #f90);
+}
+.ms-template-modal-body {
+    padding: 1rem; overflow-y: auto; flex: 1;
+    display: flex; flex-direction: column; gap: 0.5rem;
+    font-size: 0.75rem; color: var(--ms-text, #aab);
+}
+.ms-template-modal-body label { display: flex; flex-direction: column; gap: 0.25rem; }
+.ms-template-modal-footer {
+    display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem;
+    padding: 0.75rem 1rem; border-top: 1px solid var(--ms-border, #334);
+}
+.ms-template-steps-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'Antonio', sans-serif; text-transform: uppercase;
+    color: var(--ms-accent, #f90); margin-top: 0.5rem;
+}
+.ms-template-add-step { display: flex; gap: 0.25rem; align-items: center; }
+.ms-template-steps { display: flex; flex-direction: column; gap: 0.5rem; min-height: 60px; }
+.ms-template-step {
+    border: 1px solid var(--ms-border, #334); border-radius: 4px;
+    padding: 0.5rem; background: rgba(255,255,255,0.02);
+}
+.ms-template-step-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;
+}
+.ms-template-step-type {
+    padding: 2px 6px; border-radius: 3px; font-size: 0.6rem;
+    text-transform: uppercase; font-family: 'Antonio', sans-serif;
+}
+.ms-step-type-generate { background: #2a5; color: #000; }
+.ms-step-type-edit { background: #47b; color: #fff; }
+.ms-step-type-batch { background: #85c; color: #fff; }
+.ms-template-step-params {
+    display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.7rem;
+}
+.ms-template-step-params label { flex-direction: row; gap: 0.5rem; align-items: center; }
+.ms-pipeline-progress {
+    padding: 0.75rem; margin: 0.5rem 0;
+    border: 1px solid var(--ms-accent, #f90); border-radius: 4px;
+    background: rgba(255,153,0,0.05); font-size: 0.75rem; color: var(--ms-accent, #f90);
+}
+.ms-pipeline-bar {
+    height: 6px; background: var(--ms-border, #334);
+    border-radius: 3px; margin-top: 0.5rem; overflow: hidden;
+}
+.ms-pipeline-bar-fill {
+    height: 100%; background: var(--ms-accent, #f90);
+    border-radius: 3px; transition: width 0.5s ease;
+}

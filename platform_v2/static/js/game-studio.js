@@ -1345,10 +1345,225 @@
         }).catch(function (e) { console.error('loadSessionPlayers', e); });
     }
 
+    // =========================================================================
+    // World Map + Market (Phase 5)
+    // =========================================================================
+
+    var EFFECT_MAP = {
+        health_depot:            { label: 'Health Depot',         affects: ['top_down_shooter'] },
+        damage_boost:            { label: 'Damage Boost',         affects: ['top_down_shooter'] },
+        enemy_wave_reduction:    { label: 'Enemy Wave Reduction', affects: ['top_down_shooter'] },
+        pirate_threat_reduction: { label: 'Pirate Threat ↓',     affects: ['space_explorer'] },
+        safe_zone_expansion:     { label: 'Safe Zone ↑',          affects: ['space_explorer'] },
+        trade_bonus:             { label: 'Trade Bonus',          affects: ['base_builder', 'space_explorer'] },
+        resource_boost:          { label: 'Resource Boost',       affects: ['base_builder'] },
+        raid_reduction:          { label: 'Raid Reduction',       affects: ['base_builder'] },
+    };
+
+    var _mapStarCache = null;
+
+    function _getMapStars() {
+        if (_mapStarCache) return _mapStarCache;
+        // Known star positions from DEFAULT_EXPLORER_CONFIG
+        _mapStarCache = [
+            { x: 300, y: 200, name: 'Alpha Centauri' },
+            { x: 900, y: 300, name: 'Sirius' },
+            { x: 500, y: 600, name: 'Betelgeuse' },
+        ];
+        return _mapStarCache;
+    }
+
+    var _bgStarsCache = null;
+
+    function _getBgStars(cw, ch) {
+        if (_bgStarsCache && _bgStarsCache.cw === cw && _bgStarsCache.ch === ch) return _bgStarsCache.stars;
+        var stars = [];
+        for (var i = 0; i < 120; i++) {
+            stars.push({ x: Math.random() * cw, y: Math.random() * ch });
+        }
+        _bgStarsCache = { cw: cw, ch: ch, stars: stars };
+        return stars;
+    }
+
+    function renderWorldMap(data) {
+        var canvas = document.getElementById('gsWorldMapCanvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var cw = canvas.width, ch = canvas.height;
+
+        // Clear
+        ctx.fillStyle = '#05050f';
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Background stars
+        var bgStars = _getBgStars(cw, ch);
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        bgStars.forEach(function (s) {
+            ctx.fillRect(s.x, s.y, 1, 1);
+        });
+
+        // Scale source map (1200x800) to canvas
+        var scaleX = cw / 1200, scaleY = ch / 800;
+        var mapStars = _getMapStars();
+
+        // Explorer routes (blue dashed lines)
+        var routes = data.explorer_routes || [];
+        ctx.save();
+        ctx.strokeStyle = 'rgba(68,170,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6, 4]);
+        routes.forEach(function (r) {
+            var from = mapStars.find(function (s) { return s.name === r.from_star; });
+            var to   = mapStars.find(function (s) { return s.name === r.to_star; });
+            if (from && to) {
+                ctx.beginPath();
+                ctx.moveTo(from.x * scaleX, from.y * scaleY);
+                ctx.lineTo(to.x * scaleX, to.y * scaleY);
+                ctx.stroke();
+            }
+        });
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        // Builder colonies (green squares at star positions)
+        var colonies = data.builder_colonies || [];
+        colonies.forEach(function (c) {
+            var star = mapStars.find(function (s) { return s.name === c.star; });
+            if (star) {
+                ctx.fillStyle = 'rgba(0,200,100,0.7)';
+                ctx.fillRect(star.x * scaleX - 6, star.y * scaleY - 6, 12, 12);
+            }
+        });
+
+        // Shooter battles (red pulsing circles, fade by age)
+        var battles = data.shooter_battles || [];
+        battles.forEach(function (b) {
+            var alpha = Math.max(0, 1 - (b.age_s || 0) / 3600);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,60,60,' + alpha + ')';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc((b.x || 0) * scaleX, (b.y || 0) * scaleY, 8, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        });
+
+        // Known stars (white dots + names)
+        mapStars.forEach(function (s) {
+            ctx.beginPath();
+            ctx.fillStyle = '#ffffff';
+            ctx.arc(s.x * scaleX, s.y * scaleY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(200,220,255,0.85)';
+            ctx.font = '10px IBM Plex Mono, monospace';
+            ctx.fillText(s.name, s.x * scaleX + 7, s.y * scaleY + 4);
+        });
+
+        // Recent event dots
+        var events = data.recent_events || [];
+        var typeColors = {
+            top_down_shooter: '#ff4444',
+            space_explorer:   '#44aaff',
+            base_builder:     '#44ff88',
+            market:           '#ffcc00',
+        };
+        events.forEach(function (ev) {
+            var evData = ev.data || {};
+            var ex = (evData.x || Math.random() * 1200) * scaleX;
+            var ey = (evData.y || Math.random() * 800) * scaleY;
+            var color = typeColors[ev.source_game_type] || '#aaaaaa';
+            ctx.beginPath();
+            ctx.fillStyle = color;
+            ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    function loadMarketPrices() {
+        api('GET', '/api/world/effects?game_type=base_builder').then(function (data) {
+            // Market uses world resources table — fetch resources for price data
+            api('GET', '/api/world').then(function (worldData) {
+                var resources = worldData.resources || [];
+                var tableEl = document.getElementById('gsMarketPriceTable');
+                if (!tableEl) return;
+                if (!resources.length) {
+                    tableEl.innerHTML = '<div class="gs-empty-state">No market data.</div>';
+                    return;
+                }
+                var rows = resources.map(function (r) {
+                    var base = r.base_price || 1;
+                    var cur  = r.current_price || base;
+                    var trend = cur > base ? '▲' : cur < base ? '▼' : '—';
+                    var trendCls = cur > base ? 'gs-trend-up' : cur < base ? 'gs-trend-down' : '';
+                    return '<tr>' +
+                        '<td>' + (r.resource_type || r.name || '?') + '</td>' +
+                        '<td class="gs-price-mono">' + (cur !== undefined ? cur.toFixed ? cur.toFixed(2) : cur : '—') + '</td>' +
+                        '<td class="' + trendCls + '">' + trend + '</td>' +
+                    '</tr>';
+                });
+                tableEl.innerHTML = '<table class="gs-market-table"><thead><tr>' +
+                    '<th>Resource</th><th>Price</th><th>Trend</th>' +
+                    '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+
+                // Populate trade dropdowns
+                var fromSel = document.getElementById('gsTradeFrom');
+                var toSel   = document.getElementById('gsTradeTo');
+                if (fromSel && toSel) {
+                    var opts = resources.map(function (r) {
+                        var key = r.resource_type || r.name || '';
+                        return '<option value="' + key + '">' + key + '</option>';
+                    }).join('');
+                    fromSel.innerHTML = opts;
+                    toSel.innerHTML   = opts;
+                }
+            });
+        }).catch(function (e) { console.error('loadMarketPrices', e); });
+    }
+
+    function executeTrade() {
+        var fromSel  = document.getElementById('gsTradeFrom');
+        var toSel    = document.getElementById('gsTradeTo');
+        var amtInput = document.getElementById('gsTradeAmount');
+        var from   = fromSel  ? fromSel.value  : '';
+        var to     = toSel    ? toSel.value    : '';
+        var amount = amtInput ? parseFloat(amtInput.value) : NaN;
+
+        if (!from || !to)          { toast('Select from/to resources'); return; }
+        if (from === to)           { toast('Cannot trade same resource'); return; }
+        if (!amount || isNaN(amount) || amount <= 0) { toast('Enter a valid amount'); return; }
+
+        api('POST', '/api/world/trade', { from: from, to: to, amount: amount }).then(function (data) {
+            if (data.error || !data.success) { toast(data.error || 'Trade failed'); return; }
+            toast('Traded ' + amount + ' ' + from + ' → ' + data.exchanged.toFixed(2) + ' ' + to);
+            loadWorldState();
+        }).catch(function (e) { console.error('executeTrade', e); toast('Trade failed'); });
+    }
+
+    function renderEventFeedEnhanced(events) {
+        var evtEl = document.getElementById('gsWorldEvents');
+        if (!evtEl) return;
+        if (!events.length) {
+            evtEl.innerHTML = '<div class="gs-empty-state">No pending events.</div>';
+            return;
+        }
+        evtEl.innerHTML = events.map(function (e) {
+            var effect = EFFECT_MAP[e.event_type] || null;
+            var affectsHtml = effect
+                ? ' <span class="gs-event-affects">→ ' + effect.affects.join(', ') + '</span>'
+                : '';
+            var labelHtml = effect
+                ? '<span class="gs-event-label">' + effect.label + '</span>'
+                : '<span class="gs-event-type">' + (e.event_type || '?') + '</span>';
+            return '<div class="gs-world-event-item gs-event-' + (e.event_type || '') + '">' +
+                labelHtml + affectsHtml +
+                '<span class="gs-event-data">' + JSON.stringify(e.event_data || e.data || {}) + '</span>' +
+            '</div>';
+        }).join('');
+    }
+
     function loadWorldState() {
         api('GET', '/api/world').then(function (data) {
             var resEl = document.getElementById('gsWorldResources');
-            var evtEl = document.getElementById('gsWorldEvents');
             var resources = data.resources || [];
             var events = data.events || [];
             if (resEl) {
@@ -1362,17 +1577,15 @@
                       }).join('')
                     : '<div class="gs-empty-state">No resources.</div>';
             }
-            if (evtEl) {
-                evtEl.innerHTML = events.length
-                    ? events.map(function (e) {
-                        return '<div class="gs-world-event-item gs-event-' + (e.event_type || '') + '">' +
-                            '<span class="gs-event-type">' + (e.event_type || '?') + '</span>' +
-                            '<span class="gs-event-data">' + JSON.stringify(e.event_data || {}) + '</span>' +
-                        '</div>';
-                      }).join('')
-                    : '<div class="gs-empty-state">No pending events.</div>';
-            }
+            renderEventFeedEnhanced(events);
         }).catch(function (e) { console.error('loadWorldState', e); });
+
+        // Load map data
+        api('GET', '/api/world/map').then(function (mapData) {
+            renderWorldMap(mapData);
+        }).catch(function (e) { console.warn('world map', e); });
+
+        loadMarketPrices();
     }
 
     function createSession() {
@@ -1495,6 +1708,9 @@
     window.loadProfile = loadProfile;
     window.loadOpenSessions = loadOpenSessions;
     window.loadWorldState = loadWorldState;
+    window.executeTrade = executeTrade;
+    window.renderWorldMap = renderWorldMap;
+    window.loadMarketPrices = loadMarketPrices;
     window.createSession = createSession;
     window.joinSession = joinSession;
     window.leaveSession = leaveSession;
@@ -1520,6 +1736,8 @@
     window.GS.openProfileModal = openProfileModal;
     window.GS.openCreateSessionModal = openCreateSessionModal;
     window.GS.loadOpenSessions = loadOpenSessions;
+    window.GS.loadWorldState = loadWorldState;
+    window.GS.executeTrade = executeTrade;
 
     // Init
     document.addEventListener('DOMContentLoaded', function () {

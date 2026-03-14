@@ -147,6 +147,12 @@
           <i data-lucide="refresh-cw"></i> Refresh
         </button>
       </div>
+      <!-- World Map Canvas -->
+      <div class="gs-world-section">
+        <div class="gs-world-section-title">Galaxy Map</div>
+        <canvas id="gsWorldMapCanvas" width="800" height="500"
+          style="width:100%;border:1px solid var(--gs-border,#232);border-radius:4px;background:#000;"></canvas>
+      </div>
       <div class="gs-world-body">
         <div class="gs-world-section">
           <div class="gs-world-section-title">Resources</div>
@@ -158,6 +164,34 @@
           <div class="gs-world-section-title">Pending Events</div>
           <div id="gsWorldEvents" class="gs-world-events">
             <div class="gs-empty-state">No events</div>
+          </div>
+        </div>
+      </div>
+      <!-- Market Section -->
+      <div class="gs-world-section gs-market-section">
+        <div class="gs-world-section-title">Resource Market</div>
+        <div id="gsMarketPriceTable" class="gs-market-price-table">
+          <div class="gs-empty-state">Loading market…</div>
+        </div>
+        <div class="gs-trade-form">
+          <div class="gs-trade-row">
+            <div class="gs-trade-field">
+              <label class="gs-label">From</label>
+              <select id="gsTradeFrom" class="gs-select gs-select-sm"></select>
+            </div>
+            <div class="gs-trade-field">
+              <label class="gs-label">To</label>
+              <select id="gsTradeTo" class="gs-select gs-select-sm"></select>
+            </div>
+            <div class="gs-trade-field">
+              <label class="gs-label">Amount</label>
+              <input id="gsTradeAmount" type="number" min="0.01" step="0.01"
+                class="gs-input gs-input-sm" placeholder="0.00" />
+            </div>
+            <div class="gs-trade-field gs-trade-btn-field">
+              <label class="gs-label">&nbsp;</label>
+              <button class="gs-btn gs-btn-sm gs-btn-primary" onclick="GS.executeTrade()">Trade</button>
+            </div>
           </div>
         </div>
       </div>

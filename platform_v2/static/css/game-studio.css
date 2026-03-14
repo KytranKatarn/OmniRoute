@@ -562,3 +562,20 @@
 .gs-select:focus,.gs-input:focus { outline:none;border-color:var(--gs-accent,#4f6); }
 .gs-btn-sm { font-size:0.65rem;padding:0.2rem 0.5rem; }
 .gs-section-title { font-size:0.75rem;font-weight:600;color:var(--gs-accent,#4f6);text-transform:uppercase;letter-spacing:0.05em; }
+
+/* Market + Trade UI (Phase 5) */
+.gs-market-section { margin-top:1.2rem; }
+.gs-market-price-table { margin-bottom:0.8rem;overflow-x:auto; }
+.gs-market-table { width:100%;border-collapse:collapse;font-size:0.72rem; }
+.gs-market-table th { color:var(--gs-accent,#4f6);text-transform:uppercase;font-size:0.62rem;letter-spacing:0.04em;padding:0.25rem 0.5rem;border-bottom:1px solid var(--gs-border,#232);text-align:left; }
+.gs-market-table td { padding:0.25rem 0.5rem;border-bottom:1px solid rgba(35,35,35,0.5); }
+.gs-price-mono { font-family:'IBM Plex Mono',monospace;font-size:0.72rem; }
+.gs-trend-up   { color:#44ff88;font-weight:700; }
+.gs-trend-down { color:#ff4444;font-weight:700; }
+.gs-trade-form { background:rgba(0,0,0,0.3);border:1px solid var(--gs-border,#232);border-radius:4px;padding:0.75rem; }
+.gs-trade-row  { display:flex;gap:0.6rem;align-items:flex-end;flex-wrap:wrap; }
+.gs-trade-field { display:flex;flex-direction:column;gap:0.25rem;min-width:100px; }
+.gs-trade-btn-field { min-width:60px; }
+.gs-select-sm,.gs-input-sm { font-size:0.7rem;padding:0.2rem 0.4rem;height:1.8rem; }
+.gs-event-affects { font-size:0.6rem;color:rgba(100,200,255,0.7);margin-left:0.4rem; }
+.gs-event-label   { font-size:0.68rem;color:#ffcc44;font-weight:600; }

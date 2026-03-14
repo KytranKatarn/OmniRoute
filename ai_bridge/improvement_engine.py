@@ -48,7 +48,7 @@ except ImportError:
 
 
 try:
-    from auto_tagger import analyze_content
+    from ai_bridge.auto_tagger import analyze_content
 except ImportError:
 
     def analyze_content(text):

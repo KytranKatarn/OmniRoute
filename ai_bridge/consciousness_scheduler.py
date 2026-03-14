@@ -31,8 +31,8 @@ sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
 # Try to import learning loop modules
 try:
-    from conversation_ingest import ingest_conversation, retrieve_similar_conversations
-    from auto_tagger import auto_tag_conversation
+    from ai_bridge.conversation_ingest import ingest_conversation, retrieve_similar_conversations
+    from ai_bridge.auto_tagger import auto_tag_conversation
 
     LEARNING_AVAILABLE = True
 except ImportError as e:

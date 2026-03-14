@@ -2076,9 +2076,9 @@ def _warmup_ollama_models():
 
         for model_name, endpoint in models_to_load:
             ram_free = psutil.virtual_memory().available / (1024**3)
-            if ram_free < 25:
+            if ram_free < 20:
                 logger.info(
-                    f"Ollama warmup: {ram_free:.0f}GB free (< 25GB reserve), stopping " f"({loaded} models loaded)"
+                    f"Ollama warmup: {ram_free:.0f}GB free (< 20GB reserve), stopping " f"({loaded} models loaded)"
                 )
                 break
             if _load_model(model_name, endpoint):

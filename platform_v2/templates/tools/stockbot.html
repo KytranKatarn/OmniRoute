@@ -1,2026 +1,315 @@
 {% extends 'base.html' %}
 
-{% block title %}StockBot - AI Stock Screener{% endblock %}
-
+{% block title %}StockBot - Trading Dashboard{% endblock %}
 {% block module_name %}stockbot{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/stockbot.css') }}">
+{% endblock %}
+
 {% block content %}
-<!-- Include Standalone Apps Navigation -->
-{% include 'includes/standalone_apps_nav.html' %}
+<div class="sb-container">
 
-<!-- Scanline Overlay -->
-<div class="scanline-overlay"></div>
-
-<!-- Main Container -->
-<div class="stockbot-container">
-    <!-- Page Header -->
-    <header class="stockbot-header">
-        <div class="stockbot-title-section">
-            <h1 class="stockbot-title">
-                <i data-lucide="trending-up"></i>
-                STOCKBOT
-            </h1>
-            <p class="stockbot-subtitle"><span data-i18n="stockbot.ai_stock_screener_data_driven_investment_insights">AI Stock Screener - Data-driven investment insights</span></p>
-        </div>
-        <div class="stockbot-status">
-            <span class="status-indicator status-online"></span>
-            <span><span data-i18n="stockbot.ai_ready">AI Ready</span></span>
-        </div>
-    </header>
-
-    <!-- Disclaimer Banner -->
-    <div class="stockbot-disclaimer">
-        <i data-lucide="alert-triangle"></i>
-        <span><strong><span data-i18n="stockbot.disclaimer">Disclaimer:</span></strong><span data-i18n="stockbot.stockbot_provides_educational_information_only_thi"> StockBot provides educational information only. This is NOT financial advice. Always consult a licensed financial advisor before making investment decisions. Past performance does not guarantee future results.</span></span>
+  <!-- Header -->
+  <header class="sb-header">
+    <div class="sb-header-title">
+      <span class="sb-header-accent">◈</span>
+      STOCKBOT
+      <span class="sb-header-sub">Trading Dashboard</span>
     </div>
+    <div class="sb-header-status">
+      <span class="sb-status-dot"></span>
+      <span>MARKET DATA LIVE</span>
+    </div>
+  </header>
 
-    <!-- Stats Overview -->
-    <section class="stockbot-stats">
-        <div class="stockbot-stat-card" style="animation-delay: 0.1s">
-            <div class="stockbot-stat-icon">
-                <i data-lucide="eye"></i>
-            </div>
-            <div class="stockbot-stat-info">
-                <span class="stockbot-stat-value" id="watchlistCount">0</span>
-                <span class="stockbot-stat-label"><span data-i18n="stockbot.watchlist">WATCHLIST</span></span>
-            </div>
+  <!-- Disclaimer -->
+  <div class="sb-disclaimer">
+    ⚠ <strong>Disclaimer:</strong> StockBot provides educational information only. This is NOT financial advice. Always consult a licensed financial advisor before making investment decisions.
+  </div>
+
+  <!-- Tab Bar -->
+  <nav class="sb-tabs" role="tablist">
+    <button class="sb-tab active" onclick="SB.setTab('dashboard')" data-tab="dashboard">Dashboard</button>
+    <button class="sb-tab" onclick="SB.setTab('watchlist')" data-tab="watchlist">Watchlist</button>
+    <button class="sb-tab" onclick="SB.setTab('portfolio')" data-tab="portfolio">Portfolio</button>
+    <button class="sb-tab" onclick="SB.setTab('charts')" data-tab="charts">Charts</button>
+    <button class="sb-tab" onclick="SB.setTab('chat')" data-tab="chat">AI Chat</button>
+  </nav>
+
+  <!-- ── DASHBOARD TAB ────────────────────────────────────────── -->
+  <div id="sbDashboardTab" class="sb-tab-panel">
+
+    <section class="sb-section">
+      <h2 class="sb-section-title">Market Overview</h2>
+      <div class="sb-dashboard-cards" id="sbMarketOverview">
+        <!-- SPY -->
+        <div class="sb-market-card">
+          <div class="sb-market-symbol">SPY</div>
+          <div class="sb-market-price" id="sbSpyPrice">—</div>
+          <div class="sb-market-change" id="sbSpyChange">—</div>
+          <canvas class="sb-sparkline" id="sbSpySpark" width="120" height="36"></canvas>
         </div>
-        <div class="stockbot-stat-card" style="animation-delay: 0.2s">
-            <div class="stockbot-stat-icon stockbot-stat-icon--alerts">
-                <i data-lucide="bell"></i>
-            </div>
-            <div class="stockbot-stat-info">
-                <span class="stockbot-stat-value" id="alertsActive">0</span>
-                <span class="stockbot-stat-label"><span data-i18n="stockbot.alerts_active">ALERTS ACTIVE</span></span>
-            </div>
+        <!-- QQQ -->
+        <div class="sb-market-card">
+          <div class="sb-market-symbol">QQQ</div>
+          <div class="sb-market-price" id="sbQqqPrice">—</div>
+          <div class="sb-market-change" id="sbQqqChange">—</div>
+          <canvas class="sb-sparkline" id="sbQqqSpark" width="120" height="36"></canvas>
         </div>
-        <div class="stockbot-stat-card" style="animation-delay: 0.3s">
-            <div class="stockbot-stat-icon stockbot-stat-icon--screened">
-                <i data-lucide="filter"></i>
-            </div>
-            <div class="stockbot-stat-info">
-                <span class="stockbot-stat-value" id="screenedToday">0</span>
-                <span class="stockbot-stat-label"><span data-i18n="stockbot.screened_today">SCREENED TODAY</span></span>
-            </div>
+        <!-- DIA -->
+        <div class="sb-market-card">
+          <div class="sb-market-symbol">DIA</div>
+          <div class="sb-market-price" id="sbDiaPrice">—</div>
+          <div class="sb-market-change" id="sbDiaChange">—</div>
+          <canvas class="sb-sparkline" id="sbDiaSpark" width="120" height="36"></canvas>
         </div>
-        <div class="stockbot-stat-card" style="animation-delay: 0.4s">
-            <div class="stockbot-stat-icon stockbot-stat-icon--portfolio">
-                <i data-lucide="wallet"></i>
-            </div>
-            <div class="stockbot-stat-info">
-                <span class="stockbot-stat-value" id="portfolioValue">$0</span>
-                <span class="stockbot-stat-label"><span data-i18n="stockbot.portfolio_value">PORTFOLIO VALUE</span></span>
-            </div>
-        </div>
+      </div>
     </section>
 
-    <!-- Tab Navigation -->
-    <nav class="stockbot-tabs">
-        <button class="stockbot-tab active" data-tab="chat" onclick="switchTab('chat')">
-            <i data-lucide="message-circle"></i>
-            Chat
-        </button>
-        <button class="stockbot-tab" data-tab="watchlist" onclick="switchTab('watchlist')">
-            <i data-lucide="eye"></i>
-            Watchlist
-        </button>
-        <button class="stockbot-tab" data-tab="screener" onclick="switchTab('screener')">
-            <i data-lucide="filter"></i>
-            Screener
-        </button>
-        <button class="stockbot-tab" data-tab="alerts" onclick="switchTab('alerts')">
-            <i data-lucide="bell"></i>
-            Alerts
-        </button>
-    </nav>
+    <div class="sb-dashboard-grid">
 
-    <!-- Tab Content -->
-    <div class="stockbot-tab-content">
-        <!-- Chat Tab -->
-        <div class="stockbot-tab-panel active" id="chat-panel">
-            <div class="stockbot-chat-layout">
-                <div class="stockbot-chat-main">
-                    <div class="stockbot-messages" id="chatMessages">
-                        <!-- Welcome Message -->
-                        <div class="stockbot-message stockbot-message--assistant">
-                            <div class="stockbot-message-avatar">
-                                <i data-lucide="trending-up"></i>
-                            </div>
-                            <div class="stockbot-message-content">
-                                <div class="stockbot-message-text">
-                                    Welcome to StockBot! I'm your AI-powered stock analysis assistant. I can help you with:
-                                    <ul>
-                                        <li><span data-i18n="stockbot.stock_analysis_and_fundamental_research">Stock analysis and fundamental research</span></li>
-                                        <li><span data-i18n="stockbot.technical_indicators_rsi_macd_moving_averages">Technical indicators (RSI, MACD, Moving Averages)</span></li>
-                                        <li><span data-i18n="stockbot.dividend_stock_screening">Dividend stock screening</span></li>
-                                        <li><span data-i18n="stockbot.market_trends_and_sector_analysis">Market trends and sector analysis</span></li>
-                                        <li><span data-i18n="stockbot.portfolio_allocation_strategies">Portfolio allocation strategies</span></li>
-                                    </ul>
-                                    <strong><span data-i18n="stockbot.remember">Remember:</span></strong> I provide educational information only, not financial advice.
-                                    <br><br>
-                                    What would you like to analyze today?
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+      <section class="sb-section">
+        <h2 class="sb-section-title">Watchlist Preview</h2>
+        <table class="sb-table" id="sbWatchlistPreview">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Price</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody id="sbWatchlistPreviewBody">
+            <tr><td colspan="3" class="sb-empty">No watchlist items</td></tr>
+          </tbody>
+        </table>
+      </section>
 
-                    <!-- Typing Indicator -->
-                    <div class="stockbot-typing" id="typingIndicator" style="display: none;">
-                        <div class="stockbot-message-avatar">
-                            <i data-lucide="trending-up"></i>
-                        </div>
-                        <div class="stockbot-typing-dots">
-                            <span></span><span></span><span></span>
-                        </div>
-                    </div>
-
-                    <!-- Chat Input -->
-                    <div class="stockbot-chat-input">
-                        <textarea id="chatInput" placeholder="Ask about stocks, market trends, or technical analysis..." rows="2"></textarea>
-                        <div class="stockbot-chat-actions">
-                            <button class="stockbot-btn stockbot-btn-icon" onclick="attachChart()" title="Attach chart for analysis">
-                                <i data-lucide="line-chart"></i>
-                            </button>
-                            <button class="stockbot-btn stockbot-btn-primary" onclick="sendMessage()">
-                                <i data-lucide="send"></i>
-                                Send
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Topics Sidebar -->
-                <div class="stockbot-sidebar">
-                    <h4><span data-i18n="stockbot.quick_prompts">Quick Prompts</span></h4>
-                    <div class="stockbot-quick-topics">
-                        <button class="stockbot-topic-btn" onclick="askTopic('analysis')">
-                            <i data-lucide="bar-chart-2"></i>
-                            Stock Analysis
-                        </button>
-                        <button class="stockbot-topic-btn" onclick="askTopic('dividends')">
-                            <i data-lucide="dollar-sign"></i>
-                            Dividend Stocks
-                        </button>
-                        <button class="stockbot-topic-btn" onclick="askTopic('technical')">
-                            <i data-lucide="activity"></i>
-                            Technical Analysis
-                        </button>
-                        <button class="stockbot-topic-btn" onclick="askTopic('trends')">
-                            <i data-lucide="trending-up"></i>
-                            Market Trends
-                        </button>
-                        <button class="stockbot-topic-btn" onclick="askTopic('sectors')">
-                            <i data-lucide="pie-chart"></i>
-                            Sector Rotation
-                        </button>
-                        <button class="stockbot-topic-btn" onclick="askTopic('value')">
-                            <i data-lucide="search"></i>
-                            Value Investing
-                        </button>
-                    </div>
-
-                    <h4><span data-i18n="stockbot.ai_model">AI Model</span></h4>
-                    <select class="stockbot-select" id="modelSelect">
-                        <option value="llama3.2:latest"><span data-i18n="stockbot.llama_3_2_local">Llama 3.2 (Local)</span></option>
-                        <option value="mistral:latest"><span data-i18n="stockbot.mistral_local">Mistral (Local)</span></option>
-                        <option value="deepseek-coder-v2:16b"><span data-i18n="stockbot.deepseek_v2_local">DeepSeek v2 (Local)</span></option>
-                    </select>
-
-                    <h4><span data-i18n="stockbot.market_status">Market Status</span></h4>
-                    <div class="stockbot-market-status">
-                        <div class="market-indicator" id="marketStatus">
-                            <span class="market-dot"></span>
-                            <span class="market-text"><span data-i18n="stockbot.market_closed">Market Closed</span></span>
-                        </div>
-                        <div class="market-time" id="marketTime">--:--</div>
-                    </div>
-                </div>
-            </div>
+      <section class="sb-section">
+        <h2 class="sb-section-title">Portfolio Summary</h2>
+        <div class="sb-card-grid">
+          <div class="sb-card">
+            <div class="sb-card-value" id="sbDashTotalValue">$0.00</div>
+            <div class="sb-card-label">Total Value</div>
+          </div>
+          <div class="sb-card">
+            <div class="sb-card-value" id="sbDashDayPnl">$0.00</div>
+            <div class="sb-card-label">Day P&amp;L</div>
+          </div>
+          <div class="sb-card">
+            <div class="sb-card-value" id="sbDashTotalPnl">$0.00</div>
+            <div class="sb-card-label">Total P&amp;L</div>
+          </div>
+          <div class="sb-card">
+            <div class="sb-card-value" id="sbDashPositions">0</div>
+            <div class="sb-card-label">Positions</div>
+          </div>
         </div>
+      </section>
 
-        <!-- Watchlist Tab -->
-        <div class="stockbot-tab-panel" id="watchlist-panel">
-            <div class="stockbot-watchlist">
-                <div class="stockbot-watchlist-toolbar">
-                    <button class="stockbot-btn stockbot-btn-primary" onclick="showAddStockModal()">
-                        <i data-lucide="plus"></i>
-                        Add Stock
-                    </button>
-                    <div class="stockbot-search">
-                        <i data-lucide="search"></i>
-                        <input type="text" placeholder="Search watchlist..." id="watchlistSearch" onkeyup="filterWatchlist()">
-                    </div>
-                    <select class="stockbot-select" id="watchlistSort" onchange="sortWatchlist()">
-                        <option value="name"><span data-i18n="stockbot.sort_by_name">Sort by Name</span></option>
-                        <option value="price"><span data-i18n="stockbot.sort_by_price">Sort by Price</span></option>
-                        <option value="change"><span data-i18n="stockbot.sort_by_change">Sort by Change</span></option>
-                        <option value="volume"><span data-i18n="stockbot.sort_by_volume">Sort by Volume</span></option>
-                    </select>
-                </div>
-
-                <div class="stockbot-watchlist-grid" id="watchlistGrid">
-                    <div class="stockbot-empty-state">
-                        <i data-lucide="eye"></i>
-                        <p><span data-i18n="stockbot.no_stocks_in_watchlist">No stocks in watchlist</span></p>
-                        <button class="stockbot-btn stockbot-btn-primary" onclick="showAddStockModal()">
-                            <i data-lucide="plus"></i>
-                            Add Your First Stock
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Sample Stock Cards (Hidden by default, shown when stocks exist) -->
-                <div class="stockbot-watchlist-cards" id="watchlistCards" style="display: none;">
-                    <!-- Cards populated dynamically -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Screener Tab -->
-        <div class="stockbot-tab-panel" id="screener-panel">
-            <div class="stockbot-screener">
-                <div class="stockbot-screener-form">
-                    <h3>
-                        <i data-lucide="filter"></i>
-                        Stock Screener Filters
-                    </h3>
-
-                    <div class="stockbot-filter-grid">
-                        <!-- RSI Filter -->
-                        <div class="stockbot-filter-group">
-                            <label><span data-i18n="stockbot.rsi_14_day">RSI (14-day)</span></label>
-                            <div class="stockbot-range-container">
-                                <input type="number" class="stockbot-input" id="rsiMin" placeholder="Min" value="0">
-                                <span class="stockbot-range-sep">to</span>
-                                <input type="number" class="stockbot-input" id="rsiMax" placeholder="Max" value="100">
-                            </div>
-                            <div class="stockbot-filter-presets">
-                                <button class="stockbot-preset-btn" onclick="setRSI(0, 30)"><span data-i18n="stockbot.oversold">Oversold</span></button>
-                                <button class="stockbot-preset-btn" onclick="setRSI(70, 100)"><span data-i18n="stockbot.overbought">Overbought</span></button>
-                            </div>
-                        </div>
-
-                        <!-- Price Filter -->
-                        <div class="stockbot-filter-group">
-                            <label><span data-i18n="stockbot.price">Price ($)</span></label>
-                            <div class="stockbot-range-container">
-                                <input type="number" class="stockbot-input" id="priceMin" placeholder="Min" value="">
-                                <span class="stockbot-range-sep">to</span>
-                                <input type="number" class="stockbot-input" id="priceMax" placeholder="Max" value="">
-                            </div>
-                            <div class="stockbot-filter-presets">
-                                <button class="stockbot-preset-btn" onclick="setPrice(0, 20)"><span data-i18n="stockbot.under_20">Under $20</span></button>
-                                <button class="stockbot-preset-btn" onclick="setPrice(100, 999999)">$100+</button>
-                            </div>
-                        </div>
-
-                        <!-- Volume Filter -->
-                        <div class="stockbot-filter-group">
-                            <label><span data-i18n="stockbot.avg_volume_m">Avg Volume (M)</span></label>
-                            <div class="stockbot-range-container">
-                                <input type="number" class="stockbot-input" id="volumeMin" placeholder="Min" value="">
-                                <span class="stockbot-range-sep">to</span>
-                                <input type="number" class="stockbot-input" id="volumeMax" placeholder="Max" value="">
-                            </div>
-                            <div class="stockbot-filter-presets">
-                                <button class="stockbot-preset-btn" onclick="setVolume(1, 999999)"><span data-i18n="stockbot.high_volume">High Volume</span></button>
-                                <button class="stockbot-preset-btn" onclick="setVolume(0, 0.5)"><span data-i18n="stockbot.low_volume">Low Volume</span></button>
-                            </div>
-                        </div>
-
-                        <!-- Dividend Yield Filter -->
-                        <div class="stockbot-filter-group">
-                            <label><span data-i18n="stockbot.dividend_yield">Dividend Yield (%)</span></label>
-                            <div class="stockbot-range-container">
-                                <input type="number" class="stockbot-input" id="dividendMin" placeholder="Min" value="">
-                                <span class="stockbot-range-sep">to</span>
-                                <input type="number" class="stockbot-input" id="dividendMax" placeholder="Max" value="">
-                            </div>
-                            <div class="stockbot-filter-presets">
-                                <button class="stockbot-preset-btn" onclick="setDividend(3, 100)"><span data-i18n="stockbot.high_yield">High Yield</span></button>
-                                <button class="stockbot-preset-btn" onclick="setDividend(0, 0)"><span data-i18n="stockbot.no_dividend">No Dividend</span></button>
-                            </div>
-                        </div>
-
-                        <!-- Market Cap Filter -->
-                        <div class="stockbot-filter-group">
-                            <label><span data-i18n="stockbot.market_cap">Market Cap</span></label>
-                            <select class="stockbot-select" id="marketCapFilter">
-                                <option value=""><span data-i18n="stockbot.any">Any</span></option>
-                                <option value="mega"><span data-i18n="stockbot.mega_cap_200b">Mega Cap ($200B+)</span></option>
-                                <option value="large"><span data-i18n="stockbot.large_cap_10b_200b">Large Cap ($10B-$200B)</span></option>
-                                <option value="mid"><span data-i18n="stockbot.mid_cap_2b_10b">Mid Cap ($2B-$10B)</span></option>
-                                <option value="small"><span data-i18n="stockbot.small_cap_300m_2b">Small Cap ($300M-$2B)</span></option>
-                                <option value="micro"><span data-i18n="stockbot.micro_cap">Micro Cap (</span><$300M)</option>
-                            </select>
-                        </div>
-
-                        <!-- Sector Filter -->
-                        <div class="stockbot-filter-group">
-                            <label><span data-i18n="stockbot.sector">Sector</span></label>
-                            <select class="stockbot-select" id="sectorFilter">
-                                <option value=""><span data-i18n="stockbot.any_sector">Any Sector</span></option>
-                                <option value="technology"><span data-i18n="stockbot.technology">Technology</span></option>
-                                <option value="healthcare"><span data-i18n="stockbot.healthcare">Healthcare</span></option>
-                                <option value="financial"><span data-i18n="stockbot.financial">Financial</span></option>
-                                <option value="consumer"><span data-i18n="stockbot.consumer_discretionary">Consumer Discretionary</span></option>
-                                <option value="energy"><span data-i18n="stockbot.energy">Energy</span></option>
-                                <option value="utilities"><span data-i18n="stockbot.utilities">Utilities</span></option>
-                                <option value="industrial"><span data-i18n="stockbot.industrial">Industrial</span></option>
-                                <option value="realestate"><span data-i18n="stockbot.real_estate">Real Estate</span></option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="stockbot-screener-actions">
-                        <button class="stockbot-btn stockbot-btn-secondary" onclick="resetFilters()">
-                            <i data-lucide="refresh-cw"></i>
-                            Reset
-                        </button>
-                        <button class="stockbot-btn stockbot-btn-primary stockbot-btn-large" onclick="runScreener()">
-                            <i data-lucide="search"></i>
-                            Run Screener
-                        </button>
-                    </div>
-                </div>
-
-                <div class="stockbot-screener-results">
-                    <h3>
-                        <i data-lucide="list"></i>
-                        Screener Results
-                        <span class="results-count" id="resultsCount"><span data-i18n="stockbot.0_matches">0 matches</span></span>
-                    </h3>
-                    <div class="stockbot-results-table" id="screenerResults">
-                        <div class="stockbot-empty-state">
-                            <i data-lucide="filter"></i>
-                            <p><span data-i18n="stockbot.configure_filters_and_run_screener">Configure filters and run screener</span></p>
-                            <p class="stockbot-empty-hint"><span data-i18n="stockbot.set_your_criteria_above_to_find_matching_stocks">Set your criteria above to find matching stocks</span></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Alerts Tab -->
-        <div class="stockbot-tab-panel" id="alerts-panel">
-            <div class="stockbot-alerts">
-                <div class="stockbot-alerts-header">
-                    <h3>
-                        <i data-lucide="bell"></i>
-                        Price Alerts
-                    </h3>
-                    <button class="stockbot-btn stockbot-btn-primary" onclick="showAddAlertModal()">
-                        <i data-lucide="plus"></i>
-                        Create Alert
-                    </button>
-                </div>
-
-                <!-- Telegram Integration Banner -->
-                <div class="stockbot-telegram-banner">
-                    <div class="telegram-info">
-                        <i data-lucide="send"></i>
-                        <div>
-                            <strong><span data-i18n="stockbot.telegram_notifications">Telegram Notifications</span></strong>
-                            <p><span data-i18n="stockbot.connect_your_telegram_account_to_receive_instant_p">Connect your Telegram account to receive instant price alerts</span></p>
-                        </div>
-                    </div>
-                    <button class="stockbot-btn stockbot-btn-telegram" onclick="connectTelegram()">
-                        <i data-lucide="link"></i>
-                        Connect Telegram
-                    </button>
-                </div>
-
-                <div class="stockbot-alerts-list" id="alertsList">
-                    <div class="stockbot-empty-state">
-                        <i data-lucide="bell-off"></i>
-                        <p><span data-i18n="stockbot.no_alerts_configured">No alerts configured</span></p>
-                        <p class="stockbot-empty-hint"><span data-i18n="stockbot.create_price_alerts_to_get_notified_when_stocks_hi">Create price alerts to get notified when stocks hit your target</span></p>
-                        <button class="stockbot-btn stockbot-btn-primary" onclick="showAddAlertModal()">
-                            <i data-lucide="plus"></i>
-                            Create Your First Alert
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Alert Creation Modal (Hidden) -->
-                <div class="stockbot-modal" id="alertModal" style="display: none;">
-                    <div class="stockbot-modal-content">
-                        <div class="stockbot-modal-header">
-                            <h3><span data-i18n="stockbot.create_price_alert">Create Price Alert</span></h3>
-                            <button class="stockbot-modal-close" onclick="closeAlertModal()">
-                                <i data-lucide="x"></i>
-                            </button>
-                        </div>
-                        <div class="stockbot-modal-body">
-                            <div class="stockbot-form-group">
-                                <label><span data-i18n="stockbot.stock_symbol">Stock Symbol</span></label>
-                                <input type="text" class="stockbot-input" id="alertSymbol" placeholder="e.g., AAPL">
-                            </div>
-                            <div class="stockbot-form-group">
-                                <label><span data-i18n="stockbot.alert_type">Alert Type</span></label>
-                                <select class="stockbot-select" id="alertType">
-                                    <option value="above"><span data-i18n="stockbot.price_goes_above">Price Goes Above</span></option>
-                                    <option value="below"><span data-i18n="stockbot.price_goes_below">Price Goes Below</span></option>
-                                    <option value="percent_up"><span data-i18n="stockbot.increases_by">Increases by %</span></option>
-                                    <option value="percent_down"><span data-i18n="stockbot.decreases_by">Decreases by %</span></option>
-                                </select>
-                            </div>
-                            <div class="stockbot-form-group">
-                                <label><span data-i18n="stockbot.target_value">Target Value</span></label>
-                                <input type="number" class="stockbot-input" id="alertTarget" placeholder="Enter target price or percentage">
-                            </div>
-                            <div class="stockbot-form-group">
-                                <label><span data-i18n="stockbot.notification_method">Notification Method</span></label>
-                                <div class="stockbot-checkbox-group">
-                                    <label class="stockbot-checkbox">
-                                        <input type="checkbox" id="notifyApp" checked>
-                                        <span><span data-i18n="stockbot.in_app_notification">In-App Notification</span></span>
-                                    </label>
-                                    <label class="stockbot-checkbox">
-                                        <input type="checkbox" id="notifyTelegram">
-                                        <span><span data-i18n="stockbot.telegram">Telegram</span></span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="stockbot-modal-footer">
-                            <button class="stockbot-btn stockbot-btn-secondary" onclick="closeAlertModal()"><span data-i18n="stockbot.cancel">Cancel</span></button>
-                            <button class="stockbot-btn stockbot-btn-primary" onclick="createAlert()"><span data-i18n="stockbot.create_alert">Create Alert</span></button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
+
+    <section class="sb-section">
+      <h2 class="sb-section-title">Recent Alerts</h2>
+      <div id="sbRecentAlerts" class="sb-alert-list">
+        <div class="sb-empty">No recent alerts</div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ── WATCHLIST TAB ────────────────────────────────────────── -->
+  <div id="sbWatchlistTab" class="sb-tab-panel" style="display:none">
+
+    <section class="sb-section">
+      <div class="sb-search-bar">
+        <input type="text" id="sbWatchlistInput" class="sb-input" placeholder="Enter ticker (e.g. AAPL)" maxlength="10">
+        <button class="sb-btn sb-btn-accent" onclick="SB.addToWatchlist()">Add</button>
+        <button class="sb-btn" onclick="SB.openAlertModal()">+ Alert</button>
+      </div>
+    </section>
+
+    <section class="sb-section">
+      <table class="sb-table" id="sbWatchlistTable">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>Change %</th>
+            <th>52W Low</th>
+            <th>52W High</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sbWatchlistBody">
+          <tr><td colspan="7" class="sb-empty">Watchlist is empty</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </div>
+
+  <!-- ── PORTFOLIO TAB ────────────────────────────────────────── -->
+  <div id="sbPortfolioTab" class="sb-tab-panel" style="display:none">
+
+    <section class="sb-section">
+      <h2 class="sb-section-title">Holdings</h2>
+      <table class="sb-table" id="sbPortfolioTable">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Shares</th>
+            <th>Avg Cost</th>
+            <th>Current</th>
+            <th>P&amp;L $</th>
+            <th>P&amp;L %</th>
+            <th>Allocation</th>
+          </tr>
+        </thead>
+        <tbody id="sbPortfolioBody">
+          <tr><td colspan="7" class="sb-empty">No holdings</td></tr>
+        </tbody>
+      </table>
+      <div class="sb-summary-bar" id="sbPortfolioSummary">
+        <span>Total Value: <strong id="sbPortTotalValue">$0.00</strong></span>
+        <span>Total Cost: <strong id="sbPortTotalCost">$0.00</strong></span>
+        <span>Total P&amp;L: <strong id="sbPortTotalPnl">$0.00</strong></span>
+      </div>
+    </section>
+
+    <section class="sb-section">
+      <h2 class="sb-section-title">Trade</h2>
+      <form id="sbTradeForm" class="sb-trade-form" onsubmit="return false">
+        <input type="text" id="sbTradeTicker" class="sb-input" placeholder="Ticker" maxlength="10">
+        <input type="number" id="sbTradeShares" class="sb-input" placeholder="Shares" min="0.0001" step="0.0001">
+        <input type="number" id="sbTradePrice" class="sb-input" placeholder="Price (optional)" min="0" step="0.01">
+        <button class="sb-btn sb-btn-positive" onclick="SB.executeTrade('buy')">Buy</button>
+        <button class="sb-btn sb-btn-negative" onclick="SB.executeTrade('sell')">Sell</button>
+      </form>
+    </section>
+
+    <section class="sb-section">
+      <h2 class="sb-section-title">Transaction History</h2>
+      <table class="sb-table" id="sbTransactionTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Ticker</th>
+            <th>Action</th>
+            <th>Shares</th>
+            <th>Price</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="sbTransactionBody">
+          <tr><td colspan="6" class="sb-empty">No transactions</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </div>
+
+  <!-- ── CHARTS TAB ────────────────────────────────────────────── -->
+  <div id="sbChartsTab" class="sb-tab-panel" style="display:none">
+
+    <section class="sb-section">
+      <div class="sb-search-bar">
+        <input type="text" id="sbTickerSearch" class="sb-input" placeholder="Enter ticker (e.g. TSLA)" maxlength="10">
+        <button class="sb-btn sb-btn-accent" onclick="SB.loadChart()">Load Chart</button>
+      </div>
+    </section>
+
+    <div class="sb-chart-controls">
+      <div class="sb-period-group">
+        <button class="sb-period-btn active" onclick="SB.setPeriod('1D')">1D</button>
+        <button class="sb-period-btn" onclick="SB.setPeriod('5D')">5D</button>
+        <button class="sb-period-btn" onclick="SB.setPeriod('1M')">1M</button>
+        <button class="sb-period-btn" onclick="SB.setPeriod('3M')">3M</button>
+        <button class="sb-period-btn" onclick="SB.setPeriod('6M')">6M</button>
+        <button class="sb-period-btn" onclick="SB.setPeriod('1Y')">1Y</button>
+        <button class="sb-period-btn" onclick="SB.setPeriod('5Y')">5Y</button>
+      </div>
+      <div class="sb-indicator-group">
+        <label class="sb-indicator-toggle"><input type="checkbox" id="indSMA20" onchange="SB.toggleIndicator('SMA20')"> SMA20</label>
+        <label class="sb-indicator-toggle"><input type="checkbox" id="indSMA50" onchange="SB.toggleIndicator('SMA50')"> SMA50</label>
+        <label class="sb-indicator-toggle"><input type="checkbox" id="indSMA200" onchange="SB.toggleIndicator('SMA200')"> SMA200</label>
+        <label class="sb-indicator-toggle"><input type="checkbox" id="indRSI" onchange="SB.toggleIndicator('RSI')"> RSI</label>
+        <label class="sb-indicator-toggle"><input type="checkbox" id="indMACD" onchange="SB.toggleIndicator('MACD')"> MACD</label>
+        <label class="sb-indicator-toggle"><input type="checkbox" id="indBB" onchange="SB.toggleIndicator('BB')"> Bollinger</label>
+      </div>
+    </div>
+
+    <div id="sbChartContainer" class="sb-chart-container"></div>
+
+    <div class="sb-quote-bar" id="sbQuoteBar">
+      <span id="sbQuoteTicker" class="sb-quote-ticker">—</span>
+      <span id="sbQuotePrice" class="sb-quote-val">—</span>
+      <span id="sbQuoteChange" class="sb-quote-val">—</span>
+      <span id="sbQuoteVolume" class="sb-quote-item">Vol: —</span>
+      <span id="sbQuoteMarketCap" class="sb-quote-item">Mkt Cap: —</span>
+    </div>
+
+  </div>
+
+  <!-- ── AI CHAT TAB ────────────────────────────────────────────── -->
+  <div id="sbChatTab" class="sb-tab-panel" style="display:none">
+
+    <section class="sb-section sb-chat-section">
+      <div id="sbChatMessages" class="sb-chat-messages">
+        <div class="sb-chat-msg sb-chat-bot">
+          <span class="sb-chat-label">STOCKBOT</span>
+          <div class="sb-chat-bubble">Hello! I'm StockBot AI. Ask me about stocks, market trends, or investment strategies. You can reference a ticker like $AAPL for real-time context.</div>
+        </div>
+      </div>
+      <div class="sb-chat-input-row">
+        <input type="text" id="sbChatInput" class="sb-input sb-chat-input" placeholder="Ask about stocks… e.g. What's the trend for $NVDA?" onkeydown="if(event.key==='Enter') SB.sendChat()">
+        <button class="sb-btn sb-btn-accent" onclick="SB.sendChat()">Send</button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ── ALERT MODAL ────────────────────────────────────────────── -->
+  <div id="sbAlertModal" class="sb-modal-overlay" style="display:none" onclick="SB.closeAlertModal(event)">
+    <div class="sb-modal">
+      <div class="sb-modal-header">
+        <span class="sb-modal-title">Create Alert</span>
+        <button class="sb-modal-close" onclick="SB.closeAlertModal()">✕</button>
+      </div>
+      <div class="sb-modal-body">
+        <div class="sb-form-row">
+          <label class="sb-label">Ticker</label>
+          <input type="text" id="sbAlertTicker" class="sb-input" placeholder="e.g. AAPL" maxlength="10">
+        </div>
+        <div class="sb-form-row">
+          <label class="sb-label">Condition</label>
+          <select id="sbAlertCondition" class="sb-select">
+            <option value="above">Price Above</option>
+            <option value="below">Price Below</option>
+            <option value="change_pct_up">Change % Up</option>
+            <option value="change_pct_down">Change % Down</option>
+          </select>
+        </div>
+        <div class="sb-form-row">
+          <label class="sb-label">Threshold</label>
+          <input type="number" id="sbAlertThreshold" class="sb-input" placeholder="e.g. 150.00" step="0.01">
+        </div>
+      </div>
+      <div class="sb-modal-footer">
+        <button class="sb-btn" onclick="SB.closeAlertModal()">Cancel</button>
+        <button class="sb-btn sb-btn-accent" onclick="SB.createAlert()">Create Alert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="sbToast" class="sb-toast" style="display:none"></div>
+
 </div>
-
-<style>
-/* ===============================================================================
-   STOCKBOT - AI STOCK SCREENER (RED THEME)
-   =============================================================================== */
-
-/* Custom vars removed — using --archie-* design tokens from theme.css */
-
-.stockbot-container {
-    min-height: 100vh;
-    background: var(--archie-bg-void);
-    padding: 20px 30px 40px;
-    padding-top: 80px;
-}
-
-.scanline-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0.03) 0px,
-        rgba(0, 0, 0, 0.03) 1px,
-        transparent 1px,
-        transparent 2px
-    );
-    pointer-events: none;
-    z-index: 1000;
-}
-
-/* Header */
-.stockbot-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    animation: fadeInUp 0.5s ease-out;
-}
-
-.stockbot-title {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--archie-red);
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
-    margin: 0;
-}
-
-.stockbot-title i {
-    width: 36px;
-    height: 36px;
-}
-
-.stockbot-subtitle {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--archie-text-tertiary);
-    margin: 8px 0 0 51px;
-}
-
-.stockbot-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-success);
-}
-
-.status-indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
-.status-online {
-    background: var(--archie-success);
-    box-shadow: 0 0 10px var(--archie-success);
-}
-
-/* Disclaimer */
-.stockbot-disclaimer {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 12px 20px;
-    background: rgba(245, 158, 11, 0.1);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    border-radius: 8px;
-    margin-bottom: 24px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-warning);
-    line-height: 1.5;
-}
-
-.stockbot-disclaimer i {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    margin-top: 2px;
-}
-
-/* Stats */
-.stockbot-stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
-    margin-bottom: 30px;
-}
-
-.stockbot-stat-card {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 12px;
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    backdrop-filter: blur(10px);
-    animation: fadeInUp 0.5s ease-out both;
-    transition: all 0.3s ease;
-}
-
-.stockbot-stat-card:hover {
-    border-color: rgba(239, 68, 68, 0.5);
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
-    transform: translateY(-2px);
-}
-
-.stockbot-stat-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--archie-red-alpha-10);
-    color: var(--archie-red);
-}
-
-.stockbot-stat-icon i {
-    width: 24px;
-    height: 24px;
-}
-
-.stockbot-stat-icon--alerts {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3B82F6;
-}
-
-.stockbot-stat-icon--screened {
-    background: rgba(245, 158, 11, 0.1);
-    color: #F59E0B;
-}
-
-.stockbot-stat-icon--portfolio {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10B981;
-}
-
-.stockbot-stat-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.stockbot-stat-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--archie-text-secondary);
-}
-
-.stockbot-stat-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    letter-spacing: 1px;
-}
-
-/* Tabs */
-.stockbot-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid var(--archie-red-alpha-20);
-}
-
-.stockbot-tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-muted);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    position: relative;
-    transition: all 0.25s ease;
-}
-
-.stockbot-tab i {
-    width: 18px;
-    height: 18px;
-}
-
-.stockbot-tab::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--archie-red);
-    transform: scaleX(0);
-    transition: transform 0.25s ease;
-}
-
-.stockbot-tab:hover {
-    color: var(--archie-text-tertiary);
-}
-
-.stockbot-tab.active {
-    color: var(--archie-red);
-}
-
-.stockbot-tab.active::after {
-    transform: scaleX(1);
-}
-
-/* Tab Panels */
-.stockbot-tab-panel {
-    display: none;
-    animation: fadeIn 0.3s ease;
-}
-
-.stockbot-tab-panel.active {
-    display: block;
-}
-
-/* Chat Layout */
-.stockbot-chat-layout {
-    display: grid;
-    grid-template-columns: 1fr 300px;
-    gap: 24px;
-    height: calc(100vh - 380px);
-    min-height: 500px;
-}
-
-.stockbot-chat-main {
-    display: flex;
-    flex-direction: column;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 12px;
-    overflow: hidden;
-}
-
-.stockbot-messages {
-    flex: 1;
-    padding: 20px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.stockbot-message {
-    display: flex;
-    gap: 12px;
-    animation: fadeInUp 0.3s ease;
-}
-
-.stockbot-message--user {
-    flex-direction: row-reverse;
-}
-
-.stockbot-message-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.stockbot-message--assistant .stockbot-message-avatar {
-    background: linear-gradient(135deg, var(--archie-red), #F59E0B);
-    color: white;
-}
-
-.stockbot-message--user .stockbot-message-avatar {
-    background: rgba(59, 130, 246, 0.2);
-    color: #3B82F6;
-}
-
-.stockbot-message-avatar i {
-    width: 20px;
-    height: 20px;
-}
-
-.stockbot-message-content {
-    max-width: 70%;
-    padding: 16px;
-    border-radius: 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    line-height: 1.6;
-}
-
-.stockbot-message--assistant .stockbot-message-content {
-    background: var(--archie-red-alpha-10);
-    border: 1px solid var(--archie-red-alpha-20);
-    color: var(--archie-text-secondary);
-}
-
-.stockbot-message--user .stockbot-message-content {
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    color: var(--archie-text-secondary);
-}
-
-.stockbot-message-content ul {
-    margin: 12px 0 0 20px;
-    padding: 0;
-}
-
-.stockbot-message-content li {
-    margin: 6px 0;
-}
-
-/* Typing Indicator */
-.stockbot-typing {
-    display: flex;
-    gap: 12px;
-    padding: 0 20px 20px;
-}
-
-.stockbot-typing-dots {
-    display: flex;
-    gap: 4px;
-    padding: 12px;
-    background: var(--archie-red-alpha-10);
-    border-radius: 12px;
-}
-
-.stockbot-typing-dots span {
-    width: 8px;
-    height: 8px;
-    background: var(--archie-red);
-    border-radius: 50%;
-    animation: bounce 1.4s infinite;
-}
-
-.stockbot-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-.stockbot-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); }
-    30% { transform: translateY(-8px); }
-}
-
-/* Chat Input */
-.stockbot-chat-input {
-    display: flex;
-    gap: 12px;
-    padding: 16px 20px;
-    border-top: 1px solid var(--archie-red-alpha-20);
-    align-items: flex-end;
-}
-
-.stockbot-chat-input textarea {
-    flex: 1;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-    resize: none;
-}
-
-.stockbot-chat-input textarea:focus {
-    outline: none;
-    border-color: var(--archie-red);
-}
-
-.stockbot-chat-input textarea::placeholder {
-    color: var(--archie-text-muted);
-}
-
-.stockbot-chat-actions {
-    display: flex;
-    gap: 8px;
-}
-
-/* Buttons */
-.stockbot-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 500;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.25s ease;
-    text-transform: uppercase;
-}
-
-.stockbot-btn i {
-    width: 18px;
-    height: 18px;
-}
-
-.stockbot-btn-primary {
-    background: transparent;
-    color: var(--archie-red);
-    border: 2px solid var(--archie-red);
-}
-
-.stockbot-btn-primary:hover {
-    background: var(--archie-red);
-    color: white;
-    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
-}
-
-.stockbot-btn-secondary {
-    background: transparent;
-    color: var(--archie-text-tertiary);
-    border: 1px solid var(--archie-red-alpha-20);
-}
-
-.stockbot-btn-secondary:hover {
-    border-color: var(--archie-text-tertiary);
-    color: var(--archie-text-secondary);
-}
-
-.stockbot-btn-icon {
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    justify-content: center;
-    background: transparent;
-    border: 1px solid var(--archie-red-alpha-20);
-    color: var(--archie-text-tertiary);
-}
-
-.stockbot-btn-icon:hover {
-    border-color: var(--archie-red);
-    color: var(--archie-red);
-}
-
-.stockbot-btn-large {
-    padding: 16px 32px;
-    font-size: 1rem;
-}
-
-.stockbot-btn-telegram {
-    background: #0088cc;
-    color: white;
-    border: none;
-}
-
-.stockbot-btn-telegram:hover {
-    background: #006699;
-    box-shadow: 0 0 20px rgba(0, 136, 204, 0.4);
-}
-
-/* Sidebar */
-.stockbot-sidebar {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 12px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.stockbot-sidebar h4 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-    margin: 0;
-}
-
-.stockbot-quick-topics {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-}
-
-.stockbot-topic-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding: 12px 8px;
-    background: transparent;
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.stockbot-topic-btn i {
-    width: 20px;
-    height: 20px;
-    color: var(--archie-red);
-}
-
-.stockbot-topic-btn:hover {
-    border-color: var(--archie-red);
-    background: rgba(239, 68, 68, 0.05);
-}
-
-.stockbot-select {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 8px;
-    padding: 10px 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-secondary);
-    width: 100%;
-}
-
-.stockbot-select:focus {
-    outline: none;
-    border-color: var(--archie-red);
-}
-
-.stockbot-input {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 8px;
-    padding: 10px 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-secondary);
-    width: 100%;
-}
-
-.stockbot-input:focus {
-    outline: none;
-    border-color: var(--archie-red);
-}
-
-.stockbot-input::placeholder {
-    color: var(--archie-text-muted);
-}
-
-/* Market Status */
-.stockbot-market-status {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-}
-
-.market-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.8rem;
-    color: var(--archie-text-tertiary);
-}
-
-.market-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--archie-danger);
-}
-
-.market-dot.open {
-    background: var(--archie-success);
-    animation: pulse 2s infinite;
-}
-
-.market-time {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.85rem;
-    color: var(--archie-red);
-}
-
-/* Watchlist */
-.stockbot-watchlist-toolbar {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-}
-
-.stockbot-search {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 8px;
-    padding: 0 16px;
-    flex: 1;
-    max-width: 300px;
-}
-
-.stockbot-search i {
-    width: 18px;
-    height: 18px;
-    color: var(--archie-text-muted);
-}
-
-.stockbot-search input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    padding: 12px 0;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-}
-
-.stockbot-search input:focus {
-    outline: none;
-}
-
-.stockbot-watchlist-grid {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 12px;
-    min-height: 300px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Screener */
-.stockbot-screener {
-    display: grid;
-    grid-template-columns: 400px 1fr;
-    gap: 24px;
-}
-
-.stockbot-screener-form {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 12px;
-    padding: 24px;
-}
-
-.stockbot-screener-form h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 0 24px;
-}
-
-.stockbot-screener-form h3 i {
-    width: 20px;
-    height: 20px;
-    color: var(--archie-red);
-}
-
-.stockbot-filter-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.stockbot-filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.stockbot-filter-group label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stockbot-range-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.stockbot-range-container .stockbot-input {
-    flex: 1;
-}
-
-.stockbot-range-sep {
-    color: var(--archie-text-muted);
-    font-size: 0.8rem;
-}
-
-.stockbot-filter-presets {
-    display: flex;
-    gap: 8px;
-}
-
-.stockbot-preset-btn {
-    padding: 6px 12px;
-    background: transparent;
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 4px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.stockbot-preset-btn:hover {
-    border-color: var(--archie-red);
-    color: var(--archie-red);
-}
-
-.stockbot-screener-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 24px;
-}
-
-.stockbot-screener-results {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 12px;
-    padding: 24px;
-}
-
-.stockbot-screener-results h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 0 20px;
-}
-
-.stockbot-screener-results h3 i {
-    width: 20px;
-    height: 20px;
-    color: var(--archie-red);
-}
-
-.results-count {
-    margin-left: auto;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-muted);
-    font-weight: normal;
-}
-
-.stockbot-results-table {
-    min-height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Alerts */
-.stockbot-alerts-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.stockbot-alerts-header h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0;
-}
-
-.stockbot-alerts-header h3 i {
-    width: 20px;
-    height: 20px;
-    color: var(--archie-red);
-}
-
-.stockbot-telegram-banner {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    background: rgba(0, 136, 204, 0.1);
-    border: 1px solid rgba(0, 136, 204, 0.3);
-    border-radius: 12px;
-    margin-bottom: 24px;
-}
-
-.telegram-info {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.telegram-info i {
-    width: 32px;
-    height: 32px;
-    color: #0088cc;
-}
-
-.telegram-info strong {
-    display: block;
-    color: var(--archie-text-secondary);
-    margin-bottom: 4px;
-}
-
-.telegram-info p {
-    margin: 0;
-    color: var(--archie-text-tertiary);
-    font-size: 0.85rem;
-}
-
-.stockbot-alerts-list {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 12px;
-    min-height: 300px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Modal */
-.stockbot-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    animation: fadeIn 0.3s ease;
-}
-
-.stockbot-modal-content {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 16px;
-    width: 90%;
-    max-width: 500px;
-    animation: fadeInUp 0.3s ease;
-}
-
-.stockbot-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--archie-red-alpha-20);
-}
-
-.stockbot-modal-header h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.1rem;
-    color: var(--archie-text-secondary);
-    margin: 0;
-}
-
-.stockbot-modal-close {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: 1px solid var(--archie-red-alpha-20);
-    border-radius: 8px;
-    color: var(--archie-text-muted);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.stockbot-modal-close:hover {
-    border-color: var(--archie-red);
-    color: var(--archie-red);
-}
-
-.stockbot-modal-body {
-    padding: 24px;
-}
-
-.stockbot-form-group {
-    margin-bottom: 20px;
-}
-
-.stockbot-form-group label {
-    display: block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-muted);
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stockbot-checkbox-group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.stockbot-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    color: var(--archie-text-tertiary);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-}
-
-.stockbot-checkbox input {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--archie-red);
-}
-
-.stockbot-modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 20px 24px;
-    border-top: 1px solid var(--archie-red-alpha-20);
-}
-
-/* Empty State */
-.stockbot-empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-    text-align: center;
-    color: var(--archie-text-muted);
-}
-
-.stockbot-empty-state i {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 16px;
-    opacity: 0.3;
-}
-
-.stockbot-empty-state p {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    margin: 0 0 16px;
-}
-
-.stockbot-empty-hint {
-    font-size: 0.8rem !important;
-    opacity: 0.7;
-}
-
-/* ===============================================================================
-   LIGHT MODE
-   =============================================================================== */
-
-body.light-mode .stockbot-container {
-    background: #f8f9fa;
-}
-
-body.light-mode .stockbot-title {
-    color: #DC2626;
-    text-shadow: none;
-}
-
-body.light-mode .stockbot-stat-card,
-body.light-mode .stockbot-chat-main,
-body.light-mode .stockbot-sidebar,
-body.light-mode .stockbot-watchlist-grid,
-body.light-mode .stockbot-screener-form,
-body.light-mode .stockbot-screener-results,
-body.light-mode .stockbot-alerts-list {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(220, 38, 38, 0.2);
-}
-
-body.light-mode .stockbot-stat-value,
-body.light-mode .stockbot-sidebar h4,
-body.light-mode .stockbot-screener-form h3,
-body.light-mode .stockbot-screener-results h3,
-body.light-mode .stockbot-alerts-header h3,
-body.light-mode .stockbot-modal-header h3 {
-    color: #1a1a2e;
-}
-
-body.light-mode .stockbot-tab {
-    color: #666;
-}
-
-body.light-mode .stockbot-tab.active {
-    color: #DC2626;
-}
-
-body.light-mode .stockbot-message--assistant .stockbot-message-content {
-    background: rgba(220, 38, 38, 0.08);
-    border-color: rgba(220, 38, 38, 0.2);
-    color: #1a1a2e;
-}
-
-body.light-mode .stockbot-message--user .stockbot-message-content {
-    background: rgba(59, 130, 246, 0.08);
-    border-color: rgba(59, 130, 246, 0.2);
-    color: #1a1a2e;
-}
-
-body.light-mode .stockbot-btn-primary {
-    color: #DC2626;
-    border-color: #DC2626;
-}
-
-body.light-mode .stockbot-btn-primary:hover {
-    background: #DC2626;
-}
-
-body.light-mode .stockbot-input,
-body.light-mode .stockbot-select,
-body.light-mode .stockbot-chat-input textarea {
-    background: rgba(0, 0, 0, 0.05);
-    color: #1a1a2e;
-    border-color: rgba(220, 38, 38, 0.2);
-}
-
-body.light-mode .stockbot-search {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(220, 38, 38, 0.2);
-}
-
-body.light-mode .stockbot-search input {
-    color: #1a1a2e;
-}
-
-body.light-mode .stockbot-modal-content {
-    background: #ffffff;
-    border-color: rgba(220, 38, 38, 0.2);
-}
-
-body.light-mode .stockbot-telegram-banner {
-    background: rgba(0, 136, 204, 0.05);
-}
-
-body.light-mode .telegram-info strong {
-    color: #1a1a2e;
-}
-
-/* ===============================================================================
-   RESPONSIVE
-   =============================================================================== */
-
-@media (max-width: 1200px) {
-    .stockbot-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .stockbot-chat-layout {
-        grid-template-columns: 1fr;
-        height: auto;
-    }
-
-    .stockbot-sidebar {
-        order: -1;
-    }
-
-    .stockbot-quick-topics {
-        grid-template-columns: repeat(3, 1fr);
-    }
-
-    .stockbot-screener {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 768px) {
-    .stockbot-container {
-        padding: 20px;
-        padding-top: 80px;
-    }
-
-    .stockbot-stats {
-        grid-template-columns: 1fr;
-    }
-
-    .stockbot-title {
-        font-size: 1.5rem;
-    }
-
-    .stockbot-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-    }
-
-    .stockbot-tabs {
-        overflow-x: auto;
-    }
-
-    .stockbot-tab {
-        white-space: nowrap;
-    }
-
-    .stockbot-quick-topics {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .stockbot-watchlist-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .stockbot-search {
-        max-width: none;
-    }
-
-    .stockbot-telegram-banner {
-        flex-direction: column;
-        gap: 16px;
-        text-align: center;
-    }
-
-    .telegram-info {
-        flex-direction: column;
-    }
-}
-</style>
-
-<script>
-// Initialize Lucide icons
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-    loadStats();
-    updateMarketStatus();
-    setInterval(updateMarketStatus, 60000); // Update every minute
-});
-
-// Tab switching
-function switchTab(tabId) {
-    document.querySelectorAll('.stockbot-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.tab === tabId);
-    });
-    document.querySelectorAll('.stockbot-tab-panel').forEach(panel => {
-        panel.classList.toggle('active', panel.id === tabId + '-panel');
-    });
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-// Load stats from localStorage
-function loadStats() {
-    const stats = JSON.parse(localStorage.getItem('stockbot_stats') || '{}');
-    document.getElementById('watchlistCount').textContent = stats.watchlist || 0;
-    document.getElementById('alertsActive').textContent = stats.alerts || 0;
-    document.getElementById('screenedToday').textContent = stats.screened || 0;
-    document.getElementById('portfolioValue').textContent = formatCurrency(stats.portfolio || 0);
-}
-
-// Save stats
-function updateStats(key, value) {
-    const stats = JSON.parse(localStorage.getItem('stockbot_stats') || '{}');
-    if (value !== undefined) {
-        stats[key] = value;
-    } else {
-        stats[key] = (stats[key] || 0) + 1;
-    }
-    localStorage.setItem('stockbot_stats', JSON.stringify(stats));
-    loadStats();
-}
-
-// Format currency
-function formatCurrency(value) {
-    if (value >= 1000000) {
-        return '$' + (value / 1000000).toFixed(1) + 'M';
-    } else if (value >= 1000) {
-        return '$' + (value / 1000).toFixed(1) + 'K';
-    }
-    return '$' + value.toLocaleString();
-}
-
-// Update market status
-function updateMarketStatus() {
-    const now = new Date();
-    const nyTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-    const hours = nyTime.getHours();
-    const minutes = nyTime.getMinutes();
-    const day = nyTime.getDay();
-
-    const isWeekday = day >= 1 && day <= 5;
-    const isMarketHours = hours >= 9 && (hours < 16 || (hours === 9 && minutes >= 30));
-    const isOpen = isWeekday && isMarketHours;
-
-    const statusElement = document.getElementById('marketStatus');
-    const timeElement = document.getElementById('marketTime');
-
-    if (statusElement) {
-        const dot = statusElement.querySelector('.market-dot');
-        const text = statusElement.querySelector('.market-text');
-        if (isOpen) {
-            dot.classList.add('open');
-            text.textContent = 'Market Open';
-        } else {
-            dot.classList.remove('open');
-            text.textContent = 'Market Closed';
-        }
-    }
-
-    if (timeElement) {
-        timeElement.textContent = nyTime.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        }) + ' ET';
-    }
-}
-
-// Send chat message
-async function sendMessage() {
-    const input = document.getElementById('chatInput');
-    const message = input.value.trim();
-    if (!message) return;
-
-    // Add user message
-    addMessage(message, true);
-    input.value = '';
-
-    // Show typing indicator
-    document.getElementById('typingIndicator').style.display = 'flex';
-
-    // Get selected model
-    const model = document.getElementById('modelSelect').value;
-
-    // System prompt for stock analysis
-    const systemPrompt = `You are StockBot, an AI stock analysis assistant. You help users understand:
-- Stock fundamentals (P/E ratio, EPS, revenue growth, debt levels)
-- Technical analysis (RSI, MACD, moving averages, support/resistance)
-- Dividend analysis (yield, payout ratio, dividend history)
-- Market trends and sector performance
-- Investment strategies and portfolio concepts
-
-IMPORTANT: Always include a disclaimer that this is educational information only, not financial advice.
-Be data-focused and professional. Use specific metrics when discussing stocks.
-If asked about specific stock prices or real-time data, explain that you cannot access live market data.`;
-
-    try {
-        const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: message,
-                model: model,
-                system_prompt: systemPrompt
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.success || data.response) {
-            addMessage(data.response, false);
-        } else {
-            addMessage('I apologize, but I encountered an error. Please try again.', false);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        addMessage('Connection error. Please check if Ollama is running and try again.', false);
-    } finally {
-        document.getElementById('typingIndicator').style.display = 'none';
-    }
-}
-
-// Add message to chat
-function addMessage(text, isUser) {
-    const container = document.getElementById('chatMessages');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `stockbot-message stockbot-message--${isUser ? 'user' : 'assistant'}`;
-
-    messageDiv.innerHTML = `
-        <div class="stockbot-message-avatar">
-            <i data-lucide="${isUser ? 'user' : 'trending-up'}"></i>
-        </div>
-        <div class="stockbot-message-content">
-            <div class="stockbot-message-text">${formatMessage(text)}</div>
-        </div>
-    `;
-
-    container.appendChild(messageDiv);
-    container.scrollTop = container.scrollHeight;
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-// Format message with basic markdown
-function formatMessage(text) {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/\n/g, '<br>');
-}
-
-// Quick topic prompts
-function askTopic(topic) {
-    const prompts = {
-        analysis: "How do I analyze a stock's fundamentals? What key metrics should I look at?",
-        dividends: "What makes a good dividend stock? How do I evaluate dividend safety and sustainability?",
-        technical: "Explain key technical indicators like RSI, MACD, and moving averages. How are they used?",
-        trends: "What are the current market trends I should be aware of? How do I identify market cycles?",
-        sectors: "Explain sector rotation strategy. Which sectors typically perform well in different economic phases?",
-        value: "What is value investing? How do I find undervalued stocks using fundamental analysis?"
-    };
-
-    document.getElementById('chatInput').value = prompts[topic] || '';
-    sendMessage();
-}
-
-// Attach chart (placeholder)
-function attachChart() {
-    showToast('Chart analysis feature coming soon!', 'info');
-}
-
-// Watchlist functions
-function showAddStockModal() {
-    const symbol = prompt('Enter stock symbol (e.g., AAPL):');
-    if (symbol) {
-        addToWatchlist(symbol.toUpperCase());
-    }
-}
-
-function addToWatchlist(symbol) {
-    const watchlist = JSON.parse(localStorage.getItem('stockbot_watchlist') || '[]');
-    if (!watchlist.includes(symbol)) {
-        watchlist.push(symbol);
-        localStorage.setItem('stockbot_watchlist', JSON.stringify(watchlist));
-        updateStats('watchlist', watchlist.length);
-        showToast(`${symbol} added to watchlist!`, 'success');
-        renderWatchlist();
-    } else {
-        showToast(`${symbol} is already in your watchlist`, 'warning');
-    }
-}
-
-function renderWatchlist() {
-    const watchlist = JSON.parse(localStorage.getItem('stockbot_watchlist') || '[]');
-    const grid = document.getElementById('watchlistGrid');
-
-    if (watchlist.length === 0) {
-        grid.innerHTML = `
-            <div class="stockbot-empty-state">
-                <i data-lucide="eye"></i>
-                <p>No stocks in watchlist</p>
-                <button class="stockbot-btn stockbot-btn-primary" onclick="showAddStockModal()">
-                    <i data-lucide="plus"></i>
-                    Add Your First Stock
-                </button>
-            </div>
-        `;
-    } else {
-        grid.innerHTML = watchlist.map(symbol => `
-            <div class="watchlist-card">
-                <span class="symbol">${symbol}</span>
-                <button onclick="removeFromWatchlist('${symbol}')" class="stockbot-btn stockbot-btn-icon" title="Remove">
-                    <i data-lucide="x"></i>
-                </button>
-            </div>
-        `).join('');
-    }
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-function removeFromWatchlist(symbol) {
-    let watchlist = JSON.parse(localStorage.getItem('stockbot_watchlist') || '[]');
-    watchlist = watchlist.filter(s => s !== symbol);
-    localStorage.setItem('stockbot_watchlist', JSON.stringify(watchlist));
-    updateStats('watchlist', watchlist.length);
-    showToast(`${symbol} removed from watchlist`, 'success');
-    renderWatchlist();
-}
-
-function filterWatchlist() {
-    // Placeholder for search filtering
-}
-
-function sortWatchlist() {
-    // Placeholder for sorting
-}
-
-// Screener functions
-function setRSI(min, max) {
-    document.getElementById('rsiMin').value = min;
-    document.getElementById('rsiMax').value = max;
-}
-
-function setPrice(min, max) {
-    document.getElementById('priceMin').value = min;
-    document.getElementById('priceMax').value = max === 999999 ? '' : max;
-}
-
-function setVolume(min, max) {
-    document.getElementById('volumeMin').value = min;
-    document.getElementById('volumeMax').value = max === 999999 ? '' : max;
-}
-
-function setDividend(min, max) {
-    document.getElementById('dividendMin').value = min;
-    document.getElementById('dividendMax').value = max === 100 ? '' : max;
-}
-
-function resetFilters() {
-    document.getElementById('rsiMin').value = '0';
-    document.getElementById('rsiMax').value = '100';
-    document.getElementById('priceMin').value = '';
-    document.getElementById('priceMax').value = '';
-    document.getElementById('volumeMin').value = '';
-    document.getElementById('volumeMax').value = '';
-    document.getElementById('dividendMin').value = '';
-    document.getElementById('dividendMax').value = '';
-    document.getElementById('marketCapFilter').value = '';
-    document.getElementById('sectorFilter').value = '';
-    showToast('Filters reset', 'info');
-}
-
-function runScreener() {
-    updateStats('screened');
-    showToast('Screener functionality requires market data API integration', 'info');
-    document.getElementById('resultsCount').textContent = '0 matches';
-}
-
-// Alert functions
-function showAddAlertModal() {
-    document.getElementById('alertModal').style.display = 'flex';
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-function closeAlertModal() {
-    document.getElementById('alertModal').style.display = 'none';
-}
-
-function createAlert() {
-    const symbol = document.getElementById('alertSymbol').value.trim().toUpperCase();
-    const type = document.getElementById('alertType').value;
-    const target = document.getElementById('alertTarget').value;
-
-    if (!symbol || !target) {
-        showToast('Please fill in all fields', 'warning');
-        return;
-    }
-
-    const alerts = JSON.parse(localStorage.getItem('stockbot_alerts') || '[]');
-    alerts.push({ symbol, type, target, created: new Date().toISOString() });
-    localStorage.setItem('stockbot_alerts', JSON.stringify(alerts));
-    updateStats('alerts', alerts.length);
-
-    closeAlertModal();
-    showToast(`Alert created for ${symbol}`, 'success');
-    renderAlerts();
-}
-
-function renderAlerts() {
-    const alerts = JSON.parse(localStorage.getItem('stockbot_alerts') || '[]');
-    const list = document.getElementById('alertsList');
-
-    if (alerts.length === 0) {
-        list.innerHTML = `
-            <div class="stockbot-empty-state">
-                <i data-lucide="bell-off"></i>
-                <p>No alerts configured</p>
-                <p class="stockbot-empty-hint">Create price alerts to get notified when stocks hit your target</p>
-                <button class="stockbot-btn stockbot-btn-primary" onclick="showAddAlertModal()">
-                    <i data-lucide="plus"></i>
-                    Create Your First Alert
-                </button>
-            </div>
-        `;
-    }
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-function connectTelegram() {
-    showToast('Telegram integration coming soon! This will allow you to receive price alerts directly on Telegram.', 'info');
-}
-
-// Toast notification
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `flash ${type}`;
-    toast.innerHTML = `> ${message}`;
-
-    let container = document.querySelector('.flash-messages');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'flash-messages';
-        document.body.appendChild(container);
-    }
-
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-// Enter key to send
-document.getElementById('chatInput')?.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
-
-// Close modal on backdrop click
-document.getElementById('alertModal')?.addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeAlertModal();
-    }
-});
-
-// Initialize watchlist and alerts on load
-document.addEventListener('DOMContentLoaded', function() {
-    renderWatchlist();
-    renderAlerts();
-});
-</script>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+<script src="{{ url_for('static', filename='js/stockbot.js') }}"></script>
 {% endblock %}

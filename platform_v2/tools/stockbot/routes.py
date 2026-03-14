@@ -1,13 +1,37 @@
 """
 StockBot Routes - AI Stock Screener
-Phase 7: Standalone Apps - Uses archie_bridge for local-first AI with team agents
-Updated: 2026-01-21 - Now uses Stock & Market Expert via archie_bridge
+Phase 1 backend: market data, portfolio, watchlist, alerts + AI chat
+Updated: 2026-03-14 - Added 12 trading endpoints + upgraded AI chat with live data injection
 """
 
-from flask import render_template, jsonify, request
-from . import stockbot_bp
+import re
 import sys
 import logging
+
+from flask import render_template, jsonify, request
+from flask_login import login_required, current_user
+
+from . import stockbot_bp
+from .services.market_data_service import (
+    get_quote,
+    get_history,
+    get_company_info,
+    batch_update_prices,
+    search_tickers,
+    calculate_indicators,
+)
+from .services.portfolio_service import (
+    get_watchlist,
+    add_to_watchlist,
+    remove_from_watchlist,
+    get_portfolio,
+    get_portfolio_summary,
+    record_transaction,
+    get_transactions,
+    create_alert,
+    get_alerts,
+    check_alerts,
+)
 
 # Add ai_bridge to path for archie_bridge import
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
@@ -30,10 +54,9 @@ logger = logging.getLogger(__name__)
 # Stock & Market Expert agent ID
 STOCKBOT_AGENT_ID = 44
 
-# Fallback Ollama endpoint (if bridge unavailable)
+# Fallback Ollama endpoint
 OLLAMA_URL = "http://localhost:11434"
 
-# System prompt for stock AI
 STOCKBOT_SYSTEM_PROMPT = """You are ALPHA, an AI stock market analyst assistant. You provide educational information about stocks, market analysis, and trading concepts.
 
 IMPORTANT RULES:
@@ -56,6 +79,43 @@ You can help with:
 Keep responses educational and balanced. Use bullet points for complex topics.
 Always maintain a neutral, analytical tone."""
 
+# Regex to detect tickers in messages (e.g. $AAPL, AAPL, MSFT)
+_TICKER_RE = re.compile(r"\b\$?([A-Z]{1,5})\b")
+
+
+def _extract_tickers(text: str) -> list:
+    """Extract uppercase ticker candidates from a message."""
+    stopwords = {"I", "A", "THE", "FOR", "AND", "OR", "IS", "IT", "IN", "ON", "AT", "TO", "MY"}
+    found = []
+    for m in _TICKER_RE.finditer(text.upper()):
+        t = m.group(1)
+        if t not in stopwords and len(t) >= 2:
+            found.append(t)
+    return list(dict.fromkeys(found))[:3]  # max 3 tickers
+
+
+def _build_market_context(tickers: list) -> str:
+    """Fetch live quotes for tickers and format as context string."""
+    if not tickers:
+        return ""
+    lines = ["[Live Market Data]"]
+    for ticker in tickers:
+        try:
+            q = get_quote(ticker)
+            if q.get("price") is not None:
+                price = q["price"]
+                chg = q.get("change_pct")
+                chg_str = f" ({chg:+.2f}%)" if chg is not None else ""
+                pe = q.get("pe_ratio")
+                pe_str = f" | P/E: {pe:.1f}" if pe else ""
+                lines.append(f"  {ticker}: ${price:.2f}{chg_str}{pe_str}")
+        except Exception:
+            pass
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
+# ─── Main page ────────────────────────────────────────────────────────────────
+
 
 @stockbot_bp.route("/")
 def index():
@@ -63,17 +123,19 @@ def index():
     return render_template("tools/stockbot.html")
 
 
+# ─── Status ───────────────────────────────────────────────────────────────────
+
+
 @stockbot_bp.route("/api/status")
 def status():
     """API endpoint for module health check"""
     import requests as req
 
-    # Check Ollama connection (fallback)
     ollama_healthy = False
     try:
         response = req.get(f"{OLLAMA_URL}/api/tags", timeout=5)
         ollama_healthy = response.status_code == 200
-    except:
+    except Exception:
         pass
 
     return jsonify(
@@ -93,21 +155,29 @@ def status():
     )
 
 
+# ─── AI Chat (upgraded with live market data injection) ───────────────────────
+
+
 @stockbot_bp.route("/api/chat", methods=["POST"])
+@login_required
 def chat():
-    """Send message to stock AI via archie_bridge"""
+    """Send message to stock AI via archie_bridge, with live ticker data injected."""
     data = request.get_json() or {}
     message = data.get("message", "")
-    user_id = data.get("user_id", 1)
+    user_id = current_user.id if current_user.is_authenticated else data.get("user_id", 1)
 
     if not message:
         return jsonify({"success": False, "error": "Message is required"}), 400
 
+    # Inject live market context if tickers detected
+    tickers = _extract_tickers(message)
+    market_ctx = _build_market_context(tickers)
+    augmented_prompt = f"{market_ctx}\n\n{message}".strip() if market_ctx else message
+
     try:
         if BRIDGE_AVAILABLE:
-            # Use archie_bridge with Stock & Market Expert
             result = archie_bridge(
-                prompt=message,
+                prompt=augmented_prompt,
                 user_id=user_id,
                 agent_id=STOCKBOT_AGENT_ID,
                 system_prompt=STOCKBOT_SYSTEM_PROMPT,
@@ -129,11 +199,8 @@ def chat():
 
             if result.get("success"):
                 ai_response = result.get("response", "").strip()
-
-                # Always add disclaimer if not present
                 if "not financial advice" not in ai_response.lower() and "educational" not in ai_response.lower():
                     ai_response += "\n\n*Disclaimer: This is educational information only, not financial advice. Always do your own research and consult a financial advisor.*"
-
                 return jsonify(
                     {
                         "success": True,
@@ -142,12 +209,11 @@ def chat():
                         "agent": "Stock & Market Expert",
                         "source": result.get("source", "ai_bridge"),
                         "tokens_used": result.get("tokens_used", 0),
+                        "tickers_detected": tickers,
                     }
                 )
-            else:
-                logger.warning("archie_bridge returned error, falling back to direct Ollama")
 
-        # Fallback: Direct Ollama call
+        # Fallback: Direct Ollama
         import requests as req
 
         _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
@@ -156,7 +222,7 @@ def chat():
             f"{OLLAMA_URL}/api/generate",
             json={
                 "model": model,
-                "prompt": f"{STOCKBOT_SYSTEM_PROMPT}\n\nUser: {message}\n\nALPHA:",
+                "prompt": f"{STOCKBOT_SYSTEM_PROMPT}\n\n{augmented_prompt}\n\nALPHA:",
                 "stream": False,
                 "options": {"temperature": 0.5, "num_predict": 1500},
             },
@@ -166,11 +232,8 @@ def chat():
         if response.status_code == 200:
             result = response.json()
             ai_response = result.get("response", "").strip()
-
-            # Always add disclaimer if not present
             if "not financial advice" not in ai_response.lower() and "educational" not in ai_response.lower():
                 ai_response += "\n\n*Disclaimer: This is educational information only, not financial advice. Always do your own research and consult a financial advisor.*"
-
             return jsonify(
                 {
                     "success": True,
@@ -178,29 +241,195 @@ def chat():
                     "model": model,
                     "agent": "Direct Ollama (fallback)",
                     "source": "ollama_direct",
+                    "tickers_detected": tickers,
                 }
             )
         else:
-            logger.error(f"Ollama error: {response.status_code}")
-            return (
-                jsonify({"success": False, "error": "AI service temporarily unavailable"}),
-                503,
-            )
+            return jsonify({"success": False, "error": "AI service temporarily unavailable"}), 503
 
     except Exception as e:
-        logger.error(f"StockBot chat error: {str(e)}")
-        return (
-            jsonify({"success": False, "error": f"An unexpected error occurred: {str(e)}"}),
-            500,
-        )
+        logger.error(f"StockBot chat error: {e}")
+        return jsonify({"success": False, "error": f"An unexpected error occurred: {e}"}), 500
+
+
+# ─── Market Data Endpoints ────────────────────────────────────────────────────
+
+
+@stockbot_bp.route("/api/quote/<ticker>", methods=["GET"])
+@login_required
+def api_quote(ticker):
+    """GET /api/quote/<ticker> — latest price quote."""
+    result = get_quote(ticker.upper())
+    if result.get("error"):
+        return jsonify({"success": False, "error": result["error"]}), 404
+    return jsonify({"success": True, "quote": result})
+
+
+@stockbot_bp.route("/api/history/<ticker>", methods=["GET"])
+@login_required
+def api_history(ticker):
+    """GET /api/history/<ticker>?period=1mo&indicators=SMA20,RSI — OHLCV + optional indicators."""
+    period = request.args.get("period", "1mo")
+    indicators_param = request.args.get("indicators", "")
+    indicator_list = [i.strip() for i in indicators_param.split(",") if i.strip()]
+
+    ohlcv = get_history(ticker.upper(), period)
+    result = {"ticker": ticker.upper(), "period": period, "ohlcv": ohlcv}
+
+    if indicator_list and ohlcv:
+        result["indicators"] = calculate_indicators(ohlcv, indicator_list)
+
+    return jsonify({"success": True, **result})
+
+
+@stockbot_bp.route("/api/search", methods=["GET"])
+@login_required
+def api_search():
+    """GET /api/search?q=AAPL — ticker search."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"success": False, "error": "q parameter required"}), 400
+    results = search_tickers(query)
+    return jsonify({"success": True, "results": results})
+
+
+@stockbot_bp.route("/api/company/<ticker>", methods=["GET"])
+@login_required
+def api_company(ticker):
+    """GET /api/company/<ticker> — company info."""
+    result = get_company_info(ticker.upper())
+    if result.get("error"):
+        return jsonify({"success": False, "error": result["error"]}), 404
+    return jsonify({"success": True, "company": result})
+
+
+# ─── Watchlist Endpoints ──────────────────────────────────────────────────────
+
+
+@stockbot_bp.route("/api/watchlist", methods=["GET", "POST", "DELETE"])
+@login_required
+def api_watchlist():
+    """GET/POST/DELETE /api/watchlist — manage user's watchlist."""
+    user_id = current_user.id
+
+    if request.method == "GET":
+        items = get_watchlist(user_id)
+        return jsonify({"success": True, "watchlist": items})
+
+    elif request.method == "POST":
+        data = request.get_json() or {}
+        ticker = data.get("ticker", "").strip().upper()
+        notes = data.get("notes")
+        if not ticker:
+            return jsonify({"success": False, "error": "ticker is required"}), 400
+        result = add_to_watchlist(user_id, ticker, notes)
+        return jsonify(result), 201
+
+    elif request.method == "DELETE":
+        data = request.get_json() or {}
+        ticker = data.get("ticker", "").strip().upper()
+        if not ticker:
+            return jsonify({"success": False, "error": "ticker is required"}), 400
+        removed = remove_from_watchlist(user_id, ticker)
+        return jsonify({"success": removed, "ticker": ticker})
+
+
+# ─── Portfolio Endpoints ──────────────────────────────────────────────────────
+
+
+@stockbot_bp.route("/api/portfolio", methods=["GET"])
+@login_required
+def api_portfolio():
+    """GET /api/portfolio — portfolio summary with P&L."""
+    user_id = current_user.id
+    summary = get_portfolio_summary(user_id)
+    return jsonify({"success": True, **summary})
+
+
+@stockbot_bp.route("/api/portfolio/trade", methods=["POST"])
+@login_required
+def api_trade():
+    """POST /api/portfolio/trade — record a buy/sell transaction."""
+    user_id = current_user.id
+    data = request.get_json() or {}
+    ticker = data.get("ticker", "").strip().upper()
+    action = data.get("action", "").lower()
+    shares = data.get("shares")
+    price = data.get("price")
+    paper_trade = data.get("paper_trade", True)
+
+    if not all([ticker, action, shares, price]):
+        return jsonify({"success": False, "error": "ticker, action, shares, price required"}), 400
+
+    try:
+        shares = float(shares)
+        price = float(price)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "shares and price must be numeric"}), 400
+
+    result = record_transaction(user_id, ticker, action, shares, price, paper_trade)
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result), 201
+
+
+@stockbot_bp.route("/api/transactions", methods=["GET"])
+@login_required
+def api_transactions():
+    """GET /api/transactions?ticker=AAPL&limit=50 — transaction history."""
+    user_id = current_user.id
+    ticker = request.args.get("ticker")
+    try:
+        limit = int(request.args.get("limit", 50))
+    except ValueError:
+        limit = 50
+    txns = get_transactions(user_id, ticker, limit)
+    return jsonify({"success": True, "transactions": txns, "count": len(txns)})
+
+
+# ─── Alerts Endpoints ─────────────────────────────────────────────────────────
+
+
+@stockbot_bp.route("/api/alerts", methods=["GET", "POST"])
+@login_required
+def api_alerts():
+    """GET/POST /api/alerts — list or create price alerts."""
+    user_id = current_user.id
+
+    if request.method == "GET":
+        alerts = get_alerts(user_id)
+        return jsonify({"success": True, "alerts": alerts})
+
+    elif request.method == "POST":
+        data = request.get_json() or {}
+        ticker = data.get("ticker", "").strip().upper()
+        condition = data.get("condition", "")
+        threshold = data.get("threshold")
+
+        if not all([ticker, condition, threshold is not None]):
+            return jsonify({"success": False, "error": "ticker, condition, threshold required"}), 400
+
+        try:
+            threshold = float(threshold)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "threshold must be numeric"}), 400
+
+        result = create_alert(user_id, ticker, condition, threshold)
+        if not result.get("success"):
+            return jsonify(result), 400
+        return jsonify(result), 201
+
+
+# ─── Legacy / Educational Endpoints (kept from original) ─────────────────────
 
 
 @stockbot_bp.route("/api/analyze", methods=["POST"])
+@login_required
 def analyze_stock():
     """Get AI analysis of a stock ticker"""
     data = request.get_json() or {}
     ticker = data.get("ticker", "").upper()
-    analysis_type = data.get("type", "overview")  # overview, fundamental, technical
+    analysis_type = data.get("type", "overview")
 
     if not ticker:
         return jsonify({"success": False, "error": "Stock ticker is required"}), 400
@@ -232,11 +461,11 @@ Remember: This is educational only, not a trading recommendation.""",
     prompt = prompts.get(analysis_type, prompts["overview"])
 
     try:
+        import requests as req
+
         _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        _analyze_model = _default_model or (
-            _dispatcher.get_model_for_capability("conversation") if _dispatcher else "dolphin3-8k:latest"
-        )
-        response = requests.post(
+        _analyze_model = _default_model or "dolphin3-8k:latest"
+        response = req.post(
             f"{OLLAMA_URL}/api/generate",
             json={
                 "model": _analyze_model,
@@ -268,13 +497,10 @@ Remember: This is educational only, not a trading recommendation.""",
                 }
             )
         else:
-            return (
-                jsonify({"success": False, "error": "Analysis service unavailable"}),
-                503,
-            )
+            return jsonify({"success": False, "error": "Analysis service unavailable"}), 503
 
     except Exception as e:
-        logger.error(f"Stock analysis error: {str(e)}")
+        logger.error(f"Stock analysis error: {e}")
         return jsonify({"success": False, "error": "Could not complete analysis"}), 500
 
 
@@ -283,113 +509,40 @@ def get_concepts():
     """Get list of educational stock market concepts"""
     concepts = {
         "basics": [
-            {
-                "id": "what_is_stock",
-                "name": "What is a Stock?",
-                "difficulty": "beginner",
-            },
-            {
-                "id": "market_cap",
-                "name": "Market Capitalization",
-                "difficulty": "beginner",
-            },
-            {
-                "id": "dividends",
-                "name": "Dividends Explained",
-                "difficulty": "beginner",
-            },
-            {
-                "id": "bull_bear",
-                "name": "Bull vs Bear Markets",
-                "difficulty": "beginner",
-            },
+            {"id": "what_is_stock", "name": "What is a Stock?", "difficulty": "beginner"},
+            {"id": "market_cap", "name": "Market Capitalization", "difficulty": "beginner"},
+            {"id": "dividends", "name": "Dividends Explained", "difficulty": "beginner"},
+            {"id": "bull_bear", "name": "Bull vs Bear Markets", "difficulty": "beginner"},
         ],
         "fundamental": [
             {"id": "pe_ratio", "name": "P/E Ratio", "difficulty": "intermediate"},
-            {
-                "id": "eps",
-                "name": "Earnings Per Share (EPS)",
-                "difficulty": "intermediate",
-            },
-            {
-                "id": "revenue_profit",
-                "name": "Revenue vs Profit",
-                "difficulty": "beginner",
-            },
-            {
-                "id": "balance_sheet",
-                "name": "Reading Balance Sheets",
-                "difficulty": "advanced",
-            },
+            {"id": "eps", "name": "Earnings Per Share (EPS)", "difficulty": "intermediate"},
+            {"id": "revenue_profit", "name": "Revenue vs Profit", "difficulty": "beginner"},
+            {"id": "balance_sheet", "name": "Reading Balance Sheets", "difficulty": "advanced"},
         ],
         "technical": [
-            {
-                "id": "candlesticks",
-                "name": "Candlestick Charts",
-                "difficulty": "intermediate",
-            },
-            {
-                "id": "moving_averages",
-                "name": "Moving Averages",
-                "difficulty": "intermediate",
-            },
+            {"id": "candlesticks", "name": "Candlestick Charts", "difficulty": "intermediate"},
+            {"id": "moving_averages", "name": "Moving Averages", "difficulty": "intermediate"},
             {"id": "rsi", "name": "RSI Indicator", "difficulty": "intermediate"},
-            {
-                "id": "support_resistance",
-                "name": "Support & Resistance",
-                "difficulty": "intermediate",
-            },
+            {"id": "support_resistance", "name": "Support & Resistance", "difficulty": "intermediate"},
         ],
         "strategies": [
-            {
-                "id": "value_investing",
-                "name": "Value Investing",
-                "difficulty": "intermediate",
-            },
-            {
-                "id": "growth_investing",
-                "name": "Growth Investing",
-                "difficulty": "intermediate",
-            },
-            {
-                "id": "dollar_cost_avg",
-                "name": "Dollar-Cost Averaging",
-                "difficulty": "beginner",
-            },
-            {
-                "id": "diversification",
-                "name": "Diversification",
-                "difficulty": "beginner",
-            },
+            {"id": "value_investing", "name": "Value Investing", "difficulty": "intermediate"},
+            {"id": "growth_investing", "name": "Growth Investing", "difficulty": "intermediate"},
+            {"id": "dollar_cost_avg", "name": "Dollar-Cost Averaging", "difficulty": "beginner"},
+            {"id": "diversification", "name": "Diversification", "difficulty": "beginner"},
         ],
         "risk": [
-            {
-                "id": "risk_management",
-                "name": "Risk Management Basics",
-                "difficulty": "intermediate",
-            },
-            {
-                "id": "stop_loss",
-                "name": "Stop-Loss Orders",
-                "difficulty": "intermediate",
-            },
-            {
-                "id": "position_sizing",
-                "name": "Position Sizing",
-                "difficulty": "advanced",
-            },
-            {
-                "id": "volatility",
-                "name": "Understanding Volatility",
-                "difficulty": "intermediate",
-            },
+            {"id": "risk_management", "name": "Risk Management Basics", "difficulty": "intermediate"},
+            {"id": "stop_loss", "name": "Stop-Loss Orders", "difficulty": "intermediate"},
+            {"id": "position_sizing", "name": "Position Sizing", "difficulty": "advanced"},
+            {"id": "volatility", "name": "Understanding Volatility", "difficulty": "intermediate"},
         ],
     }
 
     category = request.args.get("category")
     if category and category in concepts:
         return jsonify({"success": True, "category": category, "concepts": concepts[category]})
-
     return jsonify({"success": True, "concepts": concepts})
 
 
@@ -409,11 +562,11 @@ def explain_concept(concept_id):
         return jsonify({"success": False, "error": "Concept not found"}), 404
 
     try:
+        import requests as req
+
         _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        _concept_model = _default_model or (
-            _dispatcher.get_model_for_capability("conversation") if _dispatcher else "dolphin3-8k:latest"
-        )
-        response = requests.post(
+        _concept_model = _default_model or "dolphin3-8k:latest"
+        response = req.post(
             f"{OLLAMA_URL}/api/generate",
             json={
                 "model": _concept_model,
@@ -447,59 +600,13 @@ def explain_concept(concept_id):
             return jsonify({"success": False, "error": "Service unavailable"}), 503
 
     except Exception as e:
-        logger.error(f"Concept explanation error: {str(e)}")
-        return (
-            jsonify({"success": False, "error": "Could not retrieve explanation"}),
-            500,
-        )
-
-
-@stockbot_bp.route("/api/watchlist", methods=["GET", "POST", "DELETE"])
-def manage_watchlist():
-    """Manage user's stock watchlist"""
-    if request.method == "GET":
-        # In production, fetch from database
-        # For now, return sample watchlist
-        return jsonify(
-            {
-                "success": True,
-                "watchlist": [
-                    {"ticker": "AAPL", "name": "Apple Inc.", "added": "2026-01-15"},
-                    {
-                        "ticker": "MSFT",
-                        "name": "Microsoft Corp.",
-                        "added": "2026-01-14",
-                    },
-                    {"ticker": "GOOGL", "name": "Alphabet Inc.", "added": "2026-01-13"},
-                ],
-            }
-        )
-
-    elif request.method == "POST":
-        data = request.get_json() or {}
-        ticker = data.get("ticker", "").upper()
-
-        if not ticker:
-            return jsonify({"success": False, "error": "Ticker is required"}), 400
-
-        # In production, save to database
-        return jsonify({"success": True, "message": f"{ticker} added to watchlist"})
-
-    elif request.method == "DELETE":
-        data = request.get_json() or {}
-        ticker = data.get("ticker", "").upper()
-
-        if not ticker:
-            return jsonify({"success": False, "error": "Ticker is required"}), 400
-
-        # In production, remove from database
-        return jsonify({"success": True, "message": f"{ticker} removed from watchlist"})
+        logger.error(f"Concept explanation error: {e}")
+        return jsonify({"success": False, "error": "Could not retrieve explanation"}), 500
 
 
 @stockbot_bp.route("/api/models", methods=["GET"])
 def get_available_models():
     """Get available AI models via BridgeDispatcher"""
-    # Models come from the bridge dispatcher
     models = []
     if _dispatcher:
         try:

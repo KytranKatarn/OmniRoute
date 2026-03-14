@@ -1,0 +1,606 @@
+/* ============================================================
+   Google Work Suite — LCARS teal theme
+   Prefix: gws-
+   ============================================================ */
+
+:root {
+  --gws-accent:  #0cf;
+  --gws-accent2: #0af;
+  --gws-bg:      #0d0d1a;
+  --gws-bg2:     #111827;
+  --gws-border:  #234;
+  --gws-text:    #aab;
+  --gws-text-hi: #dde;
+  --gws-muted:   #667;
+  --gws-danger:  #f44;
+  --gws-radius:  4px;
+}
+
+/* ── Wrapper ─────────────────────────────────────────────── */
+
+.gws-wrapper {
+  background: var(--gws-bg);
+  color: var(--gws-text);
+  min-height: calc(100vh - 60px);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+}
+
+/* ── Top Bar ─────────────────────────────────────────────── */
+
+.gws-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--gws-border);
+  background: var(--gws-bg2);
+  flex-wrap: wrap;
+}
+
+.gws-top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.gws-top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Labels & Inputs ─────────────────────────────────────── */
+
+.gws-label {
+  color: var(--gws-text);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.gws-select,
+.gws-input,
+.gws-textarea {
+  background: #0a0a14;
+  border: 1px solid var(--gws-border);
+  border-radius: var(--gws-radius);
+  color: var(--gws-text-hi);
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.gws-select:focus,
+.gws-input:focus,
+.gws-textarea:focus {
+  border-color: var(--gws-accent);
+}
+
+.gws-select { cursor: pointer; }
+.gws-textarea { resize: vertical; width: 100%; box-sizing: border-box; }
+.gws-input { width: 100%; box-sizing: border-box; }
+
+/* ── Buttons ─────────────────────────────────────────────── */
+
+.gws-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--gws-radius);
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.gws-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.gws-btn-primary {
+  background: var(--gws-accent);
+  color: #000;
+  border-color: var(--gws-accent);
+}
+.gws-btn-primary:hover:not(:disabled) { background: var(--gws-accent2); }
+
+.gws-btn-secondary {
+  background: transparent;
+  color: var(--gws-accent);
+  border-color: var(--gws-accent);
+}
+.gws-btn-secondary:hover:not(:disabled) { background: rgba(0,204,255,0.08); }
+
+.gws-btn-sync {
+  background: transparent;
+  color: var(--gws-text);
+  border-color: var(--gws-border);
+}
+.gws-btn-sync:hover:not(:disabled) { border-color: var(--gws-accent); color: var(--gws-accent); }
+
+.gws-btn-ghost {
+  background: transparent;
+  color: var(--gws-muted);
+  border-color: transparent;
+}
+.gws-btn-ghost:hover:not(:disabled) { color: var(--gws-text-hi); }
+
+.gws-btn-icon {
+  padding: 5px 8px;
+  background: transparent;
+  border-color: var(--gws-border);
+  color: var(--gws-text);
+}
+.gws-btn-icon:hover:not(:disabled) { border-color: var(--gws-accent); color: var(--gws-accent); }
+.gws-btn-icon.active { color: var(--gws-accent); border-color: var(--gws-accent); }
+
+.gws-btn-danger {
+  background: transparent;
+  color: var(--gws-danger);
+  border-color: var(--gws-danger);
+}
+.gws-btn-danger:hover:not(:disabled) { background: rgba(255,68,68,0.1); }
+
+/* ── Tabs ────────────────────────────────────────────────── */
+
+.gws-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--gws-border);
+  background: var(--gws-bg2);
+  padding: 0 16px;
+}
+
+.gws-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--gws-text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.gws-tab:hover:not(:disabled):not(.gws-coming-soon-tab) {
+  color: var(--gws-accent);
+}
+
+.gws-tab.active {
+  color: var(--gws-accent);
+  border-bottom-color: var(--gws-accent);
+}
+
+.gws-coming-soon-tab {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Tab Panels ──────────────────────────────────────────── */
+
+.gws-tab-panel {
+  padding: 12px 16px;
+}
+
+/* ── Inbox Toolbar ───────────────────────────────────────── */
+
+.gws-inbox-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gws-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gws-page-info {
+  font-size: 0.78rem;
+  color: var(--gws-muted);
+  min-width: 80px;
+  text-align: center;
+}
+
+/* ── Inbox Layout ────────────────────────────────────────── */
+
+.gws-inbox-layout {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--gws-border);
+  border-radius: var(--gws-radius);
+  overflow: hidden;
+  min-height: 500px;
+}
+
+/* ── Email List ──────────────────────────────────────────── */
+
+.gws-email-list {
+  width: 40%;
+  min-width: 240px;
+  border-right: 1px solid var(--gws-border);
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  background: var(--gws-bg);
+}
+
+.gws-email-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gws-border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.gws-email-item:hover { background: rgba(0,204,255,0.04); }
+.gws-email-item.selected { background: rgba(0,204,255,0.09); }
+
+.gws-email-item.unread .gws-email-item-sender,
+.gws-email-item.unread .gws-email-item-subject {
+  font-weight: 700;
+  color: var(--gws-text-hi);
+}
+
+.gws-email-item-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.gws-email-item-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.gws-email-item-sender {
+  font-size: 0.82rem;
+  color: var(--gws-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gws-email-item-time {
+  font-size: 0.72rem;
+  color: var(--gws-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.gws-email-item-subject {
+  font-size: 0.82rem;
+  color: var(--gws-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gws-email-item-snippet {
+  font-size: 0.75rem;
+  color: var(--gws-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gws-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gws-accent);
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.gws-star {
+  color: #fc3;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+/* ── Email Detail ────────────────────────────────────────── */
+
+.gws-email-detail {
+  flex: 1;
+  padding: 16px 20px;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  background: var(--gws-bg);
+}
+
+.gws-email-header {
+  border-bottom: 1px solid var(--gws-border);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+}
+
+.gws-email-subject {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--gws-text-hi);
+  margin: 0 0 10px;
+}
+
+.gws-email-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.gws-email-meta-row {
+  display: flex;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.gws-email-meta-label {
+  color: var(--gws-muted);
+  min-width: 40px;
+}
+
+.gws-email-meta-val {
+  color: var(--gws-text);
+}
+
+.gws-email-body {
+  max-width: 700px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.gws-email-body-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--gws-text);
+  margin: 0;
+}
+
+.gws-email-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Rules Tab ───────────────────────────────────────────── */
+
+.gws-rules-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.gws-section-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--gws-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+.gws-rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gws-rule-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--gws-border);
+  border-radius: var(--gws-radius);
+  background: var(--gws-bg2);
+  flex-wrap: wrap;
+}
+
+.gws-rule-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.gws-rule-card-name {
+  font-weight: 700;
+  color: var(--gws-text-hi);
+  font-size: 0.85rem;
+}
+
+.gws-rule-card-meta {
+  font-size: 0.75rem;
+  color: var(--gws-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gws-rule-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Modal (LCARS overlay pattern) ──────────────────────── */
+
+.gws-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.gws-modal {
+  background: var(--gws-bg2);
+  border: 1px solid var(--gws-accent);
+  border-radius: var(--gws-radius);
+  box-shadow: 0 0 30px rgba(0,204,255,0.15);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gws-modal--wide { max-width: 680px; }
+
+.gws-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--gws-border);
+  background: rgba(0,204,255,0.05);
+  flex-shrink: 0;
+}
+
+.gws-modal-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--gws-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.gws-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--gws-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.gws-modal-close:hover { color: var(--gws-accent); }
+
+.gws-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gws-modal-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--gws-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* ── Form Fields ─────────────────────────────────────────── */
+
+.gws-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gws-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.gws-checkbox {
+  accent-color: var(--gws-accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.gws-rule-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--gws-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--gws-border);
+  padding-bottom: 4px;
+  margin-top: 4px;
+}
+
+.gws-muted { color: var(--gws-muted); font-weight: 400; }
+
+/* ── Empty State ─────────────────────────────────────────── */
+
+.gws-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--gws-muted);
+  gap: 10px;
+  text-align: center;
+}
+
+.gws-empty-state svg { width: 32px; height: 32px; opacity: 0.4; }
+.gws-empty-state p { margin: 0; font-size: 0.82rem; }
+
+/* ── Toast ───────────────────────────────────────────────── */
+
+.gws-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--gws-accent);
+  color: #000;
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 10px 18px;
+  border-radius: var(--gws-radius);
+  box-shadow: 0 4px 16px rgba(0,204,255,0.3);
+  z-index: 2000;
+  max-width: 320px;
+  pointer-events: none;
+}
+
+.gws-toast--error {
+  background: var(--gws-danger);
+  box-shadow: 0 4px 16px rgba(255,68,68,0.3);
+  color: #fff;
+}

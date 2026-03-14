@@ -6,6 +6,15 @@ Updated: 2026-01-21 - Now uses River (Wellness Therapist) via archie_bridge
 
 from flask import render_template, jsonify, request
 from . import therapy_bp
+from .services.therapy_service import (
+    log_mood as svc_log_mood,
+    get_mood_history,
+    log_session,
+    get_session_history,
+    get_therapy_stats,
+    schedule_session,
+    get_ai_context,
+)
 import sys
 import logging
 import re
@@ -160,6 +169,10 @@ def chat():
             }
         )
 
+    # Inject DB context into system prompt
+    ai_ctx = get_ai_context(user_id)
+    enriched_system_prompt = THERAPY_SYSTEM_PROMPT + (f"\n\n{ai_ctx}" if ai_ctx else "")
+
     try:
         if BRIDGE_AVAILABLE:
             # Use archie_bridge with River (Wellness Therapist)
@@ -167,7 +180,7 @@ def chat():
                 prompt=message,
                 user_id=user_id,
                 agent_id=THERAPY_AGENT_ID,
-                system_prompt=THERAPY_SYSTEM_PROMPT,
+                system_prompt=enriched_system_prompt,
                 enable_memory=True,
                 try_local_first=True,
                 task_type="therapy_session",
@@ -349,28 +362,35 @@ def get_exercise_guide(exercise_id):
 
 @therapy_bp.route("/api/mood", methods=["POST"])
 def log_mood():
-    """Log a mood entry"""
+    """Log a mood entry — persists to DB."""
     data = request.get_json() or {}
-    mood = data.get("mood")  # 1-10 scale
+    mood_score = data.get("mood_score") or data.get("mood")
+    energy_score = data.get("energy_score")
     notes = data.get("notes", "")
-    activities = data.get("activities", [])
+    tags = data.get("tags", [])
+    user_id = data.get("user_id", 1)
 
-    if not mood or not isinstance(mood, int) or mood < 1 or mood > 10:
+    if not mood_score or not isinstance(mood_score, int) or mood_score < 1 or mood_score > 10:
         return (
-            jsonify({"success": False, "error": "Mood must be a number between 1 and 10"}),
+            jsonify({"success": False, "error": "mood_score must be a number between 1 and 10"}),
             400,
         )
 
-    # In production, save to database
-    # For now, just acknowledge
-    return jsonify(
-        {
-            "success": True,
-            "message": "Mood logged successfully",
-            "mood": mood,
-            "encouragement": get_mood_encouragement(mood),
-        }
-    )
+    try:
+        result = svc_log_mood(user_id, mood_score, energy_score, notes, tags)
+        return jsonify(
+            {
+                "success": True,
+                "message": "Mood logged successfully",
+                "id": result["id"],
+                "logged_at": result["logged_at"],
+                "mood_score": mood_score,
+                "encouragement": get_mood_encouragement(mood_score),
+            }
+        )
+    except Exception as e:
+        logger.error(f"log_mood error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def get_mood_encouragement(mood):
@@ -405,3 +425,79 @@ def get_available_models():
     if not models:
         models = [{"name": "default", "size": 0, "modified": ""}]
     return jsonify({"success": True, "models": models})
+
+
+@therapy_bp.route("/api/mood/history", methods=["GET"])
+def mood_history():
+    """Return mood timeline for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    limit = request.args.get("limit", 30, type=int)
+    try:
+        history = get_mood_history(user_id, limit=limit)
+        return jsonify({"success": True, "history": history})
+    except Exception as e:
+        logger.error(f"mood_history error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@therapy_bp.route("/api/session", methods=["POST"])
+def create_session():
+    """Log a therapy session."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id", 1)
+    session_type = data.get("session_type", "general")
+    notes = data.get("notes", "")
+    exercises_done = data.get("exercises_done", [])
+    duration_min = data.get("duration_min", 0)
+
+    try:
+        result = log_session(user_id, session_type, notes, exercises_done, duration_min)
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"create_session error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@therapy_bp.route("/api/session/history", methods=["GET"])
+def session_history():
+    """Return past therapy sessions for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    limit = request.args.get("limit", 20, type=int)
+    try:
+        history = get_session_history(user_id, limit=limit)
+        return jsonify({"success": True, "history": history})
+    except Exception as e:
+        logger.error(f"session_history error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@therapy_bp.route("/api/schedule", methods=["POST"])
+def schedule():
+    """Schedule a therapy session via Google Calendar (or local fallback)."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id", 1)
+    title = data.get("title", "Therapy Session")
+    datetime_str = data.get("datetime", "")
+    duration = data.get("duration", 60)
+
+    if not datetime_str:
+        return jsonify({"success": False, "error": "datetime is required"}), 400
+
+    try:
+        result = schedule_session(user_id, title, datetime_str, duration)
+        return jsonify({"success": True, "result": result})
+    except Exception as e:
+        logger.error(f"schedule error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@therapy_bp.route("/api/stats", methods=["GET"])
+def stats():
+    """Return aggregated therapy stats for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    try:
+        data = get_therapy_stats(user_id)
+        return jsonify({"success": True, **data})
+    except Exception as e:
+        logger.error(f"stats error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

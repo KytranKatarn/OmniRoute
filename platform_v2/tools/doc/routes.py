@@ -6,6 +6,16 @@ Updated: 2026-01-21 - Now uses Dr. Amara (Medical Advisor) via archie_bridge
 
 from flask import render_template, jsonify, request
 from . import doc_bp
+from .services.doc_service import (
+    log_symptoms as svc_log_symptoms,
+    get_symptom_history,
+    add_medication,
+    get_medications,
+    update_medication,
+    get_health_stats,
+    schedule_appointment,
+    get_ai_context,
+)
 import sys
 import logging
 
@@ -102,6 +112,10 @@ def chat():
     if not message:
         return jsonify({"success": False, "error": "Message is required"}), 400
 
+    # Inject DB context into system prompt
+    ai_ctx = get_ai_context(user_id)
+    enriched_system_prompt = MEDICAL_SYSTEM_PROMPT + (f"\n\n{ai_ctx}" if ai_ctx else "")
+
     try:
         if BRIDGE_AVAILABLE:
             # Use archie_bridge with Dr. Amara (Medical Advisor)
@@ -109,7 +123,7 @@ def chat():
                 prompt=message,
                 user_id=user_id,
                 agent_id=MEDICAL_AGENT_ID,
-                system_prompt=MEDICAL_SYSTEM_PROMPT,
+                system_prompt=enriched_system_prompt,
                 enable_memory=True,
                 try_local_first=True,  # Check knowledge base first
                 task_type="medical_consultation",
@@ -197,13 +211,20 @@ def chat():
 
 @doc_bp.route("/api/symptoms", methods=["POST"])
 def analyze_symptoms():
-    """Analyze symptoms (educational purposes only) via archie_bridge"""
+    """Persist symptom log and analyze symptoms (educational purposes only) via archie_bridge"""
     data = request.get_json() or {}
     symptoms = data.get("symptoms", "")
     severity = data.get("severity", 5)
     duration = data.get("duration", "unknown")
     areas = data.get("areas", [])
+    notes = data.get("notes", "")
     user_id = data.get("user_id", 1)
+
+    # Persist to DB
+    try:
+        svc_log_symptoms(user_id, symptoms if isinstance(symptoms, list) else [symptoms], severity, notes)
+    except Exception as db_err:
+        logger.warning(f"symptom persist failed (non-fatal): {db_err}")
 
     if not symptoms:
         return (
@@ -319,3 +340,82 @@ def get_available_models():
     if not models:
         models = [{"name": "default", "size": 0, "modified": ""}]
     return jsonify({"success": True, "models": models})
+
+
+@doc_bp.route("/api/symptoms/history", methods=["GET"])
+def symptom_history():
+    """Return symptom timeline for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    limit = request.args.get("limit", 20, type=int)
+    try:
+        history = get_symptom_history(user_id, limit=limit)
+        return jsonify({"success": True, "history": history})
+    except Exception as e:
+        logger.error(f"symptom_history error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@doc_bp.route("/api/medications", methods=["POST"])
+def create_medication():
+    """Add a new medication record."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id", 1)
+    name = data.get("name", "")
+    dosage = data.get("dosage", "")
+    frequency = data.get("frequency", "")
+    start_date = data.get("start_date")
+
+    if not name:
+        return jsonify({"success": False, "error": "name is required"}), 400
+
+    try:
+        result = add_medication(user_id, name, dosage, frequency, start_date)
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"create_medication error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@doc_bp.route("/api/medications", methods=["GET"])
+def list_medications():
+    """List active medications for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    active_only = request.args.get("active_only", "true").lower() != "false"
+    try:
+        meds = get_medications(user_id, active_only=active_only)
+        return jsonify({"success": True, "medications": meds})
+    except Exception as e:
+        logger.error(f"list_medications error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@doc_bp.route("/api/schedule", methods=["POST"])
+def schedule():
+    """Schedule a medical appointment via Google Calendar (or local fallback)."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id", 1)
+    title = data.get("title", "Medical Appointment")
+    datetime_str = data.get("datetime", "")
+    duration = data.get("duration", 30)
+
+    if not datetime_str:
+        return jsonify({"success": False, "error": "datetime is required"}), 400
+
+    try:
+        result = schedule_appointment(user_id, title, datetime_str, duration)
+        return jsonify({"success": True, "result": result})
+    except Exception as e:
+        logger.error(f"schedule error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@doc_bp.route("/api/stats", methods=["GET"])
+def stats():
+    """Return aggregated health stats for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    try:
+        data = get_health_stats(user_id)
+        return jsonify({"success": True, **data})
+    except Exception as e:
+        logger.error(f"stats error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

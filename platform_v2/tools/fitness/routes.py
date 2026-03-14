@@ -6,6 +6,16 @@ Updated: 2026-01-21 - Now uses Wellness Coach via archie_bridge
 
 from flask import render_template, jsonify, request
 from . import fitness_bp
+from .services.fitness_service import (
+    log_workout as svc_log_workout,
+    get_workout_history,
+    set_goal,
+    get_goals,
+    update_goal_progress,
+    get_fitness_stats,
+    schedule_workout,
+    get_ai_context,
+)
 import sys
 import logging
 
@@ -104,6 +114,10 @@ def chat():
     if not message:
         return jsonify({"success": False, "error": "Message is required"}), 400
 
+    # Inject DB context into system prompt
+    ai_ctx = get_ai_context(user_id)
+    enriched_system_prompt = FITNESS_SYSTEM_PROMPT + (f"\n\n{ai_ctx}" if ai_ctx else "")
+
     # Enhance prompt with fitness level context
     context_message = f"[User fitness level: {fitness_level}]\n\n{message}"
 
@@ -114,7 +128,7 @@ def chat():
                 prompt=context_message,
                 user_id=user_id,
                 agent_id=FITNESS_AGENT_ID,
-                system_prompt=FITNESS_SYSTEM_PROMPT,
+                system_prompt=enriched_system_prompt,
                 enable_memory=True,
                 try_local_first=True,
                 task_type="fitness_coaching",
@@ -413,13 +427,14 @@ def get_exercise_library():
 
 @fitness_bp.route("/api/workout/log", methods=["POST"])
 def log_workout():
-    """Log a completed workout"""
+    """Log a completed workout — persists to DB."""
     data = request.get_json() or {}
-    workout_type = data.get("type", "general")
-    duration = data.get("duration", 0)
+    workout_type = data.get("workout_type") or data.get("type", "general")
+    duration = data.get("duration_min") or data.get("duration", 0)
     exercises = data.get("exercises", [])
+    calories = data.get("calories", 0)
     notes = data.get("notes", "")
-    intensity = data.get("intensity", 5)  # 1-10 scale
+    user_id = data.get("user_id", 1)
 
     if duration <= 0:
         return (
@@ -427,21 +442,20 @@ def log_workout():
             400,
         )
 
-    # In production, save to database
-    # For now, just acknowledge
-    return jsonify(
-        {
-            "success": True,
-            "message": "Workout logged successfully!",
-            "stats": {
-                "duration": duration,
-                "type": workout_type,
-                "exercise_count": len(exercises),
-                "intensity": intensity,
-            },
-            "motivation": get_workout_motivation(),
-        }
-    )
+    try:
+        result = svc_log_workout(user_id, workout_type, exercises, duration, calories, notes)
+        return jsonify(
+            {
+                "success": True,
+                "message": "Workout logged successfully!",
+                "id": result["id"],
+                "logged_at": result["logged_at"],
+                "motivation": get_workout_motivation(),
+            }
+        )
+    except Exception as e:
+        logger.error(f"log_workout error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def get_workout_motivation():
@@ -542,3 +556,81 @@ def get_available_models():
     if not models:
         models = [{"name": "default", "size": 0, "modified": ""}]
     return jsonify({"success": True, "models": models})
+
+
+@fitness_bp.route("/api/workout/history", methods=["GET"])
+def workout_history():
+    """Return recent workout logs for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    limit = request.args.get("limit", 20, type=int)
+    try:
+        history = get_workout_history(user_id, limit=limit)
+        return jsonify({"success": True, "history": history})
+    except Exception as e:
+        logger.error(f"workout_history error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@fitness_bp.route("/api/goals", methods=["POST"])
+def create_goal():
+    """Create a new fitness goal."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id", 1)
+    goal_type = data.get("goal_type", "")
+    target = data.get("target")
+    unit = data.get("unit", "")
+    deadline = data.get("deadline")
+
+    if not goal_type or target is None:
+        return jsonify({"success": False, "error": "goal_type and target are required"}), 400
+
+    try:
+        result = set_goal(user_id, goal_type, target, unit, deadline)
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"create_goal error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@fitness_bp.route("/api/goals", methods=["GET"])
+def list_goals():
+    """List all fitness goals for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    try:
+        goals = get_goals(user_id)
+        return jsonify({"success": True, "goals": goals})
+    except Exception as e:
+        logger.error(f"list_goals error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@fitness_bp.route("/api/schedule", methods=["POST"])
+def schedule():
+    """Schedule a workout via Google Calendar (or local fallback)."""
+    data = request.get_json() or {}
+    user_id = data.get("user_id", 1)
+    title = data.get("title", "Workout")
+    datetime_str = data.get("datetime", "")
+    duration = data.get("duration", 60)
+
+    if not datetime_str:
+        return jsonify({"success": False, "error": "datetime is required"}), 400
+
+    try:
+        result = schedule_workout(user_id, title, datetime_str, duration)
+        return jsonify({"success": True, "result": result})
+    except Exception as e:
+        logger.error(f"schedule error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@fitness_bp.route("/api/stats", methods=["GET"])
+def stats():
+    """Return aggregated fitness stats for current user."""
+    user_id = request.args.get("user_id", 1, type=int)
+    try:
+        data = get_fitness_stats(user_id)
+        return jsonify({"success": True, **data})
+    except Exception as e:
+        logger.error(f"stats error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

@@ -457,7 +457,7 @@ class AgentLoop:
         logger.info("Agent loop started with 27 jobs")
 
     def _update_stock_prices(self):
-        """Job #27: Refresh cached stock prices and check price alerts every 5 minutes."""
+        """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
         try:
             from database import get_db_cursor
             from tools.stockbot.services.market_data_service import batch_update_prices
@@ -479,6 +479,17 @@ class AgentLoop:
                     f"Stock price updater: refreshed {updated}/{len(tickers)} tickers, "
                     f"triggered {triggered} alerts"
                 )
+
+            # Phase 2: Auto-scan watchlist for stale AI analyses (cap 5/cycle, 4h TTL)
+            try:
+                from tools.stockbot.services.stock_analysis_service import auto_scan_watchlist
+
+                scanned = auto_scan_watchlist()
+                if scanned:
+                    logger.info(f"Stock auto-scan: ran analysis on {scanned} watchlist ticker(s)")
+            except Exception as scan_err:
+                logger.error(f"auto_scan_watchlist error: {scan_err}")
+
         except Exception as e:
             logger.error(f"_update_stock_prices error: {e}")
 

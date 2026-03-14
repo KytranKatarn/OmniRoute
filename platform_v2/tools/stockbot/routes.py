@@ -1,7 +1,8 @@
 """
 StockBot Routes - AI Stock Screener
 Phase 1 backend: market data, portfolio, watchlist, alerts + AI chat
-Updated: 2026-03-14 - Added 12 trading endpoints + upgraded AI chat with live data injection
+Phase 2 backend: 5-agent parallel analysis engine + analysis routes
+Updated: 2026-03-14 - Added analysis routes + analysis context injection in chat
 """
 
 import re
@@ -19,6 +20,11 @@ from .services.market_data_service import (
     batch_update_prices,
     search_tickers,
     calculate_indicators,
+)
+from .services.stock_analysis_service import (
+    run_full_analysis,
+    get_latest_analysis,
+    get_analysis_history,
 )
 from .services.portfolio_service import (
     get_watchlist,
@@ -172,7 +178,28 @@ def chat():
     # Inject live market context if tickers detected
     tickers = _extract_tickers(message)
     market_ctx = _build_market_context(tickers)
-    augmented_prompt = f"{market_ctx}\n\n{message}".strip() if market_ctx else message
+
+    # Inject latest analysis context for mentioned tickers (Phase 2)
+    analysis_ctx_parts = []
+    for ticker in tickers[:3]:
+        try:
+            latest = get_latest_analysis(ticker)
+            if latest:
+                sig = latest.get("overall_signal", "N/A")
+                conf = latest.get("confidence", 0)
+                pt = latest.get("price_target")
+                thesis = latest.get("synthesis", {}).get("primary_thesis", "")
+                analysis_ctx_parts.append(
+                    f"[AI Analysis for {ticker}] Signal: {sig} | Confidence: {conf}% | "
+                    f"Target: ${pt or 'N/A'} | {thesis[:200]}"
+                )
+        except Exception:
+            pass
+    analysis_ctx = "\n".join(analysis_ctx_parts)
+
+    ctx_parts = [p for p in [market_ctx, analysis_ctx] if p]
+    combined_ctx = "\n\n".join(ctx_parts)
+    augmented_prompt = f"{combined_ctx}\n\n{message}".strip() if combined_ctx else message
 
     try:
         if BRIDGE_AVAILABLE:
@@ -623,3 +650,90 @@ def get_available_models():
     if not models:
         models = [{"name": "default", "size": 0, "modified": ""}]
     return jsonify({"success": True, "models": models})
+
+
+# ─── Phase 2: AI Analysis Endpoints ─────────────────────────────────────────
+
+
+@stockbot_bp.route("/api/analyze-full/<ticker>", methods=["POST"])
+@login_required
+def analyze_full(ticker):
+    """Launch 5-agent parallel analysis in background thread. Returns immediately with analysis_id."""
+    import threading
+
+    ticker = ticker.upper().strip()
+    user_id = current_user.id if current_user.is_authenticated else 1
+
+    result_holder: dict = {}
+    error_holder: dict = {}
+
+    def _run():
+        try:
+            result_holder["result"] = run_full_analysis(ticker, user_id)
+        except Exception as e:
+            error_holder["error"] = str(e)
+            logger.error(f"analyze_full background error for {ticker}: {e}")
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    # Give the thread a brief moment to catch immediate import/config errors
+    t.join(timeout=0.5)
+
+    if error_holder:
+        return jsonify({"success": False, "error": error_holder["error"]}), 500
+
+    # If already completed (fast path / cached data), return result directly
+    if result_holder:
+        r = result_holder["result"]
+        if r.get("error"):
+            return jsonify({"success": False, "error": r["error"]}), 500
+        return jsonify(
+            {
+                "success": True,
+                "analysis_id": r.get("analysis_id"),
+                "ticker": ticker,
+                "overall_signal": r.get("overall_signal"),
+                "confidence": r.get("confidence"),
+                "status": "complete",
+            }
+        )
+
+    return jsonify(
+        {
+            "success": True,
+            "analysis_id": None,
+            "ticker": ticker,
+            "status": "running",
+            "message": f"5-agent analysis started for {ticker}. Poll /api/analysis/{ticker} for results.",
+        }
+    )
+
+
+@stockbot_bp.route("/api/analysis/<ticker>", methods=["GET"])
+@login_required
+def get_analysis(ticker):
+    """Get the latest AI analysis for a ticker."""
+    ticker = ticker.upper().strip()
+    try:
+        analysis = get_latest_analysis(ticker)
+        if not analysis:
+            return jsonify({"success": False, "error": f"No analysis found for {ticker}"}), 404
+        return jsonify({"success": True, "analysis": analysis})
+    except Exception as e:
+        logger.error(f"get_analysis({ticker}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/analysis/<ticker>/history", methods=["GET"])
+@login_required
+def get_analysis_history_route(ticker):
+    """Get historical analyses for a ticker."""
+    ticker = ticker.upper().strip()
+    limit = min(int(request.args.get("limit", 10)), 50)
+    try:
+        history = get_analysis_history(ticker, limit=limit)
+        return jsonify({"success": True, "ticker": ticker, "history": history, "count": len(history)})
+    except Exception as e:
+        logger.error(f"get_analysis_history({ticker}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

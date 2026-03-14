@@ -604,3 +604,37 @@
   box-shadow: 0 4px 16px rgba(255,68,68,0.3);
   color: #fff;
 }
+
+/* ── Calendar ────────────────────────────────────────────── */
+
+.gws-calendar-nav { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem; flex-wrap:wrap; }
+.gws-calendar-grid { border:1px solid var(--gws-border,#234); border-radius:4px; overflow:hidden; }
+.gws-calendar-header-row { display:grid; grid-template-columns:repeat(7,1fr); border-bottom:1px solid var(--gws-border,#234); }
+.gws-calendar-day-header { padding:0.3rem; text-align:center; font-size:0.65rem; color:var(--gws-accent,#0cf); font-family:'Antonio',sans-serif; text-transform:uppercase; }
+.gws-calendar-body-row { display:grid; grid-template-columns:repeat(7,1fr); min-height:300px; }
+.gws-calendar-day-col { border-right:1px solid var(--gws-border,#234); padding:0.25rem; min-height:200px; }
+.gws-calendar-day-col:last-child { border-right:none; }
+.gws-calendar-event { background:rgba(0,204,255,0.1); border-left:3px solid var(--gws-accent,#0cf); padding:0.2rem 0.3rem; margin-bottom:0.25rem; border-radius:2px; cursor:pointer; font-size:0.65rem; display:flex; gap:0.25rem; align-items:baseline; }
+.gws-calendar-event:hover { background:rgba(0,204,255,0.2); }
+.gws-calendar-event-time { color:var(--gws-accent,#0cf); flex-shrink:0; }
+
+/* ── Drive ───────────────────────────────────────────────── */
+
+.gws-drive-toolbar { display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem; flex-wrap:wrap; }
+.gws-drive-breadcrumb { display:flex; gap:0.25rem; font-size:0.7rem; color:var(--gws-text,#aab); flex:1; flex-wrap:wrap; }
+.gws-drive-breadcrumb span { cursor:pointer; }
+.gws-drive-breadcrumb span:hover { color:var(--gws-accent,#0cf); }
+.gws-drive-layout { display:flex; gap:0.5rem; }
+.gws-drive-files { flex:1; min-width:0; }
+.gws-drive-file-row { display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0.5rem; border-bottom:1px solid rgba(255,255,255,0.03); cursor:pointer; font-size:0.7rem; color:var(--gws-text,#aab); }
+.gws-drive-file-row:hover { background:rgba(0,204,255,0.05); }
+.gws-drive-file-icon { width:20px; text-align:center; flex-shrink:0; }
+.gws-drive-file-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gws-drive-file-date { font-size:0.6rem; color:#556; width:80px; flex-shrink:0; }
+.gws-drive-preview { width:300px; flex-shrink:0; padding:0.5rem; border-left:1px solid var(--gws-border,#234); font-size:0.7rem; color:var(--gws-text,#aab); max-height:500px; overflow-y:auto; }
+
+/* ── Shared small controls ───────────────────────────────── */
+
+.gws-btn-sm { padding:0.2rem 0.5rem; border:1px solid var(--gws-border,#234); background:transparent; color:var(--gws-text,#aab); border-radius:3px; cursor:pointer; font-size:0.65rem; }
+.gws-btn-sm:hover { color:var(--gws-accent,#0cf); border-color:var(--gws-accent,#0cf); }
+.gws-input-sm { background:rgba(255,255,255,0.05); border:1px solid var(--gws-border,#234); color:var(--gws-text,#aab); padding:0.2rem 0.4rem; border-radius:3px; font-size:0.65rem; }

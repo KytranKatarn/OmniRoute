@@ -105,8 +105,12 @@
   window.selectAccount = function (id) {
     _currentAccountId = id || null;
     if (_currentAccountId) {
-      loadInbox(1);
-      loadRules();
+      if (_activeTab === 'inbox') loadInbox(1);
+      if (_activeTab === 'rules') loadRules();
+      if (_activeTab === 'calendar') loadCalendarEvents(_currentAccountId);
+      if (_activeTab === 'drive') loadDriveFiles(_currentAccountId);
+      // Always prime inbox on account switch
+      if (_activeTab !== 'inbox') loadInbox(1);
     }
   };
 
@@ -429,24 +433,32 @@
   window.setTab = function (tab) {
     _activeTab = tab;
 
-    const inboxPanel = document.getElementById('gwsInboxTab');
-    const rulesPanel = document.getElementById('gwsRulesTab');
-    const inboxBtn = document.getElementById('gwsTabInbox');
-    const rulesBtn = document.getElementById('gwsTabRules');
+    const panels = {
+      inbox: 'gwsInboxTab',
+      rules: 'gwsRulesTab',
+      calendar: 'gwsCalendarTab',
+      drive: 'gwsDriveTab',
+    };
+    const buttons = {
+      inbox: 'gwsTabInbox',
+      rules: 'gwsTabRules',
+      calendar: 'gwsTabCalendar',
+      drive: 'gwsTabDrive',
+    };
 
-    if (inboxPanel) inboxPanel.style.display = tab === 'inbox' ? '' : 'none';
-    if (rulesPanel) rulesPanel.style.display = tab === 'rules' ? '' : 'none';
-
-    if (inboxBtn) {
-      inboxBtn.classList.toggle('active', tab === 'inbox');
-      inboxBtn.setAttribute('aria-selected', String(tab === 'inbox'));
-    }
-    if (rulesBtn) {
-      rulesBtn.classList.toggle('active', tab === 'rules');
-      rulesBtn.setAttribute('aria-selected', String(tab === 'rules'));
-    }
+    Object.keys(panels).forEach(function (key) {
+      const panel = document.getElementById(panels[key]);
+      if (panel) panel.style.display = key === tab ? '' : 'none';
+      const btn = document.getElementById(buttons[key]);
+      if (btn) {
+        btn.classList.toggle('active', key === tab);
+        btn.setAttribute('aria-selected', String(key === tab));
+      }
+    });
 
     if (tab === 'rules' && _currentAccountId) loadRules();
+    if (tab === 'calendar' && _currentAccountId) loadCalendarEvents(_currentAccountId);
+    if (tab === 'drive' && _currentAccountId) loadDriveFiles(_currentAccountId);
   };
 
   // ── Rules ─────────────────────────────────────────────────────────────────
@@ -608,6 +620,409 @@
       loadRules();
     } catch (err) {
       toast('Failed to delete rule: ' + err.message, true);
+    }
+  };
+
+  // ── Calendar ──────────────────────────────────────────────────────────────
+
+  var _calendarWeekStart = null;
+
+  window.loadCalendarEvents = function (accountId, weekStart) {
+    if (!accountId) accountId = _currentAccountId;
+    if (!weekStart) {
+      var now = new Date();
+      var day = now.getDay();
+      var diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      weekStart = new Date(now.setDate(diff));
+      weekStart.setHours(0, 0, 0, 0);
+    }
+    _calendarWeekStart = weekStart;
+    var endDate = new Date(weekStart);
+    endDate.setDate(endDate.getDate() + 7);
+    var weekLabel = document.getElementById('gwsCalendarWeekLabel');
+    if (weekLabel) {
+      weekLabel.textContent =
+        weekStart.toLocaleDateString() + ' \u2014 ' +
+        new Date(endDate - 86400000).toLocaleDateString();
+    }
+    api('GET',
+      '/api/calendar/' + encodeURIComponent(accountId) +
+      '/events?time_min=' + weekStart.toISOString() +
+      '&time_max=' + endDate.toISOString()
+    ).then(renderWeekView).catch(function (err) {
+      toast('Failed to load calendar: ' + err.message, true);
+    });
+  };
+
+  function renderWeekView(data) {
+    var grid = document.getElementById('gwsCalendarGrid');
+    if (!grid) return;
+    clearEl(grid);
+    var events = data.events || data || [];
+    var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    var headerRow = document.createElement('div');
+    headerRow.className = 'gws-calendar-header-row';
+    days.forEach(function (d, i) {
+      var dayDate = new Date(_calendarWeekStart);
+      dayDate.setDate(dayDate.getDate() + i);
+      var cell = document.createElement('div');
+      cell.className = 'gws-calendar-day-header';
+      cell.textContent = d + ' ' + dayDate.getDate();
+      headerRow.appendChild(cell);
+    });
+    grid.appendChild(headerRow);
+
+    var dayColumns = [[], [], [], [], [], [], []];
+    events.forEach(function (ev) {
+      var startVal = ev.start ? (ev.start.dateTime || ev.start.date || ev.start) : null;
+      if (!startVal) return;
+      var start = new Date(startVal);
+      var dayIdx = (start.getDay() + 6) % 7;
+      if (dayIdx >= 0 && dayIdx < 7) dayColumns[dayIdx].push(ev);
+    });
+
+    var bodyRow = document.createElement('div');
+    bodyRow.className = 'gws-calendar-body-row';
+    dayColumns.forEach(function (dayEvents) {
+      var col = document.createElement('div');
+      col.className = 'gws-calendar-day-col';
+      dayEvents.forEach(function (ev) {
+        var block = document.createElement('div');
+        block.className = 'gws-calendar-event';
+        var startVal = ev.start ? (ev.start.dateTime || ev.start.date || ev.start) : null;
+        var startDate = startVal ? new Date(startVal) : null;
+        var time = document.createElement('span');
+        time.className = 'gws-calendar-event-time';
+        time.textContent = startDate
+          ? startDate.getHours() + ':' + String(startDate.getMinutes()).padStart(2, '0')
+          : '';
+        var title = document.createElement('span');
+        title.textContent = ev.summary || 'No title';
+        block.appendChild(time);
+        block.appendChild(title);
+        block.onclick = function () { openEventModal(ev); };
+        col.appendChild(block);
+      });
+      bodyRow.appendChild(col);
+    });
+    grid.appendChild(bodyRow);
+  }
+
+  window.navigateWeek = function (dir) {
+    if (dir === 0) { _calendarWeekStart = null; loadCalendarEvents(); return; }
+    var ws = new Date(_calendarWeekStart);
+    ws.setDate(ws.getDate() + (dir * 7));
+    loadCalendarEvents(null, ws);
+  };
+
+  window.openEventModal = function (event) {
+    var modal = document.getElementById('gwsEventModal');
+    if (!modal) return;
+    var titleEl = document.getElementById('gwsEventTitle');
+    var idEl = document.getElementById('gwsEventId');
+    var summaryEl = document.getElementById('gwsEventSummary');
+    var startEl = document.getElementById('gwsEventStart');
+    var endEl = document.getElementById('gwsEventEnd');
+    var locationEl = document.getElementById('gwsEventLocation');
+    var descEl = document.getElementById('gwsEventDescription');
+    var attendeesEl = document.getElementById('gwsEventAttendees');
+    var deleteBtn = document.getElementById('gwsEventDeleteBtn');
+
+    if (event) {
+      titleEl.textContent = 'Edit Event';
+      idEl.value = event.id || '';
+      summaryEl.value = event.summary || '';
+      var startVal = event.start ? (event.start.dateTime || event.start.date) : '';
+      var endVal = event.end ? (event.end.dateTime || event.end.date) : '';
+      startEl.value = startVal ? startVal.slice(0, 16) : '';
+      endEl.value = endVal ? endVal.slice(0, 16) : '';
+      locationEl.value = event.location || '';
+      descEl.value = event.description || '';
+      var attendees = (event.attendees || []).map(function (a) { return a.email || a; }).join(', ');
+      attendeesEl.value = attendees;
+      if (deleteBtn) deleteBtn.style.display = '';
+    } else {
+      titleEl.textContent = 'New Event';
+      idEl.value = '';
+      summaryEl.value = '';
+      startEl.value = '';
+      endEl.value = '';
+      locationEl.value = '';
+      descEl.value = '';
+      attendeesEl.value = '';
+      if (deleteBtn) deleteBtn.style.display = 'none';
+    }
+    modal.style.display = '';
+  };
+
+  window.closeEventModal = function () {
+    var modal = document.getElementById('gwsEventModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.saveCalendarEvent = async function () {
+    if (!_currentAccountId) return;
+    var eventId = document.getElementById('gwsEventId').value;
+    var summary = document.getElementById('gwsEventSummary').value;
+    var startVal = document.getElementById('gwsEventStart').value;
+    var endVal = document.getElementById('gwsEventEnd').value;
+    var location = document.getElementById('gwsEventLocation').value;
+    var description = document.getElementById('gwsEventDescription').value;
+    var attendeesRaw = document.getElementById('gwsEventAttendees').value;
+
+    if (!summary || !startVal || !endVal) {
+      toast('Title, start and end are required', true);
+      return;
+    }
+    var attendees = attendeesRaw
+      ? attendeesRaw.split(',').map(function (e) { return e.trim(); }).filter(Boolean)
+      : [];
+    var body = {
+      summary: summary,
+      start: startVal,
+      end: endVal,
+      location: location,
+      description: description,
+      attendees: attendees,
+    };
+    try {
+      if (eventId) {
+        await api('PUT', '/api/calendar/' + encodeURIComponent(_currentAccountId) + '/events/' + eventId, body);
+        toast('Event updated');
+      } else {
+        await api('POST', '/api/calendar/' + encodeURIComponent(_currentAccountId) + '/events', body);
+        toast('Event created');
+      }
+      closeEventModal();
+      loadCalendarEvents(_currentAccountId, _calendarWeekStart);
+    } catch (err) {
+      toast('Failed to save event: ' + err.message, true);
+    }
+  };
+
+  window.deleteCalendarEvent = async function (eventId) {
+    if (!_currentAccountId || !eventId) return;
+    if (!confirm('Delete this event?')) return;
+    try {
+      await api('DELETE', '/api/calendar/' + encodeURIComponent(_currentAccountId) + '/events/' + eventId);
+      toast('Event deleted');
+      closeEventModal();
+      loadCalendarEvents(_currentAccountId, _calendarWeekStart);
+    } catch (err) {
+      toast('Failed to delete event: ' + err.message, true);
+    }
+  };
+
+  // ── Drive ─────────────────────────────────────────────────────────────────
+
+  var _driveFolderStack = [{ id: 'root', name: 'My Drive' }];
+
+  window.loadDriveFiles = function (accountId, folderId) {
+    if (!accountId) accountId = _currentAccountId;
+    var currentFolder = _driveFolderStack[_driveFolderStack.length - 1];
+    if (!folderId) folderId = currentFolder ? currentFolder.id : 'root';
+    renderBreadcrumb();
+    api('GET', '/api/drive/' + encodeURIComponent(accountId) + '/files?folder_id=' + encodeURIComponent(folderId))
+      .then(renderDriveFiles)
+      .catch(function (err) {
+        toast('Failed to load drive: ' + err.message, true);
+      });
+  };
+
+  function renderDriveFiles(data) {
+    var container = document.getElementById('gwsDriveFiles');
+    if (!container) return;
+    clearEl(container);
+    var files = data.files || data || [];
+
+    if (files.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'gws-empty-state';
+      var p = document.createElement('p');
+      p.textContent = 'This folder is empty.';
+      empty.appendChild(p);
+      container.appendChild(empty);
+      return;
+    }
+
+    files.forEach(function (file) {
+      var row = document.createElement('div');
+      row.className = 'gws-drive-file-row';
+
+      var icon = document.createElement('div');
+      icon.className = 'gws-drive-file-icon';
+      var mimeType = file.mimeType || '';
+      if (mimeType.indexOf('folder') !== -1) icon.textContent = '\uD83D\uDCC1';
+      else if (mimeType.indexOf('document') !== -1) icon.textContent = '\uD83D\uDCC4';
+      else if (mimeType.indexOf('spreadsheet') !== -1) icon.textContent = '\uD83D\uDCCA';
+      else if (mimeType.indexOf('image') !== -1) icon.textContent = '\uD83D\uDDBC';
+      else icon.textContent = '\uD83D\uDCCE';
+
+      var name = document.createElement('div');
+      name.className = 'gws-drive-file-name';
+      name.textContent = file.name || file.id;
+
+      var date = document.createElement('div');
+      date.className = 'gws-drive-file-date';
+      date.textContent = file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString() : '';
+
+      var shareBtn = document.createElement('button');
+      shareBtn.className = 'gws-btn-sm';
+      shareBtn.textContent = 'Share';
+      (function (fid) {
+        shareBtn.onclick = function (e) { e.stopPropagation(); shareDriveFile(fid); };
+      }(file.id));
+
+      row.appendChild(icon);
+      row.appendChild(name);
+      row.appendChild(date);
+      row.appendChild(shareBtn);
+
+      if (mimeType.indexOf('folder') !== -1) {
+        (function (fid, fname) {
+          row.onclick = function () { navigateDriveFolder(fid, fname); };
+        }(file.id, file.name));
+      } else {
+        (function (fid) {
+          row.onclick = function () { previewDriveFile(fid); };
+        }(file.id));
+      }
+      container.appendChild(row);
+    });
+  }
+
+  window.navigateDriveFolder = function (folderId, folderName) {
+    _driveFolderStack.push({ id: folderId, name: folderName });
+    loadDriveFiles(_currentAccountId, folderId);
+  };
+
+  function renderBreadcrumb() {
+    var bc = document.getElementById('gwsDriveBreadcrumb');
+    if (!bc) return;
+    clearEl(bc);
+    _driveFolderStack.forEach(function (folder, idx) {
+      var span = document.createElement('span');
+      span.textContent = folder.name;
+      if (idx < _driveFolderStack.length - 1) {
+        (function (capturedIdx, capturedId) {
+          span.onclick = function () {
+            _driveFolderStack = _driveFolderStack.slice(0, capturedIdx + 1);
+            loadDriveFiles(_currentAccountId, capturedId);
+          };
+        }(idx, folder.id));
+        var sep = document.createElement('span');
+        sep.textContent = ' / ';
+        bc.appendChild(span);
+        bc.appendChild(sep);
+      } else {
+        span.style.color = 'var(--gws-accent, #0cf)';
+        bc.appendChild(span);
+      }
+    });
+  }
+
+  window.previewDriveFile = async function (fileId) {
+    var preview = document.getElementById('gwsDrivePreview');
+    if (!preview) return;
+    try {
+      var data = await api('GET', '/api/drive/' + encodeURIComponent(_currentAccountId) + '/files/' + encodeURIComponent(fileId));
+      clearEl(preview);
+      var title = document.createElement('div');
+      title.style.cssText = 'font-weight:700;margin-bottom:0.5rem;color:var(--gws-accent,#0cf);';
+      title.textContent = data.name || fileId;
+      preview.appendChild(title);
+      if (data.webViewLink) {
+        var link = document.createElement('a');
+        link.href = data.webViewLink;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Open in Google Drive';
+        link.style.cssText = 'color:var(--gws-accent,#0cf);font-size:0.65rem;';
+        preview.appendChild(link);
+      }
+      if (data.content) {
+        var pre = document.createElement('pre');
+        pre.style.cssText = 'font-size:0.6rem;white-space:pre-wrap;margin-top:0.5rem;';
+        pre.textContent = data.content;
+        preview.appendChild(pre);
+      }
+    } catch (err) {
+      toast('Failed to preview file: ' + err.message, true);
+    }
+  };
+
+  window.uploadDriveFile = function (input) {
+    if (!input.files || !input.files[0] || !_currentAccountId) return;
+    var file = input.files[0];
+    var reader = new FileReader();
+    reader.onload = async function (e) {
+      var b64 = e.target.result.split(',')[1];
+      try {
+        await api('POST', '/api/drive/' + encodeURIComponent(_currentAccountId) + '/files', {
+          name: file.name,
+          type: 'upload',
+          content: b64,
+          folder_id: _driveFolderStack[_driveFolderStack.length - 1].id,
+        });
+        toast('File uploaded');
+        loadDriveFiles(_currentAccountId);
+      } catch (err) {
+        toast('Upload failed: ' + err.message, true);
+      }
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  };
+
+  window.createDriveItem = async function (type) {
+    if (!type || !_currentAccountId) return;
+    var label = type === 'folder' ? 'Folder name:' : 'File name:';
+    var name = prompt(label);
+    if (!name) return;
+    try {
+      await api('POST', '/api/drive/' + encodeURIComponent(_currentAccountId) + '/files', {
+        name: name,
+        type: type,
+        folder_id: _driveFolderStack[_driveFolderStack.length - 1].id,
+      });
+      toast((type === 'folder' ? 'Folder' : 'File') + ' created');
+      loadDriveFiles(_currentAccountId);
+    } catch (err) {
+      toast('Failed to create: ' + err.message, true);
+    }
+  };
+
+  window.shareDriveFile = function (fileId) {
+    var modal = document.getElementById('gwsShareModal');
+    if (!modal) return;
+    document.getElementById('gwsShareFileId').value = fileId;
+    document.getElementById('gwsShareEmail').value = '';
+    document.getElementById('gwsShareRole').value = 'reader';
+    modal.style.display = '';
+  };
+
+  window.closeShareModal = function () {
+    var modal = document.getElementById('gwsShareModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.submitShare = async function () {
+    if (!_currentAccountId) return;
+    var fileId = document.getElementById('gwsShareFileId').value;
+    var email = document.getElementById('gwsShareEmail').value;
+    var role = document.getElementById('gwsShareRole').value;
+    if (!email) { toast('Email is required', true); return; }
+    try {
+      await api('POST',
+        '/api/drive/' + encodeURIComponent(_currentAccountId) +
+        '/files/' + encodeURIComponent(fileId) + '/share',
+        { email: email, role: role }
+      );
+      toast('Shared with ' + email);
+      closeShareModal();
+    } catch (err) {
+      toast('Failed to share: ' + err.message, true);
     }
   };
 

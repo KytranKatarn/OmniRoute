@@ -364,6 +364,7 @@
                 <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="agents" onclick="setOwnerFilter('agents')">Agent Art</button>
                 <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="all" onclick="setOwnerFilter('all')">All</button>
                 <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="templates" onclick="setOwnerFilter('templates')">Templates</button>
+                <button class="ms-btn-xs ms-gallery-filter-btn" data-filter="analytics" onclick="setOwnerFilter('analytics')">Analytics</button>
             </div>
             <!-- Agent Config Toggle -->
             <button class="ms-btn-xs" onclick="toggleAgentConfig()" style="margin-left:8px">
@@ -465,6 +466,41 @@
             <div class="ms-pipeline-bar">
               <div id="msPipelineBarFill" class="ms-pipeline-bar-fill" style="width:0%"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- ── S24  Media Analytics ── -->
+        <div id="msAnalyticsView" style="display:none;">
+          <div class="ms-analytics-header">
+            <div class="ms-analytics-presets">
+              <button class="ms-btn-xs ms-analytics-preset-btn" onclick="setAnalyticsRange('7d')">7d</button>
+              <button class="ms-btn-xs ms-analytics-preset-btn active" onclick="setAnalyticsRange('30d')">30d</button>
+              <button class="ms-btn-xs ms-analytics-preset-btn" onclick="setAnalyticsRange('90d')">90d</button>
+              <button class="ms-btn-xs ms-analytics-preset-btn" onclick="setAnalyticsRange('all')">All</button>
+            </div>
+            <div class="ms-analytics-custom-range">
+              <input type="date" id="msAnalyticsFrom" class="ms-input-xs">
+              <span class="ms-text-muted">to</span>
+              <input type="date" id="msAnalyticsTo" class="ms-input-xs">
+              <button class="ms-btn-xs" onclick="setCustomRange()">Apply</button>
+            </div>
+            <div class="ms-analytics-cost-toggle">
+              <button class="ms-btn-xs ms-cost-mode-btn active" data-mode="fixed" onclick="toggleCostMode('fixed')">Cloud$</button>
+              <button class="ms-btn-xs ms-cost-mode-btn" data-mode="vram" onclick="toggleCostMode('vram')">Local$</button>
+            </div>
+          </div>
+          <div class="ms-analytics-stat-cards" id="msAnalyticsCards"></div>
+          <div class="ms-analytics-charts">
+            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Generation Trends</div><div id="msChartTrendsBody"></div></div>
+            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Model Usage</div><div id="msChartModelsBody"></div></div>
+            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Edit Types</div><div id="msChartEditsBody"></div></div>
+            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Cost Summary</div><div id="msChartCostsBody"></div></div>
+            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Agent vs User</div><div id="msChartAgentUserBody"></div></div>
+            <div class="ms-analytics-chart"><div class="ms-analytics-chart-title">Template Effectiveness</div><div id="msChartTemplatesBody"></div></div>
+          </div>
+          <div class="ms-analytics-admin" id="msAnalyticsAdmin" style="display:none;">
+            <div class="ms-analytics-chart-title">Cost Rate Config (Admin)</div>
+            <div id="msAnalyticsCostRates"></div>
           </div>
         </div>
 
@@ -2655,15 +2691,31 @@
             var galleryLayout = document.querySelector('.ms-gallery-layout');
             if (galleryLayout) galleryLayout.style.display = 'none';
             document.getElementById('msTemplateView').style.display = '';
+            var analyticsViewT = document.getElementById('msAnalyticsView');
+            if (analyticsViewT) analyticsViewT.style.display = 'none';
             document.querySelectorAll('.ms-gallery-filter-btn').forEach(function(b) {
                 b.classList.toggle('active', b.dataset.filter === filter);
             });
             loadTemplateLibrary();
             return;
         }
-        // Restore gallery if switching away from templates
+        if (filter === 'analytics') {
+            var galleryLayoutA = document.querySelector('.ms-gallery-layout');
+            if (galleryLayoutA) galleryLayoutA.style.display = 'none';
+            var tplViewA = document.getElementById('msTemplateView');
+            if (tplViewA) tplViewA.style.display = 'none';
+            document.getElementById('msAnalyticsView').style.display = '';
+            document.querySelectorAll('.ms-gallery-filter-btn').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.filter === filter);
+            });
+            loadAnalytics();
+            return;
+        }
+        // Restore gallery if switching away from templates or analytics
         var tplView = document.getElementById('msTemplateView');
         if (tplView) tplView.style.display = 'none';
+        var analyticsView = document.getElementById('msAnalyticsView');
+        if (analyticsView) analyticsView.style.display = 'none';
         var galleryLayout2 = document.querySelector('.ms-gallery-layout');
         if (galleryLayout2) galleryLayout2.style.display = '';
         _ownerFilter = filter;
@@ -3363,6 +3415,296 @@
             }).catch(function() {
                 setTimeout(function() { pollPipelineStatus(executionId); }, 3000);
             });
+        };
+    })();
+
+    // ── S24  Media Analytics ──────────────────────────────────────
+    (function() {
+        var _analyticsDateFrom = null;
+        var _analyticsDateTo = null;
+        var _analyticsCostMode = 'fixed';
+
+        function _daysAgo(n) {
+            var d = new Date();
+            d.setDate(d.getDate() - n);
+            return d.toISOString().slice(0, 10);
+        }
+
+        function _today() {
+            return new Date().toISOString().slice(0, 10);
+        }
+
+        window.setAnalyticsRange = function(preset) {
+            document.querySelectorAll('.ms-analytics-preset-btn').forEach(function(b) {
+                b.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            if (preset === '7d') {
+                _analyticsDateFrom = _daysAgo(7);
+                _analyticsDateTo = _today();
+            } else if (preset === '30d') {
+                _analyticsDateFrom = _daysAgo(30);
+                _analyticsDateTo = _today();
+            } else if (preset === '90d') {
+                _analyticsDateFrom = _daysAgo(90);
+                _analyticsDateTo = _today();
+            } else {
+                _analyticsDateFrom = null;
+                _analyticsDateTo = null;
+            }
+            var fromInput = document.getElementById('msAnalyticsFrom');
+            var toInput = document.getElementById('msAnalyticsTo');
+            if (fromInput) fromInput.value = _analyticsDateFrom || '';
+            if (toInput) toInput.value = _analyticsDateTo || '';
+            loadAnalytics();
+        };
+
+        window.setCustomRange = function() {
+            var fromInput = document.getElementById('msAnalyticsFrom');
+            var toInput = document.getElementById('msAnalyticsTo');
+            _analyticsDateFrom = fromInput ? fromInput.value : null;
+            _analyticsDateTo = toInput ? toInput.value : null;
+            document.querySelectorAll('.ms-analytics-preset-btn').forEach(function(b) {
+                b.classList.remove('active');
+            });
+            loadAnalytics();
+        };
+
+        window.toggleCostMode = function(mode) {
+            _analyticsCostMode = mode;
+            document.querySelectorAll('.ms-cost-mode-btn').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.mode === mode);
+            });
+            loadAnalytics();
+        };
+
+        window.loadAnalytics = function() {
+            if (!_analyticsDateFrom) {
+                _analyticsDateFrom = _daysAgo(30);
+                _analyticsDateTo = _today();
+            }
+            var qs = '?scope=global';
+            if (_analyticsDateFrom) qs += '&date_from=' + _analyticsDateFrom;
+            if (_analyticsDateTo) qs += '&date_to=' + _analyticsDateTo;
+
+            api('GET', '/api/media-studio/analytics/realtime' + qs).then(renderStatCards).catch(function() {});
+            api('GET', '/api/media-studio/analytics/trends?period=daily' + qs.replace('?', '&')).then(renderTrendChart).catch(function() {});
+            api('GET', '/api/media-studio/analytics/models' + qs).then(renderModelChart).catch(function() {});
+            api('GET', '/api/media-studio/analytics/costs?mode=' + _analyticsCostMode + qs.replace('?', '&')).then(renderCostSummary).catch(function() {});
+            api('GET', '/api/media-studio/analytics/cost-rates').then(renderCostRates).catch(function() {});
+        };
+
+        window.formatBytes = function(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            var k = 1024;
+            var sizes = ['B', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        };
+
+        function _makeBarRow(name, value, maxValue, displayValue, extraClass) {
+            var row = document.createElement('div');
+            row.className = 'ms-analytics-bar';
+            var label = document.createElement('span');
+            label.className = 'ms-analytics-bar-label';
+            label.textContent = name;
+            var fill = document.createElement('div');
+            fill.className = 'ms-analytics-bar-fill' + (extraClass ? ' ' + extraClass : '');
+            fill.style.width = maxValue > 0 ? (value / maxValue * 100) + '%' : '0%';
+            var cnt = document.createElement('span');
+            cnt.className = 'ms-analytics-bar-count';
+            cnt.textContent = displayValue;
+            row.appendChild(label);
+            row.appendChild(fill);
+            row.appendChild(cnt);
+            return row;
+        }
+
+        window.renderStatCards = function(data) {
+            var container = document.getElementById('msAnalyticsCards');
+            if (!container) return;
+            _clearChildren(container);
+            var stats = [
+                { label: 'Generations', value: (data.generations !== undefined ? data.generations : (data.total_generations || 0)) },
+                { label: 'Edits', value: (data.edits !== undefined ? data.edits : (data.total_edits || 0)) },
+                { label: 'Active Pipelines', value: (data.active_pipelines !== undefined ? data.active_pipelines : (data.pipelines_running || 0)) },
+                { label: 'Storage', value: formatBytes(data.storage_bytes || data.storage || 0), raw: true }
+            ];
+            stats.forEach(function(s) {
+                var card = document.createElement('div');
+                card.className = 'ms-analytics-stat-card';
+                var val = document.createElement('div');
+                val.className = 'ms-analytics-stat-value';
+                val.textContent = s.raw ? s.value : s.value.toLocaleString();
+                var lbl = document.createElement('div');
+                lbl.className = 'ms-analytics-stat-label';
+                lbl.textContent = s.label;
+                card.appendChild(val);
+                card.appendChild(lbl);
+                container.appendChild(card);
+            });
+        };
+
+        window.renderTrendChart = function(data) {
+            var container = document.getElementById('msChartTrendsBody');
+            if (!container) return;
+            _clearChildren(container);
+            var items = data.trends || data.data || data || [];
+            if (!items.length) {
+                var empty = document.createElement('div');
+                empty.className = 'ms-analytics-bar-label';
+                empty.textContent = 'No data';
+                container.appendChild(empty);
+                return;
+            }
+            var maxVal = 0;
+            items.forEach(function(item) {
+                var v = (item.metrics && item.metrics.generation_count) || item.generation_count || item.count || 0;
+                if (v > maxVal) maxVal = v;
+            });
+            items.forEach(function(item) {
+                var v = (item.metrics && item.metrics.generation_count) || item.generation_count || item.count || 0;
+                var label = (item.period_start || item.date || '').slice(0, 10);
+                container.appendChild(_makeBarRow(label, v, maxVal, v));
+            });
+        };
+
+        window.renderModelChart = function(data) {
+            var modelsContainer = document.getElementById('msChartModelsBody');
+            var editsContainer = document.getElementById('msChartEditsBody');
+            if (modelsContainer) {
+                _clearChildren(modelsContainer);
+                var byModel = data.by_model || data.models || [];
+                var maxModel = 0;
+                byModel.forEach(function(m) { if ((m.count || 0) > maxModel) maxModel = m.count; });
+                if (!byModel.length) {
+                    var e = document.createElement('div');
+                    e.className = 'ms-analytics-bar-label';
+                    e.textContent = 'No data';
+                    modelsContainer.appendChild(e);
+                } else {
+                    byModel.forEach(function(m) {
+                        modelsContainer.appendChild(_makeBarRow(m.model_name || m.name || m.model, m.count || 0, maxModel, m.count || 0));
+                    });
+                }
+            }
+            if (editsContainer) {
+                _clearChildren(editsContainer);
+                var byEdit = data.by_edit_type || data.edit_types || [];
+                var maxEdit = 0;
+                byEdit.forEach(function(e) { if ((e.count || 0) > maxEdit) maxEdit = e.count; });
+                if (!byEdit.length) {
+                    var e2 = document.createElement('div');
+                    e2.className = 'ms-analytics-bar-label';
+                    e2.textContent = 'No data';
+                    editsContainer.appendChild(e2);
+                } else {
+                    byEdit.forEach(function(e) {
+                        editsContainer.appendChild(_makeBarRow(e.edit_type || e.type || e.name, e.count || 0, maxEdit, e.count || 0, 'ms-analytics-bar-edit'));
+                    });
+                }
+            }
+            // Agent vs User chart
+            var agentUserContainer = document.getElementById('msChartAgentUserBody');
+            if (agentUserContainer) {
+                _clearChildren(agentUserContainer);
+                var agentCount = data.agent_count || 0;
+                var userCount = data.user_count || 0;
+                var total = agentCount + userCount || 1;
+                agentUserContainer.appendChild(_makeBarRow('Agent', agentCount, total, agentCount));
+                agentUserContainer.appendChild(_makeBarRow('User', userCount, total, userCount));
+            }
+            // Template effectiveness
+            var tplContainer = document.getElementById('msChartTemplatesBody');
+            if (tplContainer) {
+                _clearChildren(tplContainer);
+                var byTpl = data.by_template || data.templates || [];
+                var maxTpl = 0;
+                byTpl.forEach(function(t) { if ((t.use_count || t.count || 0) > maxTpl) maxTpl = t.use_count || t.count; });
+                if (!byTpl.length) {
+                    var e3 = document.createElement('div');
+                    e3.className = 'ms-analytics-bar-label';
+                    e3.textContent = 'No data';
+                    tplContainer.appendChild(e3);
+                } else {
+                    byTpl.forEach(function(t) {
+                        var cnt = t.use_count || t.count || 0;
+                        tplContainer.appendChild(_makeBarRow(t.template_name || t.name, cnt, maxTpl, cnt));
+                    });
+                }
+            }
+        };
+
+        window.renderCostSummary = function(data) {
+            var container = document.getElementById('msChartCostsBody');
+            if (!container) return;
+            _clearChildren(container);
+            var total = data.total_cost || data.total || 0;
+            var totalEl = document.createElement('div');
+            totalEl.className = 'ms-analytics-cost-total';
+            totalEl.textContent = '$' + parseFloat(total).toFixed(4);
+            var modeLabel = document.createElement('div');
+            modeLabel.className = 'ms-analytics-bar-label';
+            modeLabel.textContent = _analyticsCostMode === 'fixed' ? 'Cloud pricing' : 'Local VRAM pricing';
+            container.appendChild(totalEl);
+            container.appendChild(modeLabel);
+            var byModel = data.by_model || data.models || [];
+            var maxCost = 0;
+            byModel.forEach(function(m) { if ((m.cost || 0) > maxCost) maxCost = m.cost; });
+            byModel.forEach(function(m) {
+                container.appendChild(_makeBarRow(m.model_name || m.model, m.cost || 0, maxCost, '$' + parseFloat(m.cost || 0).toFixed(4), 'ms-analytics-bar-cost'));
+            });
+        };
+
+        window.renderCostRates = function(rates) {
+            var admin = document.getElementById('msAnalyticsAdmin');
+            var container = document.getElementById('msAnalyticsCostRates');
+            if (!admin || !container) return;
+            admin.style.display = '';
+            _clearChildren(container);
+            var items = rates.rates || rates || [];
+            items.forEach(function(r) {
+                var row = document.createElement('div');
+                row.className = 'ms-analytics-rate-row';
+                var name = document.createElement('span');
+                name.className = 'ms-analytics-rate-name';
+                name.textContent = r.model_name || r.model;
+                var cloudLbl = document.createElement('span');
+                cloudLbl.textContent = 'Cloud$';
+                var cloudInput = document.createElement('input');
+                cloudInput.type = 'number';
+                cloudInput.step = '0.0001';
+                cloudInput.className = 'ms-input-xs';
+                cloudInput.value = r.cloud_rate || r.cloud_cost_per_gen || 0;
+                var localLbl = document.createElement('span');
+                localLbl.textContent = 'Local$';
+                var localInput = document.createElement('input');
+                localInput.type = 'number';
+                localInput.step = '0.0001';
+                localInput.className = 'ms-input-xs';
+                localInput.value = r.local_rate || r.local_cost_per_gen || 0;
+                var saveBtn = document.createElement('button');
+                saveBtn.className = 'ms-btn-xs';
+                saveBtn.textContent = 'Save';
+                (function(modelName, ci, li) {
+                    saveBtn.onclick = function() {
+                        saveCostRate(modelName, parseFloat(ci.value), parseFloat(li.value));
+                    };
+                })(r.model_name || r.model, cloudInput, localInput);
+                row.appendChild(name);
+                row.appendChild(cloudLbl);
+                row.appendChild(cloudInput);
+                row.appendChild(localLbl);
+                row.appendChild(localInput);
+                row.appendChild(saveBtn);
+                container.appendChild(row);
+            });
+        };
+
+        window.saveCostRate = function(modelName, cloud, local) {
+            api('PUT', '/api/media-studio/analytics/cost-rates/' + encodeURIComponent(modelName), { cloud_rate: cloud, local_rate: local }).then(function() {
+                loadAnalytics();
+            }).catch(function() {});
         };
     })();
 

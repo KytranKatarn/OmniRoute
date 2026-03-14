@@ -410,8 +410,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._compute_media_analytics),
+            trigger=IntervalTrigger(hours=1),
+            id="media_analytics_snapshot",
+            name="Agent Loop: Media Analytics Snapshot",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 21 jobs")
+        logger.info("Agent loop started with 22 jobs")
 
     def _check_media_schedules(self):
         """Check agent media generation schedules and trigger if due."""
@@ -467,6 +475,19 @@ class AgentLoop:
         except Exception as e:
             logger.error("Agent media schedule check failed: %s", e)
 
+    def _compute_media_analytics(self):
+        """Compute hourly analytics snapshots. Also daily at midnight."""
+        from datetime import datetime
+        from tools.media_studio.services.analytics_service import compute_snapshot
+        try:
+            count = compute_snapshot(period_type='hourly')
+            logger.info(f"[Analytics] Hourly: {count} snapshots")
+            if datetime.utcnow().hour == 0:
+                daily_count = compute_snapshot(period_type='daily')
+                logger.info(f"[Analytics] Daily: {daily_count} snapshots")
+        except Exception as e:
+            logger.error(f"[Analytics] Snapshot failed: {e}")
+
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
         for job_id in [
@@ -491,6 +512,7 @@ class AgentLoop:
             "agent_idle_volunteering",
             "agent_performance_rankings",
             "agent_media_generation",
+            "media_analytics_snapshot",
         ]:
             try:
                 self.scheduler.remove_job(job_id)

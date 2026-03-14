@@ -1,0 +1,241 @@
+/* Content Studio — Writing Pipeline + AI Assist
+   cs- prefix, purple accent to match creative theme */
+
+/* ── Writing Wizard Overlay ───────────────────────────────────────────────── */
+.cs-writing-wizard {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+}
+
+.cs-wizard-content {
+    background: #1a1a2e;
+    border: 1px solid var(--cs-accent, #a78bfa);
+    border-radius: 8px;
+    width: 90vw;
+    max-width: 600px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.cs-wizard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #334;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--cs-accent, #a78bfa);
+}
+
+.cs-wizard-header button {
+    background: transparent;
+    border: none;
+    color: #aab;
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 0.25rem;
+}
+
+.cs-wizard-header button:hover {
+    color: var(--cs-accent, #a78bfa);
+}
+
+.cs-wizard-content label {
+    display: block;
+    font-size: 0.65rem;
+    color: #aab;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.75rem;
+}
+
+.cs-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #334;
+    border-radius: 4px;
+    padding: 0.4rem;
+    color: #aab;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    font-family: 'IBM Plex Mono', monospace;
+    box-sizing: border-box;
+}
+
+.cs-input:focus {
+    outline: none;
+    border-color: var(--cs-accent, #a78bfa);
+}
+
+.cs-btn-primary {
+    padding: 0.4rem 1rem;
+    background: var(--cs-accent, #a78bfa);
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
+}
+
+.cs-btn-primary:hover {
+    opacity: 0.85;
+}
+
+/* ── Pipeline Stages ──────────────────────────────────────────────────────── */
+.cs-pipeline-stages {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.25rem;
+}
+
+.cs-pipeline-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+
+.cs-pipeline-circle {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid #334;
+    margin-bottom: 0.2rem;
+    transition: background 0.3s, border-color 0.3s;
+}
+
+.cs-pipeline-stage.complete .cs-pipeline-circle {
+    background: var(--cs-accent, #a78bfa);
+    border-color: var(--cs-accent, #a78bfa);
+}
+
+.cs-pipeline-stage.running .cs-pipeline-circle {
+    border-color: var(--cs-accent, #a78bfa);
+    animation: cs-pulse 1s infinite;
+}
+
+.cs-pipeline-stage.checkpoint .cs-pipeline-circle {
+    background: #f90;
+    border-color: #f90;
+}
+
+.cs-pipeline-label {
+    font-size: 0.55rem;
+    color: #aab;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+}
+
+@keyframes cs-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* ── AI Assist Toolbar ────────────────────────────────────────────────────── */
+.cs-ai-toolbar {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.3rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #334;
+    border-radius: 4px;
+    margin: 0.5rem 0;
+    flex-wrap: wrap;
+}
+
+.cs-ai-btn {
+    padding: 0.2rem 0.5rem;
+    border: 1px solid #334;
+    background: transparent;
+    color: #aab;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.cs-ai-btn:hover {
+    color: var(--cs-accent, #a78bfa);
+    border-color: var(--cs-accent, #a78bfa);
+}
+
+/* ── Build / Stage Output ─────────────────────────────────────────────────── */
+.cs-build-output {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #334;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-size: 0.65rem;
+    color: #aab;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Write with AI header button ─────────────────────────────────────────── */
+.cs-btn-write-ai {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    background: transparent;
+    border: 1px solid var(--cs-accent, #a78bfa);
+    color: var(--cs-accent, #a78bfa);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Antonio', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.7rem;
+    transition: background 0.15s;
+}
+
+.cs-btn-write-ai:hover {
+    background: rgba(167, 139, 250, 0.12);
+}
+
+/* ── Template grid (for renderTemplateList) ───────────────────────────────── */
+#csTemplateGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.cs-tpl-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.6rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #334;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.65rem;
+    color: #aab;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.cs-tpl-card:hover {
+    border-color: var(--cs-accent, #a78bfa);
+    color: var(--cs-accent, #a78bfa);
+}

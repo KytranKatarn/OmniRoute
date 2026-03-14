@@ -502,6 +502,157 @@ def get_chat_system_prompt(repo_path: str = WEBSITE_REPO_PATH) -> str:
     return WEBSITE_EDITOR_SYSTEM_PROMPT.format(file_tree=context["file_tree"], file_contents=context["file_contents"])
 
 
+def detect_task_role(message: str) -> str:
+    """
+    Classify a chat message into a task role based on keywords.
+
+    Returns:
+        'design', 'deploy', or 'engineering'
+    """
+    msg = message.lower()
+    deploy_keywords = [
+        "deploy",
+        "publish",
+        "push",
+        "github pages",
+        "hostinger",
+        "domain",
+        "dns",
+        "ssl",
+        "live",
+        "hosting",
+        "go live",
+    ]
+    design_keywords = [
+        "color",
+        "font",
+        "style",
+        "layout",
+        "css",
+        "theme",
+        "spacing",
+        "padding",
+        "margin",
+        "background",
+        "animation",
+        "responsive",
+        "dark mode",
+        "gradient",
+        "shadow",
+        "border",
+        "design",
+        "align",
+        "flex",
+        "grid",
+    ]
+    for kw in deploy_keywords:
+        if kw in msg:
+            return "deploy"
+    for kw in design_keywords:
+        if kw in msg:
+            return "design"
+    return "engineering"
+
+
+def save_chat_history(project_id: int, history: List[Dict]) -> bool:
+    """
+    Persist chat history (last 50 messages) to website_builder_projects.
+
+    Args:
+        project_id: Project ID
+        history: List of chat message dicts
+
+    Returns:
+        True on success, False on failure
+    """
+    import psycopg2
+    import os
+
+    conn = None
+    cur = None
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
+        )
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE website_builder_projects SET chat_history = %s WHERE id = %s",
+            (json.dumps(history[-50:]), project_id),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error saving chat history for project {project_id}: {e}")
+        return False
+    finally:
+        try:
+            if cur:
+                cur.close()
+        except Exception:
+            logger.debug("DB cleanup error", exc_info=True)
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            logger.debug("DB cleanup error", exc_info=True)
+
+
+def load_chat_history(project_id: int) -> List[Dict]:
+    """
+    Load chat history from website_builder_projects.
+
+    Args:
+        project_id: Project ID
+
+    Returns:
+        List of chat message dicts, or empty list
+    """
+    import psycopg2
+    import os
+
+    conn = None
+    cur = None
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
+        )
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT chat_history FROM website_builder_projects WHERE id = %s",
+            (project_id,),
+        )
+        row = cur.fetchone()
+        if row and row[0]:
+            data = row[0]
+            if isinstance(data, str):
+                return json.loads(data)
+            elif isinstance(data, list):
+                return data
+        return []
+    except Exception as e:
+        logger.error(f"Error loading chat history for project {project_id}: {e}")
+        return []
+    finally:
+        try:
+            if cur:
+                cur.close()
+        except Exception:
+            logger.debug("DB cleanup error", exc_info=True)
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            logger.debug("DB cleanup error", exc_info=True)
+
+
 def ensure_repo_cloned(repo_path: str = WEBSITE_REPO_PATH) -> Dict:
     """
     Ensure the repository is cloned and up to date.

@@ -217,6 +217,7 @@
       <div class="sb-search-bar">
         <input type="text" id="sbTickerSearch" class="sb-input" placeholder="Enter ticker (e.g. TSLA)" maxlength="10">
         <button class="sb-btn sb-btn-accent" onclick="SB.loadChart()">Load Chart</button>
+        <button class="sb-btn sb-btn-primary" onclick="SB.runAnalysis()">Analyze with AI</button>
       </div>
     </section>
 
@@ -240,14 +241,18 @@
       </div>
     </div>
 
-    <div id="sbChartContainer" class="sb-chart-container"></div>
-
-    <div class="sb-quote-bar" id="sbQuoteBar">
-      <span id="sbQuoteTicker" class="sb-quote-ticker">—</span>
-      <span id="sbQuotePrice" class="sb-quote-val">—</span>
-      <span id="sbQuoteChange" class="sb-quote-val">—</span>
-      <span id="sbQuoteVolume" class="sb-quote-item">Vol: —</span>
-      <span id="sbQuoteMarketCap" class="sb-quote-item">Mkt Cap: —</span>
+    <div class="sb-chart-analysis-layout">
+      <div class="sb-chart-main">
+        <div id="sbChartContainer" class="sb-chart-container"></div>
+        <div class="sb-quote-bar" id="sbQuoteBar">
+          <span id="sbQuoteTicker" class="sb-quote-ticker">—</span>
+          <span id="sbQuotePrice" class="sb-quote-val">—</span>
+          <span id="sbQuoteChange" class="sb-quote-val">—</span>
+          <span id="sbQuoteVolume" class="sb-quote-item">Vol: —</span>
+          <span id="sbQuoteMarketCap" class="sb-quote-item">Mkt Cap: —</span>
+        </div>
+      </div>
+      <div id="sbAnalysisPanel" class="sb-analysis-panel" style="display:none"></div>
     </div>
 
   </div>

@@ -445,4 +445,27 @@ def share_drive_file(account_id, file_id):
     result = share_file(account_id, file_id, email=email, role=role)
     if result.get("error"):
         return jsonify(result), 400
+
+
+# ---------------------------------------------------------------------------
+# Legacy module redirects
+# ---------------------------------------------------------------------------
+
+
+@google_work_suite_bp.route("/redirect/email-manager")
+@google_work_suite_bp.route("/redirect/email-manager/<path:subpath>")
+def redirect_email_manager(subpath=""):
+    return redirect("/tools/google-work-suite")
+
+
+@google_work_suite_bp.route("/redirect/scheduler")
+@google_work_suite_bp.route("/redirect/scheduler/<path:subpath>")
+def redirect_scheduler(subpath=""):
+    return redirect("/tools/google-work-suite")
+
+
+@google_work_suite_bp.route("/redirect/google-workspace")
+@google_work_suite_bp.route("/redirect/google-workspace/<path:subpath>")
+def redirect_google_workspace(subpath=""):
+    return redirect("/tools/google-work-suite")
     return jsonify(result)

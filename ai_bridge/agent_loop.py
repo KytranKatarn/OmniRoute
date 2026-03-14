@@ -565,6 +565,20 @@ class AgentLoop:
                     logger.warning(
                         f"Agent calendar task failed for account {acc['id']}: {e}"
                     )
+
+            # Daily summary at ~6pm UTC
+            from datetime import datetime
+
+            if datetime.utcnow().hour == 18:
+                from tools.google_work_suite.services.drive_service import (
+                    generate_daily_summary,
+                )
+
+                for acc in accounts:
+                    try:
+                        generate_daily_summary(acc["id"], str(acc["owner_id"]))
+                    except Exception as e:
+                        logger.warning(f"Daily summary failed for {acc['id']}: {e}")
         except Exception as e:
             logger.error(f"Agent calendar/drive job failed: {e}")
 

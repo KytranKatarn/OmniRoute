@@ -20,21 +20,28 @@ SCOPES = [
 ]
 
 FERNET_KEY = os.environ.get("GOOGLE_TOKEN_ENCRYPTION_KEY")
-if not FERNET_KEY:
-    raise RuntimeError("GOOGLE_TOKEN_ENCRYPTION_KEY must be set in .env for Google Work Suite")
-_fernet = Fernet(FERNET_KEY.encode() if isinstance(FERNET_KEY, str) else FERNET_KEY)
+_fernet = None
+
+
+def _get_fernet():
+    global _fernet
+    if _fernet is None:
+        if not FERNET_KEY:
+            raise RuntimeError("GOOGLE_TOKEN_ENCRYPTION_KEY must be set in .env for Google Work Suite")
+        _fernet = Fernet(FERNET_KEY.encode() if isinstance(FERNET_KEY, str) else FERNET_KEY)
+    return _fernet
 
 
 def _encrypt(text):
     if not text:
         return None
-    return _fernet.encrypt(text.encode()).decode()
+    return _get_fernet().encrypt(text.encode()).decode()
 
 
 def _decrypt(text):
     if not text:
         return None
-    return _fernet.decrypt(text.encode()).decode()
+    return _get_fernet().decrypt(text.encode()).decode()
 
 
 def _build_client_config(client_id, client_secret, redirect_uri):

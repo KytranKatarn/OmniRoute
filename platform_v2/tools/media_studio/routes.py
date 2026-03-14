@@ -1501,3 +1501,54 @@ def api_update_cost_rate(model_name):
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
+
+
+# ── S25  Social Media Publishing ──
+
+
+@media_studio_bp.route("/api/media-studio/share", methods=["POST"])
+@login_required
+def api_share_to_social():
+    from tools.social_media.publishing_service import publish_from_media_studio
+
+    data = request.get_json() or {}
+    media_library_id = data.get("media_library_id")
+    platforms = data.get("platforms", [])
+    caption = data.get("caption")
+    schedule_at = data.get("schedule_at")
+    if not media_library_id:
+        return jsonify({"error": "media_library_id is required"}), 400
+    if not platforms:
+        return jsonify({"error": "At least one platform is required"}), 400
+    result = publish_from_media_studio(
+        media_library_id=media_library_id,
+        platforms=platforms,
+        caption=caption,
+        schedule_at=schedule_at,
+        owner_id=current_user.id,
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/share/bulk", methods=["POST"])
+@login_required
+def api_bulk_share_to_social():
+    from tools.social_media.publishing_service import bulk_publish_from_media_studio
+
+    data = request.get_json() or {}
+    media_library_ids = data.get("media_library_ids", [])
+    platforms = data.get("platforms", [])
+    if not media_library_ids:
+        return jsonify({"error": "media_library_ids is required"}), 400
+    if not platforms:
+        return jsonify({"error": "At least one platform is required"}), 400
+    result = bulk_publish_from_media_studio(
+        media_library_ids=media_library_ids,
+        platforms=platforms,
+        owner_id=current_user.id,
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)

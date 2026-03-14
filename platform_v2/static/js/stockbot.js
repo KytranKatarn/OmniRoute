@@ -17,6 +17,7 @@
   var _portfolio = [];
   var _activePeriod = '1M';
   var _activeIndicators = [];
+  var _chartData = [];
   var _toastTimer = null;
 
   // ── API helper ─────────────────────────────────────────────────
@@ -219,7 +220,20 @@
         var ts = getEl('sbTickerSearch'); if (ts) ts.value = item.ticker;
         setTab('charts');
       });
-      tickerTd.appendChild(tickerBtn); tr.appendChild(tickerTd);
+      tickerTd.appendChild(tickerBtn);
+      // Scan badge: async fetch cached analysis signal
+      (function (row, ticker) {
+        api('GET', '/api/analysis/' + ticker).then(function (a) {
+          if (a && a.overall_signal) {
+            var dot = document.createElement('span');
+            var sig = a.overall_signal;
+            dot.className = 'sb-scan-dot sb-scan-' + (sig.indexOf('buy') !== -1 ? 'bullish' : sig.indexOf('sell') !== -1 ? 'bearish' : 'neutral');
+            dot.title = sig.toUpperCase();
+            row.insertBefore(dot, row.firstChild);
+          }
+        }).catch(function () {});
+      }(tr, item.ticker));
+      tr.appendChild(tickerTd);
       tr.appendChild(td(formatCurrency(item.price)));
       tr.appendChild(td(formatPct(item.change_pct), colorClass(item.change_pct)));
       tr.appendChild(td(item.week52_low ? formatCurrency(item.week52_low) : '—'));
@@ -334,6 +348,13 @@
     var indParam = _activeIndicators.join(',');
     api('GET', '/api/history/' + sym + '?period=' + _activePeriod + (indParam ? '&indicators=' + indParam : '')).then(function (data) {
       renderChart(data); updateQuoteBar(data.quote || {});
+      // Auto-load cached analysis if available
+      api('GET', '/api/analysis/' + sym).then(function (analysis) {
+        if (analysis && analysis.overall_signal) {
+          renderChartOverlays(analysis);
+          renderAnalysisPanel(analysis);
+        }
+      }).catch(function () {});
     }).catch(function () {});
   }
 
@@ -349,7 +370,8 @@
     });
     _candleSeries = _chart.addCandlestickSeries({ upColor: '#44ff66', downColor: '#ff4444', borderUpColor: '#44ff66', borderDownColor: '#ff4444', wickUpColor: '#44ff66', wickDownColor: '#ff4444' });
     var ohlcv = data.ohlcv || [];
-    if (ohlcv.length) _candleSeries.setData(ohlcv.map(function (b) { return { time: b.time || b.date, open: b.open, high: b.high, low: b.low, close: b.close }; }));
+    _chartData = ohlcv.map(function (b) { return { time: b.time || b.date, open: b.open, high: b.high, low: b.low, close: b.close }; });
+    if (_chartData.length) _candleSeries.setData(_chartData);
     _volumeSeries = _chart.addHistogramSeries({ color: '#334466', priceFormat: { type: 'volume' }, priceScaleId: 'vol', scaleMargins: { top: 0.8, bottom: 0 } });
     if (ohlcv.length) _volumeSeries.setData(ohlcv.map(function (b) { return { time: b.time || b.date, value: b.volume || 0, color: b.close >= b.open ? '#224433' : '#442222' }; }));
     var ind = data.indicators || {};
@@ -386,6 +408,123 @@
     var idx = _activeIndicators.indexOf(name);
     if (idx >= 0) _activeIndicators.splice(idx, 1); else _activeIndicators.push(name);
     if (_currentTicker) loadChart(_currentTicker);
+  }
+
+  // ── Analysis ──────────────────────────────────────────────────
+  function renderChartOverlays(analysis) {
+    if (!_chart || !_candleSeries) return;
+    var tech = analysis.technical || {};
+    (tech.support_levels || []).forEach(function (level) {
+      _candleSeries.createPriceLine({ price: level, color: '#4f6', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Support' });
+    });
+    (tech.resistance_levels || []).forEach(function (level) {
+      _candleSeries.createPriceLine({ price: level, color: '#f44', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Resistance' });
+    });
+    var synth = analysis.synthesis || {};
+    if (synth.price_target) _candleSeries.createPriceLine({ price: synth.price_target, color: '#4af', lineWidth: 2, lineStyle: 2, title: 'Target' });
+    if (synth.stop_loss) _candleSeries.createPriceLine({ price: synth.stop_loss, color: '#f44', lineWidth: 2, lineStyle: 1, title: 'Stop Loss' });
+    if (analysis.overall_signal && _chartData && _chartData.length > 0) {
+      var lastCandle = _chartData[_chartData.length - 1];
+      var isGreen = analysis.overall_signal.indexOf('buy') !== -1;
+      _candleSeries.setMarkers([{
+        time: lastCandle.time,
+        position: isGreen ? 'belowBar' : 'aboveBar',
+        color: isGreen ? '#4f6' : '#f44',
+        shape: isGreen ? 'arrowUp' : 'arrowDown',
+        text: analysis.overall_signal.toUpperCase()
+      }]);
+    }
+  }
+
+  function renderAnalysisPanel(analysis) {
+    var panel = document.getElementById('sbAnalysisPanel');
+    if (!panel) return;
+    panel.style.display = '';
+    clearEl(panel);
+    var synth = analysis.synthesis || {};
+    // Signal badge
+    var badge = document.createElement('div');
+    badge.className = 'sb-signal-badge sb-signal-' + (analysis.overall_signal || 'hold').replace('_', '-');
+    badge.textContent = (analysis.overall_signal || 'N/A').toUpperCase();
+    panel.appendChild(badge);
+    // Confidence bar
+    var confBar = document.createElement('div');
+    confBar.className = 'sb-confidence-bar';
+    var confFill = document.createElement('div');
+    confFill.className = 'sb-confidence-fill';
+    confFill.style.width = (analysis.confidence || 0) + '%';
+    confFill.textContent = (analysis.confidence || 0) + '%';
+    confBar.appendChild(confFill);
+    panel.appendChild(confBar);
+    // Targets
+    var targets = document.createElement('div');
+    targets.className = 'sb-analysis-targets';
+    if (synth.price_target) { var t = document.createElement('div'); t.textContent = 'Target: $' + synth.price_target; targets.appendChild(t); }
+    if (synth.entry_price) { var e = document.createElement('div'); e.textContent = 'Entry: $' + synth.entry_price; targets.appendChild(e); }
+    if (synth.stop_loss) { var s = document.createElement('div'); s.textContent = 'Stop: $' + synth.stop_loss; s.className = 'sb-negative'; targets.appendChild(s); }
+    panel.appendChild(targets);
+    // Reasoning
+    if (synth.reasoning) { var reason = document.createElement('div'); reason.className = 'sb-analysis-reasoning'; reason.textContent = synth.reasoning; panel.appendChild(reason); }
+    // Agent cards
+    var agents = [
+      { name: 'Quinn Park', role: 'Technical', data: analysis.technical, key: 'signal' },
+      { name: 'Victor Chen', role: 'Fundamental', data: analysis.fundamental, key: 'valuation' },
+      { name: 'Priya Sharma', role: 'Sentiment', data: analysis.sentiment, key: 'sentiment' },
+      { name: 'Sam Torres', role: 'Risk', data: analysis.risk, key: 'risk_level' }
+    ];
+    agents.forEach(function (agent) {
+      var card = document.createElement('div');
+      card.className = 'sb-agent-card';
+      var header = document.createElement('div');
+      header.className = 'sb-agent-header';
+      var nameEl = document.createElement('span');
+      nameEl.className = 'sb-agent-name';
+      nameEl.textContent = agent.name + ' (' + agent.role + ')';
+      var verdict = document.createElement('span');
+      verdict.className = 'sb-agent-verdict';
+      verdict.textContent = (agent.data && agent.data[agent.key]) ? agent.data[agent.key].toUpperCase() : 'N/A';
+      header.appendChild(nameEl);
+      header.appendChild(verdict);
+      card.appendChild(header);
+      if (agent.data && agent.data.confidence) {
+        var agentConf = document.createElement('div');
+        agentConf.className = 'sb-confidence-bar sb-confidence-sm';
+        var agentFill = document.createElement('div');
+        agentFill.className = 'sb-confidence-fill';
+        agentFill.style.width = agent.data.confidence + '%';
+        agentConf.appendChild(agentFill);
+        card.appendChild(agentConf);
+      }
+      panel.appendChild(card);
+    });
+  }
+
+  function runAnalysis(ticker) {
+    if (!ticker) ticker = _currentTicker;
+    if (!ticker) { toast('Select a ticker first'); return; }
+    toast('Running AI analysis on ' + ticker + '...');
+    var panel = document.getElementById('sbAnalysisPanel');
+    if (panel) {
+      panel.style.display = '';
+      clearEl(panel);
+      var loading = document.createElement('div');
+      loading.textContent = 'Analyzing... (5 agents working)';
+      loading.className = 'sb-text-muted';
+      panel.appendChild(loading);
+    }
+    api('POST', '/api/analyze-full/' + ticker).then(function (data) {
+      if (data.error) { toast(data.error); return; }
+      var pollInterval = setInterval(function () {
+        api('GET', '/api/analysis/' + ticker).then(function (analysis) {
+          if (analysis && analysis.overall_signal) {
+            clearInterval(pollInterval);
+            renderAnalysisPanel(analysis);
+            renderChartOverlays(analysis);
+            toast('Analysis complete: ' + analysis.overall_signal);
+          }
+        }).catch(function () {});
+      }, 3000);
+    }).catch(function () {});
   }
 
   // ── Alerts ────────────────────────────────────────────────────
@@ -463,7 +602,8 @@
     setTab: setTab, addToWatchlist: addToWatchlist, removeFromWatchlist: removeFromWatchlist,
     loadChart: loadChart, setPeriod: setPeriod, toggleIndicator: toggleIndicator,
     openAlertModal: openAlertModal, closeAlertModal: closeAlertModal, createAlert: createAlert,
-    sendChat: sendChat, executeTrade: executeTrade
+    sendChat: sendChat, executeTrade: executeTrade,
+    runAnalysis: runAnalysis, toast: toast
   };
 
 })();

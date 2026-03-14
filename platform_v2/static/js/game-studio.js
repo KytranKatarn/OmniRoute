@@ -790,16 +790,20 @@
         var configContainer = document.getElementById('gsConfigContainer');
         var codeContainer = document.getElementById('gsCodeContainer');
         var previewContainer = document.getElementById('gsPreviewContainer');
+        var lobbyTab = document.getElementById('gsLobbyTab');
+        var worldTab = document.getElementById('gsWorldTab');
 
         if (configContainer) configContainer.style.display = tab === 'config' ? '' : 'none';
         if (codeContainer) codeContainer.style.display = tab === 'code' ? '' : 'none';
         if (previewContainer) previewContainer.style.display = tab === 'preview' ? '' : 'none';
+        if (lobbyTab) lobbyTab.style.display = tab === 'lobby' ? '' : 'none';
+        if (worldTab) worldTab.style.display = tab === 'world' ? '' : 'none';
 
         // Update tab button active states
-        var tabs = document.querySelectorAll('.gs-tab-btn');
+        var tabs = document.querySelectorAll('.gs-tab, .gs-tab-btn');
         tabs.forEach(function (btn) {
-            btn.classList.remove('active');
-            if (btn.dataset.tab === tab) btn.classList.add('active');
+            btn.classList.remove('active', 'gs-tab-active');
+            if (btn.dataset.tab === tab) btn.classList.add('active', 'gs-tab-active');
         });
 
         if (tab === 'code') {
@@ -816,6 +820,11 @@
             refreshPreview();
         } else if (tab === 'config') {
             renderConfigEditor();
+        } else if (tab === 'lobby') {
+            loadOpenSessions();
+            loadProfile();
+        } else if (tab === 'world') {
+            loadWorldState();
         }
     };
 
@@ -1259,10 +1268,264 @@
     window.approveBuildCheckpoint = window.approveBuildCheckpoint;
     window.applyBuildResult = window.applyBuildResult;
 
+    // =========================================================================
+    // Section N: Multiplayer — Profile, Sessions, World
+    // =========================================================================
+
+    var _profile = null;
+    var _currentRoomCode = null;
+
+    function loadProfile() {
+        api('GET', '/api/profile').then(function (data) {
+            _profile = data.profile;
+            renderProfile(_profile);
+        }).catch(function (e) { console.error('loadProfile', e); });
+    }
+
+    function renderProfile(profile) {
+        var nameEl = document.getElementById('gsProfileName');
+        if (!nameEl) return;
+        if (profile) {
+            nameEl.textContent = profile.display_name || 'Player #' + profile.id;
+        } else {
+            nameEl.textContent = '— (no profile)';
+        }
+    }
+
+    function loadOpenSessions() {
+        var list = document.getElementById('gsSessionList');
+        if (list) list.innerHTML = '<div class="gs-empty-state">Loading…</div>';
+        api('GET', '/api/sessions').then(function (data) {
+            var sessions = data.sessions || [];
+            if (!list) return;
+            if (!sessions.length) {
+                list.innerHTML = '<div class="gs-empty-state">No open sessions. Create one!</div>';
+                return;
+            }
+            list.innerHTML = sessions.map(function (s) {
+                return '<div class="gs-session-card">' +
+                    '<div class="gs-session-info">' +
+                        '<span class="gs-room-code">' + (s.room_code || '') + '</span>' +
+                        '<span class="gs-session-host">Host: ' + (s.host_name || '?') + '</span>' +
+                        '<span class="gs-session-type">' + (s.game_type || '') + '</span>' +
+                    '</div>' +
+                    '<div class="gs-session-meta">' +
+                        '<span class="gs-session-players">' + (s.current_players || 0) + '/' + (s.max_players || 4) + '</span>' +
+                        '<span class="gs-session-status gs-status-' + (s.status || '') + '">' + (s.status || '') + '</span>' +
+                    '</div>' +
+                    '<button class="gs-btn gs-btn-sm gs-btn-primary" onclick="joinMultiplayer(\'' + s.room_code + '\')">' +
+                        'Join' +
+                    '</button>' +
+                '</div>';
+            }).join('');
+        }).catch(function (e) {
+            console.error('loadOpenSessions', e);
+            if (list) list.innerHTML = '<div class="gs-empty-state">Failed to load sessions.</div>';
+        });
+    }
+
+    function loadSessionPlayers(roomCode) {
+        api('GET', '/api/sessions/' + roomCode).then(function (data) {
+            var players = data.players || [];
+            var el = document.getElementById('gsSessionPlayers');
+            if (!el) return;
+            el.innerHTML = players.length
+                ? players.map(function (p) {
+                    return '<div class="gs-player-card' + (p.is_host ? ' gs-player-host' : '') + '">' +
+                        (p.display_name || '?') +
+                        (p.is_host ? ' <span class="gs-host-badge">HOST</span>' : '') +
+                    '</div>';
+                  }).join('')
+                : '<div class="gs-empty-state">No players yet.</div>';
+            var startBtn = document.getElementById('gsStartMultiBtn');
+            if (startBtn && _profile && players.length) {
+                var isHost = players.some(function (p) { return p.is_host && p.profile_id === _profile.id; });
+                startBtn.style.display = isHost ? '' : 'none';
+            }
+        }).catch(function (e) { console.error('loadSessionPlayers', e); });
+    }
+
+    function loadWorldState() {
+        api('GET', '/api/world').then(function (data) {
+            var resEl = document.getElementById('gsWorldResources');
+            var evtEl = document.getElementById('gsWorldEvents');
+            var resources = data.resources || [];
+            var events = data.events || [];
+            if (resEl) {
+                resEl.innerHTML = resources.length
+                    ? resources.map(function (r) {
+                        return '<div class="gs-world-resource-row">' +
+                            '<span class="gs-resource-name">' + (r.resource_type || r.name || '?') + '</span>' +
+                            '<span class="gs-resource-qty">' + (r.quantity !== undefined ? r.quantity : '') + '</span>' +
+                            '<span class="gs-resource-region">' + (r.region_id || '') + '</span>' +
+                        '</div>';
+                      }).join('')
+                    : '<div class="gs-empty-state">No resources.</div>';
+            }
+            if (evtEl) {
+                evtEl.innerHTML = events.length
+                    ? events.map(function (e) {
+                        return '<div class="gs-world-event-item gs-event-' + (e.event_type || '') + '">' +
+                            '<span class="gs-event-type">' + (e.event_type || '?') + '</span>' +
+                            '<span class="gs-event-data">' + JSON.stringify(e.event_data || {}) + '</span>' +
+                        '</div>';
+                      }).join('')
+                    : '<div class="gs-empty-state">No pending events.</div>';
+            }
+        }).catch(function (e) { console.error('loadWorldState', e); });
+    }
+
+    function createSession() {
+        if (!_profile) { toast('Create a profile first'); return; }
+        var gameId = document.getElementById('gsSessionGameId');
+        var gameType = document.getElementById('gsSessionGameType');
+        var maxPlayers = document.getElementById('gsSessionMaxPlayers');
+        api('POST', '/api/sessions', {
+            game_id: gameId ? (gameId.value || null) : null,
+            game_type: gameType ? gameType.value : 'top_down_shooter',
+            max_players: maxPlayers ? parseInt(maxPlayers.value) || 4 : 4,
+        }).then(function (data) {
+            if (data.error) { toast(data.error); return; }
+            closeCreateSessionModal();
+            _currentRoomCode = data.room_code;
+            toast('Session created: ' + data.room_code);
+            loadOpenSessions();
+            joinMultiplayer(data.room_code);
+        }).catch(function (e) { console.error('createSession', e); toast('Failed to create session'); });
+    }
+
+    function joinSession() {
+        var input = document.getElementById('gsJoinRoomCode');
+        if (!input || !input.value.trim()) { toast('Enter a room code'); return; }
+        _currentRoomCode = input.value.trim().toUpperCase();
+        loadSessionPlayers(_currentRoomCode);
+    }
+
+    function leaveSession() {
+        _currentRoomCode = null;
+        closeJoinSessionModal();
+        loadOpenSessions();
+    }
+
+    function joinMultiplayer(roomCode) {
+        _currentRoomCode = roomCode;
+        var input = document.getElementById('gsJoinRoomCode');
+        if (input) input.value = roomCode;
+        openJoinSessionModal();
+        loadSessionPlayers(roomCode);
+    }
+
+    function startMultiplayerGame() {
+        if (!_currentRoomCode) return;
+        api('POST', '/api/sessions/' + _currentRoomCode + '/end', {}).then(function () {
+            toast('Session ended');
+            leaveSession();
+        }).catch(function (e) { console.error('startMultiplayerGame', e); });
+    }
+
+    function openCreateSessionModal() {
+        var modal = document.getElementById('gsCreateSessionModal');
+        if (modal) {
+            // Populate game dropdown from loaded games
+            var sel = document.getElementById('gsSessionGameId');
+            if (sel && window._gsGames) {
+                sel.innerHTML = '<option value="">— Select a game —</option>' +
+                    window._gsGames.map(function (g) {
+                        return '<option value="' + g.id + '">' + (g.name || g.id) + '</option>';
+                    }).join('');
+            }
+            modal.style.display = 'flex';
+        }
+    }
+
+    function closeCreateSessionModal() {
+        var modal = document.getElementById('gsCreateSessionModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function openJoinSessionModal() {
+        var modal = document.getElementById('gsJoinSessionModal');
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeJoinSessionModal() {
+        var modal = document.getElementById('gsJoinSessionModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function openProfileModal() {
+        if (!_profile) {
+            // No profile yet — prompt to create
+            api('POST', '/api/profile', { display_name: '' }).then(function (data) {
+                _profile = data.profile;
+                renderProfile(_profile);
+                _openProfileModalUI();
+            }).catch(function (e) { console.error('createProfile', e); toast('Failed to create profile'); });
+        } else {
+            _openProfileModalUI();
+        }
+    }
+
+    function _openProfileModalUI() {
+        var modal = document.getElementById('gsProfileModal');
+        var nameInput = document.getElementById('gsProfileDisplayName');
+        if (nameInput && _profile) nameInput.value = _profile.display_name || '';
+        if (modal) modal.style.display = 'flex';
+    }
+
+    function closeProfileModal() {
+        var modal = document.getElementById('gsProfileModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function saveProfile() {
+        var nameInput = document.getElementById('gsProfileDisplayName');
+        var name = nameInput ? nameInput.value.trim() : '';
+        if (!name) { toast('Display name required'); return; }
+        var method = _profile ? 'PUT' : 'POST';
+        api(method, '/api/profile', { display_name: name }).then(function (data) {
+            if (data.error) { toast(data.error); return; }
+            closeProfileModal();
+            loadProfile();
+            toast('Profile saved');
+        }).catch(function (e) { console.error('saveProfile', e); toast('Failed to save profile'); });
+    }
+
+    // Expose multiplayer functions to HTML onclick
+    window.loadProfile = loadProfile;
+    window.loadOpenSessions = loadOpenSessions;
+    window.loadWorldState = loadWorldState;
+    window.createSession = createSession;
+    window.joinSession = joinSession;
+    window.leaveSession = leaveSession;
+    window.joinMultiplayer = joinMultiplayer;
+    window.startMultiplayerGame = startMultiplayerGame;
+    window.openCreateSessionModal = openCreateSessionModal;
+    window.closeCreateSessionModal = closeCreateSessionModal;
+    window.openJoinSessionModal = openJoinSessionModal;
+    window.closeJoinSessionModal = closeJoinSessionModal;
+    window.openProfileModal = openProfileModal;
+    window.closeProfileModal = closeProfileModal;
+    window.saveProfile = saveProfile;
+
+    // GS namespace — bridges HTML onclick="GS.switchTab(...)" calls
+    window.GS = window.GS || {};
+    window.GS.switchTab = window.setTab;
+    window.GS.saveScene = window.saveScene || function () {};
+    window.GS.playPreview = window.playPreview || function () {};
+    window.GS.restartPreview = window.restartPreview || function () {};
+    window.GS.collapseRightPanel = window.collapseRightPanel || function () {};
+    window.GS.sendAiMessage = window.sendAiChat || function () {};
+    window.GS.toggleAiHistory = window.toggleAiHistory || function () {};
+    window.GS.openProfileModal = openProfileModal;
+    window.GS.openCreateSessionModal = openCreateSessionModal;
+    window.GS.loadOpenSessions = loadOpenSessions;
+
     // Init
     document.addEventListener('DOMContentLoaded', function () {
         initMonaco(function () {
             loadDashboard();
+            loadProfile();
         });
     });
 

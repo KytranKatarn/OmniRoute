@@ -515,3 +515,50 @@
 .gs-pipeline-label { font-size:0.6rem;color:var(--gs-text,#aab);text-transform:uppercase; }
 @keyframes gs-pulse { 0%,100%{opacity:1;}50%{opacity:0.4;} }
 .gs-build-output { background:rgba(0,0,0,0.3);border:1px solid var(--gs-border,#232);border-radius:4px;padding:0.5rem;font-size:0.65rem;color:var(--gs-text,#aab);max-height:300px;overflow-y:auto;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace; }
+
+/* ── Multiplayer Lobby ────────────────────────────────────────── */
+.gs-lobby-header { display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1rem;border-bottom:1px solid var(--gs-border,#232); }
+.gs-lobby-actions { display:flex;gap:0.5rem; }
+.gs-profile-panel { display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;color:var(--gs-text,#aab); }
+.gs-profile-name { color:var(--gs-accent,#4f6);font-weight:600; }
+.gs-session-list { padding:0.75rem;display:flex;flex-direction:column;gap:0.5rem;overflow-y:auto; }
+.gs-session-card { display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:rgba(255,255,255,0.03);border:1px solid var(--gs-border,#232);border-radius:4px; }
+.gs-session-card:hover { border-color:var(--gs-accent,#4f6); }
+.gs-session-info { flex:1;display:flex;flex-direction:column;gap:0.15rem; }
+.gs-room-code { font-family:'IBM Plex Mono',monospace;font-size:0.85rem;color:var(--gs-accent,#4f6);letter-spacing:0.1em; }
+.gs-session-host,.gs-session-type { font-size:0.65rem;color:var(--gs-text,#aab); }
+.gs-session-meta { display:flex;flex-direction:column;align-items:flex-end;gap:0.15rem;font-size:0.65rem;color:var(--gs-text,#aab); }
+.gs-status-lobby { color:#f90; }
+.gs-status-playing { color:var(--gs-accent,#4f6); }
+.gs-player-card { padding:0.35rem 0.6rem;background:rgba(255,255,255,0.03);border:1px solid var(--gs-border,#232);border-radius:3px;font-size:0.75rem;color:var(--gs-text,#aab);display:flex;align-items:center;gap:0.4rem;margin-bottom:0.25rem; }
+.gs-player-card.gs-player-host { border-color:var(--gs-accent,#4f6); }
+.gs-host-badge { font-size:0.55rem;background:var(--gs-accent,#4f6);color:#000;padding:0.1rem 0.3rem;border-radius:2px;font-weight:700; }
+
+/* ── World State ──────────────────────────────────────────────── */
+.gs-world-header { display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1rem;border-bottom:1px solid var(--gs-border,#232); }
+.gs-world-body { padding:0.75rem;display:flex;gap:1rem;flex-wrap:wrap; }
+.gs-world-section { flex:1;min-width:240px; }
+.gs-world-section-title { font-size:0.65rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--gs-accent,#4f6);margin-bottom:0.5rem;padding-bottom:0.25rem;border-bottom:1px solid var(--gs-border,#232); }
+.gs-world-resource-row { display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.72rem; }
+.gs-resource-name { flex:1;color:var(--gs-text,#aab); }
+.gs-resource-qty { color:var(--gs-accent,#4f6);font-family:'IBM Plex Mono',monospace;min-width:3rem;text-align:right; }
+.gs-resource-region { font-size:0.6rem;color:rgba(170,170,187,0.5);min-width:4rem;text-align:right; }
+.gs-world-event-item { padding:0.35rem 0.5rem;margin-bottom:0.25rem;background:rgba(255,255,255,0.03);border-left:2px solid var(--gs-border,#232);border-radius:2px;font-size:0.7rem; }
+.gs-world-event-item.gs-event-spawn { border-left-color:#f90; }
+.gs-world-event-item.gs-event-weather { border-left-color:#4af; }
+.gs-world-event-item.gs-event-raid { border-left-color:#f44; }
+.gs-event-type { color:var(--gs-accent,#4f6);font-weight:600;margin-right:0.4rem; }
+.gs-event-data { color:var(--gs-text,#aab);font-family:'IBM Plex Mono',monospace;font-size:0.62rem; }
+
+/* ── Modals (shared) ──────────────────────────────────────────── */
+.gs-modal-overlay { position:fixed;inset:0;z-index:9990;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.8); }
+.gs-modal { background:var(--gs-bg,#0d0d1a);border:1px solid var(--gs-accent,#4f6);border-radius:6px;width:90vw;max-width:420px;display:flex;flex-direction:column;overflow:hidden; }
+.gs-modal-header { display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0.9rem;border-bottom:1px solid var(--gs-border,#232); }
+.gs-modal-title { font-size:0.8rem;font-weight:600;color:var(--gs-accent,#4f6);text-transform:uppercase;letter-spacing:0.05em; }
+.gs-modal-body { padding:0.9rem;display:flex;flex-direction:column;gap:0.6rem; }
+.gs-modal-footer { display:flex;justify-content:flex-end;gap:0.5rem;padding:0.6rem 0.9rem;border-top:1px solid var(--gs-border,#232); }
+.gs-label { font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--gs-text,#aab);margin-bottom:0.1rem; }
+.gs-select,.gs-input { width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--gs-border,#232);border-radius:3px;color:var(--gs-text,#aab);padding:0.35rem 0.5rem;font-size:0.75rem; }
+.gs-select:focus,.gs-input:focus { outline:none;border-color:var(--gs-accent,#4f6); }
+.gs-btn-sm { font-size:0.65rem;padding:0.2rem 0.5rem; }
+.gs-section-title { font-size:0.75rem;font-weight:600;color:var(--gs-accent,#4f6);text-transform:uppercase;letter-spacing:0.05em; }

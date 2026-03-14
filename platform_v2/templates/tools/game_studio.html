@@ -75,6 +75,8 @@
       <button class="gs-tab gs-tab-active" data-tab="config"  onclick="GS.switchTab('config')"  role="tab">Config</button>
       <button class="gs-tab"               data-tab="code"    onclick="GS.switchTab('code')"    role="tab">Code</button>
       <button class="gs-tab"               data-tab="preview" onclick="GS.switchTab('preview')" role="tab">Preview</button>
+      <button class="gs-tab"               data-tab="lobby"   onclick="GS.switchTab('lobby')"   role="tab">Lobby</button>
+      <button class="gs-tab"               data-tab="world"   onclick="GS.switchTab('world')"   role="tab">World</button>
     </nav>
 
     <!-- Toolbar -->
@@ -113,6 +115,118 @@
         sandbox="allow-scripts"
         title="Game Preview"
       ></iframe>
+    </div>
+
+    <!-- Lobby tab -->
+    <div id="gsLobbyTab" class="gs-tab-panel" style="display:none;">
+      <div class="gs-lobby-header">
+        <div id="gsProfilePanel" class="gs-profile-panel">
+          <span class="gs-profile-label">Profile:</span>
+          <span id="gsProfileName" class="gs-profile-name">—</span>
+          <button class="gs-btn gs-btn-sm" onclick="GS.openProfileModal()">Edit</button>
+        </div>
+        <div class="gs-lobby-actions">
+          <button class="gs-btn gs-btn-primary" onclick="GS.openCreateSessionModal()">
+            <i data-lucide="plus"></i> New Session
+          </button>
+          <button class="gs-btn" onclick="GS.loadOpenSessions()">
+            <i data-lucide="refresh-cw"></i> Refresh
+          </button>
+        </div>
+      </div>
+      <div id="gsSessionList" class="gs-session-list">
+        <div class="gs-empty-state">Loading sessions…</div>
+      </div>
+    </div>
+
+    <!-- World tab -->
+    <div id="gsWorldTab" class="gs-tab-panel" style="display:none;">
+      <div class="gs-world-header">
+        <span class="gs-section-title">World State</span>
+        <button class="gs-btn gs-btn-sm" onclick="GS.loadWorldState()">
+          <i data-lucide="refresh-cw"></i> Refresh
+        </button>
+      </div>
+      <div class="gs-world-body">
+        <div class="gs-world-section">
+          <div class="gs-world-section-title">Resources</div>
+          <div id="gsWorldResources" class="gs-world-resources">
+            <div class="gs-empty-state">No data</div>
+          </div>
+        </div>
+        <div class="gs-world-section">
+          <div class="gs-world-section-title">Pending Events</div>
+          <div id="gsWorldEvents" class="gs-world-events">
+            <div class="gs-empty-state">No events</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create Session Modal -->
+    <div id="gsCreateSessionModal" class="gs-modal-overlay" style="display:none;">
+      <div class="gs-modal">
+        <div class="gs-modal-header">
+          <span class="gs-modal-title">Create Session</span>
+          <button class="gs-btn gs-btn-icon" onclick="GS.closeCreateSessionModal()">&times;</button>
+        </div>
+        <div class="gs-modal-body">
+          <label class="gs-label">Game</label>
+          <select id="gsSessionGameId" class="gs-select">
+            <option value="">— Select a game —</option>
+          </select>
+          <label class="gs-label">Game Type</label>
+          <select id="gsSessionGameType" class="gs-select">
+            <option value="top_down_shooter">Top-Down Shooter</option>
+            <option value="space_explorer">Space Explorer</option>
+            <option value="base_builder">Base Builder</option>
+          </select>
+          <label class="gs-label">Max Players</label>
+          <input id="gsSessionMaxPlayers" class="gs-input" type="number" min="1" max="8" value="4">
+        </div>
+        <div class="gs-modal-footer">
+          <button class="gs-btn" onclick="GS.closeCreateSessionModal()">Cancel</button>
+          <button class="gs-btn gs-btn-primary" onclick="GS.createSession()">Create</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Join Session Modal -->
+    <div id="gsJoinSessionModal" class="gs-modal-overlay" style="display:none;">
+      <div class="gs-modal">
+        <div class="gs-modal-header">
+          <span class="gs-modal-title">Join Session</span>
+          <button class="gs-btn gs-btn-icon" onclick="GS.closeJoinSessionModal()">&times;</button>
+        </div>
+        <div class="gs-modal-body">
+          <label class="gs-label">Room Code</label>
+          <input id="gsJoinRoomCode" class="gs-input" type="text" placeholder="XXXX" maxlength="8" style="text-transform:uppercase;">
+          <div id="gsSessionPlayers" class="gs-session-players" style="margin-top:0.75rem;"></div>
+        </div>
+        <div class="gs-modal-footer">
+          <button class="gs-btn" onclick="GS.closeJoinSessionModal()">Cancel</button>
+          <button class="gs-btn gs-btn-primary" onclick="GS.joinSession()">Join</button>
+          <button class="gs-btn gs-btn-success" id="gsStartMultiBtn" style="display:none;" onclick="GS.startMultiplayerGame()">Start</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Edit Modal -->
+    <div id="gsProfileModal" class="gs-modal-overlay" style="display:none;">
+      <div class="gs-modal">
+        <div class="gs-modal-header">
+          <span class="gs-modal-title">Player Profile</span>
+          <button class="gs-btn gs-btn-icon" onclick="GS.closeProfileModal()">&times;</button>
+        </div>
+        <div class="gs-modal-body">
+          <label class="gs-label">Display Name</label>
+          <input id="gsProfileDisplayName" class="gs-input" type="text" maxlength="50" placeholder="Your display name">
+        </div>
+        <div class="gs-modal-footer">
+          <button class="gs-btn" onclick="GS.closeProfileModal()">Cancel</button>
+          <button class="gs-btn gs-btn-primary" onclick="GS.saveProfile()">Save</button>
+        </div>
+      </div>
     </div>
 
     <!-- AI chat bar -->

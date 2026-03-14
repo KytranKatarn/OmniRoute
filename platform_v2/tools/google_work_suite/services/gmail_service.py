@@ -1,0 +1,486 @@
+"""
+Gmail Service — inbox sync, email fetch/send/draft, agent inbox processing.
+"""
+
+import base64
+import logging
+import sys
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+from database import get_db_cursor
+from tools.google_work_suite.services.google_api_service import get_gmail_client, get_account
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _extract_headers(headers_list):
+    """Convert a list of {name, value} header dicts into a plain dict."""
+    return {h["name"].lower(): h["value"] for h in (headers_list or [])}
+
+
+def _walk_parts(payload):
+    """Recursively yield all MIME parts from a Gmail message payload."""
+    if "parts" in payload:
+        for part in payload["parts"]:
+            yield from _walk_parts(part)
+    else:
+        yield payload
+
+
+def _decode_body(data):
+    """Base64url-decode a Gmail body data string."""
+    if not data:
+        return ""
+    try:
+        return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def _build_mime(to, subject, body, reply_to_msg=None):
+    """Construct a MIMEText message, optionally threading it as a reply."""
+    msg = MIMEMultipart("alternative")
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    if reply_to_msg:
+        headers = _extract_headers(reply_to_msg.get("payload", {}).get("headers", []))
+        msg_id = headers.get("message-id", "")
+        refs = headers.get("references", "")
+        if msg_id:
+            msg["In-Reply-To"] = msg_id
+            msg["References"] = f"{refs} {msg_id}".strip()
+
+    return msg
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def sync_inbox(account_id, max_results=50):
+    """
+    Pull recent INBOX messages from Gmail and upsert into google_email_cache.
+    Returns the number of messages synced.
+    """
+    try:
+        service = get_gmail_client(account_id)
+        result = service.users().messages().list(userId="me", maxResults=max_results, labelIds=["INBOX"]).execute()
+        messages = result.get("messages", [])
+        synced = 0
+
+        for msg_stub in messages:
+            try:
+                msg = (
+                    service.users()
+                    .messages()
+                    .get(
+                        userId="me",
+                        id=msg_stub["id"],
+                        format="metadata",
+                        metadataHeaders=["Subject", "From", "To", "Date"],
+                    )
+                    .execute()
+                )
+                headers = _extract_headers(msg.get("payload", {}).get("headers", []))
+                has_attachments = any(p.get("filename") for p in _walk_parts(msg.get("payload", {})))
+                labels = msg.get("labelIds", [])
+                is_read = "UNREAD" not in labels
+
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO google_email_cache
+                            (account_id, gmail_id, thread_id, subject, sender,
+                             recipients, received_at, labels, has_attachments, is_read)
+                        VALUES (%s, %s, %s, %s, %s, %s,
+                                TO_TIMESTAMP(%s::BIGINT / 1000),
+                                %s, %s, %s)
+                        ON CONFLICT (account_id, gmail_id) DO UPDATE SET
+                            labels          = EXCLUDED.labels,
+                            is_read         = EXCLUDED.is_read,
+                            has_attachments = EXCLUDED.has_attachments,
+                            updated_at      = NOW()
+                        """,
+                        (
+                            account_id,
+                            msg["id"],
+                            msg.get("threadId"),
+                            headers.get("subject", "(no subject)"),
+                            headers.get("from", ""),
+                            headers.get("to", ""),
+                            msg.get("internalDate", "0"),
+                            ",".join(labels),
+                            has_attachments,
+                            is_read,
+                        ),
+                    )
+                synced += 1
+            except Exception as e:
+                logger.warning("Failed to sync message %s: %s", msg_stub["id"], e)
+
+        # Update last_sync_at
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE google_accounts SET last_sync_at=NOW() WHERE id=%s",
+                (account_id,),
+            )
+
+        logger.info("Synced %d messages for account %s", synced, account_id)
+        return synced
+
+    except Exception as e:
+        logger.error("sync_inbox failed for account %s: %s", account_id, e)
+        raise
+
+
+def get_inbox(account_id, page=1, per_page=20, label=None):
+    """Return cached inbox rows with optional label filter, paginated."""
+    try:
+        offset = (page - 1) * per_page
+        with get_db_cursor() as (conn, cur):
+            query = (
+                "SELECT id, gmail_id, thread_id, subject, sender, recipients, "
+                "received_at, labels, has_attachments, is_read, snippet "
+                "FROM google_email_cache WHERE account_id=%s"
+            )
+            params = [account_id]
+            if label:
+                query += " AND labels ILIKE %s"
+                params.append(f"%{label}%")
+            query += " ORDER BY received_at DESC LIMIT %s OFFSET %s"
+            params += [per_page, offset]
+            cur.execute(query, params)
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error("get_inbox failed for account %s: %s", account_id, e)
+        raise
+
+
+def get_email(account_id, gmail_id):
+    """
+    Fetch full email from Gmail API. Parse MIME body and list attachments.
+    Returns a dict with subject, sender, body_plain, body_html, attachments.
+    """
+    try:
+        service = get_gmail_client(account_id)
+        msg = service.users().messages().get(userId="me", id=gmail_id, format="full").execute()
+        headers = _extract_headers(msg.get("payload", {}).get("headers", []))
+        body_plain = ""
+        body_html = ""
+        attachments = []
+
+        for part in _walk_parts(msg.get("payload", {})):
+            mime = part.get("mimeType", "")
+            data = part.get("body", {}).get("data", "")
+            filename = part.get("filename", "")
+            if filename:
+                attachments.append(
+                    {
+                        "filename": filename,
+                        "mimeType": mime,
+                        "size": part.get("body", {}).get("size", 0),
+                        "attachmentId": part.get("body", {}).get("attachmentId"),
+                    }
+                )
+            elif mime == "text/plain" and not body_plain:
+                body_plain = _decode_body(data)
+            elif mime == "text/html" and not body_html:
+                body_html = _decode_body(data)
+
+        return {
+            "gmail_id": gmail_id,
+            "thread_id": msg.get("threadId"),
+            "subject": headers.get("subject", "(no subject)"),
+            "sender": headers.get("from", ""),
+            "recipients": headers.get("to", ""),
+            "date": headers.get("date", ""),
+            "labels": msg.get("labelIds", []),
+            "body_plain": body_plain,
+            "body_html": body_html,
+            "attachments": attachments,
+            "snippet": msg.get("snippet", ""),
+        }
+    except Exception as e:
+        logger.error("get_email failed (account=%s, id=%s): %s", account_id, gmail_id, e)
+        raise
+
+
+def send_email(account_id, to, subject, body, reply_to_id=None):
+    """
+    Send an email. If account has draft_only permission, creates a draft instead.
+    Returns {status, message_id} or {status:'drafted', draft_id}.
+    """
+    try:
+        account = get_account(account_id)
+        if not account:
+            raise ValueError(f"Account {account_id} not found")
+
+        if account["permission_level"] == "draft_only":
+            return create_draft(account_id, to, subject, body, reply_to_id=reply_to_id)
+
+        service = get_gmail_client(account_id)
+        reply_msg = None
+        if reply_to_id:
+            try:
+                reply_msg = (
+                    service.users()
+                    .messages()
+                    .get(userId="me", id=reply_to_id, format="metadata", metadataHeaders=["Message-ID", "References"])
+                    .execute()
+                )
+            except Exception as e:
+                logger.warning("Could not fetch reply-to message %s: %s", reply_to_id, e)
+
+        mime_msg = _build_mime(to, subject, body, reply_to_msg=reply_msg)
+        encoded = base64.urlsafe_b64encode(mime_msg.as_bytes()).decode()
+        sent = service.users().messages().send(userId="me", body={"raw": encoded}).execute()
+        logger.info("Sent email to %s (account=%s, id=%s)", to, account_id, sent.get("id"))
+        return {"status": "sent", "message_id": sent.get("id")}
+
+    except Exception as e:
+        logger.error("send_email failed (account=%s): %s", account_id, e)
+        raise
+
+
+def create_draft(account_id, to, subject, body, reply_to_id=None):
+    """Create a Gmail draft. Returns {status:'drafted', draft_id}."""
+    try:
+        service = get_gmail_client(account_id)
+        reply_msg = None
+        if reply_to_id:
+            try:
+                reply_msg = (
+                    service.users()
+                    .messages()
+                    .get(userId="me", id=reply_to_id, format="metadata", metadataHeaders=["Message-ID", "References"])
+                    .execute()
+                )
+            except Exception as e:
+                logger.warning("Could not fetch reply-to message %s: %s", reply_to_id, e)
+
+        mime_msg = _build_mime(to, subject, body, reply_to_msg=reply_msg)
+        encoded = base64.urlsafe_b64encode(mime_msg.as_bytes()).decode()
+        draft = service.users().drafts().create(userId="me", body={"message": {"raw": encoded}}).execute()
+        logger.info("Created draft (account=%s, id=%s)", account_id, draft.get("id"))
+        return {"status": "drafted", "draft_id": draft.get("id")}
+
+    except Exception as e:
+        logger.error("create_draft failed (account=%s): %s", account_id, e)
+        raise
+
+
+def apply_label(account_id, gmail_id, label_name, remove=False):
+    """
+    Add (or remove) a label from a Gmail message.
+    Set remove=True to remove the label instead.
+    """
+    try:
+        service = get_gmail_client(account_id)
+        body = {"removeLabelIds": [label_name]} if remove else {"addLabelIds": [label_name]}
+        service.users().messages().modify(userId="me", id=gmail_id, body=body).execute()
+        logger.debug(
+            "%s label %s on message %s (account=%s)",
+            "Removed" if remove else "Applied",
+            label_name,
+            gmail_id,
+            account_id,
+        )
+    except Exception as e:
+        logger.error("apply_label failed (account=%s, msg=%s): %s", account_id, gmail_id, e)
+        raise
+
+
+def search_emails(account_id, query):
+    """Search Gmail and return matching messages from cache."""
+    try:
+        service = get_gmail_client(account_id)
+        result = service.users().messages().list(userId="me", q=query, maxResults=50).execute()
+        gmail_ids = [m["id"] for m in result.get("messages", [])]
+        if not gmail_ids:
+            return []
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, gmail_id, subject, sender, received_at, is_read, snippet "
+                "FROM google_email_cache WHERE account_id=%s AND gmail_id = ANY(%s) "
+                "ORDER BY received_at DESC",
+                (account_id, gmail_ids),
+            )
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error("search_emails failed (account=%s): %s", account_id, e)
+        raise
+
+
+def process_agent_inbox(account_id):
+    """
+    Sync inbox, apply automation rules, dispatch unmatched emails to Bridge AI.
+    """
+    try:
+        sync_inbox(account_id)
+
+        account = get_account(account_id)
+        if not account:
+            raise ValueError(f"Account {account_id} not found")
+
+        owner_id = account["owner_id"]
+
+        # Load unread cached emails
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT gmail_id, subject, sender, snippet FROM google_email_cache "
+                "WHERE account_id=%s AND is_read=FALSE ORDER BY received_at DESC LIMIT 50",
+                (account_id,),
+            )
+            cols = [d[0] for d in cur.description]
+            unread = [dict(zip(cols, row)) for row in cur.fetchall()]
+
+        if not unread:
+            return {"processed": 0}
+
+        # Load automation rules for this account
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, rule_name, from_contains, subject_contains, body_contains, "
+                "action_type, action_value FROM google_email_rules "
+                "WHERE account_id=%s AND is_active=TRUE ORDER BY priority ASC",
+                (account_id,),
+            )
+            rule_cols = [d[0] for d in cur.description]
+            rules = [dict(zip(rule_cols, row)) for row in cur.fetchall()]
+
+        processed = 0
+        for email_row in unread:
+            gmail_id = email_row["gmail_id"]
+            subject = email_row.get("subject", "")
+            sender = email_row.get("sender", "")
+            matched = False
+
+            for rule in rules:
+                from_match = not rule["from_contains"] or rule["from_contains"].lower() in sender.lower()
+                subj_match = not rule["subject_contains"] or rule["subject_contains"].lower() in subject.lower()
+                body_check = rule.get("body_contains")
+                body_match = True
+                if body_check:
+                    try:
+                        full = get_email(account_id, gmail_id)
+                        body_text = full.get("body_plain", "") + full.get("body_html", "")
+                        body_match = body_check.lower() in body_text.lower()
+                    except Exception:
+                        body_match = False
+
+                if from_match and subj_match and body_match:
+                    _execute_rule_action(account_id, gmail_id, rule)
+                    matched = True
+                    break
+
+            if not matched:
+                # Dispatch to Bridge AI for analysis
+                _dispatch_to_bridge(account_id, email_row, owner_id, account["permission_level"])
+
+            # Mark as read in cache
+            try:
+                apply_label(account_id, gmail_id, "UNREAD", remove=True)
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE google_email_cache SET is_read=TRUE WHERE account_id=%s AND gmail_id=%s",
+                        (account_id, gmail_id),
+                    )
+            except Exception as e:
+                logger.warning("Could not mark %s as read: %s", gmail_id, e)
+
+            processed += 1
+
+        logger.info("process_agent_inbox: %d emails processed for account %s", processed, account_id)
+        return {"processed": processed}
+
+    except Exception as e:
+        logger.error("process_agent_inbox failed (account=%s): %s", account_id, e)
+        raise
+
+
+def _execute_rule_action(account_id, gmail_id, rule):
+    """Apply a single automation rule action to a Gmail message."""
+    try:
+        action = rule.get("action_type", "")
+        value = rule.get("action_value", "")
+        if action == "label":
+            apply_label(account_id, gmail_id, value)
+        elif action == "archive":
+            apply_label(account_id, gmail_id, "INBOX", remove=True)
+        elif action == "star":
+            apply_label(account_id, gmail_id, "STARRED")
+        elif action == "trash":
+            apply_label(account_id, gmail_id, "TRASH")
+        else:
+            logger.debug("Unknown rule action '%s' (rule=%s)", action, rule.get("id"))
+    except Exception as e:
+        logger.warning("Rule action failed (rule=%s, msg=%s): %s", rule.get("id"), gmail_id, e)
+
+
+def _dispatch_to_bridge(account_id, email_row, owner_id, permission_level):
+    """Ask Bridge AI to analyse an email and optionally auto-reply."""
+    try:
+        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+        from archie_bridge import archie_bridge as ai_bridge  # noqa: PLC0415
+
+        gmail_id = email_row["gmail_id"]
+        subject = email_row.get("subject", "")
+        sender = email_row.get("sender", "")
+        snippet = email_row.get("snippet", "")
+
+        # Fetch body for richer context (best-effort)
+        body = snippet
+        try:
+            full = get_email(account_id, gmail_id)
+            body = full.get("body_plain") or snippet
+        except Exception:
+            pass
+
+        system_prompt = (
+            "You are an email assistant. Analyse this email and respond with JSON only: "
+            '{"action": "reply"|"ignore"|"flag", "draft_reply": "...", "priority": "high"|"normal"|"low"}'
+        )
+        prompt = f"From: {sender}\nSubject: {subject}\n\n{body[:2000]}"
+
+        raw = ai_bridge(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            user_id=owner_id,
+            enable_memory=False,
+        )
+
+        import json  # noqa: PLC0415
+
+        # ai_bridge may return a string or dict
+        if isinstance(raw, str):
+            # Strip markdown code fences if present
+            clean = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            result = json.loads(clean)
+        else:
+            result = raw
+
+        action = result.get("action", "ignore")
+        draft_reply = result.get("draft_reply", "")
+
+        if action == "reply" and draft_reply:
+            if permission_level == "full":
+                send_email(account_id, to=sender, subject=f"Re: {subject}", body=draft_reply, reply_to_id=gmail_id)
+            else:
+                create_draft(account_id, to=sender, subject=f"Re: {subject}", body=draft_reply, reply_to_id=gmail_id)
+        elif action == "flag":
+            apply_label(account_id, gmail_id, "STARRED")
+
+    except Exception as e:
+        logger.warning("Bridge dispatch failed for message %s: %s", email_row.get("gmail_id"), e)

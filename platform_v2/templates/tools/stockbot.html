@@ -35,6 +35,7 @@
     <button class="sb-tab" onclick="SB.setTab('portfolio')" data-tab="portfolio">Portfolio</button>
     <button class="sb-tab" onclick="SB.setTab('charts')" data-tab="charts">Charts</button>
     <button class="sb-tab" onclick="SB.setTab('chat')" data-tab="chat">AI Chat</button>
+    <button class="sb-tab" data-tab="trading" onclick="SB.setTab('trading')">Trading</button>
   </nav>
 
   <!-- ── DASHBOARD TAB ────────────────────────────────────────── -->
@@ -272,6 +273,57 @@
         <button class="sb-btn sb-btn-accent" onclick="SB.sendChat()">Send</button>
       </div>
     </section>
+
+  </div>
+
+  <!-- ── TRADING TAB ──────────────────────────────────────────────── -->
+  <div id="sbTradingTab" class="sb-tab-panel" style="display:none">
+
+    <!-- Paper Account -->
+    <div class="sb-trading-section">
+      <div class="sb-section-title">Paper Trading Account</div>
+      <div id="sbPaperAccount" class="sb-paper-account"></div>
+      <div class="sb-trade-actions">
+        <input type="text" id="sbPaperTicker" class="sb-input" placeholder="Ticker" style="width:80px;">
+        <input type="number" id="sbPaperShares" class="sb-input" placeholder="Shares" style="width:80px;" value="10">
+        <button class="sb-btn-positive" onclick="SB.paperBuy()">Buy</button>
+        <button class="sb-btn-negative" onclick="SB.paperSell()">Sell</button>
+        <button class="sb-btn-sm" onclick="SB.resetPaperAccount()">Reset ($100K)</button>
+      </div>
+    </div>
+
+    <!-- Strategy Builder -->
+    <div class="sb-trading-section">
+      <div class="sb-section-title">Auto-Trading Strategies</div>
+      <div class="sb-strategy-builder">
+        <input type="text" id="sbStratName" class="sb-input" placeholder="Strategy name" style="width:150px;">
+        <input type="text" id="sbStratTicker" class="sb-input" placeholder="Ticker" style="width:80px;">
+        <select id="sbStratCondition" class="sb-input" style="width:auto;">
+          <option value="rsi_below">RSI Below</option>
+          <option value="rsi_above">RSI Above</option>
+          <option value="price_above_sma">Price Above SMA</option>
+          <option value="price_below_sma">Price Below SMA</option>
+          <option value="macd_crossover">MACD Crossover</option>
+          <option value="price_change_above">Price Change Above %</option>
+          <option value="price_change_below">Price Drop Below %</option>
+        </select>
+        <input type="number" id="sbStratThreshold" class="sb-input" placeholder="Value" style="width:60px;" value="30">
+        <select id="sbStratAction" class="sb-input" style="width:auto;">
+          <option value="buy">Buy</option>
+          <option value="sell">Sell</option>
+          <option value="sell_all">Sell All</option>
+        </select>
+        <input type="number" id="sbStratShares" class="sb-input" placeholder="Shares" style="width:60px;" value="10">
+        <button class="sb-btn-primary" onclick="SB.createStrategy()">Create</button>
+      </div>
+      <div id="sbStrategyList" class="sb-strategy-list"></div>
+    </div>
+
+    <!-- Strategy Logs -->
+    <div class="sb-trading-section">
+      <div class="sb-section-title">Execution Log</div>
+      <div id="sbStrategyLogs" class="sb-strategy-logs"></div>
+    </div>
 
   </div>
 

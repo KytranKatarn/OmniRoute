@@ -2460,3 +2460,78 @@
     height: 100%; background: var(--ms-accent, #f90);
     border-radius: 3px; transition: width 0.5s ease;
 }
+
+/* ── S24  Media Analytics ── */
+.ms-analytics-header {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    padding: 0.5rem 0; margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--ms-border, #334);
+}
+.ms-analytics-presets { display: flex; gap: 0.25rem; }
+.ms-analytics-preset-btn { font-size: 0.7rem; }
+.ms-analytics-preset-btn.active { background: var(--ms-accent, #f90); color: #000; }
+.ms-analytics-custom-range {
+    display: flex; gap: 0.25rem; align-items: center;
+    font-size: 0.7rem; color: var(--ms-text, #aab);
+}
+.ms-analytics-cost-toggle { display: flex; gap: 0.25rem; margin-left: auto; }
+.ms-cost-mode-btn { font-size: 0.65rem; }
+.ms-cost-mode-btn.active { background: var(--ms-accent, #f90); color: #000; }
+.ms-analytics-stat-cards {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1rem;
+}
+.ms-analytics-stat-card {
+    background: rgba(255,255,255,0.02); border: 1px solid var(--ms-border, #334);
+    border-radius: 6px; padding: 0.75rem; text-align: center;
+}
+.ms-analytics-stat-value {
+    font-family: 'Antonio', sans-serif; font-size: 1.5rem; color: var(--ms-accent, #f90);
+}
+.ms-analytics-stat-label {
+    font-size: 0.65rem; color: var(--ms-text, #aab);
+    text-transform: uppercase; margin-top: 0.25rem;
+}
+.ms-analytics-charts {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;
+}
+.ms-analytics-chart {
+    background: rgba(255,255,255,0.02); border: 1px solid var(--ms-border, #334);
+    border-radius: 6px; padding: 0.75rem;
+}
+.ms-analytics-chart-title {
+    font-family: 'Antonio', sans-serif; text-transform: uppercase;
+    color: var(--ms-accent, #f90); font-size: 0.8rem;
+    margin-bottom: 0.5rem; padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--ms-border, #334);
+}
+.ms-analytics-bar {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; font-size: 0.7rem;
+}
+.ms-analytics-bar-label {
+    width: 120px; flex-shrink: 0; color: var(--ms-text, #aab);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ms-analytics-bar-fill {
+    height: 14px; background: var(--ms-accent, #f90); border-radius: 2px;
+    min-width: 2px; transition: width 0.3s ease; flex: 1; max-width: calc(100% - 180px);
+}
+.ms-analytics-bar-edit { background: #47b; }
+.ms-analytics-bar-cost { background: #4a9; }
+.ms-analytics-bar-count {
+    width: 50px; text-align: right; color: var(--ms-text, #aab);
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem;
+}
+.ms-analytics-cost-total {
+    font-family: 'Antonio', sans-serif; font-size: 2rem;
+    color: var(--ms-accent, #f90); margin-bottom: 0.25rem;
+}
+.ms-analytics-admin {
+    margin-top: 1rem; padding: 0.75rem;
+    border: 1px solid var(--ms-border, #334); border-radius: 6px;
+}
+.ms-analytics-rate-row {
+    display: flex; gap: 0.5rem; align-items: center;
+    padding: 0.3rem 0; font-size: 0.7rem; color: var(--ms-text, #aab);
+}
+.ms-analytics-rate-name { width: 200px; flex-shrink: 0; }
+.ms-analytics-rate-row input { width: 100px; }

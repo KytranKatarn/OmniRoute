@@ -107,3 +107,8 @@ croniter>=2.0.0
 google-auth>=2.0
 google-auth-oauthlib>=1.0
 google-api-python-client>=2.0
+
+# Game Studio Phase 4 — Multiplayer WebSockets
+flask-socketio>=5.3
+python-socketio>=5.10
+python-engineio>=4.8

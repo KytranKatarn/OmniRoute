@@ -1,0 +1,499 @@
+/* StockBot — LCARS Trading Dashboard CSS
+ * Prefix: sb- | Accent: #f90
+ */
+
+:root {
+  --sb-bg: #0d0d1a;
+  --sb-bg2: #111122;
+  --sb-border: #332244;
+  --sb-accent: #ff9900;
+  --sb-text: #aabb99;
+  --sb-text-dim: #667755;
+  --sb-positive: #44ff66;
+  --sb-negative: #ff4444;
+  --sb-header-h: #cc6600;
+}
+
+/* ── Container ─────────────────────────────────────────────── */
+.sb-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 3rem;
+  color: var(--sb-text);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Header ────────────────────────────────────────────────── */
+.sb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--sb-accent);
+  background: var(--sb-bg2);
+  margin-bottom: 0.75rem;
+}
+
+.sb-header-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--sb-accent);
+  letter-spacing: 0.15em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sb-header-accent { font-size: 1.2rem; }
+
+.sb-header-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--sb-text-dim);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  align-self: flex-end;
+  margin-bottom: 0.1rem;
+}
+
+.sb-header-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--sb-text-dim);
+  letter-spacing: 0.08em;
+}
+
+.sb-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sb-positive);
+  box-shadow: 0 0 6px var(--sb-positive);
+  animation: sb-pulse 2s infinite;
+}
+
+@keyframes sb-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Disclaimer ─────────────────────────────────────────────── */
+.sb-disclaimer {
+  background: #1a1100;
+  border: 1px solid #443300;
+  color: #cc9900;
+  font-size: 0.72rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 2px;
+}
+
+/* ── Tab Bar ────────────────────────────────────────────────── */
+.sb-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid var(--sb-border);
+}
+
+.sb-tab {
+  background: var(--sb-bg2);
+  border: 1px solid var(--sb-border);
+  border-bottom: none;
+  color: var(--sb-text-dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  padding: 0.45rem 1.1rem;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  text-transform: uppercase;
+}
+
+.sb-tab:hover { color: var(--sb-accent); background: #161628; }
+
+.sb-tab.active {
+  color: var(--sb-accent);
+  background: var(--sb-bg);
+  border-color: var(--sb-accent);
+  border-bottom: 2px solid var(--sb-bg);
+  margin-bottom: -2px;
+}
+
+/* ── Section ─────────────────────────────────────────────────── */
+.sb-section { margin-bottom: 1.5rem; }
+
+.sb-section-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  color: var(--sb-accent);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--sb-border);
+}
+
+/* ── Dashboard ─────────────────────────────────────────────── */
+.sb-dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.sb-market-card {
+  background: var(--sb-bg2);
+  border: 1px solid var(--sb-border);
+  border-top: 3px solid var(--sb-accent);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sb-market-symbol {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  color: var(--sb-accent);
+  letter-spacing: 0.1em;
+}
+
+.sb-market-price { font-size: 1.1rem; color: var(--sb-text); }
+.sb-market-change { font-size: 0.8rem; }
+.sb-sparkline { display: block; margin-top: 0.25rem; }
+
+.sb-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* ── Stat Cards ─────────────────────────────────────────────── */
+.sb-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.sb-card {
+  background: var(--sb-bg2);
+  border: 1px solid var(--sb-border);
+  padding: 0.6rem 0.75rem;
+  text-align: center;
+}
+
+.sb-card-value {
+  font-size: 1rem;
+  color: var(--sb-text);
+  font-weight: 600;
+}
+
+.sb-card-label {
+  font-size: 0.65rem;
+  color: var(--sb-text-dim);
+  letter-spacing: 0.06em;
+  margin-top: 0.15rem;
+  text-transform: uppercase;
+}
+
+/* ── Table ──────────────────────────────────────────────────── */
+.sb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.sb-table th {
+  background: #161628;
+  color: var(--sb-accent);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--sb-border);
+}
+
+.sb-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #1a1a2a;
+  color: var(--sb-text);
+  vertical-align: middle;
+}
+
+.sb-table tbody tr:hover td { background: #14142a; }
+.sb-empty { color: var(--sb-text-dim); font-style: italic; text-align: center; padding: 1rem !important; }
+
+/* ── Color utilities ─────────────────────────────────────────── */
+.sb-positive { color: var(--sb-positive) !important; }
+.sb-negative { color: var(--sb-negative) !important; }
+
+/* ── Search bar ─────────────────────────────────────────────── */
+.sb-search-bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Input / Select ─────────────────────────────────────────── */
+.sb-input {
+  background: #0a0a18;
+  border: 1px solid var(--sb-border);
+  color: var(--sb-text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.6rem;
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 120px;
+}
+
+.sb-input:focus { border-color: var(--sb-accent); }
+
+.sb-select {
+  background: #0a0a18;
+  border: 1px solid var(--sb-border);
+  color: var(--sb-text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.6rem;
+  outline: none;
+}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.sb-btn {
+  background: #1a1a2a;
+  border: 1px solid var(--sb-border);
+  color: var(--sb-text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.sb-btn:hover { background: #222240; color: #fff; }
+.sb-btn-accent { border-color: var(--sb-accent); color: var(--sb-accent); }
+.sb-btn-accent:hover { background: var(--sb-accent); color: #000; }
+.sb-btn-positive { border-color: var(--sb-positive); color: var(--sb-positive); }
+.sb-btn-positive:hover { background: var(--sb-positive); color: #000; }
+.sb-btn-negative { border-color: var(--sb-negative); color: var(--sb-negative); }
+.sb-btn-negative:hover { background: var(--sb-negative); color: #000; }
+.sb-btn-small { font-size: 0.65rem; padding: 0.2rem 0.5rem; }
+.sb-link-btn { background: none; border: none; color: var(--sb-accent); font-family: inherit; font-size: inherit; cursor: pointer; text-decoration: underline; padding: 0; }
+.sb-link-btn:hover { color: #fff; }
+
+/* ── Summary bar ─────────────────────────────────────────────── */
+.sb-summary-bar {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--sb-bg2);
+  border: 1px solid var(--sb-border);
+  font-size: 0.78rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ── Trade form ─────────────────────────────────────────────── */
+.sb-trade-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sb-trade-form .sb-input { flex: 1; min-width: 100px; }
+
+/* ── Chart controls ─────────────────────────────────────────── */
+.sb-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--sb-border);
+}
+
+.sb-period-group { display: flex; gap: 3px; }
+
+.sb-period-btn {
+  background: #1a1a2a;
+  border: 1px solid var(--sb-border);
+  color: var(--sb-text-dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sb-period-btn:hover { color: var(--sb-accent); border-color: var(--sb-accent); }
+.sb-period-btn.active { background: var(--sb-accent); color: #000; border-color: var(--sb-accent); font-weight: 600; }
+
+.sb-indicator-group { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+.sb-indicator-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--sb-text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.sb-indicator-toggle input[type="checkbox"] { accent-color: var(--sb-accent); cursor: pointer; }
+.sb-indicator-toggle:hover { color: var(--sb-text); }
+
+/* ── Chart container ─────────────────────────────────────────── */
+.sb-chart-container {
+  width: 100%;
+  height: 420px;
+  background: var(--sb-bg);
+  border: 1px solid var(--sb-border);
+  overflow: hidden;
+}
+
+/* ── Quote bar ──────────────────────────────────────────────── */
+.sb-quote-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--sb-bg2);
+  border: 1px solid var(--sb-border);
+  border-top: none;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.sb-quote-ticker { font-family: 'Orbitron', sans-serif; color: var(--sb-accent); font-size: 0.85rem; letter-spacing: 0.1em; }
+.sb-quote-val { font-weight: 600; }
+.sb-quote-item { color: var(--sb-text-dim); font-size: 0.72rem; }
+
+/* ── Alert list ─────────────────────────────────────────────── */
+.sb-alert-list { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.sb-alert-row {
+  background: var(--sb-bg2);
+  border: 1px solid var(--sb-border);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.sb-alert-row strong { color: var(--sb-accent); }
+
+/* ── Chat ────────────────────────────────────────────────────── */
+.sb-chat-section { display: flex; flex-direction: column; height: 60vh; min-height: 400px; }
+
+.sb-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  background: #080810;
+  border: 1px solid var(--sb-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.sb-chat-msg { display: flex; flex-direction: column; gap: 0.15rem; max-width: 80%; }
+.sb-chat-user { align-self: flex-end; align-items: flex-end; }
+.sb-chat-bot { align-self: flex-start; }
+
+.sb-chat-label { font-size: 0.6rem; color: var(--sb-text-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+
+.sb-chat-bubble {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  border-radius: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sb-chat-user .sb-chat-bubble { background: #1a2a1a; border: 1px solid #334433; color: #ccddcc; }
+.sb-chat-bot .sb-chat-bubble { background: #1a1a2a; border: 1px solid var(--sb-border); color: var(--sb-text); }
+
+.sb-chat-input-row { display: flex; gap: 0.5rem; }
+.sb-chat-input { flex: 1; }
+
+/* ── Modal ───────────────────────────────────────────────────── */
+.sb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.sb-modal {
+  background: var(--sb-bg2);
+  border: 1px solid var(--sb-accent);
+  min-width: 360px;
+  max-width: 480px;
+  width: 90%;
+}
+
+.sb-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--sb-border);
+  background: #161628;
+}
+
+.sb-modal-title { font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: var(--sb-accent); letter-spacing: 0.1em; text-transform: uppercase; }
+.sb-modal-close { background: none; border: none; color: var(--sb-text-dim); font-size: 1rem; cursor: pointer; padding: 0 0.25rem; }
+.sb-modal-close:hover { color: var(--sb-negative); }
+.sb-modal-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.sb-modal-footer { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 0.75rem 1rem; border-top: 1px solid var(--sb-border); }
+
+.sb-form-row { display: flex; flex-direction: column; gap: 0.25rem; }
+.sb-label { font-size: 0.68rem; color: var(--sb-text-dim); letter-spacing: 0.06em; text-transform: uppercase; }
+.sb-form-row .sb-input, .sb-form-row .sb-select { width: 100%; box-sizing: border-box; }
+
+/* ── Toast ───────────────────────────────────────────────────── */
+.sb-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: #1a1a2a;
+  border: 1px solid var(--sb-accent);
+  color: var(--sb-accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  padding: 0.5rem 1rem;
+  z-index: 2000;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  max-width: 320px;
+}
+
+.sb-toast.sb-toast-show { opacity: 1; }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sb-dashboard-cards { grid-template-columns: 1fr; }
+  .sb-dashboard-grid { grid-template-columns: 1fr; }
+  .sb-card-grid { grid-template-columns: 1fr 1fr; }
+  .sb-chart-container { height: 280px; }
+  .sb-chat-section { height: 70vh; }
+}

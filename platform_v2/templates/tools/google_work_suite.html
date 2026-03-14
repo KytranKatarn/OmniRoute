@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Google Work Suite — A.R.C.H.I.E.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/google-work-suite.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="gws-wrapper" data-user-id="{{ current_user.id if current_user else '' }}">
+
+  <!-- Top Bar -->
+  <div class="gws-top-bar">
+    <div class="gws-top-bar-left">
+      <label class="gws-label" for="gwsAccountSelect">Account</label>
+      <select id="gwsAccountSelect" class="gws-select" onchange="selectAccount(this.value)">
+        <option value="">— select account —</option>
+      </select>
+    </div>
+    <div class="gws-top-bar-right">
+      <button class="gws-btn gws-btn-primary" onclick="connectAccount('user')">
+        <i data-lucide="mail"></i> Connect Gmail
+      </button>
+      <button class="gws-btn gws-btn-secondary" onclick="connectAccount('agent')">
+        <i data-lucide="bot"></i> Connect Agent Gmail
+      </button>
+      <button class="gws-btn gws-btn-sync" onclick="syncInbox()" title="Sync inbox">
+        <i data-lucide="refresh-cw"></i> Sync
+      </button>
+    </div>
+  </div>
+
+  <!-- Tab Bar -->
+  <div class="gws-tabs" role="tablist">
+    <button class="gws-tab active" id="gwsTabInbox" role="tab" aria-selected="true"
+            onclick="setTab('inbox')">
+      <i data-lucide="inbox"></i> Inbox
+    </button>
+    <button class="gws-tab gws-coming-soon-tab" disabled role="tab" aria-selected="false"
+            title="Coming soon">
+      <i data-lucide="calendar"></i> Calendar
+    </button>
+    <button class="gws-tab gws-coming-soon-tab" disabled role="tab" aria-selected="false"
+            title="Coming soon">
+      <i data-lucide="hard-drive"></i> Drive
+    </button>
+    <button class="gws-tab" id="gwsTabRules" role="tab" aria-selected="false"
+            onclick="setTab('rules')">
+      <i data-lucide="filter"></i> Rules
+    </button>
+  </div>
+
+  <!-- Inbox Tab -->
+  <div id="gwsInboxTab" class="gws-tab-panel">
+    <div class="gws-inbox-toolbar">
+      <button class="gws-btn gws-btn-primary" onclick="openCompose(null)">
+        <i data-lucide="pencil"></i> Compose
+      </button>
+      <div class="gws-pagination">
+        <button class="gws-btn gws-btn-icon" onclick="prevPage()" title="Previous page">
+          <i data-lucide="chevron-left"></i>
+        </button>
+        <span id="gwsPageInfo" class="gws-page-info">—</span>
+        <button class="gws-btn gws-btn-icon" onclick="nextPage()" title="Next page">
+          <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="gws-inbox-layout">
+      <!-- Email List -->
+      <div id="gwsEmailList" class="gws-email-list" role="list">
+        <div class="gws-empty-state">
+          <i data-lucide="mail-open"></i>
+          <p>Select an account to load your inbox.</p>
+        </div>
+      </div>
+
+      <!-- Email Detail -->
+      <div id="gwsEmailDetail" class="gws-email-detail">
+        <div class="gws-empty-state">
+          <i data-lucide="mouse-pointer-click"></i>
+          <p>Select an email to read it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rules Tab -->
+  <div id="gwsRulesTab" class="gws-tab-panel" style="display:none;">
+    <div class="gws-rules-toolbar">
+      <h2 class="gws-section-title">Automation Rules</h2>
+      <button class="gws-btn gws-btn-primary" onclick="openRuleModal()">
+        <i data-lucide="plus"></i> New Rule
+      </button>
+    </div>
+    <div id="gwsRuleList" class="gws-rule-list">
+      <div class="gws-empty-state">
+        <i data-lucide="filter-x"></i>
+        <p>No rules yet. Create one to automate email handling.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.gws-wrapper -->
+
+
+<!-- ============================================================
+     Compose Modal
+     ============================================================ -->
+<div id="gwsComposeModal" class="gws-modal-overlay" style="display:none;" role="dialog"
+     aria-modal="true" aria-labelledby="gwsComposeTitle">
+  <div class="gws-modal">
+    <div class="gws-modal-header">
+      <span id="gwsComposeTitle" class="gws-modal-title">Compose Email</span>
+      <button class="gws-modal-close" onclick="closeCompose()" aria-label="Close">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    <div class="gws-modal-body">
+      <div class="gws-field">
+        <label class="gws-label" for="gwsComposeTo">To</label>
+        <input id="gwsComposeTo" type="email" class="gws-input" placeholder="recipient@example.com">
+      </div>
+      <div class="gws-field">
+        <label class="gws-label" for="gwsComposeSubject">Subject</label>
+        <input id="gwsComposeSubject" type="text" class="gws-input" placeholder="Subject">
+      </div>
+      <div class="gws-field">
+        <label class="gws-label" for="gwsComposeBody">Body</label>
+        <textarea id="gwsComposeBody" class="gws-textarea" rows="10"
+                  placeholder="Write your message here…"></textarea>
+      </div>
+    </div>
+    <div class="gws-modal-footer">
+      <button class="gws-btn gws-btn-primary" onclick="sendEmail(false)">
+        <i data-lucide="send"></i> Send
+      </button>
+      <button class="gws-btn gws-btn-secondary" onclick="sendEmail(true)">
+        <i data-lucide="save"></i> Save Draft
+      </button>
+      <button class="gws-btn gws-btn-ghost" onclick="closeCompose()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     Rule Modal
+     ============================================================ -->
+<div id="gwsRuleModal" class="gws-modal-overlay" style="display:none;" role="dialog"
+     aria-modal="true" aria-labelledby="gwsRuleTitle">
+  <div class="gws-modal gws-modal--wide">
+    <div class="gws-modal-header">
+      <span id="gwsRuleTitle" class="gws-modal-title">New Automation Rule</span>
+      <button class="gws-modal-close" onclick="closeRuleModal()" aria-label="Close">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    <div class="gws-modal-body">
+      <div class="gws-field">
+        <label class="gws-label" for="gwsRuleName">Rule Name</label>
+        <input id="gwsRuleName" type="text" class="gws-input" placeholder="e.g. Auto-reply to support">
+      </div>
+
+      <div class="gws-rule-section-title">Conditions <span class="gws-muted">(all must match)</span></div>
+      <div class="gws-field">
+        <label class="gws-label" for="gwsRuleFrom">From address contains</label>
+        <input id="gwsRuleFrom" type="text" class="gws-input" placeholder="e.g. @example.com">
+      </div>
+      <div class="gws-field">
+        <label class="gws-label" for="gwsRuleSubject">Subject contains</label>
+        <input id="gwsRuleSubject" type="text" class="gws-input" placeholder="e.g. [Support]">
+      </div>
+      <div class="gws-field">
+        <label class="gws-label" for="gwsRuleBody">Body contains</label>
+        <input id="gwsRuleBody" type="text" class="gws-input" placeholder="e.g. unsubscribe">
+      </div>
+
+      <div class="gws-rule-section-title">Actions</div>
+      <div class="gws-field gws-field--inline">
+        <input id="gwsRuleAutoReply" type="checkbox" class="gws-checkbox">
+        <label class="gws-label" for="gwsRuleAutoReply">Send auto-reply</label>
+      </div>
+      <div class="gws-field" id="gwsRuleTemplateField">
+        <label class="gws-label" for="gwsRuleTemplate">Auto-reply template</label>
+        <textarea id="gwsRuleTemplate" class="gws-textarea" rows="4"
+                  placeholder="Thank you for your email, we will respond shortly…"></textarea>
+      </div>
+      <div class="gws-field">
+        <label class="gws-label" for="gwsRuleForward">Forward to address</label>
+        <input id="gwsRuleForward" type="email" class="gws-input" placeholder="team@example.com (leave blank to skip)">
+      </div>
+      <div class="gws-field">
+        <label class="gws-label" for="gwsRuleLabel">Apply label</label>
+        <input id="gwsRuleLabel" type="text" class="gws-input" placeholder="e.g. Support (leave blank to skip)">
+      </div>
+    </div>
+    <div class="gws-modal-footer">
+      <button class="gws-btn gws-btn-primary" onclick="saveRule()">
+        <i data-lucide="save"></i> Save Rule
+      </button>
+      <button class="gws-btn gws-btn-ghost" onclick="closeRuleModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Toast -->
+<div id="gwsToast" class="gws-toast" role="status" aria-live="polite" style="display:none;"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/google-work-suite.js') }}"></script>
+<script>
+  // Re-init Lucide icons rendered by Jinja
+  if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+</script>
+{% endblock %}

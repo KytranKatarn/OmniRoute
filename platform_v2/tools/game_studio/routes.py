@@ -8,6 +8,7 @@ Date: 2026-01-19
 """
 
 import os
+import json
 import logging
 from datetime import datetime
 from flask import render_template, jsonify, request
@@ -15,6 +16,11 @@ from flask_login import login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from . import game_studio_bp
+
+import sys
+
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+from archie_bridge import archie_bridge as ai_bridge
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +210,45 @@ def create_game():
 
         game = cur.fetchone()
         conn.commit()
+
+        game_id = game["id"] if game else None
+
+        # If template selected, create default scene with config
+        if template == "top_down_shooter" and game_id:
+            default_config = {
+                "title": "Top-Down Shooter",
+                "type": "top_down_shooter",
+                "map": {"width": 1200, "height": 800, "backgroundColor": "#111"},
+                "player": {
+                    "x": 600,
+                    "y": 400,
+                    "speed": 200,
+                    "health": 100,
+                    "size": 20,
+                    "color": "#4af",
+                    "fireRate": 0.2,
+                },
+                "enemies": [
+                    {"x": 200, "y": 200, "speed": 80, "health": 30, "size": 16, "color": "#f44", "ai": "chase"},
+                    {"x": 1000, "y": 200, "speed": 80, "health": 30, "size": 16, "color": "#f44", "ai": "chase"},
+                    {"x": 200, "y": 600, "speed": 60, "health": 40, "size": 18, "color": "#f84", "ai": "patrol"},
+                    {"x": 1000, "y": 600, "speed": 60, "health": 40, "size": 18, "color": "#f84", "ai": "patrol"},
+                    {"x": 600, "y": 100, "speed": 40, "health": 80, "size": 24, "color": "#f00", "ai": "circle"},
+                ],
+                "bullets": {"speed": 400, "size": 4, "color": "#ff0", "damage": 10},
+                "walls": [
+                    {"x": 0, "y": 0, "width": 1200, "height": 10, "color": "#555"},
+                    {"x": 0, "y": 790, "width": 1200, "height": 10, "color": "#555"},
+                    {"x": 0, "y": 0, "width": 10, "height": 800, "color": "#555"},
+                    {"x": 1190, "y": 0, "width": 10, "height": 800, "color": "#555"},
+                ],
+                "ui": {"showScore": True, "showHealth": True, "showMinimap": False},
+            }
+            cur.execute(
+                "INSERT INTO game_scenes (game_id, name, scene_order, scene_data, created_at) VALUES (%s, %s, 1, %s, NOW())",
+                (game_id, "Main", json.dumps(default_config)),
+            )
+            conn.commit()
 
         return jsonify(
             {
@@ -562,6 +607,7 @@ def create_scene(game_id):
 @login_required
 def ai_chat():
     """Chat with AI assistant for game development help"""
+    conn = None
     try:
         data = request.get_json()
         message = data.get("message", "")
@@ -570,66 +616,87 @@ def ai_chat():
         if not message:
             return jsonify({"success": False, "error": "No message provided"}), 400
 
-        # Build context for AI
-        context = "You are a game development assistant. Help with game logic, AI behavior, level design, and code."
+        system_prompt = (
+            "You are a game development AI assistant. The user is building a game.\n"
+            "When asked to modify the game, respond with a JSON object containing a 'config_patch' key.\n"
+            "The config_patch should contain only the fields to change/add.\n"
+            "For adding enemies, include the full enemy object in an 'enemies' array.\n"
+        )
+        context_config = data.get("context", {}).get("current_config", "{}")
+        if context_config:
+            system_prompt += "\nCurrent game config:\n" + str(context_config)[:3000]
 
+        result = ai_bridge(
+            prompt=message,
+            system_prompt=system_prompt,
+            user_id=current_user.id if current_user.is_authenticated else None,
+            enable_memory=False,
+        )
+        response_text = result.get("response", "") if isinstance(result, dict) else str(result)
+
+        # Persist chat history
         if game_id:
-            # Add game context if available
             try:
                 conn = get_db_connection()
-                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur = conn.cursor()
                 cur.execute(
-                    "SELECT title, engine_type FROM game_projects WHERE id = %s",
-                    (game_id,),
+                    "SELECT chat_history FROM game_projects WHERE id = %s AND user_id = %s",
+                    (game_id, current_user.id),
                 )
-                game = cur.fetchone()
+                row = cur.fetchone()
+                history = row[0] if row and row[0] else []
+                if isinstance(history, str):
+                    history = json.loads(history)
+                history.append({"role": "user", "message": message, "timestamp": datetime.utcnow().isoformat()})
+                history.append(
+                    {"role": "ai", "message": response_text[:500], "timestamp": datetime.utcnow().isoformat()}
+                )
+                history = history[-50:]  # keep last 50
+                cur.execute(
+                    "UPDATE game_projects SET chat_history = %s WHERE id = %s",
+                    (json.dumps(history), game_id),
+                )
+                conn.commit()
                 cur.close()
-                conn.close()
-                if game:
-                    context += f"\n\nCurrent project: {game['title']} ({game['engine_type']} engine)"
-            except:
+            except Exception:
                 pass
 
-        # Call AI Bridge for response
-        try:
-            import requests
-
-            ai_response = requests.post(
-                "http://localhost:3000/archie/api/v2/chat",
-                json={"message": message, "context": context, "model": "ollama"},
-                timeout=30,
-            )
-            if ai_response.ok:
-                result = ai_response.json()
-                return jsonify(
-                    {
-                        "success": True,
-                        "response": result.get(
-                            "response",
-                            "I can help you with game development! What would you like to know?",
-                        ),
-                    }
-                )
-        except Exception as ai_error:
-            logger.warning(f"AI bridge call failed: {ai_error}")
-
-        # Fallback response
-        return jsonify(
-            {
-                "success": True,
-                "response": f"I understand you're asking about: {message}\n\nI can help with:\n- Enemy AI behavior patterns\n- Player movement mechanics\n- Level design principles\n- Game state management\n- Physics and collision\n\nWhat specific aspect would you like to explore?",
-            }
-        )
+        return jsonify({"success": True, "response": response_text})
 
     except Exception as e:
         logger.error(f"AI chat failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@game_studio_bp.route("/api/chat/history/<int:game_id>", methods=["GET"])
+@login_required
+def get_chat_history(game_id):
+    """Get chat history for a game"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT chat_history FROM game_projects WHERE id = %s AND user_id = %s",
+            (game_id, current_user.id),
+        )
+        row = cur.fetchone()
+        history = row[0] if row and row[0] else []
+        return jsonify({"success": True, "history": history})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 # ============================================================================

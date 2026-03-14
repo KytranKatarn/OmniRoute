@@ -517,6 +517,39 @@
 .sb-btn-primary { border-color: #4af; color: #4af; }
 .sb-btn-primary:hover { background: #4af; color: #000; }
 
+/* ── Trading Tab ─────────────────────────────────────────────── */
+.sb-trading-section { margin-bottom: 1.5rem; }
+.sb-paper-balance { font-family: 'Antonio', sans-serif; font-size: 1.5rem; color: var(--sb-accent); }
+.sb-trade-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; flex-wrap: wrap; }
+.sb-btn-positive {
+  padding: 0.3rem 0.75rem; background: transparent; color: var(--sb-positive);
+  border: 1px solid var(--sb-positive); cursor: pointer; font-size: 0.7rem;
+  font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;
+}
+.sb-btn-positive:hover { background: var(--sb-positive); color: #000; }
+.sb-btn-negative {
+  padding: 0.3rem 0.75rem; background: transparent; color: var(--sb-negative);
+  border: 1px solid var(--sb-negative); cursor: pointer; font-size: 0.7rem;
+  font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;
+}
+.sb-btn-negative:hover { background: var(--sb-negative); color: #fff; }
+.sb-btn-sm {
+  padding: 0.2rem 0.5rem; background: #1a1a2a; border: 1px solid var(--sb-border);
+  color: var(--sb-text-dim); cursor: pointer; font-size: 0.65rem;
+  font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;
+}
+.sb-btn-sm:hover { color: var(--sb-text); border-color: var(--sb-text); }
+.sb-btn-negative-inline { color: var(--sb-negative); border-color: var(--sb-negative); }
+.sb-btn-negative-inline:hover { background: var(--sb-negative); color: #fff; }
+.sb-strategy-builder { display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.sb-strategy-list { display: flex; flex-direction: column; gap: 0.3rem; }
+.sb-strategy-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.3rem 0.5rem; border: 1px solid var(--sb-border); font-size: 0.7rem;
+  gap: 0.4rem;
+}
+.sb-strategy-logs { font-size: 0.65rem; color: var(--sb-text); max-height: 200px; overflow-y: auto; background: #080810; border: 1px solid var(--sb-border); padding: 0.5rem; }
+
 /* ── Responsive ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sb-dashboard-cards { grid-template-columns: 1fr; }

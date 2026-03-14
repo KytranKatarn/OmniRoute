@@ -268,3 +268,181 @@ def delete_rule(account_id, rule_id):
         )
 
     return jsonify({"success": True})
+
+
+# ---------------------------------------------------------------------------
+# Calendar
+# ---------------------------------------------------------------------------
+
+
+@google_work_suite_bp.route("/api/calendar/<int:account_id>/events")
+@login_required
+def list_calendar_events(account_id):
+    from .services.calendar_service import list_events
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    time_min = request.args.get("time_min")
+    time_max = request.args.get("time_max")
+    result = list_events(account_id, time_min=time_min, time_max=time_max)
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/calendar/<int:account_id>/events/<event_id>")
+@login_required
+def get_calendar_event(account_id, event_id):
+    from .services.calendar_service import get_event
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    result = get_event(account_id, event_id)
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/calendar/<int:account_id>/events", methods=["POST"])
+@login_required
+def create_calendar_event(account_id):
+    from .services.calendar_service import create_event
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    data = request.get_json() or {}
+    summary = data.get("summary")
+    start = data.get("start")
+    end = data.get("end")
+    if not summary or not start or not end:
+        return jsonify({"error": "summary, start, and end are required"}), 400
+
+    result = create_event(
+        account_id,
+        summary=summary,
+        start=start,
+        end=end,
+        description=data.get("description"),
+        location=data.get("location"),
+        attendees=data.get("attendees", []),
+    )
+    if result.get("error"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/calendar/<int:account_id>/events/<event_id>", methods=["PUT"])
+@login_required
+def update_calendar_event(account_id, event_id):
+    from .services.calendar_service import update_event
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    data = request.get_json() or {}
+    result = update_event(account_id, event_id, data)
+    if result.get("error"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/calendar/<int:account_id>/events/<event_id>", methods=["DELETE"])
+@login_required
+def delete_calendar_event(account_id, event_id):
+    from .services.calendar_service import delete_event
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    result = delete_event(account_id, event_id)
+    if result.get("error"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/calendar/<int:account_id>/calendars")
+@login_required
+def list_calendars(account_id):
+    from .services.calendar_service import list_calendars as svc_list_calendars
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    result = svc_list_calendars(account_id)
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Drive
+# ---------------------------------------------------------------------------
+
+
+@google_work_suite_bp.route("/api/drive/<int:account_id>/files")
+@login_required
+def list_drive_files(account_id):
+    from .services.drive_service import list_files
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    folder_id = request.args.get("folder_id", "root")
+    q = request.args.get("q")
+    result = list_files(account_id, folder_id=folder_id, q=q)
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/drive/<int:account_id>/files/<file_id>")
+@login_required
+def get_drive_file(account_id, file_id):
+    from .services.drive_service import get_file
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    result = get_file(account_id, file_id)
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/drive/<int:account_id>/files", methods=["POST"])
+@login_required
+def create_drive_file(account_id):
+    from .services.drive_service import create_file, upload_file
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    data = request.get_json() or {}
+    name = data.get("name")
+    file_type = data.get("type", "document")
+    content = data.get("content")
+    folder_id = data.get("folder_id", "root")
+
+    if not name:
+        return jsonify({"error": "name is required"}), 400
+
+    if file_type == "upload":
+        result = upload_file(account_id, name=name, content=content, folder_id=folder_id)
+    else:
+        result = create_file(account_id, name=name, file_type=file_type, folder_id=folder_id)
+    if result.get("error"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@google_work_suite_bp.route("/api/drive/<int:account_id>/files/<file_id>/share", methods=["POST"])
+@login_required
+def share_drive_file(account_id, file_id):
+    from .services.drive_service import share_file
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    data = request.get_json() or {}
+    email = data.get("email")
+    role = data.get("role", "reader")
+    if not email:
+        return jsonify({"error": "email is required"}), 400
+
+    result = share_file(account_id, file_id, email=email, role=role)
+    if result.get("error"):
+        return jsonify(result), 400
+    return jsonify(result)

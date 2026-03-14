@@ -438,9 +438,16 @@ class AgentLoop:
             name="Agent Loop: Game Market Prices",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._agent_calendar_drive_tasks),
+            trigger=IntervalTrigger(minutes=15),
+            id="agent_calendar_drive",
+            name="Agent Loop: Calendar + Drive Autonomy",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 25 jobs")
+        logger.info("Agent loop started with 26 jobs")
 
     def _check_media_schedules(self):
         """Check agent media generation schedules and trigger if due."""
@@ -535,6 +542,32 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"Agent email job failed: {e}")
 
+    def _agent_calendar_drive_tasks(self):
+        """Auto-schedule calendar events from tasks for all agent Google accounts."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT id, owner_id FROM google_accounts WHERE owner_type = 'agent'"
+                )
+                accounts = cur.fetchall()
+            if not accounts:
+                return
+            from tools.google_work_suite.services.calendar_service import (
+                auto_schedule_from_tasks,
+            )
+
+            for acc in accounts:
+                try:
+                    auto_schedule_from_tasks(acc["id"], str(acc["owner_id"]))
+                except Exception as e:
+                    logger.warning(
+                        f"Agent calendar task failed for account {acc['id']}: {e}"
+                    )
+        except Exception as e:
+            logger.error(f"Agent calendar/drive job failed: {e}")
+
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
         for job_id in [
@@ -563,6 +596,7 @@ class AgentLoop:
             "agent_email_processing",
             "game_world_event_processor",
             "game_market_price_update",
+            "agent_calendar_drive",
         ]:
             try:
                 self.scheduler.remove_job(job_id)

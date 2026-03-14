@@ -448,9 +448,26 @@ def _dispatch_to_bridge(account_id, email_row, owner_id, permission_level):
         except Exception:
             pass
 
+        # Fetch agent name from account owner if possible
+        agent_name = f"agent_{owner_id}"
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT display_name FROM google_accounts WHERE id = %s", (account_id,))
+                row = cur.fetchone()
+                if row and row["display_name"]:
+                    agent_name = row["display_name"]
+        except Exception:
+            pass
+
         system_prompt = (
-            "You are an email assistant. Analyse this email and respond with JSON only: "
-            '{"action": "reply"|"ignore"|"flag", "draft_reply": "...", "priority": "high"|"normal"|"low"}'
+            f"You are {agent_name}'s email assistant. Analyze this email and decide:\n"
+            "1. Priority: urgent/high/normal/low\n"
+            "2. Category: meeting_request/report_request/question/notification/spam\n"
+            "3. Action: reply/schedule_meeting/create_task/forward/archive/ignore\n"
+            "4. If reply: draft a professional response\n"
+            "5. If schedule_meeting: extract proposed times and attendees\n"
+            "6. If create_task: extract task title and deadline\n"
+            'Return ONLY valid JSON: {"priority":"...","category":"...","action":"...","draft_reply":"...","meeting_details":{"attendees":[],"preferred_time":""},"task_details":{"title":"","deadline":""}}'
         )
         prompt = f"From: {sender}\nSubject: {subject}\n\n{body[:2000]}"
 
@@ -471,16 +488,46 @@ def _dispatch_to_bridge(account_id, email_row, owner_id, permission_level):
         else:
             result = raw
 
-        action = result.get("action", "ignore")
-        draft_reply = result.get("draft_reply", "")
-
-        if action == "reply" and draft_reply:
-            if permission_level == "full":
-                send_email(account_id, to=sender, subject=f"Re: {subject}", body=draft_reply, reply_to_id=gmail_id)
-            else:
-                create_draft(account_id, to=sender, subject=f"Re: {subject}", body=draft_reply, reply_to_id=gmail_id)
-        elif action == "flag":
-            apply_label(account_id, gmail_id, "STARRED")
+        _execute_email_action(account_id, gmail_id, sender, subject, result)
 
     except Exception as e:
         logger.warning("Bridge dispatch failed for message %s: %s", email_row.get("gmail_id"), e)
+
+
+def _execute_email_action(account_id, gmail_id, sender, subject, decision):
+    """Execute the action decided by AI analysis of an email."""
+    try:
+        action = decision.get("action", "ignore")
+        if action == "reply" and decision.get("draft_reply"):
+            send_email(
+                account_id,
+                sender,
+                f"Re: {subject}",
+                decision["draft_reply"],
+                reply_to_id=gmail_id,
+            )
+        elif action == "schedule_meeting":
+            details = decision.get("meeting_details", {})
+            from .calendar_service import schedule_meeting  # noqa: PLC0415
+
+            attendees = details.get("attendees") or [sender]
+            preferred_time = details.get("preferred_time") or None
+            schedule_meeting(account_id, f"Meeting: {subject}", attendees, preferred_time=preferred_time)
+        elif action == "create_task":
+            details = decision.get("task_details", {})
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO unified_tasks (project_id, title, priority, status, created_at) "
+                    "VALUES (1, %s, 5, 'pending', NOW())",
+                    (details.get("title") or subject,),
+                )
+        elif action == "forward":
+            # Forward logic depends on configuration — skip silently
+            pass
+        elif action == "archive":
+            apply_label(account_id, gmail_id, "INBOX", remove=True)
+        elif action == "flag":
+            apply_label(account_id, gmail_id, "STARRED")
+        # 'ignore' = mark read only (handled by caller)
+    except Exception as e:
+        logger.warning("_execute_email_action failed (action=%s, msg=%s): %s", decision.get("action"), gmail_id, e)

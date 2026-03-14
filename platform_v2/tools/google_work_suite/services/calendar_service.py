@@ -147,6 +147,34 @@ def list_calendars(account_id):
         raise
 
 
+def _check_conflicts(service, start, end):
+    """Check if a time slot has conflicts. Returns True if busy."""
+    try:
+        body = {
+            "timeMin": start,
+            "timeMax": end,
+            "items": [{"id": "primary"}],
+        }
+        result = service.freebusy().query(body=body).execute()
+        busy = result.get("calendars", {}).get("primary", {}).get("busy", [])
+        return len(busy) > 0
+    except Exception as exc:
+        logger.warning("_check_conflicts failed: %s", exc)
+        return False  # assume free on error
+
+
+def _find_available_slot(service, date, duration_minutes=60):
+    """Find first available slot on given date within working hours (9-18)."""
+    start = datetime(date.year, date.month, date.day, 9, 0)
+    end_of_day = datetime(date.year, date.month, date.day, 18, 0)
+    while start + timedelta(minutes=duration_minutes + 15) <= end_of_day:
+        slot_end = start + timedelta(minutes=duration_minutes)
+        if not _check_conflicts(service, start.isoformat() + "Z", slot_end.isoformat() + "Z"):
+            return start, slot_end
+        start = slot_end + timedelta(minutes=15)  # 15 min buffer
+    return None, None  # no available slot found
+
+
 def auto_schedule_from_tasks(account_id, agent_name):
     """
     Pull in-progress tasks for agent_name that have a due_date and ensure
@@ -161,10 +189,10 @@ def auto_schedule_from_tasks(account_id, agent_name):
             )
             tasks = cur.fetchall()
 
+        service = _get_service(account_id)
         created = 0
         for task_id, title, due_date in tasks:
             # Check if an event with this title already exists around the due date
-            due_str = due_date.isoformat() if hasattr(due_date, "isoformat") else str(due_date)
             # Search window: ±1 day around due date
             search_min = (due_date - timedelta(days=1)).isoformat()
             search_max = (due_date + timedelta(days=1)).isoformat()
@@ -172,15 +200,17 @@ def auto_schedule_from_tasks(account_id, agent_name):
             already_scheduled = any(e["summary"] == title for e in existing)
 
             if not already_scheduled:
-                end_str = due_str
-                # start 1 hour before due
-                start_dt = due_date - timedelta(hours=1)
-                start_str = start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt)
+                # Try to find a conflict-free slot on the due date
+                slot_start, slot_end = _find_available_slot(service, due_date, duration_minutes=60)
+                if slot_start is None:
+                    # Fall back to 1h before due time regardless of conflicts
+                    slot_start = due_date - timedelta(hours=1)
+                    slot_end = due_date
                 create_event(
                     account_id,
                     summary=title,
-                    start=start_str,
-                    end=end_str,
+                    start=slot_start.isoformat() if hasattr(slot_start, "isoformat") else str(slot_start),
+                    end=slot_end.isoformat() if hasattr(slot_end, "isoformat") else str(slot_end),
                     description=f"Auto-scheduled from ARCHIE task #{task_id}",
                 )
                 created += 1

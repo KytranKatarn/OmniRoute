@@ -330,6 +330,53 @@
         ctx.strokeRect(x, y, w, h);
     };
 
+    // --- World effects application helpers ---
+    function _applyWorldEffects(config, bonuses, changes) {
+        var gameType = config.type || 'top_down_shooter';
+        // Apply bonuses
+        bonuses.forEach(function (b) {
+            var key = b.bonus_key;
+            var val = b.bonus_value;
+            if (gameType === 'top_down_shooter') {
+                if (key === 'health_depot' && config.player) config.player.health = (config.player.health || 100) + val;
+                if (key === 'damage_boost' && config.bullets) config.bullets.damage = (config.bullets.damage || 10) + val;
+                if (key === 'enemy_wave_reduction' && config.enemies) config.enemies = config.enemies.slice(0, Math.max(1, config.enemies.length - Math.round(val)));
+            } else if (gameType === 'space_explorer') {
+                if (key === 'pirate_threat_reduction' && config.encounters) config.encounters.pirateChance = Math.max(0, (config.encounters.pirateChance || 0.3) - val);
+                if (key === 'safe_zone_expansion' && config.player) config.player.fuel = (config.player.fuel || 100) + val;
+            } else if (gameType === 'base_builder') {
+                if (config.resources && key in config.resources) config.resources[key] = (config.resources[key] || 0) + val;
+            }
+        });
+        // Apply world changes
+        changes.forEach(function (c) {
+            var patch = c.config_patch || {};
+            Object.keys(patch).forEach(function (k) {
+                var pv = patch[k];
+                if (Array.isArray(pv) && Array.isArray(config[k])) {
+                    config[k] = config[k].concat(pv);
+                } else if (pv && typeof pv === 'object' && config[k] && typeof config[k] === 'object') {
+                    Object.assign(config[k], pv);
+                } else {
+                    config[k] = pv;
+                }
+            });
+        });
+        return config;
+    }
+
+    function _startEngine(canvas, config) {
+        var ModuleClass = GameEngine.MODULES[config.type || 'top_down_shooter'];
+        if (!ModuleClass) { console.error('Unknown game type:', config.type); return; }
+        window._engine = new GameEngine(canvas, config);
+        window._engine.registerModule(new ModuleClass());
+        window._engine.start();
+        // Init scene editor (dormant until enabled)
+        if (typeof SceneEditor !== 'undefined') {
+            window._sceneEditor = new SceneEditor(window._engine);
+        }
+    }
+
     // --- postMessage bridge ---
     window.addEventListener('message', function (e) {
         if (e.data && e.data.type === 'loadConfig') {
@@ -347,15 +394,20 @@
                 cancelAnimationFrame(window._engine.frameId);
                 window._engine._unbindInputs();
             }
-            var ModuleClass = GameEngine.MODULES[config.type || 'top_down_shooter'];
-            if (!ModuleClass) { console.error('Unknown game type:', config.type); return; }
-            window._engine = new GameEngine(canvas, config);
-            window._engine.registerModule(new ModuleClass());
-            window._engine.start();
-            // Init scene editor (dormant until enabled)
-            if (typeof SceneEditor !== 'undefined') {
-                window._sceneEditor = new SceneEditor(window._engine);
-            }
+            // Fetch world effects and apply before starting
+            var gameType = config.type || 'top_down_shooter';
+            fetch('/tools/game-studio/api/world/effects?game_type=' + encodeURIComponent(gameType))
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+                .then(function (data) {
+                    config = _applyWorldEffects(config, data.bonuses || [], data.changes || []);
+                })
+                .catch(function (err) {
+                    console.warn('[GameEngine] World effects fetch failed:', err);
+                })
+                .finally(function () {
+                    _startEngine(canvas, config);
+                });
+            return;
         }
         if (e.data && e.data.type === 'enableEditor' && window._sceneEditor) {
             window._sceneEditor.enable();

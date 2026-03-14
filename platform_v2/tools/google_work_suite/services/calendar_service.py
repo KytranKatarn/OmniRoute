@@ -1,0 +1,257 @@
+"""
+Google Calendar Service — event management, scheduling, and agent automation.
+"""
+
+import logging
+from datetime import datetime, timedelta, timezone
+
+from database import get_db_cursor
+
+from .google_api_service import get_google_client
+
+logger = logging.getLogger(__name__)
+
+
+def _get_service(account_id):
+    return get_google_client(account_id, "calendar", "v3")
+
+
+def _parse_event(event):
+    """Normalise a raw Calendar API event dict to a consistent shape."""
+    start_raw = event.get("start", {})
+    end_raw = event.get("end", {})
+    return {
+        "id": event.get("id"),
+        "summary": event.get("summary", "(No title)"),
+        "start": start_raw.get("dateTime") or start_raw.get("date"),
+        "end": end_raw.get("dateTime") or end_raw.get("date"),
+        "all_day": "date" in start_raw and "dateTime" not in start_raw,
+        "location": event.get("location"),
+        "description": event.get("description"),
+        "attendees": [
+            {"email": a.get("email"), "display_name": a.get("displayName"), "response": a.get("responseStatus")}
+            for a in event.get("attendees", [])
+        ],
+        "status": event.get("status"),
+        "html_link": event.get("htmlLink"),
+    }
+
+
+def list_events(account_id, time_min=None, time_max=None, max_results=50):
+    """List calendar events. Defaults to the current week if no range supplied."""
+    try:
+        service = _get_service(account_id)
+
+        if not time_min:
+            now = datetime.now(timezone.utc)
+            week_start = now - timedelta(days=now.weekday())
+            time_min = week_start.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        if not time_max:
+            # End of the week (7 days from time_min start)
+            start_dt = datetime.fromisoformat(time_min.replace("Z", "+00:00"))
+            time_max = (start_dt + timedelta(days=7)).isoformat()
+
+        result = (
+            service.events()
+            .list(
+                calendarId="primary",
+                timeMin=time_min,
+                timeMax=time_max,
+                maxResults=max_results,
+                singleEvents=True,
+                orderBy="startTime",
+            )
+            .execute()
+        )
+        return [_parse_event(e) for e in result.get("items", [])]
+    except Exception as exc:
+        logger.error("list_events failed for account %s: %s", account_id, exc)
+        raise
+
+
+def get_event(account_id, event_id):
+    """Fetch full detail for a single calendar event."""
+    try:
+        service = _get_service(account_id)
+        event = service.events().get(calendarId="primary", eventId=event_id).execute()
+        return _parse_event(event)
+    except Exception as exc:
+        logger.error("get_event failed for account %s, event %s: %s", account_id, event_id, exc)
+        raise
+
+
+def create_event(account_id, summary, start, end, description=None, location=None, attendees=None):
+    """Create a new calendar event and return its id and link."""
+    try:
+        service = _get_service(account_id)
+        body = {
+            "summary": summary,
+            "start": {"dateTime": start, "timeZone": "UTC"},
+            "end": {"dateTime": end, "timeZone": "UTC"},
+        }
+        if description:
+            body["description"] = description
+        if location:
+            body["location"] = location
+        if attendees:
+            body["attendees"] = [{"email": e} for e in attendees]
+
+        result = service.events().insert(calendarId="primary", body=body).execute()
+        logger.info("Created calendar event '%s' (id=%s) for account %s", summary, result.get("id"), account_id)
+        return {"event_id": result["id"], "html_link": result.get("htmlLink")}
+    except Exception as exc:
+        logger.error("create_event failed for account %s: %s", account_id, exc)
+        raise
+
+
+def update_event(account_id, event_id, updates):
+    """Patch an existing event with the provided field updates."""
+    try:
+        service = _get_service(account_id)
+        result = service.events().patch(calendarId="primary", eventId=event_id, body=updates).execute()
+        logger.info("Updated calendar event %s for account %s", event_id, account_id)
+        return _parse_event(result)
+    except Exception as exc:
+        logger.error("update_event failed for account %s, event %s: %s", account_id, event_id, exc)
+        raise
+
+
+def delete_event(account_id, event_id):
+    """Delete (cancel) a calendar event."""
+    try:
+        service = _get_service(account_id)
+        service.events().delete(calendarId="primary", eventId=event_id).execute()
+        logger.info("Deleted calendar event %s for account %s", event_id, account_id)
+        return {"success": True, "event_id": event_id}
+    except Exception as exc:
+        logger.error("delete_event failed for account %s, event %s: %s", account_id, event_id, exc)
+        raise
+
+
+def list_calendars(account_id):
+    """Return all calendars visible to this account."""
+    try:
+        service = _get_service(account_id)
+        result = service.calendarList().list().execute()
+        return [
+            {
+                "id": cal.get("id"),
+                "summary": cal.get("summary"),
+                "primary": cal.get("primary", False),
+                "access_role": cal.get("accessRole"),
+            }
+            for cal in result.get("items", [])
+        ]
+    except Exception as exc:
+        logger.error("list_calendars failed for account %s: %s", account_id, exc)
+        raise
+
+
+def auto_schedule_from_tasks(account_id, agent_name):
+    """
+    Pull in-progress tasks for agent_name that have a due_date and ensure
+    each has a corresponding calendar event.  Returns the count created.
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, title, due_date FROM unified_tasks "
+                "WHERE assigned_to = %s AND status = 'in_progress' AND due_date IS NOT NULL",
+                (agent_name,),
+            )
+            tasks = cur.fetchall()
+
+        created = 0
+        for task_id, title, due_date in tasks:
+            # Check if an event with this title already exists around the due date
+            due_str = due_date.isoformat() if hasattr(due_date, "isoformat") else str(due_date)
+            # Search window: ±1 day around due date
+            search_min = (due_date - timedelta(days=1)).isoformat()
+            search_max = (due_date + timedelta(days=1)).isoformat()
+            existing = list_events(account_id, time_min=search_min, time_max=search_max, max_results=100)
+            already_scheduled = any(e["summary"] == title for e in existing)
+
+            if not already_scheduled:
+                end_str = due_str
+                # start 1 hour before due
+                start_dt = due_date - timedelta(hours=1)
+                start_str = start_dt.isoformat() if hasattr(start_dt, "isoformat") else str(start_dt)
+                create_event(
+                    account_id,
+                    summary=title,
+                    start=start_str,
+                    end=end_str,
+                    description=f"Auto-scheduled from ARCHIE task #{task_id}",
+                )
+                created += 1
+
+        logger.info("auto_schedule_from_tasks: created %d events for agent %s", created, agent_name)
+        return {"events_created": created, "tasks_checked": len(tasks)}
+    except Exception as exc:
+        logger.error("auto_schedule_from_tasks failed for account %s, agent %s: %s", account_id, agent_name, exc)
+        raise
+
+
+def schedule_meeting(account_id, summary, attendee_emails, preferred_time=None, duration_minutes=30):
+    """
+    Find the first available slot (within the next 7 days) and create a meeting.
+    Uses freebusy query to avoid conflicts.  preferred_time (ISO string) sets the
+    search start; defaults to now.
+    """
+    try:
+        service = _get_service(account_id)
+
+        now = datetime.now(timezone.utc)
+        search_start = datetime.fromisoformat(preferred_time.replace("Z", "+00:00")) if preferred_time else now
+        search_end = search_start + timedelta(days=7)
+
+        freebusy_body = {
+            "timeMin": search_start.isoformat(),
+            "timeMax": search_end.isoformat(),
+            "items": [{"id": "primary"}],
+        }
+        fb_result = service.freebusy().query(body=freebusy_body).execute()
+        busy_slots = fb_result.get("calendars", {}).get("primary", {}).get("busy", [])
+
+        # Convert busy periods to (start, end) datetime tuples
+        busy_ranges = []
+        for slot in busy_slots:
+            b_start = datetime.fromisoformat(slot["start"].replace("Z", "+00:00"))
+            b_end = datetime.fromisoformat(slot["end"].replace("Z", "+00:00"))
+            busy_ranges.append((b_start, b_end))
+
+        # Walk forward in duration_minutes increments to find a free slot
+        slot_start = search_start
+        meeting_duration = timedelta(minutes=duration_minutes)
+        found_start = None
+        found_end = None
+
+        while slot_start < search_end:
+            slot_end = slot_start + meeting_duration
+            conflict = any(not (slot_end <= b[0] or slot_start >= b[1]) for b in busy_ranges)
+            if not conflict:
+                found_start = slot_start
+                found_end = slot_end
+                break
+            slot_start += timedelta(minutes=30)
+
+        if not found_start:
+            raise RuntimeError("No available slot found in the next 7 days")
+
+        result = create_event(
+            account_id,
+            summary=summary,
+            start=found_start.isoformat(),
+            end=found_end.isoformat(),
+            attendees=attendee_emails,
+        )
+        logger.info("Scheduled meeting '%s' at %s for account %s", summary, found_start, account_id)
+        return {
+            "event_id": result["event_id"],
+            "html_link": result["html_link"],
+            "start": found_start.isoformat(),
+            "end": found_end.isoformat(),
+        }
+    except Exception as exc:
+        logger.error("schedule_meeting failed for account %s: %s", account_id, exc)
+        raise

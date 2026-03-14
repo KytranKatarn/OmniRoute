@@ -16,7 +16,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive",
 ]
 
 FERNET_KEY = os.environ.get("GOOGLE_TOKEN_ENCRYPTION_KEY")
@@ -136,8 +136,8 @@ def handle_callback(code, state):
     return {"success": True, "account_id": account_id, "email": email}
 
 
-def get_gmail_client(account_id):
-    """Return an authenticated Gmail API client, refreshing token if needed."""
+def get_google_client(account_id, api_name, api_version):
+    """Return an authenticated Google API client for any service, refreshing token if needed."""
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
@@ -154,7 +154,7 @@ def get_gmail_client(account_id):
         raise ValueError(f"Google account {account_id} not found")
 
     access_token = _decrypt(row[0])
-    refresh_token = _decrypt(row[1])
+    refresh_tok = _decrypt(row[1])
     expiry = row[2]
     # Fall back to env-level credentials
     client_id = row[3] or os.environ.get("GOOGLE_CLIENT_ID")
@@ -162,7 +162,7 @@ def get_gmail_client(account_id):
 
     creds = Credentials(
         token=access_token,
-        refresh_token=refresh_token,
+        refresh_token=refresh_tok,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=client_id,
         client_secret=client_secret,
@@ -181,7 +181,12 @@ def get_gmail_client(account_id):
                 (new_encrypted, creds.expiry, account_id),
             )
 
-    return build("gmail", "v1", credentials=creds)
+    return build(api_name, api_version, credentials=creds)
+
+
+def get_gmail_client(account_id):
+    """Return an authenticated Gmail API client, refreshing token if needed."""
+    return get_google_client(account_id, "gmail", "v1")
 
 
 def refresh_token(account_id):

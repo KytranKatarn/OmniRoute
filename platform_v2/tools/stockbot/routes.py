@@ -2,7 +2,8 @@
 StockBot Routes - AI Stock Screener
 Phase 1 backend: market data, portfolio, watchlist, alerts + AI chat
 Phase 2 backend: 5-agent parallel analysis engine + analysis routes
-Updated: 2026-03-14 - Added analysis routes + analysis context injection in chat
+Phase 3 backend: paper trading, strategies, Alpaca integration
+Updated: 2026-03-14 - Added Phase 3 routes
 """
 
 import re
@@ -736,4 +737,156 @@ def get_analysis_history_route(ticker):
         return jsonify({"success": True, "ticker": ticker, "history": history, "count": len(history)})
     except Exception as e:
         logger.error(f"get_analysis_history({ticker}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ── Phase 3: Paper Trading Routes ────────────────────────────────────────────
+
+from .services.trading_service import (
+    get_or_create_paper_account,
+    paper_buy,
+    paper_sell,
+    get_pnl_summary,
+    reset_paper_account,
+)
+from .services.strategy_service import (
+    create_strategy,
+    list_strategies,
+    delete_strategy,
+    toggle_strategy,
+)
+
+
+@stockbot_bp.route("/api/paper/account", methods=["GET"])
+@login_required
+def paper_account():
+    """Get paper account balance and PnL summary."""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    try:
+        summary = get_pnl_summary(user_id)
+        return jsonify({"success": True, "account": summary})
+    except Exception as e:
+        logger.error(f"paper_account({user_id}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/paper/buy", methods=["POST"])
+@login_required
+def paper_buy_route():
+    """Buy shares in paper account. Body: {ticker, shares}"""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    data = request.get_json() or {}
+    ticker = data.get("ticker", "").strip().upper()
+    shares = data.get("shares")
+    if not ticker or not shares:
+        return jsonify({"success": False, "error": "ticker and shares are required"}), 400
+    try:
+        shares = float(shares)
+        if shares <= 0:
+            return jsonify({"success": False, "error": "shares must be positive"}), 400
+        result = paper_buy(user_id, ticker, shares)
+        return jsonify(result), 200 if result.get("success") else 400
+    except (ValueError, TypeError) as e:
+        return jsonify({"success": False, "error": f"Invalid shares value: {e}"}), 400
+    except Exception as e:
+        logger.error(f"paper_buy_route({user_id}, {ticker}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/paper/sell", methods=["POST"])
+@login_required
+def paper_sell_route():
+    """Sell shares from paper account. Body: {ticker, shares}"""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    data = request.get_json() or {}
+    ticker = data.get("ticker", "").strip().upper()
+    shares = data.get("shares")
+    if not ticker or not shares:
+        return jsonify({"success": False, "error": "ticker and shares are required"}), 400
+    try:
+        shares = float(shares)
+        if shares <= 0:
+            return jsonify({"success": False, "error": "shares must be positive"}), 400
+        result = paper_sell(user_id, ticker, shares)
+        return jsonify(result), 200 if result.get("success") else 400
+    except (ValueError, TypeError) as e:
+        return jsonify({"success": False, "error": f"Invalid shares value: {e}"}), 400
+    except Exception as e:
+        logger.error(f"paper_sell_route({user_id}, {ticker}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/paper/reset", methods=["POST"])
+@login_required
+def paper_reset():
+    """Reset paper account to $100K and clear all positions."""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    try:
+        result = reset_paper_account(user_id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"paper_reset({user_id}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ── Phase 3: Strategy Routes ──────────────────────────────────────────────────
+
+
+@stockbot_bp.route("/api/strategies", methods=["GET"])
+@login_required
+def get_strategies():
+    """List all strategies for the current user."""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    try:
+        strategies = list_strategies(user_id)
+        return jsonify({"success": True, "strategies": strategies, "count": len(strategies)})
+    except Exception as e:
+        logger.error(f"get_strategies({user_id}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/strategies", methods=["POST"])
+@login_required
+def create_strategy_route():
+    """Create a new trading strategy. Body: {name, ticker, rules}"""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    data = request.get_json() or {}
+    name = data.get("name", "").strip()
+    ticker = data.get("ticker", "").strip().upper()
+    rules = data.get("rules")
+    if not name or not ticker or not rules:
+        return jsonify({"success": False, "error": "name, ticker, and rules are required"}), 400
+    if not isinstance(rules, dict) or "conditions" not in rules or "action" not in rules:
+        return jsonify({"success": False, "error": "rules must have conditions and action keys"}), 400
+    try:
+        strategy_id = create_strategy(user_id, name, ticker, rules)
+        return jsonify({"success": True, "strategy_id": strategy_id}), 201
+    except Exception as e:
+        logger.error(f"create_strategy_route({user_id}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/strategies/<int:strategy_id>", methods=["DELETE"])
+@login_required
+def delete_strategy_route(strategy_id):
+    """Delete a strategy (must be owned by current user)."""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    try:
+        result = delete_strategy(strategy_id, user_id)
+        return jsonify(result), 200 if result.get("success") else 404
+    except Exception as e:
+        logger.error(f"delete_strategy_route({strategy_id}) error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@stockbot_bp.route("/api/strategies/<int:strategy_id>/toggle", methods=["POST"])
+@login_required
+def toggle_strategy_route(strategy_id):
+    """Toggle is_active for a strategy."""
+    user_id = current_user.id if current_user.is_authenticated else 1
+    try:
+        result = toggle_strategy(strategy_id, user_id)
+        return jsonify(result), 200 if result.get("success") else 404
+    except Exception as e:
+        logger.error(f"toggle_strategy_route({strategy_id}) error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

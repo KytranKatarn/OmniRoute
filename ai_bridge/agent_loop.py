@@ -490,6 +490,16 @@ class AgentLoop:
             except Exception as scan_err:
                 logger.error(f"auto_scan_watchlist error: {scan_err}")
 
+            # Phase 3: Evaluate automated trading strategies
+            try:
+                from tools.stockbot.services.strategy_service import evaluate_strategies
+
+                evaluated = evaluate_strategies()
+                if evaluated:
+                    logger.info(f"Stock strategy evaluator: processed {evaluated} active strategy/strategies")
+            except Exception as strat_err:
+                logger.error(f"evaluate_strategies error: {strat_err}")
+
         except Exception as e:
             logger.error(f"_update_stock_prices error: {e}")
 

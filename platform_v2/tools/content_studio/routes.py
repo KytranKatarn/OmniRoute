@@ -423,29 +423,8 @@ Please write engaging, well-structured content that is ready to publish."""
             except Exception as ai_error:
                 logger.warning(f"archie_bridge call failed: {ai_error}")
 
-        # Fallback response
-        return jsonify(
-            {
-                "success": True,
-                "content": f"""<h1>{topic}</h1>
-
-<p>This is a placeholder for AI-generated content about "{topic}".</p>
-
-<p>The AI content generation service is currently being configured. Once active, this will generate a {tone} {content_type} of approximately {target_words} words.</p>
-
-<h2>What to Expect</h2>
-
-<p>When the AI service is fully configured, you'll receive:</p>
-<ul>
-    <li>Well-structured content matching your specified tone</li>
-    <li>Proper formatting with headings and paragraphs</li>
-    <li>Integration of your specified keywords</li>
-    <li>Content optimized for your target audience</li>
-</ul>
-
-<p>Please try again later or contact support if this persists.</p>""",
-            }
-        )
+        # Fallback: Bridge unavailable
+        return jsonify({"success": False, "error": "AI Bridge unavailable"}), 503
 
     except Exception as e:
         logger.error(f"AI generation failed: {e}")
@@ -534,22 +513,23 @@ Offer:
 # ============================================================================
 
 
-@content_studio_bp.route("/api/documents/<int:doc_id>/export", methods=["POST"])
+@content_studio_bp.route("/api/documents/<int:doc_id>/export", methods=["GET", "POST"])
 @login_required
 def export_document(doc_id):
-    """Export document to specified format"""
-    try:
-        data = request.get_json()
-        export_format = data.get("format", "pdf")
+    """Export document as Markdown or HTML based on ?format= param"""
+    from flask import make_response
 
-        # Get document
+    export_format = request.args.get("format") or ((request.get_json(silent=True) or {}).get("format", "markdown"))
+    export_format = export_format.lower()
+
+    try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             """
             SELECT * FROM content_documents
             WHERE id = %s AND (user_id = %s OR %s = TRUE)
-        """,
+            """,
             (
                 doc_id,
                 current_user.id,
@@ -561,18 +541,30 @@ def export_document(doc_id):
         if not document:
             return jsonify({"success": False, "error": "Document not found"}), 404
 
-        # Placeholder for export logic
-        # In production, this would generate PDF/DOCX/etc.
-        return jsonify(
-            {
-                "success": True,
-                "message": f"Document export to {export_format.upper()} initiated",
-                "document_title": document["title"],
-                "format": export_format,
-                "status": "pending",
-                "download_url": None,  # Will be populated when export is complete
-            }
-        )
+        title = document.get("title", "document")
+        content = document.get("content") or ""
+        safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in title)[:80]
+
+        if export_format == "html":
+            # Wrap markdown content in minimal HTML
+            html_body = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            html_out = (
+                f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                f"<title>{title}</title></head><body>"
+                f"<h1>{title}</h1><pre style='white-space:pre-wrap'>{html_body}</pre>"
+                f"</body></html>"
+            )
+            resp = make_response(html_out)
+            resp.headers["Content-Type"] = "text/html; charset=utf-8"
+            resp.headers["Content-Disposition"] = f'attachment; filename="{safe_title}.html"'
+            return resp
+        else:
+            # Default: Markdown
+            md_out = f"# {title}\n\n{content}"
+            resp = make_response(md_out)
+            resp.headers["Content-Type"] = "text/markdown; charset=utf-8"
+            resp.headers["Content-Disposition"] = f'attachment; filename="{safe_title}.md"'
+            return resp
 
     except Exception as e:
         logger.error(f"Export failed: {e}")
@@ -670,3 +662,105 @@ def get_templates():
     ]
 
     return jsonify({"success": True, "templates": templates})
+
+
+# ============================================================================
+# AI WRITING PIPELINE
+# ============================================================================
+
+from .services import writing_service  # noqa: E402
+
+
+@content_studio_bp.route("/api/ai/write", methods=["POST"])
+@login_required
+def start_writing_pipeline():
+    """Start a 5-stage AI writing pipeline session"""
+    try:
+        data = request.get_json() or {}
+        description = data.get("description", "").strip()
+        if not description:
+            return jsonify({"success": False, "error": "description is required"}), 400
+
+        result = writing_service.start_writing(
+            user_id=current_user.id,
+            description=description,
+            content_type=data.get("content_type", "article"),
+            tone=data.get("tone", "professional"),
+            template=data.get("template"),
+        )
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"Writing pipeline start failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@content_studio_bp.route("/api/ai/write/<int:session_id>", methods=["GET"])
+@login_required
+def get_writing_status(session_id):
+    """Get writing pipeline session status"""
+    try:
+        session = writing_service.get_writing_status(session_id)
+        if not session:
+            return jsonify({"success": False, "error": "Session not found"}), 404
+        if session["user_id"] != current_user.id:
+            return jsonify({"success": False, "error": "Forbidden"}), 403
+        return jsonify({"success": True, "session": session})
+    except Exception as e:
+        logger.error(f"Writing status fetch failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@content_studio_bp.route("/api/ai/write/<int:session_id>/approve", methods=["POST"])
+@login_required
+def approve_writing_checkpoint(session_id):
+    """Approve a checkpoint stage and advance the writing pipeline"""
+    try:
+        session = writing_service.get_writing_status(session_id)
+        if not session:
+            return jsonify({"success": False, "error": "Session not found"}), 404
+        if session["user_id"] != current_user.id:
+            return jsonify({"success": False, "error": "Forbidden"}), 403
+
+        result = writing_service.approve_checkpoint(session_id, current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Writing checkpoint approval failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@content_studio_bp.route("/api/ai/write/<int:session_id>/apply", methods=["POST"])
+@login_required
+def apply_writing_result(session_id):
+    """Publish the final writing session output to a content document"""
+    try:
+        session = writing_service.get_writing_status(session_id)
+        if not session:
+            return jsonify({"success": False, "error": "Session not found"}), 404
+        if session["user_id"] != current_user.id:
+            return jsonify({"success": False, "error": "Forbidden"}), 403
+
+        result = writing_service.apply_writing_result(session_id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Writing apply failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@content_studio_bp.route("/api/ai/assist", methods=["POST"])
+@login_required
+def ai_assist_inline():
+    """Inline AI editor actions: expand, rewrite, summarize, change_tone"""
+    try:
+        data = request.get_json() or {}
+        text = data.get("text", "").strip()
+        action = data.get("action", "rewrite")
+        context = data.get("context") or {}
+
+        if not text:
+            return jsonify({"success": False, "error": "text is required"}), 400
+
+        result = writing_service.ai_assist(text, action, context)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"AI assist failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

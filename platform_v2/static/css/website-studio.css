@@ -654,3 +654,60 @@
   background: var(--ws-border);
   border-radius: 2px;
 }
+
+/* ============================================================
+   Phase 2: Deploy + Hostinger + Chat Drawer
+   ============================================================ */
+
+.ws-deploy-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.ws-deploy-panel-content {
+  background: var(--ws-bg, #0d0d1a);
+  border: 1px solid var(--ws-accent, #4af);
+  border-radius: 8px;
+  width: 90vw;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ws-deploy-btn {
+  color: var(--ws-accent, #4af);
+}
+
+.ws-mock-banner {
+  background: rgba(255, 153, 0, 0.15);
+  border: 1px solid #f90;
+  color: #f90;
+  padding: 0.3rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.ws-ai-drawer {
+  border-top: 1px solid var(--ws-border, #223);
+  background: rgba(0, 0, 0, 0.3);
+  flex-direction: column;
+  position: relative;
+}
+
+.ws-ai-drawer-handle {
+  height: 4px;
+  background: var(--ws-border, #223);
+  cursor: row-resize;
+}
+
+.ws-ai-drawer-handle:hover {
+  background: var(--ws-accent, #4af);
+}

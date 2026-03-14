@@ -59,7 +59,7 @@ def get_pending_jobs(limit: int = 10) -> List[Dict]:
     try:
         cur.execute(
             """
-            SELECT q.*, p.content, p.media_urls, p.target_platforms,
+            SELECT q.*, p.content, p.media_urls, p.media_library_id, p.target_platforms,
                    a.platform, a.platform_user_id
             FROM social_media_queue q
             JOIN social_posts p ON q.post_id = p.id
@@ -120,6 +120,20 @@ def process_job(job: Dict) -> Dict:
     post_id = job["post_id"]
     content = job["content"]
     media_urls = job.get("media_urls") or []
+
+    # Resolve media from Media Studio if linked
+    media_library_id = job.get("media_library_id")
+    if media_library_id and (not media_urls or media_urls == [None] or media_urls == []):
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT file_path FROM media_library WHERE id = %s", (media_library_id,))
+                ml_row = cur.fetchone()
+                if ml_row and ml_row["file_path"]:
+                    media_urls = [ml_row["file_path"]]
+        except Exception as e:
+            logger.warning(f"Failed to resolve media_library path: {e}")
 
     logger.info(f"Processing job {job['id']} for {platform} post {post_id}")
 

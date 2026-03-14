@@ -330,6 +330,7 @@
       }
 
       toast("Opened: " + (_currentProject.name || "Project"));
+      loadChatHistory(projectId);
     } catch (e) {
       toast("Failed to open project: " + e.message);
       console.error(e);
@@ -1042,6 +1043,185 @@
     if (_monacoEditor) {
       setTimeout(() => _monacoEditor.layout(), 200);
     }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // SECTION 9: PHASE 2 — Deploy + Hostinger + Chat Drawer
+  // ═══════════════════════════════════════════════════════════════
+
+  var _chatDrawerOpen = false;
+  var _currentDomain = null;
+
+  window.toggleChatDrawer = function () {
+    _chatDrawerOpen = !_chatDrawerOpen;
+    var drawer = document.getElementById("wsAiDrawer");
+    if (drawer) drawer.style.display = _chatDrawerOpen ? "" : "none";
+  };
+
+  window.openDeployPanel = function () {
+    document.getElementById("wsDeployPanel").style.display = "flex";
+    loadDeployHistory();
+    loadHostingerDomains();
+  };
+
+  window.closeDeployPanel = function () {
+    document.getElementById("wsDeployPanel").style.display = "none";
+  };
+
+  window.deployToGitHub = function () {
+    var status = document.getElementById("wsDeployStatus");
+    status.textContent = "Deploying...";
+    api("POST", "/api/projects/" + _currentProjectId + "/deploy", {
+      deployment_type: "github_pages",
+    }).then(function (data) {
+      if (data.success || data.deployment_url) {
+        status.textContent = "Deployed! " + (data.deployment_url || "");
+        toast("Deployed to GitHub Pages");
+        loadDeployHistory();
+      } else {
+        status.textContent = "Error: " + (data.error || "Deploy failed");
+      }
+    });
+  };
+
+  function loadDeployHistory() {
+    if (!_currentProjectId) return;
+    api("GET", "/api/projects/" + _currentProjectId + "/deployments").then(
+      function (data) {
+        var container = document.getElementById("wsDeployHistory");
+        clearEl(container);
+        var deps = data.deployments || data || [];
+        if (!Array.isArray(deps)) return;
+        deps.slice(0, 5).forEach(function (d) {
+          var row = document.createElement("div");
+          row.className = "ws-prop-row";
+          var left = document.createElement("span");
+          left.className = "ws-prop-label";
+          left.textContent =
+            (d.status || "?") +
+            " — " +
+            (d.created_at || "").split("T")[0];
+          var right = document.createElement("span");
+          right.className = "ws-prop-value";
+          right.textContent = d.commit_hash
+            ? d.commit_hash.substring(0, 7)
+            : "";
+          row.appendChild(left);
+          row.appendChild(right);
+          container.appendChild(row);
+        });
+      }
+    );
+  }
+
+  window.loadHostingerDomains = function () {
+    api("GET", "/api/hostinger/status").then(function (data) {
+      if (data.error) {
+        document.getElementById("wsHostingerSection").style.display = "none";
+        return;
+      }
+      var banner = document.getElementById("wsHostingerMockBanner");
+      if (banner)
+        banner.style.display = data.mock || !data.configured ? "" : "none";
+    });
+    api("GET", "/api/hostinger/domains").then(function (data) {
+      var container = document.getElementById("wsHostingerDomains");
+      clearEl(container);
+      var domains = data.domains || [];
+      domains.forEach(function (d) {
+        var row = document.createElement("div");
+        row.className = "ws-tree-item";
+        row.textContent = d.domain + " (" + (d.status || "active") + ")";
+        row.onclick = function () {
+          loadDnsRecords(d.domain);
+        };
+        container.appendChild(row);
+      });
+    });
+  };
+
+  window.loadDnsRecords = function (domain) {
+    _currentDomain = domain;
+    document.getElementById("wsDnsRecords").style.display = "";
+    document.getElementById("wsDnsDomainTitle").textContent =
+      "DNS: " + domain;
+    api("GET", "/api/hostinger/domains/" + domain + "/dns").then(
+      function (data) {
+        var container = document.getElementById("wsDnsTable");
+        clearEl(container);
+        (data.records || []).forEach(function (r) {
+          var row = document.createElement("div");
+          row.className = "ws-prop-row";
+          var left = document.createElement("span");
+          left.className = "ws-prop-label";
+          left.textContent = r.type + " " + r.name;
+          var right = document.createElement("span");
+          right.className = "ws-prop-value";
+          right.textContent = r.content;
+          row.appendChild(left);
+          row.appendChild(right);
+          container.appendChild(row);
+        });
+      }
+    );
+  };
+
+  window.showAddDnsForm = function () {
+    document.getElementById("wsAddDnsForm").style.display = "";
+  };
+
+  window.addDnsRecord = function () {
+    if (!_currentDomain) return;
+    api("POST", "/api/hostinger/domains/" + _currentDomain + "/dns", {
+      type: document.getElementById("wsDnsType").value,
+      name: document.getElementById("wsDnsName").value,
+      value: document.getElementById("wsDnsContent").value,
+      ttl: 3600,
+    }).then(function (data) {
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+      toast("DNS record added");
+      document.getElementById("wsAddDnsForm").style.display = "none";
+      loadDnsRecords(_currentDomain);
+    });
+  };
+
+  window.applyGitHubPreset = function () {
+    if (
+      !_currentDomain ||
+      !confirm(
+        "Apply GitHub Pages DNS preset to " + _currentDomain + "?"
+      )
+    )
+      return;
+    api(
+      "POST",
+      "/api/hostinger/domains/" + _currentDomain + "/preset",
+      { preset_type: "github_pages" }
+    ).then(function (data) {
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+      toast("GitHub Pages preset applied");
+      loadDnsRecords(_currentDomain);
+    });
+  };
+
+  window.loadChatHistory = function (projectId) {
+    api("GET", "/api/chat/history/" + projectId).then(function (data) {
+      var history = data.history || [];
+      var container = document.getElementById("wsAiHistory");
+      clearEl(container);
+      history.forEach(function (entry) {
+        addAiEntry(
+          entry.role === "user" ? "user" : "assistant",
+          entry.message
+        );
+      });
+    });
   };
 
   // ── DOMContentLoaded ─────────────────────────────────────────

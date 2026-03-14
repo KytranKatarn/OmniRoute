@@ -90,7 +90,7 @@
     var panels = {
       dashboard: 'sbDashboardTab', watchlist: 'sbWatchlistTab',
       portfolio: 'sbPortfolioTab', charts: 'sbChartsTab', chat: 'sbChatTab',
-      trading: 'sbTradingTab'
+      trading: 'sbTradingTab', backtest: 'sbBacktestTab'
     };
     Object.keys(panels).forEach(function (k) {
       var el = getEl(panels[k]);
@@ -99,8 +99,9 @@
     if (tab === 'dashboard') loadDashboard();
     if (tab === 'watchlist') loadWatchlist();
     if (tab === 'portfolio') { loadPortfolio(); loadTransactions(); }
-    if (tab === 'charts' && _currentTicker) loadChart(_currentTicker);
+    if (tab === 'charts' && _currentTicker) { loadChart(_currentTicker); loadSentiment(_currentTicker); }
     if (tab === 'trading') { loadPaperAccount(); loadStrategies(); }
+    if (tab === 'backtest') loadBacktestHistory();
   }
 
   // ── Dashboard ─────────────────────────────────────────────────
@@ -714,6 +715,191 @@
     }).catch(function () {});
   }
 
+  // ── Phase 4: Sentiment ────────────────────────────────────────
+  function loadSentiment(ticker) {
+    if (!ticker) return;
+    var panel = getEl('sbSentimentPanel');
+    if (panel) panel.style.display = '';
+    api('GET', '/api/sentiment/' + ticker).then(function (data) {
+      renderSentimentPanel(data);
+    }).catch(function () {});
+  }
+
+  function renderSentimentPanel(data) {
+    var scoreEl = getEl('sbSentimentScore');
+    var labelEl = getEl('sbSentimentLabel');
+    var summaryEl = getEl('sbSentimentSummary');
+    var listEl = getEl('sbHeadlineList');
+    if (!scoreEl) return;
+
+    var score = data.overall_score || 0;
+    var pct = Math.round(score * 100);
+    scoreEl.textContent = (score >= 0 ? '+' : '') + pct;
+    scoreEl.className = 'sb-sentiment-score ' + (score > 0.1 ? 'sb-positive' : score < -0.1 ? 'sb-negative' : '');
+    labelEl.textContent = score > 0.2 ? 'Bullish' : score < -0.2 ? 'Bearish' : 'Neutral';
+    if (summaryEl) summaryEl.textContent = data.summary || '';
+
+    if (listEl) {
+      clearEl(listEl);
+      var headlines = data.headlines || [];
+      headlines.slice(0, 8).forEach(function (h) {
+        var row = document.createElement('div');
+        row.className = 'sb-headline-row';
+        var dot = document.createElement('span');
+        var hs = h.score || 0;
+        dot.className = 'sb-headline-dot ' + (hs > 0.1 ? 'sb-positive' : hs < -0.1 ? 'sb-negative' : '');
+        dot.textContent = '●';
+        var text = document.createElement('span');
+        text.className = 'sb-headline-text';
+        text.textContent = h.text || h.headline || '';
+        row.appendChild(dot);
+        row.appendChild(text);
+        listEl.appendChild(row);
+      });
+    }
+  }
+
+  // ── Phase 4: Backtest ─────────────────────────────────────────
+  var _btChart = null;
+  var _btLineSeries = null;
+
+  function runBacktest() {
+    var ticker = (getEl('sbBtTicker') || {}).value;
+    if (!ticker) { toast('Enter a ticker'); return; }
+    ticker = ticker.trim().toUpperCase();
+    var period = (getEl('sbBtPeriod') || {}).value || '1y';
+    var condition = (getEl('sbBtCondition') || {}).value || 'rsi_below';
+    var threshold = parseFloat((getEl('sbBtThreshold') || {}).value) || 30;
+    var action = (getEl('sbBtAction') || {}).value || 'buy';
+    var shares = parseInt((getEl('sbBtShares') || {}).value) || 10;
+
+    var btn = getEl('sbBtRunBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
+
+    var payload = {
+      ticker: ticker,
+      period: period,
+      strategy_name: condition + ' / ' + action,
+      strategy_rules: {
+        conditions: [{ type: condition, threshold: threshold }],
+        action: { type: action, shares: shares }
+      }
+    };
+
+    api('POST', '/api/backtest', payload).then(function (data) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Run Backtest'; }
+      if (!data.success) { toast(data.error || 'Backtest failed'); return; }
+      var resultsEl = getEl('sbBacktestResults');
+      if (resultsEl) resultsEl.style.display = '';
+      var labelEl = getEl('sbBtResultLabel');
+      if (labelEl) labelEl.textContent = ticker + ' · ' + period;
+      renderBacktestMetrics(data.metrics || {});
+      renderEquityCurve(data.equity_curve || []);
+      renderBacktestTrades(data.trades || []);
+      loadBacktestHistory();
+    }).catch(function () {
+      if (btn) { btn.disabled = false; btn.textContent = 'Run Backtest'; }
+    });
+  }
+
+  function renderBacktestMetrics(m) {
+    var el = getEl('sbBtMetrics');
+    if (!el) return;
+    clearEl(el);
+    var rows = [
+      ['Total Return', (m.total_return || 0).toFixed(2) + '%', m.total_return >= 0],
+      ['Ann. Return', (m.annualized_return || 0).toFixed(2) + '%', m.annualized_return >= 0],
+      ['Benchmark (SPY)', (m.benchmark_return || 0).toFixed(2) + '%', m.benchmark_return >= 0],
+      ['Alpha', (m.alpha || 0).toFixed(2) + '%', m.alpha >= 0],
+      ['Sharpe Ratio', (m.sharpe_ratio || 0).toFixed(2), m.sharpe_ratio >= 1],
+      ['Max Drawdown', (m.max_drawdown || 0).toFixed(2) + '%', false],
+      ['Win Rate', (m.win_rate || 0).toFixed(1) + '%', m.win_rate >= 50],
+      ['Profit Factor', (m.profit_factor || 0).toFixed(2), m.profit_factor >= 1],
+      ['Total Trades', m.total_trades || 0, null],
+      ['Total Fees', '$' + (m.total_fees || 0).toFixed(2), null],
+    ];
+    rows.forEach(function (r) {
+      var row = document.createElement('div');
+      row.className = 'sb-metric-row';
+      var lbl = document.createElement('span');
+      lbl.className = 'sb-metric-label';
+      lbl.textContent = r[0];
+      var val = document.createElement('span');
+      val.className = 'sb-metric-value' + (r[2] === true ? ' sb-positive' : r[2] === false && r[0] !== 'Total Trades' && r[0] !== 'Total Fees' ? ' sb-negative' : '');
+      val.textContent = r[1];
+      row.appendChild(lbl);
+      row.appendChild(val);
+      el.appendChild(row);
+    });
+  }
+
+  function renderEquityCurve(curve) {
+    var container = getEl('sbBtEquityCurve');
+    if (!container || !curve.length) return;
+    if (_btChart) { _btChart.remove(); _btChart = null; _btLineSeries = null; }
+    _btChart = LightweightCharts.createChart(container, {
+      width: container.clientWidth || 600,
+      height: 220,
+      layout: { background: { color: '#0a0e1a' }, textColor: '#a0aec0' },
+      grid: { vertLines: { color: '#1a2035' }, horzLines: { color: '#1a2035' } },
+      timeScale: { borderColor: '#1a2035' },
+    });
+    _btLineSeries = _btChart.addLineSeries({ color: '#f59e0b', lineWidth: 2 });
+    var seriesData = curve.map(function (pt) {
+      return { time: pt.date, value: pt.equity };
+    });
+    _btLineSeries.setData(seriesData);
+    _btChart.timeScale().fitContent();
+  }
+
+  function renderBacktestTrades(trades) {
+    var el = getEl('sbBtTrades');
+    if (!el) return;
+    clearEl(el);
+    if (!trades.length) {
+      el.textContent = 'No trades executed.';
+      return;
+    }
+    trades.slice(0, 50).forEach(function (t) {
+      var row = document.createElement('div');
+      row.className = 'sb-backtest-trade-row ' + (t.action === 'buy' ? 'sb-positive' : 'sb-negative');
+      row.textContent = t.date + ' · ' + t.action.toUpperCase() + ' ' + t.shares + ' @ $' + t.price + ' (fee $' + t.fee + ')';
+      el.appendChild(row);
+    });
+  }
+
+  function loadBacktestHistory() {
+    api('GET', '/api/backtest/results').then(function (data) {
+      var el = getEl('sbBtHistory');
+      if (!el) return;
+      clearEl(el);
+      var results = data.results || [];
+      if (!results.length) {
+        var empty = document.createElement('div');
+        empty.className = 'sb-text-muted';
+        empty.textContent = 'No backtests yet';
+        el.appendChild(empty);
+        return;
+      }
+      results.forEach(function (r) {
+        var row = document.createElement('div');
+        row.className = 'sb-strategy-row';
+        var m = r.metrics || {};
+        var ret = m.total_return != null ? m.total_return.toFixed(2) + '%' : '—';
+        var info = document.createElement('span');
+        info.textContent = r.ticker + ' · ' + r.strategy_name + ' · ' + r.period + ' → ' + ret;
+        info.className = (m.total_return || 0) >= 0 ? 'sb-positive' : 'sb-negative';
+        var date = document.createElement('span');
+        date.className = 'sb-text-muted';
+        date.style.marginLeft = '8px';
+        date.textContent = r.created_at ? r.created_at.slice(0, 10) : '';
+        row.appendChild(info);
+        row.appendChild(date);
+        el.appendChild(row);
+      });
+    }).catch(function () {});
+  }
+
   // ── Init ──────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () { loadDashboard(); });
 
@@ -724,7 +910,8 @@
     sendChat: sendChat, executeTrade: executeTrade,
     runAnalysis: runAnalysis, toast: toast,
     loadPaperAccount: loadPaperAccount, paperBuy: paperBuy, paperSell: paperSell,
-    resetPaperAccount: resetPaperAccount, createStrategy: createStrategy, loadStrategies: loadStrategies
+    resetPaperAccount: resetPaperAccount, createStrategy: createStrategy, loadStrategies: loadStrategies,
+    loadSentiment: loadSentiment, runBacktest: runBacktest, loadBacktestHistory: loadBacktestHistory
   };
 
 })();

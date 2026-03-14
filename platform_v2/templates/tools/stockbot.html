@@ -36,6 +36,7 @@
     <button class="sb-tab" onclick="SB.setTab('charts')" data-tab="charts">Charts</button>
     <button class="sb-tab" onclick="SB.setTab('chat')" data-tab="chat">AI Chat</button>
     <button class="sb-tab" data-tab="trading" onclick="SB.setTab('trading')">Trading</button>
+    <button class="sb-tab" data-tab="backtest" onclick="SB.setTab('backtest')">Backtest</button>
   </nav>
 
   <!-- ── DASHBOARD TAB ────────────────────────────────────────── -->
@@ -256,6 +257,17 @@
       <div id="sbAnalysisPanel" class="sb-analysis-panel" style="display:none"></div>
     </div>
 
+    <!-- Sentiment Panel -->
+    <div id="sbSentimentPanel" class="sb-sentiment-panel" style="display:none">
+      <div class="sb-section-title">News Sentiment</div>
+      <div id="sbSentimentGauge" class="sb-sentiment-gauge">
+        <span class="sb-sentiment-score" id="sbSentimentScore">—</span>
+        <span class="sb-sentiment-label" id="sbSentimentLabel">Loading…</span>
+      </div>
+      <div id="sbSentimentSummary" class="sb-text-muted" style="font-size:0.85em;margin-bottom:6px"></div>
+      <div id="sbHeadlineList" class="sb-headline-list"></div>
+    </div>
+
   </div>
 
   <!-- ── AI CHAT TAB ────────────────────────────────────────────── -->
@@ -324,6 +336,78 @@
       <div class="sb-section-title">Execution Log</div>
       <div id="sbStrategyLogs" class="sb-strategy-logs"></div>
     </div>
+
+  </div>
+
+  <!-- ── BACKTEST TAB ───────────────────────────────────────────── -->
+  <div id="sbBacktestTab" class="sb-tab-panel" style="display:none">
+
+    <section class="sb-section">
+      <h2 class="sb-section-title">Strategy Backtest</h2>
+      <div class="sb-backtest-form">
+        <div class="sb-form-row">
+          <label class="sb-label">Ticker</label>
+          <input type="text" id="sbBtTicker" class="sb-input" placeholder="e.g. AAPL" maxlength="10" style="width:90px;">
+        </div>
+        <div class="sb-form-row">
+          <label class="sb-label">Period</label>
+          <select id="sbBtPeriod" class="sb-select" style="width:auto;">
+            <option value="1mo">1 Month</option>
+            <option value="3mo">3 Months</option>
+            <option value="6mo">6 Months</option>
+            <option value="1y" selected>1 Year</option>
+            <option value="2y">2 Years</option>
+            <option value="5y">5 Years</option>
+          </select>
+        </div>
+        <div class="sb-form-row">
+          <label class="sb-label">Condition</label>
+          <select id="sbBtCondition" class="sb-select" style="width:auto;">
+            <option value="rsi_below">RSI Below</option>
+            <option value="rsi_above">RSI Above</option>
+            <option value="price_above_sma">Price Above SMA</option>
+            <option value="price_below_sma">Price Below SMA</option>
+            <option value="macd_crossover">MACD Crossover</option>
+            <option value="price_change_above">Price Change Above %</option>
+            <option value="price_change_below">Price Drop Below %</option>
+          </select>
+        </div>
+        <div class="sb-form-row">
+          <label class="sb-label">Threshold</label>
+          <input type="number" id="sbBtThreshold" class="sb-input" value="30" style="width:70px;">
+        </div>
+        <div class="sb-form-row">
+          <label class="sb-label">Action</label>
+          <select id="sbBtAction" class="sb-select" style="width:auto;">
+            <option value="buy">Buy</option>
+            <option value="sell">Sell</option>
+            <option value="sell_all">Sell All</option>
+          </select>
+        </div>
+        <div class="sb-form-row">
+          <label class="sb-label">Shares</label>
+          <input type="number" id="sbBtShares" class="sb-input" value="10" style="width:70px;">
+        </div>
+        <button class="sb-btn sb-btn-accent" onclick="SB.runBacktest()" id="sbBtRunBtn">Run Backtest</button>
+      </div>
+    </section>
+
+    <div id="sbBacktestResults" style="display:none">
+      <section class="sb-section">
+        <h2 class="sb-section-title">Results — <span id="sbBtResultLabel"></span></h2>
+        <div id="sbBtMetrics" class="sb-backtest-metrics"></div>
+        <div id="sbBtEquityCurve" class="sb-chart-container" style="margin-top:12px;height:220px;"></div>
+      </section>
+      <section class="sb-section">
+        <h2 class="sb-section-title">Trades</h2>
+        <div id="sbBtTrades" class="sb-backtest-trades"></div>
+      </section>
+    </div>
+
+    <section class="sb-section">
+      <h2 class="sb-section-title">Past Backtests</h2>
+      <div id="sbBtHistory" class="sb-strategy-list"></div>
+    </section>
 
   </div>
 

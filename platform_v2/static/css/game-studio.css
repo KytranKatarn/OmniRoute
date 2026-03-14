@@ -502,3 +502,16 @@
   color: var(--gs-accent, #4f6);
   background: rgba(68,255,102,0.08);
 }
+
+/* ── Build Wizard ─────────────────────────────────────────────── */
+.gs-build-wizard { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85); }
+.gs-build-wizard-content { background:var(--gs-bg,#0d0d1a);border:1px solid var(--gs-accent,#4f6);border-radius:8px;width:90vw;max-width:600px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden; }
+.gs-pipeline-stages { display:flex;justify-content:space-between;padding:0.5rem 0; }
+.gs-pipeline-stage { display:flex;flex-direction:column;align-items:center;flex:1; }
+.gs-pipeline-circle { width:24px;height:24px;border-radius:50%;border:2px solid var(--gs-border,#232);background:transparent;margin-bottom:0.25rem; }
+.gs-pipeline-stage.complete .gs-pipeline-circle { background:var(--gs-accent,#4f6);border-color:var(--gs-accent,#4f6); }
+.gs-pipeline-stage.running .gs-pipeline-circle { border-color:var(--gs-accent,#4f6);animation:gs-pulse 1s infinite; }
+.gs-pipeline-stage.checkpoint .gs-pipeline-circle { background:#f90;border-color:#f90; }
+.gs-pipeline-label { font-size:0.6rem;color:var(--gs-text,#aab);text-transform:uppercase; }
+@keyframes gs-pulse { 0%,100%{opacity:1;}50%{opacity:0.4;} }
+.gs-build-output { background:rgba(0,0,0,0.3);border:1px solid var(--gs-border,#232);border-radius:4px;padding:0.5rem;font-size:0.65rem;color:var(--gs-text,#aab);max-height:300px;overflow-y:auto;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace; }

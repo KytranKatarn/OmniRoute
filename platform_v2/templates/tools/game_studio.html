@@ -17,6 +17,7 @@
   <div class="gs-dashboard-header">
     <h1 class="gs-title">Game Studio</h1>
     <p class="gs-subtitle">Create, edit, and play browser games powered by A.R.C.H.I.E.</p>
+    <button class="gs-toolbar-btn" style="margin-top:0.75rem;background:rgba(68,255,102,0.1);border-color:var(--gs-accent,#4f6);color:var(--gs-accent,#4f6);" onclick="openBuildWizard()">&#9889; Build with AI</button>
   </div>
 
   <!-- Your Games -->
@@ -236,6 +237,33 @@
   </div>
 </div>
 
+
+<!-- ── BUILD WIZARD ──────────────────────────────────────────── -->
+<div id="gsBuildWizard" class="gs-build-wizard" style="display:none;">
+  <div class="gs-build-wizard-content">
+    <div class="gs-panel-header"><span>Build with AI</span><button class="gs-toolbar-btn" onclick="closeBuildWizard()">&times;</button></div>
+    <div id="gsBuildInput" style="padding:1rem;">
+      <label class="gs-label">Describe your game:
+        <textarea id="gsBuildDesc" rows="4" class="gs-prop-input" placeholder="A space trading game where you buy low and sell high across star systems..."></textarea>
+      </label>
+      <label class="gs-label" style="margin-top:0.75rem;">Game type:
+        <select id="gsBuildType" class="gs-prop-input">
+          <option value="">Auto-detect</option>
+          <option value="top_down_shooter">Shooter</option>
+          <option value="space_explorer">Explorer</option>
+          <option value="base_builder">Builder</option>
+        </select>
+      </label>
+      <div style="margin-top:1rem;text-align:right;">
+        <button class="gs-toolbar-btn" style="background:var(--gs-accent,#4f6);color:#000;" onclick="startBuild()">Build It</button>
+      </div>
+    </div>
+    <div id="gsBuildPipeline" style="display:none;padding:1rem;">
+      <div id="gsBuildStages" class="gs-pipeline-stages"></div>
+      <div id="gsBuildReview" style="display:none;margin-top:1rem;"></div>
+    </div>
+  </div>
+</div>
 
 <!-- ── TOAST ─────────────────────────────────────────────────── -->
 <div id="gsToast" class="gs-toast" role="status" aria-live="polite" style="display:none;"></div>

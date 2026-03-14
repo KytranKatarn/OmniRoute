@@ -841,6 +841,10 @@
             if (_gameConfig) {
                 try {
                     iframe.contentWindow.postMessage({ type: 'loadConfig', config: _gameConfig }, '*');
+                    // Load behaviors if present in config
+                    if (_gameConfig.behaviors && Array.isArray(_gameConfig.behaviors) && _gameConfig.behaviors.length > 0) {
+                        iframe.contentWindow.postMessage({ type: 'loadBehaviors', behaviors: _gameConfig.behaviors }, '*');
+                    }
                 } catch (e) {
                     console.warn('Could not post config to iframe:', e);
                 }
@@ -892,6 +896,18 @@
         }).then(function (data) {
             if (!data.success) {
                 addAiEntry('assistant', data.error || 'Error from AI');
+                return;
+            }
+
+            // Build pipeline triggered — open wizard and start polling
+            if (data.build_session) {
+                addAiEntry('assistant', data.response || 'Building your game...');
+                _buildSessionId = data.build_session && data.build_session.id;
+                openBuildWizard();
+                document.getElementById('gsBuildInput').style.display = 'none';
+                document.getElementById('gsBuildPipeline').style.display = '';
+                renderPipelineStages('concept', 'running');
+                if (_buildSessionId) pollBuildStatus(_buildSessionId);
                 return;
             }
 
@@ -1025,6 +1041,194 @@
         if (panel) panel.classList.toggle('gs-right-collapsed');
     };
 
+    // =========================================================================
+    // Section 9: AI Build Wizard
+    // =========================================================================
+
+    var _buildSessionId = null;
+    var _buildProjectId = null;
+    var _buildPollTimer = null;
+
+    window.openBuildWizard = function () {
+        var modal = document.getElementById('gsBuildWizard');
+        if (!modal) return;
+        modal.style.display = 'flex';
+        document.getElementById('gsBuildInput').style.display = '';
+        document.getElementById('gsBuildPipeline').style.display = 'none';
+        var desc = document.getElementById('gsBuildDesc');
+        if (desc) desc.value = '';
+    };
+
+    window.closeBuildWizard = function () {
+        var modal = document.getElementById('gsBuildWizard');
+        if (modal) modal.style.display = 'none';
+        if (_buildPollTimer) { clearTimeout(_buildPollTimer); _buildPollTimer = null; }
+    };
+
+    window.startBuild = function () {
+        var desc = (document.getElementById('gsBuildDesc') || {}).value || '';
+        var type = (document.getElementById('gsBuildType') || {}).value || '';
+        desc = desc.trim();
+        if (!desc) { toast('Please describe your game'); return; }
+
+        document.getElementById('gsBuildInput').style.display = 'none';
+        document.getElementById('gsBuildPipeline').style.display = '';
+        renderPipelineStages('concept', 'running');
+
+        api('POST', '/api/ai/build', { description: desc, game_type: type })
+            .then(function (data) {
+                if (!data.success) { toast('Build failed: ' + (data.error || 'Unknown error')); return; }
+                _buildSessionId = data.session && data.session.id;
+                if (_buildSessionId) pollBuildStatus(_buildSessionId);
+            })
+            .catch(function (e) {
+                console.error(e);
+                toast('Build request failed');
+            });
+    };
+
+    function pollBuildStatus(sessionId) {
+        api('GET', '/api/ai/build/' + sessionId)
+            .then(function (data) {
+                if (!data.success) return;
+                var s = data.session || {};
+                var stage = s.current_stage || 'concept';
+                var status = s.status || 'running';
+
+                renderPipelineStages(stage, status);
+
+                if (status === 'checkpoint') {
+                    showCheckpointReview(s);
+                } else if (status === 'complete') {
+                    showBuildComplete(s);
+                } else if (status === 'running') {
+                    _buildPollTimer = setTimeout(function () { pollBuildStatus(sessionId); }, 3000);
+                } else if (status === 'error') {
+                    toast('Build error: ' + (s.error || 'Unknown'));
+                }
+            })
+            .catch(function (e) {
+                console.error(e);
+                _buildPollTimer = setTimeout(function () { pollBuildStatus(sessionId); }, 5000);
+            });
+    }
+
+    function renderPipelineStages(currentStage, status) {
+        var container = document.getElementById('gsBuildStages');
+        if (!container) return;
+        var stages = ['concept', 'level', 'mechanics', 'qa'];
+        var labels = { concept: 'Concept', level: 'Level', mechanics: 'Mechanics', qa: 'QA' };
+        var currentIdx = stages.indexOf(currentStage);
+
+        while (container.firstChild) container.removeChild(container.firstChild);
+
+        stages.forEach(function (s, i) {
+            var div = document.createElement('div');
+            div.className = 'gs-pipeline-stage';
+            if (i < currentIdx) {
+                div.classList.add('complete');
+            } else if (i === currentIdx) {
+                div.classList.add(status === 'checkpoint' ? 'checkpoint' : status === 'complete' ? 'complete' : 'running');
+            }
+            var circle = document.createElement('div');
+            circle.className = 'gs-pipeline-circle';
+            var label = document.createElement('div');
+            label.className = 'gs-pipeline-label';
+            label.textContent = labels[s];
+            div.appendChild(circle);
+            div.appendChild(label);
+            container.appendChild(div);
+        });
+    }
+
+    function _buildReviewContent(outputText, btnLabel, btnFn) {
+        var review = document.getElementById('gsBuildReview');
+        if (!review) return;
+        while (review.firstChild) review.removeChild(review.firstChild);
+
+        var pre = document.createElement('div');
+        pre.className = 'gs-build-output';
+        pre.textContent = typeof outputText === 'string' ? outputText : JSON.stringify(outputText, null, 2);
+
+        var row = document.createElement('div');
+        row.style.cssText = 'margin-top:0.75rem;text-align:right;';
+
+        var btn = document.createElement('button');
+        btn.className = 'gs-toolbar-btn';
+        btn.style.cssText = 'background:var(--gs-accent,#4f6);color:#000;';
+        btn.textContent = btnLabel;
+        btn.addEventListener('click', btnFn);
+
+        row.appendChild(btn);
+        review.appendChild(pre);
+        review.appendChild(row);
+        review.style.display = '';
+    }
+
+    function showCheckpointReview(sessionData) {
+        _buildReviewContent(
+            sessionData.stage_output || '',
+            'Approve & Continue',
+            window.approveBuildCheckpoint
+        );
+    }
+
+    function showBuildComplete(sessionData) {
+        var review = document.getElementById('gsBuildReview');
+        if (!review) return;
+        while (review.firstChild) review.removeChild(review.firstChild);
+
+        var pre = document.createElement('div');
+        pre.className = 'gs-build-output';
+        var output = sessionData.final_config || sessionData.stage_output || '';
+        pre.textContent = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+
+        var row = document.createElement('div');
+        row.style.cssText = 'margin-top:0.75rem;text-align:right;';
+
+        var applyBtn = document.createElement('button');
+        applyBtn.className = 'gs-toolbar-btn';
+        applyBtn.style.cssText = 'background:var(--gs-accent,#4f6);color:#000;';
+        applyBtn.textContent = 'Apply & Play';
+        applyBtn.addEventListener('click', window.applyBuildResult);
+
+        var dismissBtn = document.createElement('button');
+        dismissBtn.className = 'gs-toolbar-btn';
+        dismissBtn.style.cssText = 'margin-left:0.5rem;';
+        dismissBtn.textContent = 'Dismiss';
+        dismissBtn.addEventListener('click', window.closeBuildWizard);
+
+        row.appendChild(applyBtn);
+        row.appendChild(dismissBtn);
+        review.appendChild(pre);
+        review.appendChild(row);
+        review.style.display = '';
+    }
+
+    window.approveBuildCheckpoint = function () {
+        if (!_buildSessionId) return;
+        api('POST', '/api/ai/build/' + _buildSessionId + '/approve', {})
+            .then(function (data) {
+                if (!data.success) { toast('Approve failed'); return; }
+                var review = document.getElementById('gsBuildReview');
+                if (review) review.style.display = 'none';
+                pollBuildStatus(_buildSessionId);
+            })
+            .catch(function (e) { console.error(e); toast('Approve failed'); });
+    };
+
+    window.applyBuildResult = function () {
+        if (!_buildSessionId) return;
+        api('POST', '/api/ai/build/' + _buildSessionId + '/apply', {})
+            .then(function (data) {
+                if (!data.success) { toast('Apply failed'); return; }
+                closeBuildWizard();
+                toast('Game created!');
+                loadDashboard();
+            })
+            .catch(function (e) { console.error(e); toast('Apply failed'); });
+    };
+
     window.restartPreview = function () {
         var iframe = document.getElementById('gsPreviewFrame');
         if (!iframe) return;
@@ -1047,6 +1251,11 @@
     window.removeWall = removeWall;
     window.refreshPreview = refreshPreview;
     window.sendAiChat = window.sendAiChat;
+    window.openBuildWizard = openBuildWizard;
+    window.closeBuildWizard = closeBuildWizard;
+    window.startBuild = startBuild;
+    window.approveBuildCheckpoint = window.approveBuildCheckpoint;
+    window.applyBuildResult = window.applyBuildResult;
 
     // Init
     document.addEventListener('DOMContentLoaded', function () {

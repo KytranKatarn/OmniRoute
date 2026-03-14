@@ -2750,3 +2750,37 @@ def api_status():
             conn.close()
         except Exception:
             pass
+
+
+@social_media_bp.route("/api/social-media/connected-platforms", methods=["GET"])
+@login_required
+def api_connected_platforms():
+    from tools.social_media.publishing_service import get_connected_platforms
+
+    platforms = get_connected_platforms(current_user.id)
+    return jsonify(platforms)
+
+
+@social_media_bp.route("/api/social-media/media-studio-posts", methods=["GET"])
+@login_required
+def api_media_studio_posts():
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, media_library_id, target_platforms, status, content, scheduled_at, published_at
+            FROM social_posts
+            WHERE user_id = %s AND media_library_id IS NOT NULL
+            ORDER BY created_at DESC LIMIT 50
+        """,
+            (current_user.id,),
+        )
+        posts = []
+        for r in cur.fetchall():
+            p = dict(r)
+            for k, v in list(p.items()):
+                if hasattr(v, "isoformat"):
+                    p[k] = v.isoformat()
+            posts.append(p)
+    return jsonify(posts)

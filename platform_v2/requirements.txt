@@ -102,3 +102,8 @@ playwright>=1.40.0
 
 # Media Studio — cron schedule parsing
 croniter>=2.0.0
+
+# Google Work Suite — OAuth + Gmail/Calendar/Drive API
+google-auth>=2.0
+google-auth-oauthlib>=1.0
+google-api-python-client>=2.0

@@ -1032,6 +1032,21 @@ MODULES: List[ModuleDefinition] = [
             "privacy",
         ],
     ),
+    ModuleDefinition(
+        id="google_work_suite",
+        name="Google Work Suite",
+        description="Gmail, Calendar & Drive with AI agents<br>OAuth accounts • Agent email • Smart rules • AI replies",
+        icon="mail",
+        category=ModuleCategory.SAAS_SERVICES,
+        route="/tools/google-work-suite",
+        blueprint_import="tools.google_work_suite:google_work_suite_bp",
+        required_permissions=[],
+        minimum_role="USER",
+        enabled=True,
+        coming_soon=False,
+        priority=12,
+        tags=["google", "gmail", "email", "calendar", "agents", "ai"],
+    ),
 ]
 
 

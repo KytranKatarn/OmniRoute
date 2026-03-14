@@ -1398,3 +1398,106 @@ def api_get_pipeline_status(execution_id):
         if hasattr(v, "isoformat"):
             result[k] = v.isoformat()
     return jsonify(result)
+
+
+# ── S24  Media Analytics ──
+
+
+@media_studio_bp.route("/api/media-studio/analytics/realtime", methods=["GET"])
+@login_required
+def api_analytics_realtime():
+    from tools.media_studio.services.analytics_service import get_realtime_stats
+
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    scope = request.args.get("scope", "user")
+    if scope == "global" and getattr(current_user, "is_admin", False):
+        result = get_realtime_stats(date_from=date_from, date_to=date_to)
+    else:
+        result = get_realtime_stats(
+            owner_type="user",
+            owner_id=current_user.id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/analytics/trends", methods=["GET"])
+@login_required
+def api_analytics_trends():
+    from tools.media_studio.services.analytics_service import get_trend_data
+
+    period = request.args.get("period", "hourly")
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    scope = request.args.get("scope", "user")
+    if scope == "global" and getattr(current_user, "is_admin", False):
+        result = get_trend_data(period, "global", 0, date_from, date_to)
+    else:
+        result = get_trend_data(period, "user", current_user.id, date_from, date_to)
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/analytics/models", methods=["GET"])
+@login_required
+def api_analytics_models():
+    from tools.media_studio.services.analytics_service import get_model_breakdown
+
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    scope = request.args.get("scope", "user")
+    if scope == "global" and getattr(current_user, "is_admin", False):
+        result = get_model_breakdown("global", 0, date_from, date_to)
+    else:
+        result = get_model_breakdown("user", current_user.id, date_from, date_to)
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/analytics/costs", methods=["GET"])
+@login_required
+def api_analytics_costs():
+    from tools.media_studio.services.analytics_service import get_cost_summary
+
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    mode = request.args.get("mode", "fixed")
+    scope = request.args.get("scope", "user")
+    if scope == "global" and getattr(current_user, "is_admin", False):
+        result = get_cost_summary("global", 0, date_from, date_to, mode)
+    else:
+        result = get_cost_summary("user", current_user.id, date_from, date_to, mode)
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/media-studio/analytics/cost-rates", methods=["GET"])
+@login_required
+def api_get_cost_rates():
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"error": "Admin access required"}), 403
+    from tools.media_studio.services.analytics_service import get_cost_rates
+
+    rates = get_cost_rates()
+    for r in rates:
+        for k, v in list(r.items()):
+            if hasattr(v, "isoformat"):
+                r[k] = v.isoformat()
+    return jsonify(rates)
+
+
+@media_studio_bp.route("/api/media-studio/analytics/cost-rates/<model_name>", methods=["PUT"])
+@login_required
+def api_update_cost_rate(model_name):
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"error": "Admin access required"}), 403
+    from tools.media_studio.services.analytics_service import update_cost_rate
+
+    data = request.get_json() or {}
+    result = update_cost_rate(
+        model_name,
+        cost_per_generation=data.get("cost_per_generation"),
+        vram_gb_per_sec=data.get("vram_gb_per_sec"),
+    )
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)

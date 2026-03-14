@@ -4,6 +4,8 @@
 
 {% block module_name %}content_studio{% endblock %}
 
+{% block extra_css %}<link rel="stylesheet" href="/static/css/content-studio.css">{% endblock %}
+
 {% block content %}
 <!-- Include Creation Tools Navigation -->
 {% include 'includes/creation_tools_nav.html' %}
@@ -23,6 +25,10 @@
             <p class="cs-subtitle"><span data-i18n="content_studio.ai_powered_writing_for_books_articles_copy">AI-powered writing for books, articles & copy</span></p>
         </div>
         <div class="cs-actions">
+            <button class="cs-btn-write-ai" onclick="CS.openWritingWizard()">
+                <i data-lucide="sparkles"></i>
+                Write with AI
+            </button>
             <button class="cs-btn cs-btn-secondary" onclick="showImportModal()">
                 <i data-lucide="upload"></i>
                 Import
@@ -184,6 +190,12 @@
                 </div>
 
                 <div class="cs-editor-main">
+                    <div id="csAiToolbar" class="cs-ai-toolbar">
+                        <button class="cs-ai-btn" onclick="CS.aiAssist('expand')">Expand</button>
+                        <button class="cs-ai-btn" onclick="CS.aiAssist('rewrite')">Rewrite</button>
+                        <button class="cs-ai-btn" onclick="CS.aiAssist('summarize')">Summarize</button>
+                        <button class="cs-ai-btn" onclick="CS.aiAssist('change_tone')">Change Tone</button>
+                    </div>
                     <div class="cs-editor-toolbar">
                         <div class="cs-format-group">
                             <button class="cs-format-btn" onclick="formatText('bold')" title="Bold">
@@ -1611,4 +1623,50 @@ async function createNewDoc() {
     }
 }
 </script>
+
+<!-- Writing Wizard Modal -->
+<div id="csWritingWizard" class="cs-writing-wizard" style="display:none;">
+    <div class="cs-wizard-content">
+        <div class="cs-wizard-header">
+            <span>Write with AI</span>
+            <button onclick="CS.closeWritingWizard()">&times;</button>
+        </div>
+        <div id="csWizardInput" style="padding:1rem;">
+            <label>What do you want to write about?
+                <textarea id="csWriteDesc" rows="3" class="cs-input" placeholder="Describe your content..."></textarea>
+            </label>
+            <label>Content Type:
+                <select id="csWriteType" class="cs-input">
+                    <option value="article">Article</option>
+                    <option value="blog_post">Blog Post</option>
+                    <option value="press_release">Press Release</option>
+                    <option value="product_review">Product Review</option>
+                    <option value="how_to_guide">How-To Guide</option>
+                    <option value="newsletter">Newsletter</option>
+                    <option value="marketing_copy">Marketing Copy</option>
+                    <option value="book_chapter">Book Chapter</option>
+                </select>
+            </label>
+            <label>Tone:
+                <select id="csWriteTone" class="cs-input">
+                    <option value="professional">Professional</option>
+                    <option value="casual">Casual</option>
+                    <option value="formal">Formal</option>
+                    <option value="friendly">Friendly</option>
+                    <option value="academic">Academic</option>
+                    <option value="persuasive">Persuasive</option>
+                </select>
+            </label>
+            <div style="margin-top:1rem;text-align:right;">
+                <button class="cs-btn-primary" onclick="CS.startWriting()">Start Writing</button>
+            </div>
+        </div>
+        <div id="csWizardPipeline" style="display:none;padding:1rem;">
+            <div id="csWritingStages" class="cs-pipeline-stages"></div>
+            <div id="csWritingReview" style="display:none;margin-top:1rem;"></div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/content-studio.js"></script>
 {% endblock %}

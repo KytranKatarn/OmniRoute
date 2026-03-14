@@ -66,6 +66,7 @@
         <button class="ws-btn ws-btn-sm" onclick="refreshPreview()" title="Refresh preview">
           <i data-lucide="refresh-cw"></i>
         </button>
+        <button class="ws-toolbar-btn ws-deploy-btn" onclick="openDeployPanel()">Deploy</button>
       </div>
     </div>
 
@@ -78,8 +79,12 @@
       </div>
     </div>
 
-    <!-- AI Chat history (hidden by default) -->
-    <div id="wsAiHistory" class="ws-ai-history" style="display:none;"></div>
+    <!-- AI Chat drawer (expandable) -->
+    <div class="ws-ai-drawer" id="wsAiDrawer" style="display:none;">
+      <div class="ws-ai-drawer-handle" id="wsAiDrawerHandle"></div>
+      <!-- AI Chat history -->
+      <div id="wsAiHistory" class="ws-ai-history" style="display:none;"></div>
+    </div>
 
     <!-- AI Chat bar -->
     <div class="ws-ai-bar">
@@ -87,6 +92,7 @@
       <button class="ws-btn ws-btn-primary" onclick="sendAiMessage()" title="Send">
         <i data-lucide="send"></i>
       </button>
+      <button class="ws-toolbar-btn" onclick="toggleChatDrawer()" title="Toggle chat history">Chat</button>
     </div>
 
   </div><!-- /.ws-center -->
@@ -195,6 +201,42 @@
     <div class="ws-modal-footer">
       <button class="ws-btn ws-btn-ghost" onclick="closeNewFileModal()">Cancel</button>
       <button class="ws-btn ws-btn-primary" onclick="createFile()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DEPLOY PANEL
+════════════════════════════════════════════════════════════════ -->
+<div id="wsDeployPanel" class="ws-deploy-panel" style="display:none;">
+  <div class="ws-deploy-panel-content">
+    <div class="ws-panel-header"><span>Deploy &amp; Hosting</span><button class="ws-toolbar-btn" onclick="closeDeployPanel()">&times;</button></div>
+    <div class="ws-panel-body">
+      <div class="ws-prop-group">
+        <div class="ws-prop-group-title">GitHub Pages</div>
+        <button class="ws-ai-send" onclick="deployToGitHub()">Deploy to GitHub Pages</button>
+        <div id="wsDeployStatus" style="margin-top:0.5rem; font-size:0.7rem;"></div>
+        <div id="wsDeployHistory" style="margin-top:0.5rem;"></div>
+      </div>
+      <div class="ws-prop-group" id="wsHostingerSection">
+        <div class="ws-prop-group-title">Hostinger Domains</div>
+        <div id="wsHostingerMockBanner" class="ws-mock-banner" style="display:none;">Demo mode — connect API key in Settings</div>
+        <div id="wsHostingerDomains"></div>
+        <div id="wsDnsRecords" style="display:none;">
+          <div class="ws-prop-group-title" id="wsDnsDomainTitle">DNS Records</div>
+          <div id="wsDnsTable"></div>
+          <div style="margin-top:0.5rem;">
+            <button class="ws-toolbar-btn" onclick="showAddDnsForm()">+ Add Record</button>
+            <button class="ws-toolbar-btn" onclick="applyGitHubPreset()">GitHub Pages Preset</button>
+          </div>
+          <div id="wsAddDnsForm" style="display:none; margin-top:0.5rem;">
+            <select id="wsDnsType" class="ws-prop-input" style="width:auto;"><option>A</option><option>AAAA</option><option>CNAME</option><option>MX</option><option>TXT</option></select>
+            <input id="wsDnsName" class="ws-prop-input" placeholder="name" style="width:80px;">
+            <input id="wsDnsContent" class="ws-prop-input" placeholder="content" style="width:150px;">
+            <button class="ws-toolbar-btn" onclick="addDnsRecord()">Add</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>

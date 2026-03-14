@@ -767,6 +767,7 @@
         var html = '<!DOCTYPE html><html><head><style>*{margin:0;padding:0;}body{overflow:hidden;background:#000;}canvas{display:block;}</style></head><body>';
         html += '<canvas id="gameCanvas"></canvas>';
         html += '<scr' + 'ipt src="/static/js/game-engine.js"></scr' + 'ipt>';
+        html += '<scr' + 'ipt src="/static/js/game-module-shooter.js"></scr' + 'ipt>';
         html += '</body></html>';
 
         iframe.srcdoc = html;

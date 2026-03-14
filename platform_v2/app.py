@@ -50,6 +50,19 @@ app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
 app.json_encoder = DateTimeEncoder
 
+# Initialize SocketIO for Game Studio multiplayer
+try:
+    from flask_socketio import SocketIO
+
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+    from tools.game_studio.game_server import GameNamespace
+
+    socketio.on_namespace(GameNamespace("/game"))
+    SOCKETIO_AVAILABLE = True
+except ImportError:
+    socketio = None
+    SOCKETIO_AVAILABLE = False
+
 
 # ============================================================================
 # JINJA2 TEMPLATE FILTERS — TIMEZONE-AWARE TIMESTAMPS
@@ -3850,4 +3863,7 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
 # ============================================================================
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000, debug=True)
+    if SOCKETIO_AVAILABLE and socketio:
+        socketio.run(app, host="0.0.0.0", port=3000, debug=True, allow_unsafe_werkzeug=True)
+    else:
+        app.run(host="0.0.0.0", port=3000, debug=True)

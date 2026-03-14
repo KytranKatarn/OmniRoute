@@ -250,6 +250,345 @@ def create_game():
             )
             conn.commit()
 
+        elif template == "space_explorer" and game_id:
+            default_config = {
+                "title": "Space Explorer",
+                "type": "space_explorer",
+                "mode": "galaxy",
+                "map": {"width": 1200, "height": 800, "backgroundColor": "#05050f"},
+                "player": {
+                    "x": 600,
+                    "y": 400,
+                    "speed": 250,
+                    "health": 100,
+                    "size": 14,
+                    "color": "#4af",
+                    "fuel": 100,
+                    "maxFuel": 100,
+                    "credits": 500,
+                    "cargo": [],
+                    "cargoMax": 20,
+                },
+                "stars": [
+                    {
+                        "id": "sol",
+                        "name": "Sol",
+                        "x": 500,
+                        "y": 400,
+                        "type": "yellow",
+                        "color": "#ff0",
+                        "planets": [
+                            {
+                                "name": "Mercury",
+                                "orbitRadius": 40,
+                                "size": 6,
+                                "color": "#a86",
+                                "type": "rocky",
+                                "resources": {"minerals": 5},
+                                "hazard": 0.3,
+                            },
+                            {
+                                "name": "Venus",
+                                "orbitRadius": 65,
+                                "size": 9,
+                                "color": "#da8",
+                                "type": "volcanic",
+                                "resources": {"minerals": 8},
+                                "hazard": 0.6,
+                            },
+                            {
+                                "name": "Earth",
+                                "orbitRadius": 90,
+                                "size": 10,
+                                "color": "#48f",
+                                "type": "terran",
+                                "resources": {"minerals": 3, "bio": 8},
+                                "hazard": 0.1,
+                            },
+                            {
+                                "name": "Mars",
+                                "orbitRadius": 120,
+                                "size": 8,
+                                "color": "#c64",
+                                "type": "rocky",
+                                "resources": {"minerals": 7, "bio": 1},
+                                "hazard": 0.2,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "alpha",
+                        "name": "Alpha Centauri",
+                        "x": 300,
+                        "y": 200,
+                        "type": "yellow",
+                        "color": "#ff4",
+                        "planets": [
+                            {
+                                "name": "Proxima b",
+                                "orbitRadius": 60,
+                                "size": 11,
+                                "color": "#4a8",
+                                "type": "terran",
+                                "resources": {"minerals": 4, "bio": 10},
+                                "hazard": 0.15,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "vega",
+                        "name": "Vega",
+                        "x": 700,
+                        "y": 150,
+                        "type": "blue",
+                        "color": "#8af",
+                        "planets": [
+                            {
+                                "name": "Vega I",
+                                "orbitRadius": 80,
+                                "size": 12,
+                                "color": "#aaf",
+                                "type": "ice",
+                                "resources": {"minerals": 10},
+                                "hazard": 0.4,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "sirius",
+                        "name": "Sirius",
+                        "x": 200,
+                        "y": 600,
+                        "type": "blue",
+                        "color": "#acf",
+                        "planets": [
+                            {
+                                "name": "Sirius Prime",
+                                "orbitRadius": 70,
+                                "size": 14,
+                                "color": "#68a",
+                                "type": "gas_giant",
+                                "resources": {},
+                                "hazard": 0.8,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "ross",
+                        "name": "Ross 128",
+                        "x": 650,
+                        "y": 550,
+                        "type": "red",
+                        "color": "#f84",
+                        "planets": [
+                            {
+                                "name": "Ross b",
+                                "orbitRadius": 50,
+                                "size": 9,
+                                "color": "#684",
+                                "type": "terran",
+                                "resources": {"minerals": 6, "bio": 5},
+                                "hazard": 0.25,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "tau",
+                        "name": "Tau Ceti",
+                        "x": 400,
+                        "y": 650,
+                        "type": "yellow",
+                        "color": "#fe8",
+                        "planets": [
+                            {
+                                "name": "Tau e",
+                                "orbitRadius": 60,
+                                "size": 10,
+                                "color": "#4a6",
+                                "type": "terran",
+                                "resources": {"minerals": 5, "bio": 7},
+                                "hazard": 0.2,
+                            },
+                            {
+                                "name": "Tau f",
+                                "orbitRadius": 100,
+                                "size": 8,
+                                "color": "#886",
+                                "type": "rocky",
+                                "resources": {"minerals": 9},
+                                "hazard": 0.35,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "wolf",
+                        "name": "Wolf 359",
+                        "x": 150,
+                        "y": 350,
+                        "type": "red",
+                        "color": "#f66",
+                        "planets": [
+                            {
+                                "name": "Wolf I",
+                                "orbitRadius": 40,
+                                "size": 7,
+                                "color": "#864",
+                                "type": "rocky",
+                                "resources": {"minerals": 4},
+                                "hazard": 0.5,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "luyten",
+                        "name": "Luyten Star",
+                        "x": 800,
+                        "y": 300,
+                        "type": "red",
+                        "color": "#f86",
+                        "planets": [
+                            {
+                                "name": "Luyten b",
+                                "orbitRadius": 55,
+                                "size": 11,
+                                "color": "#486",
+                                "type": "ocean",
+                                "resources": {"bio": 12},
+                                "hazard": 0.15,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "barnard",
+                        "name": "Barnard Star",
+                        "x": 350,
+                        "y": 150,
+                        "type": "red",
+                        "color": "#f64",
+                        "planets": [
+                            {
+                                "name": "Barnard b",
+                                "orbitRadius": 70,
+                                "size": 13,
+                                "color": "#89a",
+                                "type": "ice",
+                                "resources": {"minerals": 8},
+                                "hazard": 0.45,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "kapteyn",
+                        "name": "Kapteyn Star",
+                        "x": 550,
+                        "y": 700,
+                        "type": "red",
+                        "color": "#e86",
+                        "planets": [
+                            {
+                                "name": "Kapteyn b",
+                                "orbitRadius": 45,
+                                "size": 10,
+                                "color": "#6a4",
+                                "type": "terran",
+                                "resources": {"minerals": 3, "bio": 6},
+                                "hazard": 0.2,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "procyon",
+                        "name": "Procyon",
+                        "x": 750,
+                        "y": 500,
+                        "type": "yellow",
+                        "color": "#ffa",
+                        "planets": [
+                            {
+                                "name": "Procyon I",
+                                "orbitRadius": 90,
+                                "size": 15,
+                                "color": "#ca8",
+                                "type": "gas_giant",
+                                "resources": {},
+                                "hazard": 0.7,
+                            },
+                            {
+                                "name": "Procyon II",
+                                "orbitRadius": 50,
+                                "size": 8,
+                                "color": "#8a6",
+                                "type": "rocky",
+                                "resources": {"minerals": 6, "bio": 3},
+                                "hazard": 0.3,
+                            },
+                        ],
+                    },
+                    {
+                        "id": "epsilon",
+                        "name": "Epsilon Eridani",
+                        "x": 100,
+                        "y": 500,
+                        "type": "yellow",
+                        "color": "#fc8",
+                        "planets": [
+                            {
+                                "name": "Aegir",
+                                "orbitRadius": 80,
+                                "size": 14,
+                                "color": "#68a",
+                                "type": "gas_giant",
+                                "resources": {},
+                                "hazard": 0.6,
+                            },
+                            {
+                                "name": "Ran b",
+                                "orbitRadius": 45,
+                                "size": 9,
+                                "color": "#4a8",
+                                "type": "terran",
+                                "resources": {"minerals": 5, "bio": 8},
+                                "hazard": 0.2,
+                            },
+                        ],
+                    },
+                ],
+                "stations": [{"starId": "sol", "name": "Starbase Alpha", "services": ["refuel", "trade", "upgrade"]}],
+                "fuelPerJump": 5,
+                "encounters": {"pirateChance": 0.15},
+                "ui": {"showMap": True, "showFuel": True},
+            }
+            cur.execute(
+                "INSERT INTO game_scenes (game_id, name, scene_order, scene_data, created_at) VALUES (%s, %s, 1, %s, NOW())",
+                (game_id, "Galaxy", json.dumps(default_config)),
+            )
+            conn.commit()
+
+        elif template == "base_builder" and game_id:
+            default_config = {
+                "title": "Base Builder",
+                "type": "base_builder",
+                "map": {"width": 40, "height": 30, "cellSize": 32},
+                "terrain": [],
+                "buildings": [{"type": "shelter", "gridX": 20, "gridY": 15, "hp": 100}],
+                "colonists": [
+                    {"id": 1, "name": "Alex", "gridX": 21, "gridY": 15, "task": "idle", "health": 100},
+                    {"id": 2, "name": "Sam", "gridX": 19, "gridY": 15, "task": "idle", "health": 100},
+                    {"id": 3, "name": "Jordan", "gridX": 20, "gridY": 16, "task": "idle", "health": 100},
+                ],
+                "resources": {"wood": 50, "stone": 30, "metal": 10, "food": 20},
+                "resourceNodes": [],
+                "threats": {"raidInterval": 8, "raidSize": 3, "raidScaling": 1.2},
+                "cycle": 0,
+                "cycleLength": 60,
+                "ui": {"showResources": True, "showMinimap": True},
+            }
+            cur.execute(
+                "INSERT INTO game_scenes (game_id, name, scene_order, scene_data, created_at) VALUES (%s, %s, 1, %s, NOW())",
+                (game_id, "Base Camp", json.dumps(default_config)),
+            )
+            conn.commit()
+
         return jsonify(
             {
                 "success": True,
@@ -562,6 +901,9 @@ def create_scene(game_id):
     try:
         data = request.get_json()
         name = data.get("name", "New Scene")
+        scene_data = data.get("scene_data", {})
+        if not isinstance(scene_data, str):
+            scene_data = json.dumps(scene_data)
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -579,7 +921,7 @@ def create_scene(game_id):
             VALUES (%s, %s, %s, %s, NOW())
             RETURNING id, name, scene_order
         """,
-            (game_id, name, next_order, "{}"),
+            (game_id, name, next_order, scene_data),
         )
 
         scene = cur.fetchone()

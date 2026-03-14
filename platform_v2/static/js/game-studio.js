@@ -19,6 +19,29 @@
     var _previewTimer = null;
     var _monacoReady = false;
 
+    var _editMode = false;
+
+    window.toggleEditMode = function () {
+        _editMode = !_editMode;
+        var iframe = document.getElementById('gsPreviewFrame');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: _editMode ? 'enableEditor' : 'disableEditor' }, '*');
+        }
+        var btn = document.querySelector('[data-action="edit-mode"]');
+        if (btn) btn.classList.toggle('active', _editMode);
+        toast(_editMode ? 'Edit Mode ON' : 'Edit Mode OFF');
+    };
+
+    window.addEventListener('message', function (e) {
+        if (e.data && e.data.type === 'configUpdated') {
+            _gameConfig = e.data.config;
+            if (_activeTab === 'config') renderConfigEditor();
+        }
+        if (e.data && e.data.type === 'entitySelected' && e.data.entity) {
+            // Could update properties panel - for now just log
+        }
+    });
+
     var DEFAULT_SHOOTER_CONFIG = {
         title: 'Top-Down Shooter',
         type: 'top_down_shooter',
@@ -39,6 +62,32 @@
             { x: 1190, y: 0, width: 10, height: 800, color: '#555' }
         ],
         ui: { showScore: true, showHealth: true, showMinimap: false }
+    };
+
+    var DEFAULT_EXPLORER_CONFIG = {
+        title: 'Space Explorer',
+        type: 'space_explorer',
+        mode: 'galaxy',
+        map: { width: 1200, height: 800, backgroundColor: '#05050f' },
+        player: { x: 600, y: 400, speed: 250, health: 100, size: 14, color: '#4af' },
+        stars: [
+            { x: 300, y: 200, name: 'Alpha Centauri', type: 'yellow_dwarf', size: 18, color: '#ffe066' },
+            { x: 900, y: 300, name: 'Sirius', type: 'blue_giant', size: 22, color: '#66ccff' },
+            { x: 500, y: 600, name: 'Betelgeuse', type: 'red_giant', size: 26, color: '#ff6633' }
+        ],
+        ui: { showMap: true, showFuel: true }
+    };
+
+    var DEFAULT_BUILDER_CONFIG = {
+        title: 'Base Builder',
+        type: 'base_builder',
+        map: { width: 1280, height: 896, backgroundColor: '#1a2a1a', gridSize: 32 },
+        player: { x: 640, y: 448, speed: 160, health: 100, size: 14, color: '#4af' },
+        resources: { wood: 100, stone: 50, food: 80 },
+        buildings: [
+            { x: 608, y: 416, type: 'building_shelter', width: 64, height: 64 }
+        ],
+        ui: { showResources: true, showMinimap: true }
     };
 
     function api(method, path, body) {
@@ -160,14 +209,14 @@
             {
                 id: 'space_explorer',
                 name: 'Space Explorer',
-                desc: 'Coming soon.',
-                active: false
+                desc: 'Explore star systems and planets.',
+                active: true
             },
             {
                 id: 'base_builder',
                 name: 'Base Builder',
-                desc: 'Coming soon.',
-                active: false
+                desc: 'Build and defend your base.',
+                active: true
             }
         ];
 
@@ -222,6 +271,20 @@
                     return api('POST', '/api/games/' + gameId + '/scenes', {
                         name: 'Main',
                         scene_data: DEFAULT_SHOOTER_CONFIG
+                    }).then(function () {
+                        openProject(gameId);
+                    });
+                } else if (template === 'space_explorer') {
+                    return api('POST', '/api/games/' + gameId + '/scenes', {
+                        name: 'Galaxy',
+                        scene_data: DEFAULT_EXPLORER_CONFIG
+                    }).then(function () {
+                        openProject(gameId);
+                    });
+                } else if (template === 'base_builder') {
+                    return api('POST', '/api/games/' + gameId + '/scenes', {
+                        name: 'Base Camp',
+                        scene_data: DEFAULT_BUILDER_CONFIG
                     }).then(function () {
                         openProject(gameId);
                     });
@@ -768,6 +831,9 @@
         html += '<canvas id="gameCanvas"></canvas>';
         html += '<scr' + 'ipt src="/static/js/game-engine.js"></scr' + 'ipt>';
         html += '<scr' + 'ipt src="/static/js/game-module-shooter.js"></scr' + 'ipt>';
+        html += '<scr' + 'ipt src="/static/js/game-module-explorer.js"></scr' + 'ipt>';
+        html += '<scr' + 'ipt src="/static/js/game-module-builder.js"></scr' + 'ipt>';
+        html += '<scr' + 'ipt src="/static/js/scene-editor.js"></scr' + 'ipt>';
         html += '</body></html>';
 
         iframe.srcdoc = html;

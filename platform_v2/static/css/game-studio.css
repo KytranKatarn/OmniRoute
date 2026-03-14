@@ -456,3 +456,49 @@
 .gs-toast.visible {
   opacity: 1;
 }
+
+/* ── Phase 2: Editor + Templates ────────────────────────── */
+
+.gs-editor-active { box-shadow: inset 0 0 4px var(--gs-accent, #4f6); }
+
+.gs-context-menu {
+  position: absolute; z-index: 100;
+  background: var(--gs-bg, #0d0d1a); border: 1px solid var(--gs-accent, #4f6);
+  border-radius: 4px; padding: 0.25rem 0; min-width: 150px;
+}
+
+.gs-context-menu-item {
+  padding: 0.3rem 0.75rem; font-size: 0.7rem; color: var(--gs-text, #aab); cursor: pointer;
+}
+
+.gs-context-menu-item:hover { background: rgba(68,255,102,0.08); color: var(--gs-accent, #4f6); }
+
+.gs-build-palette { padding: 0.5rem; }
+
+.gs-build-btn {
+  display: block; width: 100%; padding: 0.3rem; margin-bottom: 0.25rem;
+  border: 1px solid var(--gs-border, #232); background: transparent;
+  color: var(--gs-text, #aab); font-size: 0.7rem; cursor: pointer;
+  text-align: left; border-radius: 3px;
+}
+
+.gs-build-btn:hover { border-color: var(--gs-accent, #4f6); color: var(--gs-accent, #4f6); }
+
+.gs-toolbar-btn {
+  background: transparent;
+  border: 1px solid var(--gs-border, #232);
+  color: var(--gs-text, #aab);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.gs-toolbar-btn:hover { border-color: var(--gs-accent, #4f6); color: var(--gs-accent, #4f6); }
+
+.gs-toolbar-btn.active {
+  border-color: var(--gs-accent, #4f6);
+  color: var(--gs-accent, #4f6);
+  background: rgba(68,255,102,0.08);
+}

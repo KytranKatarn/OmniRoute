@@ -87,6 +87,7 @@
       <button class="gs-btn" onclick="GS.restartPreview()" title="Restart preview">
         <i data-lucide="rotate-ccw"></i> Restart
       </button>
+      <button class="gs-toolbar-btn" data-action="edit-mode" onclick="toggleEditMode()">Edit Mode</button>
     </div>
 
     <!-- Config tab -->
@@ -172,6 +173,12 @@
         </div>
       </section>
 
+      <!-- Build palette (base builder) -->
+      <div id="gsBuildPalette" class="gs-build-palette" style="display:none;">
+        <div class="gs-prop-group-title">Buildings</div>
+        <div id="gsBuildButtons"></div>
+      </div>
+
       <!-- Restart preview shortcut -->
       <section class="gs-props-section">
         <button class="gs-btn gs-btn-full" onclick="GS.restartPreview()">
@@ -200,6 +207,8 @@
       <label class="gs-label" for="gsNewGameTemplate">Template</label>
       <select id="gsNewGameTemplate" class="gs-select">
         <option value="top_down_shooter">Top-Down Shooter</option>
+        <option value="space_explorer">Space Explorer</option>
+        <option value="base_builder">Base Builder</option>
         <option value="blank">Blank</option>
       </select>
     </div>

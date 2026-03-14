@@ -36,6 +36,9 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import os
 import json
+import logging
+
+logger = logging.getLogger("archie_platform")
 
 # Import user context helpers
 try:
@@ -85,6 +88,9 @@ try:
         ensure_repo_cloned,
         build_site_context,
         WEBSITE_REPO_PATH,
+        detect_task_role,
+        save_chat_history,
+        load_chat_history,
     )
 
     CHAT_HANDLER_AVAILABLE = True
@@ -200,7 +206,7 @@ def index():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 # ============================================================================
@@ -245,7 +251,7 @@ def get_projects():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/projects", methods=["POST"])
@@ -307,7 +313,7 @@ def create_project():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>", methods=["GET"])
@@ -367,7 +373,7 @@ def get_project(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>", methods=["PUT"])
@@ -431,7 +437,7 @@ def update_project(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>", methods=["DELETE"])
@@ -479,7 +485,7 @@ def delete_project(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 # ============================================================================
@@ -617,6 +623,17 @@ def chat_with_archie():
         # Get system prompt with current site context
         system_prompt = get_chat_system_prompt()
 
+        # Role detection — specialize the system prompt
+        role = detect_task_role(message)
+        if role == "design":
+            system_prompt += (
+                "\n\nFocus on CSS, visual design, and styling in your response. You are acting as a design specialist."
+            )
+        elif role == "deploy":
+            system_prompt += (
+                "\n\nThe user wants to deploy or manage hosting. Guide them through the deployment process."
+            )
+
         # Import archie_bridge for AI response
         try:
             import sys
@@ -690,6 +707,14 @@ def chat_with_archie():
         if changes:
             previews = generate_diff_preview(changes)
 
+        # Save to chat history
+        project_id = data.get("project_id")
+        if project_id:
+            existing = load_chat_history(project_id)
+            existing.append({"role": "user", "message": message, "timestamp": datetime.utcnow().isoformat()})
+            existing.append({"role": "ai", "message": response_text[:500], "timestamp": datetime.utcnow().isoformat()})
+            save_chat_history(project_id, existing)
+
         return jsonify(
             {
                 "success": True,
@@ -703,6 +728,15 @@ def chat_with_archie():
     except Exception as e:
         current_app.logger.error(f"[WebsiteStudio] Chat error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@website_studio_bp.route("/api/chat/history/<int:project_id>", methods=["GET"])
+@login_required
+def get_chat_history_route(project_id):
+    from .chat_handler import load_chat_history
+
+    history = load_chat_history(project_id)
+    return jsonify({"success": True, "history": history})
 
 
 @website_studio_bp.route("/api/apply-changes", methods=["POST"])
@@ -924,7 +958,7 @@ def get_chat_history():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/chat/history", methods=["POST"])
@@ -990,7 +1024,7 @@ def save_chat_message():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 # ============================================================================
@@ -1152,7 +1186,7 @@ def deploy_project(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/deploy-to-github-pages", methods=["POST"])
@@ -1313,7 +1347,7 @@ def deploy_to_github_pages():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>/deployments", methods=["GET"])
@@ -1351,7 +1385,7 @@ def get_deployments(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 # ============================================================================
@@ -1386,7 +1420,7 @@ def get_integrations():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/integrations/<service>", methods=["POST"])
@@ -1441,7 +1475,7 @@ def connect_integration(service):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/integrations/<service>", methods=["DELETE"])
@@ -1471,7 +1505,7 @@ def disconnect_integration(service):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 # ============================================================================
@@ -1513,7 +1547,7 @@ def get_pages(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/projects/<int:project_id>/pages", methods=["POST"])
@@ -1562,7 +1596,7 @@ def create_page(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/pages/<int:page_id>", methods=["PUT"])
@@ -1627,7 +1661,7 @@ def update_page(page_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/pages/<int:page_id>", methods=["DELETE"])
@@ -1656,7 +1690,7 @@ def delete_page(page_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 # ============================================================================
@@ -1677,23 +1711,7 @@ except ImportError:
     GITHUB_AVAILABLE = False
 
 
-def admin_required(f):
-    """Decorator to require admin access"""
-    from functools import wraps
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            return jsonify({"success": False, "error": "Authentication required"}), 401
-        if not getattr(current_user, "is_admin", False):
-            return jsonify({"success": False, "error": "Admin access required"}), 403
-        return f(*args, **kwargs)
-
-    return decorated_function
-
-
 @website_studio_bp.route("/api/deploy", methods=["POST"])
-@admin_required
 @login_required
 @admin_required
 def website_deploy():
@@ -2223,7 +2241,7 @@ def get_directory():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/directory", methods=["POST"])
@@ -2283,7 +2301,7 @@ def add_directory_entry():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/directory/<int:entry_id>", methods=["DELETE"])
@@ -2320,7 +2338,7 @@ def delete_directory_entry(entry_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 # ============================================================================
@@ -4899,7 +4917,7 @@ def apply_template_to_project(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/templates/ecommerce", methods=["GET"])
@@ -5075,7 +5093,7 @@ def apply_store_template(project_id):
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 @website_studio_bp.route("/api/status")
@@ -5122,7 +5140,7 @@ def api_status():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)
 
 
 # ============================================================================
@@ -5159,4 +5177,4 @@ def health_check():
             cur.close()
             conn.close()
         except Exception:
-            pass
+            logger.debug("DB cleanup error", exc_info=True)

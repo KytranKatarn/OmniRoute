@@ -42,7 +42,7 @@ class ModuleCategory(Enum):
     SAAS_SERVICES = "saas_services"  # crm, website_studio, store_builder, call_center, etc.
     PROJECT_KNOWLEDGE = "project_knowledge"  # project_manager, obsidian_vault, api_docs
     MEDIA_HOME = "media_home"  # media_hub
-    PLACEHOLDERS_FUTURE = "placeholders_future"  # fitness, therapy, doc, stockbot, game_studio, etc.
+    PLACEHOLDERS_FUTURE = "placeholders_future"  # fitness, therapy, doc, game_studio, etc.
 
 
 @dataclass
@@ -836,7 +836,6 @@ MODULES: List[ModuleDefinition] = [
             "ai",
             "standalone",
             "android",
-            "placeholder",
         ],
     ),
     ModuleDefinition(

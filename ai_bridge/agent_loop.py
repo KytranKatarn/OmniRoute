@@ -445,9 +445,42 @@ class AgentLoop:
             name="Agent Loop: Calendar + Drive Autonomy",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._update_stock_prices),
+            trigger=IntervalTrigger(minutes=5),
+            id="stock_price_updater",
+            name="Agent Loop: Stock Price Updater",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 26 jobs")
+        logger.info("Agent loop started with 27 jobs")
+
+    def _update_stock_prices(self):
+        """Job #27: Refresh cached stock prices and check price alerts every 5 minutes."""
+        try:
+            from database import get_db_cursor
+            from tools.stockbot.services.market_data_service import batch_update_prices
+            from tools.stockbot.services.portfolio_service import check_alerts
+
+            # Gather all tickers currently being watched or held
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT DISTINCT ticker FROM stock_watchlist "
+                    "UNION SELECT DISTINCT ticker FROM stock_portfolio WHERE shares > 0"
+                )
+                rows = cur.fetchall()
+
+            tickers = [r[0] for r in rows]
+            if tickers:
+                updated = batch_update_prices(tickers)
+                triggered = check_alerts()
+                logger.debug(
+                    f"Stock price updater: refreshed {updated}/{len(tickers)} tickers, "
+                    f"triggered {triggered} alerts"
+                )
+        except Exception as e:
+            logger.error(f"_update_stock_prices error: {e}")
 
     def _check_media_schedules(self):
         """Check agent media generation schedules and trigger if due."""

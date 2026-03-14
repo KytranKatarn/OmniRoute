@@ -112,3 +112,6 @@ google-api-python-client>=2.0
 flask-socketio>=5.3
 python-socketio>=5.10
 python-engineio>=4.8
+
+# StockBot Phase 1 — Market Data
+yfinance>=0.2.0

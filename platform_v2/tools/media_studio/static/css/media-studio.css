@@ -2535,3 +2535,49 @@
 }
 .ms-analytics-rate-name { width: 200px; flex-shrink: 0; }
 .ms-analytics-rate-row input { width: 100px; }
+
+/* ── S25  Social Media Share ── */
+.ms-share-modal {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+}
+.ms-share-modal-content {
+    background: var(--ms-bg, #1a1a2e);
+    border: 1px solid var(--ms-accent, #f90);
+    border-radius: 8px;
+    width: 90vw; max-width: 500px; max-height: 90vh;
+    display: flex; flex-direction: column; overflow: hidden;
+}
+.ms-share-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--ms-border, #334);
+    font-family: 'Antonio', sans-serif; text-transform: uppercase;
+    color: var(--ms-accent, #f90);
+}
+.ms-share-modal-body {
+    padding: 1rem; overflow-y: auto; flex: 1;
+    display: flex; flex-direction: column; gap: 0.5rem;
+    font-size: 0.75rem; color: var(--ms-text, #aab);
+}
+.ms-share-modal-body label { display: flex; flex-direction: column; gap: 0.25rem; }
+.ms-share-preview { text-align: center; margin-bottom: 0.5rem; }
+.ms-share-thumb {
+    max-width: 200px; max-height: 150px; border-radius: 4px;
+    border: 1px solid var(--ms-border, #334);
+}
+.ms-share-platforms-label {
+    font-family: 'Antonio', sans-serif; text-transform: uppercase;
+    color: var(--ms-accent, #f90); font-size: 0.7rem; margin-top: 0.25rem;
+}
+.ms-share-platforms { display: flex; flex-direction: column; gap: 0.25rem; }
+.ms-share-platform-option {
+    display: flex; flex-direction: row; align-items: center; gap: 0.5rem;
+    font-size: 0.75rem; cursor: pointer;
+}
+.ms-share-modal-footer {
+    display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--ms-border, #334);
+}

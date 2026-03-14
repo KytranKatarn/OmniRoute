@@ -844,7 +844,7 @@ MODULES: List[ModuleDefinition] = [
         name="Game Studio",
         description="Create 2D & 3D games with AI<br>Mission editor • Asset library • Export to web/mobile",
         icon="gamepad-2",
-        category=ModuleCategory.PLACEHOLDERS_FUTURE,
+        category=ModuleCategory.CREATIVE_TOOLS,
         route="/tools/game-studio",
         blueprint_import="tools.game_studio.routes:game_studio_bp",
         required_permissions=[],
@@ -853,7 +853,7 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=game_studio_health_check,
         priority=5,
-        tags=["ai", "games", "3d", "2d", "creation", "placeholder"],
+        tags=["ai", "games", "3d", "2d", "creation"],
     ),
     ModuleDefinition(
         id="archie_pool",

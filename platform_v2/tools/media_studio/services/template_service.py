@@ -386,6 +386,11 @@ def delete_template(
             if row["owner_type"] != owner_type or row["owner_id"] != owner_id:
                 return {"error": "Permission denied: not the template owner"}
 
+            # Delete all versions in the chain (children first, then root)
+            cur.execute(
+                "DELETE FROM media_templates WHERE parent_id = %s",
+                (template_id,),
+            )
             cur.execute(
                 "DELETE FROM media_templates WHERE id = %s",
                 (template_id,),

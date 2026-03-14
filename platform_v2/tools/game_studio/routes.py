@@ -1181,3 +1181,162 @@ def apply_build_result(session_id):
     except Exception as e:
         logger.error(f"Build apply failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# MULTIPLAYER — Profile, Session, World
+# ============================================================================
+
+
+@game_studio_bp.route("/api/profile", methods=["POST"])
+@login_required
+def create_player_profile():
+    from world_state_service import create_profile
+
+    data = request.get_json() or {}
+    display_name = data.get("display_name", "").strip()
+    result = create_profile(user_id=current_user.id, display_name=display_name or None)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify({"profile": result})
+
+
+@game_studio_bp.route("/api/profile", methods=["GET"])
+@login_required
+def get_player_profile():
+    from world_state_service import get_profile_by_user
+
+    profile = get_profile_by_user(current_user.id)
+    if not profile:
+        return jsonify({"profile": None})
+    for k, v in list(profile.items()):
+        if hasattr(v, "isoformat"):
+            profile[k] = v.isoformat()
+    return jsonify({"profile": profile})
+
+
+@game_studio_bp.route("/api/profile", methods=["PUT"])
+@login_required
+def update_player_profile():
+    from world_state_service import get_profile_by_user
+    from database import get_db_cursor
+
+    data = request.get_json() or {}
+    profile = get_profile_by_user(current_user.id)
+    if not profile:
+        return jsonify({"error": "No profile found"}), 404
+    sets, params = [], []
+    if "display_name" in data:
+        sets.append("display_name = %s")
+        params.append(data["display_name"][:50])
+    if "avatar_config" in data:
+        from psycopg2.extras import Json
+
+        sets.append("avatar_config = %s")
+        params.append(Json(data["avatar_config"]))
+    if not sets:
+        return jsonify({"error": "No fields to update"}), 400
+    params.append(profile["id"])
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(f"UPDATE game_player_profiles SET {', '.join(sets)} WHERE id = %s", params)
+    return jsonify({"success": True})
+
+
+@game_studio_bp.route("/api/sessions", methods=["POST"])
+@login_required
+def create_game_session():
+    from game_server import create_session
+    from world_state_service import get_profile_by_user
+
+    data = request.get_json() or {}
+    profile = get_profile_by_user(current_user.id)
+    if not profile:
+        return jsonify({"error": "Create a profile first"}), 400
+    game_id = data.get("game_id")
+    game_type = data.get("game_type", "top_down_shooter")
+    max_players = min(int(data.get("max_players", 4)), 8)
+    result = create_session(game_id, profile["id"], game_type, {}, max_players)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@game_studio_bp.route("/api/sessions", methods=["GET"])
+@login_required
+def list_game_sessions():
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT s.room_code, s.game_type, s.status, s.max_players, s.current_players, s.created_at,
+                   p.display_name as host_name
+            FROM game_sessions s
+            LEFT JOIN game_player_profiles p ON s.host_profile_id = p.id
+            WHERE s.status IN ('lobby', 'playing')
+            ORDER BY s.created_at DESC LIMIT 20
+        """
+        )
+        sessions = []
+        for r in cur.fetchall():
+            d = dict(r)
+            for k, v in list(d.items()):
+                if hasattr(v, "isoformat"):
+                    d[k] = v.isoformat()
+            sessions.append(d)
+    return jsonify({"sessions": sessions})
+
+
+@game_studio_bp.route("/api/sessions/<room_code>", methods=["GET"])
+@login_required
+def get_game_session(room_code):
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT * FROM game_sessions WHERE room_code = %s", (room_code,))
+        session = cur.fetchone()
+        if not session:
+            return jsonify({"error": "Session not found"}), 404
+        d = dict(session)
+        for k, v in list(d.items()):
+            if hasattr(v, "isoformat"):
+                d[k] = v.isoformat()
+        from game_server import _rooms
+
+        players = []
+        if room_code in _rooms:
+            for sid, p in _rooms[room_code].get("players", {}).items():
+                players.append(
+                    {
+                        "display_name": p.get("name", "?"),
+                        "profile_id": p.get("profile_id"),
+                        "is_host": p.get("profile_id") == session["host_profile_id"],
+                    }
+                )
+        d["players"] = players
+    return jsonify(d)
+
+
+@game_studio_bp.route("/api/sessions/<room_code>/end", methods=["POST"])
+@login_required
+def end_game_session(room_code):
+    from game_server import end_session
+    from world_state_service import get_profile_by_user
+
+    profile = get_profile_by_user(current_user.id)
+    if not profile:
+        return jsonify({"error": "No profile"}), 400
+    result = end_session(room_code, profile["id"])
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@game_studio_bp.route("/api/world", methods=["GET"])
+@login_required
+def get_world_state():
+    from world_state_service import get_world_resources, get_pending_events
+
+    resources = get_world_resources()
+    events = get_pending_events("all", limit=20)
+    return jsonify({"resources": resources, "events": events})

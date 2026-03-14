@@ -89,7 +89,8 @@
     });
     var panels = {
       dashboard: 'sbDashboardTab', watchlist: 'sbWatchlistTab',
-      portfolio: 'sbPortfolioTab', charts: 'sbChartsTab', chat: 'sbChatTab'
+      portfolio: 'sbPortfolioTab', charts: 'sbChartsTab', chat: 'sbChatTab',
+      trading: 'sbTradingTab'
     };
     Object.keys(panels).forEach(function (k) {
       var el = getEl(panels[k]);
@@ -99,6 +100,7 @@
     if (tab === 'watchlist') loadWatchlist();
     if (tab === 'portfolio') { loadPortfolio(); loadTransactions(); }
     if (tab === 'charts' && _currentTicker) loadChart(_currentTicker);
+    if (tab === 'trading') { loadPaperAccount(); loadStrategies(); }
   }
 
   // ── Dashboard ─────────────────────────────────────────────────
@@ -595,6 +597,123 @@
     return wrapper;
   }
 
+  // ── Paper Trading ─────────────────────────────────────────────
+  function loadPaperAccount() {
+    api('GET', '/api/paper/account').then(function (data) {
+      var container = getEl('sbPaperAccount');
+      if (!container) return;
+      clearEl(container);
+      var balance = document.createElement('div');
+      balance.className = 'sb-paper-balance';
+      balance.textContent = 'Balance: $' + (data.balance || 100000).toLocaleString();
+      container.appendChild(balance);
+      if (data.total_return_pct !== undefined) {
+        var pnl = document.createElement('div');
+        pnl.className = data.total_return_pct >= 0 ? 'sb-positive' : 'sb-negative';
+        pnl.textContent = 'Return: ' + data.total_return_pct.toFixed(2) + '%';
+        container.appendChild(pnl);
+      }
+    }).catch(function () {});
+  }
+
+  function paperBuy() {
+    var tickerEl = getEl('sbPaperTicker'), sharesEl = getEl('sbPaperShares');
+    if (!tickerEl || !sharesEl) return;
+    var ticker = tickerEl.value.trim().toUpperCase();
+    var shares = parseInt(sharesEl.value) || 0;
+    if (!ticker || shares <= 0) { toast('Enter ticker and shares'); return; }
+    api('POST', '/api/paper/buy', { ticker: ticker, shares: shares }).then(function (data) {
+      if (data.error) { toast(data.error); return; }
+      toast('Bought ' + shares + ' ' + ticker);
+      loadPaperAccount();
+    }).catch(function () {});
+  }
+
+  function paperSell() {
+    var tickerEl = getEl('sbPaperTicker'), sharesEl = getEl('sbPaperShares');
+    if (!tickerEl || !sharesEl) return;
+    var ticker = tickerEl.value.trim().toUpperCase();
+    var shares = parseInt(sharesEl.value) || 0;
+    if (!ticker || shares <= 0) { toast('Enter ticker and shares'); return; }
+    api('POST', '/api/paper/sell', { ticker: ticker, shares: shares }).then(function (data) {
+      if (data.error) { toast(data.error); return; }
+      toast('Sold ' + shares + ' ' + ticker);
+      loadPaperAccount();
+    }).catch(function () {});
+  }
+
+  function resetPaperAccount() {
+    if (!confirm('Reset paper account to $100,000? All positions will be cleared.')) return;
+    api('POST', '/api/paper/reset').then(function () {
+      toast('Account reset to $100,000');
+      loadPaperAccount();
+    }).catch(function () {});
+  }
+
+  // ── Strategy Builder ───────────────────────────────────────────
+  function createStrategy() {
+    var nameEl = getEl('sbStratName'), tickerEl = getEl('sbStratTicker');
+    if (!nameEl || !tickerEl) return;
+    var name = nameEl.value.trim();
+    var ticker = tickerEl.value.trim().toUpperCase();
+    if (!name || !ticker) { toast('Enter strategy name and ticker'); return; }
+    var rules = {
+      conditions: [{
+        type: getEl('sbStratCondition').value,
+        threshold: parseFloat(getEl('sbStratThreshold').value) || 0
+      }],
+      action: {
+        type: getEl('sbStratAction').value,
+        shares: parseInt(getEl('sbStratShares').value) || 10
+      }
+    };
+    api('POST', '/api/strategies', { name: name, ticker: ticker, rules: rules }).then(function (data) {
+      if (data.error) { toast(data.error); return; }
+      toast('Strategy created: ' + name);
+      loadStrategies();
+    }).catch(function () {});
+  }
+
+  function loadStrategies() {
+    api('GET', '/api/strategies').then(function (data) {
+      var container = getEl('sbStrategyList');
+      if (!container) return;
+      clearEl(container);
+      var strategies = data.strategies || data || [];
+      if (!Array.isArray(strategies)) return;
+      if (!strategies.length) {
+        var empty = document.createElement('div');
+        empty.className = 'sb-text-muted';
+        empty.textContent = 'No strategies yet';
+        container.appendChild(empty);
+        return;
+      }
+      strategies.forEach(function (s) {
+        var row = document.createElement('div');
+        row.className = 'sb-strategy-row';
+        var info = document.createElement('span');
+        info.textContent = s.name + ' — ' + s.ticker + ' (' + (s.is_active ? 'ACTIVE' : 'paused') + ')';
+        info.className = s.is_active ? 'sb-positive' : 'sb-text-muted';
+        var toggleBtn = document.createElement('button');
+        toggleBtn.className = 'sb-btn-sm';
+        toggleBtn.textContent = s.is_active ? 'Pause' : 'Activate';
+        toggleBtn.onclick = function () {
+          api('POST', '/api/strategies/' + s.id + '/toggle').then(function () { loadStrategies(); }).catch(function () {});
+        };
+        var delBtn = document.createElement('button');
+        delBtn.className = 'sb-btn-sm sb-btn-negative-inline';
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = function () {
+          if (confirm('Delete strategy?')) api('DELETE', '/api/strategies/' + s.id).then(function () { loadStrategies(); }).catch(function () {});
+        };
+        row.appendChild(info);
+        row.appendChild(toggleBtn);
+        row.appendChild(delBtn);
+        container.appendChild(row);
+      });
+    }).catch(function () {});
+  }
+
   // ── Init ──────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () { loadDashboard(); });
 
@@ -603,7 +722,9 @@
     loadChart: loadChart, setPeriod: setPeriod, toggleIndicator: toggleIndicator,
     openAlertModal: openAlertModal, closeAlertModal: closeAlertModal, createAlert: createAlert,
     sendChat: sendChat, executeTrade: executeTrade,
-    runAnalysis: runAnalysis, toast: toast
+    runAnalysis: runAnalysis, toast: toast,
+    loadPaperAccount: loadPaperAccount, paperBuy: paperBuy, paperSell: paperSell,
+    resetPaperAccount: resetPaperAccount, createStrategy: createStrategy, loadStrategies: loadStrategies
   };
 
 })();

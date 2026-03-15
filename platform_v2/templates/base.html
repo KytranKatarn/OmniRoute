@@ -132,8 +132,8 @@
         /* ── Profile Modal ── */
         .global-profile-modal {
             position: fixed;
-            top: 56px;
-            left: 16px;
+            top: 48px;
+            left: 60px;
             z-index: 9991;
         }
         .global-profile-modal-content {
@@ -426,11 +426,8 @@
     <script src="{{ url_for('static', filename='js/ops-alert-bar.js') }}"></script>
     {% endif %}
 
-    <!-- Global Profile Avatar Button -->
+    <!-- Global Profile Modal (opened by nav bar avatar click) -->
     {% if current_user.is_authenticated %}
-    <div class="global-profile-btn" id="globalProfileBtn" onclick="toggleProfileModal()">
-        <span class="global-profile-initial">{{ current_user.username[0]|upper if current_user.username else 'U' }}</span>
-    </div>
 
     <!-- Global Profile Modal -->
     <div class="global-profile-modal" id="globalProfileModal" style="display:none;">
@@ -527,9 +524,9 @@
         // Close on click outside
         document.addEventListener('click', function(e) {
             var modal = document.getElementById('globalProfileModal');
-            var btn = document.getElementById('globalProfileBtn');
+            var btn = document.querySelector('.cb-avatar, .global-profile-btn');
             if (modal && modal.style.display !== 'none' &&
-                btn && !modal.contains(e.target) && !btn.contains(e.target)) {
+                !modal.contains(e.target) && (!btn || !btn.closest('a').contains(e.target))) {
                 modal.style.display = 'none';
             }
         });

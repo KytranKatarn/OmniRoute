@@ -2781,3 +2781,208 @@ def conversation_search():
             conn.close()
         except Exception:
             pass
+
+
+# ============================================================
+# SSE Streaming + Conversation Threading (Phase 10)
+# ============================================================
+
+
+@archie_chat_bp.route("/api/stream", methods=["POST"])
+@login_required
+def stream_chat():
+    """SSE streaming endpoint for Claude-like token-by-token responses."""
+    import requests as _requests
+    from flask import stream_with_context
+
+    data = request.get_json() or {}
+    message = data.get("message", "")
+    conversation_id = data.get("conversation_id")
+
+    if not message:
+        return jsonify({"error": "No message"}), 400
+
+    # Build system prompt + history
+    ai = ArchieAI()
+    system_prompt = ai._build_system_prompt(current_user)
+    messages_list = [{"role": "system", "content": system_prompt}]
+
+    if conversation_id:
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT message, response FROM ai_conversations
+                WHERE conversation_id = %s AND user_id = %s
+                ORDER BY created_at DESC LIMIT 10
+                """,
+                (conversation_id, current_user.id),
+            )
+            history = cur.fetchall()
+            cur.close()
+            conn.close()
+            for row in reversed(history):
+                messages_list.append({"role": "user", "content": row["message"]})
+                messages_list.append({"role": "assistant", "content": row["response"]})
+        except Exception as e:
+            logger.warning("stream_chat history load error: %s", e)
+
+    messages_list.append({"role": "user", "content": message})
+
+    # Resolve model — default to a reliable conversation model
+    model = "dolphin3-8k:latest"
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        model_info = dispatcher.get_model_for_capability("conversation")
+        if model_info:
+            model = model_info.get("model", model)
+    except Exception:
+        pass
+
+    user_id = current_user.id
+
+    def generate():
+        full_response = ""
+        conv_id = conversation_id or str(uuid.uuid4())
+        try:
+            ollama_url = "http://host.docker.internal:11434/api/chat"
+            resp = _requests.post(
+                ollama_url,
+                json={
+                    "model": model,
+                    "messages": messages_list,
+                    "stream": True,
+                    "options": {"num_ctx": 4096},
+                },
+                stream=True,
+                timeout=300,
+            )
+            for line in resp.iter_lines():
+                if line:
+                    try:
+                        chunk = json.loads(line)
+                        token = chunk.get("message", {}).get("content", "")
+                        if token:
+                            full_response += token
+                            yield f"data: {json.dumps({'token': token})}\n\n"
+                        if chunk.get("done", False):
+                            yield f"data: {json.dumps({'done': True, 'model': model, 'eval_count': chunk.get('eval_count', 0)})}\n\n"
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            logger.error("stream_chat generate error: %s", e)
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+        # Persist to DB
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO ai_conversations
+                    (user_id, conversation_id, message, response, model, created_at)
+                VALUES (%s, %s, %s, %s, %s, NOW())
+                """,
+                (user_id, conv_id, message, full_response, model),
+            )
+            cur.execute(
+                """
+                INSERT INTO ai_conversation_threads
+                    (conversation_id, user_id, title, message_count, last_message_at)
+                VALUES (%s, %s, %s, 1, NOW())
+                ON CONFLICT (conversation_id) DO UPDATE SET
+                    message_count = ai_conversation_threads.message_count + 1,
+                    last_message_at = NOW()
+                """,
+                (conv_id, user_id, message[:100]),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error("stream_chat persist error: %s", e)
+
+        yield f"data: {json.dumps({'conversation_id': conv_id})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@archie_chat_bp.route("/api/conversations/threads", methods=["GET"])
+@login_required
+def list_conversation_threads():
+    """List user's conversation threads for sidebar."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT conversation_id, title, message_count, last_message_at, created_at
+            FROM ai_conversation_threads
+            WHERE user_id = %s
+            ORDER BY last_message_at DESC
+            LIMIT 50
+            """,
+            (current_user.id,),
+        )
+        threads = []
+        for row in cur.fetchall():
+            threads.append(
+                {
+                    "conversation_id": row["conversation_id"],
+                    "title": row["title"],
+                    "message_count": row["message_count"],
+                    "last_message_at": row["last_message_at"].isoformat() if row["last_message_at"] else None,
+                }
+            )
+        cur.close()
+        conn.close()
+        return jsonify({"threads": threads})
+    except Exception as e:
+        logger.error("list_conversation_threads error: %s", e)
+        return jsonify({"threads": [], "error": str(e)})
+
+
+@archie_chat_bp.route("/api/conversations/<conversation_id>/messages", methods=["GET"])
+@login_required
+def get_conversation_messages(conversation_id):
+    """Load messages for a specific conversation."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT message, response, model, created_at
+            FROM ai_conversations
+            WHERE conversation_id = %s AND user_id = %s
+            ORDER BY created_at ASC
+            """,
+            (conversation_id, current_user.id),
+        )
+        msgs = []
+        for row in cur.fetchall():
+            msgs.append(
+                {
+                    "user_message": row["message"],
+                    "assistant_response": row["response"],
+                    "model": row["model"],
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                }
+            )
+        cur.close()
+        conn.close()
+        return jsonify({"messages": msgs})
+    except Exception as e:
+        logger.error("get_conversation_messages error: %s", e)
+        return jsonify({"messages": [], "error": str(e)})

@@ -426,12 +426,7 @@
     <script src="{{ url_for('static', filename='js/ops-alert-bar.js') }}"></script>
     {% endif %}
 
-    <!-- Global Profile Avatar Button -->
     {% if current_user.is_authenticated %}
-    <div class="global-profile-btn" id="globalProfileBtn" onclick="toggleProfileModal()">
-        <span class="global-profile-initial">{{ current_user.username[0]|upper if current_user.username else 'U' }}</span>
-    </div>
-
     <!-- Global Profile Modal -->
     <div class="global-profile-modal" id="globalProfileModal" style="display:none;">
         <div class="global-profile-modal-content">
@@ -518,7 +513,7 @@
         // ═══════════════════════════════════════════════════════════════════════
         // GLOBAL PROFILE MODAL
         // ═══════════════════════════════════════════════════════════════════════
-        function toggleProfileModal() {
+        window.toggleProfileModal = function() {
             var modal = document.getElementById('globalProfileModal');
             if (modal) {
                 modal.style.display = modal.style.display === 'none' ? '' : 'none';

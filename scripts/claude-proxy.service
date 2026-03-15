@@ -1,0 +1,18 @@
+[Unit]
+Description=Claude CLI HTTP Proxy for ARCHIE
+After=network.target
+
+[Service]
+Type=simple
+User=kytran
+Group=kytran
+WorkingDirectory=/mnt/archie_brain
+ExecStart=/usr/bin/python3 /mnt/archie_brain/scripts/claude_proxy.py
+Restart=always
+RestartSec=5
+Environment=PATH=/home/kytran/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

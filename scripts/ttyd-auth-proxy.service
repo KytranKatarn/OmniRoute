@@ -1,0 +1,27 @@
+[Unit]
+Description=ttyd Auth Proxy for ARCHIE Claude Terminal
+After=network.target ttyd-claude.service
+Requires=ttyd-claude.service
+
+[Service]
+Type=simple
+User=kytran
+Group=kytran
+WorkingDirectory=/mnt/archie_brain
+ExecStart=/usr/bin/python3 /mnt/archie_brain/scripts/ttyd_auth_proxy.py
+Restart=always
+RestartSec=5
+Environment=PROXY_HOST=0.0.0.0
+Environment=PROXY_PORT=7681
+Environment=TTYD_HOST=127.0.0.1
+Environment=TTYD_PORT=17681
+Environment=DB_HOST=192.168.1.200
+Environment=DB_PORT=5432
+Environment=DB_NAME=archie
+Environment=DB_USER=archie
+EnvironmentFile=/mnt/archie_brain/.env
+
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

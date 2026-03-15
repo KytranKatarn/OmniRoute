@@ -973,6 +973,30 @@
     color: var(--archie-text-tertiary);
 }
 
+/* Orchestration thinking steps */
+.thinking-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    margin-bottom: 4px;
+    font-size: 0.72rem;
+    color: var(--archie-text-tertiary, #888);
+    opacity: 0.8;
+}
+.thinking-step .ts-icon { font-size: 0.8rem; }
+.thinking-step .ts-label { color: var(--archie-cyan, #00d4ff); }
+.thinking-step .ts-time { color: var(--archie-text-tertiary, #666); margin-left: 4px; }
+
+/* Agent + model badge below response */
+.msg-meta-badge {
+    font-size: 0.68rem;
+    color: var(--archie-text-tertiary, #666);
+    margin-top: 6px;
+    padding: 2px 8px;
+    opacity: 0.7;
+}
+
 .capability-tag i {
     width: 14px;
     height: 14px;
@@ -3961,6 +3985,17 @@ async function sendMessage(message) {
                 try {
                     var parsed = JSON.parse(raw);
 
+                    if (parsed.thinking_step) {
+                        // Show orchestration thinking step above the response bubble
+                        var stepEl = document.createElement('div');
+                        stepEl.className = 'thinking-step';
+                        stepEl.innerHTML = '<span class="ts-icon">&#9881;</span> <span class="ts-label">' +
+                            (parsed.thinking_step.label || parsed.thinking_step.step_type) + '</span>' +
+                            (parsed.thinking_step.duration_ms > 0 ? ' <span class="ts-time">' + parsed.thinking_step.duration_ms + 'ms</span>' : '');
+                        contentDiv.insertBefore(stepEl, bubbleDiv);
+                        scrollToBottom();
+                    }
+
                     if (parsed.token) {
                         fullResponse += parsed.token;
                         // SAFE: marked.js output rendered into owned bubble
@@ -3976,6 +4011,13 @@ async function sendMessage(message) {
                             if (typeof hljs !== 'undefined') hljs.highlightElement(block);
                         });
                         addCopyButtons(bubbleDiv);
+                        // Show agent + model badge
+                        if (parsed.agent_used || parsed.model) {
+                            var badge = document.createElement('div');
+                            badge.className = 'msg-meta-badge';
+                            badge.textContent = (parsed.agent_used || 'ARCHIE') + ' \u00b7 ' + (parsed.model || '');
+                            contentDiv.appendChild(badge);
+                        }
                         streamDiv.removeAttribute('id');
                         bubbleDiv.removeAttribute('id');
                         if (_chatSettings && _chatSettings.voiceAutoSpeak !== false && voiceConfig && voiceConfig.enabled && typeof speakResponse === 'function') {

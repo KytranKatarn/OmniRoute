@@ -112,190 +112,6 @@ def index():
             pass
 
 
-@archie_chat_bp.route("/send", methods=["POST"])
-@login_required
-def send_message():
-    """Send message to A.R.C.H.I.E."""
-    try:
-        message = (request.get_json() or {}).get("message")
-        conversation_id = (request.get_json() or {}).get("conversation_id") or str(uuid.uuid4())
-
-        if not message:
-            return jsonify({"success": False, "error": "No message provided"}), 400
-
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        user_context = {"username": current_user.username}
-
-        # Load user's emotional state (how ARCHIE perceives the user)
-        cur.execute(
-            """
-            SELECT relationship_strength, current_mood
-            FROM archie_emotional_state
-            WHERE user_id = %s
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """,
-            (current_user.id,),
-        )
-        emotional = cur.fetchone()
-        if emotional:
-            user_context["relationship_strength"] = float(emotional["relationship_strength"])
-            user_context["current_mood"] = emotional["current_mood"]
-
-        # Load ARCHIE's own emotional state (her feelings)
-        cur.execute(
-            """
-            SELECT current_mood, mood_intensity, energy_level, stress_level
-            FROM agent_emotional_state
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """,
-        )
-        archie_state = cur.fetchone()
-        if archie_state:
-            user_context["archie_mood"] = archie_state["current_mood"]
-            user_context["archie_mood_intensity"] = float(archie_state.get("mood_intensity") or 0.5)
-            user_context["archie_energy"] = float(archie_state.get("energy_level") or 0.8)
-        else:
-            # Fallback: check the archie-specific table
-            cur.execute(
-                """
-                SELECT current_mood, mood_intensity
-                FROM archie_emotional_state
-                WHERE user_id IS NULL OR user_id = 0
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """,
-            )
-            archie_fallback = cur.fetchone()
-            if archie_fallback:
-                user_context["archie_mood"] = archie_fallback["current_mood"]
-                user_context["archie_mood_intensity"] = float(archie_fallback.get("mood_intensity") or 0.5)
-            else:
-                user_context["archie_mood"] = "curious"
-                user_context["archie_mood_intensity"] = 0.7
-                user_context["archie_energy"] = 0.8
-
-        # Load user preferences
-        cur.execute(
-            """
-            SELECT content FROM long_term_memory
-            WHERE user_id = %s AND memory_type = 'preference'
-            ORDER BY importance_score DESC LIMIT 5
-        """,
-            (current_user.id,),
-        )
-        preferences = cur.fetchall()
-        user_context["preferences"] = [p["content"] for p in preferences]
-
-        # Load recent conversation history for continuity
-        cur.execute(
-            """
-            SELECT message, response FROM ai_conversations
-            WHERE user_id = %s AND conversation_id = %s
-            ORDER BY created_at DESC
-            LIMIT 5
-        """,
-            (current_user.id, conversation_id),
-        )
-        history_rows = cur.fetchall()
-        conversation_history = []
-        for row in reversed(history_rows):
-            conversation_history.append({"role": "user", "content": row["message"]})
-            if row["response"]:
-                conversation_history.append({"role": "assistant", "content": row["response"]})
-
-        ai = ArchieAI()
-        response_data = ai.chat(message, user_context, conversation_history)
-
-        if not response_data["success"]:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": f"AI unavailable: {response_data.get('error', 'Unknown')}",
-                    }
-                ),
-                503,
-            )
-
-        response_text = response_data["response"]
-
-        # FIXED: Use metadata JSONB field instead of non-existent columns
-        chat_mode = (request.get_json() or {}).get("chat_mode", "solo")
-        cur.execute(
-            """
-            INSERT INTO ai_conversations
-            (user_id, conversation_id, message, response, model, metadata)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """,
-            (
-                current_user.id,
-                conversation_id,
-                message,
-                response_text,
-                response_data["model"],
-                json.dumps(
-                    {
-                        "response_time_ms": response_data["response_time_ms"],
-                        "tokens": response_data.get("tokens", 0),
-                        "server": response_data.get("server"),
-                        "chat_mode": chat_mode,
-                    }
-                ),
-            ),
-        )
-
-        message_id = cur.fetchone()["id"]
-
-        # Auto-upsert conversation thread
-        cur.execute(
-            """
-            INSERT INTO ai_conversation_threads (conversation_id, user_id, title, chat_mode, message_count, last_message_at)
-            VALUES (%s, %s, LEFT(%s, 80), %s, 1, NOW())
-            ON CONFLICT (conversation_id) DO UPDATE SET
-                message_count = ai_conversation_threads.message_count + 1,
-                last_message_at = NOW(), updated_at = NOW()
-            """,
-            (conversation_id, current_user.id, message, chat_mode),
-        )
-
-        conn.commit()
-
-        # Analyze emotional content and update state (non-blocking)
-        if EMOTIONAL_INTELLIGENCE_AVAILABLE:
-            try:
-                _update_emotional_state(message, response_text, current_user.id)
-            except Exception as emo_err:
-                logger.error(f"Emotional intelligence update failed: {emo_err}")
-
-        return jsonify(
-            {
-                "success": True,
-                "response": response_text,
-                "conversation_id": conversation_id,
-                "message_id": message_id,
-                "model_used": response_data["model"],
-                "response_time": response_data["response_time_ms"],
-            }
-        )
-
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
-
-
 @archie_chat_bp.route("/api/orchestrate", methods=["POST"])
 @login_required
 def orchestrate():
@@ -309,7 +125,7 @@ def orchestrate():
     Falls back to /send behavior if orchestration engine is unavailable.
     """
     try:
-        data = request.get_json() or {} or {}
+        data = request.get_json() or {}
         message = data.get("message")
         conversation_id = data.get("conversation_id") or str(uuid.uuid4())
         voice_mode = data.get("voice_mode", False)
@@ -317,54 +133,8 @@ def orchestrate():
         if not message:
             return jsonify({"success": False, "error": "No message provided"}), 400
 
-        # Build user context
-        user_context = {"username": current_user.username}
-        try:
-            conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            # Load emotional state
-            cur.execute(
-                """
-                SELECT relationship_strength, current_mood
-                FROM archie_emotional_state
-                WHERE user_id = %s ORDER BY timestamp DESC LIMIT 1
-            """,
-                (current_user.id,),
-            )
-            emotional = cur.fetchone()
-            if emotional:
-                user_context["relationship_strength"] = float(emotional["relationship_strength"])
-                user_context["current_mood"] = emotional["current_mood"]
-
-            # Load ARCHIE's own state
-            cur.execute(
-                """
-                SELECT current_mood, mood_intensity, energy_level, stress_level
-                FROM agent_emotional_state ORDER BY timestamp DESC LIMIT 1
-            """
-            )
-            archie_state = cur.fetchone()
-            if archie_state:
-                user_context["archie_mood"] = archie_state["current_mood"]
-                user_context["archie_energy"] = float(archie_state.get("energy_level") or 0.8)
-
-            # Load preferences
-            cur.execute(
-                """
-                SELECT content FROM long_term_memory
-                WHERE user_id = %s AND memory_type = 'preference'
-                ORDER BY importance_score DESC LIMIT 5
-            """,
-                (current_user.id,),
-            )
-            preferences = cur.fetchall()
-            user_context["preferences"] = [p["content"] for p in preferences]
-
-            cur.close()
-            conn.close()
-        except Exception as ctx_err:
-            logger.warning(f"Could not load user context for orchestration: {ctx_err}")
+        # Build user context (shared helper)
+        user_context = _build_user_context(current_user.id, current_user.username)
 
         # Try orchestration engine
         try:
@@ -500,12 +270,6 @@ def orchestrate():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-    finally:
-        try:
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
 
 
 def _update_emotional_state(user_message, ai_response, user_id):
@@ -2785,70 +2549,196 @@ def conversation_search():
 
 # ============================================================
 # SSE Streaming + Conversation Threading (Phase 10)
+# Routes through Orchestration Engine for full agent dispatch
 # ============================================================
+
+
+def _build_user_context(user_id, username):
+    """Build user context dict for orchestration (shared by /api/stream and /api/orchestrate)."""
+    user_context = {"username": username}
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Load user's emotional state
+        cur.execute(
+            """
+            SELECT relationship_strength, current_mood
+            FROM archie_emotional_state
+            WHERE user_id = %s ORDER BY timestamp DESC LIMIT 1
+            """,
+            (user_id,),
+        )
+        emotional = cur.fetchone()
+        if emotional:
+            user_context["relationship_strength"] = float(emotional["relationship_strength"])
+            user_context["current_mood"] = emotional["current_mood"]
+
+        # Load ARCHIE's own emotional state
+        cur.execute(
+            """
+            SELECT current_mood, mood_intensity, energy_level, stress_level
+            FROM agent_emotional_state ORDER BY timestamp DESC LIMIT 1
+            """,
+        )
+        archie_state = cur.fetchone()
+        if archie_state:
+            user_context["archie_mood"] = archie_state["current_mood"]
+            user_context["archie_mood_intensity"] = float(archie_state.get("mood_intensity") or 0.5)
+            user_context["archie_energy"] = float(archie_state.get("energy_level") or 0.8)
+        else:
+            user_context["archie_mood"] = "curious"
+            user_context["archie_mood_intensity"] = 0.7
+            user_context["archie_energy"] = 0.8
+
+        # Load user preferences
+        cur.execute(
+            """
+            SELECT content FROM long_term_memory
+            WHERE user_id = %s AND memory_type = 'preference'
+            ORDER BY importance_score DESC LIMIT 5
+            """,
+            (user_id,),
+        )
+        preferences = cur.fetchall()
+        user_context["preferences"] = [p["content"] for p in preferences]
+
+        cur.close()
+        conn.close()
+    except Exception as ctx_err:
+        logger.warning(f"Could not load user context: {ctx_err}")
+
+    return user_context
 
 
 @archie_chat_bp.route("/api/stream", methods=["POST"])
 @login_required
 def stream_chat():
-    """SSE streaming endpoint for Claude-like token-by-token responses."""
+    """SSE streaming endpoint routed through Orchestration Engine.
+
+    Runs orchestration steps 1-6 (intent, IAAE, welfare, routing, agent, GPU)
+    synchronously, then streams step 7 (LLM execution) as SSE tokens.
+    Non-streamable intents fall back to full orchestrate().
+    """
     import requests as _requests
     from flask import stream_with_context
+    import time as _time
 
     data = request.get_json() or {}
     message = data.get("message", "")
-    conversation_id = data.get("conversation_id")
+    conversation_id = data.get("conversation_id") or str(uuid.uuid4())
 
     if not message:
         return jsonify({"error": "No message"}), 400
 
-    # Build system prompt + history
-    ai = ArchieAI()
-    system_prompt = ai._build_system_prompt(current_user)
-    messages_list = [{"role": "system", "content": system_prompt}]
-
-    if conversation_id:
-        try:
-            conn = get_db()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT message, response FROM ai_conversations
-                WHERE conversation_id = %s AND user_id = %s
-                ORDER BY created_at DESC LIMIT 10
-                """,
-                (conversation_id, current_user.id),
-            )
-            history = cur.fetchall()
-            cur.close()
-            conn.close()
-            for row in reversed(history):
-                messages_list.append({"role": "user", "content": row["message"]})
-                messages_list.append({"role": "assistant", "content": row["response"]})
-        except Exception as e:
-            logger.warning("stream_chat history load error: %s", e)
-
-    messages_list.append({"role": "user", "content": message})
-
-    # Resolve model — default to a reliable conversation model
-    model = "dolphin3-8k:latest"
-    try:
-        from ai_bridge.bridge_dispatcher import get_dispatcher
-
-        dispatcher = get_dispatcher()
-        model_info = dispatcher.get_model_for_capability("conversation")
-        if model_info:
-            model = model_info.get("model", model)
-    except Exception:
-        pass
-
     user_id = current_user.id
+    user_context = _build_user_context(user_id, current_user.username)
+
+    # Run orchestration preflight (steps 1-6)
+    try:
+        from ai_bridge.orchestration_engine import get_orchestration_engine
+
+        engine = get_orchestration_engine()
+        preflight = engine.orchestrate_preflight(
+            message=message,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            user_context=user_context,
+        )
+    except Exception as e:
+        logger.error("Orchestration engine unavailable: %s", e)
+        preflight = {"error": str(e)}
+
+    # Handle non-streamable intents — fall back to full orchestrate()
+    if preflight.get("non_streamable") or preflight.get("error"):
+
+        def generate_fallback():
+            # Emit any thinking steps we collected
+            for step in preflight.get("steps", []):
+                yield f"data: {json.dumps({'thinking_step': {'step_type': step.step_type, 'label': step.label, 'data': step.data, 'duration_ms': step.duration_ms, 'success': step.success}})}\n\n"
+
+            if preflight.get("error") and preflight["error"] != "iaae_blocked":
+                # Engine failed — try direct ArchieAI fallback
+                try:
+                    ai = ArchieAI()
+                    history = []
+                    try:
+                        conn = get_db()
+                        cur = conn.cursor(cursor_factory=RealDictCursor)
+                        cur.execute(
+                            "SELECT message, response FROM ai_conversations WHERE user_id = %s AND conversation_id = %s ORDER BY created_at DESC LIMIT 5",
+                            (user_id, conversation_id),
+                        )
+                        rows = cur.fetchall()
+                        cur.close()
+                        conn.close()
+                        for row in reversed(rows):
+                            history.append({"role": "user", "content": row["message"]})
+                            if row.get("response"):
+                                history.append({"role": "assistant", "content": row["response"]})
+                    except Exception:
+                        pass
+                    result = ai.chat(message, user_context, history)
+                    if result.get("success"):
+                        yield f"data: {json.dumps({'token': result['response']})}\n\n"
+                        yield f"data: {json.dumps({'done': True, 'model': result.get('model', 'unknown')})}\n\n"
+                    else:
+                        yield f"data: {json.dumps({'error': result.get('error', 'AI unavailable')})}\n\n"
+                except Exception as fb_err:
+                    yield f"data: {json.dumps({'error': str(fb_err)})}\n\n"
+            elif preflight.get("error") == "iaae_blocked":
+                resp_text = preflight.get("fallback_response", "Request blocked by governance.")
+                yield f"data: {json.dumps({'token': resp_text})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'model': 'governance'})}\n\n"
+            else:
+                # Non-streamable intent — run full orchestrate
+                try:
+                    result = engine.orchestrate(
+                        message=message,
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        user_context=user_context,
+                    )
+                    # Emit thinking steps
+                    for step in result.thinking_steps:
+                        yield f"data: {json.dumps({'thinking_step': {'step_type': step.step_type, 'label': step.label, 'data': step.data, 'duration_ms': step.duration_ms, 'success': step.success}})}\n\n"
+                    yield f"data: {json.dumps({'token': result.response})}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'model': result.model_used or 'orchestrated', 'agent_used': result.agent_used})}\n\n"
+                except Exception as orch_err:
+                    yield f"data: {json.dumps({'error': str(orch_err)})}\n\n"
+
+            yield f"data: {json.dumps({'conversation_id': conversation_id})}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return Response(
+            stream_with_context(generate_fallback()),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+        )
+
+    # --- Streamable path: preflight succeeded ---
+    model = preflight["model"]
+    ollama_url = preflight["ollama_url"]
+    messages_list = preflight["messages"]
+    db_session_id = preflight.get("db_session_id")
+    session_uuid = preflight.get("session_uuid")
+    selected_agent = preflight.get("selected_agent")
+    agent_name = preflight.get("agent_name", "ARCHIE")
+    agent_id = preflight.get("agent_id")
+    thinking_steps = preflight.get("steps", [])
+    governance_events = preflight.get("governance_events", [])
+    node_id = preflight.get("node_id")
 
     def generate():
         full_response = ""
-        conv_id = conversation_id or str(uuid.uuid4())
+        stream_start = _time.time()
+
+        # Emit thinking steps first
+        for step in thinking_steps:
+            yield f"data: {json.dumps({'thinking_step': {'step_type': step.step_type, 'label': step.label, 'data': step.data, 'duration_ms': step.duration_ms, 'success': step.success}})}\n\n"
+
+        # Stream from Ollama
         try:
-            ollama_url = "http://host.docker.internal:11434/api/chat"
             resp = _requests.post(
                 ollama_url,
                 json={
@@ -2869,43 +2759,106 @@ def stream_chat():
                             full_response += token
                             yield f"data: {json.dumps({'token': token})}\n\n"
                         if chunk.get("done", False):
-                            yield f"data: {json.dumps({'done': True, 'model': model, 'eval_count': chunk.get('eval_count', 0)})}\n\n"
+                            yield f"data: {json.dumps({'done': True, 'model': model, 'agent_used': agent_name, 'eval_count': chunk.get('eval_count', 0)})}\n\n"
                     except json.JSONDecodeError:
                         continue
         except Exception as e:
             logger.error("stream_chat generate error: %s", e)
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-        # Persist to DB
+        stream_ms = int((_time.time() - stream_start) * 1000)
+        total_ms = preflight.get("preflight_ms", 0) + stream_ms
+
+        # Persist conversation to DB
+        _persist_conn = None
         try:
-            conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
+            _persist_conn = get_db()
+            _persist_cur = _persist_conn.cursor()
+            _persist_cur.execute(
                 """
                 INSERT INTO ai_conversations
-                    (user_id, conversation_id, message, response, model, created_at)
-                VALUES (%s, %s, %s, %s, %s, NOW())
+                    (user_id, conversation_id, message, response, model, metadata)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
-                (user_id, conv_id, message, full_response, model),
+                (
+                    user_id,
+                    conversation_id,
+                    message,
+                    full_response,
+                    model,
+                    json.dumps(
+                        {
+                            "chat_mode": "streaming",
+                            "agent_used": agent_name,
+                            "agent_id": agent_id,
+                            "orchestration_session": session_uuid,
+                            "total_duration_ms": total_ms,
+                            "node_id": node_id,
+                        }
+                    ),
+                ),
             )
-            cur.execute(
+            _persist_cur.execute(
                 """
                 INSERT INTO ai_conversation_threads
-                    (conversation_id, user_id, title, message_count, last_message_at)
-                VALUES (%s, %s, %s, 1, NOW())
+                    (conversation_id, user_id, title, chat_mode, message_count, last_message_at)
+                VALUES (%s, %s, %s, 'streaming', 1, NOW())
                 ON CONFLICT (conversation_id) DO UPDATE SET
                     message_count = ai_conversation_threads.message_count + 1,
-                    last_message_at = NOW()
+                    last_message_at = NOW(), updated_at = NOW()
                 """,
-                (conv_id, user_id, message[:100]),
+                (conversation_id, user_id, message[:100]),
             )
-            conn.commit()
-            cur.close()
-            conn.close()
+            _persist_conn.commit()
         except Exception as e:
             logger.error("stream_chat persist error: %s", e)
+        finally:
+            try:
+                if _persist_conn:
+                    _persist_conn.close()
+            except Exception:
+                pass
 
-        yield f"data: {json.dumps({'conversation_id': conv_id})}\n\n"
+        # Complete orchestration session logging
+        try:
+            engine._persist_steps(db_session_id, thinking_steps)
+            engine._complete_session(db_session_id, len(thinking_steps) + 1, total_ms)
+            engine._log_governance_event(
+                "orchestration",
+                "stream_request",
+                agent_id=agent_id,
+                reason=f"Streamed '{preflight.get('intent', {}).get('type', 'conversation')}' via {model}",
+                outcome="success",
+            )
+        except Exception as e:
+            logger.warning("stream_chat session log error: %s", e)
+
+        # Push task_complete event
+        try:
+            from ai_bridge.orchestration_engine import _push_event
+
+            _push_event(
+                "task_complete",
+                agent_id=agent_id,
+                data={
+                    "duration_ms": total_ms,
+                    "success": True,
+                    "model": model,
+                    "streaming": True,
+                    "message_preview": (message[:80] if message else ""),
+                },
+            )
+        except Exception:
+            pass
+
+        # Emotional state update
+        if EMOTIONAL_INTELLIGENCE_AVAILABLE and full_response:
+            try:
+                _update_emotional_state(message, full_response, user_id)
+            except Exception:
+                pass
+
+        yield f"data: {json.dumps({'conversation_id': conversation_id})}\n\n"
         yield "data: [DONE]\n\n"
 
     return Response(

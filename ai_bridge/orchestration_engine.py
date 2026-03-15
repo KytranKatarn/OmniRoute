@@ -602,6 +602,220 @@ class OrchestrationEngine:
             )
 
     # =========================================================================
+    # Streaming Pre-flight (Steps 1-6 only, no execution)
+    # =========================================================================
+
+    NON_STREAMABLE_INTENTS = frozenset({
+        "memory_store", "memory_forget", "memory_list",
+        "media_generate", "team_management", "station_management",
+        "status_query", "dev_hq_status",
+    })
+
+    def orchestrate_preflight(
+        self,
+        message: str,
+        user_id: int,
+        conversation_id: str,
+        user_context: Optional[Dict] = None,
+    ) -> Dict:
+        """
+        Run orchestration steps 1-6 without executing.
+
+        Returns a dict with resolved model, Ollama URL, messages list,
+        agent info, and thinking steps — ready for the SSE streaming
+        endpoint to handle step 7 (execution) itself.
+
+        Non-streamable intents (memory commands, media gen, team mgmt)
+        are flagged so the caller can fall back to full orchestrate().
+        """
+        start_time = time.time()
+        session_uuid = str(uuid.uuid4())
+        steps: List[ThinkingStep] = []
+        governance_events: List[GovernanceEvent] = []
+        selected_agent = None
+
+        db_session_id = self._create_session(session_uuid, user_id, conversation_id)
+
+        try:
+            # --- Step 1: Parse intent ---
+            intent = self._step_parse_intent(message, steps)
+            intent_type = intent.get("type", "conversation")
+
+            # --- Step 1b: Language detection ---
+            detected_lang = "en"
+            try:
+                conn = get_db()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                try:
+                    cur.execute(
+                        "SELECT language, auto_detect FROM user_language_preferences WHERE user_id = %s",
+                        (user_id,),
+                    )
+                    pref = cur.fetchone()
+                finally:
+                    cur.close()
+                    conn.close()
+                if pref and pref.get("auto_detect", True) and message:
+                    from translation_service import detect_language
+                    detected_lang = detect_language(message) or "en"
+            except Exception:
+                pass
+
+            # --- Check if streamable ---
+            if intent_type in self.NON_STREAMABLE_INTENTS or intent.get("requires_multi_agent"):
+                return {
+                    "non_streamable": True,
+                    "intent_type": intent_type,
+                    "db_session_id": db_session_id,
+                    "session_uuid": session_uuid,
+                    "steps": steps,
+                    "governance_events": governance_events,
+                }
+
+            # --- Step 2: IAAE pre-check ---
+            iaae_ok = self._step_iaae_check(intent, steps, governance_events)
+            if not iaae_ok:
+                return {
+                    "error": "iaae_blocked",
+                    "fallback_response": "I'm unable to process that request due to governance constraints.",
+                    "steps": steps,
+                    "governance_events": governance_events,
+                    "db_session_id": db_session_id,
+                    "session_uuid": session_uuid,
+                }
+
+            # --- Step 4: Smart routing ---
+            routing = self._step_route_decision(message, intent, steps)
+
+            # --- Step 5: GPU state check ---
+            gpu_info = self._step_gpu_check(routing, steps)
+
+            # --- Step 6: Select agent ---
+            selected_agent = self._step_select_agent(message, intent, steps)
+
+            # --- Step 6b: Welfare check ---
+            if selected_agent and selected_agent.get("agent_id"):
+                welfare_ok = self._step_welfare_check(
+                    selected_agent["agent_id"],
+                    selected_agent.get("name", "Unknown"),
+                    steps,
+                    governance_events,
+                )
+                if not welfare_ok:
+                    alt_agent = self._select_alternate_agent(
+                        message, intent, exclude_id=selected_agent["agent_id"]
+                    )
+                    if alt_agent:
+                        selected_agent = alt_agent
+                        steps.append(
+                            ThinkingStep(
+                                step_type=StepType.AGENT_SELECT.value,
+                                label="Agent reassigned (welfare)",
+                                data={"new_agent": alt_agent.get("name"), "reason": "previous agent stressed"},
+                                success=True,
+                            )
+                        )
+
+            # --- Resolve model ---
+            model_used = self._resolve_model(routing, gpu_info, intent)
+
+            # --- Resolve Ollama URL via node_router ---
+            ollama_url = None
+            node_id = None
+            try:
+                from node_router import get_ollama_url
+                base_url, node_id = get_ollama_url(model_used)
+                ollama_url = f"{base_url}/api/chat"
+            except Exception:
+                primary = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
+                if not primary.startswith("http"):
+                    primary = f"http://{primary}"
+                ollama_url = f"{primary}/api/chat"
+
+            # --- Check provider (non-Ollama can't stream easily) ---
+            provider = routing.get("provider", "ollama") if routing else "ollama"
+            if provider not in ("ollama", None):
+                return {
+                    "non_streamable": True,
+                    "intent_type": intent_type,
+                    "provider": provider,
+                    "db_session_id": db_session_id,
+                    "session_uuid": session_uuid,
+                    "steps": steps,
+                    "governance_events": governance_events,
+                }
+
+            # --- Build messages list ---
+            ArchieAI_cls = None
+            for path in [
+                "/app/tools/archie_core",
+                os.path.join(os.path.dirname(__file__), "..", "platform_v2", "tools", "archie_core"),
+            ]:
+                if os.path.exists(os.path.join(path, "ai_chat.py")):
+                    sys.path.insert(0, path)
+                    from ai_chat import ArchieAI as ArchieAI_cls
+                    break
+
+            system_prompt = "You are A.R.C.H.I.E., a helpful AI assistant."
+            if ArchieAI_cls:
+                ai = ArchieAI_cls()
+                system_prompt = ai._build_system_prompt(user_context or {})
+
+            history = self._load_conversation_history(user_id, conversation_id)
+
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend(history)
+            messages.append({"role": "user", "content": message})
+
+            # --- Push task_start event ---
+            _push_event(
+                "task_start",
+                agent_id=selected_agent.get("agent_id") if selected_agent else None,
+                data={
+                    "task_type": intent_type,
+                    "model": model_used,
+                    "message_preview": (message[:80] if message else ""),
+                    "streaming": True,
+                },
+            )
+
+            preflight_ms = int((time.time() - start_time) * 1000)
+
+            return {
+                "success": True,
+                "model": model_used,
+                "ollama_url": ollama_url,
+                "node_id": node_id,
+                "messages": messages,
+                "selected_agent": selected_agent,
+                "agent_id": selected_agent.get("agent_id") if selected_agent else None,
+                "agent_name": selected_agent.get("name") if selected_agent else "ARCHIE",
+                "steps": steps,
+                "governance_events": governance_events,
+                "db_session_id": db_session_id,
+                "session_uuid": session_uuid,
+                "intent": intent,
+                "routing": routing,
+                "detected_lang": detected_lang,
+                "preflight_ms": preflight_ms,
+            }
+
+        except Exception as e:
+            logger.error(f"Orchestration preflight failed: {e}", exc_info=True)
+            try:
+                self._persist_steps(db_session_id, steps)
+                self._fail_session(db_session_id, str(e))
+            except Exception:
+                pass
+            return {
+                "error": str(e),
+                "steps": steps,
+                "governance_events": governance_events,
+                "db_session_id": db_session_id,
+                "session_uuid": session_uuid,
+            }
+
+    # =========================================================================
     # Pipeline Steps
     # =========================================================================
 

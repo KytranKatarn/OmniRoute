@@ -466,9 +466,23 @@ class AgentLoop:
             name="Agent Loop: Claude Session Indexer",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._update_module_docs),
+            trigger=IntervalTrigger(hours=24),
+            id="module_docs_updater",
+            name="Agent Loop: Module Documentation",
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            with_app_context(self._track_git_changes),
+            trigger=IntervalTrigger(minutes=30),
+            id="git_change_tracker",
+            name="Agent Loop: Git Change Tracker",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 29 jobs")
+        logger.info("Agent loop started with 31 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -711,6 +725,41 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"[Sessions] Indexing error: {e}")
 
+    def _update_module_docs(self):
+        """Job #30: Update module documentation and agent module awareness (daily)."""
+        try:
+            from services.module_docs_service import generate_module_docs
+            generate_module_docs()
+            from services.agent_module_awareness import update_agent_module_awareness
+            update_agent_module_awareness()
+        except Exception as e:
+            logger.error(f"[Module Docs] Error: {e}")
+
+    def _track_git_changes(self):
+        """Job #31: Track recent git commits and store in knowledge_base (every 30 min)."""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['git', 'log', '--oneline', '-5', '--format=%h %s (%ar)'],
+                cwd='/mnt/archie_brain',
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                recent = result.stdout.strip()
+                from database import get_db_cursor
+                from psycopg2.extras import Json
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO knowledge_base (title, content, category, importance, tags, knowledge_type)
+                        VALUES ('Recent Git Commits', %s, 'version_control', 0.6, %s, 'conversation_memory')
+                        ON CONFLICT (title) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+                        """,
+                        (recent, Json(['git', 'commits', 'version-control', 'auto-generated'])),
+                    )
+        except Exception as e:
+            logger.error(f"[Git Tracker] Error: {e}")
+
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
         for job_id in [
@@ -742,6 +791,8 @@ class AgentLoop:
             "agent_calendar_drive",
             "knowledge_deduplication",
             "session_indexer",
+            "module_docs_updater",
+            "git_change_tracker",
         ]:
             try:
                 self.scheduler.remove_job(job_id)

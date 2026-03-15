@@ -97,36 +97,56 @@
             box-shadow: var(--archie-glow-orange-sm, 0 0 8px rgba(255, 170, 0, 0.3));
         }
 
-        /* ── Global Profile Avatar Button ── */
-        .global-profile-btn {
+        /* ── Global Profile Nav Bar ── */
+        .global-profile-nav {
             position: fixed;
-            top: 12px;
-            left: 16px;
-            width: 36px;
-            height: 36px;
+            top: 8px;
+            left: 12px;
+            z-index: 9990;
+        }
+        .global-profile-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: inherit;
+            padding: 4px 12px 4px 4px;
+            border-radius: 20px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(68,170,255,0.2);
+            transition: all 0.2s;
+        }
+        .global-profile-nav-link:hover {
+            border-color: #4af;
+            background: rgba(68,170,255,0.08);
+        }
+        .global-profile-nav-avatar {
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             background: linear-gradient(135deg, #4af, #28d);
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            z-index: 9990;
-            border: 2px solid rgba(68,170,255,0.3);
-            transition: all 0.2s;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-        .global-profile-btn:hover {
-            transform: scale(1.1);
-            border-color: #4af;
-            box-shadow: 0 0 12px rgba(68,170,255,0.4);
-        }
-        .global-profile-initial {
             color: #fff;
             font-family: 'Antonio', sans-serif;
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: bold;
             text-transform: uppercase;
-            user-select: none;
+        }
+        .global-profile-nav-name {
+            font-family: 'Antonio', sans-serif;
+            color: #aab;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+        }
+        .global-profile-nav-role {
+            font-size: 0.6rem;
+            color: #4af;
+            text-transform: uppercase;
+            padding: 1px 6px;
+            border: 1px solid rgba(68,170,255,0.3);
+            border-radius: 8px;
         }
 
         /* ── Profile Modal ── */
@@ -426,8 +446,16 @@
     <script src="{{ url_for('static', filename='js/ops-alert-bar.js') }}"></script>
     {% endif %}
 
-    <!-- Global Profile Modal (opened by nav bar avatar click) -->
+    <!-- Global Profile Nav Bar -->
     {% if current_user.is_authenticated %}
+    <div class="global-profile-nav" id="globalProfileNav">
+        <a href="#" onclick="window.toggleProfileModal(); return false;" class="global-profile-nav-link">
+            <div class="global-profile-nav-avatar">{{ current_user.username[0]|upper if current_user.username else 'U' }}</div>
+            <span class="global-profile-nav-name">{{ current_user.username }}</span>
+            <span class="global-profile-nav-role">{{ current_user.role if current_user.role else 'USER' }}</span>
+        </a>
+    </div>
+    {% endif %}
 
     <!-- Global Profile Modal -->
     <div class="global-profile-modal" id="globalProfileModal" style="display:none;">

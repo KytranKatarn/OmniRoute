@@ -104,5 +104,7 @@ try:
             },
         ]
     )
-except Exception:
-    pass  # Table may not exist yet (pre-migration)
+except Exception as e:
+    import logging
+
+    logging.getLogger(__name__).warning(f"Station action registration failed: {e}")

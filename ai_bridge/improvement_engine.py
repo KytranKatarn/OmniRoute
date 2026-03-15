@@ -66,6 +66,16 @@ def get_db():
     )
 
 
+def _get_db():
+    """Get DB connection using platform pattern (with fallback for standalone execution)."""
+    try:
+        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+        from database import get_db_cursor
+        return get_db_cursor
+    except ImportError:
+        return get_db
+
+
 def detect_improvement_opportunities() -> List[Dict]:
     """
     Analyze consciousness database to detect improvement opportunities
@@ -506,82 +516,75 @@ def generate_diff_for_proposal(proposal_id: int, code_changes: List[Dict]) -> Di
         return {"success": False, "error": str(e)}
 
 
-def analyze_proposal_with_agents(proposal_id: int) -> Dict:
-    """
-    Use relevant agents to analyze an improvement proposal
+def analyze_proposal_with_agents(proposal) -> Dict:
+    """Dispatch proposal to Bridge agents for real analysis."""
+    perspectives = {}
+    category = proposal.get('category', 'general') if isinstance(proposal, dict) else 'general'
 
-    Returns:
-        Analysis from multiple agent perspectives
-    """
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    # Support both dict and int (proposal_id) for backwards compatibility
+    if isinstance(proposal, int):
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal,))
+        proposal = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not proposal:
+            return {"error": "Proposal not found"}
+        category = proposal.get('category', 'general')
 
-    # Get proposal
-    cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
-    proposal = cur.fetchone()
-
-    if not proposal:
-        return {"error": "Proposal not found"}
-
-    # Get relevant agents based on category
-    category_agent_mapping = {
-        "quality": "Quality Assurance",
-        "efficiency": "Operations",
-        "knowledge": "Documentation",
-        "resource_optimization": "Infrastructure",
-        "personality": "Human Resources",
+    # Map categories to analysis prompts
+    prompts = {
+        'quality': "Analyze this code improvement proposal for quality impact. Is it worth implementing? What are the risks?",
+        'efficiency': "Analyze this proposal for performance/efficiency impact. Will it improve or degrade system performance?",
+        'security': "Review this proposal for security implications. Are there any vulnerabilities introduced or fixed?",
+        'general': "Review this improvement proposal. Assess its value, risk, and implementation complexity.",
     }
 
-    department = category_agent_mapping.get(proposal["category"], "Engineering")
-
-    cur.execute(
-        """
-        SELECT id, name, department, model, worker_type, bio
-        FROM agents
-        WHERE status = 'active'
-        AND department = %s
-        AND worker_type = 'internal'  -- Use free local agents first
-        LIMIT 3
-    """,
-        (department,),
+    prompt_text = prompts.get(category, prompts['general'])
+    context = (
+        f"Proposal: {proposal.get('title', '')}\n"
+        f"Description: {proposal.get('description', '')}\n"
+        f"File: {proposal.get('file_path', '')}\n"
+        f"Changes: {str(proposal.get('proposed_changes', ''))[:2000]}"
     )
 
-    agents = cur.fetchall()
+    try:
+        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+        from archie_bridge import archie_bridge as ai_bridge
 
-    analysis = {
+        result = ai_bridge(
+            prompt=f"{prompt_text}\n\n{context}",
+            system_prompt="You are a senior software engineer reviewing a code improvement proposal. Provide a brief assessment: approve/reject/needs_revision, key concerns, and estimated effort (small/medium/large).",
+            user_id=None,
+            enable_memory=False,
+        )
+        response = result.get('response', '') if isinstance(result, dict) else str(result)
+        perspectives[category] = response
+    except Exception as e:
+        perspectives[category] = f"Analysis failed: {e}"
+
+    # Store analysis in metadata if we have a proposal id
+    proposal_id = proposal.get('id') if isinstance(proposal, dict) else None
+    if proposal_id:
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE improvement_proposals SET metadata = metadata || %s::jsonb WHERE id = %s",
+                (json.dumps({"agent_analysis": {"perspectives": perspectives, "analyzed_at": datetime.now().isoformat()}}), proposal_id),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+    return {
         "proposal_id": proposal_id,
         "analyzed_at": datetime.now().isoformat(),
-        "agent_perspectives": [],
+        "perspectives": perspectives,
     }
-
-    # Simulate agent analysis (in production, would call actual LLMs)
-    for agent in agents:
-        perspective = {
-            "agent_name": agent["name"],
-            "agent_model": agent["model"],
-            "department": agent["department"],
-            "assessment": f"From {agent['department']} perspective: {proposal['description']}",
-            "feasibility": "To be analyzed",
-            "estimated_impact": "Medium",
-            "recommendations": [],
-        }
-        analysis["agent_perspectives"].append(perspective)
-
-    # Store analysis in metadata
-    cur.execute(
-        """
-        UPDATE improvement_proposals
-        SET metadata = metadata || %s::jsonb
-        WHERE id = %s
-    """,
-        (json.dumps({"agent_analysis": analysis}), proposal_id),
-    )
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return analysis
 
 
 def get_recent_proposals(

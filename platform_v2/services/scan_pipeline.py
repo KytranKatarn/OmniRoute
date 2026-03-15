@@ -11,7 +11,7 @@ import json
 import logging
 
 from psycopg2.extras import RealDictCursor
-from database import get_db_connection
+from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -68,23 +68,19 @@ def process_scan_results(scan_id, issues, file_path):
 
 def _has_open_proposal(file_path, issue_type):
     """Check if an open proposal already exists for this file + issue type."""
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute(
-                """
-                SELECT id FROM improvement_proposals
-                WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed')
-                  AND metadata->>'source' = 'code_sentinel'
-                  AND metadata->>'file_path' = %s
-                  AND metadata->>'issue_type' = %s
-                LIMIT 1
-                """,
-                (file_path, issue_type),
-            )
-            return cur.fetchone() is not None
-        finally:
-            cur.close()
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """
+            SELECT id FROM improvement_proposals
+            WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed')
+              AND metadata->>'source' = 'code_sentinel'
+              AND metadata->>'file_path' = %s
+              AND metadata->>'issue_type' = %s
+            LIMIT 1
+            """,
+            (file_path, issue_type),
+        )
+        return cur.fetchone() is not None
 
 
 def _create_proposal_for_issue(scan_id, issue, file_path):
@@ -119,99 +115,84 @@ def _create_proposal_for_issue(scan_id, issue, file_path):
         }
     )
 
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute(
-                """
-                INSERT INTO improvement_proposals
-                (title, category, description, code_changes, rationale,
-                 priority, risk_level, status, metadata, collaboration_enabled)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s::jsonb, false)
-                RETURNING id
-                """,
-                (
-                    title,
-                    issue_type,
-                    description,
-                    suggestion,
-                    f"Auto-detected by Code Sentinel scan #{scan_id}",
-                    priority,
-                    risk_level,
-                    metadata,
-                ),
-            )
-            proposal_id = cur.fetchone()["id"]
-            conn.commit()
-            logger.info(f"Created proposal #{proposal_id} for {severity} {issue_type} in {file_path}")
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            INSERT INTO improvement_proposals
+            (title, category, description, code_changes, rationale,
+             priority, risk_level, status, metadata, collaboration_enabled)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s::jsonb, false)
+            RETURNING id
+            """,
+            (
+                title,
+                issue_type,
+                description,
+                suggestion,
+                f"Auto-detected by Code Sentinel scan #{scan_id}",
+                priority,
+                risk_level,
+                metadata,
+            ),
+        )
+        proposal_id = cur.fetchone()["id"]
+        logger.info(f"Created proposal #{proposal_id} for {severity} {issue_type} in {file_path}")
 
-            # Route through autonomy approval queue
-            try:
-                import sys
+    # Route through autonomy approval queue
+    try:
+        import sys
 
-                sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-                from agent_loop import request_approval
+        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+        from agent_loop import request_approval
 
-                # Low/medium risk → Tier 1 (auto-approve)
-                # High/critical risk → Tier 2 (human via Telegram)
-                is_low_risk = risk_level in ("low", "medium") and priority in (
-                    "low",
-                    "medium",
-                )
-                approval_tier = 1 if is_low_risk else 2
-                approval_priority = 3 if priority == "critical" else 5 if priority == "high" else 7
+        # Low/medium risk → Tier 1 (auto-approve)
+        # High/critical risk → Tier 2 (human via Telegram)
+        is_low_risk = risk_level in ("low", "medium") and priority in (
+            "low",
+            "medium",
+        )
+        approval_tier = 1 if is_low_risk else 2
+        approval_priority = 3 if priority == "critical" else 5 if priority == "high" else 7
 
-                request_approval(
-                    action_type="improvement_approve",
-                    action_data={
-                        "proposal_id": proposal_id,
-                        "title": title,
-                        "file_path": file_path,
-                        "severity": severity,
-                        "risk_level": risk_level,
-                    },
-                    reason=f"Auto-generated from Code Sentinel scan: {message[:100]}",
-                    requested_by="scan_pipeline",
-                    priority=approval_priority,
-                    tier=approval_tier,
-                )
-            except Exception as approval_err:
-                logger.warning(f"Approval queue submission failed for proposal #{proposal_id}: {approval_err}")
+        request_approval(
+            action_type="improvement_approve",
+            action_data={
+                "proposal_id": proposal_id,
+                "title": title,
+                "file_path": file_path,
+                "severity": severity,
+                "risk_level": risk_level,
+            },
+            reason=f"Auto-generated from Code Sentinel scan: {message[:100]}",
+            requested_by="scan_pipeline",
+            priority=approval_priority,
+            tier=approval_tier,
+        )
+    except Exception as approval_err:
+        logger.warning(f"Approval queue submission failed for proposal #{proposal_id}: {approval_err}")
 
-            return proposal_id
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            cur.close()
+    return proposal_id
 
 
 def _link_issue_to_proposal(scan_id, issue, proposal_id):
     """Set code_issues.proposal_id for the matching issue."""
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                """
-                UPDATE code_issues
-                SET proposal_id = %s
-                WHERE scan_id = %s
-                  AND COALESCE(line_number, 0) = %s
-                  AND issue_type = %s
-                  AND proposal_id IS NULL
-                """,
-                (
-                    proposal_id,
-                    scan_id,
-                    issue.get("line", 0),
-                    issue.get("type", "quality"),
-                ),
-            )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-        finally:
-            cur.close()
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE code_issues
+            SET proposal_id = %s
+            WHERE scan_id = %s
+              AND COALESCE(line_number, 0) = %s
+              AND issue_type = %s
+              AND proposal_id IS NULL
+            """,
+            (
+                proposal_id,
+                scan_id,
+                issue.get("line", 0),
+                issue.get("type", "quality"),
+            ),
+        )
 
 
 def _tag_issues_for_batch(scan_id, medium_issues):
@@ -220,28 +201,19 @@ def _tag_issues_for_batch(scan_id, medium_issues):
     Uses the code_issues.status field — sets to 'batch_eligible' for unlinked medium issues.
     Returns count of tagged issues.
     """
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                """
-                UPDATE code_issues
-                SET status = 'batch_eligible'
-                WHERE scan_id = %s
-                  AND severity = 'medium'
-                  AND proposal_id IS NULL
-                  AND status = 'open'
-                """,
-                (scan_id,),
-            )
-            count = cur.rowcount
-            conn.commit()
-            return count
-        except Exception:
-            conn.rollback()
-            return 0
-        finally:
-            cur.close()
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE code_issues
+            SET status = 'batch_eligible'
+            WHERE scan_id = %s
+              AND severity = 'medium'
+              AND proposal_id IS NULL
+              AND status = 'open'
+            """,
+            (scan_id,),
+        )
+        return cur.rowcount
 
 
 def batch_medium_issues():
@@ -250,24 +222,20 @@ def batch_medium_issues():
     Groups issues by file_path, creates one proposal per file.
     Called by the consciousness scheduler (Sunday 02:00).
     """
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute(
-                """
-                SELECT file_path, COUNT(*) as issue_count,
-                       array_agg(id) as issue_ids,
-                       array_agg(message) as messages
-                FROM code_issues
-                WHERE status = 'batch_eligible'
-                  AND proposal_id IS NULL
-                GROUP BY file_path
-                ORDER BY issue_count DESC
-                """
-            )
-            groups = cur.fetchall()
-        finally:
-            cur.close()
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """
+            SELECT file_path, COUNT(*) as issue_count,
+                   array_agg(id) as issue_ids,
+                   array_agg(message) as messages
+            FROM code_issues
+            WHERE status = 'batch_eligible'
+              AND proposal_id IS NULL
+            GROUP BY file_path
+            ORDER BY issue_count DESC
+            """
+        )
+        groups = cur.fetchall()
 
     if not groups:
         logger.info("Batch medium issues: no eligible issues found")
@@ -304,38 +272,30 @@ def batch_medium_issues():
                 }
             )
 
-            with get_db_connection() as conn:
-                cur = conn.cursor(cursor_factory=RealDictCursor)
-                try:
-                    cur.execute(
-                        """
-                        INSERT INTO improvement_proposals
-                        (title, category, description, rationale, priority, risk_level,
-                         status, metadata, collaboration_enabled)
-                        VALUES (%s, 'cleanup', %s, 'Weekly batch from Code Sentinel medium issues',
-                                'medium', 'low', 'pending', %s::jsonb, false)
-                        RETURNING id
-                        """,
-                        (title, description, metadata),
-                    )
-                    proposal_id = cur.fetchone()["id"]
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO improvement_proposals
+                    (title, category, description, rationale, priority, risk_level,
+                     status, metadata, collaboration_enabled)
+                    VALUES (%s, 'cleanup', %s, 'Weekly batch from Code Sentinel medium issues',
+                            'medium', 'low', 'pending', %s::jsonb, false)
+                    RETURNING id
+                    """,
+                    (title, description, metadata),
+                )
+                proposal_id = cur.fetchone()["id"]
 
-                    cur.execute(
-                        """
-                        UPDATE code_issues
-                        SET proposal_id = %s, status = 'open'
-                        WHERE id = ANY(%s)
-                        """,
-                        (proposal_id, issue_ids),
-                    )
-                    conn.commit()
-                    proposals_created += 1
-                    logger.info(f"Batch proposal #{proposal_id}: {issue_count} issues in {file_path}")
-                except Exception:
-                    conn.rollback()
-                    raise
-                finally:
-                    cur.close()
+                cur.execute(
+                    """
+                    UPDATE code_issues
+                    SET proposal_id = %s, status = 'open'
+                    WHERE id = ANY(%s)
+                    """,
+                    (proposal_id, issue_ids),
+                )
+                proposals_created += 1
+                logger.info(f"Batch proposal #{proposal_id}: {issue_count} issues in {file_path}")
 
         except Exception as e:
             logger.warning(f"Failed to batch issues for {group['file_path']}: {e}")

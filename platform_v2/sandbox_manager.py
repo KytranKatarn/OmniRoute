@@ -32,23 +32,27 @@ except ImportError:
 
 try:
     from sandbox_docker import DockerSandboxManager
-except ImportError:
+except ImportError as e:
     DockerSandboxManager = None
+    logger.info(f"DockerSandboxManager not available: {e}")
 
 try:
     from sandbox_schema import SchemaSandboxManager
-except ImportError:
+except ImportError as e:
     SchemaSandboxManager = None
+    logger.info(f"SchemaSandboxManager not available: {e}")
 
 try:
     from sandbox_test_runner import SandboxTestRunner
-except ImportError:
+except ImportError as e:
     SandboxTestRunner = None
+    logger.info(f"SandboxTestRunner not available: {e}")
 
 try:
     from sandbox_code_applicator import SandboxCodeApplicator
-except ImportError:
+except ImportError as e:
     SandboxCodeApplicator = None
+    logger.info(f"SandboxCodeApplicator not available: {e}")
 
 
 class SandboxManager:

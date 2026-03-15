@@ -637,27 +637,51 @@ class OrchestrationEngine:
         db_session_id = self._create_session(session_uuid, user_id, conversation_id)
 
         try:
-            # --- Step 1: Parse intent ---
-            intent = self._step_parse_intent(message, steps)
+            # --- Step 1: Parse intent (fast: keyword only, no LLM) ---
+            t0 = time.time()
+            intent = {"type": "conversation", "confidence": 0.5, "complexity": {"score": 3}}
+            parser = self._get_intent_parser()
+            if parser and hasattr(parser, "_quick_classify"):
+                try:
+                    quick = parser._quick_classify(message)
+                    if quick and quick.get("type"):
+                        intent = quick
+                        intent.setdefault("confidence", 0.7)
+                        intent.setdefault("complexity", {"score": 3})
+                except Exception:
+                    pass
+            steps.append(
+                ThinkingStep(
+                    step_type=StepType.INTENT_PARSE.value,
+                    label=f"Intent: {intent.get('type', 'conversation')} (fast)",
+                    data={
+                        "type": intent.get("type"),
+                        "confidence": round(intent.get("confidence", 0.5), 2),
+                        "fast_mode": True,
+                    },
+                    duration_ms=int((time.time() - t0) * 1000),
+                )
+            )
             intent_type = intent.get("type", "conversation")
 
-            # --- Step 1b: Language detection ---
+            # --- Step 1b: Language detection (DB pref only, no LLM call) ---
+            # Skips LLM-based detect_language() to keep preflight fast.
+            # The full orchestrate() path handles LLM detection + translation.
             detected_lang = "en"
             try:
                 conn = get_db()
                 cur = conn.cursor(cursor_factory=RealDictCursor)
                 try:
                     cur.execute(
-                        "SELECT language, auto_detect FROM user_language_preferences WHERE user_id = %s",
+                        "SELECT language FROM user_language_preferences WHERE user_id = %s",
                         (user_id,),
                     )
                     pref = cur.fetchone()
+                    if pref and pref.get("language"):
+                        detected_lang = pref["language"]
                 finally:
                     cur.close()
                     conn.close()
-                if pref and pref.get("auto_detect", True) and message:
-                    from translation_service import detect_language
-                    detected_lang = detect_language(message) or "en"
             except Exception:
                 pass
 
@@ -716,7 +740,7 @@ class OrchestrationEngine:
                             )
                         )
 
-            # --- Resolve model ---
+            # --- Resolve model (uses Bridge dispatcher roster) ---
             model_used = self._resolve_model(routing, gpu_info, intent)
 
             # --- Resolve Ollama URL via node_router ---

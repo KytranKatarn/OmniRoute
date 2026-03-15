@@ -98,6 +98,138 @@
         }
 
         {% block styles %}{% endblock %}
+
+        /* ── Global Profile Avatar Button ── */
+        .global-profile-btn {
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4af, #28d);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 9990;
+            border: 2px solid rgba(68,170,255,0.3);
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .global-profile-btn:hover {
+            transform: scale(1.1);
+            border-color: #4af;
+            box-shadow: 0 0 12px rgba(68,170,255,0.4);
+        }
+        .global-profile-initial {
+            color: #fff;
+            font-family: 'Antonio', sans-serif;
+            font-size: 1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            user-select: none;
+        }
+
+        /* ── Profile Modal ── */
+        .global-profile-modal {
+            position: fixed;
+            top: 56px;
+            right: 16px;
+            z-index: 9991;
+        }
+        .global-profile-modal-content {
+            background: #0d0d1a;
+            border: 1px solid #4af;
+            border-radius: 12px;
+            width: 280px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(68,170,255,0.15);
+            animation: profileSlideIn 0.2s ease;
+        }
+        @keyframes profileSlideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .global-profile-modal-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            border-bottom: 1px solid #223;
+            position: relative;
+        }
+        .global-profile-avatar-large {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4af, #28d);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .global-profile-avatar-large span {
+            color: #fff;
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.4rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .global-profile-info { flex: 1; }
+        .global-profile-name {
+            font-family: 'Antonio', sans-serif;
+            color: #4af;
+            font-size: 1rem;
+            text-transform: uppercase;
+        }
+        .global-profile-role {
+            font-size: 0.7rem;
+            color: #667;
+            text-transform: uppercase;
+        }
+        .global-profile-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            border: none;
+            color: #667;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 4px;
+        }
+        .global-profile-close:hover { color: #aab; }
+        .global-profile-modal-body { padding: 0.5rem; }
+        .global-profile-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0.75rem;
+            color: #aab;
+            text-decoration: none;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        .global-profile-link:hover {
+            background: rgba(68,170,255,0.08);
+            color: #4af;
+        }
+        .global-profile-link-icon {
+            width: 20px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .global-profile-divider {
+            height: 1px;
+            background: #223;
+            margin: 0.3rem 0.5rem;
+        }
+        .global-profile-logout:hover {
+            background: rgba(255,68,68,0.08);
+            color: #f44;
+        }
     </style>
 
     {% block extra_head %}{% endblock %}
@@ -294,6 +426,52 @@
     <script src="{{ url_for('static', filename='js/ops-alert-bar.js') }}"></script>
     {% endif %}
 
+    <!-- Global Profile Avatar Button -->
+    {% if current_user.is_authenticated %}
+    <div class="global-profile-btn" id="globalProfileBtn" onclick="toggleProfileModal()">
+        <span class="global-profile-initial">{{ current_user.username[0]|upper if current_user.username else 'U' }}</span>
+    </div>
+
+    <!-- Global Profile Modal -->
+    <div class="global-profile-modal" id="globalProfileModal" style="display:none;">
+        <div class="global-profile-modal-content">
+            <div class="global-profile-modal-header">
+                <div class="global-profile-avatar-large">
+                    <span>{{ current_user.username[0]|upper if current_user.username else 'U' }}</span>
+                </div>
+                <div class="global-profile-info">
+                    <div class="global-profile-name">{{ current_user.username }}</div>
+                    <div class="global-profile-role">{{ current_user.role if current_user.role else 'User' }}</div>
+                </div>
+                <button class="global-profile-close" onclick="toggleProfileModal()">&times;</button>
+            </div>
+            <div class="global-profile-modal-body">
+                <a href="/tools/my-profile" class="global-profile-link" onclick="toggleProfileModal()">
+                    <span class="global-profile-link-icon">👤</span>
+                    <span>My Profile</span>
+                </a>
+                <a href="/tools/my-profile#themes" class="global-profile-link" onclick="toggleProfileModal()">
+                    <span class="global-profile-link-icon">🎨</span>
+                    <span>Theme Settings</span>
+                </a>
+                <a href="/" class="global-profile-link" onclick="toggleProfileModal()">
+                    <span class="global-profile-link-icon">🏠</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/dev-hq" class="global-profile-link" onclick="toggleProfileModal()">
+                    <span class="global-profile-link-icon">🛠️</span>
+                    <span>Dev HQ</span>
+                </a>
+                <div class="global-profile-divider"></div>
+                <a href="/logout" class="global-profile-link global-profile-logout">
+                    <span class="global-profile-link-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -334,6 +512,32 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
+            }
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // GLOBAL PROFILE MODAL
+        // ═══════════════════════════════════════════════════════════════════════
+        function toggleProfileModal() {
+            var modal = document.getElementById('globalProfileModal');
+            if (modal) {
+                modal.style.display = modal.style.display === 'none' ? '' : 'none';
+            }
+        }
+        // Close on click outside
+        document.addEventListener('click', function(e) {
+            var modal = document.getElementById('globalProfileModal');
+            var btn = document.getElementById('globalProfileBtn');
+            if (modal && modal.style.display !== 'none' &&
+                btn && !modal.contains(e.target) && !btn.contains(e.target)) {
+                modal.style.display = 'none';
+            }
+        });
+        // Close on Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                var modal = document.getElementById('globalProfileModal');
+                if (modal) modal.style.display = 'none';
             }
         });
 

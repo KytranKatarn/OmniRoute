@@ -1115,7 +1115,7 @@ def api_dashboard_ai_status():
         services = {row["service_name"]: row["status"] for row in cur.fetchall()}
         cur.close()
         conn.close()
-        ai_online = all(s == "online" for s in services.values()) if services else True
+        ai_online = services.get("ai_bridge") == "online" and agent_count > 0
         return jsonify(
             {
                 "success": True,

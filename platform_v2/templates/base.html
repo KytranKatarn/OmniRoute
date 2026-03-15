@@ -458,6 +458,7 @@
     {% endif %}
 
     <!-- Global Profile Modal -->
+    {% if current_user.is_authenticated %}
     <div class="global-profile-modal" id="globalProfileModal" style="display:none;">
         <div class="global-profile-modal-content">
             <div class="global-profile-modal-header">

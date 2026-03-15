@@ -536,6 +536,31 @@
             }
         });
 
+        // Intercept nav bar profile avatar clicks (NOT modal links)
+        // Targets: cb-avatar clicks, lcars-bar profile links — but NOT links inside the modal
+        document.addEventListener('DOMContentLoaded', function() {
+            // Find all links to my-profile that are NOT inside the modal
+            document.querySelectorAll('a[href*="my-profile"]').forEach(function(link) {
+                if (link.closest('.global-profile-modal')) return; // skip modal links
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.toggleProfileModal();
+                });
+            });
+            // Also find cb-avatar elements (dashboard nav)
+            document.querySelectorAll('.cb-avatar').forEach(function(avatar) {
+                var parentLink = avatar.closest('a');
+                if (parentLink && !parentLink.closest('.global-profile-modal')) {
+                    parentLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.toggleProfileModal();
+                    });
+                }
+            });
+        });
+
         // ═══════════════════════════════════════════════════════════════════════
         // GLOBAL ADMIN NOTIFICATION SYSTEM
         // Cross-tab, cross-module notification bar for admin alerts

@@ -234,26 +234,29 @@ def pool_management_health_check() -> Dict:
 
 
 def archie_chat_health_check() -> Dict:
-    """Health check for ARCHIE chat"""
+    """Health check for ARCHIE chat — checks Bridge availability + agents"""
     try:
-        # Check Ollama connectivity
-        import requests
+        from database import get_db_cursor
 
-        ollama_url = "http://192.168.1.246:11434/api/tags"
-        response = requests.get(ollama_url, timeout=5)
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT status FROM service_status WHERE service_name = 'ai_bridge'")
+            row = cur.fetchone()
+            bridge_online = row and row["status"] == "online"
+            cur.execute("SELECT COUNT(*) as cnt FROM agents WHERE status = 'active'")
+            agent_count = cur.fetchone()["cnt"]
 
-        if response.status_code == 200:
+        if bridge_online and agent_count > 0:
             return {
                 "healthy": True,
                 "module_id": "archie_chat",
-                "message": "Chat operational, Ollama connected",
+                "message": f"Chat operational, Bridge online, {agent_count} agents",
                 "status": "healthy",
             }
         else:
             return {
                 "healthy": False,
                 "module_id": "archie_chat",
-                "message": f"Ollama returned status {response.status_code}",
+                "message": f"Bridge: {'online' if bridge_online else 'offline'}, Agents: {agent_count}",
                 "status": "degraded",
             }
     except Exception as e:

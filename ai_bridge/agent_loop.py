@@ -452,9 +452,23 @@ class AgentLoop:
             name="Agent Loop: Stock Price Updater",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._deduplicate_knowledge),
+            trigger=IntervalTrigger(hours=24),
+            id="knowledge_deduplication",
+            name="Agent Loop: Knowledge Deduplication",
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            with_app_context(self._index_claude_sessions),
+            trigger=IntervalTrigger(hours=12),
+            id="session_indexer",
+            name="Agent Loop: Claude Session Indexer",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 27 jobs")
+        logger.info("Agent loop started with 29 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -651,6 +665,52 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"Agent calendar/drive job failed: {e}")
 
+    def _deduplicate_knowledge(self):
+        """Job #28: Find and merge duplicate/overlapping knowledge entries."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Find entries with very similar titles (potential duplicates)
+                cur.execute("""
+                    SELECT a.id as id1, b.id as id2, a.title as title1, b.title as title2
+                    FROM knowledge_base a
+                    JOIN knowledge_base b ON a.id < b.id
+                    WHERE a.is_archived = false AND b.is_archived = false
+                    AND a.category = b.category
+                    AND similarity(a.title, b.title) > 0.7
+                    LIMIT 20
+                """)
+                dupes = cur.fetchall()
+
+                for dupe in dupes:
+                    # Keep the one with higher importance, archive the other
+                    cur.execute("""
+                        UPDATE knowledge_base SET is_archived = true
+                        WHERE id = (
+                            SELECT id FROM knowledge_base
+                            WHERE id IN (%s, %s)
+                            ORDER BY importance ASC, created_at ASC
+                            LIMIT 1
+                        )
+                    """, (dupe['id1'], dupe['id2']))
+
+                if dupes:
+                    logger.info(f"[Knowledge] Archived {len(dupes)} duplicate entries")
+        except Exception as e:
+            logger.error(f"[Knowledge] Deduplication error: {e}")
+
+    def _index_claude_sessions(self):
+        """Job #29: Index recent Claude conversation sessions into knowledge_base."""
+        try:
+            from services.session_indexer_service import index_recent_sessions
+
+            count = index_recent_sessions(max_sessions=5)
+            if count > 0:
+                logger.info(f"[Sessions] Indexed {count} Claude sessions")
+        except Exception as e:
+            logger.error(f"[Sessions] Indexing error: {e}")
+
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
         for job_id in [
@@ -680,6 +740,8 @@ class AgentLoop:
             "game_world_event_processor",
             "game_market_price_update",
             "agent_calendar_drive",
+            "knowledge_deduplication",
+            "session_indexer",
         ]:
             try:
                 self.scheduler.remove_job(job_id)

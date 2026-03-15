@@ -2198,7 +2198,7 @@ def _update_service_status():
 
                 # Check Ollama
                 try:
-                    r = req.get("http://host.docker.internal:11434/api/tags", timeout=3)
+                    r = req.get("http://archie_ollama:11434/api/tags", timeout=5)
                     status = "online" if r.status_code == 200 else "degraded"
                     cur.execute(
                         "UPDATE service_status SET status = %s, last_checked = NOW(), error_message = NULL WHERE service_name = 'ollama'",

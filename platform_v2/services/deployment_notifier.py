@@ -8,6 +8,14 @@ logger = logging.getLogger(__name__)
 def notify_deployment(module_name, change_type, details=""):
     """Send deployment notification via Telegram."""
     try:
+        from services.backup_integration_service import create_prechange_snapshot
+
+        # Create pre-change snapshot before deployment
+        create_prechange_snapshot(f"{change_type}: {module_name}")
+    except Exception as e:
+        logger.warning(f"[Deploy Notify] Pre-change snapshot failed: {e}")
+
+    try:
         from database import get_db_cursor
 
         message = f"*{change_type}*: {module_name}\n{details}"

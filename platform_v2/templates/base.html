@@ -132,8 +132,8 @@
         /* ── Profile Modal ── */
         .global-profile-modal {
             position: fixed;
-            top: 48px;
-            left: 16px;
+            top: 56px;
+            right: 16px;
             z-index: 9991;
         }
         .global-profile-modal-content {
@@ -426,7 +426,12 @@
     <script src="{{ url_for('static', filename='js/ops-alert-bar.js') }}"></script>
     {% endif %}
 
+    <!-- Global Profile Avatar Button -->
     {% if current_user.is_authenticated %}
+    <div class="global-profile-btn" id="globalProfileBtn" onclick="toggleProfileModal()">
+        <span class="global-profile-initial">{{ current_user.username[0]|upper if current_user.username else 'U' }}</span>
+    </div>
+
     <!-- Global Profile Modal -->
     <div class="global-profile-modal" id="globalProfileModal" style="display:none;">
         <div class="global-profile-modal-content">
@@ -513,7 +518,7 @@
         // ═══════════════════════════════════════════════════════════════════════
         // GLOBAL PROFILE MODAL
         // ═══════════════════════════════════════════════════════════════════════
-        window.toggleProfileModal = function() {
+        function toggleProfileModal() {
             var modal = document.getElementById('globalProfileModal');
             if (modal) {
                 modal.style.display = modal.style.display === 'none' ? '' : 'none';
@@ -534,31 +539,6 @@
                 var modal = document.getElementById('globalProfileModal');
                 if (modal) modal.style.display = 'none';
             }
-        });
-
-        // Intercept nav bar profile avatar clicks (NOT modal links)
-        // Targets: cb-avatar clicks, lcars-bar profile links — but NOT links inside the modal
-        document.addEventListener('DOMContentLoaded', function() {
-            // Find all links to my-profile that are NOT inside the modal
-            document.querySelectorAll('a[href*="my-profile"]').forEach(function(link) {
-                if (link.closest('.global-profile-modal')) return; // skip modal links
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    window.toggleProfileModal();
-                });
-            });
-            // Also find cb-avatar elements (dashboard nav)
-            document.querySelectorAll('.cb-avatar').forEach(function(avatar) {
-                var parentLink = avatar.closest('a');
-                if (parentLink && !parentLink.closest('.global-profile-modal')) {
-                    parentLink.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.toggleProfileModal();
-                    });
-                }
-            });
         });
 
         // ═══════════════════════════════════════════════════════════════════════

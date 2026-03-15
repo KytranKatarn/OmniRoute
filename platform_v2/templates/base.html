@@ -518,7 +518,7 @@
         // ═══════════════════════════════════════════════════════════════════════
         // GLOBAL PROFILE MODAL
         // ═══════════════════════════════════════════════════════════════════════
-        function toggleProfileModal() {
+        window.toggleProfileModal = function() {
             var modal = document.getElementById('globalProfileModal');
             if (modal) {
                 modal.style.display = modal.style.display === 'none' ? '' : 'none';

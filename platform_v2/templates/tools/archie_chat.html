@@ -2898,6 +2898,53 @@ body.font-large .messages-container{font-size:1.05rem}
 .search-result .sr-snippet mark{background:rgba(96,165,250,0.2);color:var(--archie-accent,#60a5fa);padding:0 2px;border-radius:2px}
 .search-result .sr-meta{font-size:.65rem;color:var(--archie-muted,#6b7280);margin-top:2px}
 .search-empty{text-align:center;padding:12px;color:var(--archie-muted,#6b7280);font-size:.8rem}
+
+/* ── Phase 10: Streaming + Markdown + Threads ── */
+.message.streaming .message-bubble::after {
+    content: '▊';
+    animation: blink 0.7s infinite;
+    color: var(--archie-accent, #60a5fa);
+    margin-left: 2px;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.message-bubble h1, .message-bubble h2, .message-bubble h3 {
+    color: var(--archie-accent, #60a5fa);
+    margin: 0.5em 0 0.3em;
+    font-family: 'Antonio', sans-serif;
+}
+.message-bubble h1 { font-size: 1.2em; }
+.message-bubble h2 { font-size: 1.05em; }
+.message-bubble h3 { font-size: 0.95em; }
+.message-bubble pre {
+    background: #0a0a1a;
+    border: 1px solid #223;
+    border-radius: 6px;
+    padding: 0.75rem;
+    overflow-x: auto;
+    position: relative;
+    margin: 0.5em 0;
+}
+.message-bubble code { font-family: 'IBM Plex Mono', monospace; font-size: 0.85em; }
+.message-bubble p code { background: rgba(255,255,255,0.08); padding: 0.15em 0.3em; border-radius: 3px; }
+.message-bubble ul, .message-bubble ol { padding-left: 1.5em; margin: 0.3em 0; }
+.message-bubble table { border-collapse: collapse; width: 100%; margin: 0.5em 0; font-size: 0.85em; }
+.message-bubble th, .message-bubble td { border: 1px solid #334; padding: 0.3em 0.5em; text-align: left; }
+.message-bubble th { background: rgba(96,165,250,0.1); color: var(--archie-accent, #60a5fa); }
+.message-bubble blockquote { border-left: 3px solid var(--archie-accent, #60a5fa); padding-left: 0.75em; margin: 0.5em 0; color: #889; }
+.copy-btn {
+    position: absolute; top: 4px; right: 4px;
+    padding: 2px 8px; background: rgba(255,255,255,0.1);
+    border: 1px solid #334; border-radius: 3px;
+    color: #aab; font-size: 0.7em; cursor: pointer;
+}
+.copy-btn:hover { background: rgba(255,255,255,0.2); }
+.p10-threads { border-top: 1px solid var(--archie-border,#2a3a4a); margin-top: 0.5rem; padding-top: 0.5rem; }
+.p10-threads-header { font-family: 'Antonio', sans-serif; text-transform: uppercase; color: var(--archie-accent, #60a5fa); font-size: 0.75rem; margin-bottom: 0.3rem; letter-spacing: .05em; }
+.p10-new-conv-btn { display: block; width: 100%; padding: 0.3rem; margin-bottom: 0.3rem; background: transparent; border: 1px dashed #334; color: #aab; font-size: 0.7rem; cursor: pointer; border-radius: 3px; text-align: center; }
+.p10-new-conv-btn:hover { border-color: var(--archie-accent, #60a5fa); color: var(--archie-accent, #60a5fa); }
+.p10-thread-item { padding: 0.3rem 0.5rem; font-size: 0.7rem; color: #aab; cursor: pointer; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p10-thread-item:hover { background: rgba(96,165,250,0.05); }
+.p10-thread-item.active { background: rgba(96,165,250,0.12); color: var(--archie-accent, #60a5fa); }
 {% endblock %}
 
 {% block content %}
@@ -3074,6 +3121,13 @@ body.font-large .messages-container{font-size:1.05rem}
                 </div>
                 <button class="set-more" onclick="openSettingsModal()"><span data-i18n="archie_chat.more_settings">More Settings...</span></button>
             </div>
+        </div>
+
+        <!-- Phase 10: Conversation Threads -->
+        <div class="p10-threads">
+            <div class="p10-threads-header">Conversations</div>
+            <button class="p10-new-conv-btn" onclick="p10NewConversation()">+ New Conversation</button>
+            <div id="p10-thread-list"></div>
         </div>
     </aside>
 
@@ -3844,83 +3898,199 @@ async function sendMessage(message) {
     if (!message.trim()) return;
 
     addMessage(message, true);
-    showTyping(true);
+    showTyping(false); // streaming shows its own indicator
 
     const sendBtn = document.getElementById('sendButton');
     sendBtn.disabled = true;
 
+    // Create streaming message bubble
+    const container = document.getElementById('messagesContainer');
+    const welcomeMsg = document.getElementById('welcomeMessage');
+    if (welcomeMsg) welcomeMsg.style.display = 'none';
+
+    const streamDiv = document.createElement('div');
+    streamDiv.className = 'message archie streaming';
+    streamDiv.id = 'p10-streaming-msg';
+
+    const avatarDiv = document.createElement('div');
+    avatarDiv.className = 'message-avatar';
+    avatarDiv.textContent = '\u{1F916}';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+
+    const bubbleDiv = document.createElement('div');
+    bubbleDiv.className = 'message-bubble';
+    bubbleDiv.id = 'p10-streaming-bubble';
+
+    contentDiv.appendChild(bubbleDiv);
+    streamDiv.appendChild(avatarDiv);
+    streamDiv.appendChild(contentDiv);
+
+    const typingMsg = document.getElementById('typingMessage');
+    container.insertBefore(streamDiv, typingMsg || null);
+    scrollToBottom();
+
+    var fullResponse = '';
+
     try {
-        const response = await fetch('/tools/archie-chat/api/command', {
+        var resp = await fetch('/tools/archie-chat/api/stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: message,
-                conversation_id: conversationId
-            })
+            body: JSON.stringify({ message: message, conversation_id: conversationId })
         });
 
-        const data = await response.json();
+        var reader = resp.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = '';
 
-        if (data.success) {
-            conversationId = data.conversation_id;
+        while (true) {
+            var result = await reader.read();
+            if (result.done) break;
 
-            // Phase 63: Check for multi-agent response
-            if (data.execution?.multi_agent && data.execution?.contributions) {
-                addMultiAgentMessage({
-                    response: data.response,
-                    participants: data.execution.participants || [],
-                    contributions: data.execution.contributions || [],
-                    discussion_id: data.execution.discussion_id,
-                    stations: data.execution.stations || [],
-                    domains: data.execution.domains || []
-                }, {
-                    duration: data.execution?.duration_ms
-                });
-            } else {
-                addMessage(data.response, false, {
-                    intent: data.intent,
-                    agent: data.execution?.agent_used,
-                    model: data.execution?.model,
-                    duration: data.execution?.duration_ms,
-                    escalation: data.escalation
-                });
-            }
+            buffer += decoder.decode(result.value, { stream: true });
+            var lines = buffer.split('\n');
+            buffer = lines.pop();
 
-            // Phase 9: Auto-speak on response
-            if (_chatSettings.voiceAutoSpeak !== false && voiceConfig.enabled && typeof speakResponse === 'function') {
-                speakResponse(data.response);
-            }
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].trim();
+                if (!line.startsWith('data: ')) continue;
+                var raw = line.substring(6);
+                if (raw === '[DONE]') continue;
 
-            // Update escalation status
-            if (data.escalation?.requested) {
-                document.getElementById('escalationStatus').style.display = 'flex';
-            }
+                try {
+                    var parsed = JSON.parse(raw);
 
-            // Update recent commands in sidebar
-            updateRecentCommand(message, data.intent?.type);
-        } else {
-            // Check if fallback actions are available
-            if (data.fallback_available && data.suggested_modules && data.suggested_modules.length > 0) {
-                addMessageWithActions(
-                    'Sorry, I encountered an error: ' + (data.error || 'Unknown error'),
-                    data.suggested_modules
-                );
-            } else {
-                addMessage('Sorry, I encountered an error: ' + (data.error || 'Unknown error'), false);
+                    if (parsed.token) {
+                        fullResponse += parsed.token;
+                        // SAFE: marked.js output rendered into owned bubble
+                        bubbleDiv.innerHTML = renderMarkdown(fullResponse);
+                        scrollToBottom();
+                    }
+
+                    if (parsed.done) {
+                        // SAFE: marked.js output rendered into owned bubble
+                        bubbleDiv.innerHTML = renderMarkdown(fullResponse);
+                        streamDiv.classList.remove('streaming');
+                        document.querySelectorAll('#p10-streaming-bubble pre code').forEach(function(block) {
+                            if (typeof hljs !== 'undefined') hljs.highlightElement(block);
+                        });
+                        addCopyButtons(bubbleDiv);
+                        streamDiv.removeAttribute('id');
+                        bubbleDiv.removeAttribute('id');
+                        if (_chatSettings && _chatSettings.voiceAutoSpeak !== false && voiceConfig && voiceConfig.enabled && typeof speakResponse === 'function') {
+                            speakResponse(fullResponse);
+                        }
+                    }
+
+                    if (parsed.conversation_id) {
+                        conversationId = parsed.conversation_id;
+                        p10LoadThreads();
+                        updateRecentCommand(message, 'chat');
+                    }
+
+                    if (parsed.error) {
+                        bubbleDiv.textContent = 'Error: ' + parsed.error;
+                        streamDiv.classList.remove('streaming');
+                    }
+                } catch (e) { /* ignore parse errors */ }
             }
         }
-    } catch (error) {
-        console.error('Error:', error);
-        // Network errors show default action buttons
-        addMessageWithActions(
-            'Sorry, I had trouble connecting. Please try again.',
-            ['dev_pipeline', 'blueprint']
-        );
+    } catch (err) {
+        bubbleDiv.textContent = 'Connection error: ' + err.message;
+        streamDiv.classList.remove('streaming');
     } finally {
-        showTyping(false);
         sendBtn.disabled = false;
         document.getElementById('messageInput').focus();
     }
+}
+
+// Phase 10: Markdown renderer
+function renderMarkdown(text) {
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({ breaks: true, gfm: true });
+        return marked.parse(text);
+    }
+    return text.replace(/\n/g, '<br>');
+}
+
+function addCopyButtons(container) {
+    (container || document).querySelectorAll('pre').forEach(function(pre) {
+        if (pre.querySelector('.copy-btn')) return;
+        var btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.textContent = 'Copy';
+        btn.onclick = function() {
+            var code = pre.querySelector('code');
+            navigator.clipboard.writeText(code ? code.textContent : pre.textContent);
+            btn.textContent = 'Copied!';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+        };
+        pre.appendChild(btn);
+    });
+}
+
+// Phase 10: Thread sidebar
+function p10LoadThreads() {
+    fetch('/tools/archie-chat/api/conversations/threads')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var list = document.getElementById('p10-thread-list');
+            if (!list) return;
+            list.textContent = '';
+            (data.threads || []).forEach(function(t) {
+                var item = document.createElement('div');
+                item.className = 'p10-thread-item';
+                if (conversationId === t.conversation_id) item.classList.add('active');
+                item.title = t.title || 'Untitled';
+                item.textContent = t.title || 'Untitled';
+                item.onclick = function() { p10LoadConversation(t.conversation_id); };
+                list.appendChild(item);
+            });
+        }).catch(function() {});
+}
+
+function p10LoadConversation(convId) {
+    conversationId = convId;
+    fetch('/tools/archie-chat/api/conversations/' + convId + '/messages')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var cont = document.getElementById('messagesContainer');
+            cont.textContent = '';
+            (data.messages || []).forEach(function(m) {
+                addMessage(m.user_message, true);
+                var msgDiv = document.createElement('div');
+                msgDiv.className = 'message archie';
+                var av = document.createElement('div');
+                av.className = 'message-avatar';
+                av.textContent = '\u{1F916}';
+                var cd = document.createElement('div');
+                cd.className = 'message-content';
+                var bd = document.createElement('div');
+                bd.className = 'message-bubble';
+                // SAFE: marked.js output for owned AI response content
+                bd.innerHTML = renderMarkdown(m.assistant_response || '');
+                cd.appendChild(bd);
+                msgDiv.appendChild(av);
+                msgDiv.appendChild(cd);
+                cont.appendChild(msgDiv);
+                addCopyButtons(bd);
+            });
+            if (typeof hljs !== 'undefined') {
+                cont.querySelectorAll('pre code').forEach(function(b) { hljs.highlightElement(b); });
+            }
+            scrollToBottom();
+            p10LoadThreads();
+        }).catch(function() {});
+}
+
+function p10NewConversation() {
+    conversationId = null;
+    var cont = document.getElementById('messagesContainer');
+    if (cont) cont.textContent = '';
+    var welcomeMsg = document.getElementById('welcomeMessage');
+    if (welcomeMsg) welcomeMsg.style.display = '';
+    p10LoadThreads();
 }
 
 // Form submission
@@ -5093,6 +5263,7 @@ function updateSetting(key, value) {
 }
 
 loadSettings();
+p10LoadThreads();
 
 var _settingsOverlay = document.getElementById('settings-modal-overlay');
 if (_settingsOverlay) {
@@ -5231,4 +5402,7 @@ function clearSearchResults() {
 </script>
 <script src="/static/js/collaboration.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 {% endblock %}

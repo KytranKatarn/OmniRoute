@@ -1,1942 +1,585 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
-{% block title %}Pool Management - Admin Tools{% endblock %}
+{% block title %}Pool Management — Admin{% endblock %}
+{% block module_name %}pool_management{% endblock %}
 
-{% block module_name %}pool-management{% endblock %}
-
-{% block styles %}
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+{% block extra_css %}
 <style>
-    /* Custom vars removed — using --archie-* design tokens from theme.css */
-
-    .pool-admin-container {
-        min-height: 100vh;
-        background: var(--archie-bg-void);
-        background-image:
-            radial-gradient(ellipse at 20% 80%, rgba(239, 68, 68, 0.08) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 20%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
-            linear-gradient(rgba(239, 68, 68, 0.02) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(239, 68, 68, 0.02) 1px, transparent 1px);
-        background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
-    }
-
-    .admin-content {
-        padding-top: 70px;
-    }
-
-    .admin-header {
-        padding: 20px 30px;
-        border-bottom: 1px solid var(--archie-red-alpha-20);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .admin-header h1 {
-        font-family: 'Orbitron', sans-serif;
-        font-size: 1.8rem;
-        color: var(--archie-red);
-        text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .live-indicator {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.75rem;
-        color: var(--archie-success);
-        background: rgba(34, 197, 94, 0.1);
-        padding: 6px 12px;
-        border-radius: 20px;
-        border: 1px solid rgba(34, 197, 94, 0.3);
-    }
-
-    .live-dot {
-        width: 8px;
-        height: 8px;
-        background: var(--archie-success);
-        border-radius: 50%;
-        animation: pulse 2s infinite;
-    }
-
-    .main-layout {
-        display: grid;
-        grid-template-columns: 220px 1fr;
-        min-height: calc(100vh - 130px);
-    }
-
-    /* Sidebar Navigation */
-    .sidebar {
-        background: var(--archie-bg-secondary);
-        border-right: 1px solid var(--archie-red-alpha-20);
-        padding: 20px 0;
-    }
-
-    .sidebar-section {
-        margin-bottom: 24px;
-    }
-
-    .sidebar-title {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.65rem;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        color: var(--archie-text-muted);
-        padding: 0 20px;
-        margin-bottom: 8px;
-    }
-
-    .nav-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 20px;
-        color: var(--archie-text-tertiary);
-        cursor: pointer;
-        transition: all 0.2s ease;
-        border-left: 3px solid transparent;
-        font-size: 0.9rem;
-    }
-
-    .nav-item:hover {
-        background: rgba(239, 68, 68, 0.05);
-        color: var(--archie-text-secondary);
-    }
-
-    .nav-item.active {
-        background: rgba(239, 68, 68, 0.1);
-        color: var(--archie-red);
-        border-left-color: var(--archie-red);
-    }
-
-    .nav-item i {
-        width: 20px;
-        height: 20px;
-    }
-
-    .nav-badge {
-        margin-left: auto;
-        background: var(--archie-red);
-        color: white;
-        font-size: 0.7rem;
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* Main Content */
-    .content-area {
-        padding: 24px;
-        overflow-y: auto;
-    }
-
-    .tab-content {
-        display: none;
-    }
-
-    .tab-content.active {
-        display: block;
-    }
-
-    /* Stats Cards */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
-    }
-
-    .stat-card {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 12px;
-        padding: 20px;
-        transition: all 0.3s ease;
-    }
-
-    .stat-card:hover {
-        border-color: rgba(239, 68, 68, 0.5);
-        box-shadow: 0 0 30px rgba(239, 68, 68, 0.1);
-    }
-
-    .stat-card .label {
-        font-size: 0.75rem;
-        color: var(--archie-text-muted);
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 8px;
-    }
-
-    .stat-card .value {
-        font-family: 'Orbitron', sans-serif;
-        font-size: 1.8rem;
-        color: var(--archie-text-secondary);
-        margin-bottom: 4px;
-    }
-
-    .stat-card .change {
-        font-size: 0.8rem;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    .stat-card .change.positive { color: var(--archie-success); }
-    .stat-card .change.negative { color: var(--archie-red); }
-
-    .stat-card.accent-red { border-left: 4px solid var(--archie-red); }
-    .stat-card.accent-cyan { border-left: 4px solid var(--archie-cyan); }
-    .stat-card.accent-green { border-left: 4px solid var(--archie-success); }
-    .stat-card.accent-orange { border-left: 4px solid var(--archie-orange); }
-
-    /* Data Tables */
-    .data-section {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 12px;
-        overflow: hidden;
-        margin-bottom: 24px;
-    }
-
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--archie-red-alpha-20);
-    }
-
-    .section-header h3 {
-        font-family: 'Orbitron', sans-serif;
-        font-size: 1rem;
-        color: var(--archie-cyan);
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .section-actions {
-        display: flex;
-        gap: 8px;
-    }
-
-    .search-box {
-        background: var(--archie-bg-void);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 8px;
-        padding: 8px 12px;
-        color: var(--archie-text-secondary);
-        font-size: 0.85rem;
-        width: 200px;
-        transition: border-color 0.2s;
-    }
-
-    .search-box:focus {
-        outline: none;
-        border-color: var(--archie-red);
-    }
-
-    .btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 16px;
-        border-radius: 8px;
-        font-size: 0.85rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        border: none;
-    }
-
-    .btn-primary {
-        background: var(--archie-red);
-        color: white;
-    }
-
-    .btn-primary:hover {
-        background: #DC2626;
-        box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
-    }
-
-    .btn-secondary {
-        background: transparent;
-        border: 1px solid var(--archie-red-alpha-20);
-        color: var(--archie-text-tertiary);
-    }
-
-    .btn-secondary:hover {
-        border-color: var(--archie-red);
-        color: var(--archie-text-secondary);
-    }
-
-    .btn-success {
-        background: var(--archie-success);
-        color: white;
-    }
-
-    .btn-warning {
-        background: var(--archie-orange);
-        color: white;
-    }
-
-    .btn-danger {
-        background: #DC2626;
-        color: white;
-    }
-
-    .btn-sm {
-        padding: 4px 10px;
-        font-size: 0.75rem;
-    }
-
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .data-table th {
-        text-align: left;
-        padding: 12px 16px;
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        color: var(--archie-text-muted);
-        background: rgba(0, 0, 0, 0.2);
-        border-bottom: 1px solid var(--archie-red-alpha-20);
-    }
-
-    .data-table td {
-        padding: 14px 16px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        font-size: 0.85rem;
-        color: var(--archie-text-tertiary);
-    }
-
-    .data-table tr:hover {
-        background: rgba(239, 68, 68, 0.03);
-    }
-
-    .data-table .mono {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.8rem;
-    }
-
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 500;
-    }
-
-    .status-badge.online { background: rgba(34, 197, 94, 0.2); color: var(--archie-success); }
-    .status-badge.offline { background: rgba(239, 68, 68, 0.2); color: var(--archie-red); }
-    .status-badge.pending { background: rgba(234, 179, 8, 0.2); color: var(--archie-warning); }
-    .status-badge.confirmed { background: rgba(34, 197, 94, 0.2); color: var(--archie-success); }
-    .status-badge.orphaned { background: rgba(239, 68, 68, 0.2); color: var(--archie-red); }
-    .status-badge.processing { background: rgba(0, 255, 255, 0.2); color: var(--archie-cyan); }
-
-    .wallet-address {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.75rem;
-        color: var(--archie-cyan);
-        cursor: pointer;
-    }
-
-    .wallet-address:hover {
-        text-decoration: underline;
-    }
-
-    /* Charts Container */
-    .chart-container {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 24px;
-    }
-
-    .chart-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 16px;
-    }
-
-    .chart-header h3 {
-        font-family: 'Orbitron', sans-serif;
-        font-size: 1rem;
-        color: var(--archie-cyan);
-        margin: 0;
-    }
-
-    .chart-tabs {
-        display: flex;
-        gap: 8px;
-    }
-
-    .chart-tab {
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 0.75rem;
-        color: var(--archie-text-tertiary);
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .chart-tab:hover, .chart-tab.active {
-        background: rgba(239, 68, 68, 0.1);
-        color: var(--archie-red);
-    }
-
-    #hashrateChart, #revenueChart, #minersChart {
-        height: 250px;
-        width: 100%;
-    }
-
-    /* Settings Form */
-    .settings-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 20px;
-    }
-
-    .settings-card {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 12px;
-        padding: 20px;
-    }
-
-    .settings-card h4 {
-        font-family: 'Orbitron', sans-serif;
-        font-size: 0.9rem;
-        color: var(--archie-cyan);
-        margin: 0 0 16px 0;
-        padding-bottom: 12px;
-        border-bottom: 1px solid var(--archie-red-alpha-20);
-    }
-
-    .form-group {
-        margin-bottom: 16px;
-    }
-
-    .form-group label {
-        display: block;
-        font-size: 0.8rem;
-        color: var(--archie-text-muted);
-        margin-bottom: 6px;
-    }
-
-    .form-group input, .form-group select {
-        width: 100%;
-        background: var(--archie-bg-void);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 8px;
-        padding: 10px 12px;
-        color: var(--archie-text-secondary);
-        font-size: 0.9rem;
-    }
-
-    .form-group input:focus, .form-group select:focus {
-        outline: none;
-        border-color: var(--archie-red);
-    }
-
-    .form-row {
-        display: flex;
-        gap: 12px;
-    }
-
-    .form-row .form-group {
-        flex: 1;
-    }
-
-    /* Services Grid */
-    .services-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 16px;
-    }
-
-    .service-card {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 12px;
-        padding: 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .service-info {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .service-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.2rem;
-    }
-
-    .service-icon.running { background: rgba(34, 197, 94, 0.2); color: var(--archie-success); }
-    .service-icon.stopped { background: rgba(239, 68, 68, 0.2); color: var(--archie-red); }
-
-    .service-details h4 {
-        margin: 0;
-        font-size: 0.95rem;
-        color: var(--archie-text-secondary);
-    }
-
-    .service-details p {
-        margin: 4px 0 0 0;
-        font-size: 0.75rem;
-        color: var(--archie-text-muted);
-    }
-
-    /* Quick Actions */
-    .quick-actions {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-bottom: 24px;
-    }
-
-    .action-card {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 12px;
-        padding: 16px 24px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    .action-card:hover {
-        border-color: var(--archie-red);
-        transform: translateY(-2px);
-    }
-
-    .action-card i {
-        color: var(--archie-red);
-    }
-
-    .action-card span {
-        font-size: 0.9rem;
-        color: var(--archie-text-secondary);
-    }
-
-    /* Modal */
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.8);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-    }
-
-    .modal-overlay.active {
-        display: flex;
-    }
-
-    .modal {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 16px;
-        width: 90%;
-        max-width: 500px;
-        max-height: 80vh;
-        overflow-y: auto;
-    }
-
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px;
-        border-bottom: 1px solid var(--archie-red-alpha-20);
-    }
-
-    .modal-header h3 {
-        margin: 0;
-        font-family: 'Orbitron', sans-serif;
-        font-size: 1.1rem;
-        color: var(--archie-cyan);
-    }
-
-    .modal-close {
-        background: none;
-        border: none;
-        color: var(--archie-text-muted);
-        cursor: pointer;
-        font-size: 1.5rem;
-    }
-
-    .modal-body {
-        padding: 20px;
-    }
-
-    .modal-footer {
-        padding: 16px 20px;
-        border-top: 1px solid var(--archie-red-alpha-20);
-        display: flex;
-        justify-content: flex-end;
-        gap: 12px;
-    }
-
-    /* Empty State */
-    .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: var(--archie-text-muted);
-    }
-
-    .empty-state i {
-        font-size: 3rem;
-        margin-bottom: 16px;
-        opacity: 0.5;
-    }
-
-    .empty-state h4 {
-        margin: 0 0 8px 0;
-        color: var(--archie-text-tertiary);
-    }
-
-    .empty-state p {
-        margin: 0;
-        font-size: 0.9rem;
-    }
-
-    /* Loading Spinner */
-    .loading {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 40px;
-    }
-
-    .spinner {
-        width: 40px;
-        height: 40px;
-        border: 3px solid var(--archie-red-alpha-20);
-        border-top-color: var(--archie-red);
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-
-    /* Toast Notifications */
-    .toast-container {
-        position: fixed;
-        top: 80px;
-        right: 20px;
-        z-index: 1100;
-    }
-
-    .toast {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-red-alpha-20);
-        border-radius: 8px;
-        padding: 12px 20px;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        animation: slideIn 0.3s ease;
-    }
-
-    .toast.success { border-left: 4px solid var(--archie-success); }
-    .toast.error { border-left: 4px solid var(--archie-red); }
-    .toast.warning { border-left: 4px solid var(--archie-orange); }
-
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-
-    /* Responsive */
-    @media (max-width: 1024px) {
-        .main-layout {
-            grid-template-columns: 1fr;
-        }
-        .sidebar {
-            display: none;
-        }
-    }
+:root {
+  --pm-accent: #ff4444;
+  --pm-accent-dim: rgba(255, 68, 68, 0.12);
+  --pm-accent-border: rgba(255, 68, 68, 0.32);
+  --pm-surface: rgba(255, 68, 68, 0.04);
+  --pm-border: rgba(255, 68, 68, 0.16);
+  --pm-text: #e8d8d8;
+  --pm-muted: #8a6060;
+  --pm-green: #44ff88;
+  --pm-orange: #ffaa00;
+  --pm-yellow: #ffee44;
+}
+.pm-container { max-width: 1500px; margin: 0 auto; padding: 80px 24px 40px; }
+.pm-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+.pm-title { font-family: 'Orbitron', sans-serif; font-size: 1.7rem; font-weight: 700; color: var(--pm-accent); letter-spacing: 0.1em; display: flex; align-items: center; gap: 10px; margin: 0; }
+.pm-subtitle { font-family: 'JetBrains Mono', monospace; font-size: 0.77rem; color: var(--pm-muted); margin: 4px 0 0; }
+.pm-admin-badge { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border: 1px solid var(--pm-accent-border); background: var(--pm-accent-dim); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; color: var(--pm-accent); }
+.pm-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.pm-stat-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-top: 2px solid rgba(255,68,68,0.5); border-radius: 5px; padding: 14px 16px; }
+.pm-stat-label { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--pm-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.pm-stat-value { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; font-weight: 600; color: var(--pm-accent); line-height: 1; }
+.pm-stat-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.67rem; color: var(--pm-muted); margin-top: 5px; }
+.pm-tabs { display: flex; gap: 2px; margin-bottom: 18px; border-bottom: 1px solid var(--pm-border); flex-wrap: wrap; }
+.pm-tab { padding: 10px 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--pm-muted); background: none; border: none; cursor: pointer; position: relative; transition: color 0.2s; white-space: nowrap; }
+.pm-tab::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--pm-accent); transform: scaleX(0); transition: transform 0.2s; }
+.pm-tab:hover { color: var(--pm-text); }
+.pm-tab.active { color: var(--pm-accent); }
+.pm-tab.active::after { transform: scaleX(1); }
+.pm-panel { display: none; }
+.pm-panel.active { display: block; }
+.pm-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 5px; padding: 18px 20px; margin-bottom: 14px; }
+.pm-card-title { font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: var(--pm-accent); letter-spacing: 0.06em; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--pm-border); display: flex; align-items: center; justify-content: space-between; }
+.pm-chart-ph { height: 100px; display: flex; align-items: center; justify-content: center; background: repeating-linear-gradient(90deg, transparent 0, transparent 19px, rgba(255,68,68,0.04) 19px, rgba(255,68,68,0.04) 20px); border: 1px dashed var(--pm-border); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; color: var(--pm-muted); }
+.pm-table-wrap { overflow-x: auto; }
+.pm-table { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+.pm-table th { text-align: left; padding: 7px 11px; color: var(--pm-muted); border-bottom: 1px solid var(--pm-border); font-weight: 400; text-transform: uppercase; font-size: 0.67rem; letter-spacing: 0.07em; white-space: nowrap; }
+.pm-table td { padding: 9px 11px; color: var(--pm-text); border-bottom: 1px solid rgba(255,68,68,0.05); }
+.pm-table tbody tr:hover { background: rgba(255,68,68,0.03); }
+.pm-accent-cell { color: var(--pm-accent) !important; }
+.pm-hash { color: var(--pm-muted) !important; font-size: 0.74rem; }
+.pm-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; font-weight: 500; }
+.pm-badge-ok      { background: rgba(68,255,136,0.15); color: var(--pm-green); border: 1px solid rgba(68,255,136,0.3); }
+.pm-badge-warn    { background: rgba(255,170,0,0.15);  color: var(--pm-orange); border: 1px solid rgba(255,170,0,0.3); }
+.pm-badge-err     { background: rgba(255,68,68,0.15);  color: var(--pm-accent); border: 1px solid var(--pm-accent-border); }
+.pm-badge-pending { background: rgba(255,238,68,0.12); color: var(--pm-yellow); border: 1px solid rgba(255,238,68,0.3); }
+.pm-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--pm-accent-dim); border: 1px solid var(--pm-accent-border); border-radius: 4px; color: var(--pm-accent); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+.pm-btn:hover { background: rgba(255,68,68,0.22); }
+.pm-btn-sm { padding: 4px 10px; font-size: 0.72rem; }
+.pm-btn-green { color: var(--pm-green); border-color: rgba(68,255,136,0.3); background: rgba(68,255,136,0.08); }
+.pm-btn-green:hover { background: rgba(68,255,136,0.18); }
+.pm-btn-warn { color: var(--pm-orange); border-color: rgba(255,170,0,0.3); background: rgba(255,170,0,0.08); }
+.pm-btn-warn:hover { background: rgba(255,170,0,0.18); }
+.pm-input { width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--pm-border); border-radius: 4px; color: var(--pm-text); font-family: 'JetBrains Mono', monospace; font-size: 0.83rem; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+.pm-input:focus { border-color: var(--pm-accent); }
+.pm-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.pm-field label { display: block; font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--pm-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+.pm-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.pm-empty { text-align: center; padding: 34px; color: var(--pm-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.77rem; }
+.pm-services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.pm-svc-card { background: var(--pm-surface); border: 1px solid var(--pm-border); border-radius: 5px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.pm-svc-name { font-family: 'Orbitron', sans-serif; font-size: 0.78rem; color: var(--pm-text); }
+.pm-svc-row { display: flex; align-items: center; justify-content: space-between; }
+.pm-svc-uptime { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--pm-muted); }
+/* Modal */
+.pm-modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
+.pm-modal-bg.open { display: flex; }
+.pm-modal { background: #0e0a0a; border: 1px solid var(--pm-accent-border); border-radius: 6px; padding: 24px; max-width: 520px; width: 90%; }
+.pm-modal-title { font-family: 'Orbitron', sans-serif; font-size: 0.9rem; color: var(--pm-accent); margin: 0 0 16px; }
+.pm-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+@media (max-width: 768px) {
+  .pm-container { padding: 76px 14px 30px; }
+  .pm-stats { grid-template-columns: repeat(2, 1fr); }
+  .pm-title { font-size: 1.2rem; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="pool-admin-container">
-    {% include 'includes/admin_tools_nav.html' %}
+{% include 'includes/standalone_apps_nav.html' %}
 
-    <div class="admin-content">
-        <div class="admin-header">
-            <h1>
-                <i data-lucide="database"></i>
-                POOL MANAGEMENT
-            </h1>
-            <div class="live-indicator">
-                <span class="live-dot"></span>
-                <span id="lastUpdate"><span data-i18n="pool_management.connecting">Connecting...</span></span>
-            </div>
-        </div>
+<div class="pm-container">
 
-        <div class="main-layout">
-            <!-- Sidebar Navigation -->
-            <nav class="sidebar">
-                <div class="sidebar-section">
-                    <div class="sidebar-title"><span data-i18n="pool_management.overview">Overview</span></div>
-                    <div class="nav-item active" data-tab="dashboard">
-                        <i data-lucide="layout-dashboard"></i>
-                        Dashboard
-                    </div>
-                    <div class="nav-item" data-tab="miners">
-                        <i data-lucide="users"></i>
-                        Miners
-                        <span class="nav-badge" id="minerCount">0</span>
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-title"><span data-i18n="pool_management.operations">Operations</span></div>
-                    <div class="nav-item" data-tab="blocks">
-                        <i data-lucide="box"></i>
-                        Blocks
-                    </div>
-                    <div class="nav-item" data-tab="payouts">
-                        <i data-lucide="wallet"></i>
-                        Payouts
-                        <span class="nav-badge" id="pendingPayouts">0</span>
-                    </div>
-                    <div class="nav-item" data-tab="conversions">
-                        <i data-lucide="repeat"></i>
-                        Conversions
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-title"><span data-i18n="pool_management.insights">Insights</span></div>
-                    <div class="nav-item" data-tab="analytics">
-                        <i data-lucide="bar-chart-3"></i>
-                        Analytics
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-title"><span data-i18n="pool_management.system">System</span></div>
-                    <div class="nav-item" data-tab="services">
-                        <i data-lucide="server"></i>
-                        Services
-                    </div>
-                    <div class="nav-item" data-tab="settings">
-                        <i data-lucide="settings"></i>
-                        Settings
-                    </div>
-                </div>
-            </nav>
-
-            <!-- Main Content Area -->
-            <main class="content-area">
-                <!-- Dashboard Tab -->
-                <div id="dashboard" class="tab-content active">
-                    <div class="stats-grid">
-                        <div class="stat-card accent-red">
-                            <div class="label"><span data-i18n="pool_management.pool_hashrate">Pool Hashrate</span></div>
-                            <div class="value" id="poolHashrate">--</div>
-                            <div class="change positive" id="hashrateChange">
-                                <i data-lucide="trending-up"></i> +0%
-                            </div>
-                        </div>
-                        <div class="stat-card accent-cyan">
-                            <div class="label"><span data-i18n="pool_management.active_miners">Active Miners</span></div>
-                            <div class="value" id="activeMiners">--</div>
-                            <div class="change positive" id="minersChange">
-                                <i data-lucide="trending-up"></i> +0
-                            </div>
-                        </div>
-                        <div class="stat-card accent-green">
-                            <div class="label"><span data-i18n="pool_management.blocks_24h">Blocks (24h)</span></div>
-                            <div class="value" id="blocksFound">--</div>
-                            <div class="change" id="blocksEff"><span data-i18n="pool_management.efficiency">Efficiency: --%</span></div>
-                        </div>
-                        <div class="stat-card accent-orange">
-                            <div class="label"><span data-i18n="pool_management.pool_luck">Pool Luck</span></div>
-                            <div class="value" id="poolLuck">--%</div>
-                            <div class="change" id="luckStatus">--</div>
-                        </div>
-                    </div>
-
-                    <div class="quick-actions">
-                        <div class="action-card" onclick="triggerPayouts()">
-                            <i data-lucide="send"></i>
-                            <span><span data-i18n="pool_management.process_payouts">Process Payouts</span></span>
-                        </div>
-                        <div class="action-card" onclick="showTab('conversions')">
-                            <i data-lucide="repeat"></i>
-                            <span><span data-i18n="pool_management.conversion_queue">Conversion Queue</span></span>
-                        </div>
-                        <div class="action-card" onclick="restartService('stratum')">
-                            <i data-lucide="refresh-cw"></i>
-                            <span><span data-i18n="pool_management.restart_stratum">Restart Stratum</span></span>
-                        </div>
-                        <div class="action-card" onclick="showTab('settings')">
-                            <i data-lucide="sliders"></i>
-                            <span><span data-i18n="pool_management.pool_settings">Pool Settings</span></span>
-                        </div>
-                    </div>
-
-                    <div class="chart-container">
-                        <div class="chart-header">
-                            <h3><i data-lucide="activity"></i><span data-i18n="pool_management.pool_hashrate_2"> Pool Hashrate</span></h3>
-                            <div class="chart-tabs">
-                                <span class="chart-tab active" data-range="24h">24H</span>
-                                <span class="chart-tab" data-range="7d">7D</span>
-                                <span class="chart-tab" data-range="30d">30D</span>
-                            </div>
-                        </div>
-                        <canvas id="hashrateChart"></canvas>
-                    </div>
-
-                    <div class="data-section">
-                        <div class="section-header">
-                            <h3><i data-lucide="box"></i><span data-i18n="pool_management.recent_blocks"> Recent Blocks</span></h3>
-                            <button class="btn btn-secondary btn-sm" onclick="showTab('blocks')"><span data-i18n="pool_management.view_all">View All</span></button>
-                        </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th><span data-i18n="pool_management.height">Height</span></th>
-                                    <th><span data-i18n="pool_management.hash">Hash</span></th>
-                                    <th><span data-i18n="pool_management.finder">Finder</span></th>
-                                    <th><span data-i18n="pool_management.reward">Reward</span></th>
-                                    <th><span data-i18n="pool_management.status">Status</span></th>
-                                    <th><span data-i18n="pool_management.time">Time</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="recentBlocksTable">
-                                <tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Miners Tab -->
-                <div id="miners" class="tab-content">
-                    <div class="data-section">
-                        <div class="section-header">
-                            <h3><i data-lucide="users"></i><span data-i18n="pool_management.active_miners_2"> Active Miners</span></h3>
-                            <div class="section-actions">
-                                <input type="text" class="search-box" id="minerSearch" placeholder="Search wallet...">
-                                <button class="btn btn-secondary btn-sm" onclick="refreshMiners()">
-                                    <i data-lucide="refresh-cw"></i> Refresh
-                                </button>
-                            </div>
-                        </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th><span data-i18n="pool_management.wallet">Wallet</span></th>
-                                    <th><span data-i18n="pool_management.hashrate">Hashrate</span></th>
-                                    <th><span data-i18n="pool_management.workers">Workers</span></th>
-                                    <th><span data-i18n="pool_management.shares">Shares</span></th>
-                                    <th><span data-i18n="pool_management.pending">Pending</span></th>
-                                    <th><span data-i18n="pool_management.status_2">Status</span></th>
-                                    <th><span data-i18n="pool_management.actions">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="minersTable">
-                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Blocks Tab -->
-                <div id="blocks" class="tab-content">
-                    <div class="stats-grid">
-                        <div class="stat-card accent-green">
-                            <div class="label"><span data-i18n="pool_management.confirmed">Confirmed</span></div>
-                            <div class="value" id="confirmedBlocks">--</div>
-                        </div>
-                        <div class="stat-card accent-orange">
-                            <div class="label"><span data-i18n="pool_management.pending_2">Pending</span></div>
-                            <div class="value" id="pendingBlocks">--</div>
-                        </div>
-                        <div class="stat-card accent-red">
-                            <div class="label"><span data-i18n="pool_management.orphaned">Orphaned</span></div>
-                            <div class="value" id="orphanedBlocks">--</div>
-                        </div>
-                        <div class="stat-card accent-cyan">
-                            <div class="label"><span data-i18n="pool_management.total_rewards">Total Rewards</span></div>
-                            <div class="value" id="totalRewards">--</div>
-                        </div>
-                    </div>
-
-                    <div class="data-section">
-                        <div class="section-header">
-                            <h3><i data-lucide="box"></i><span data-i18n="pool_management.block_explorer"> Block Explorer</span></h3>
-                            <div class="section-actions">
-                                <select class="search-box" id="blockFilter" style="width: 150px;">
-                                    <option value="all"><span data-i18n="pool_management.all_blocks">All Blocks</span></option>
-                                    <option value="pending"><span data-i18n="pool_management.pending_3">Pending</span></option>
-                                    <option value="confirmed"><span data-i18n="pool_management.confirmed_2">Confirmed</span></option>
-                                    <option value="orphaned"><span data-i18n="pool_management.orphaned_2">Orphaned</span></option>
-                                </select>
-                            </div>
-                        </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th><span data-i18n="pool_management.height_2">Height</span></th>
-                                    <th><span data-i18n="pool_management.hash_2">Hash</span></th>
-                                    <th><span data-i18n="pool_management.finder_2">Finder</span></th>
-                                    <th><span data-i18n="pool_management.difficulty">Difficulty</span></th>
-                                    <th><span data-i18n="pool_management.reward_2">Reward</span></th>
-                                    <th><span data-i18n="pool_management.confirmations">Confirmations</span></th>
-                                    <th><span data-i18n="pool_management.status_3">Status</span></th>
-                                    <th><span data-i18n="pool_management.time_2">Time</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="blocksTable">
-                                <tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Payouts Tab -->
-                <div id="payouts" class="tab-content">
-                    <div class="stats-grid">
-                        <div class="stat-card accent-orange">
-                            <div class="label"><span data-i18n="pool_management.pending_payouts">Pending Payouts</span></div>
-                            <div class="value" id="pendingPayoutCount">--</div>
-                        </div>
-                        <div class="stat-card accent-cyan">
-                            <div class="label"><span data-i18n="pool_management.total_pending">Total Pending</span></div>
-                            <div class="value" id="pendingPayoutAmount">--</div>
-                        </div>
-                        <div class="stat-card accent-green">
-                            <div class="label"><span data-i18n="pool_management.paid_today">Paid Today</span></div>
-                            <div class="value" id="paidToday">--</div>
-                        </div>
-                        <div class="stat-card accent-red">
-                            <div class="label"><span data-i18n="pool_management.failed">Failed</span></div>
-                            <div class="value" id="failedPayouts">--</div>
-                        </div>
-                    </div>
-
-                    <div class="quick-actions">
-                        <div class="action-card" onclick="triggerPayouts()">
-                            <i data-lucide="send"></i>
-                            <span><span data-i18n="pool_management.process_all_payouts">Process All Payouts</span></span>
-                        </div>
-                        <div class="action-card" onclick="retryFailedPayouts()">
-                            <i data-lucide="refresh-cw"></i>
-                            <span><span data-i18n="pool_management.retry_failed">Retry Failed</span></span>
-                        </div>
-                    </div>
-
-                    <div class="data-section">
-                        <div class="section-header">
-                            <h3><i data-lucide="wallet"></i><span data-i18n="pool_management.payout_queue"> Payout Queue</span></h3>
-                            <div class="section-actions">
-                                <select class="search-box" id="payoutFilter" style="width: 150px;">
-                                    <option value="pending"><span data-i18n="pool_management.pending_4">Pending</span></option>
-                                    <option value="processing"><span data-i18n="pool_management.processing">Processing</span></option>
-                                    <option value="completed"><span data-i18n="pool_management.completed">Completed</span></option>
-                                    <option value="failed"><span data-i18n="pool_management.failed_2">Failed</span></option>
-                                </select>
-                            </div>
-                        </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th><span data-i18n="pool_management.wallet_2">Wallet</span></th>
-                                    <th><span data-i18n="pool_management.amount">Amount</span></th>
-                                    <th><span data-i18n="pool_management.currency">Currency</span></th>
-                                    <th><span data-i18n="pool_management.tx_id">TX ID</span></th>
-                                    <th><span data-i18n="pool_management.status_4">Status</span></th>
-                                    <th><span data-i18n="pool_management.created">Created</span></th>
-                                    <th><span data-i18n="pool_management.actions_2">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="payoutsTable">
-                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Conversions Tab -->
-                <div id="conversions" class="tab-content">
-                    <div class="stats-grid">
-                        <div class="stat-card accent-cyan">
-                            <div class="label"><span data-i18n="pool_management.rvn_price">RVN Price</span></div>
-                            <div class="value" id="rvnPrice">$--</div>
-                        </div>
-                        <div class="stat-card accent-orange">
-                            <div class="label"><span data-i18n="pool_management.queue_size">Queue Size</span></div>
-                            <div class="value" id="conversionQueue">--</div>
-                        </div>
-                        <div class="stat-card accent-green">
-                            <div class="label"><span data-i18n="pool_management.converted_today">Converted Today</span></div>
-                            <div class="value" id="convertedToday">--</div>
-                        </div>
-                        <div class="stat-card accent-red">
-                            <div class="label"><span data-i18n="pool_management.conversion_fee">Conversion Fee</span></div>
-                            <div class="value" id="conversionFee">--%</div>
-                        </div>
-                    </div>
-
-                    <div class="data-section">
-                        <div class="section-header">
-                            <h3><i data-lucide="repeat"></i><span data-i18n="pool_management.conversion_queue_2"> Conversion Queue</span></h3>
-                            <button class="btn btn-primary btn-sm" onclick="processConversions()">
-                                <i data-lucide="play"></i> Process Queue
-                            </button>
-                        </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th><span data-i18n="pool_management.wallet_3">Wallet</span></th>
-                                    <th><span data-i18n="pool_management.rvn_amount">RVN Amount</span></th>
-                                    <th><span data-i18n="pool_management.target">Target</span></th>
-                                    <th><span data-i18n="pool_management.est_output">Est. Output</span></th>
-                                    <th><span data-i18n="pool_management.status_5">Status</span></th>
-                                    <th><span data-i18n="pool_management.created_2">Created</span></th>
-                                    <th><span data-i18n="pool_management.actions_3">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="conversionsTable">
-                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Analytics Tab -->
-                <div id="analytics" class="tab-content">
-                    <div class="chart-container">
-                        <div class="chart-header">
-                            <h3><i data-lucide="trending-up"></i><span data-i18n="pool_management.revenue_analytics"> Revenue Analytics</span></h3>
-                            <div class="chart-tabs">
-                                <span class="chart-tab active" data-range="7d">7D</span>
-                                <span class="chart-tab" data-range="30d">30D</span>
-                                <span class="chart-tab" data-range="90d">90D</span>
-                            </div>
-                        </div>
-                        <canvas id="revenueChart"></canvas>
-                    </div>
-
-                    <div class="chart-container">
-                        <div class="chart-header">
-                            <h3><i data-lucide="users"></i><span data-i18n="pool_management.miner_growth"> Miner Growth</span></h3>
-                        </div>
-                        <canvas id="minersChart"></canvas>
-                    </div>
-
-                    <div class="stats-grid">
-                        <div class="stat-card accent-green">
-                            <div class="label"><span data-i18n="pool_management.total_revenue_30d">Total Revenue (30d)</span></div>
-                            <div class="value" id="totalRevenue">--</div>
-                        </div>
-                        <div class="stat-card accent-cyan">
-                            <div class="label"><span data-i18n="pool_management.pool_fee_earned">Pool Fee Earned</span></div>
-                            <div class="value" id="feeEarned">--</div>
-                        </div>
-                        <div class="stat-card accent-orange">
-                            <div class="label"><span data-i18n="pool_management.avg_hashrate_30d">Avg Hashrate (30d)</span></div>
-                            <div class="value" id="avgHashrate">--</div>
-                        </div>
-                        <div class="stat-card accent-red">
-                            <div class="label"><span data-i18n="pool_management.avg_miners_30d">Avg Miners (30d)</span></div>
-                            <div class="value" id="avgMiners">--</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Services Tab -->
-                <div id="services" class="tab-content">
-                    <div class="services-grid" id="servicesGrid">
-                        <div class="service-card">
-                            <div class="service-info">
-                                <div class="service-icon running">
-                                    <i data-lucide="server"></i>
-                                </div>
-                                <div class="service-details">
-                                    <h4><span data-i18n="pool_management.loading_services">Loading services...</span></h4>
-                                    <p><span data-i18n="pool_management.please_wait">Please wait</span></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Settings Tab -->
-                <div id="settings" class="tab-content">
-                    <div class="settings-grid">
-                        <div class="settings-card">
-                            <h4><i data-lucide="percent"></i><span data-i18n="pool_management.pool_fees"> Pool Fees</span></h4>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.pool_fee">Pool Fee (%)</span></label>
-                                <input type="number" id="poolFee" step="0.1" min="0" max="10" value="1.0">
-                            </div>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.conversion_fee_2">Conversion Fee (%)</span></label>
-                                <input type="number" id="settingConversionFee" step="0.1" min="0" max="10" value="2.0">
-                            </div>
-                        </div>
-
-                        <div class="settings-card">
-                            <h4><i data-lucide="wallet"></i><span data-i18n="pool_management.payout_settings"> Payout Settings</span></h4>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.minimum_payout_rvn">Minimum Payout (RVN)</span></label>
-                                <input type="number" id="minPayout" step="1" min="1" value="10">
-                            </div>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.pplns_window_blocks">PPLNS Window (blocks)</span></label>
-                                <input type="number" id="pplnsWindow" step="1" min="1" value="100">
-                            </div>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.payout_interval">Payout Interval</span></label>
-                                <select id="payoutInterval">
-                                    <option value="hourly"><span data-i18n="pool_management.hourly">Hourly</span></option>
-                                    <option value="daily"><span data-i18n="pool_management.daily">Daily</span></option>
-                                    <option value="manual"><span data-i18n="pool_management.manual_only">Manual Only</span></option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="settings-card">
-                            <h4><i data-lucide="bell"></i><span data-i18n="pool_management.notifications"> Notifications</span></h4>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.telegram_bot_token">Telegram Bot Token</span></label>
-                                <input type="text" id="telegramToken" placeholder="bot123456:ABC...">
-                            </div>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.telegram_chat_id">Telegram Chat ID</span></label>
-                                <input type="text" id="telegramChatId" placeholder="-1001234567890">
-                            </div>
-                        </div>
-
-                        <div class="settings-card">
-                            <h4><i data-lucide="key"></i><span data-i18n="pool_management.exchange_api"> Exchange API</span></h4>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.changelly_api_key">Changelly API Key</span></label>
-                                <input type="password" id="changellyApiKey" placeholder="API key...">
-                            </div>
-                            <div class="form-group">
-                                <label><span data-i18n="pool_management.changelly_secret">Changelly Secret</span></label>
-                                <input type="password" id="changellySecret" placeholder="API secret...">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style="margin-top: 20px; text-align: right;">
-                        <button class="btn btn-secondary" onclick="loadSettings()">
-                            <i data-lucide="refresh-cw"></i> Reset
-                        </button>
-                        <button class="btn btn-primary" onclick="saveSettings()">
-                            <i data-lucide="save"></i> Save Settings
-                        </button>
-                    </div>
-                </div>
-            </main>
-        </div>
+  <header class="pm-header">
+    <div>
+      <h1 class="pm-title"><i data-lucide="shield"></i>POOL MANAGEMENT</h1>
+      <p class="pm-subtitle">Archie Pool Admin Panel — Ravencoin (RVN)</p>
     </div>
+    <div class="pm-admin-badge"><i data-lucide="lock" style="width:13px;height:13px"></i> ADMIN ONLY</div>
+  </header>
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toastContainer"></div>
+  <section class="pm-stats">
+    <div class="pm-stat-card"><div class="pm-stat-label">Total Miners</div><div class="pm-stat-value" id="pmStatMiners">—</div></div>
+    <div class="pm-stat-card"><div class="pm-stat-label">Total Hashrate</div><div class="pm-stat-value" id="pmStatHash" style="font-size:0.9rem">—</div></div>
+    <div class="pm-stat-card"><div class="pm-stat-label">Pending Payouts</div><div class="pm-stat-value" id="pmStatPending">—</div><div class="pm-stat-sub">RVN</div></div>
+    <div class="pm-stat-card"><div class="pm-stat-label">24h Blocks</div><div class="pm-stat-value" id="pmStatBlocks">—</div></div>
+    <div class="pm-stat-card"><div class="pm-stat-label">24h Revenue</div><div class="pm-stat-value" id="pmStatRevenue" style="font-size:0.9rem">—</div><div class="pm-stat-sub">RVN</div></div>
+  </section>
 
-    <!-- Miner Details Modal -->
-    <div class="modal-overlay" id="minerModal">
-        <div class="modal">
-            <div class="modal-header">
-                <h3><span data-i18n="pool_management.miner_details">Miner Details</span></h3>
-                <button class="modal-close" onclick="closeModal('minerModal')"><span data-i18n="pool_management.times">&times;</span></button>
-            </div>
-            <div class="modal-body" id="minerModalBody">
-                <!-- Dynamic content -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('minerModal')"><span data-i18n="pool_management.close">Close</span></button>
-                <button class="btn btn-danger" id="banMinerBtn"><span data-i18n="pool_management.ban_miner">Ban Miner</span></button>
-            </div>
-        </div>
+  <nav class="pm-tabs">
+    <button class="pm-tab active" onclick="pmSetTab('dashboard')">Dashboard</button>
+    <button class="pm-tab" onclick="pmSetTab('miners')">Miners</button>
+    <button class="pm-tab" onclick="pmSetTab('blocks')">Blocks</button>
+    <button class="pm-tab" onclick="pmSetTab('payouts')">Payouts</button>
+    <button class="pm-tab" onclick="pmSetTab('conversions')">Conversions</button>
+    <button class="pm-tab" onclick="pmSetTab('settings')">Settings</button>
+    <button class="pm-tab" onclick="pmSetTab('services')">Services</button>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <div class="pm-panel active" id="pm-panel-dashboard">
+    <div class="pm-card">
+      <h3 class="pm-card-title"><span>Admin Overview</span></h3>
+      <div class="pm-stats" style="margin-bottom:0">
+        <div class="pm-stat-card"><div class="pm-stat-label">Active Workers</div><div class="pm-stat-value" id="pmDashWorkers">—</div></div>
+        <div class="pm-stat-card"><div class="pm-stat-label">Banned Miners</div><div class="pm-stat-value" id="pmDashBanned">—</div></div>
+        <div class="pm-stat-card"><div class="pm-stat-label">Completed Payouts (24h)</div><div class="pm-stat-value" id="pmDashPaidOut" style="font-size:0.85rem">—</div></div>
+        <div class="pm-stat-card"><div class="pm-stat-label">Failed Payouts</div><div class="pm-stat-value" id="pmDashFailed">—</div></div>
+      </div>
     </div>
-
-    <!-- Confirm Modal -->
-    <div class="modal-overlay" id="confirmModal">
-        <div class="modal">
-            <div class="modal-header">
-                <h3 id="confirmTitle"><span data-i18n="pool_management.confirm_action">Confirm Action</span></h3>
-                <button class="modal-close" onclick="closeModal('confirmModal')"><span data-i18n="pool_management.times_2">&times;</span></button>
-            </div>
-            <div class="modal-body">
-                <p id="confirmMessage"><span data-i18n="pool_management.are_you_sure_you_want_to_proceed">Are you sure you want to proceed?</span></p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('confirmModal')"><span data-i18n="pool_management.cancel">Cancel</span></button>
-                <button class="btn btn-danger" id="confirmBtn"><span data-i18n="pool_management.confirm">Confirm</span></button>
-            </div>
-        </div>
+    <div class="pm-card">
+      <h3 class="pm-card-title"><span>Analytics</span></h3>
+      <div class="pm-chart-ph">[ Analytics chart — live data ]</div>
     </div>
+  </div>
+
+  <!-- MINERS -->
+  <div class="pm-panel" id="pm-panel-miners">
+    <div class="pm-card">
+      <h3 class="pm-card-title">
+        <span>Miner List</span>
+        <button class="pm-btn pm-btn-sm" onclick="pmLoadMiners()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
+      </h3>
+      <div class="pm-table-wrap">
+        <table class="pm-table">
+          <thead><tr><th>Wallet</th><th>Hashrate</th><th>Shares</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="pmMinersBody"><tr><td colspan="5" class="pm-empty">Loading miners…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCKS -->
+  <div class="pm-panel" id="pm-panel-blocks">
+    <div class="pm-card">
+      <h3 class="pm-card-title">
+        <span>All Blocks</span>
+        <button class="pm-btn pm-btn-sm" onclick="pmLoadBlocks()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
+      </h3>
+      <div class="pm-table-wrap">
+        <table class="pm-table">
+          <thead><tr><th>Height</th><th>Hash</th><th>Reward (RVN)</th><th>Confirmations</th><th>Time</th><th>Finder</th></tr></thead>
+          <tbody id="pmBlocksBody"><tr><td colspan="6" class="pm-empty">Loading blocks…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAYOUTS -->
+  <div class="pm-panel" id="pm-panel-payouts">
+    <div class="pm-card">
+      <h3 class="pm-card-title">
+        <span>Pending Payouts</span>
+        <button class="pm-btn" onclick="pmProcessPayouts()" id="pmBtnProcess"><i data-lucide="send" style="width:14px;height:14px"></i> Process Payouts</button>
+      </h3>
+      <div class="pm-table-wrap">
+        <table class="pm-table">
+          <thead><tr><th>Wallet</th><th>Amount (RVN)</th><th>Status</th></tr></thead>
+          <tbody id="pmPayoutsBody"><tr><td colspan="3" class="pm-empty">Loading payouts…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="pm-card">
+      <h3 class="pm-card-title"><span>Failed Payouts</span></h3>
+      <div class="pm-table-wrap">
+        <table class="pm-table">
+          <thead><tr><th>ID</th><th>Wallet</th><th>Amount (RVN)</th><th>Error</th><th>Action</th></tr></thead>
+          <tbody id="pmFailedBody"><tr><td colspan="5" class="pm-empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONVERSIONS -->
+  <div class="pm-panel" id="pm-panel-conversions">
+    <div class="pm-card">
+      <h3 class="pm-card-title">
+        <span>RVN Conversion Status</span>
+        <button class="pm-btn pm-btn-warn" onclick="pmProcessConversions()"><i data-lucide="arrow-right-left" style="width:14px;height:14px"></i> Process Conversions</button>
+      </h3>
+      <div class="pm-table-wrap">
+        <table class="pm-table">
+          <thead><tr><th>ID</th><th>Wallet</th><th>RVN Amount</th><th>Target</th><th>Rate</th><th>Status</th></tr></thead>
+          <tbody id="pmConvBody"><tr><td colspan="6" class="pm-empty">Loading conversions…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="pm-panel" id="pm-panel-settings">
+    <div class="pm-card">
+      <h3 class="pm-card-title">
+        <span>Pool Settings</span>
+        <button class="pm-btn pm-btn-green" onclick="pmSaveSettings()"><i data-lucide="save" style="width:14px;height:14px"></i> Save Settings</button>
+      </h3>
+      <div class="pm-form-grid">
+        <div class="pm-field"><label>Min Payout (RVN)</label><input class="pm-input" id="pmSetMinPay" type="number" step="0.1" /></div>
+        <div class="pm-field"><label>Pool Fee (%)</label><input class="pm-input" id="pmSetFee" type="number" step="0.1" /></div>
+        <div class="pm-field"><label>Conversion Fee (%)</label><input class="pm-input" id="pmSetConvFee" type="number" step="0.1" /></div>
+        <div class="pm-field"><label>Payout Interval (hours)</label><input class="pm-input" id="pmSetPayInt" type="number" /></div>
+        <div class="pm-field"><label>PPLNS Window (blocks)</label><input class="pm-input" id="pmSetPplns" type="number" /></div>
+        <div class="pm-field"><label>Block Confirmations</label><input class="pm-input" id="pmSetConfs" type="number" /></div>
+      </div>
+      <div id="pmSettingsMsg" style="margin-top:12px;font-family:'JetBrains Mono',monospace;font-size:0.78rem;display:none"></div>
+    </div>
+  </div>
+
+  <!-- SERVICES -->
+  <div class="pm-panel" id="pm-panel-services">
+    <div class="pm-card">
+      <h3 class="pm-card-title">
+        <span>Service Status</span>
+        <button class="pm-btn pm-btn-sm" onclick="pmLoadServices()"><i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Refresh</button>
+      </h3>
+      <div class="pm-services-grid" id="pmServicesGrid">
+        <div class="pm-empty">Loading services…</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /pm-container -->
+
+<!-- MINER DETAIL MODAL -->
+<div class="pm-modal-bg" id="pmMinerModal">
+  <div class="pm-modal">
+    <h3 class="pm-modal-title">Miner Detail</h3>
+    <div id="pmModalWallet" style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:var(--pm-muted);margin-bottom:14px;word-break:break-all"></div>
+    <div class="pm-stats" id="pmModalStats" style="margin-bottom:0">
+      <div class="pm-stat-card"><div class="pm-stat-label">Hashrate</div><div class="pm-stat-value" id="pmModalHash" style="font-size:0.9rem">—</div></div>
+      <div class="pm-stat-card"><div class="pm-stat-label">Shares</div><div class="pm-stat-value" id="pmModalShares">—</div></div>
+      <div class="pm-stat-card"><div class="pm-stat-label">Balance</div><div class="pm-stat-value" id="pmModalBalance">—</div></div>
+    </div>
+    <div class="pm-modal-actions">
+      <button class="pm-btn pm-btn-warn" id="pmModalBanBtn" onclick="pmToggleBan()">Ban Miner</button>
+      <button class="pm-btn" onclick="pmCloseModal()">Close</button>
+    </div>
+  </div>
 </div>
+{% endblock %}
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% block extra_js %}
 <script>
-    // Configuration
-    const API_BASE = '/tools/pool-management/api/admin';
-    let hashrateChart, revenueChart, minersChart;
-    let refreshInterval;
+(function () {
+  'use strict';
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', () => {
-        lucide.createIcons();
-        setupNavigation();
-        loadDashboard();
-        startAutoRefresh();
-    });
+  var _currentMinerWallet = null;
+  var _currentMinerBanned = false;
 
-    // Navigation
-    function setupNavigation() {
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const tab = item.dataset.tab;
-                showTab(tab);
+  function fmtHash(h) {
+    if (h == null) return '—';
+    if (h >= 1e12) return (h / 1e12).toFixed(2) + ' TH/s';
+    if (h >= 1e9)  return (h / 1e9).toFixed(2)  + ' GH/s';
+    if (h >= 1e6)  return (h / 1e6).toFixed(2)  + ' MH/s';
+    if (h >= 1e3)  return (h / 1e3).toFixed(2)  + ' KH/s';
+    return h + ' H/s';
+  }
+  function fmtNum(n) { return n != null ? Number(n).toLocaleString() : '—'; }
+  function trunc(s, n) { n = n || 20; if (!s) return '—'; return s.length > n ? s.slice(0, 8) + '…' + s.slice(-6) : s; }
+  function setText(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function statusBadge(s) {
+    var cls = s === 'active' ? 'pm-badge-ok' : s === 'banned' ? 'pm-badge-err' : s === 'pending' ? 'pm-badge-pending' : s === 'processing' ? 'pm-badge-warn' : 'pm-badge-warn';
+    var span = document.createElement('span');
+    span.className = 'pm-badge ' + cls;
+    span.textContent = (s || 'unknown').toUpperCase();
+    return span;
+  }
+
+  function buildRows(tbody, rows, nCols, emptyMsg, buildRow) {
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    if (!rows.length) {
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.colSpan = nCols; td.className = 'pm-empty'; td.textContent = emptyMsg;
+      tr.appendChild(td); tbody.appendChild(tr); return;
+    }
+    rows.forEach(function (r) { tbody.appendChild(buildRow(r)); });
+  }
+
+  var TAB_NAMES = ['dashboard','miners','blocks','payouts','conversions','settings','services'];
+  window.pmSetTab = function (name) {
+    document.querySelectorAll('.pm-tab').forEach(function (t, i) { t.classList.toggle('active', TAB_NAMES[i] === name); });
+    document.querySelectorAll('.pm-panel').forEach(function (p) { p.classList.toggle('active', p.id === 'pm-panel-' + name); });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (name === 'miners')      pmLoadMiners();
+    if (name === 'blocks')      pmLoadBlocks();
+    if (name === 'payouts')     pmLoadPayouts();
+    if (name === 'conversions') pmLoadConversions();
+    if (name === 'settings')    pmLoadSettings();
+    if (name === 'services')    pmLoadServices();
+  };
+
+  // DASHBOARD
+  function pmLoadDashboard() {
+    fetch('/tools/pool-management/api/admin/dashboard')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) return;
+        var s = d.stats;
+        setText('pmStatMiners',  fmtNum(s.total_miners));
+        setText('pmStatHash',    fmtHash(s.total_hashrate));
+        setText('pmStatPending', Number(s.pending_payouts_rvn || 0).toFixed(2));
+        setText('pmStatBlocks',  fmtNum(s.blocks_24h));
+        setText('pmStatRevenue', Number(s.revenue_24h || 0).toFixed(2));
+        setText('pmDashWorkers', fmtNum(s.active_workers));
+        setText('pmDashBanned',  fmtNum(s.banned_miners));
+        setText('pmDashPaidOut', Number(s.payouts_completed_24h_rvn || 0).toFixed(2));
+        setText('pmDashFailed',  fmtNum(s.failed_payouts));
+      })
+      .catch(function () {});
+  }
+
+  // MINERS
+  window.pmLoadMiners = function () {
+    fetch('/tools/pool-management/api/admin/miners')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var rows = (d.success && d.miners) ? d.miners : [];
+        buildRows(document.getElementById('pmMinersBody'), rows, 5, 'No miners found.', function (m) {
+          var tr = document.createElement('tr');
+          var wTd = document.createElement('td'); wTd.textContent = trunc(m.wallet, 24); wTd.className = 'pm-accent-cell'; tr.appendChild(wTd);
+          var hTd = document.createElement('td'); hTd.textContent = fmtHash(m.hashrate); tr.appendChild(hTd);
+          var sTd = document.createElement('td'); sTd.textContent = fmtNum(m.shares); tr.appendChild(sTd);
+          var bTd = document.createElement('td'); bTd.appendChild(statusBadge(m.status || 'active')); tr.appendChild(bTd);
+          var aTd = document.createElement('td');
+          var detBtn = document.createElement('button');
+          detBtn.className = 'pm-btn pm-btn-sm';
+          detBtn.textContent = 'Detail';
+          (function (wallet, status) {
+            detBtn.addEventListener('click', function () { pmOpenModal(wallet, status); });
+          }(m.wallet, m.status));
+          aTd.appendChild(detBtn);
+          tr.appendChild(aTd);
+          return tr;
+        });
+      })
+      .catch(function () {});
+  };
+
+  window.pmOpenModal = function (wallet, status) {
+    _currentMinerWallet = wallet;
+    _currentMinerBanned = (status === 'banned');
+    setText('pmModalWallet', wallet);
+    var banBtn = document.getElementById('pmModalBanBtn');
+    banBtn.textContent = _currentMinerBanned ? 'Unban Miner' : 'Ban Miner';
+    banBtn.className = _currentMinerBanned ? 'pm-btn pm-btn-green' : 'pm-btn pm-btn-warn';
+    setText('pmModalHash', '—'); setText('pmModalShares', '—'); setText('pmModalBalance', '—');
+    document.getElementById('pmMinerModal').classList.add('open');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    fetch('/tools/pool-management/api/admin/miners/' + encodeURIComponent(wallet))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) return;
+        var m = d.miner;
+        setText('pmModalHash',    fmtHash(m.hashrate));
+        setText('pmModalShares',  fmtNum(m.shares_valid || m.shares));
+        setText('pmModalBalance', Number(m.balance || 0).toFixed(3));
+      })
+      .catch(function () {});
+  };
+
+  window.pmCloseModal = function () { document.getElementById('pmMinerModal').classList.remove('open'); };
+
+  window.pmToggleBan = function () {
+    if (!_currentMinerWallet) return;
+    var action = _currentMinerBanned ? 'unban' : 'ban';
+    fetch('/tools/pool-management/api/admin/miners/' + encodeURIComponent(_currentMinerWallet) + '/' + action, { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function () { pmCloseModal(); pmLoadMiners(); })
+      .catch(function () {});
+  };
+
+  window.pmBanMiner   = function (w) { pmOpenModal(w, 'active'); };
+  window.pmUnbanMiner = function (w) { pmOpenModal(w, 'banned'); };
+
+  // BLOCKS
+  window.pmLoadBlocks = function () {
+    fetch('/tools/pool-management/api/admin/blocks')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var rows = (d.success && d.blocks) ? d.blocks : [];
+        buildRows(document.getElementById('pmBlocksBody'), rows, 6, 'No blocks found.', function (b) {
+          var tr = document.createElement('tr');
+          [[b.height ? '#' + fmtNum(b.height) : '—', 'pm-accent-cell'], [trunc(b.hash, 22), 'pm-hash'], [b.reward ? fmtNum(b.reward) : '—', ''], [fmtNum(b.confirmations), ''], [b.time || b.timestamp || '—', ''], [b.finder || '—', '']].forEach(function (c) {
+            var td = document.createElement('td'); td.textContent = c[0]; if (c[1]) td.className = c[1]; tr.appendChild(td);
+          });
+          return tr;
+        });
+      })
+      .catch(function () {});
+  };
+
+  // PAYOUTS
+  window.pmLoadPayouts = function () {
+    fetch('/tools/pool-management/api/admin/payouts')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var rows = (d.success && d.payouts) ? d.payouts : [];
+        buildRows(document.getElementById('pmPayoutsBody'), rows, 3, 'No pending payouts.', function (p) {
+          var tr = document.createElement('tr');
+          var wTd = document.createElement('td'); wTd.textContent = trunc(p.wallet, 24); wTd.className = 'pm-accent-cell'; tr.appendChild(wTd);
+          var aTd = document.createElement('td'); aTd.textContent = Number(p.amount || 0).toFixed(3); tr.appendChild(aTd);
+          var sTd = document.createElement('td'); sTd.appendChild(statusBadge(p.status || 'pending')); tr.appendChild(sTd);
+          return tr;
+        });
+        fetch('/tools/pool-management/api/admin/payouts/failed')
+          .then(function (r2) { return r2.json(); })
+          .then(function (d2) {
+            var failed = (d2.success && d2.payouts) ? d2.payouts : [];
+            buildRows(document.getElementById('pmFailedBody'), failed, 5, 'No failed payouts.', function (p) {
+              var tr = document.createElement('tr');
+              var idTd = document.createElement('td'); idTd.textContent = p.id || '—'; tr.appendChild(idTd);
+              var wTd = document.createElement('td'); wTd.textContent = trunc(p.wallet, 20); wTd.className = 'pm-accent-cell'; tr.appendChild(wTd);
+              var aTd = document.createElement('td'); aTd.textContent = Number(p.amount || 0).toFixed(3); tr.appendChild(aTd);
+              var eTd = document.createElement('td'); eTd.textContent = p.error || '—'; eTd.style.color = 'var(--pm-muted)'; tr.appendChild(eTd);
+              var acTd = document.createElement('td');
+              var retryBtn = document.createElement('button');
+              retryBtn.className = 'pm-btn pm-btn-sm pm-btn-warn';
+              retryBtn.textContent = 'Retry';
+              (function (pid) { retryBtn.addEventListener('click', function () { pmRetryPayout(pid); }); }(p.id));
+              acTd.appendChild(retryBtn); tr.appendChild(acTd);
+              return tr;
             });
-        });
-    }
+          })
+          .catch(function () {});
+      })
+      .catch(function () {});
+  };
 
-    function showTab(tabId) {
-        // Update nav
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.classList.toggle('active', item.dataset.tab === tabId);
-        });
+  window.pmProcessPayouts = function () {
+    var btn = document.getElementById('pmBtnProcess');
+    if (btn) { btn.textContent = 'Processing…'; btn.disabled = true; }
+    fetch('/tools/pool-management/api/admin/payouts/process', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function () { pmLoadPayouts(); })
+      .catch(function () {})
+      .finally(function () {
+        if (btn) { btn.disabled = false; if (typeof lucide !== 'undefined') { btn.innerHTML = ''; lucide.createIcons(); } btn.textContent = 'Process Payouts'; }
+      });
+  };
 
-        // Show content
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.toggle('active', content.id === tabId);
-        });
+  window.pmRetryPayout = function (id) {
+    fetch('/tools/pool-management/api/admin/payouts/retry/' + id, { method: 'POST' })
+      .then(function () { pmLoadPayouts(); })
+      .catch(function () {});
+  };
 
-        // Load tab data
-        switch(tabId) {
-            case 'dashboard': loadDashboard(); break;
-            case 'miners': loadMiners(); break;
-            case 'blocks': loadBlocks(); break;
-            case 'payouts': loadPayouts(); break;
-            case 'conversions': loadConversions(); break;
-            case 'analytics': loadAnalytics(); break;
-            case 'services': loadServices(); break;
-            case 'settings': loadSettings(); break;
+  // CONVERSIONS
+  window.pmLoadConversions = function () {
+    fetch('/tools/pool-management/api/admin/conversions')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var rows = (d.success && d.conversions) ? d.conversions : [];
+        buildRows(document.getElementById('pmConvBody'), rows, 6, 'No conversions found.', function (c) {
+          var tr = document.createElement('tr');
+          [[c.id || '—', ''], [trunc(c.wallet, 20), 'pm-accent-cell'], [fmtNum(c.rvn_amount), ''], [c.target_currency || '—', ''], [c.rate != null ? Number(c.rate).toFixed(8) : '—', ''], ['', 'badge']].forEach(function (cell, i) {
+            var td = document.createElement('td');
+            if (i === 5) { td.appendChild(statusBadge(c.status || 'pending')); } else { td.textContent = cell[0]; if (cell[1] && cell[1] !== 'badge') td.className = cell[1]; }
+            tr.appendChild(td);
+          });
+          return tr;
+        });
+      })
+      .catch(function () {});
+  };
+
+  window.pmProcessConversions = function () {
+    fetch('/tools/pool-management/api/admin/conversions/process', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function () { pmLoadConversions(); })
+      .catch(function () {});
+  };
+
+  // SETTINGS
+  window.pmLoadSettings = function () {
+    fetch('/tools/pool-management/api/admin/settings')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success || !d.settings) return;
+        var s = d.settings;
+        var setVal = function (id, v) { var el = document.getElementById(id); if (el && v != null) el.value = v; };
+        setVal('pmSetMinPay',  s.minimum_payout);
+        setVal('pmSetFee',     s.pool_fee);
+        setVal('pmSetConvFee', s.conversion_fee);
+        setVal('pmSetPayInt',  s.payout_interval_hours);
+        setVal('pmSetPplns',   s.pplns_window);
+        setVal('pmSetConfs',   s.block_confirmations);
+      })
+      .catch(function () {});
+  };
+
+  window.pmSaveSettings = function () {
+    var data = {
+      minimum_payout:       parseFloat(document.getElementById('pmSetMinPay').value)  || null,
+      pool_fee:             parseFloat(document.getElementById('pmSetFee').value)      || null,
+      conversion_fee:       parseFloat(document.getElementById('pmSetConvFee').value)  || null,
+      payout_interval_hours:parseInt(document.getElementById('pmSetPayInt').value, 10) || null,
+      pplns_window:         parseInt(document.getElementById('pmSetPplns').value, 10)  || null,
+      block_confirmations:  parseInt(document.getElementById('pmSetConfs').value, 10)  || null
+    };
+    fetch('/tools/pool-management/api/admin/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var msg = document.getElementById('pmSettingsMsg');
+        msg.textContent = d.success ? 'Settings saved.' : (d.error || 'Failed to save.');
+        msg.style.color = d.success ? 'var(--pm-green)' : 'var(--pm-accent)';
+        msg.style.display = 'block';
+        setTimeout(function () { msg.style.display = 'none'; }, 3000);
+      })
+      .catch(function () {});
+  };
+
+  // SERVICES
+  window.pmLoadServices = function () {
+    fetch('/tools/pool-management/api/admin/services/status')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var grid = document.getElementById('pmServicesGrid');
+        while (grid.firstChild) grid.removeChild(grid.firstChild);
+        var services = (d.success && d.services) ? d.services : [];
+        if (!services.length) {
+          var msg = document.createElement('div');
+          msg.className = 'pm-empty'; msg.textContent = 'No services found.';
+          grid.appendChild(msg); return;
         }
-    }
-
-    // Auto-refresh
-    function startAutoRefresh() {
-        refreshInterval = setInterval(() => {
-            const activeTab = document.querySelector('.tab-content.active');
-            if (activeTab) {
-                switch(activeTab.id) {
-                    case 'dashboard': loadDashboard(true); break;
-                    case 'miners': loadMiners(true); break;
-                }
-            }
-            updateLastUpdate();
-        }, 30000);
-    }
-
-    function updateLastUpdate() {
-        document.getElementById('lastUpdate').textContent =
-            `Updated: ${new Date().toLocaleTimeString()}`;
-    }
-
-    // Dashboard
-    async function loadDashboard(silent = false) {
-        try {
-            const response = await fetch(`${API_BASE}/dashboard`);
-            const data = await response.json();
-
-            if (data.success) {
-                const stats = data.stats;
-                document.getElementById('poolHashrate').textContent = formatHashrate(stats.pool_hashrate);
-                document.getElementById('activeMiners').textContent = stats.active_miners;
-                document.getElementById('minerCount').textContent = stats.active_miners;
-                document.getElementById('blocksFound').textContent = stats.blocks_24h;
-                document.getElementById('poolLuck').textContent = `${stats.pool_luck}%`;
-
-                // Update luck status
-                const luck = stats.pool_luck;
-                const luckStatus = document.getElementById('luckStatus');
-                if (luck >= 100) {
-                    luckStatus.textContent = 'Lucky!';
-                    luckStatus.className = 'change positive';
-                } else {
-                    luckStatus.textContent = 'Unlucky';
-                    luckStatus.className = 'change negative';
-                }
-
-                // Load recent blocks
-                loadRecentBlocks();
-
-                // Init chart
-                if (!hashrateChart) {
-                    initHashrateChart(data.hashrate_history || []);
-                }
-
-                updateLastUpdate();
-            }
-        } catch (err) {
-            if (!silent) showToast('Failed to load dashboard', 'error');
-        }
-    }
-
-    function loadRecentBlocks() {
-        fetch(`${API_BASE}/blocks?limit=5`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    const tbody = document.getElementById('recentBlocksTable');
-                    if (data.blocks.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No blocks found</td></tr>';
-                        return;
-                    }
-                    tbody.innerHTML = data.blocks.map(b => `
-                        <tr>
-                            <td class="mono">${b.height}</td>
-                            <td class="wallet-address" onclick="copyToClipboard('${b.hash}')">${truncate(b.hash, 12)}</td>
-                            <td class="wallet-address" onclick="copyToClipboard('${b.finder}')">${truncate(b.finder, 12)}</td>
-                            <td>${b.reward} RVN</td>
-                            <td><span class="status-badge ${b.status}">${b.status}</span></td>
-                            <td>${timeAgo(b.timestamp)}</td>
-                        </tr>
-                    `).join('');
-                }
-            });
-    }
-
-    // Miners
-    async function loadMiners(silent = false) {
-        try {
-            const search = document.getElementById('minerSearch')?.value || '';
-            const response = await fetch(`${API_BASE}/miners?search=${encodeURIComponent(search)}`);
-            const data = await response.json();
-
-            if (data.success) {
-                const tbody = document.getElementById('minersTable');
-                if (data.miners.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No miners found</td></tr>';
-                    return;
-                }
-                tbody.innerHTML = data.miners.map(m => `
-                    <tr>
-                        <td class="wallet-address" onclick="showMinerDetails('${m.wallet}')">${truncate(m.wallet, 16)}</td>
-                        <td class="mono">${formatHashrate(m.hashrate)}</td>
-                        <td>${m.workers}</td>
-                        <td class="mono">${m.shares.toLocaleString()}</td>
-                        <td>${m.pending_balance} RVN</td>
-                        <td><span class="status-badge ${m.status}">${m.status}</span></td>
-                        <td>
-                            <button class="btn btn-sm btn-secondary" onclick="showMinerDetails('${m.wallet}')">Details</button>
-                            ${m.banned ?
-                                `<button class="btn btn-sm btn-success" onclick="unbanMiner('${m.wallet}')">Unban</button>` :
-                                `<button class="btn btn-sm btn-danger" onclick="banMiner('${m.wallet}')">Ban</button>`
-                            }
-                        </td>
-                    </tr>
-                `).join('');
-            }
-        } catch (err) {
-            if (!silent) showToast('Failed to load miners', 'error');
-        }
-    }
-
-    function refreshMiners() {
-        loadMiners();
-    }
-
-    function showMinerDetails(wallet) {
-        fetch(`${API_BASE}/miners/${wallet}`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    const m = data.miner;
-                    document.getElementById('minerModalBody').innerHTML = `
-                        <div style="margin-bottom: 16px;">
-                            <div class="label">Wallet Address</div>
-                            <div class="mono" style="color: var(--archie-cyan); word-break: break-all;">${m.wallet}</div>
-                        </div>
-                        <div class="stats-grid" style="margin-bottom: 16px;">
-                            <div class="stat-card">
-                                <div class="label">Hashrate</div>
-                                <div class="value" style="font-size: 1.2rem;">${formatHashrate(m.hashrate)}</div>
-                            </div>
-                            <div class="stat-card">
-                                <div class="label">Workers</div>
-                                <div class="value" style="font-size: 1.2rem;">${m.workers}</div>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Total Shares</label>
-                                <div style="color: var(--archie-text-secondary);">${m.shares.toLocaleString()}</div>
-                            </div>
-                            <div class="form-group">
-                                <label>Pending Balance</label>
-                                <div style="color: var(--archie-orange);">${m.pending_balance} RVN</div>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Total Paid</label>
-                                <div style="color: var(--archie-success);">${m.total_paid} RVN</div>
-                            </div>
-                            <div class="form-group">
-                                <label>Status</label>
-                                <span class="status-badge ${m.status}">${m.status}</span>
-                            </div>
-                        </div>
-                    `;
-                    document.getElementById('banMinerBtn').onclick = () => banMiner(wallet);
-                    document.getElementById('banMinerBtn').textContent = m.banned ? 'Unban Miner' : 'Ban Miner';
-                    openModal('minerModal');
-                }
-            });
-    }
-
-    function banMiner(wallet) {
-        confirmAction('Ban Miner', `Are you sure you want to ban wallet ${truncate(wallet, 20)}?`, () => {
-            fetch(`${API_BASE}/miners/${wallet}/ban`, { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('Miner banned successfully', 'success');
-                        loadMiners();
-                        closeModal('minerModal');
-                    } else {
-                        showToast(data.error || 'Failed to ban miner', 'error');
-                    }
-                });
+        services.forEach(function (svc) {
+          var card = document.createElement('div');
+          card.className = 'pm-svc-card';
+          var nameEl = document.createElement('div');
+          nameEl.className = 'pm-svc-name'; nameEl.textContent = svc.name || '—';
+          var row = document.createElement('div');
+          row.className = 'pm-svc-row';
+          row.appendChild(statusBadge(svc.status || 'unknown'));
+          var upEl = document.createElement('span');
+          upEl.className = 'pm-svc-uptime'; upEl.textContent = svc.uptime ? 'Up ' + svc.uptime : '';
+          row.appendChild(upEl);
+          var btn = document.createElement('button');
+          btn.className = 'pm-btn pm-btn-sm';
+          btn.textContent = 'Restart';
+          (function (name) { btn.addEventListener('click', function () { pmRestartService(name); }); }(svc.name));
+          card.appendChild(nameEl); card.appendChild(row); card.appendChild(btn);
+          grid.appendChild(card);
         });
-    }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+      })
+      .catch(function () {});
+  };
 
-    function unbanMiner(wallet) {
-        fetch(`${API_BASE}/miners/${wallet}/unban`, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Miner unbanned successfully', 'success');
-                    loadMiners();
-                } else {
-                    showToast(data.error || 'Failed to unban miner', 'error');
-                }
-            });
-    }
+  window.pmRestartService = function (name) {
+    fetch('/tools/pool-management/api/admin/services/' + encodeURIComponent(name) + '/restart', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function () { setTimeout(pmLoadServices, 1500); })
+      .catch(function () {});
+  };
 
-    // Blocks
-    async function loadBlocks() {
-        try {
-            const filter = document.getElementById('blockFilter')?.value || 'all';
-            const response = await fetch(`${API_BASE}/blocks?status=${filter}`);
-            const data = await response.json();
-
-            if (data.success) {
-                // Update stats
-                document.getElementById('confirmedBlocks').textContent = data.stats?.confirmed || 0;
-                document.getElementById('pendingBlocks').textContent = data.stats?.pending || 0;
-                document.getElementById('orphanedBlocks').textContent = data.stats?.orphaned || 0;
-                document.getElementById('totalRewards').textContent = `${data.stats?.total_rewards || 0} RVN`;
-
-                const tbody = document.getElementById('blocksTable');
-                if (data.blocks.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No blocks found</td></tr>';
-                    return;
-                }
-                tbody.innerHTML = data.blocks.map(b => `
-                    <tr>
-                        <td class="mono">${b.height}</td>
-                        <td class="wallet-address" onclick="copyToClipboard('${b.hash}')">${truncate(b.hash, 12)}</td>
-                        <td class="wallet-address" onclick="copyToClipboard('${b.finder}')">${truncate(b.finder, 12)}</td>
-                        <td class="mono">${formatDifficulty(b.difficulty)}</td>
-                        <td>${b.reward} RVN</td>
-                        <td>${b.confirmations}</td>
-                        <td><span class="status-badge ${b.status}">${b.status}</span></td>
-                        <td>${timeAgo(b.timestamp)}</td>
-                    </tr>
-                `).join('');
-            }
-        } catch (err) {
-            showToast('Failed to load blocks', 'error');
-        }
-    }
-
-    // Payouts
-    async function loadPayouts() {
-        try {
-            const response = await fetch(`${API_BASE}/payouts`);
-            const data = await response.json();
-
-            if (data.success) {
-                // Update stats
-                document.getElementById('pendingPayoutCount').textContent = data.stats?.pending_count || 0;
-                document.getElementById('pendingPayouts').textContent = data.stats?.pending_count || 0;
-                document.getElementById('pendingPayoutAmount').textContent = `${data.stats?.pending_amount || 0} RVN`;
-                document.getElementById('paidToday').textContent = `${data.stats?.paid_today || 0} RVN`;
-                document.getElementById('failedPayouts').textContent = data.stats?.failed || 0;
-
-                const tbody = document.getElementById('payoutsTable');
-                if (data.payouts.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No payouts in queue</td></tr>';
-                    return;
-                }
-                tbody.innerHTML = data.payouts.map(p => `
-                    <tr>
-                        <td class="wallet-address" onclick="copyToClipboard('${p.wallet}')">${truncate(p.wallet, 16)}</td>
-                        <td class="mono">${p.amount}</td>
-                        <td>${p.currency}</td>
-                        <td class="mono">${p.tx_id ? truncate(p.tx_id, 12) : '--'}</td>
-                        <td><span class="status-badge ${p.status}">${p.status}</span></td>
-                        <td>${timeAgo(p.created_at)}</td>
-                        <td>
-                            ${p.status === 'failed' ?
-                                `<button class="btn btn-sm btn-warning" onclick="retryPayout('${p.id}')">Retry</button>` :
-                                ''
-                            }
-                        </td>
-                    </tr>
-                `).join('');
-            }
-        } catch (err) {
-            showToast('Failed to load payouts', 'error');
-        }
-    }
-
-    function triggerPayouts() {
-        confirmAction('Process Payouts', 'Process all pending payouts now?', () => {
-            fetch(`${API_BASE}/payouts/process`, { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`Processing ${data.count} payouts`, 'success');
-                        loadPayouts();
-                    } else {
-                        showToast(data.error || 'Failed to process payouts', 'error');
-                    }
-                });
-        });
-    }
-
-    function retryPayout(id) {
-        fetch(`${API_BASE}/payouts/${id}/retry`, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Payout retried', 'success');
-                    loadPayouts();
-                } else {
-                    showToast(data.error || 'Failed to retry', 'error');
-                }
-            });
-    }
-
-    function retryFailedPayouts() {
-        fetch(`${API_BASE}/payouts/retry-failed`, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`Retrying ${data.count} failed payouts`, 'success');
-                    loadPayouts();
-                } else {
-                    showToast(data.error || 'Failed to retry', 'error');
-                }
-            });
-    }
-
-    // Conversions
-    async function loadConversions() {
-        try {
-            const response = await fetch(`${API_BASE}/conversions`);
-            const data = await response.json();
-
-            if (data.success) {
-                document.getElementById('rvnPrice').textContent = `$${data.rates?.rvn_usd || '0.00'}`;
-                document.getElementById('conversionQueue').textContent = data.queue_size || 0;
-                document.getElementById('convertedToday').textContent = `${data.stats?.converted_today || 0} RVN`;
-                document.getElementById('conversionFee').textContent = `${data.fee || 2}%`;
-
-                const tbody = document.getElementById('conversionsTable');
-                if (data.conversions.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No conversions in queue</td></tr>';
-                    return;
-                }
-                tbody.innerHTML = data.conversions.map(c => `
-                    <tr>
-                        <td class="wallet-address" onclick="copyToClipboard('${c.wallet}')">${truncate(c.wallet, 16)}</td>
-                        <td class="mono">${c.rvn_amount} RVN</td>
-                        <td>${c.target_currency}</td>
-                        <td class="mono">${c.estimated_output} ${c.target_currency}</td>
-                        <td><span class="status-badge ${c.status}">${c.status}</span></td>
-                        <td>${timeAgo(c.created_at)}</td>
-                        <td>
-                            ${c.status === 'pending' ?
-                                `<button class="btn btn-sm btn-danger" onclick="cancelConversion('${c.id}')">Cancel</button>` :
-                                ''
-                            }
-                        </td>
-                    </tr>
-                `).join('');
-            }
-        } catch (err) {
-            showToast('Failed to load conversions', 'error');
-        }
-    }
-
-    function processConversions() {
-        confirmAction('Process Conversions', 'Process all pending conversions now?', () => {
-            fetch(`${API_BASE}/conversions/process`, { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`Processing ${data.count} conversions`, 'success');
-                        loadConversions();
-                    } else {
-                        showToast(data.error || 'Failed to process', 'error');
-                    }
-                });
-        });
-    }
-
-    function cancelConversion(id) {
-        fetch(`${API_BASE}/conversions/${id}/cancel`, { method: 'POST' })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('Conversion cancelled', 'success');
-                    loadConversions();
-                }
-            });
-    }
-
-    // Analytics
-    async function loadAnalytics() {
-        try {
-            const response = await fetch(`${API_BASE}/analytics`);
-            const data = await response.json();
-
-            if (data.success) {
-                document.getElementById('totalRevenue').textContent = `${data.stats?.total_revenue || 0} RVN`;
-                document.getElementById('feeEarned').textContent = `${data.stats?.fee_earned || 0} RVN`;
-                document.getElementById('avgHashrate').textContent = formatHashrate(data.stats?.avg_hashrate || 0);
-                document.getElementById('avgMiners').textContent = data.stats?.avg_miners || 0;
-
-                initRevenueChart(data.revenue_history || []);
-                initMinersChart(data.miner_history || []);
-            }
-        } catch (err) {
-            showToast('Failed to load analytics', 'error');
-        }
-    }
-
-    // Services
-    async function loadServices() {
-        try {
-            const response = await fetch(`${API_BASE}/services/status`);
-            const data = await response.json();
-
-            if (data.success) {
-                const grid = document.getElementById('servicesGrid');
-                grid.innerHTML = data.services.map(s => `
-                    <div class="service-card">
-                        <div class="service-info">
-                            <div class="service-icon ${s.running ? 'running' : 'stopped'}">
-                                <i data-lucide="${getServiceIcon(s.name)}"></i>
-                            </div>
-                            <div class="service-details">
-                                <h4>${s.name}</h4>
-                                <p>${s.running ? `Uptime: ${s.uptime}` : 'Stopped'}</p>
-                            </div>
-                        </div>
-                        <button class="btn btn-sm ${s.running ? 'btn-warning' : 'btn-success'}"
-                                onclick="restartService('${s.id}')">
-                            ${s.running ? 'Restart' : 'Start'}
-                        </button>
-                    </div>
-                `).join('');
-                lucide.createIcons();
-            }
-        } catch (err) {
-            showToast('Failed to load services', 'error');
-        }
-    }
-
-    function getServiceIcon(name) {
-        const icons = {
-            'stratum': 'server',
-            'payout': 'wallet',
-            'stats': 'bar-chart-3',
-            'conversion': 'repeat',
-            'api': 'globe'
-        };
-        return icons[name.toLowerCase()] || 'box';
-    }
-
-    function restartService(serviceId) {
-        confirmAction('Restart Service', `Restart ${serviceId} service?`, () => {
-            fetch(`${API_BASE}/services/${serviceId}/restart`, { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast(`${serviceId} restarted`, 'success');
-                        loadServices();
-                    } else {
-                        showToast(data.error || 'Failed to restart', 'error');
-                    }
-                });
-        });
-    }
-
-    // Settings
-    async function loadSettings() {
-        try {
-            const response = await fetch(`${API_BASE}/settings`);
-            const data = await response.json();
-
-            if (data.success) {
-                const s = data.settings;
-                document.getElementById('poolFee').value = s.pool_fee || 1.0;
-                document.getElementById('settingConversionFee').value = s.conversion_fee || 2.0;
-                document.getElementById('minPayout').value = s.min_payout || 10;
-                document.getElementById('pplnsWindow').value = s.pplns_window || 100;
-                document.getElementById('payoutInterval').value = s.payout_interval || 'hourly';
-                document.getElementById('telegramToken').value = s.telegram_token || '';
-                document.getElementById('telegramChatId').value = s.telegram_chat_id || '';
-            }
-        } catch (err) {
-            showToast('Failed to load settings', 'error');
-        }
-    }
-
-    function saveSettings() {
-        const settings = {
-            pool_fee: parseFloat(document.getElementById('poolFee').value),
-            conversion_fee: parseFloat(document.getElementById('settingConversionFee').value),
-            min_payout: parseInt(document.getElementById('minPayout').value),
-            pplns_window: parseInt(document.getElementById('pplnsWindow').value),
-            payout_interval: document.getElementById('payoutInterval').value,
-            telegram_token: document.getElementById('telegramToken').value,
-            telegram_chat_id: document.getElementById('telegramChatId').value,
-            changelly_api_key: document.getElementById('changellyApiKey').value,
-            changelly_secret: document.getElementById('changellySecret').value
-        };
-
-        fetch(`${API_BASE}/settings`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(settings)
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Settings saved successfully', 'success');
-            } else {
-                showToast(data.error || 'Failed to save settings', 'error');
-            }
-        });
-    }
-
-    // Charts
-    function initHashrateChart(data) {
-        const ctx = document.getElementById('hashrateChart').getContext('2d');
-        if (hashrateChart) hashrateChart.destroy();
-
-        hashrateChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.map(d => d.time),
-                datasets: [{
-                    label: 'Pool Hashrate',
-                    data: data.map(d => d.hashrate),
-                    borderColor: '#EF4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } }
-                }
-            }
-        });
-    }
-
-    function initRevenueChart(data) {
-        const ctx = document.getElementById('revenueChart').getContext('2d');
-        if (revenueChart) revenueChart.destroy();
-
-        revenueChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: data.map(d => d.date),
-                datasets: [{
-                    label: 'Revenue (RVN)',
-                    data: data.map(d => d.revenue),
-                    backgroundColor: 'rgba(34, 197, 94, 0.6)',
-                    borderColor: '#22C55E',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } }
-                }
-            }
-        });
-    }
-
-    function initMinersChart(data) {
-        const ctx = document.getElementById('minersChart').getContext('2d');
-        if (minersChart) minersChart.destroy();
-
-        minersChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.map(d => d.date),
-                datasets: [{
-                    label: 'Active Miners',
-                    data: data.map(d => d.count),
-                    borderColor: '#00FFFF',
-                    backgroundColor: 'rgba(0, 255, 255, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } }
-                }
-            }
-        });
-    }
-
-    // Utilities
-    function formatHashrate(h) {
-        if (h >= 1e12) return (h / 1e12).toFixed(2) + ' TH/s';
-        if (h >= 1e9) return (h / 1e9).toFixed(2) + ' GH/s';
-        if (h >= 1e6) return (h / 1e6).toFixed(2) + ' MH/s';
-        if (h >= 1e3) return (h / 1e3).toFixed(2) + ' KH/s';
-        return h + ' H/s';
-    }
-
-    function formatDifficulty(d) {
-        if (d >= 1e9) return (d / 1e9).toFixed(2) + 'G';
-        if (d >= 1e6) return (d / 1e6).toFixed(2) + 'M';
-        if (d >= 1e3) return (d / 1e3).toFixed(2) + 'K';
-        return d.toString();
-    }
-
-    function truncate(str, len) {
-        if (!str) return '--';
-        if (str.length <= len) return str;
-        return str.substring(0, len) + '...';
-    }
-
-    function timeAgo(timestamp) {
-        if (!timestamp) return '--';
-        const seconds = Math.floor((Date.now() - new Date(timestamp)) / 1000);
-        if (seconds < 60) return 'Just now';
-        if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
-        if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
-        return Math.floor(seconds / 86400) + 'd ago';
-    }
-
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text);
-        showToast('Copied to clipboard', 'success');
-    }
-
-    // Modals
-    function openModal(id) {
-        document.getElementById(id).classList.add('active');
-    }
-
-    function closeModal(id) {
-        document.getElementById(id).classList.remove('active');
-    }
-
-    function confirmAction(title, message, callback) {
-        document.getElementById('confirmTitle').textContent = title;
-        document.getElementById('confirmMessage').textContent = message;
-        document.getElementById('confirmBtn').onclick = () => {
-            closeModal('confirmModal');
-            callback();
-        };
-        openModal('confirmModal');
-    }
-
-    // Toast
-    function showToast(message, type = 'info') {
-        const container = document.getElementById('toastContainer');
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `
-            <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info'}"></i>
-            <span>${message}</span>
-        `;
-        container.appendChild(toast);
-        lucide.createIcons({ nodes: [toast] });
-
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-
-    // Event listeners
-    document.getElementById('minerSearch')?.addEventListener('input', debounce(loadMiners, 300));
-    document.getElementById('blockFilter')?.addEventListener('change', loadBlocks);
-    document.getElementById('payoutFilter')?.addEventListener('change', loadPayouts);
-
-    function debounce(func, wait) {
-        let timeout;
-        return function(...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
+  // INIT
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    pmLoadDashboard();
+    setInterval(pmLoadDashboard, 30000);
+  });
+}());
 </script>
 {% endblock %}

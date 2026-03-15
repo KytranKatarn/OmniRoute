@@ -1,2654 +1,473 @@
 {% extends 'base.html' %}
 
-{% block title %}Archie Pool - RVN Mining{% endblock %}
-
+{% block title %}Archie Pool — RVN Mining{% endblock %}
 {% block module_name %}archie_pool{% endblock %}
 
-{% block content %}
-<!-- Include Standalone Apps Navigation -->
-{% include 'includes/standalone_apps_nav.html' %}
-
-<!-- Scanline Overlay -->
-<div class="scanline-overlay"></div>
-
-<!-- Main Container -->
-<div class="pool-container">
-    <!-- Page Header -->
-    <header class="pool-header">
-        <div class="pool-title-section">
-            <h1 class="pool-title">
-                <i data-lucide="pickaxe"></i>
-                ARCHIE POOL
-            </h1>
-            <p class="pool-subtitle"><span data-i18n="archie_pool.ravencoin_rvn_mining_pool_kawpow_algorithm">Ravencoin (RVN) Mining Pool - KawPow Algorithm</span></p>
-        </div>
-        <div class="pool-status">
-            <span class="status-indicator status-online" id="poolStatusIndicator"></span>
-            <span id="poolStatusText"><span data-i18n="archie_pool.pool_online">Pool Online</span></span>
-        </div>
-    </header>
-
-    <!-- Connection Info Banner -->
-    <div class="pool-connection-banner">
-        <div class="connection-info">
-            <div class="connection-item">
-                <span class="connection-label"><span data-i18n="archie_pool.stratum_url">STRATUM URL</span></span>
-                <code class="connection-value" id="stratumUrl">stratum+tcp://pool.kytranempowerment.com:3333</code>
-                <button class="copy-btn" onclick="copyToClipboard('stratum+tcp://pool.kytranempowerment.com:3333')" title="Copy">
-                    <i data-lucide="copy"></i>
-                </button>
-            </div>
-            <div class="connection-item">
-                <span class="connection-label"><span data-i18n="archie_pool.algorithm">ALGORITHM</span></span>
-                <code class="connection-value">KawPow</code>
-            </div>
-            <div class="connection-item">
-                <span class="connection-label"><span data-i18n="archie_pool.pool_fee">POOL FEE</span></span>
-                <code class="connection-value">1.0%</code>
-            </div>
-            <div class="connection-item">
-                <span class="connection-label"><span data-i18n="archie_pool.min_payout">MIN PAYOUT</span></span>
-                <code class="connection-value">10 RVN</code>
-            </div>
-        </div>
-    </div>
-
-    <!-- Stats Overview -->
-    <section class="pool-stats">
-        <div class="pool-stat-card" style="animation-delay: 0.1s">
-            <div class="pool-stat-icon">
-                <i data-lucide="gauge"></i>
-            </div>
-            <div class="pool-stat-info">
-                <span class="pool-stat-value" id="currentHashrate">0.00</span>
-                <span class="pool-stat-unit"><span data-i18n="archie_pool.mh_s">MH/s</span></span>
-                <span class="pool-stat-label"><span data-i18n="archie_pool.current_hashrate">CURRENT HASHRATE</span></span>
-            </div>
-            <div class="pool-stat-trend positive" id="hashrateTrend">
-                <i data-lucide="trending-up"></i>
-                <span>+0%</span>
-            </div>
-        </div>
-        <div class="pool-stat-card" style="animation-delay: 0.2s">
-            <div class="pool-stat-icon pool-stat-icon--earnings">
-                <i data-lucide="coins"></i>
-            </div>
-            <div class="pool-stat-info">
-                <span class="pool-stat-value" id="earnings24h">0.00</span>
-                <span class="pool-stat-unit"><span data-i18n="archie_pool.rvn">RVN</span></span>
-                <span class="pool-stat-label"><span data-i18n="archie_pool.24h_earnings">24H EARNINGS</span></span>
-            </div>
-            <div class="pool-stat-trend positive" id="earningsTrend">
-                <i data-lucide="trending-up"></i>
-                <span>+0%</span>
-            </div>
-        </div>
-        <div class="pool-stat-card" style="animation-delay: 0.3s">
-            <div class="pool-stat-icon pool-stat-icon--pending">
-                <i data-lucide="clock"></i>
-            </div>
-            <div class="pool-stat-info">
-                <span class="pool-stat-value" id="pendingPayout">0.00</span>
-                <span class="pool-stat-unit"><span data-i18n="archie_pool.rvn_2">RVN</span></span>
-                <span class="pool-stat-label"><span data-i18n="archie_pool.pending_payout">PENDING PAYOUT</span></span>
-            </div>
-            <div class="pool-stat-progress">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="payoutProgress" style="width: 0%"></div>
-                </div>
-                <span class="progress-text" id="payoutProgressText">0%</span>
-            </div>
-        </div>
-        <div class="pool-stat-card" style="animation-delay: 0.4s">
-            <div class="pool-stat-icon pool-stat-icon--workers">
-                <i data-lucide="server"></i>
-            </div>
-            <div class="pool-stat-info">
-                <span class="pool-stat-value" id="workersOnline">0</span>
-                <span class="pool-stat-unit">/ <span id="workersTotal">0</span></span>
-                <span class="pool-stat-label"><span data-i18n="archie_pool.workers_online">WORKERS ONLINE</span></span>
-            </div>
-            <div class="pool-stat-indicator" id="workerHealth">
-                <span class="health-dot"></span>
-                <span><span data-i18n="archie_pool.all_healthy">All Healthy</span></span>
-            </div>
-        </div>
-    </section>
-
-    <!-- Tab Navigation -->
-    <nav class="pool-tabs">
-        <button class="pool-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">
-            <i data-lucide="layout-dashboard"></i>
-            Dashboard
-        </button>
-        <button class="pool-tab" data-tab="workers" onclick="switchTab('workers')">
-            <i data-lucide="server"></i>
-            Workers
-        </button>
-        <button class="pool-tab" data-tab="payouts" onclick="switchTab('payouts')">
-            <i data-lucide="wallet"></i>
-            Payouts
-        </button>
-        <button class="pool-tab" data-tab="settings" onclick="switchTab('settings')">
-            <i data-lucide="settings"></i>
-            Settings
-        </button>
-    </nav>
-
-    <!-- Tab Content -->
-    <div class="pool-tab-content">
-        <!-- Dashboard Tab -->
-        <div class="pool-tab-panel active" id="dashboard-panel">
-            <div class="dashboard-grid">
-                <!-- Hashrate Chart -->
-                <div class="pool-card pool-chart-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="activity"></i>
-                            Hashrate History (24h)
-                        </h3>
-                        <div class="chart-controls">
-                            <button class="chart-btn active" data-range="24h">24H</button>
-                            <button class="chart-btn" data-range="7d">7D</button>
-                            <button class="chart-btn" data-range="30d">30D</button>
-                        </div>
-                    </div>
-                    <div class="pool-chart" id="hashrateChart">
-                        <div class="chart-placeholder">
-                            <div class="chart-line"></div>
-                            <div class="chart-grid">
-                                <span><span data-i18n="archie_pool.100_mh_s">100 MH/s</span></span>
-                                <span><span data-i18n="archie_pool.75_mh_s">75 MH/s</span></span>
-                                <span><span data-i18n="archie_pool.50_mh_s">50 MH/s</span></span>
-                                <span><span data-i18n="archie_pool.25_mh_s">25 MH/s</span></span>
-                                <span><span data-i18n="archie_pool.0_mh_s">0 MH/s</span></span>
-                            </div>
-                            <div class="chart-data-points" id="hashrateDataPoints">
-                                <!-- Data points rendered here -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pool Statistics -->
-                <div class="pool-card pool-stats-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="bar-chart-3"></i>
-                            Pool Statistics
-                        </h3>
-                        <span class="live-indicator">
-                            <span class="live-dot"></span>
-                            LIVE
-                        </span>
-                    </div>
-                    <div class="pool-stats-grid">
-                        <div class="pool-mini-stat">
-                            <span class="mini-stat-label"><span data-i18n="archie_pool.pool_hashrate">Pool Hashrate</span></span>
-                            <span class="mini-stat-value" id="poolHashrate"><span data-i18n="archie_pool.0_00_gh_s">0.00 GH/s</span></span>
-                        </div>
-                        <div class="pool-mini-stat">
-                            <span class="mini-stat-label"><span data-i18n="archie_pool.active_miners">Active Miners</span></span>
-                            <span class="mini-stat-value" id="activeMiners">0</span>
-                        </div>
-                        <div class="pool-mini-stat">
-                            <span class="mini-stat-label"><span data-i18n="archie_pool.blocks_found_24h">Blocks Found (24h)</span></span>
-                            <span class="mini-stat-value" id="blocksFound">0</span>
-                        </div>
-                        <div class="pool-mini-stat">
-                            <span class="mini-stat-label"><span data-i18n="archie_pool.network_difficulty">Network Difficulty</span></span>
-                            <span class="mini-stat-value" id="networkDifficulty">0.00</span>
-                        </div>
-                        <div class="pool-mini-stat">
-                            <span class="mini-stat-label"><span data-i18n="archie_pool.network_hashrate">Network Hashrate</span></span>
-                            <span class="mini-stat-value" id="networkHashrate"><span data-i18n="archie_pool.0_00_th_s">0.00 TH/s</span></span>
-                        </div>
-                        <div class="pool-mini-stat">
-                            <span class="mini-stat-label"><span data-i18n="archie_pool.block_height">Block Height</span></span>
-                            <span class="mini-stat-value" id="blockHeight">0</span>
-                        </div>
-                        <div class="pool-mini-stat">
-                            <span class="mini-stat-label"><span data-i18n="archie_pool.rvn_price_usd">RVN Price (USD)</span></span>
-                            <span class="mini-stat-value" id="rvnPrice">$0.000</span>
-                        </div>
-                        <div class="pool-mini-stat">
-                            <span class="mini-stat-label"><span data-i18n="archie_pool.est_daily_earnings">Est. Daily Earnings</span></span>
-                            <span class="mini-stat-value" id="estDailyEarnings"><span data-i18n="archie_pool.0_00_rvn">0.00 RVN</span></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Recent Shares -->
-                <div class="pool-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="check-circle"></i>
-                            Recent Shares
-                        </h3>
-                        <span class="share-counter">
-                            <span id="validShares">0</span><span data-i18n="archie_pool.valid"> valid / </span><span id="invalidShares">0</span> invalid
-                        </span>
-                    </div>
-                    <div class="shares-feed" id="sharesFeed">
-                        <div class="share-item valid">
-                            <i data-lucide="check"></i>
-                            <span class="share-worker"><span data-i18n="archie_pool.worker_01">Worker_01</span></span>
-                            <span class="share-diff"><span data-i18n="archie_pool.diff_32">Diff: 32</span></span>
-                            <span class="share-time"><span data-i18n="archie_pool.just_now">Just now</span></span>
-                        </div>
-                        <div class="share-item valid">
-                            <i data-lucide="check"></i>
-                            <span class="share-worker"><span data-i18n="archie_pool.worker_02">Worker_02</span></span>
-                            <span class="share-diff"><span data-i18n="archie_pool.diff_32_2">Diff: 32</span></span>
-                            <span class="share-time"><span data-i18n="archie_pool.2s_ago">2s ago</span></span>
-                        </div>
-                        <div class="share-item valid">
-                            <i data-lucide="check"></i>
-                            <span class="share-worker"><span data-i18n="archie_pool.worker_01_2">Worker_01</span></span>
-                            <span class="share-diff"><span data-i18n="archie_pool.diff_32_3">Diff: 32</span></span>
-                            <span class="share-time"><span data-i18n="archie_pool.5s_ago">5s ago</span></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Recent Blocks -->
-                <div class="pool-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="cube"></i>
-                            Recent Blocks
-                        </h3>
-                    </div>
-                    <div class="blocks-list" id="blocksList">
-                        <div class="block-item">
-                            <div class="block-info">
-                                <span class="block-height">#2,847,392</span>
-                                <span class="block-hash">0x8a7f...3c2d</span>
-                            </div>
-                            <div class="block-reward">
-                                <span class="reward-amount"><span data-i18n="archie_pool.2500_rvn">2500 RVN</span></span>
-                                <span class="block-time"><span data-i18n="archie_pool.2_hours_ago">2 hours ago</span></span>
-                            </div>
-                        </div>
-                        <div class="block-item">
-                            <div class="block-info">
-                                <span class="block-height">#2,847,156</span>
-                                <span class="block-hash">0x3f2a...9e1b</span>
-                            </div>
-                            <div class="block-reward">
-                                <span class="reward-amount"><span data-i18n="archie_pool.2500_rvn_2">2500 RVN</span></span>
-                                <span class="block-time"><span data-i18n="archie_pool.5_hours_ago">5 hours ago</span></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Workers Tab -->
-        <div class="pool-tab-panel" id="workers-panel">
-            <div class="workers-layout">
-                <!-- Workers Toolbar -->
-                <div class="workers-toolbar">
-                    <div class="toolbar-left">
-                        <button class="pool-btn pool-btn-primary" onclick="showAddWorkerModal()">
-                            <i data-lucide="plus"></i>
-                            Add Worker
-                        </button>
-                        <button class="pool-btn pool-btn-secondary" onclick="refreshWorkers()">
-                            <i data-lucide="refresh-cw"></i>
-                            Refresh
-                        </button>
-                    </div>
-                    <div class="toolbar-right">
-                        <div class="pool-search">
-                            <i data-lucide="search"></i>
-                            <input type="text" placeholder="Search workers..." id="workerSearch" onkeyup="filterWorkers()">
-                        </div>
-                        <select class="pool-select" id="workerFilter" onchange="filterWorkers()">
-                            <option value="all"><span data-i18n="archie_pool.all_workers">All Workers</span></option>
-                            <option value="online"><span data-i18n="archie_pool.online">Online</span></option>
-                            <option value="offline"><span data-i18n="archie_pool.offline">Offline</span></option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Workers Table -->
-                <div class="pool-card workers-table-card">
-                    <table class="pool-table" id="workersTable">
-                        <thead>
-                            <tr>
-                                <th><span data-i18n="archie_pool.status">Status</span></th>
-                                <th><span data-i18n="archie_pool.worker_name">Worker Name</span></th>
-                                <th><span data-i18n="archie_pool.hashrate">Hashrate</span></th>
-                                <th><span data-i18n="archie_pool.shares_valid_invalid">Shares (Valid/Invalid)</span></th>
-                                <th><span data-i18n="archie_pool.last_seen">Last Seen</span></th>
-                                <th><span data-i18n="archie_pool.actions">Actions</span></th>
-                            </tr>
-                        </thead>
-                        <tbody id="workersTableBody">
-                            <tr class="worker-row online">
-                                <td>
-                                    <span class="worker-status-badge online">
-                                        <span class="status-dot"></span>
-                                        Online
-                                    </span>
-                                </td>
-                                <td class="worker-name">
-                                    <i data-lucide="server"></i>
-                                    <span><span data-i18n="archie_pool.rig_3080_01">RIG_3080_01</span></span>
-                                </td>
-                                <td class="worker-hashrate">
-                                    <span class="hashrate-value">32.5</span>
-                                    <span class="hashrate-unit"><span data-i18n="archie_pool.mh_s_2">MH/s</span></span>
-                                </td>
-                                <td class="worker-shares">
-                                    <span class="shares-valid">12,458</span> /
-                                    <span class="shares-invalid">3</span>
-                                </td>
-                                <td class="worker-lastseen"><span data-i18n="archie_pool.just_now_2">Just now</span></td>
-                                <td class="worker-actions">
-                                    <button class="action-btn" onclick="showWorkerDetails('RIG_3080_01')" title="Details">
-                                        <i data-lucide="eye"></i>
-                                    </button>
-                                    <button class="action-btn" onclick="editWorker('RIG_3080_01')" title="Edit">
-                                        <i data-lucide="edit-2"></i>
-                                    </button>
-                                    <button class="action-btn danger" onclick="removeWorker('RIG_3080_01')" title="Remove">
-                                        <i data-lucide="trash-2"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr class="worker-row online">
-                                <td>
-                                    <span class="worker-status-badge online">
-                                        <span class="status-dot"></span>
-                                        Online
-                                    </span>
-                                </td>
-                                <td class="worker-name">
-                                    <i data-lucide="server"></i>
-                                    <span><span data-i18n="archie_pool.rig_3070_02">RIG_3070_02</span></span>
-                                </td>
-                                <td class="worker-hashrate">
-                                    <span class="hashrate-value">28.2</span>
-                                    <span class="hashrate-unit"><span data-i18n="archie_pool.mh_s_3">MH/s</span></span>
-                                </td>
-                                <td class="worker-shares">
-                                    <span class="shares-valid">9,847</span> /
-                                    <span class="shares-invalid">1</span>
-                                </td>
-                                <td class="worker-lastseen"><span data-i18n="archie_pool.5s_ago_2">5s ago</span></td>
-                                <td class="worker-actions">
-                                    <button class="action-btn" onclick="showWorkerDetails('RIG_3070_02')" title="Details">
-                                        <i data-lucide="eye"></i>
-                                    </button>
-                                    <button class="action-btn" onclick="editWorker('RIG_3070_02')" title="Edit">
-                                        <i data-lucide="edit-2"></i>
-                                    </button>
-                                    <button class="action-btn danger" onclick="removeWorker('RIG_3070_02')" title="Remove">
-                                        <i data-lucide="trash-2"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr class="worker-row offline">
-                                <td>
-                                    <span class="worker-status-badge offline">
-                                        <span class="status-dot"></span>
-                                        Offline
-                                    </span>
-                                </td>
-                                <td class="worker-name">
-                                    <i data-lucide="server"></i>
-                                    <span><span data-i18n="archie_pool.rig_1660s_03">RIG_1660S_03</span></span>
-                                </td>
-                                <td class="worker-hashrate">
-                                    <span class="hashrate-value">0.0</span>
-                                    <span class="hashrate-unit"><span data-i18n="archie_pool.mh_s_4">MH/s</span></span>
-                                </td>
-                                <td class="worker-shares">
-                                    <span class="shares-valid">3,291</span> /
-                                    <span class="shares-invalid">0</span>
-                                </td>
-                                <td class="worker-lastseen"><span data-i18n="archie_pool.2h_ago">2h ago</span></td>
-                                <td class="worker-actions">
-                                    <button class="action-btn" onclick="showWorkerDetails('RIG_1660S_03')" title="Details">
-                                        <i data-lucide="eye"></i>
-                                    </button>
-                                    <button class="action-btn" onclick="editWorker('RIG_1660S_03')" title="Edit">
-                                        <i data-lucide="edit-2"></i>
-                                    </button>
-                                    <button class="action-btn danger" onclick="removeWorker('RIG_1660S_03')" title="Remove">
-                                        <i data-lucide="trash-2"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Miner Configuration -->
-                <div class="pool-card miner-config-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="terminal"></i>
-                            Miner Configuration
-                        </h3>
-                    </div>
-                    <div class="miner-configs">
-                        <div class="config-section">
-                            <h4><span data-i18n="archie_pool.nbminer_recommended">NBMiner (Recommended)</span></h4>
-                            <code class="config-command">nbminer -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME</code>
-                            <button class="copy-btn" onclick="copyConfig('nbminer')" title="Copy">
-                                <i data-lucide="copy"></i>
-                            </button>
-                        </div>
-                        <div class="config-section">
-                            <h4><span data-i18n="archie_pool.t_rex_miner">T-Rex Miner</span></h4>
-                            <code class="config-command">t-rex -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME -p x</code>
-                            <button class="copy-btn" onclick="copyConfig('trex')" title="Copy">
-                                <i data-lucide="copy"></i>
-                            </button>
-                        </div>
-                        <div class="config-section">
-                            <h4><span data-i18n="archie_pool.gminer">Gminer</span></h4>
-                            <code class="config-command">miner --algo kawpow --server stratum+tcp://pool.kytranempowerment.com:3333 --user YOUR_RVN_ADDRESS.WORKER_NAME</code>
-                            <button class="copy-btn" onclick="copyConfig('gminer')" title="Copy">
-                                <i data-lucide="copy"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Payouts Tab -->
-        <div class="pool-tab-panel" id="payouts-panel">
-            <div class="payouts-layout">
-                <!-- Payout Summary -->
-                <div class="payout-summary-grid">
-                    <div class="pool-card payout-summary-card">
-                        <div class="payout-icon">
-                            <i data-lucide="clock"></i>
-                        </div>
-                        <div class="payout-info">
-                            <span class="payout-amount" id="summaryPending"><span data-i18n="archie_pool.0_00_rvn_2">0.00 RVN</span></span>
-                            <span class="payout-label"><span data-i18n="archie_pool.pending_balance">Pending Balance</span></span>
-                        </div>
-                    </div>
-                    <div class="pool-card payout-summary-card">
-                        <div class="payout-icon paid">
-                            <i data-lucide="check-circle"></i>
-                        </div>
-                        <div class="payout-info">
-                            <span class="payout-amount" id="summaryPaid"><span data-i18n="archie_pool.0_00_rvn_3">0.00 RVN</span></span>
-                            <span class="payout-label"><span data-i18n="archie_pool.total_paid">Total Paid</span></span>
-                        </div>
-                    </div>
-                    <div class="pool-card payout-summary-card">
-                        <div class="payout-icon next">
-                            <i data-lucide="calendar"></i>
-                        </div>
-                        <div class="payout-info">
-                            <span class="payout-amount" id="nextPayout">--</span>
-                            <span class="payout-label"><span data-i18n="archie_pool.next_payout">Next Payout</span></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pending Payouts -->
-                <div class="pool-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="hourglass"></i>
-                            Pending Payouts
-                        </h3>
-                    </div>
-                    <div class="pending-payouts" id="pendingPayouts">
-                        <div class="pending-payout-item">
-                            <div class="pending-info">
-                                <span class="pending-address"><span data-i18n="archie_pool.rvnaddress_xyz123">RVNaddress...xyz123</span></span>
-                                <span class="pending-amount"><span data-i18n="archie_pool.125_50_rvn">125.50 RVN</span></span>
-                            </div>
-                            <div class="pending-status">
-                                <span class="status-badge pending"><span data-i18n="archie_pool.processing">Processing</span></span>
-                                <span class="pending-eta"><span data-i18n="archie_pool.eta_30_min">ETA: ~30 min</span></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Payout History -->
-                <div class="pool-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="history"></i>
-                            Payout History
-                        </h3>
-                        <button class="pool-btn pool-btn-secondary" onclick="exportPayoutHistory()">
-                            <i data-lucide="download"></i>
-                            Export CSV
-                        </button>
-                    </div>
-                    <table class="pool-table" id="payoutHistoryTable">
-                        <thead>
-                            <tr>
-                                <th><span data-i18n="archie_pool.date">Date</span></th>
-                                <th><span data-i18n="archie_pool.amount">Amount</span></th>
-                                <th><span data-i18n="archie_pool.tx_hash">TX Hash</span></th>
-                                <th><span data-i18n="archie_pool.status_2">Status</span></th>
-                            </tr>
-                        </thead>
-                        <tbody id="payoutHistoryBody">
-                            <tr>
-                                <td>2026-01-17 14:32</td>
-                                <td class="payout-amount"><span data-i18n="archie_pool.250_00_rvn">250.00 RVN</span></td>
-                                <td class="tx-hash">
-                                    <a href="#" target="_blank">8a7f2c1d...3e9b</a>
-                                    <button class="copy-btn-small" onclick="copyToClipboard('8a7f2c1d...3e9b')">
-                                        <i data-lucide="copy"></i>
-                                    </button>
-                                </td>
-                                <td><span class="status-badge confirmed"><span data-i18n="archie_pool.confirmed">Confirmed</span></span></td>
-                            </tr>
-                            <tr>
-                                <td>2026-01-15 09:15</td>
-                                <td class="payout-amount"><span data-i18n="archie_pool.187_25_rvn">187.25 RVN</span></td>
-                                <td class="tx-hash">
-                                    <a href="#" target="_blank">3f2a9e1b...7c4d</a>
-                                    <button class="copy-btn-small" onclick="copyToClipboard('3f2a9e1b...7c4d')">
-                                        <i data-lucide="copy"></i>
-                                    </button>
-                                </td>
-                                <td><span class="status-badge confirmed"><span data-i18n="archie_pool.confirmed_2">Confirmed</span></span></td>
-                            </tr>
-                            <tr>
-                                <td>2026-01-12 22:47</td>
-                                <td class="payout-amount"><span data-i18n="archie_pool.312_75_rvn">312.75 RVN</span></td>
-                                <td class="tx-hash">
-                                    <a href="#" target="_blank">c5d8f4a2...1b6e</a>
-                                    <button class="copy-btn-small" onclick="copyToClipboard('c5d8f4a2...1b6e')">
-                                        <i data-lucide="copy"></i>
-                                    </button>
-                                </td>
-                                <td><span class="status-badge confirmed"><span data-i18n="archie_pool.confirmed_3">Confirmed</span></span></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Settings Tab -->
-        <div class="pool-tab-panel" id="settings-panel">
-            <div class="settings-layout">
-                <!-- Payout Settings -->
-                <div class="pool-card settings-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="wallet"></i>
-                            Payout Settings
-                        </h3>
-                    </div>
-                    <div class="settings-form">
-                        <div class="form-group">
-                            <label for="payoutAddress"><span data-i18n="archie_pool.rvn_payout_address">RVN Payout Address</span></label>
-                            <div class="input-with-action">
-                                <input type="text" id="payoutAddress" class="pool-input"
-                                       placeholder="Enter your Ravencoin wallet address"
-                                       value="">
-                                <button class="pool-btn pool-btn-secondary" onclick="validateAddress()">
-                                    <i data-lucide="check"></i>
-                                    Verify
-                                </button>
-                            </div>
-                            <span class="input-hint"><span data-i18n="archie_pool.your_rvn_address_starting_with_r">Your RVN address starting with 'R'</span></span>
-                        </div>
-                        <div class="form-group">
-                            <label for="payoutThreshold"><span data-i18n="archie_pool.minimum_payout_threshold">Minimum Payout Threshold</span></label>
-                            <div class="input-with-unit">
-                                <input type="number" id="payoutThreshold" class="pool-input"
-                                       min="10" max="10000" step="1" value="50">
-                                <span class="input-unit"><span data-i18n="archie_pool.rvn_3">RVN</span></span>
-                            </div>
-                            <span class="input-hint"><span data-i18n="archie_pool.minimum_10_rvn_maximum_10_000_rvn">Minimum: 10 RVN | Maximum: 10,000 RVN</span></span>
-                        </div>
-                        <div class="form-group">
-                            <label for="payoutFrequency"><span data-i18n="archie_pool.payout_frequency">Payout Frequency</span></label>
-                            <select id="payoutFrequency" class="pool-select">
-                                <option value="auto"><span data-i18n="archie_pool.automatic_when_threshold_reached">Automatic (when threshold reached)</span></option>
-                                <option value="daily"><span data-i18n="archie_pool.daily">Daily</span></option>
-                                <option value="weekly"><span data-i18n="archie_pool.weekly">Weekly</span></option>
-                                <option value="manual"><span data-i18n="archie_pool.manual_request_only">Manual Request Only</span></option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Notification Settings -->
-                <div class="pool-card settings-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="bell"></i>
-                            Notification Settings
-                        </h3>
-                    </div>
-                    <div class="settings-form">
-                        <div class="form-group">
-                            <label for="notifyEmail"><span data-i18n="archie_pool.email_notifications">Email Notifications</span></label>
-                            <input type="email" id="notifyEmail" class="pool-input"
-                                   placeholder="your@email.com">
-                        </div>
-                        <div class="toggle-group">
-                            <div class="toggle-item">
-                                <div class="toggle-info">
-                                    <span class="toggle-label"><span data-i18n="archie_pool.worker_offline_alert">Worker Offline Alert</span></span>
-                                    <span class="toggle-desc"><span data-i18n="archie_pool.get_notified_when_a_worker_goes_offline">Get notified when a worker goes offline</span></span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="alertWorkerOffline" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="toggle-item">
-                                <div class="toggle-info">
-                                    <span class="toggle-label"><span data-i18n="archie_pool.payout_notifications">Payout Notifications</span></span>
-                                    <span class="toggle-desc"><span data-i18n="archie_pool.get_notified_when_payouts_are_processed">Get notified when payouts are processed</span></span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="alertPayout" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="toggle-item">
-                                <div class="toggle-info">
-                                    <span class="toggle-label"><span data-i18n="archie_pool.block_found_alert">Block Found Alert</span></span>
-                                    <span class="toggle-desc"><span data-i18n="archie_pool.get_notified_when_the_pool_finds_a_block">Get notified when the pool finds a block</span></span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="alertBlockFound">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="toggle-item">
-                                <div class="toggle-info">
-                                    <span class="toggle-label"><span data-i18n="archie_pool.daily_summary">Daily Summary</span></span>
-                                    <span class="toggle-desc"><span data-i18n="archie_pool.receive_daily_mining_statistics">Receive daily mining statistics</span></span>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="alertDailySummary">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- API Access -->
-                <div class="pool-card settings-card">
-                    <div class="pool-card-header">
-                        <h3>
-                            <i data-lucide="key"></i>
-                            API Access
-                        </h3>
-                    </div>
-                    <div class="settings-form">
-                        <div class="form-group">
-                            <label><span data-i18n="archie_pool.api_key">API Key</span></label>
-                            <div class="api-key-display">
-                                <code class="api-key" id="apiKey">••••••••••••••••••••••••••••••••</code>
-                                <button class="pool-btn pool-btn-icon" onclick="toggleApiKey()" title="Show/Hide">
-                                    <i data-lucide="eye" id="apiKeyIcon"></i>
-                                </button>
-                                <button class="pool-btn pool-btn-icon" onclick="copyApiKey()" title="Copy">
-                                    <i data-lucide="copy"></i>
-                                </button>
-                                <button class="pool-btn pool-btn-icon danger" onclick="regenerateApiKey()" title="Regenerate">
-                                    <i data-lucide="refresh-cw"></i>
-                                </button>
-                            </div>
-                            <span class="input-hint"><span data-i18n="archie_pool.use_this_key_to_access_pool_statistics_via_api">Use this key to access pool statistics via API</span></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Save Button -->
-                <div class="settings-actions">
-                    <button class="pool-btn pool-btn-primary pool-btn-large" onclick="saveSettings()">
-                        <i data-lucide="save"></i>
-                        Save Settings
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Add Worker Modal -->
-<div class="pool-modal" id="addWorkerModal">
-    <div class="pool-modal-content">
-        <div class="pool-modal-header">
-            <h3>
-                <i data-lucide="plus-circle"></i>
-                Add New Worker
-            </h3>
-            <button class="modal-close" onclick="closeModal('addWorkerModal')">
-                <i data-lucide="x"></i>
-            </button>
-        </div>
-        <div class="pool-modal-body">
-            <div class="form-group">
-                <label for="newWorkerName"><span data-i18n="archie_pool.worker_name_2">Worker Name</span></label>
-                <input type="text" id="newWorkerName" class="pool-input"
-                       placeholder="e.g., RIG_3080_01" maxlength="32">
-                <span class="input-hint"><span data-i18n="archie_pool.alphanumeric_characters_and_underscores_only">Alphanumeric characters and underscores only</span></span>
-            </div>
-            <div class="form-group">
-                <label for="workerPassword"><span data-i18n="archie_pool.worker_password_optional">Worker Password (Optional)</span></label>
-                <input type="password" id="workerPassword" class="pool-input"
-                       placeholder="Leave empty for no password">
-            </div>
-            <div class="connection-preview">
-                <label><span data-i18n="archie_pool.connection_string">Connection String</span></label>
-                <code id="workerConnectionString">YOUR_RVN_ADDRESS.WORKER_NAME</code>
-            </div>
-        </div>
-        <div class="pool-modal-footer">
-            <button class="pool-btn pool-btn-secondary" onclick="closeModal('addWorkerModal')"><span data-i18n="archie_pool.cancel">Cancel</span></button>
-            <button class="pool-btn pool-btn-primary" onclick="addWorker()">
-                <i data-lucide="plus"></i>
-                Add Worker
-            </button>
-        </div>
-    </div>
-</div>
-
+{% block extra_css %}
 <style>
-/* ========================================================================
-   ARCHIE POOL - RAVENCOIN MINING (RED THEME)
-   ======================================================================== */
-
-/* Theme tokens inherited from theme.css */
-
-.pool-container {
-    min-height: 100vh;
-    background: var(--archie-bg-primary);
-    padding: 20px 30px 40px;
-    padding-top: 80px;
-}
-
-.scanline-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0.03) 0px,
-        rgba(0, 0, 0, 0.03) 1px,
-        transparent 1px,
-        transparent 2px
-    );
-    pointer-events: none;
-    z-index: 1000;
-}
-
-/* ========================================================================
-   HEADER
-   ======================================================================== */
-
-.pool-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    animation: fadeInUp 0.5s ease-out;
-}
-
-.pool-title {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--archie-red);
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
-    margin: 0;
-}
-
-.pool-title i {
-    width: 36px;
-    height: 36px;
-}
-
-.pool-subtitle {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--archie-text-tertiary);
-    margin: 8px 0 0 51px;
-}
-
-.pool-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-success);
-}
-
-.status-indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
-.status-online {
-    background: var(--archie-success);
-    box-shadow: 0 0 10px var(--archie-success);
-}
-
-/* ========================================================================
-   CONNECTION BANNER
-   ======================================================================== */
-
-.pool-connection-banner {
-    background: linear-gradient(135deg, var(--archie-red-alpha-10), rgba(255, 107, 107, 0.05));
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 16px 24px;
-    margin-bottom: 24px;
-}
-
-.connection-info {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 24px;
-    align-items: center;
-}
-
-.connection-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.connection-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    letter-spacing: 1px;
-}
-
-.connection-value {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-red);
-    background: rgba(0, 0, 0, 0.3);
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--archie-border-default);
-}
-
-.copy-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 6px;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.copy-btn:hover {
-    color: var(--archie-red);
-    border-color: var(--archie-red);
-    background: var(--archie-red-alpha-10);
-}
-
-.copy-btn i {
-    width: 16px;
-    height: 16px;
-}
-
-/* ========================================================================
-   STATS CARDS
-   ======================================================================== */
-
-.pool-stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
-    margin-bottom: 30px;
-}
-
-.pool-stat-card {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 20px;
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    backdrop-filter: blur(10px);
-    animation: fadeInUp 0.5s ease-out both;
-    transition: all 0.3s ease;
-    position: relative;
-}
-
-.pool-stat-card:hover {
-    border-color: rgba(255, 107, 107, 0.5);
-    box-shadow: 0 0 20px rgba(255, 107, 107, 0.15);
-    transform: translateY(-2px);
-}
-
-.pool-stat-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--archie-red-alpha-10);
-    color: var(--archie-red);
-    flex-shrink: 0;
-}
-
-.pool-stat-icon i {
-    width: 24px;
-    height: 24px;
-}
-
-.pool-stat-icon--earnings {
-    background: rgba(245, 158, 11, 0.1);
-    color: #F59E0B;
-}
-
-.pool-stat-icon--pending {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3B82F6;
-}
-
-.pool-stat-icon--workers {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10B981;
-}
-
-.pool-stat-info {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-}
-
-.pool-stat-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--archie-text-secondary);
-    line-height: 1;
-}
-
-.pool-stat-unit {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-tertiary);
-    margin-left: 4px;
-}
-
-.pool-stat-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    letter-spacing: 1px;
-    margin-top: 6px;
-}
-
-.pool-stat-trend {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-}
-
-.pool-stat-trend.positive {
-    color: var(--archie-success);
-}
-
-.pool-stat-trend.negative {
-    color: var(--archie-danger);
-}
-
-.pool-stat-trend i {
-    width: 14px;
-    height: 14px;
-}
-
-.pool-stat-progress {
-    position: absolute;
-    bottom: 16px;
-    right: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.progress-bar {
-    width: 60px;
-    height: 6px;
-    background: rgba(59, 130, 246, 0.2);
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.progress-fill {
-    height: 100%;
-    background: #3B82F6;
-    border-radius: 3px;
-    transition: width 0.5s ease;
-}
-
-.progress-text {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: #3B82F6;
-}
-
-.pool-stat-indicator {
-    position: absolute;
-    bottom: 16px;
-    right: 16px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-success);
-}
-
-.health-dot {
-    width: 8px;
-    height: 8px;
-    background: var(--archie-success);
-    border-radius: 50%;
-}
-
-/* ========================================================================
-   TABS
-   ======================================================================== */
-
-.pool-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.pool-tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-muted);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    position: relative;
-    transition: all 0.25s ease;
-}
-
-.pool-tab i {
-    width: 18px;
-    height: 18px;
-}
-
-.pool-tab::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--archie-red);
-    transform: scaleX(0);
-    transition: transform 0.25s ease;
-}
-
-.pool-tab:hover {
-    color: var(--archie-text-tertiary);
-}
-
-.pool-tab.active {
-    color: var(--archie-red);
-}
-
-.pool-tab.active::after {
-    transform: scaleX(1);
-}
-
-/* ========================================================================
-   TAB PANELS
-   ======================================================================== */
-
-.pool-tab-panel {
-    display: none;
-    animation: fadeIn 0.3s ease;
-}
-
-.pool-tab-panel.active {
-    display: block;
-}
-
-/* ========================================================================
-   DASHBOARD GRID
-   ======================================================================== */
-
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 24px;
-}
-
-.pool-card {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 12px;
-    padding: 24px;
-    backdrop-filter: blur(10px);
-}
-
-.pool-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}
-
-.pool-card-header h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0;
-}
-
-.pool-card-header h3 i {
-    width: 20px;
-    height: 20px;
-    color: var(--archie-red);
-}
-
-/* Chart */
-.pool-chart-card {
-    grid-column: 1;
-}
-
-.chart-controls {
-    display: flex;
-    gap: 4px;
-}
-
-.chart-btn {
-    padding: 6px 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 6px;
-    color: var(--archie-text-muted);
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.chart-btn:hover, .chart-btn.active {
-    color: var(--archie-red);
-    border-color: var(--archie-red);
-    background: var(--archie-red-alpha-10);
-}
-
-.pool-chart {
-    height: 200px;
-    position: relative;
-}
-
-.chart-placeholder {
-    height: 100%;
-    position: relative;
-    border-left: 1px solid var(--archie-border-default);
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.chart-line {
-    position: absolute;
-    bottom: 30%;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg,
-        transparent,
-        var(--archie-red) 10%,
-        var(--archie-red) 30%,
-        rgba(255, 107, 107, 0.5) 50%,
-        var(--archie-red) 70%,
-        var(--archie-red) 90%,
-        transparent);
-    animation: chartGlow 2s infinite;
-}
-
-@keyframes chartGlow {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-}
-
-.chart-grid {
-    position: absolute;
-    left: -50px;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    color: var(--archie-text-muted);
-}
-
-/* Pool Stats */
-.pool-stats-card {
-    grid-column: 2;
-    grid-row: 1 / 3;
-}
-
-.live-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-success);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.live-dot {
-    width: 8px;
-    height: 8px;
-    background: var(--archie-success);
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
-.pool-stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-
-.pool-mini-stat {
-    padding: 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-    border: 1px solid var(--archie-red-alpha-10);
-}
-
-.mini-stat-label {
-    display: block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
-}
-
-.mini-stat-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.95rem;
-    color: var(--archie-text-secondary);
-}
-
-/* Shares Feed */
-.shares-feed {
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.share-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    margin-bottom: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-}
-
-.share-item.valid i {
-    color: var(--archie-success);
-    width: 16px;
-    height: 16px;
-}
-
-.share-item.invalid i {
-    color: var(--archie-danger);
-}
-
-.share-worker {
-    color: var(--archie-text-secondary);
-    flex: 1;
-}
-
-.share-diff {
-    color: var(--archie-text-muted);
-}
-
-.share-time {
-    color: var(--archie-text-muted);
-    font-size: 0.7rem;
-}
-
-.share-counter {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-}
-
-/* Blocks List */
-.blocks-list {
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.block-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    border-left: 3px solid var(--archie-red);
-}
-
-.block-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.block-height {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-}
-
-.block-hash {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-}
-
-.block-reward {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.reward-amount {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    color: var(--archie-warning);
-}
-
-.block-time {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-}
-
-/* ========================================================================
-   WORKERS TAB
-   ======================================================================== */
-
-.workers-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.workers-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 16px;
-}
-
-.toolbar-left, .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-/* Buttons */
-.pool-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 500;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.pool-btn i {
-    width: 18px;
-    height: 18px;
-}
-
-.pool-btn-primary {
-    background: transparent;
-    color: var(--archie-red);
-    border: 2px solid var(--archie-red);
-}
-
-.pool-btn-primary:hover {
-    background: var(--archie-red);
-    color: white;
-    box-shadow: 0 0 20px var(--archie-red-alpha-30);
-}
-
-.pool-btn-secondary {
-    background: transparent;
-    color: var(--archie-text-tertiary);
-    border: 1px solid var(--archie-border-default);
-}
-
-.pool-btn-secondary:hover {
-    color: var(--archie-text-secondary);
-    border-color: var(--archie-text-tertiary);
-}
-
-.pool-btn-icon {
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    justify-content: center;
-}
-
-.pool-btn-icon.danger {
-    color: var(--archie-danger);
-    border-color: rgba(239, 68, 68, 0.3);
-}
-
-.pool-btn-icon.danger:hover {
-    background: rgba(239, 68, 68, 0.1);
-}
-
-.pool-btn-large {
-    padding: 14px 28px;
-    font-size: 1rem;
-}
-
-/* Search */
-.pool-search {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    padding: 0 16px;
-    min-width: 250px;
-}
-
-.pool-search i {
-    width: 18px;
-    height: 18px;
-    color: var(--archie-text-muted);
-}
-
-.pool-search input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    padding: 10px 0;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-secondary);
-}
-
-.pool-search input:focus {
-    outline: none;
-}
-
-/* Select */
-.pool-select {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-secondary);
-    cursor: pointer;
-}
-
-/* Workers Table */
-.workers-table-card {
-    overflow-x: auto;
-}
-
-.pool-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: 'JetBrains Mono', monospace;
-}
-
-.pool-table th {
-    text-align: left;
-    padding: 12px 16px;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.pool-table td {
-    padding: 16px;
-    border-bottom: 1px solid var(--archie-red-alpha-10);
-}
-
-.pool-table tbody tr:hover {
-    background: rgba(255, 107, 107, 0.05);
-}
-
-.worker-status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-}
-
-.worker-status-badge.online {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--archie-success);
-}
-
-.worker-status-badge.offline {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--archie-danger);
-}
-
-.status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-}
-
-.worker-name {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--archie-text-secondary);
-}
-
-.worker-name i {
-    width: 18px;
-    height: 18px;
-    color: var(--archie-red);
-}
-
-.worker-hashrate {
-    color: var(--archie-text-secondary);
-}
-
-.hashrate-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1rem;
-}
-
-.hashrate-unit {
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-    margin-left: 4px;
-}
-
-.worker-shares {
-    font-size: 0.85rem;
-}
-
-.shares-valid {
-    color: var(--archie-success);
-}
-
-.shares-invalid {
-    color: var(--archie-danger);
-}
-
-.worker-lastseen {
-    color: var(--archie-text-muted);
-    font-size: 0.8rem;
-}
-
-.worker-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.action-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 6px;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.action-btn i {
-    width: 16px;
-    height: 16px;
-}
-
-.action-btn:hover {
-    color: var(--archie-red);
-    border-color: var(--archie-red);
-}
-
-.action-btn.danger:hover {
-    color: var(--archie-danger);
-    border-color: var(--archie-danger);
-    background: rgba(239, 68, 68, 0.1);
-}
-
-/* Miner Config */
-.miner-config-card {
-    margin-top: 24px;
-}
-
-.miner-configs {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.config-section {
-    padding: 16px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-    position: relative;
-}
-
-.config-section h4 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.85rem;
-    color: var(--archie-text-secondary);
-    margin: 0 0 10px;
-}
-
-.config-command {
-    display: block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-red);
-    background: rgba(0, 0, 0, 0.3);
-    padding: 12px;
-    border-radius: 6px;
-    word-break: break-all;
-    padding-right: 50px;
-}
-
-.config-section .copy-btn {
-    position: absolute;
-    top: 50%;
-    right: 16px;
-    transform: translateY(-50%);
-}
-
-/* ========================================================================
-   PAYOUTS TAB
-   ======================================================================== */
-
-.payouts-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.payout-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-}
-
-.payout-summary-card {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.payout-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(59, 130, 246, 0.1);
-    color: #3B82F6;
-}
-
-.payout-icon i {
-    width: 28px;
-    height: 28px;
-}
-
-.payout-icon.paid {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--archie-success);
-}
-
-.payout-icon.next {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--archie-warning);
-}
-
-.payout-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.payout-amount {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.5rem;
-    color: var(--archie-text-secondary);
-}
-
-.payout-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Pending Payouts */
-.pending-payouts {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.pending-payout-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-    border-left: 3px solid var(--archie-warning);
-}
-
-.pending-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.pending-address {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-secondary);
-}
-
-.pending-amount {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.1rem;
-    color: var(--archie-warning);
-}
-
-.pending-status {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-}
-
-.pending-eta {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-}
-
-/* Status Badges */
-.status-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.status-badge.confirmed {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--archie-success);
-}
-
-.status-badge.pending {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--archie-warning);
-}
-
-/* Payout Table */
-.tx-hash {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.tx-hash a {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-red);
-    text-decoration: none;
-}
-
-.tx-hash a:hover {
-    text-decoration: underline;
-}
-
-.copy-btn-small {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    background: transparent;
-    border: none;
-    color: var(--archie-text-muted);
-    cursor: pointer;
-    transition: color 0.25s ease;
-}
-
-.copy-btn-small:hover {
-    color: var(--archie-red);
-}
-
-.copy-btn-small i {
-    width: 14px;
-    height: 14px;
-}
-
-/* ========================================================================
-   SETTINGS TAB
-   ======================================================================== */
-
-.settings-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    max-width: 800px;
-}
-
-.settings-card {
-    padding: 24px;
-}
-
-.settings-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.form-group label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--archie-text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.pool-input {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--archie-text-secondary);
-    transition: border-color 0.25s ease;
-}
-
-.pool-input:focus {
-    outline: none;
-    border-color: var(--archie-red);
-}
-
-.input-with-action {
-    display: flex;
-    gap: 12px;
-}
-
-.input-with-action .pool-input {
-    flex: 1;
-}
-
-.input-with-unit {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.input-with-unit .pool-input {
-    flex: 1;
-    max-width: 200px;
-}
-
-.input-unit {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.9rem;
-    color: var(--archie-text-tertiary);
-}
-
-.input-hint {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--archie-text-muted);
-}
-
-/* Toggle Switches */
-.toggle-group {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.toggle-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-}
-
-.toggle-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.toggle-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-secondary);
-}
-
-.toggle-desc {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-}
-
-.toggle-switch {
-    position: relative;
-    width: 48px;
-    height: 26px;
-}
-
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.toggle-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--archie-red-alpha-20);
-    border-radius: 26px;
-    transition: 0.3s;
-}
-
-.toggle-slider::before {
-    position: absolute;
-    content: "";
-    height: 20px;
-    width: 20px;
-    left: 3px;
-    bottom: 3px;
-    background: white;
-    border-radius: 50%;
-    transition: 0.3s;
-}
-
-.toggle-switch input:checked + .toggle-slider {
-    background: var(--archie-red);
-}
-
-.toggle-switch input:checked + .toggle-slider::before {
-    transform: translateX(22px);
-}
-
-/* API Key */
-.api-key-display {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.api-key {
-    flex: 1;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-text-tertiary);
-    background: rgba(0, 0, 0, 0.3);
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--archie-border-default);
-}
-
-/* Settings Actions */
-.settings-actions {
-    display: flex;
-    justify-content: flex-end;
-}
-
-/* ========================================================================
-   MODAL
-   ======================================================================== */
-
-.pool-modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    z-index: 2000;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
-}
-
-.pool-modal.active {
-    display: flex;
-}
-
-.pool-modal-content {
-    background: var(--archie-bg-secondary);
-    border: 1px solid var(--archie-border-default);
-    border-radius: 16px;
-    width: 100%;
-    max-width: 500px;
-    animation: modalSlideIn 0.3s ease;
-}
-
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.pool-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--archie-border-default);
-}
-
-.pool-modal-header h3 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 1.1rem;
-    color: var(--archie-text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0;
-}
-
-.pool-modal-header h3 i {
-    width: 22px;
-    height: 22px;
-    color: var(--archie-red);
-}
-
-.modal-close {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: transparent;
-    border: 1px solid var(--archie-border-default);
-    border-radius: 8px;
-    color: var(--archie-text-tertiary);
-    cursor: pointer;
-    transition: all 0.25s ease;
-}
-
-.modal-close:hover {
-    color: var(--archie-danger);
-    border-color: var(--archie-danger);
-}
-
-.modal-close i {
-    width: 20px;
-    height: 20px;
-}
-
-.pool-modal-body {
-    padding: 24px;
-}
-
-.connection-preview {
-    padding: 16px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-    margin-top: 16px;
-}
-
-.connection-preview label {
-    display: block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: var(--archie-text-muted);
-    text-transform: uppercase;
-    margin-bottom: 8px;
-}
-
-.connection-preview code {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--archie-red);
-}
-
-.pool-modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 20px 24px;
-    border-top: 1px solid var(--archie-border-default);
-}
-
-/* ========================================================================
-   LIGHT MODE
-   ======================================================================== */
-
-body.light-mode .pool-container {
-    background: #f8f9fa;
-}
-
-body.light-mode .pool-title {
-    color: #DC2626;
-    text-shadow: none;
-}
-
-body.light-mode .pool-stat-card,
-body.light-mode .pool-card,
-body.light-mode .pool-connection-banner {
-    background: rgba(255, 255, 255, 0.9);
-    border-color: rgba(220, 38, 38, 0.2);
-}
-
-body.light-mode .pool-stat-value,
-body.light-mode .pool-card-header h3,
-body.light-mode .mini-stat-value,
-body.light-mode .worker-name,
-body.light-mode .hashrate-value,
-body.light-mode .block-height,
-body.light-mode .payout-amount,
-body.light-mode .toggle-label {
-    color: #1a1a2e;
-}
-
-body.light-mode .pool-tab {
-    color: #666;
-}
-
-body.light-mode .pool-tab.active {
-    color: #DC2626;
-}
-
-body.light-mode .pool-btn-primary {
-    color: #DC2626;
-    border-color: #DC2626;
-}
-
-body.light-mode .pool-btn-primary:hover {
-    background: #DC2626;
-}
-
-body.light-mode .pool-table th {
-    color: #666;
-}
-
-body.light-mode .pool-table td {
-    border-color: rgba(220, 38, 38, 0.1);
-}
-
-body.light-mode .pool-input,
-body.light-mode .pool-select,
-body.light-mode .pool-search {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: rgba(220, 38, 38, 0.2);
-    color: #1a1a2e;
-}
-
-body.light-mode .pool-modal-content {
-    background: #ffffff;
-    border-color: rgba(220, 38, 38, 0.2);
-}
-
-body.light-mode .connection-value,
-body.light-mode .config-command,
-body.light-mode .api-key {
-    background: rgba(220, 38, 38, 0.05);
-    border-color: rgba(220, 38, 38, 0.2);
-}
-
-/* ========================================================================
-   RESPONSIVE
-   ======================================================================== */
-
-@media (max-width: 1400px) {
-    .dashboard-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .pool-stats-card {
-        grid-column: 1;
-        grid-row: auto;
-    }
-}
-
-@media (max-width: 1200px) {
-    .pool-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .payout-summary-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
+:root {
+  --ap-accent: #ffaa00;
+  --ap-accent-dim: rgba(255, 170, 0, 0.12);
+  --ap-accent-border: rgba(255, 170, 0, 0.32);
+  --ap-surface: rgba(255, 170, 0, 0.04);
+  --ap-border: rgba(255, 170, 0, 0.16);
+  --ap-text: #e8e0c8;
+  --ap-muted: #8a7e60;
+  --ap-green: #44ff88;
+  --ap-red: #ff4444;
+}
+.ap-container { max-width: 1400px; margin: 0 auto; padding: 80px 24px 40px; }
+.ap-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.ap-title { font-family: 'Orbitron', sans-serif; font-size: 1.8rem; font-weight: 700; color: var(--ap-accent); letter-spacing: 0.12em; display: flex; align-items: center; gap: 10px; margin: 0; }
+.ap-subtitle { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--ap-muted); margin: 4px 0 0; }
+.ap-status-badge { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border: 1px solid var(--ap-accent-border); background: var(--ap-accent-dim); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--ap-accent); }
+.ap-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ap-muted); transition: background 0.4s; }
+.ap-dot.online { background: var(--ap-green); box-shadow: 0 0 6px var(--ap-green); animation: ap-blink 2s infinite; }
+@keyframes ap-blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.ap-banner { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 18px; background: var(--ap-surface); border: 1px solid var(--ap-border); border-left: 3px solid var(--ap-accent); border-radius: 4px; margin-bottom: 20px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+.ap-banner-item { display: flex; align-items: center; gap: 8px; }
+.ap-banner-label { color: var(--ap-muted); }
+.ap-banner-val { color: var(--ap-accent); }
+.ap-copy-btn { background: none; border: none; cursor: pointer; color: var(--ap-muted); padding: 2px 4px; line-height: 1; transition: color 0.2s; }
+.ap-copy-btn:hover { color: var(--ap-accent); }
+.ap-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.ap-stat-card { background: var(--ap-surface); border: 1px solid var(--ap-border); border-top: 2px solid rgba(255,170,0,0.5); border-radius: 5px; padding: 14px 16px; }
+.ap-stat-label { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--ap-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.ap-stat-value { font-family: 'Orbitron', sans-serif; font-size: 1.35rem; font-weight: 600; color: var(--ap-accent); line-height: 1; }
+.ap-stat-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--ap-muted); margin-top: 5px; }
+.ap-tabs { display: flex; gap: 2px; margin-bottom: 18px; border-bottom: 1px solid var(--ap-border); flex-wrap: wrap; }
+.ap-tab { padding: 10px 18px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--ap-muted); background: none; border: none; cursor: pointer; position: relative; transition: color 0.2s; white-space: nowrap; }
+.ap-tab::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--ap-accent); transform: scaleX(0); transition: transform 0.2s; }
+.ap-tab:hover { color: var(--ap-text); }
+.ap-tab.active { color: var(--ap-accent); }
+.ap-tab.active::after { transform: scaleX(1); }
+.ap-panel { display: none; }
+.ap-panel.active { display: block; }
+.ap-card { background: var(--ap-surface); border: 1px solid var(--ap-border); border-radius: 5px; padding: 18px 20px; margin-bottom: 14px; }
+.ap-card-title { font-family: 'Orbitron', sans-serif; font-size: 0.82rem; color: var(--ap-accent); letter-spacing: 0.06em; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--ap-border); }
+.ap-chart-ph { height: 110px; display: flex; align-items: center; justify-content: center; background: repeating-linear-gradient(90deg, transparent 0, transparent 19px, rgba(255,170,0,0.04) 19px, rgba(255,170,0,0.04) 20px); border: 1px dashed var(--ap-border); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; color: var(--ap-muted); }
+.ap-lookup-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.ap-input { flex: 1; min-width: 220px; padding: 9px 13px; background: rgba(0,0,0,0.3); border: 1px solid var(--ap-border); border-radius: 4px; color: var(--ap-text); font-family: 'JetBrains Mono', monospace; font-size: 0.84rem; outline: none; transition: border-color 0.2s; }
+.ap-input:focus { border-color: var(--ap-accent); }
+.ap-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; background: var(--ap-accent-dim); border: 1px solid var(--ap-accent-border); border-radius: 4px; color: var(--ap-accent); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
+.ap-btn:hover { background: rgba(255,170,0,0.22); }
+.ap-table-wrap { overflow-x: auto; }
+.ap-table { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+.ap-table th { text-align: left; padding: 7px 11px; color: var(--ap-muted); border-bottom: 1px solid var(--ap-border); font-weight: 400; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.07em; white-space: nowrap; }
+.ap-table td { padding: 9px 11px; color: var(--ap-text); border-bottom: 1px solid rgba(255,170,0,0.05); }
+.ap-table tbody tr:hover { background: rgba(255,170,0,0.03); }
+.ap-accent-cell { color: var(--ap-accent) !important; }
+.ap-hash { color: var(--ap-muted) !important; font-size: 0.75rem; }
+.ap-calc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ap-field label { display: block; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--ap-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+.ap-result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
+.ap-result-card { background: rgba(255,170,0,0.06); border: 1px solid var(--ap-accent-border); border-radius: 4px; padding: 12px; text-align: center; }
+.ap-result-label { font-family: 'JetBrains Mono', monospace; font-size: 0.67rem; color: var(--ap-muted); text-transform: uppercase; }
+.ap-result-value { font-family: 'Orbitron', sans-serif; font-size: 1.05rem; color: var(--ap-accent); margin-top: 4px; }
+.ap-guide-steps { list-style: none; padding: 0; margin: 0; }
+.ap-guide-steps li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,170,0,0.05); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--ap-text); align-items: flex-start; }
+.ap-step-n { width: 22px; height: 22px; border-radius: 50%; background: var(--ap-accent-dim); border: 1px solid var(--ap-accent-border); display: flex; align-items: center; justify-content: center; font-size: 0.68rem; color: var(--ap-accent); flex-shrink: 0; margin-top: 1px; }
+.ap-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.ap-info-item { background: var(--ap-surface); border: 1px solid var(--ap-border); border-radius: 4px; padding: 12px; }
+.ap-info-label { font-family: 'JetBrains Mono', monospace; font-size: 0.67rem; color: var(--ap-muted); text-transform: uppercase; margin-bottom: 4px; }
+.ap-info-value { font-family: 'Orbitron', sans-serif; font-size: 0.88rem; color: var(--ap-accent); }
+.ap-empty { text-align: center; padding: 36px; color: var(--ap-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+.ap-err { color: var(--ap-red); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+.ap-pre { background: rgba(0,0,0,0.4); border: 1px solid var(--ap-border); border-radius: 4px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.77rem; color: var(--ap-text); overflow-x: auto; white-space: pre; }
 @media (max-width: 768px) {
-    .pool-container {
-        padding: 20px;
-        padding-top: 80px;
-    }
-
-    .pool-stats {
-        grid-template-columns: 1fr;
-    }
-
-    .pool-title {
-        font-size: 1.5rem;
-    }
-
-    .pool-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-    }
-
-    .pool-tabs {
-        overflow-x: auto;
-    }
-
-    .pool-tab {
-        white-space: nowrap;
-    }
-
-    .connection-info {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .workers-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .toolbar-left, .toolbar-right {
-        flex-direction: column;
-        width: 100%;
-    }
-
-    .pool-search {
-        min-width: auto;
-        width: 100%;
-    }
-
-    .pool-table {
-        font-size: 0.75rem;
-    }
-
-    .pool-stats-grid {
-        grid-template-columns: 1fr;
-    }
+  .ap-container { padding: 76px 14px 30px; }
+  .ap-stats { grid-template-columns: repeat(2, 1fr); }
+  .ap-calc-grid { grid-template-columns: 1fr; }
+  .ap-title { font-size: 1.3rem; }
 }
 </style>
+{% endblock %}
 
+{% block content %}
+{% include 'includes/standalone_apps_nav.html' %}
+
+<div class="ap-container">
+
+  <header class="ap-header">
+    <div>
+      <h1 class="ap-title"><i data-lucide="pickaxe"></i>ARCHIE POOL</h1>
+      <p class="ap-subtitle">Ravencoin (RVN) Mining Pool — KawPow Algorithm</p>
+    </div>
+    <div class="ap-status-badge">
+      <span class="ap-dot" id="apDot"></span>
+      <span id="apStatusTxt">CONNECTING…</span>
+    </div>
+  </header>
+
+  <div class="ap-banner">
+    <div class="ap-banner-item">
+      <span class="ap-banner-label">STRATUM</span>
+      <code class="ap-banner-val" id="apStratum">stratum+tcp://pool.kytranempowerment.com:3333</code>
+      <button class="ap-copy-btn" onclick="apCopy(document.getElementById('apStratum').textContent)" title="Copy">
+        <i data-lucide="copy" style="width:14px;height:14px"></i>
+      </button>
+    </div>
+    <div class="ap-banner-item"><span class="ap-banner-label">ALGO</span><span class="ap-banner-val">KawPow</span></div>
+    <div class="ap-banner-item"><span class="ap-banner-label">FEE</span><span class="ap-banner-val" id="apBannerFee">1.0%</span></div>
+    <div class="ap-banner-item"><span class="ap-banner-label">MIN PAYOUT</span><span class="ap-banner-val" id="apBannerMinPay">10 RVN</span></div>
+  </div>
+
+  <section class="ap-stats">
+    <div class="ap-stat-card"><div class="ap-stat-label">Pool Hashrate</div><div class="ap-stat-value" id="apStatHash" style="font-size:1rem">—</div></div>
+    <div class="ap-stat-card"><div class="ap-stat-label">Miners Online</div><div class="ap-stat-value" id="apStatMiners">—</div></div>
+    <div class="ap-stat-card"><div class="ap-stat-label">Blocks Found</div><div class="ap-stat-value" id="apStatBlocks">—</div></div>
+    <div class="ap-stat-card"><div class="ap-stat-label">Last Block</div><div class="ap-stat-value" id="apStatLastBlock" style="font-size:0.78rem">—</div></div>
+    <div class="ap-stat-card"><div class="ap-stat-label">Net Difficulty</div><div class="ap-stat-value" id="apStatDiff" style="font-size:0.92rem">—</div></div>
+    <div class="ap-stat-card"><div class="ap-stat-label">Block Height</div><div class="ap-stat-value" id="apStatHeight" style="font-size:0.92rem">—</div></div>
+  </section>
+
+  <nav class="ap-tabs">
+    <button class="ap-tab active" onclick="apSetTab('dashboard')">Dashboard</button>
+    <button class="ap-tab" onclick="apSetTab('myminer')">My Miner</button>
+    <button class="ap-tab" onclick="apSetTab('blocks')">Blocks</button>
+    <button class="ap-tab" onclick="apSetTab('network')">Network</button>
+    <button class="ap-tab" onclick="apSetTab('guide')">Getting Started</button>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <div class="ap-panel active" id="ap-panel-dashboard">
+    <div class="ap-card">
+      <h3 class="ap-card-title">Pool Statistics</h3>
+      <div class="ap-stats" style="margin-bottom:0">
+        <div class="ap-stat-card"><div class="ap-stat-label">Workers</div><div class="ap-stat-value" id="apDashWorkers">—</div></div>
+        <div class="ap-stat-card"><div class="ap-stat-label">Pool Fee</div><div class="ap-stat-value" id="apDashFee">—</div></div>
+        <div class="ap-stat-card"><div class="ap-stat-label">Payout Interval</div><div class="ap-stat-value" id="apDashInterval" style="font-size:0.82rem">—</div></div>
+      </div>
+    </div>
+    <div class="ap-card">
+      <h3 class="ap-card-title">Hashrate Trend</h3>
+      <div class="ap-chart-ph">[ Hashrate chart — live data ]</div>
+    </div>
+    <div class="ap-card">
+      <h3 class="ap-card-title">Network Overview</h3>
+      <div class="ap-stats" style="margin-bottom:0">
+        <div class="ap-stat-card"><div class="ap-stat-label">Net Hashrate</div><div class="ap-stat-value" id="apDashNetHash" style="font-size:0.9rem">—</div></div>
+        <div class="ap-stat-card"><div class="ap-stat-label">Avg Block Time</div><div class="ap-stat-value" id="apDashBlockTime" style="font-size:0.9rem">—</div></div>
+        <div class="ap-stat-card"><div class="ap-stat-label">Coin Price</div><div class="ap-stat-value" id="apDashPrice" style="font-size:0.9rem">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MY MINER -->
+  <div class="ap-panel" id="ap-panel-myminer">
+    <div class="ap-card">
+      <h3 class="ap-card-title">Miner Lookup</h3>
+      <div class="ap-lookup-form">
+        <input class="ap-input" id="apWalletIn" type="text" placeholder="Enter your RVN wallet address…" />
+        <button class="ap-btn" onclick="apLookupMiner()"><i data-lucide="search" style="width:15px;height:15px"></i> Look Up</button>
+      </div>
+      <div id="apMinerErr" class="ap-err" style="display:none;margin-top:10px"></div>
+    </div>
+    <div id="apMinerResults" style="display:none">
+      <div class="ap-card">
+        <h3 class="ap-card-title">Miner Stats</h3>
+        <div class="ap-stats" style="margin-bottom:0">
+          <div class="ap-stat-card"><div class="ap-stat-label">Hashrate</div><div class="ap-stat-value" id="apMHash" style="font-size:0.95rem">—</div></div>
+          <div class="ap-stat-card"><div class="ap-stat-label">Valid Shares</div><div class="ap-stat-value" id="apMShares">—</div></div>
+          <div class="ap-stat-card"><div class="ap-stat-label">Balance</div><div class="ap-stat-value" id="apMBalance">—</div><div class="ap-stat-sub">RVN</div></div>
+          <div class="ap-stat-card"><div class="ap-stat-label">Total Paid</div><div class="ap-stat-value" id="apMPaid">—</div><div class="ap-stat-sub">RVN</div></div>
+        </div>
+      </div>
+      <div class="ap-card">
+        <h3 class="ap-card-title">Workers</h3>
+        <div class="ap-table-wrap">
+          <table class="ap-table">
+            <thead><tr><th>Worker</th><th>Hashrate</th><th>Shares</th><th>Last Seen</th></tr></thead>
+            <tbody id="apWorkersBody"><tr><td colspan="4" class="ap-empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="ap-card">
+        <h3 class="ap-card-title">Payment History</h3>
+        <div class="ap-table-wrap">
+          <table class="ap-table">
+            <thead><tr><th>Amount (RVN)</th><th>TX Hash</th><th>Date</th></tr></thead>
+            <tbody id="apPayBody"><tr><td colspan="3" class="ap-empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCKS -->
+  <div class="ap-panel" id="ap-panel-blocks">
+    <div class="ap-card">
+      <h3 class="ap-card-title">Recent Blocks</h3>
+      <div class="ap-table-wrap">
+        <table class="ap-table">
+          <thead><tr><th>Height</th><th>Hash</th><th>Reward (RVN)</th><th>Time</th><th>Finder</th></tr></thead>
+          <tbody id="apBlocksBody"><tr><td colspan="5" class="ap-empty">Loading blocks…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- NETWORK -->
+  <div class="ap-panel" id="ap-panel-network">
+    <div class="ap-card">
+      <h3 class="ap-card-title">Network Statistics</h3>
+      <div class="ap-stats" style="margin-bottom:0">
+        <div class="ap-stat-card"><div class="ap-stat-label">Difficulty</div><div class="ap-stat-value" id="apNetDiff2" style="font-size:0.88rem">—</div></div>
+        <div class="ap-stat-card"><div class="ap-stat-label">Network Hashrate</div><div class="ap-stat-value" id="apNetHash2" style="font-size:0.88rem">—</div></div>
+        <div class="ap-stat-card"><div class="ap-stat-label">Block Time</div><div class="ap-stat-value" id="apNetBT">—</div></div>
+        <div class="ap-stat-card"><div class="ap-stat-label">Algorithm</div><div class="ap-stat-value" id="apNetAlgo" style="font-size:0.88rem">KawPow</div></div>
+      </div>
+    </div>
+    <div class="ap-card">
+      <h3 class="ap-card-title">Mining Calculator</h3>
+      <div class="ap-calc-grid">
+        <div class="ap-field"><label>Your Hashrate</label><input class="ap-input" id="apCalcHr" type="number" value="30" min="0" style="width:100%" /></div>
+        <div class="ap-field"><label>Unit</label>
+          <select class="ap-input" id="apCalcUnit" style="width:100%">
+            <option value="1">MH/s</option>
+            <option value="1000">GH/s</option>
+            <option value="1000000">TH/s</option>
+          </select>
+        </div>
+      </div>
+      <button class="ap-btn" style="margin-top:12px" onclick="apCalculate()"><i data-lucide="calculator" style="width:15px;height:15px"></i> Calculate Earnings</button>
+      <div class="ap-result-grid" id="apCalcOut" style="display:none">
+        <div class="ap-result-card"><div class="ap-result-label">Daily</div><div class="ap-result-value" id="apCalcD">—</div></div>
+        <div class="ap-result-card"><div class="ap-result-label">Weekly</div><div class="ap-result-value" id="apCalcW">—</div></div>
+        <div class="ap-result-card"><div class="ap-result-label">Monthly</div><div class="ap-result-value" id="apCalcM">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GETTING STARTED -->
+  <div class="ap-panel" id="ap-panel-guide">
+    <div class="ap-card">
+      <h3 class="ap-card-title">Pool Connection Details</h3>
+      <div class="ap-info-grid">
+        <div class="ap-info-item"><div class="ap-info-label">Pool Address</div><div class="ap-info-value" id="apGuideAddr">pool.kytranempowerment.com</div></div>
+        <div class="ap-info-item"><div class="ap-info-label">Port</div><div class="ap-info-value" id="apGuidePort">3333</div></div>
+        <div class="ap-info-item"><div class="ap-info-label">Algorithm</div><div class="ap-info-value">KawPow</div></div>
+        <div class="ap-info-item"><div class="ap-info-label">Coin</div><div class="ap-info-value">Ravencoin (RVN)</div></div>
+      </div>
+    </div>
+    <div class="ap-card">
+      <h3 class="ap-card-title">Quick Start Guide</h3>
+      <ul class="ap-guide-steps">
+        <li><span class="ap-step-n">1</span><span>Download a KawPow-compatible miner such as T-Rex, NBMiner, or lolMiner.</span></li>
+        <li><span class="ap-step-n">2</span><span>Configure your miner with the stratum URL above and your RVN wallet as the username.</span></li>
+        <li><span class="ap-step-n">3</span><span>Append your worker name after a dot: <code style="color:var(--ap-accent)">WALLET.rig1</code></span></li>
+        <li><span class="ap-step-n">4</span><span>Start mining and check your stats in the My Miner tab.</span></li>
+        <li><span class="ap-step-n">5</span><span>Payouts are automatic once your balance reaches the minimum threshold.</span></li>
+      </ul>
+    </div>
+    <div class="ap-card">
+      <h3 class="ap-card-title">Example Config (T-Rex)</h3>
+      <pre class="ap-pre">t-rex -a kawpow \
+  -o stratum+tcp://pool.kytranempowerment.com:3333 \
+  -u YOUR_RVN_WALLET.worker1 \
+  -p x</pre>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
 <script>
-// Initialize Lucide icons
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+(function () {
+  'use strict';
+
+  function fmtHash(h) {
+    if (h == null) return '—';
+    if (h >= 1e12) return (h / 1e12).toFixed(2) + ' TH/s';
+    if (h >= 1e9)  return (h / 1e9).toFixed(2)  + ' GH/s';
+    if (h >= 1e6)  return (h / 1e6).toFixed(2)  + ' MH/s';
+    if (h >= 1e3)  return (h / 1e3).toFixed(2)  + ' KH/s';
+    return h + ' H/s';
+  }
+  function fmtNum(n) { return n != null ? Number(n).toLocaleString() : '—'; }
+  function trunc(s, n) { n = n || 20; if (!s) return '—'; return s.length > n ? s.slice(0, 8) + '…' + s.slice(-6) : s; }
+  function setText(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; }
+
+  window.apCopy = function (txt) { navigator.clipboard.writeText(txt).catch(function () {}); };
+
+  var TAB_NAMES = ['dashboard', 'myminer', 'blocks', 'network', 'guide'];
+  window.apSetTab = function (name) {
+    document.querySelectorAll('.ap-tab').forEach(function (t, i) { t.classList.toggle('active', TAB_NAMES[i] === name); });
+    document.querySelectorAll('.ap-panel').forEach(function (p) { p.classList.toggle('active', p.id === 'ap-panel-' + name); });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (name === 'blocks')  loadBlocks();
+    if (name === 'network') loadNetworkStats();
+    if (name === 'guide')   loadGuide();
+  };
+
+  function loadPoolStats() {
+    fetch('/tools/archie-pool/api/pool/stats')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) return;
+        var s = d.stats;
+        setText('apStatHash',      fmtHash(s.hashrate));
+        setText('apStatMiners',    fmtNum(s.miners));
+        setText('apStatBlocks',    fmtNum(s.blocks_found));
+        setText('apStatLastBlock', s.last_block || '—');
+        setText('apDashWorkers',   fmtNum(s.workers));
+        setText('apDashFee',       (s.pool_fee || 0) + '%');
+        setText('apDashInterval',  s.payout_interval || '—');
+        if (s.pool_fee != null)       setText('apBannerFee', s.pool_fee + '%');
+        if (s.minimum_payout != null) setText('apBannerMinPay', s.minimum_payout + ' RVN');
+        document.getElementById('apDot').className = 'ap-dot online';
+        setText('apStatusTxt', 'POOL ONLINE');
+      })
+      .catch(function () {
+        document.getElementById('apDot').className = 'ap-dot';
+        setText('apStatusTxt', 'OFFLINE');
+      });
+  }
+
+  function loadNetworkStats() {
+    fetch('/tools/archie-pool/api/network')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) return;
+        var n = d.network;
+        setText('apStatDiff',     fmtNum(n.difficulty));
+        setText('apStatHeight',   fmtNum(n.block_height));
+        setText('apDashNetHash',  fmtHash(n.hashrate));
+        setText('apDashBlockTime',(n.block_time || '—') + 's');
+        setText('apDashPrice',    n.coin_price ? '$' + Number(n.coin_price).toFixed(4) : '—');
+        setText('apNetDiff2',     fmtNum(n.difficulty));
+        setText('apNetHash2',     fmtHash(n.hashrate));
+        setText('apNetBT',        (n.block_time || '—') + 's');
+        setText('apNetAlgo',      n.algo || 'KawPow');
+      })
+      .catch(function () {});
+  }
+
+  window.apLookupMiner = function () {
+    var wallet = document.getElementById('apWalletIn').value.trim();
+    var errEl  = document.getElementById('apMinerErr');
+    errEl.style.display = 'none';
+    if (!wallet || wallet.length < 20) { errEl.textContent = 'Please enter a valid RVN wallet address (min 20 chars).'; errEl.style.display = 'block'; return; }
+    document.getElementById('apMinerResults').style.display = 'none';
+    fetch('/tools/archie-pool/api/miner/' + encodeURIComponent(wallet))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) { errEl.textContent = d.error || 'Miner not found.'; errEl.style.display = 'block'; return; }
+        var m = d.miner;
+        setText('apMHash',    fmtHash(m.hashrate));
+        setText('apMShares',  fmtNum(m.shares_valid));
+        setText('apMBalance', Number(m.balance || 0).toFixed(3));
+        setText('apMPaid',    Number(m.paid    || 0).toFixed(3));
+        document.getElementById('apMinerResults').style.display = 'block';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        loadWorkers(wallet);
+        loadPayments(wallet);
+      })
+      .catch(function () { errEl.textContent = 'Failed to load miner data.'; errEl.style.display = 'block'; });
+  };
+
+  function buildTableRows(tbody, rows, nCols, emptyMsg, buildRow) {
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    if (!rows.length) {
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.colSpan = nCols; td.className = 'ap-empty'; td.textContent = emptyMsg;
+      tr.appendChild(td); tbody.appendChild(tr); return;
     }
-    loadPoolData();
-    startLiveUpdates();
-});
+    rows.forEach(function (row) { tbody.appendChild(buildRow(row)); });
+  }
 
-// Tab switching
-function switchTab(tabId) {
-    document.querySelectorAll('.pool-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.tab === tabId);
-    });
-    document.querySelectorAll('.pool-tab-panel').forEach(panel => {
-        panel.classList.toggle('active', panel.id === tabId + '-panel');
-    });
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
+  function loadWorkers(wallet) {
+    fetch('/tools/archie-pool/api/miner/' + encodeURIComponent(wallet) + '/workers')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var rows = (d.success && d.workers) ? d.workers : [];
+        buildTableRows(document.getElementById('apWorkersBody'), rows, 4, 'No workers found.', function (w) {
+          var tr = document.createElement('tr');
+          [[w.name || '—', 'ap-accent-cell'], [fmtHash(w.hashrate), ''], [fmtNum(w.shares), ''], [w.last_seen || '—', '']].forEach(function (c) {
+            var td = document.createElement('td'); td.textContent = c[0]; if (c[1]) td.className = c[1]; tr.appendChild(td);
+          });
+          return tr;
+        });
+      })
+      .catch(function () {});
+  }
 
-// Load pool data
-function loadPoolData() {
-    // Simulated data - replace with actual API calls
-    const data = {
-        currentHashrate: 60.7,
-        hashrateTrend: '+5.2',
-        earnings24h: 847.25,
-        earningsTrend: '+12.3',
-        pendingPayout: 125.50,
-        payoutThreshold: 50,
-        workersOnline: 2,
-        workersTotal: 3,
-        poolHashrate: '12.45 GH/s',
-        activeMiners: 342,
-        blocksFound: 8,
-        networkDifficulty: '87,432.15',
-        networkHashrate: '5.82 TH/s',
-        blockHeight: '2,847,392',
-        rvnPrice: '$0.0142',
-        estDailyEarnings: '285.50 RVN',
-        validShares: 25549,
-        invalidShares: 4
-    };
+  function loadPayments(wallet) {
+    fetch('/tools/archie-pool/api/miner/' + encodeURIComponent(wallet) + '/payments')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var rows = (d.success && d.payments) ? d.payments : [];
+        buildTableRows(document.getElementById('apPayBody'), rows, 3, 'No payments yet.', function (p) {
+          var tr = document.createElement('tr');
+          var amt = document.createElement('td'); amt.textContent = Number(p.amount || 0).toFixed(3); amt.className = 'ap-accent-cell'; tr.appendChild(amt);
+          var tx  = document.createElement('td'); tx.textContent = trunc(p.tx_hash || p.txid || '—', 22); tx.className = 'ap-hash'; tr.appendChild(tx);
+          var dt  = document.createElement('td'); dt.textContent = p.time || p.date || '—'; tr.appendChild(dt);
+          return tr;
+        });
+      })
+      .catch(function () {});
+  }
 
-    // Update stats
-    document.getElementById('currentHashrate').textContent = data.currentHashrate.toFixed(2);
-    document.getElementById('hashrateTrend').innerHTML = `<i data-lucide="trending-up"></i><span>${data.hashrateTrend}%</span>`;
-    document.getElementById('earnings24h').textContent = data.earnings24h.toFixed(2);
-    document.getElementById('earningsTrend').innerHTML = `<i data-lucide="trending-up"></i><span>${data.earningsTrend}%</span>`;
-    document.getElementById('pendingPayout').textContent = data.pendingPayout.toFixed(2);
-    document.getElementById('workersOnline').textContent = data.workersOnline;
-    document.getElementById('workersTotal').textContent = data.workersTotal;
+  function loadBlocks() {
+    fetch('/tools/archie-pool/api/pool/blocks?limit=30')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var rows = (d.success && d.blocks) ? d.blocks : [];
+        buildTableRows(document.getElementById('apBlocksBody'), rows, 5, 'No blocks found.', function (b) {
+          var tr = document.createElement('tr');
+          [[b.height ? '#' + fmtNum(b.height) : '—', 'ap-accent-cell'], [trunc(b.hash, 22), 'ap-hash'], [b.reward ? fmtNum(b.reward) : '—', ''], [b.time || b.timestamp || '—', ''], [b.finder || '—', '']].forEach(function (c) {
+            var td = document.createElement('td'); td.textContent = c[0]; if (c[1]) td.className = c[1]; tr.appendChild(td);
+          });
+          return tr;
+        });
+      })
+      .catch(function () {});
+  }
 
-    // Calculate payout progress
-    const payoutProgress = Math.min((data.pendingPayout / data.payoutThreshold) * 100, 100);
-    document.getElementById('payoutProgress').style.width = payoutProgress + '%';
-    document.getElementById('payoutProgressText').textContent = payoutProgress.toFixed(0) + '%';
+  window.apCalculate = function () {
+    var hr   = parseFloat(document.getElementById('apCalcHr').value) || 0;
+    var mult = parseInt(document.getElementById('apCalcUnit').value, 10) || 1;
+    fetch('/tools/archie-pool/api/calculator', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hashrate: hr * mult, unit: 'MH' })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        document.getElementById('apCalcOut').style.display = 'grid';
+        var e = (d.success && d.earnings) ? d.earnings : {};
+        setText('apCalcD', Number(e.daily   || 0).toFixed(2) + ' RVN');
+        setText('apCalcW', Number(e.weekly  || 0).toFixed(2) + ' RVN');
+        setText('apCalcM', Number(e.monthly || 0).toFixed(2) + ' RVN');
+      })
+      .catch(function () {
+        document.getElementById('apCalcOut').style.display = 'grid';
+        setText('apCalcD', '—'); setText('apCalcW', '—'); setText('apCalcM', '—');
+      });
+  };
 
-    // Pool statistics
-    document.getElementById('poolHashrate').textContent = data.poolHashrate;
-    document.getElementById('activeMiners').textContent = data.activeMiners;
-    document.getElementById('blocksFound').textContent = data.blocksFound;
-    document.getElementById('networkDifficulty').textContent = data.networkDifficulty;
-    document.getElementById('networkHashrate').textContent = data.networkHashrate;
-    document.getElementById('blockHeight').textContent = data.blockHeight;
-    document.getElementById('rvnPrice').textContent = data.rvnPrice;
-    document.getElementById('estDailyEarnings').textContent = data.estDailyEarnings;
+  function loadGuide() {
+    fetch('/tools/archie-pool/api/getting-started')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success || !d.guide) return;
+        var g = d.guide;
+        if (g.pool_address) setText('apGuideAddr', g.pool_address);
+        if (g.port)         setText('apGuidePort', String(g.port));
+        if (g.min_payout)   setText('apBannerMinPay', g.min_payout + ' RVN');
+      })
+      .catch(function () {});
+  }
 
-    // Shares counter
-    document.getElementById('validShares').textContent = data.validShares.toLocaleString();
-    document.getElementById('invalidShares').textContent = data.invalidShares;
-
-    // Payout summary
-    document.getElementById('summaryPending').textContent = data.pendingPayout.toFixed(2) + ' RVN';
-    document.getElementById('summaryPaid').textContent = '750.00 RVN';
-    document.getElementById('nextPayout').textContent = 'In ~2 hours';
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-// Start live updates
-function startLiveUpdates() {
-    setInterval(() => {
-        // Simulate hashrate fluctuation
-        const currentHashrate = parseFloat(document.getElementById('currentHashrate').textContent);
-        const variation = (Math.random() - 0.5) * 2;
-        const newHashrate = Math.max(0, currentHashrate + variation).toFixed(2);
-        document.getElementById('currentHashrate').textContent = newHashrate;
-
-        // Add new share to feed
-        addShare();
-    }, 5000);
-}
-
-// Add simulated share
-function addShare() {
-    const feed = document.getElementById('sharesFeed');
-    const workers = ['Worker_01', 'Worker_02', 'RIG_3080_01', 'RIG_3070_02'];
-    const worker = workers[Math.floor(Math.random() * workers.length)];
-
-    const shareItem = document.createElement('div');
-    shareItem.className = 'share-item valid';
-    shareItem.innerHTML = `
-        <i data-lucide="check"></i>
-        <span class="share-worker">${worker}</span>
-        <span class="share-diff">Diff: 32</span>
-        <span class="share-time">Just now</span>
-    `;
-
-    feed.insertBefore(shareItem, feed.firstChild);
-
-    // Remove old shares
-    while (feed.children.length > 10) {
-        feed.removeChild(feed.lastChild);
-    }
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-// Copy to clipboard
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        showToast('Copied to clipboard!', 'success');
-    });
-}
-
-// Copy miner config
-function copyConfig(miner) {
-    const configs = {
-        nbminer: 'nbminer -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME',
-        trex: 't-rex -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME -p x',
-        gminer: 'miner --algo kawpow --server stratum+tcp://pool.kytranempowerment.com:3333 --user YOUR_RVN_ADDRESS.WORKER_NAME'
-    };
-    copyToClipboard(configs[miner]);
-}
-
-// Modal functions
-function showAddWorkerModal() {
-    document.getElementById('addWorkerModal').classList.add('active');
-}
-
-function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('active');
-}
-
-// Worker functions
-function addWorker() {
-    const name = document.getElementById('newWorkerName').value.trim();
-    if (!name) {
-        showToast('Please enter a worker name', 'warning');
-        return;
-    }
-    showToast(`Worker "${name}" added successfully!`, 'success');
-    closeModal('addWorkerModal');
-}
-
-function refreshWorkers() {
-    showToast('Refreshing workers...', 'info');
-    loadPoolData();
-}
-
-function filterWorkers() {
-    const search = document.getElementById('workerSearch').value.toLowerCase();
-    const filter = document.getElementById('workerFilter').value;
-    const rows = document.querySelectorAll('.worker-row');
-
-    rows.forEach(row => {
-        const name = row.querySelector('.worker-name span').textContent.toLowerCase();
-        const isOnline = row.classList.contains('online');
-        const matchesSearch = name.includes(search);
-        const matchesFilter = filter === 'all' ||
-                             (filter === 'online' && isOnline) ||
-                             (filter === 'offline' && !isOnline);
-
-        row.style.display = matchesSearch && matchesFilter ? '' : 'none';
-    });
-}
-
-function showWorkerDetails(workerName) {
-    showToast(`Viewing details for ${workerName}`, 'info');
-}
-
-function editWorker(workerName) {
-    showToast(`Editing ${workerName}`, 'info');
-}
-
-function removeWorker(workerName) {
-    if (confirm(`Are you sure you want to remove worker "${workerName}"?`)) {
-        showToast(`Worker "${workerName}" removed`, 'success');
-    }
-}
-
-// Settings functions
-function validateAddress() {
-    const address = document.getElementById('payoutAddress').value.trim();
-    if (address.startsWith('R') && address.length >= 26) {
-        showToast('Address validated successfully!', 'success');
-    } else {
-        showToast('Invalid RVN address format', 'error');
-    }
-}
-
-function saveSettings() {
-    showToast('Settings saved successfully!', 'success');
-}
-
-function exportPayoutHistory() {
-    showToast('Exporting payout history...', 'info');
-}
-
-// API Key functions
-let apiKeyVisible = false;
-function toggleApiKey() {
-    apiKeyVisible = !apiKeyVisible;
-    const keyElement = document.getElementById('apiKey');
-    const iconElement = document.getElementById('apiKeyIcon');
-
-    if (apiKeyVisible) {
-        keyElement.textContent = 'ap_sk_live_7f8g9h0j1k2l3m4n5o6p7q8r9s0t';
-        iconElement.setAttribute('data-lucide', 'eye-off');
-    } else {
-        keyElement.textContent = '••••••••••••••••••••••••••••••••';
-        iconElement.setAttribute('data-lucide', 'eye');
-    }
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-}
-
-function copyApiKey() {
-    copyToClipboard('ap_sk_live_7f8g9h0j1k2l3m4n5o6p7q8r9s0t');
-}
-
-function regenerateApiKey() {
-    if (confirm('Are you sure you want to regenerate your API key? The old key will stop working immediately.')) {
-        showToast('New API key generated!', 'success');
-    }
-}
-
-// Toast notification
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `flash ${type}`;
-    toast.innerHTML = `> ${message}`;
-
-    let container = document.querySelector('.flash-messages');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'flash-messages';
-        document.body.appendChild(container);
-    }
-
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-// Update worker name preview in modal
-document.getElementById('newWorkerName')?.addEventListener('input', function() {
-    const name = this.value.trim() || 'WORKER_NAME';
-    document.getElementById('workerConnectionString').textContent = `YOUR_RVN_ADDRESS.${name}`;
-});
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    loadPoolStats();
+    loadNetworkStats();
+    setInterval(loadPoolStats,    30000);
+    setInterval(loadNetworkStats, 60000);
+  });
+}());
 </script>
 {% endblock %}

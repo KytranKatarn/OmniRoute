@@ -1563,7 +1563,7 @@ def api_dashboard_stats():
                 recent_activity.append(
                     {
                         "text": row["title"] or row["message"],
-                        "time": row["created_at"].strftime("%Y-%m-%d %H:%M") if row["created_at"] else "",
+                        "time": row["created_at"].isoformat() if row["created_at"] else "",
                         "type": row["type"],
                     }
                 )
@@ -1591,7 +1591,7 @@ def api_dashboard_stats():
                 recent_activity.append(
                     {
                         "text": f"IP {row['access_type']}: {row['ip_address']} — {row['reason'] or 'manual'}",
-                        "time": row["created_at"].strftime("%Y-%m-%d %H:%M") if row["created_at"] else "",
+                        "time": row["created_at"].isoformat() if row["created_at"] else "",
                         "type": "warning" if row["access_type"] == "block" else "info",
                     }
                 )
@@ -1607,7 +1607,7 @@ def api_dashboard_stats():
                 recent_activity.append(
                     {
                         "text": f"DNS {row['action']}: {record_info}",
-                        "time": row["created_at"].strftime("%Y-%m-%d %H:%M") if row["created_at"] else "",
+                        "time": row["created_at"].isoformat() if row["created_at"] else "",
                         "type": "info",
                     }
                 )
@@ -1633,6 +1633,7 @@ def api_dashboard_stats():
             "success": True,
             "dns_queries_24h": dns.get("total_queries", 0),
             "dns_blocked_24h": dns.get("blocked_queries", 0),
+            "dns_protection_enabled": dns.get("protection_enabled", False),
             "camera_count": cameras.get("total", 0),
             "pending_suggestions": agent.get("pending_suggestions", 0),
             "recent_activity": recent_activity,

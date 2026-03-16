@@ -994,11 +994,11 @@
                     <span class="card-title"><span data-i18n="security_network.quick_actions">Quick Actions</span></span>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:10px">
-                    <button class="btn" onclick="quickToggleProtection()">
+                    <button class="btn" id="dash-dns-toggle" onclick="quickToggleProtection()">
                         <i data-lucide="shield" style="width:14px;height:14px"></i>
-                        Toggle DNS Protection
+                        <span id="dash-dns-toggle-text">DNS Protection</span>
                     </button>
-                    <button class="btn" onclick="quickBlockDomain()">
+                    <button class="btn" onclick="openBlockDomainModal()">
                         <i data-lucide="ban" style="width:14px;height:14px"></i>
                         Block Domain
                     </button>
@@ -1670,6 +1670,49 @@
         </div><!-- /lcars-content -->
     </div><!-- /lcars-frame -->
 
+    <!-- ==================== BLOCK DOMAIN MODAL ==================== -->
+    <div class="bm-overlay" id="block-domain-modal" style="--bm-accent:#ef4444;--bm-accent-rgb:239,68,68;">
+        <div class="bm-shell" style="max-width:420px;">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div>
+                <div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div>
+                <div class="bm-frame-light on"></div>
+                <div class="bm-frame-light amber"></div>
+                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-fill"></div>
+                <div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <span class="bm-header-title">BLOCK DOMAIN</span>
+                    <div class="bm-header-strip">
+                        <div class="bm-header-pip w1"></div>
+                        <div class="bm-header-pip w2"></div>
+                        <div class="bm-header-pip w3"></div>
+                        <button class="bm-close" onclick="closeBlockDomainModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="bm-body">
+                    <label>Domain to Block</label>
+                    <input type="text" id="block-domain-input" placeholder="example.com">
+                    <p style="font-size:0.75rem;color:rgba(239,68,68,0.6);margin:0;">This will add the domain to AdGuard's block list. All devices using AdGuard DNS will be unable to access it.</p>
+                </div>
+                <div class="bm-actions">
+                    <button class="btn-cancel" onclick="closeBlockDomainModal()">Cancel</button>
+                    <button class="btn-danger" onclick="submitBlockDomain()">Block Domain</button>
+                </div>
+                <div class="bm-footer">
+                    <div class="bm-footer-strip">
+                        <div class="bm-footer-dot cyan"></div>
+                        <div class="bm-footer-dot gold"></div>
+                        <div class="bm-footer-dot green"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== DNS RECORD EDIT MODAL ==================== -->
     <div class="bm-overlay" id="dns-edit-modal" style="--bm-accent:#00d4ff;--bm-accent-rgb:0,212,255;">
         <div class="bm-shell" style="max-width:480px;">
@@ -2088,6 +2131,10 @@ async function loadDashboard() {
         setBadge('svc-surveillance', d.services && d.services.surveillance);
         setBadge('svc-argus', d.services && d.services.argus);
         setBadge('svc-agent', d.services && d.services.agent);
+        // Set DNS protection toggle state
+        if (d.dns_protection_enabled !== undefined) {
+            updateDnsToggleUI(d.dns_protection_enabled);
+        }
 
         const feed = document.getElementById('dash-activity');
         feed.textContent = '';
@@ -2104,7 +2151,7 @@ async function loadDashboard() {
                 txt.textContent = a.text || '';
                 const tm = document.createElement('div');
                 tm.className = 'activity-time';
-                tm.textContent = a.time || '';
+                tm.textContent = a.time ? formatTime(a.time) : '';
                 textDiv.appendChild(txt);
                 textDiv.appendChild(tm);
                 item.appendChild(iconDiv);
@@ -2117,27 +2164,56 @@ async function loadDashboard() {
     } catch(e) { console.error('Dashboard error:', e); }
 }
 
-function quickToggleProtection() {
-    const enabled = confirm('Enable DNS protection? (OK=Enable, Cancel=Disable)');
-    fetch(API + '/dns/adguard/protection', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({enabled:enabled})
-    }).then(r=>r.json()).then(d=>{
-        if(d.success) showToast('success','DNS protection '+(enabled?'enabled':'disabled'));
-        else showToast('error',d.error||'Failed');
-    }).catch(e=>showToast('error',e.message));
+var _dnsProtectionOn = true;
+function updateDnsToggleUI(enabled) {
+    _dnsProtectionOn = enabled;
+    var btn = document.getElementById('dash-dns-toggle');
+    var txt = document.getElementById('dash-dns-toggle-text');
+    if (!btn || !txt) return;
+    if (enabled) {
+        btn.style.cssText = 'background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#22c55e;';
+        txt.textContent = 'DNS Protection ON';
+    } else {
+        btn.style.cssText = 'background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#ef4444;';
+        txt.textContent = 'DNS Protection OFF';
+    }
 }
 
-function quickBlockDomain() {
-    const domain = prompt('Enter domain to block:');
-    if(!domain) return;
+function quickToggleProtection() {
+    var newState = !_dnsProtectionOn;
+    fetch(API + '/dns/adguard/protection', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({enabled:newState})
+    }).then(function(r){return r.json();}).then(function(d){
+        if(d.success) {
+            updateDnsToggleUI(newState);
+            showToast('success','DNS protection '+(newState?'enabled':'disabled'));
+        } else showToast('error',d.error||'Failed');
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+function openBlockDomainModal() {
+    document.getElementById('block-domain-input').value = '';
+    document.getElementById('block-domain-modal').classList.add('active');
+    document.getElementById('block-domain-input').focus();
+}
+
+function closeBlockDomainModal() {
+    document.getElementById('block-domain-modal').classList.remove('active');
+}
+
+function submitBlockDomain() {
+    var domain = document.getElementById('block-domain-input').value.trim();
+    if(!domain) return showToast('error','Enter a domain');
     fetch(API+'/dns/adguard/block',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({domain:domain})
-    }).then(r=>r.json()).then(d=>{
-        if(d.success) showToast('success',domain+' blocked');
-        else showToast('error',d.error||'Failed');
-    }).catch(e=>showToast('error',e.message));
+    }).then(function(r){return r.json();}).then(function(d){
+        if(d.success) {
+            showToast('success',domain+' blocked');
+            closeBlockDomainModal();
+        } else showToast('error',d.error||'Failed');
+    }).catch(function(e){showToast('error',e.message);});
 }
 
 /* ========== DNS Management ========== */
@@ -3701,7 +3777,7 @@ async function deleteProxyFromModal() {
 
 /* Close modals on Escape */
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') { closeDnsModal(); closeProxyModal(); }
+    if (e.key === 'Escape') { closeDnsModal(); closeProxyModal(); closeDeviceModal(); closeBlockDomainModal(); if(typeof closeReportModal==='function') closeReportModal(); if(typeof closeCameraModal==='function') closeCameraModal(); }
 });
 
 /* ========== Security Station Ops ========== */

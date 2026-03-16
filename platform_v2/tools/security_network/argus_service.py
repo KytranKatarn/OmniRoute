@@ -61,6 +61,47 @@ CURATED_MODULES = {
         {"id": "js_analysis", "name": "JavaScript Analysis", "description": "Analyze JS files for sensitive data"},
         {"id": "email_harvest", "name": "Email Harvester", "description": "Find email addresses from target"},
     ],
+    "scanning": [
+        {
+            "id": "nmap_scan",
+            "name": "Nmap Scan",
+            "description": "Full port scan + service detection (Docker)",
+            "container": "security_nmap",
+        },
+        {
+            "id": "nikto_scan",
+            "name": "Nikto Scan",
+            "description": "Web server vulnerability scanner (Docker)",
+            "container": "security_nikto",
+        },
+        {
+            "id": "nuclei_scan",
+            "name": "Nuclei Scan",
+            "description": "Template-based vulnerability scanner (Docker)",
+            "container": "security_nuclei",
+        },
+        {
+            "id": "zap_scan",
+            "name": "ZAP Scan",
+            "description": "OWASP ZAP web app security scanner (Docker)",
+            "container": "security_zap",
+        },
+        {
+            "id": "testssl_scan",
+            "name": "TestSSL Scan",
+            "description": "SSL/TLS analysis and grading (Docker)",
+            "container": "security_testssl",
+        },
+    ],
+}
+
+# Docker container names for scanning tools
+SCAN_CONTAINERS = {
+    "nmap_scan": "security_nmap",
+    "nikto_scan": "security_nikto",
+    "nuclei_scan": "security_nuclei",
+    "zap_scan": "security_zap",
+    "testssl_scan": "security_testssl",
 }
 
 
@@ -130,6 +171,8 @@ class ArgusService:
                 results = self._tls_check(target)
             elif module_id == "ssl_cert_info":
                 results = self._tls_check(target)
+            elif module_id in SCAN_CONTAINERS:
+                results = self._docker_scan(module_id, target, options)
             else:
                 results = self._run_argus_cli(module_id, target)
             status = "completed"
@@ -245,6 +288,66 @@ class ArgusService:
         except Exception as e:
             return {"error": str(e)}
 
+    def _docker_scan(self, module_id: str, target: str, options: dict = None) -> Dict:
+        """Run a scan via Docker container."""
+        container = SCAN_CONTAINERS.get(module_id)
+        if not container:
+            return {"error": f"Unknown scan module: {module_id}"}
+
+        timeout = options.get("timeout", 300) if options else 300
+
+        try:
+            if module_id == "nmap_scan":
+                ports = options.get("ports", "-F") if options else "-F"
+                cmd = ["docker", "exec", container, "nmap", "-sV", "--open", ports, target]
+            elif module_id == "nikto_scan":
+                cmd = ["docker", "exec", container, "nikto", "-h", target, "-Format", "json", "-output", "/dev/stdout"]
+            elif module_id == "nuclei_scan":
+                severity = options.get("severity", "medium,high,critical") if options else "medium,high,critical"
+                cmd = ["docker", "exec", container, "nuclei", "-u", target, "-severity", severity, "-jsonl"]
+            elif module_id == "zap_scan":
+                # ZAP uses API — baseline scan
+                zap_url = "http://security_zap:8080"
+                try:
+                    resp = requests.get(f"{zap_url}/JSON/spider/action/scan/?url={target}", timeout=30)
+                    scan_id = resp.json().get("scan", "0")
+                    # Wait for spider to complete (max 60s)
+                    import time
+
+                    for _ in range(60):
+                        status = requests.get(f"{zap_url}/JSON/spider/view/status/?scanId={scan_id}", timeout=10).json()
+                        if int(status.get("status", "0")) >= 100:
+                            break
+                        time.sleep(1)
+                    # Get alerts
+                    alerts = requests.get(f"{zap_url}/JSON/core/view/alerts/?baseurl={target}", timeout=15).json()
+                    return {"alerts": alerts.get("alerts", []), "scan_id": scan_id, "target": target}
+                except Exception as e:
+                    return {"error": f"ZAP scan failed: {str(e)}"}
+            elif module_id == "testssl_scan":
+                cmd = ["docker", "exec", container, "testssl.sh", "--jsonfile", "/dev/stdout", target]
+            else:
+                return {"error": f"Unsupported scan: {module_id}"}
+
+            if module_id != "zap_scan":
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                )
+                if result.returncode == 0 or result.stdout:
+                    try:
+                        return {"output": json.loads(result.stdout), "target": target}
+                    except json.JSONDecodeError:
+                        return {"raw_output": result.stdout[:5000], "target": target}
+                return {"error": result.stderr[:1000] or "Scan returned no output"}
+
+        except subprocess.TimeoutExpired:
+            return {"error": f"Scan timed out after {timeout}s"}
+        except Exception as e:
+            return {"error": str(e)}
+
     def _run_argus_cli(self, module_id: str, target: str) -> Dict:
         try:
             result = subprocess.run(
@@ -302,5 +405,30 @@ class ArgusService:
             except Exception:
                 pass
 
+    def get_container_status(self) -> Dict[str, bool]:
+        """Check which scanning containers are running."""
+        status = {}
+        for module_id, container in SCAN_CONTAINERS.items():
+            try:
+                result = subprocess.run(
+                    ["docker", "inspect", "-f", "{{.State.Running}}", container],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                status[module_id] = result.stdout.strip() == "true"
+            except Exception:
+                status[module_id] = False
+        return status
+
+    def get_module_count(self) -> int:
+        """Count total available modules."""
+        count = 0
+        for category in CURATED_MODULES.values():
+            count += len(category)
+        return count
+
     def check_health(self) -> bool:
-        return True
+        """Check if at least some scanning capability is available."""
+        containers = self.get_container_status()
+        return any(containers.values()) or True  # Built-in Python modules always work

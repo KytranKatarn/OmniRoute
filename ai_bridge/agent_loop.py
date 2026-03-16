@@ -363,6 +363,14 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._reap_stuck_jobs),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_stuck_job_watchdog",
+            name="Agent Loop: Stuck Job Watchdog",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._process_training_tick),
             trigger=IntervalTrigger(minutes=5),
             id="agent_training_tick",
@@ -2292,6 +2300,45 @@ class AgentLoop:
                 logger.info(f"Stale job reaper: cleaned {reaped} orphaned jobs")
         except Exception as e:
             logger.debug(f"Stale job reaper failed: {e}")
+
+    def _reap_stuck_jobs(self):
+        """Kill jobs stuck in 'running' state too long (every 5 min)."""
+        try:
+            from database import get_db_cursor
+            from tools.security_network.security_alerts import create_security_alert
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                # Jobs running > 30 minutes are stuck
+                cur.execute("""
+                    UPDATE bridge_jobs
+                    SET status = 'failed',
+                        error_message = 'Auto-killed: job exceeded 30 minute timeout',
+                        completed_at = NOW()
+                    WHERE status = 'running'
+                      AND created_at < NOW() - INTERVAL '30 minutes'
+                    RETURNING id, job_type, agent_name, module_source
+                """)
+                killed = cur.fetchall()
+
+            for job in killed:
+                logger.warning(
+                    f"Stuck job killed: #{job['id']} {job['job_type']} by {job['agent_name']}"
+                )
+                try:
+                    create_security_alert(
+                        "scan_result",
+                        f"Stuck job auto-killed: {job['job_type']}",
+                        f"Job #{job['id']} by {job['agent_name']} in {job['module_source']} exceeded 30min timeout",
+                        priority="normal",
+                        telegram=False,
+                    )
+                except Exception:
+                    pass
+
+            if killed:
+                logger.info(f"Stuck job watchdog: killed {len(killed)} hung jobs")
+        except Exception as e:
+            logger.debug(f"Stuck job watchdog failed: {e}")
 
     def _archive_stale_notifications(self):
         """Archive notifications older than 30 days (every 6 hours)."""

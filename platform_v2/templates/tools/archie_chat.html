@@ -2851,11 +2851,6 @@
 .mem-search{width:100%;padding:4px 8px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:var(--archie-card-bg,#0a1628);color:var(--archie-text,#e2e8f0);font-size:.8rem;margin-bottom:6px}
 .mem-empty{text-align:center;padding:16px;color:var(--archie-muted,#6b7280);font-size:.8rem}
 
-/* === Notification Feed === */
-.notif-bar{display:none;padding:8px 12px;background:var(--archie-card-bg,#0a1628);border-bottom:1px solid var(--archie-border,#2a3a4a);font-size:.8rem}
-.notif-bar.has-notifs{display:flex;align-items:center;gap:8px}
-.notif-dot{width:8px;height:8px;border-radius:50%;background:#fbbf24;flex-shrink:0}
-.notif-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--archie-text,#e2e8f0)}
 .notif-count{font-size:.7rem;background:var(--archie-accent,#60a5fa);color:#0a1628;border-radius:8px;padding:0 6px;font-weight:700}
 .notif-dismiss{background:none;border:none;color:var(--archie-muted,#6b7280);cursor:pointer;font-size:.8rem;padding:2px}
 .notif-dismiss:hover{color:var(--archie-text,#e2e8f0)}
@@ -3036,26 +3031,6 @@ body.font-large .messages-container{font-size:1.05rem}
             </div>
         </div>
 
-        <div class="quick-actions">
-            <h3><span data-i18n="archie_chat.quick_actions">Quick Actions</span></h3>
-            <div class="action-grid">
-                <button class="action-btn" onclick="sendQuickCommand('What is the system status?')">
-                    <i data-lucide="activity"></i>
-                    Status
-                </button>
-                <button class="action-btn" onclick="sendQuickCommand('Show me the team roster')">
-                    <i data-lucide="users"></i>
-                    Team
-                </button>
-                <button class="action-btn" onclick="sendQuickCommand('Help me with a coding task')">
-                    <i data-lucide="code-2"></i>
-                    Code
-                </button>
-                <button class="action-btn" onclick="sendQuickCommand('Create a new workflow')">
-                    <i data-lucide="git-branch"></i>
-                    Workflow
-                </button>
-            </div>
         </div>
 
         <div class="recent-commands">
@@ -3221,18 +3196,23 @@ body.font-large .messages-container{font-size:1.05rem}
 
     <!-- Main Chat Area -->
     <main class="chat-main">
+        <!-- COMMAND Station Panel (shared station-ops component) -->
+        <div class="stn-ops-terminal cs-ops-terminal" id="cmdOpsTerminal">
+            <div class="stn-ops-header cs-ops-header">
+                <div class="stn-ops-elbow cs-ops-elbow"></div>
+                <div class="stn-ops-title cs-ops-title">COMMAND STATION</div>
+                <div class="stn-ops-status cs-ops-status" id="cmdOpsOnline">
+                    <span class="stn-ops-dot cs-ops-dot"></span> ONLINE
+                </div>
+            </div>
+            <div class="stn-ops-body cs-ops-body">
+                <div id="cmdOpsAgents"></div>
+                <div id="cmdOpsJobs"></div>
+            </div>
+        </div>
+
         <div class="top-status-bar">
             <div class="status-left">
-                <div class="workflow-indicator">
-                    <i data-lucide="layers"></i>
-                    <span><span data-i18n="archie_chat.active_workflows">Active Workflows:</span></span>
-                    <strong id="activeWorkflows">0</strong>
-                </div>
-                <div class="workflow-indicator" id="escalationStatus" style="display: none;">
-                    <i data-lucide="arrow-up-circle"></i>
-                    <span><span data-i18n="archie_chat.escalation">Escalation:</span></span>
-                    <strong><span data-i18n="archie_chat.pending">Pending</span></strong>
-                </div>
                 <div class="mode-tabs">
                     <button class="chat-mode-btn active" data-mode="solo" onclick="switchChatMode('solo')">
                         <i data-lucide="message-square"></i>
@@ -3257,33 +3237,10 @@ body.font-large .messages-container{font-size:1.05rem}
                 <button class="voice-toggle-btn active" onclick="toggleVoice()" title="Toggle Voice (Phase 64)">
                     <i data-lucide="volume-2"></i>
                 </button>
-                <button class="nav-btn" id="voice-sidebar-toggle" onclick="toggleVoiceSidebar()" title="Voice Settings">
-                    <i data-lucide="audio-waveform"></i>
-                </button>
-                <button class="nav-btn" onclick="loadHistory()" title="History">
-                    <i data-lucide="history"></i>
-                </button>
-                <button class="nav-btn" onclick="saveToConsciousness()" title="Save to Consciousness">
-                    <i data-lucide="brain"></i>
-                </button>
-                <a href="/tools/consciousness" class="nav-btn" title="Consciousness">
-                    <i data-lucide="sparkles"></i>
-                </a>
                 <button class="nav-btn" onclick="clearChat()" title="Clear Chat">
                     <i data-lucide="trash-2"></i>
                 </button>
-                <a href="/" class="nav-btn" title="Dashboard">
-                    <i data-lucide="layout-dashboard"></i>
-                </a>
             </div>
-        </div>
-
-        <!-- Notification Feed -->
-        <div class="notif-bar" id="notif-bar">
-            <span class="notif-dot"></span>
-            <span class="notif-text" id="notif-text"></span>
-            <span class="notif-count" id="notif-count"></span>
-            <button class="notif-dismiss" onclick="dismissNotification()" title="Dismiss">&#10005;</button>
         </div>
 
         <div id="solo-chat-container" style="display: flex; flex: 1; flex-direction: column; overflow: hidden;">
@@ -3318,20 +3275,6 @@ body.font-large .messages-container{font-size:1.05rem}
         </div>
 
         <div class="input-area">
-            <div class="suggestions-row" id="suggestionsRow">
-                <button class="suggestion-chip" onclick="sendQuickCommand('What is the system status?')">
-                    <i data-lucide="activity"></i>
-                    System Status
-                </button>
-                <button class="suggestion-chip" onclick="sendQuickCommand('Help me write a function')">
-                    <i data-lucide="code-2"></i>
-                    Write Code
-                </button>
-                <button class="suggestion-chip" onclick="sendQuickCommand('Show the team roster')">
-                    <i data-lucide="users"></i>
-                    Team Roster
-                </button>
-            </div>
 
             <form class="input-form" id="chatForm">
                 <div class="input-wrapper">
@@ -4991,41 +4934,7 @@ function deleteMemory(memId, itemEl) {
         }).catch(function() {});
 }
 
-// ============================================================
-// Phase 7: Notification Feed
-// ============================================================
-var _currentNotifId = null;
-
-function pollNotifications() {
-    fetch('/tools/archie-chat/api/notifications/unread')
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            var bar = document.getElementById('notif-bar');
-            if (!bar) return;
-            if (d.count > 0 && d.notifications && d.notifications.length > 0) {
-                bar.classList.add('has-notifs');
-                var latest = d.notifications[0];
-                _currentNotifId = latest.id;
-                var text = document.getElementById('notif-text');
-                if (text) text.textContent = (latest.title || latest.message || 'New notification').substring(0, 100);
-                var count = document.getElementById('notif-count');
-                if (count) count.textContent = d.count;
-            } else {
-                bar.classList.remove('has-notifs');
-                _currentNotifId = null;
-            }
-        }).catch(function() {});
-}
-
-function dismissNotification() {
-    if (!_currentNotifId) return;
-    fetch('/tools/archie-chat/api/notifications/' + _currentNotifId + '/read', { method: 'POST' })
-        .then(function() { pollNotifications(); })
-        .catch(function() {});
-}
-
-pollNotifications();
-setInterval(pollNotifications, 30000);
+// Notifications handled by dashboard — removed from chat
 
 // ============================================================
 // Phase 7: Export Functions
@@ -5441,6 +5350,30 @@ function clearSearchResults() {
     var container = document.getElementById('search-results');
     if (container) container.textContent = '';
 }
+</script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/station-ops.css') }}">
+<script src="{{ url_for('static', filename='js/station-ops.js') }}"></script>
+<script>
+// COMMAND Station Ops (shared StationOps component)
+var _cmdOps = new StationOps({
+    stationCode: 'COMMAND',
+    moduleSource: 'archie_chat',
+    agentsElId: 'cmdOpsAgents',
+    jobsElId: 'cmdOpsJobs',
+    commandsElId: null,
+    statusElId: 'cmdOpsOnline'
+});
+
+function checkCommandStation() {
+    _cmdOps.checkJobs().then(function(result) {
+        _cmdOps.renderAgents(result.myJobs.length ? result.myJobs : null);
+        _cmdOps.renderJobs(result.myJobs.length ? result.myJobs : null);
+    }).catch(function() {});
+}
+
+// Poll every 10s
+checkCommandStation();
+setInterval(checkCommandStation, 10000);
 </script>
 <script src="/static/js/collaboration.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>

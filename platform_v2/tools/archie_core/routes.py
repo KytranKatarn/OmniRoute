@@ -2833,6 +2833,21 @@ def stream_chat():
         except Exception as e:
             logger.warning("stream_chat session log error: %s", e)
 
+        # Log to Bridge dispatcher for HR tracking + station activity
+        try:
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            get_dispatcher().log_external_call(
+                capability="conversation",
+                module_id="archie_chat",
+                model_used=model,
+                duration_ms=total_ms,
+                success=bool(full_response),
+                user_id=user_id,
+            )
+        except Exception:
+            pass
+
         # Push task_complete event
         try:
             from ai_bridge.orchestration_engine import _push_event

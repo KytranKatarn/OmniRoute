@@ -257,7 +257,6 @@ class DeviceRegistryService:
         ):
             if key in d and d[key] is not None:
                 d[key] = d[key].isoformat() if hasattr(d[key], "isoformat") else d[key]
-        d["is_online"] = DeviceRegistryService._is_online(row.get("last_seen_at"))
         # Tag whether this device is using AdGuard DNS
         if dns_active_clients is not None:
             ip = d.get("ip_address", "")
@@ -266,6 +265,8 @@ class DeviceRegistryService:
         else:
             d["dns_active"] = False
             d["dns_query_count"] = 0
+        # Online = seen recently by discovery OR actively querying DNS
+        d["is_online"] = DeviceRegistryService._is_online(row.get("last_seen_at")) or d["dns_active"]
         return d
 
     # ------------------------------------------------------------------
@@ -339,6 +340,9 @@ class DeviceRegistryService:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get device counts by zone, online/offline, registered/unregistered."""
+        dns_clients = self._get_dns_active_clients()
+        dns_ips = set(dns_clients.keys())
+
         with get_db_cursor(commit=False) as (conn, cur):
             cur = conn.cursor(cursor_factory=RealDictCursor)
             threshold = datetime.now(timezone.utc) - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
@@ -346,11 +350,14 @@ class DeviceRegistryService:
             cur.execute("SELECT COUNT(*) AS total FROM network_devices WHERE status = 'active'")
             total = cur.fetchone()["total"]
 
-            cur.execute(
-                "SELECT COUNT(*) AS online FROM network_devices " "WHERE status = 'active' AND last_seen_at >= %s",
-                (threshold,),
-            )
-            online = cur.fetchone()["online"]
+            # Online = seen recently OR actively querying DNS
+            cur.execute("SELECT ip_address, last_seen_at FROM network_devices WHERE status = 'active'")
+            online = 0
+            for row in cur.fetchall():
+                seen_recently = row["last_seen_at"] and row["last_seen_at"] >= threshold
+                dns_active = str(row["ip_address"]) in dns_ips
+                if seen_recently or dns_active:
+                    online += 1
 
             cur.execute(
                 "SELECT COUNT(*) AS cnt FROM network_devices " "WHERE is_registered = FALSE AND status = 'active'"

@@ -496,9 +496,16 @@ class AgentLoop:
             name="Agent Loop: Git Change Tracker",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._monitor_ssh_logins),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_ssh_monitor",
+            name="Agent Loop: SSH Login Monitor",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 31 jobs")
+        logger.info("Agent loop started with 32 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -3402,3 +3409,97 @@ class AgentLoop:
             update_market_prices()
         except Exception as e:
             logger.error(f"[Market] Price update error: {e}")
+
+    def _monitor_ssh_logins(self):
+        """Monitor SSH auth log for failed/suspicious logins (every 5 min)."""
+        import re
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["journalctl", "-u", "ssh", "--since", "5 minutes ago", "--no-pager"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode != 0 or not result.stdout.strip():
+                return
+
+            from tools.security_network.security_alerts import create_security_alert
+
+            lines = result.stdout.strip().split("\n")
+            failed_by_ip = {}
+            root_attempts = []
+            external_logins = []
+
+            for line in lines:
+                # Failed password attempts
+                failed_match = re.search(
+                    r"Failed password for (?:invalid user )?(\S+) from (\S+)", line
+                )
+                if failed_match:
+                    user = failed_match.group(1)
+                    ip = failed_match.group(2)
+                    failed_by_ip[ip] = failed_by_ip.get(ip, 0) + 1
+                    if user == "root":
+                        root_attempts.append(ip)
+                    continue
+
+                # Successful logins (Accepted)
+                accepted_match = re.search(
+                    r"Accepted \S+ for (\S+) from (\S+)", line
+                )
+                if accepted_match:
+                    user = accepted_match.group(1)
+                    ip = accepted_match.group(2)
+                    # External = not local network
+                    if not ip.startswith("192.168.1."):
+                        external_logins.append((user, ip))
+                    if user == "root":
+                        root_attempts.append(ip)
+
+            alerts_created = 0
+
+            # Brute force: 3+ failed from same IP
+            for ip, count in failed_by_ip.items():
+                if count >= 3:
+                    create_security_alert(
+                        "intrusion",
+                        f"SSH brute force attempt from {ip}",
+                        f"{count} failed login attempts from {ip} in the last 5 minutes",
+                        priority="high",
+                        telegram=True,
+                    )
+                    alerts_created += 1
+
+            # External successful logins
+            for user, ip in external_logins:
+                create_security_alert(
+                    "intrusion",
+                    f"External SSH login from {ip}",
+                    f"User '{user}' logged in via SSH from external IP {ip}",
+                    priority="critical",
+                    telegram=True,
+                )
+                alerts_created += 1
+
+            # Root login attempts (deduplicate IPs already covered by brute force)
+            seen_root_ips = set()
+            for ip in root_attempts:
+                if ip not in seen_root_ips:
+                    seen_root_ips.add(ip)
+                    create_security_alert(
+                        "intrusion",
+                        f"Root SSH login attempt from {ip}",
+                        f"Someone attempted to log in as root via SSH from {ip}",
+                        priority="normal",
+                        telegram=True,
+                    )
+                    alerts_created += 1
+
+            if alerts_created:
+                logger.info(f"SSH monitor: created {alerts_created} security alerts")
+
+        except Exception as e:
+            logger.debug(f"SSH login monitor failed: {e}")

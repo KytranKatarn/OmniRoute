@@ -944,19 +944,19 @@
 
     <!-- ==================== TAB: DASHBOARD ==================== -->
     <div id="tab-dashboard" class="tab-content active">
-        <!-- SECURITY Station Panel -->
-        <div class="stn-ops-terminal" id="secOpsTerminal" style="--stn-accent: #F43F5E; --stn-accent-rgb: 244, 63, 94;">
-            <div class="stn-ops-header">
-                <div class="stn-ops-elbow"></div>
-                <div class="stn-ops-title">SECURITY STATION</div>
-                <div class="stn-ops-status" id="secOpsOnline">
-                    <span class="stn-ops-dot"></span> ONLINE
+        <!-- SECURITY Station Panel (matches Consciousness pattern exactly) -->
+        <div class="stn-ops-terminal cs-ops-terminal" id="secOpsTerminal">
+            <div class="stn-ops-header cs-ops-header">
+                <div class="stn-ops-elbow cs-ops-elbow"></div>
+                <div class="stn-ops-title cs-ops-title">SECURITY OPERATIONS</div>
+                <div class="stn-ops-status cs-ops-status" id="secOpsOnline">
+                    <span class="stn-ops-dot cs-ops-dot"></span> ONLINE
                 </div>
             </div>
-            <div class="stn-ops-body">
+            <div class="stn-ops-body cs-ops-body">
                 <div id="secOpsAgents"></div>
                 <div id="secOpsJobs"></div>
-                <div id="secOpsCommands"></div>
+                <div class="cs-ops-commands" id="secOpsCommands"></div>
             </div>
         </div>
 
@@ -3890,27 +3890,57 @@ document.addEventListener('keydown', function(e) {
 });
 
 /* ========== Security Station Ops ========== */
+/* ── Security Station Ops (matches Consciousness pattern) ── */
 var _secOps = null;
+
+function _getSecOps() {
+    if (!_secOps) {
+        if (typeof StationOps === 'undefined') return null;
+        _secOps = new StationOps({
+            stationCode: 'SECURITY',
+            moduleSource: 'security_network',
+            agentsElId: 'secOpsAgents',
+            jobsElId: 'secOpsJobs',
+            commandsElId: 'secOpsCommands',
+            statusElId: 'secOpsOnline',
+            commands: [
+                { label: 'NMAP SCAN', cls: 'red', fn: "switchToTab('recon')", id: 'secCmdNmap' },
+                { label: 'SSL CHECK', cls: 'green', fn: "switchToTab('scanning')", id: 'secCmdSsl' },
+                { label: 'DEVICE AUDIT', cls: 'cyan', fn: "loadDeviceClients()", id: 'secCmdDevices' },
+                { label: 'DNS REPORT', cls: 'blue', fn: "switchToTab('dns')", id: 'secCmdDns' }
+            ],
+            onCapacityChange: function(atCap) {
+                ['secCmdNmap','secCmdSsl','secCmdDevices','secCmdDns'].forEach(function(id) {
+                    var btn = document.getElementById(id);
+                    if (btn) { btn.disabled = atCap; btn.title = atCap ? 'Station at capacity — all agents busy' : ''; }
+                });
+                var status = document.getElementById('secOpsOnline');
+                if (status) {
+                    var dot = status.querySelector('.cs-ops-dot');
+                    var txt = status.childNodes[status.childNodes.length - 1];
+                    if (atCap) {
+                        if (dot) { dot.style.background = '#f59e0b'; dot.style.boxShadow = '0 0 4px #f59e0b'; }
+                        if (txt && txt.nodeType === 3) txt.textContent = ' AT CAPACITY';
+                        status.style.color = '#f59e0b';
+                    } else {
+                        if (dot) { dot.style.background = ''; dot.style.boxShadow = ''; }
+                        if (txt && txt.nodeType === 3) txt.textContent = ' ONLINE';
+                        status.style.color = '';
+                    }
+                }
+            }
+        });
+    }
+    return _secOps;
+}
+
+function renderSecurityOps(jobData) {
+    var ops = _getSecOps();
+    if (ops) ops.render(jobData);
+}
+
 function initSecurityStation() {
-    if (typeof StationOps === 'undefined') return;
-    _secOps = new StationOps({
-        stationCode: 'SECURITY',
-        moduleSource: 'security_network',
-        agentsElId: 'secOpsAgents',
-        jobsElId: 'secOpsJobs',
-        commandsElId: 'secOpsCommands',
-        statusElId: 'secOpsOnline',
-        commands: [
-            { label: 'NMAP SCAN', cls: 'red', fn: "switchToTab('recon')", id: 'secCmdNmap' },
-            { label: 'SSL CHECK', cls: 'green', fn: "switchToTab('scanning')", id: 'secCmdSsl' },
-            { label: 'DEVICE AUDIT', cls: 'cyan', fn: "loadDeviceClients()", id: 'secCmdDevices' },
-            { label: 'DNS REPORT', cls: 'blue', fn: "switchToTab('dns')", id: 'secCmdDns' }
-        ]
-    });
-    _secOps.checkJobs().then(function(result) {
-        _secOps.renderAgents(result && result.myJobs ? result.myJobs : null);
-        _secOps.renderJobs(result && result.myJobs ? result.myJobs : null);
-    });
+    renderSecurityOps();
 }
 
 /* ========== Device Registry ========== */

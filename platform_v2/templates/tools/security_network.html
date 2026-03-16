@@ -2770,17 +2770,22 @@ function toggleCameraStream() {
     var img = document.getElementById('camera-modal-img');
     var btn = document.getElementById('camera-modal-stream');
     if (_cameraModalStreaming) {
-        // Switch back to snapshot
         _cameraModalStreaming = false;
-        img.src = API+'/surveillance/camera/'+encodeURIComponent(_cameraModalEntityId)+'/snapshot?t='+Date.now();
+        img.src = API+'/surveillance/camera/'+_cameraModalEntityId+'/snapshot?t='+Date.now();
         btn.textContent = 'Live Stream';
-        btn.style.background = 'rgba(0,212,255,0.2)';
+        btn.style.cssText = 'background:rgba(0,212,255,0.2);border:1px solid rgba(0,212,255,0.4);color:#00d4ff;';
     } else {
-        // Switch to MJPEG stream
         _cameraModalStreaming = true;
-        img.src = API+'/surveillance/camera/'+encodeURIComponent(_cameraModalEntityId)+'/stream-proxy';
-        btn.textContent = 'Stop Stream';
-        btn.style.background = 'rgba(239,68,68,0.2)';
+        btn.textContent = 'Connecting...';
+        btn.style.cssText = 'background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);color:#ef4444;';
+        img.onerror = function() {
+            btn.textContent = 'Stream Failed — Retry';
+            _cameraModalStreaming = false;
+        };
+        img.onload = function() {
+            btn.textContent = 'Stop Stream';
+        };
+        img.src = API+'/surveillance/camera/'+_cameraModalEntityId+'/stream-proxy';
     }
 }
 

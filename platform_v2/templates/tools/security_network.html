@@ -2178,6 +2178,24 @@ function dnsUnblockDomain() {
 }
 
 /* Query Log */
+var _qlDeviceMap = null;
+async function _getDeviceMap() {
+    if (_qlDeviceMap) return _qlDeviceMap;
+    try {
+        var r = await fetch(API + '/devices');
+        var d = await r.json();
+        _qlDeviceMap = {};
+        if (d.success && d.devices) {
+            d.devices.forEach(function(dev) {
+                if (dev.ip_address && dev.friendly_name) {
+                    _qlDeviceMap[dev.ip_address] = {name: dev.friendly_name, type: dev.device_type, owner: dev.owner};
+                }
+            });
+        }
+    } catch(e) { _qlDeviceMap = {}; }
+    return _qlDeviceMap;
+}
+
 async function loadQueryLog(offset) {
     qlOffset = Math.max(0, offset || 0);
     const search = document.getElementById('ql-search').value;
@@ -2185,6 +2203,7 @@ async function loadQueryLog(offset) {
     const container = document.getElementById('querylog-container');
     showLoading(container);
     try {
+        var deviceMap = await _getDeviceMap();
         const params = new URLSearchParams({limit:50,offset:qlOffset});
         if(search) params.set('search',search);
         if(status) params.set('response_status',status);
@@ -2196,10 +2215,23 @@ async function loadQueryLog(offset) {
             const rows = entries.map(e => {
                 const q = e.question || {};
                 const blocked = e.reason && e.reason !== 'NotFilteredNotFound';
-                const timeTd = document.createElement('td');
-                timeTd.className = 'mono';
-                timeTd.textContent = formatTime(e.time);
-                return [formatTime(e.time), q.name||'-', e.client||'-', q.type||'-', createBadge(blocked?'Blocked':'OK', blocked?'danger':'success')];
+                var clientIp = e.client || '-';
+                var clientCell;
+                var dev = deviceMap[clientIp];
+                if (dev) {
+                    var wrapper = document.createElement('span');
+                    var ipSpan = document.createElement('span');
+                    ipSpan.textContent = clientIp + ' ';
+                    wrapper.appendChild(ipSpan);
+                    var tag = document.createElement('span');
+                    tag.textContent = dev.name;
+                    tag.style.cssText = 'background:rgba(34,197,94,0.15);color:#22c55e;padding:1px 6px;border-radius:3px;font-size:0.7rem;border:1px solid rgba(34,197,94,0.3);';
+                    wrapper.appendChild(tag);
+                    clientCell = wrapper;
+                } else {
+                    clientCell = clientIp;
+                }
+                return [formatTime(e.time), q.name||'-', clientCell, q.type||'-', createBadge(blocked?'Blocked':'OK', blocked?'danger':'success')];
             });
             container.textContent = '';
             container.appendChild(buildTable(['Time','Domain','Client','Type','Status'], rows));

@@ -1460,6 +1460,67 @@ def api_download_report(filename):
 
 
 # ============================================================================
+# SERVICE HEALTH HELPERS
+# ============================================================================
+
+
+def _check_npm_health():
+    """Check if Nginx Proxy Manager is reachable."""
+    try:
+        import requests as req
+
+        npm_url = os.getenv("NPM_API_URL", "http://192.168.1.200:81/api")
+        r = req.get(f"{npm_url.rstrip('/api')}/", timeout=3)
+        return r.status_code < 500
+    except Exception:
+        return False
+
+
+def _check_ssh_health():
+    """Check if SSH daemon is running."""
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["systemctl", "is-active", "ssh"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.stdout.strip() == "active"
+    except Exception:
+        return False
+
+
+def _check_fail2ban_health():
+    """Check if fail2ban is running."""
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["systemctl", "is-active", "fail2ban"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.stdout.strip() == "active"
+    except Exception:
+        return False
+
+
+def _check_ddns_health():
+    """Check if DDNS updater ran recently (last IP file updated within 10 min)."""
+    try:
+        ip_file = "/mnt/archie_brain/scripts/.ddns_last_ip"
+        if not os.path.exists(ip_file):
+            return False
+        age = time.time() - os.path.getmtime(ip_file)
+        return age < 600  # Updated within last 10 minutes
+    except Exception:
+        return False
+
+
+# ============================================================================
 # DASHBOARD AGGREGATION API
 # ============================================================================
 
@@ -1641,6 +1702,10 @@ def api_dashboard_stats():
                 "adguard": dns.get("available", False),
                 "hostinger": stats.get("hostinger", {}).get("available", False),
                 "surveillance": cameras.get("available", False),
+                "npm": _check_npm_health(),
+                "ssh": _check_ssh_health(),
+                "fail2ban": _check_fail2ban_health(),
+                "ddns": _check_ddns_health(),
                 "argus": recon.get("available", False),
                 "agent": agent.get("available", False),
             },

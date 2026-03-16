@@ -895,11 +895,15 @@
             <div class="lcars-body">
                 <!-- Service Badges -->
                 <div class="header-services" id="service-badges">
-                    <span class="svc-badge" id="svc-adguard"><span class="dot"></span><span data-i18n="security_network.adguard"> AdGuard</span></span>
-                    <span class="svc-badge" id="svc-hostinger"><span class="dot"></span><span data-i18n="security_network.hostinger"> Hostinger</span></span>
-                    <span class="svc-badge" id="svc-surveillance"><span class="dot"></span><span data-i18n="security_network.cameras"> Cameras</span></span>
-                    <span class="svc-badge" id="svc-argus"><span class="dot"></span><span data-i18n="security_network.argus"> Argus</span></span>
-                    <span class="svc-badge" id="svc-agent"><span class="dot"></span><span data-i18n="security_network.agent"> Agent</span></span>
+                    <span class="svc-badge" id="svc-adguard"><span class="dot"></span> AdGuard</span>
+                    <span class="svc-badge" id="svc-hostinger"><span class="dot"></span> Hostinger</span>
+                    <span class="svc-badge" id="svc-surveillance"><span class="dot"></span> Cameras</span>
+                    <span class="svc-badge" id="svc-npm"><span class="dot"></span> NPM</span>
+                    <span class="svc-badge" id="svc-ssh"><span class="dot"></span> SSH</span>
+                    <span class="svc-badge" id="svc-fail2ban"><span class="dot"></span> fail2ban</span>
+                    <span class="svc-badge" id="svc-ddns"><span class="dot"></span> DDNS</span>
+                    <span class="svc-badge" id="svc-argus"><span class="dot"></span> Argus</span>
+                    <span class="svc-badge" id="svc-agent"><span class="dot"></span> Agent</span>
                 </div>
 
                 <!-- Tab Navigation -->
@@ -2131,6 +2135,10 @@ async function loadDashboard() {
         setBadge('svc-adguard', d.services && d.services.adguard);
         setBadge('svc-hostinger', d.services && d.services.hostinger);
         setBadge('svc-surveillance', d.services && d.services.surveillance);
+        setBadge('svc-npm', d.services && d.services.npm);
+        setBadge('svc-ssh', d.services && d.services.ssh);
+        setBadge('svc-fail2ban', d.services && d.services.fail2ban);
+        setBadge('svc-ddns', d.services && d.services.ddns);
         setBadge('svc-argus', d.services && d.services.argus);
         setBadge('svc-agent', d.services && d.services.agent);
         // Set DNS protection toggle state

@@ -79,11 +79,14 @@
         maxPrimary = s.max_primary || 2;
         maxAux = s.max_auxiliary || 1;
         (s.assigned_agents || []).forEach(function(a) {
+          /* Skip barracked agents — they are not available for dispatch */
+          if (a.shift_state === 'barracked') return;
           crew.push({
             name: (a.first_name && a.last_name) ? a.first_name + " " + a.last_name : (a.name || "Agent"),
             title: a.title || a.assignment_type || "agent",
             agentName: a.name || "",
-            status: a.status || "active"
+            status: a.status || "active",
+            shiftState: a.shift_state || "active"
           });
         });
       });

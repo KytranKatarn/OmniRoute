@@ -539,7 +539,8 @@ def get_stations():
                                    'avatar_url', a.avatar_url,
                                    'model', a.model,
                                    'assignment_type', sa.assignment_type,
-                                   'status', a.status
+                                   'status', a.status,
+                                   'shift_state', a.shift_state
                                ) ORDER BY sa.priority
                            ) FILTER (WHERE a.id IS NOT NULL),
                            '[]'::json

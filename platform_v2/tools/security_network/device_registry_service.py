@@ -203,9 +203,10 @@ class DeviceRegistryService:
         if not last_seen_at:
             return False
         if isinstance(last_seen_at, str):
-            last_seen_at = datetime.fromisoformat(last_seen_at)
-        if last_seen_at.tzinfo is None:
-            last_seen_at = last_seen_at.replace(tzinfo=timezone.utc)
+            last_seen_at = datetime.fromisoformat(last_seen_at.replace("Z", ""))
+        # Strip timezone info — DB stores naive UTC
+        if last_seen_at.tzinfo is not None:
+            last_seen_at = last_seen_at.replace(tzinfo=None)
         now = datetime.utcnow()
         return (now - last_seen_at) < timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
 

@@ -2870,19 +2870,32 @@ async function loadReconModules() {
         if(d.success && d.modules) {
             grid.textContent='';
             select.textContent='';
-            d.modules.forEach(m=>{
-                const opt = document.createElement('option');
-                opt.value = m.name;
+            // Flatten categories dict into flat list
+            var allModules = [];
+            var mods = d.modules;
+            if (Array.isArray(mods)) {
+                allModules = mods;
+            } else if (typeof mods === 'object') {
+                Object.keys(mods).forEach(function(cat) {
+                    (mods[cat] || []).forEach(function(m) {
+                        m.category = cat;
+                        allModules.push(m);
+                    });
+                });
+            }
+            allModules.forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m.id || m.name;
                 opt.textContent = m.name;
                 select.appendChild(opt);
-                const card = document.createElement('div');
+                var card = document.createElement('div');
                 card.className='module-card';
-                card.addEventListener('click', function(){select.value=m.name;document.getElementById('recon-target').focus();});
-                const cat = document.createElement('div');
+                card.addEventListener('click', function(){select.value=m.id||m.name;document.getElementById('recon-target').focus();});
+                var cat = document.createElement('div');
                 cat.className='mod-cat'; cat.textContent=m.category||'other';
-                const name = document.createElement('div');
+                var name = document.createElement('div');
                 name.className='mod-name'; name.textContent=m.name;
-                const desc = document.createElement('div');
+                var desc = document.createElement('div');
                 desc.className='mod-desc'; desc.textContent=m.description||'';
                 card.appendChild(cat); card.appendChild(name); card.appendChild(desc);
                 grid.appendChild(card);

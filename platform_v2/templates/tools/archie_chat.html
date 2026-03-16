@@ -3858,130 +3858,86 @@ function showTyping(show) {
     if (show) scrollToBottom();
 }
 
-// Send message
+// Send message (JSON request/response — no SSE streaming)
 async function sendMessage(message) {
     if (!message.trim()) return;
 
     addMessage(message, true);
-    showTyping(false); // streaming shows its own indicator
+    showTyping(true);
 
     const sendBtn = document.getElementById('sendButton');
     sendBtn.disabled = true;
 
-    // Create streaming message bubble
-    const container = document.getElementById('messagesContainer');
     const welcomeMsg = document.getElementById('welcomeMessage');
     if (welcomeMsg) welcomeMsg.style.display = 'none';
 
-    const streamDiv = document.createElement('div');
-    streamDiv.className = 'message archie streaming';
-    streamDiv.id = 'p10-streaming-msg';
-
-    const avatarDiv = document.createElement('div');
-    avatarDiv.className = 'message-avatar';
-    avatarDiv.textContent = '\u{1F916}';
-
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-
-    const bubbleDiv = document.createElement('div');
-    bubbleDiv.className = 'message-bubble';
-    bubbleDiv.id = 'p10-streaming-bubble';
-
-    contentDiv.appendChild(bubbleDiv);
-    streamDiv.appendChild(avatarDiv);
-    streamDiv.appendChild(contentDiv);
-
-    const typingMsg = document.getElementById('typingMessage');
-    container.insertBefore(streamDiv, typingMsg || null);
-    scrollToBottom();
-
-    var fullResponse = '';
-
     try {
-        var resp = await fetch('/tools/archie-chat/api/stream', {
+        var resp = await fetch('/tools/archie-chat/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: message, conversation_id: conversationId })
         });
 
-        var reader = resp.body.getReader();
-        var decoder = new TextDecoder();
-        var buffer = '';
+        var data = await resp.json();
 
-        while (true) {
-            var result = await reader.read();
-            if (result.done) break;
+        showTyping(false);
 
-            buffer += decoder.decode(result.value, { stream: true });
-            var lines = buffer.split('\n');
-            buffer = lines.pop();
+        if (data.success && data.response) {
+            // Create response message
+            var container = document.getElementById('messagesContainer');
+            var msgDiv = document.createElement('div');
+            msgDiv.className = 'message archie';
 
-            for (var i = 0; i < lines.length; i++) {
-                var line = lines[i].trim();
-                if (!line.startsWith('data: ')) continue;
-                var raw = line.substring(6);
-                if (raw === '[DONE]') continue;
+            var avatarDiv = document.createElement('div');
+            avatarDiv.className = 'message-avatar';
+            avatarDiv.textContent = '\u{1F916}';
 
-                try {
-                    var parsed = JSON.parse(raw);
+            var contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
 
-                    if (parsed.thinking_step) {
-                        // Show orchestration thinking step above the response bubble
-                        var stepEl = document.createElement('div');
-                        stepEl.className = 'thinking-step';
-                        stepEl.innerHTML = '<span class="ts-icon">&#9881;</span> <span class="ts-label">' +
-                            (parsed.thinking_step.label || parsed.thinking_step.step_type) + '</span>' +
-                            (parsed.thinking_step.duration_ms > 0 ? ' <span class="ts-time">' + parsed.thinking_step.duration_ms + 'ms</span>' : '');
-                        contentDiv.insertBefore(stepEl, bubbleDiv);
-                        scrollToBottom();
-                    }
+            var bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'message-bubble';
+            // SAFE: marked.js output rendered into owned bubble
+            bubbleDiv.innerHTML = renderMarkdown(data.response);
 
-                    if (parsed.token) {
-                        fullResponse += parsed.token;
-                        // SAFE: marked.js output rendered into owned bubble
-                        bubbleDiv.innerHTML = renderMarkdown(fullResponse);
-                        scrollToBottom();
-                    }
+            contentDiv.appendChild(bubbleDiv);
 
-                    if (parsed.done) {
-                        // SAFE: marked.js output rendered into owned bubble
-                        bubbleDiv.innerHTML = renderMarkdown(fullResponse);
-                        streamDiv.classList.remove('streaming');
-                        document.querySelectorAll('#p10-streaming-bubble pre code').forEach(function(block) {
-                            if (typeof hljs !== 'undefined') hljs.highlightElement(block);
-                        });
-                        addCopyButtons(bubbleDiv);
-                        // Show agent + model badge
-                        if (parsed.agent_used || parsed.model) {
-                            var badge = document.createElement('div');
-                            badge.className = 'msg-meta-badge';
-                            badge.textContent = (parsed.agent_used || 'ARCHIE') + ' \u00b7 ' + (parsed.model || '');
-                            contentDiv.appendChild(badge);
-                        }
-                        streamDiv.removeAttribute('id');
-                        bubbleDiv.removeAttribute('id');
-                        if (_chatSettings && _chatSettings.voiceAutoSpeak !== false && voiceConfig && voiceConfig.enabled && typeof speakResponse === 'function') {
-                            speakResponse(fullResponse);
-                        }
-                    }
-
-                    if (parsed.conversation_id) {
-                        conversationId = parsed.conversation_id;
-                        p10LoadThreads();
-                        updateRecentCommand(message, 'chat');
-                    }
-
-                    if (parsed.error) {
-                        bubbleDiv.textContent = 'Error: ' + parsed.error;
-                        streamDiv.classList.remove('streaming');
-                    }
-                } catch (e) { /* ignore parse errors */ }
+            // Agent + model badge
+            if (data.agent_used || data.model_used) {
+                var badge = document.createElement('div');
+                badge.className = 'msg-meta-badge';
+                badge.textContent = (data.agent_used || 'ARCHIE') + ' \u00b7 ' + (data.model_used || '') +
+                    (data.response_time ? ' \u00b7 ' + (data.response_time / 1000).toFixed(1) + 's' : '');
+                contentDiv.appendChild(badge);
             }
+
+            msgDiv.appendChild(avatarDiv);
+            msgDiv.appendChild(contentDiv);
+
+            var typingMsg = document.getElementById('typingMessage');
+            container.insertBefore(msgDiv, typingMsg || null);
+
+            // Syntax highlighting + copy buttons
+            msgDiv.querySelectorAll('pre code').forEach(function(block) {
+                if (typeof hljs !== 'undefined') hljs.highlightElement(block);
+            });
+            addCopyButtons(bubbleDiv);
+
+            // Update conversation ID + threads
+            if (data.conversation_id) {
+                conversationId = data.conversation_id;
+                p10LoadThreads();
+                updateRecentCommand(message, 'chat');
+            }
+
+            scrollToBottom();
+        } else {
+            // Error response
+            addMessage('Error: ' + (data.error || 'No response from ARCHIE'), false);
         }
     } catch (err) {
-        bubbleDiv.textContent = 'Connection error: ' + err.message;
-        streamDiv.classList.remove('streaming');
+        showTyping(false);
+        addMessage('Connection error: ' + err.message, false);
     } finally {
         sendBtn.disabled = false;
         document.getElementById('messageInput').focus();

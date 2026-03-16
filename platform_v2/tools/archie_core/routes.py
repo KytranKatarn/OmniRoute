@@ -112,6 +112,214 @@ def index():
             pass
 
 
+@archie_chat_bp.route("/api/chat", methods=["POST"])
+@login_required
+def api_chat():
+    """Simple JSON chat endpoint — no SSE, no streaming. Just works."""
+    import time as _time
+    import requests as _requests
+
+    data = request.get_json() or {}
+    message = data.get("message", "").strip()
+    conversation_id = data.get("conversation_id") or str(uuid.uuid4())
+
+    if not message:
+        return jsonify({"success": False, "error": "No message"}), 400
+
+    user_id = current_user.id
+    user_context = _build_user_context(user_id, current_user.username)
+    start_time = _time.time()
+
+    # Run orchestration preflight (steps 1-6)
+    thinking_steps = []
+    model = "llama3.2:3b"
+    agent_name = "ARCHIE"
+    agent_id = None
+    session_uuid = None
+    db_session_id = None
+
+    try:
+        from ai_bridge.orchestration_engine import get_orchestration_engine
+
+        engine = get_orchestration_engine()
+        preflight = engine.orchestrate_preflight(
+            message=message,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            user_context=user_context,
+        )
+
+        if preflight.get("non_streamable"):
+            # Non-streamable intent — use full orchestrate()
+            result = engine.orchestrate(
+                message=message,
+                user_id=user_id,
+                conversation_id=conversation_id,
+                user_context=user_context,
+            )
+            return jsonify(
+                {
+                    "success": result.success,
+                    "response": result.response,
+                    "conversation_id": conversation_id,
+                    "model_used": result.model_used,
+                    "agent_used": result.agent_used,
+                }
+            )
+
+        if preflight.get("error"):
+            # Preflight failed — fall back to direct ArchieAI
+            ai = ArchieAI()
+            history = []
+            try:
+                conn = get_db()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    "SELECT message, response FROM ai_conversations WHERE user_id = %s AND conversation_id = %s ORDER BY created_at DESC LIMIT 5",
+                    (user_id, conversation_id),
+                )
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+                for row in reversed(rows):
+                    history.append({"role": "user", "content": row["message"]})
+                    if row.get("response"):
+                        history.append({"role": "assistant", "content": row["response"]})
+            except Exception:
+                pass
+            result = ai.chat(message, user_context, history)
+            if result.get("success"):
+                return jsonify(
+                    {
+                        "success": True,
+                        "response": result["response"],
+                        "conversation_id": conversation_id,
+                        "model_used": result.get("model"),
+                        "agent_used": "ARCHIE",
+                    }
+                )
+            return jsonify({"success": False, "error": "AI unavailable"}), 503
+
+        # Preflight succeeded — call Ollama synchronously
+        model = preflight["model"]
+        agent_name = preflight.get("agent_name", "ARCHIE")
+        agent_id = preflight.get("agent_id")
+        session_uuid = preflight.get("session_uuid")
+        db_session_id = preflight.get("db_session_id")
+        thinking_steps = preflight.get("steps", [])
+
+        _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+        _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+        ollama_url = f"http://{_ollama_host}:{_ollama_port}/api/chat"
+
+        resp = _requests.post(
+            ollama_url,
+            json={
+                "model": model,
+                "messages": preflight["messages"],
+                "stream": False,
+                "options": {"num_ctx": 4096, "num_gpu": 0},
+            },
+            timeout=120,
+        )
+
+        if resp.status_code != 200:
+            return (
+                jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}),
+                503,
+            )
+
+        response_text = resp.json().get("message", {}).get("content", "")
+
+    except Exception as e:
+        logger.error("api_chat error: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    total_ms = int((_time.time() - start_time) * 1000)
+
+    # Persist conversation
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO ai_conversations (user_id, conversation_id, message, response, model, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                user_id,
+                conversation_id,
+                message,
+                response_text,
+                model,
+                json.dumps(
+                    {
+                        "chat_mode": "solo",
+                        "agent_used": agent_name,
+                        "agent_id": agent_id,
+                        "orchestration_session": session_uuid,
+                        "total_duration_ms": total_ms,
+                    }
+                ),
+            ),
+        )
+        cur.execute(
+            """
+            INSERT INTO ai_conversation_threads (conversation_id, user_id, title, chat_mode, message_count, last_message_at)
+            VALUES (%s, %s, %s, 'solo', 1, NOW())
+            ON CONFLICT (conversation_id) DO UPDATE SET
+                message_count = ai_conversation_threads.message_count + 1,
+                last_message_at = NOW(), updated_at = NOW()
+            """,
+            (conversation_id, user_id, message[:100]),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.error("api_chat persist error: %s", e)
+
+    # Log orchestration session
+    try:
+        engine._persist_steps(db_session_id, thinking_steps)
+        engine._complete_session(db_session_id, len(thinking_steps) + 1, total_ms)
+    except Exception:
+        pass
+
+    # Bridge dispatch tracking
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        get_dispatcher().log_external_call(
+            capability="conversation",
+            module_id="archie_chat",
+            model_used=model,
+            duration_ms=total_ms,
+            success=bool(response_text),
+            user_id=user_id,
+        )
+    except Exception:
+        pass
+
+    # Emotional state update
+    if EMOTIONAL_INTELLIGENCE_AVAILABLE and response_text:
+        try:
+            _update_emotional_state(message, response_text, user_id)
+        except Exception:
+            pass
+
+    return jsonify(
+        {
+            "success": True,
+            "response": response_text,
+            "conversation_id": conversation_id,
+            "model_used": model,
+            "agent_used": agent_name,
+            "response_time": total_ms,
+        }
+    )
+
+
 @archie_chat_bp.route("/api/orchestrate", methods=["POST"])
 @login_required
 def orchestrate():

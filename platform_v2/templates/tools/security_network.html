@@ -2212,22 +2212,30 @@ function submitBlockDomain() {
     fetch(API+'/dns/adguard/block',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({domain:domain})
-    }).then(function(r){return r.json();}).then(function(d){
+    }).then(function(r){
+        return r.json().then(function(d){ return {status: r.status, data: d}; });
+    }).then(function(result){
         if (btn) btn.textContent = 'Block Domain';
+        var d = result.data;
         if(d.success) {
             showToast('success',domain+' blocked — added to Rules');
             closeBlockDomainModal();
-            // Switch to AdGuard DNS tab → Rules subtab to show the result
             var dnsBtn = document.querySelector('.tab-btn[data-tab="dns"]');
             if (dnsBtn) dnsBtn.click();
             setTimeout(function() {
                 var rulesBtn = document.querySelector('.subtab-btn[data-subtab="dns-rules"]');
                 if (rulesBtn) rulesBtn.click();
             }, 200);
-        } else showToast('error',d.error||'Failed');
+        } else if(result.status === 409) {
+            showToast('warning', d.error || domain + ' is already blocked');
+            closeBlockDomainModal();
+        } else {
+            showToast('error', d.error || 'Failed to block domain');
+        }
     }).catch(function(e){
         if (btn) btn.textContent = 'Block Domain';
-        showToast('error',e.message);
+        showToast('error','Error: ' + e.message);
+        closeBlockDomainModal();
     });
 }
 

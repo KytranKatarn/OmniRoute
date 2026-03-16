@@ -2212,29 +2212,101 @@ async function loadQueryLog(offset) {
         if(d.success && d.data) {
             const entries = d.data.data || d.data || [];
             if(!entries.length) { showEmpty(container,'No query log entries'); document.getElementById('ql-pagination').style.display='none'; return; }
-            const rows = entries.map(e => {
-                const q = e.question || {};
-                const blocked = e.reason && e.reason !== 'NotFilteredNotFound';
+
+            // Build table manually for row-level styling
+            var table = document.createElement('table');
+            table.className = 'data-table';
+            var thead = document.createElement('thead');
+            var headerRow = document.createElement('tr');
+            ['Time','Domain','Client','Type','Status'].forEach(function(h) {
+                var th = document.createElement('th');
+                th.textContent = h;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            var tbody = document.createElement('tbody');
+            entries.forEach(function(e) {
+                var q = e.question || {};
+                var blocked = e.reason && e.reason !== 'NotFilteredNotFound';
                 var clientIp = e.client || '-';
-                var clientCell;
+                var domain = q.name || '-';
+
+                var tr = document.createElement('tr');
+                // Red tint on blocked rows
+                if (blocked) {
+                    tr.style.background = 'rgba(239,68,68,0.06)';
+                    tr.style.borderLeft = '3px solid rgba(239,68,68,0.4)';
+                }
+
+                // Time
+                var tdTime = document.createElement('td');
+                tdTime.textContent = formatTime(e.time);
+                tdTime.style.fontSize = '0.78rem';
+                tr.appendChild(tdTime);
+
+                // Domain — clickable to block
+                var tdDomain = document.createElement('td');
+                var domLink = document.createElement('span');
+                domLink.textContent = domain;
+                domLink.style.cursor = 'pointer';
+                domLink.title = 'Click to block this domain';
+                domLink.addEventListener('click', function() {
+                    if (confirm('Block domain: ' + domain + '?')) {
+                        fetch(API+'/dns/adguard/block',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})})
+                        .then(function(r){return r.json();}).then(function(d){
+                            if(d.success) showToast('success',domain+' blocked');
+                            else showToast('error',d.error||'Failed');
+                        });
+                    }
+                });
+                tdDomain.appendChild(domLink);
+                tr.appendChild(tdDomain);
+
+                // Client — with device tag + clickable to filter
+                var tdClient = document.createElement('td');
                 var dev = deviceMap[clientIp];
+                var ipSpan = document.createElement('span');
+                ipSpan.textContent = clientIp;
+                ipSpan.style.cursor = 'pointer';
+                ipSpan.title = 'Click to filter by this client';
+                ipSpan.addEventListener('click', function() {
+                    document.getElementById('ql-search').value = clientIp;
+                    loadQueryLog(0);
+                });
+                tdClient.appendChild(ipSpan);
                 if (dev) {
-                    var wrapper = document.createElement('span');
-                    var ipSpan = document.createElement('span');
-                    ipSpan.textContent = clientIp + ' ';
-                    wrapper.appendChild(ipSpan);
+                    var spacer = document.createTextNode(' ');
+                    tdClient.appendChild(spacer);
                     var tag = document.createElement('span');
                     tag.textContent = dev.name;
-                    tag.style.cssText = 'background:rgba(34,197,94,0.15);color:#22c55e;padding:1px 6px;border-radius:3px;font-size:0.7rem;border:1px solid rgba(34,197,94,0.3);';
-                    wrapper.appendChild(tag);
-                    clientCell = wrapper;
-                } else {
-                    clientCell = clientIp;
+                    tag.style.cssText = 'background:rgba(34,197,94,0.15);color:#22c55e;padding:1px 6px;border-radius:3px;font-size:0.7rem;border:1px solid rgba(34,197,94,0.3);cursor:pointer;';
+                    tag.title = 'Click to filter by ' + dev.name;
+                    tag.addEventListener('click', function() {
+                        document.getElementById('ql-search').value = clientIp;
+                        loadQueryLog(0);
+                    });
+                    tdClient.appendChild(tag);
                 }
-                return [formatTime(e.time), q.name||'-', clientCell, q.type||'-', createBadge(blocked?'Blocked':'OK', blocked?'danger':'success')];
+                tr.appendChild(tdClient);
+
+                // Type
+                var tdType = document.createElement('td');
+                tdType.textContent = q.type || '-';
+                tr.appendChild(tdType);
+
+                // Status badge
+                var tdStatus = document.createElement('td');
+                tdStatus.appendChild(createBadge(blocked?'Blocked':'OK', blocked?'danger':'success'));
+                tr.appendChild(tdStatus);
+
+                tbody.appendChild(tr);
             });
+            table.appendChild(tbody);
+
             container.textContent = '';
-            container.appendChild(buildTable(['Time','Domain','Client','Type','Status'], rows));
+            container.appendChild(table);
             const pag = document.getElementById('ql-pagination');
             pag.style.display = 'flex';
             document.getElementById('ql-prev').disabled = qlOffset === 0;

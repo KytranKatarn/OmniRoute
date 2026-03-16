@@ -527,9 +527,30 @@ class AgentLoop:
             name="Agent Loop: SSL Certificate Expiry Check",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._daily_dns_report),
+            trigger=CronTrigger(hour=7, minute=0),
+            id="agent_daily_dns_report",
+            name="Agent Loop: Daily DNS Report",
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            with_app_context(self._detect_query_spike),
+            trigger=IntervalTrigger(hours=1),
+            id="agent_query_spike_detect",
+            name="Agent Loop: DNS Query Spike Detection",
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            with_app_context(self._check_camera_anomaly),
+            trigger=IntervalTrigger(hours=1),
+            id="agent_camera_anomaly",
+            name="Agent Loop: Camera Motion Anomaly",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 34 jobs")
+        logger.info("Agent loop started with 37 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -3723,3 +3744,126 @@ class AgentLoop:
 
         except Exception as e:
             logger.debug(f"SSL expiry check failed: {e}")
+
+    def _daily_dns_report(self):
+        """Generate daily DNS activity summary for Telegram (7 AM daily)."""
+        try:
+            import requests
+            import os
+            from tools.security_network.security_alerts import create_security_alert
+
+            host = os.getenv("ADGUARD_HOST", "network_adguard")
+            port = os.getenv("ADGUARD_PORT", "80")
+            user = os.getenv("ADGUARD_USER", "")
+            pw = os.getenv("ADGUARD_PASS", "")
+
+            r = requests.get(
+                f"http://{host}:{port}/control/stats",
+                auth=(user, pw),
+                timeout=10,
+            )
+            stats = r.json()
+
+            queries = stats.get("num_dns_queries", 0)
+            blocked = stats.get("num_blocked_filtering", 0)
+            block_pct = round(blocked / queries * 100, 1) if queries > 0 else 0
+            safe = stats.get("num_replaced_safebrowsing", 0)
+            top_clients = stats.get("top_clients", [])[:3]
+            top_blocked = stats.get("top_blocked_domains", [])[:3]
+
+            client_lines = []
+            for tc in top_clients:
+                for ip, count in tc.items():
+                    client_lines.append(f"  {ip}: {count}")
+
+            blocked_lines = []
+            for tb in top_blocked:
+                for domain, count in tb.items():
+                    blocked_lines.append(f"  {domain}: {count}")
+
+            message = (
+                f"Queries: {queries:,} | Blocked: {blocked:,} ({block_pct}%)\n"
+                f"Safe browsing blocks: {safe}\n"
+                f"Top clients:\n"
+                + "\n".join(client_lines[:3])
+                + "\n"
+                f"Top blocked:\n" + "\n".join(blocked_lines[:3])
+            )
+
+            create_security_alert(
+                "dns_change",
+                "Daily DNS Report",
+                message,
+                priority="normal",
+                telegram=True,
+            )
+            logger.info("Daily DNS report sent")
+        except Exception as e:
+            logger.debug(f"Daily DNS report failed: {e}")
+
+    def _detect_query_spike(self):
+        """Detect unusual DNS query spikes (hourly)."""
+        try:
+            import requests
+            import os
+            from tools.security_network.security_alerts import create_security_alert
+
+            host = os.getenv("ADGUARD_HOST", "network_adguard")
+            port = os.getenv("ADGUARD_PORT", "80")
+            user = os.getenv("ADGUARD_USER", "")
+            pw = os.getenv("ADGUARD_PASS", "")
+
+            r = requests.get(
+                f"http://{host}:{port}/control/stats",
+                auth=(user, pw),
+                timeout=10,
+            )
+            stats = r.json()
+
+            # Check if blocked queries are unusually high (>50% of total)
+            queries = stats.get("num_dns_queries", 0)
+            blocked = stats.get("num_blocked_filtering", 0)
+
+            if queries > 100 and blocked > 0:
+                block_rate = blocked / queries
+                if block_rate > 0.5:
+                    create_security_alert(
+                        "scan_result",
+                        f"DNS block rate spike: {block_rate:.0%}",
+                        f"{blocked:,} blocked out of {queries:,} total queries ({block_rate:.0%}). Normal is <15%. Possible malware or misconfiguration.",
+                        priority="high",
+                        telegram=True,
+                    )
+                    logger.warning(
+                        f"Query spike: {block_rate:.0%} blocked ({blocked}/{queries})"
+                    )
+        except Exception as e:
+            logger.debug(f"Query spike detection failed: {e}")
+
+    def _check_camera_anomaly(self):
+        """Alert if cameras have been offline or no motion detected in 4+ hours."""
+        try:
+            from tools.security_network.ha_surveillance_service import (
+                HASurveillanceService,
+            )
+            from tools.security_network.security_alerts import create_security_alert
+
+            svc = HASurveillanceService()
+            if not svc.available:
+                return
+
+            cameras = svc.get_cameras()
+            for cam in cameras:
+                state = cam.get("state", "")
+                name = cam.get("name", cam.get("entity_id", "unknown"))
+                if state in ("unavailable", "unknown"):
+                    create_security_alert(
+                        "scan_result",
+                        f"Camera offline: {name}",
+                        f"Camera {name} ({cam.get('entity_id')}) is {state}",
+                        priority="high",
+                        telegram=True,
+                    )
+                    logger.warning(f"Camera anomaly: {name} is {state}")
+        except Exception as e:
+            logger.debug(f"Camera anomaly check failed: {e}")

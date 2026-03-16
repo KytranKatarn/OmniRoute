@@ -1949,17 +1949,18 @@ def api_dns_adguard_block():
         return jsonify({"success": False, "error": "Domain is required"}), 400
 
     try:
-        # Check for duplicates in existing user rules
-        existing = adguard_service.get_user_rules()
-        if existing:
-            rules_list = (
-                existing.get("rules", [])
-                if isinstance(existing, dict)
-                else (existing if isinstance(existing, list) else [])
+        # Check if already blocked by ANY source (user rules + all filter lists)
+        check = adguard_service.check_host(domain)
+        if check and check.get("reason", "").startswith("Filtered"):
+            source = "a filter list"
+            rule_info = check.get("rules", [])
+            if rule_info:
+                fid = rule_info[0].get("filter_list_id", -1)
+                source = "user rules" if fid == 0 else f"filter list #{fid}"
+            return (
+                jsonify({"success": False, "error": f"Domain {domain} is already blocked by {source}"}),
+                409,
             )
-            block_rule = f"||{domain}^"
-            if block_rule in rules_list or block_rule.lower() in [r.lower() for r in rules_list]:
-                return jsonify({"success": False, "error": f"Domain {domain} is already blocked"}), 409
 
         success = adguard_service.block_domain(domain)
         if success:

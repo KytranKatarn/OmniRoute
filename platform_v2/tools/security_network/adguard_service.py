@@ -127,6 +127,11 @@ class AdGuardService:
     def get_clients(self) -> Optional[Dict]:
         return self._request("GET", "clients")
 
+    # --- Filtering Check ---
+    def check_host(self, domain: str) -> Optional[Dict]:
+        """Check if a domain is blocked by any filter (user rules + all filter lists)."""
+        return self._request("GET", "filtering/check_host", params={"name": domain})
+
     # --- Blocking ---
     def block_domain(self, domain: str) -> bool:
         rules = self.get_user_rules()

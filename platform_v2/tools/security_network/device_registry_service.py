@@ -211,9 +211,9 @@ class DeviceRegistryService:
         return (now - last_seen_at) < timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
 
     def _get_dns_active_clients(self) -> dict:
-        """Get set of IPs that have made DNS queries via AdGuard (cached 60s).
+        """Get DNS-active clients with query count and last query time (cached 60s).
 
-        Returns dict of ip -> query_count.
+        Returns dict of ip -> {"count": N, "last_query": "ISO timestamp"}.
         """
         import time as _time
 
@@ -223,6 +223,7 @@ class DeviceRegistryService:
 
         active = {}
         try:
+            # Get query counts from stats
             resp = requests.get(
                 f"{self.adguard_base}/control/stats",
                 auth=self._adguard_auth(),
@@ -231,7 +232,26 @@ class DeviceRegistryService:
             resp.raise_for_status()
             for entry in resp.json().get("top_clients", []):
                 for ip, count in entry.items():
-                    active[ip] = count
+                    active[ip] = {"count": count, "last_query": None}
+        except Exception:
+            pass
+
+        # Get last query timestamp per client from query log
+        try:
+            resp = requests.get(
+                f"{self.adguard_base}/control/querylog?limit=200",
+                auth=self._adguard_auth(),
+                timeout=10,
+            )
+            resp.raise_for_status()
+            for entry in resp.json().get("data", []):
+                client = entry.get("client", "")
+                ts = entry.get("time", "")
+                if client and ts:
+                    if client not in active:
+                        active[client] = {"count": 0, "last_query": ts}
+                    elif active[client]["last_query"] is None:
+                        active[client]["last_query"] = ts
         except Exception:
             pass
 
@@ -261,13 +281,24 @@ class DeviceRegistryService:
         # Tag whether this device is using AdGuard DNS
         if dns_active_clients is not None:
             ip = d.get("ip_address", "")
+            client_info = dns_active_clients.get(ip, {})
             d["dns_active"] = ip in dns_active_clients
-            d["dns_query_count"] = dns_active_clients.get(ip, 0)
+            d["dns_query_count"] = client_info.get("count", 0) if isinstance(client_info, dict) else 0
+            d["dns_last_query"] = client_info.get("last_query") if isinstance(client_info, dict) else None
         else:
             d["dns_active"] = False
             d["dns_query_count"] = 0
-        # Online = seen recently by discovery OR actively querying DNS
-        d["is_online"] = DeviceRegistryService._is_online(row.get("last_seen_at")) or d["dns_active"]
+            d["dns_last_query"] = None
+        # Online = last DNS query within 5 minutes OR last_seen within 15 minutes
+        dns_online = False
+        if d.get("dns_last_query"):
+            try:
+                lq = d["dns_last_query"].replace("Z", "").split(".")[0]
+                last_q = datetime.fromisoformat(lq)
+                dns_online = (datetime.utcnow() - last_q) < timedelta(minutes=5)
+            except Exception:
+                pass
+        d["is_online"] = dns_online or DeviceRegistryService._is_online(row.get("last_seen_at"))
         return d
 
     # ------------------------------------------------------------------
@@ -351,13 +382,22 @@ class DeviceRegistryService:
             cur.execute("SELECT COUNT(*) AS total FROM network_devices WHERE status = 'active'")
             total = cur.fetchone()["total"]
 
-            # Online = seen recently OR actively querying DNS
+            # Online = last DNS query within 5 min OR last_seen within 15 min
+            dns_threshold = datetime.utcnow() - timedelta(minutes=5)
             cur.execute("SELECT ip_address, last_seen_at FROM network_devices WHERE status = 'active'")
             online = 0
             for row in cur.fetchall():
                 seen_recently = row["last_seen_at"] and row["last_seen_at"] >= threshold
-                dns_active = str(row["ip_address"]) in dns_ips
-                if seen_recently or dns_active:
+                ip = str(row["ip_address"])
+                dns_online = False
+                client_info = dns_clients.get(ip, {})
+                if isinstance(client_info, dict) and client_info.get("last_query"):
+                    try:
+                        lq = client_info["last_query"].replace("Z", "").split(".")[0]
+                        dns_online = datetime.fromisoformat(lq) >= dns_threshold
+                    except Exception:
+                        pass
+                if seen_recently or dns_online:
                     online += 1
 
             cur.execute(

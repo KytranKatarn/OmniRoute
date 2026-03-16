@@ -186,6 +186,8 @@ class DeviceRegistryService:
         self.adguard_user = os.getenv("ADGUARD_USER", "")
         self.adguard_pass = os.getenv("ADGUARD_PASS", "")
         self.adguard_base = f"http://{self.adguard_host}:{self.adguard_port}"
+        self._dns_active_cache = None
+        self._dns_active_cache_ts = 0
 
     # ------------------------------------------------------------------
     # Helpers
@@ -207,8 +209,37 @@ class DeviceRegistryService:
         now = datetime.now(timezone.utc)
         return (now - last_seen_at) < timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
 
+    def _get_dns_active_clients(self) -> dict:
+        """Get set of IPs that have made DNS queries via AdGuard (cached 60s).
+
+        Returns dict of ip -> query_count.
+        """
+        import time as _time
+
+        now = _time.time()
+        if self._dns_active_cache is not None and (now - self._dns_active_cache_ts) < 60:
+            return self._dns_active_cache
+
+        active = {}
+        try:
+            resp = requests.get(
+                f"{self.adguard_base}/control/stats",
+                auth=self._adguard_auth(),
+                timeout=10,
+            )
+            resp.raise_for_status()
+            for entry in resp.json().get("top_clients", []):
+                for ip, count in entry.items():
+                    active[ip] = count
+        except Exception:
+            pass
+
+        self._dns_active_cache = active
+        self._dns_active_cache_ts = now
+        return active
+
     @staticmethod
-    def _serialize_device(row: Dict) -> Dict:
+    def _serialize_device(row: Dict, dns_active_clients: dict = None) -> Dict:
         """Convert a DB row dict to JSON-safe dict."""
         if not row:
             return row
@@ -227,6 +258,14 @@ class DeviceRegistryService:
             if key in d and d[key] is not None:
                 d[key] = d[key].isoformat() if hasattr(d[key], "isoformat") else d[key]
         d["is_online"] = DeviceRegistryService._is_online(row.get("last_seen_at"))
+        # Tag whether this device is using AdGuard DNS
+        if dns_active_clients is not None:
+            ip = d.get("ip_address", "")
+            d["dns_active"] = ip in dns_active_clients
+            d["dns_query_count"] = dns_active_clients.get(ip, 0)
+        else:
+            d["dns_active"] = False
+            d["dns_query_count"] = 0
         return d
 
     # ------------------------------------------------------------------
@@ -235,11 +274,12 @@ class DeviceRegistryService:
 
     def get_device(self, device_id: int) -> Optional[Dict]:
         """Get a single device by ID."""
+        dns_clients = self._get_dns_active_clients()
         with get_db_cursor(commit=False) as (conn, cur):
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("SELECT * FROM network_devices WHERE id = %s", (device_id,))
             row = cur.fetchone()
-        return self._serialize_device(row) if row else None
+        return self._serialize_device(row, dns_clients) if row else None
 
     def get_devices(
         self,
@@ -276,15 +316,17 @@ class DeviceRegistryService:
         where = " AND ".join(conditions) if conditions else "TRUE"
         query = f"SELECT * FROM network_devices WHERE {where} ORDER BY last_seen_at DESC NULLS LAST"
 
+        dns_clients = self._get_dns_active_clients()
         with get_db_cursor(commit=False) as (conn, cur):
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(query, params)
             rows = cur.fetchall()
 
-        return [self._serialize_device(r) for r in rows]
+        return [self._serialize_device(r, dns_clients) for r in rows]
 
     def get_unregistered(self) -> List[Dict]:
         """Get unregistered active devices."""
+        dns_clients = self._get_dns_active_clients()
         with get_db_cursor(commit=False) as (conn, cur):
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
@@ -293,7 +335,7 @@ class DeviceRegistryService:
                 "ORDER BY last_seen_at DESC NULLS LAST"
             )
             rows = cur.fetchall()
-        return [self._serialize_device(r) for r in rows]
+        return [self._serialize_device(r, dns_clients) for r in rows]
 
     def get_stats(self) -> Dict[str, Any]:
         """Get device counts by zone, online/offline, registered/unregistered."""

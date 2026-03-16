@@ -3194,9 +3194,21 @@ def archive_old_notifications():
 from mistake_detector import get_mistake_detector  # noqa: E402
 
 
+@app.route("/blocked")
+def blocked_page():
+    """Serve DNS block page for domains blocked by AdGuard.
+    AdGuard config: blocking_mode=custom_ip, blocking_ipv4=192.168.1.200
+    """
+    domain = request.args.get("domain", request.host or "Unknown")
+    return render_template("block_page.html", domain=domain)
+
+
 @app.errorhandler(404)
 def not_found(e):
-    """Handle 404 errors"""
+    """Handle 404 errors — also catches blocked domain requests from AdGuard DNS."""
+    host = request.host.split(":")[0] if request.host else ""
+    if host and host != "192.168.1.200" and host != "localhost" and not host.endswith("kytranempowerment.com"):
+        return render_template("block_page.html", domain=host), 200
     flash("Page not found", "error")
     return redirect(url_for("dashboard"))
 

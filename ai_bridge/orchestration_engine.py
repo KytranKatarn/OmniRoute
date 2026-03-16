@@ -743,18 +743,12 @@ class OrchestrationEngine:
             # --- Resolve model (uses Bridge dispatcher roster) ---
             model_used = self._resolve_model(routing, gpu_info, intent)
 
-            # --- Resolve Ollama URL via node_router ---
+            # --- Resolve Ollama URL (same as Bridge dispatcher: OLLAMA_LOCAL_HOST) ---
             ollama_url = None
             node_id = None
-            try:
-                from node_router import get_ollama_url
-                base_url, node_id = get_ollama_url(model_used)
-                ollama_url = f"{base_url}/api/chat"
-            except Exception:
-                primary = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
-                if not primary.startswith("http"):
-                    primary = f"http://{primary}"
-                ollama_url = f"{primary}/api/chat"
+            _ollama_host = os.getenv("OLLAMA_LOCAL_HOST", "archie_ollama")
+            _ollama_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
+            ollama_url = f"http://{_ollama_host}:{_ollama_port}/api/chat"
 
             # --- Check provider (non-Ollama can't stream easily) ---
             provider = routing.get("provider", "ollama") if routing else "ollama"

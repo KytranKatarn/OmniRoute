@@ -2737,7 +2737,7 @@ def stream_chat():
         for step in thinking_steps:
             yield f"data: {json.dumps({'thinking_step': {'step_type': step.step_type, 'label': step.label, 'data': step.data, 'duration_ms': step.duration_ms, 'success': step.success}})}\n\n"
 
-        # Stream from Ollama
+        # Stream from Ollama (direct, no threading)
         try:
             resp = _requests.post(
                 ollama_url,
@@ -2745,7 +2745,7 @@ def stream_chat():
                     "model": model,
                     "messages": messages_list,
                     "stream": True,
-                    "options": {"num_ctx": 4096},
+                    "options": {"num_ctx": 4096, "num_gpu": 0},
                 },
                 stream=True,
                 timeout=300,

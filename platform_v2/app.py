@@ -1977,6 +1977,7 @@ def _get_agent_models():
                 WHERE a.status = 'active'
                     AND a.model IS NOT NULL AND a.model != ''
                     AND a.model NOT LIKE '%%:cloud'
+                    AND COALESCE(a.shift_state, 'active') != 'barracked'
                 GROUP BY a.model
                 ORDER BY dispatch_count DESC
             """
@@ -1992,6 +1993,7 @@ def _get_agent_models():
                     SELECT DISTINCT model FROM agents
                     WHERE status = 'active' AND model IS NOT NULL AND model != ''
                         AND model NOT LIKE '%%:cloud'
+                        AND COALESCE(shift_state, 'active') != 'barracked'
                 """
                 )
                 for row in cur.fetchall():

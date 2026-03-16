@@ -269,10 +269,10 @@ class BridgeDispatcher:
                        a.display_name, a.image_model,
                        bs.station_code, bs.default_llm
                 FROM agents a
-                JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
-                JOIN bridge_stations bs ON sa.station_id = bs.id AND bs.is_active = TRUE
+                LEFT JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
+                LEFT JOIN bridge_stations bs ON sa.station_id = bs.id AND bs.is_active = TRUE
                 WHERE a.status = 'active'
-                ORDER BY sa.priority
+                ORDER BY COALESCE(sa.priority, 999)
             """)
             agents = cur.fetchall()
             cur.close()

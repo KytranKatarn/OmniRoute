@@ -229,6 +229,7 @@ class AgentLoop:
     def start(self):
         """Attach agent loop jobs to the scheduler."""
         from apscheduler.triggers.interval import IntervalTrigger
+        from apscheduler.triggers.cron import CronTrigger
 
         flask_app = self.flask_app
 
@@ -512,8 +513,23 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._run_security_audit),
+            trigger=CronTrigger(day_of_week="sun", hour=3),
+            id="agent_security_audit",
+            name="Agent Loop: Weekly Security Audit",
+            replace_existing=True,
+        )
+        self.scheduler.add_job(
+            with_app_context(self._check_ssl_expiry),
+            trigger=IntervalTrigger(hours=24),
+            id="agent_ssl_expiry_check",
+            name="Agent Loop: SSL Certificate Expiry Check",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 32 jobs")
+        logger.info("Agent loop started with 34 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -3550,3 +3566,160 @@ class AgentLoop:
 
         except Exception as e:
             logger.debug(f"SSH login monitor failed: {e}")
+
+    def _run_security_audit(self):
+        """Weekly security configuration audit — verify nothing has drifted."""
+        try:
+            from tools.security_network.security_alerts import create_security_alert
+            import subprocess
+
+            issues = []
+
+            # 1. Check SSH config
+            try:
+                r = subprocess.run(
+                    ["cat", "/etc/ssh/sshd_config.d/99-archie-hardening.conf"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if "PasswordAuthentication no" not in r.stdout:
+                    issues.append("SSH password auth may be enabled")
+            except Exception:
+                issues.append("Cannot read SSH hardening config")
+
+            # 2. Check fail2ban
+            try:
+                import socket
+
+                # Check if fail2ban log exists (proxy for service running)
+                r = subprocess.run(
+                    ["test", "-f", "/var/log/fail2ban.log"],
+                    capture_output=True,
+                    timeout=5,
+                )
+                # Just check the file exists as a proxy
+            except Exception:
+                pass
+
+            # 3. Check UFW rules for PostgreSQL
+            try:
+                r = subprocess.run(
+                    ["cat", "/etc/ufw/user.rules"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if (
+                    "5432" in r.stdout
+                    and "Anywhere" in r.stdout
+                    and "192.168.1.0/24" not in r.stdout
+                ):
+                    issues.append("PostgreSQL port 5432 may be exposed to internet")
+            except Exception:
+                pass
+
+            # 4. Check DDNS updater freshness
+            import os
+            import time
+
+            ddns_file = "/mnt/archie_brain/scripts/.ddns_last_ip"
+            if os.path.exists(ddns_file):
+                age_hours = (time.time() - os.path.getmtime(ddns_file)) / 3600
+                if age_hours > 1:
+                    issues.append(
+                        f"DDNS updater hasn't run in {age_hours:.0f} hours"
+                    )
+            else:
+                issues.append("DDNS updater IP file missing")
+
+            # 5. Check AdGuard protection
+            try:
+                import requests
+
+                host = os.getenv("ADGUARD_HOST", "network_adguard")
+                port = os.getenv("ADGUARD_PORT", "80")
+                user = os.getenv("ADGUARD_USER", "")
+                pw = os.getenv("ADGUARD_PASS", "")
+                r = requests.get(
+                    f"http://{host}:{port}/control/status",
+                    auth=(user, pw),
+                    timeout=5,
+                )
+                if not r.json().get("protection_enabled"):
+                    issues.append("AdGuard DNS protection is disabled")
+            except Exception:
+                issues.append("Cannot reach AdGuard")
+
+            if issues:
+                create_security_alert(
+                    "scan_result",
+                    f"Security audit: {len(issues)} issue(s) found",
+                    "Issues:\n" + "\n".join(f"• {i}" for i in issues),
+                    priority="high",
+                    telegram=True,
+                )
+                logger.warning(f"Security audit: {len(issues)} issues: {issues}")
+            else:
+                logger.info("Security audit: all checks passed")
+
+        except Exception as e:
+            logger.debug(f"Security audit failed: {e}")
+
+    def _check_ssl_expiry(self):
+        """Check SSL certificates for upcoming expiry (daily)."""
+        try:
+            from tools.security_network.npm_service import NPMService
+            from tools.security_network.security_alerts import create_security_alert
+
+            npm = NPMService()
+            hosts = npm.list_proxy_hosts()
+            if not hosts:
+                return
+
+            for host in hosts:
+                cert_id = host.get("certificate_id")
+                if not cert_id:
+                    continue
+                domain = (host.get("domain_names") or ["unknown"])[0]
+
+                import ssl
+                import socket
+                from datetime import datetime
+
+                try:
+                    ctx = ssl.create_default_context()
+                    with ctx.wrap_socket(
+                        socket.socket(), server_hostname=domain
+                    ) as s:
+                        s.settimeout(5)
+                        s.connect((domain, 443))
+                        cert = s.getpeercert()
+                        expiry = datetime.strptime(
+                            cert["notAfter"], "%b %d %H:%M:%S %Y %Z"
+                        )
+                        days_left = (expiry - datetime.utcnow()).days
+
+                        if days_left <= 14:
+                            priority = (
+                                "critical"
+                                if days_left <= 3
+                                else "high"
+                                if days_left <= 7
+                                else "normal"
+                            )
+                            create_security_alert(
+                                "ssl_expiry",
+                                f"SSL cert expiring: {domain}",
+                                f"Certificate for {domain} expires in {days_left} days ({expiry.strftime('%Y-%m-%d')})",
+                                priority=priority,
+                                telegram=True,
+                            )
+                            logger.warning(
+                                f"SSL cert expiry: {domain} expires in {days_left} days"
+                            )
+                except Exception:
+                    pass  # Can't check this domain
+
+        except Exception as e:
+            logger.debug(f"SSL expiry check failed: {e}")

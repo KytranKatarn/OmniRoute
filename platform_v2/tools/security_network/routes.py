@@ -8,7 +8,7 @@ from flask import render_template, jsonify, request, redirect, url_for, flash, R
 from flask_login import login_required, current_user
 from functools import wraps
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 import os
 
 from . import security_network_bp
@@ -2132,6 +2132,19 @@ def api_dns_hostinger_records_add():
             priority="normal",
         )
 
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'add', %s, %s, 'user', NOW())",
+                (domain or name, Json({"record_type": record_type, "name": name, "content": content, "ttl": ttl})),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
         return jsonify({"success": True, "data": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2170,6 +2183,30 @@ def api_dns_hostinger_records_update(record_id):
             priority="normal",
         )
 
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'update', %s, %s, 'user', NOW())",
+                (
+                    domain or name,
+                    Json(
+                        {
+                            "record_id": record_id,
+                            "record_type": record_type,
+                            "name": name,
+                            "content": content,
+                            "ttl": ttl,
+                        }
+                    ),
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
         return jsonify({"success": True, "data": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2194,6 +2231,20 @@ def api_dns_hostinger_records_delete(record_id):
             return jsonify({"success": False, "error": "Failed to delete DNS record"}), 500
         if isinstance(result, dict) and "error" in result:
             return jsonify({"success": False, "error": result["error"]}), 500
+
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO security_dns_changes (source, action, domain, details, changed_by, created_at) VALUES ('hostinger', 'delete', %s, %s, 'user', NOW())",
+                (domain or name or "unknown", Json({"record_id": record_id, "record_type": record_type, "name": name})),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
         return jsonify({"success": True, "data": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

@@ -1193,7 +1193,7 @@
             <!-- Registered devices table -->
             <div style="overflow-x:auto">
                 <table class="data-table"><thead><tr>
-                    <th>Name</th><th>IP</th><th>Type</th><th>Owner</th><th>Zone</th><th>Protection</th><th>Last Seen</th><th>Status</th>
+                    <th>Name</th><th>IP</th><th>Type</th><th>Owner</th><th>Zone / Protection</th><th>Last Seen</th><th>Status</th>
                 </tr></thead><tbody id="dev-reg-body">
                     <tr><td colspan="7" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
                 </tbody></table>
@@ -3924,7 +3924,7 @@ async function loadDeviceClients() {
     regBody.textContent = '';
     var loadTr = document.createElement('tr');
     var loadTd = document.createElement('td');
-    loadTd.setAttribute('colspan', '8');
+    loadTd.setAttribute('colspan', '7');
     loadTd.className = 'loading-state';
     loadTd.innerHTML = '<span class="spinner"></span> Loading...';
     loadTr.appendChild(loadTd);
@@ -3960,23 +3960,22 @@ async function loadDeviceClients() {
 
                 var tdZone = document.createElement('td');
                 tdZone.appendChild(_zoneBadge(d.security_zone));
-                tr.appendChild(tdZone);
-
-                var tdDns = document.createElement('td');
+                var spacer = document.createTextNode(' ');
+                tdZone.appendChild(spacer);
                 if (d.dns_active) {
                     var dnsBadge = document.createElement('span');
-                    dnsBadge.textContent = '\u2714 Protected';
-                    dnsBadge.style.cssText = 'background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 8px;border-radius:4px;font-size:0.72rem;border:1px solid rgba(34,197,94,0.3);';
-                    dnsBadge.title = d.dns_query_count ? d.dns_query_count.toLocaleString() + ' DNS queries' : 'Using AdGuard DNS';
-                    tdDns.appendChild(dnsBadge);
+                    dnsBadge.textContent = '\u2714 ' + (d.dns_query_count ? d.dns_query_count.toLocaleString() : 'Protected');
+                    dnsBadge.style.cssText = 'background:rgba(34,197,94,0.15);color:#22c55e;padding:1px 6px;border-radius:3px;font-size:0.68rem;border:1px solid rgba(34,197,94,0.3);margin-left:4px;';
+                    dnsBadge.title = d.dns_query_count ? d.dns_query_count.toLocaleString() + ' DNS queries — Protected by AdGuard' : 'Using AdGuard DNS';
+                    tdZone.appendChild(dnsBadge);
                 } else {
                     var noTag = document.createElement('span');
                     noTag.textContent = '\u26A0 Unprotected';
-                    noTag.style.cssText = 'background:rgba(239,68,68,0.1);color:#ef4444;padding:2px 8px;border-radius:4px;font-size:0.72rem;border:1px solid rgba(239,68,68,0.2);';
-                    noTag.title = 'Not using AdGuard DNS — change router DHCP to protect this device';
-                    tdDns.appendChild(noTag);
+                    noTag.style.cssText = 'background:rgba(239,68,68,0.1);color:#ef4444;padding:1px 6px;border-radius:3px;font-size:0.68rem;border:1px solid rgba(239,68,68,0.2);margin-left:4px;';
+                    noTag.title = 'Not using AdGuard DNS';
+                    tdZone.appendChild(noTag);
                 }
-                tr.appendChild(tdDns);
+                tr.appendChild(tdZone);
 
                 var tdSeen = document.createElement('td');
                 tdSeen.appendChild(_onlineIndicator(d.last_seen_at));
@@ -3994,7 +3993,7 @@ async function loadDeviceClients() {
         } else {
             var emptyTr = document.createElement('tr');
             var emptyTd = document.createElement('td');
-            emptyTd.setAttribute('colspan', '8');
+            emptyTd.setAttribute('colspan', '7');
             emptyTd.textContent = 'No registered devices found.';
             emptyTd.style.textAlign = 'center';
             emptyTd.style.padding = '24px';

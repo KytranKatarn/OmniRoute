@@ -863,7 +863,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="security-container">
+<div class="security-container" data-module="security-network">
+    {% include 'includes/admin_tools_nav.html' %}
 
     <div class="lcars-frame">
         <!-- LEFT SIDEBAR -->
@@ -907,8 +908,8 @@
             Dashboard
         </button>
         <button class="tab-btn" data-tab="dns">
-            <i data-lucide="globe" style="width:16px;height:16px"></i>
-            DNS Management
+            <i data-lucide="shield-check" style="width:16px;height:16px"></i>
+            AdGuard DNS
         </button>
         <button class="tab-btn" data-tab="surveillance">
             <i data-lucide="camera" style="width:16px;height:16px"></i>
@@ -932,7 +933,7 @@
         </button>
         <button class="tab-btn" data-tab="domains">
             <i data-lucide="globe" style="width:14px;height:14px"></i>
-            <span data-i18n="security_network.domains">Domains</span>
+            <span data-i18n="security_network.domains">Domain Manager</span>
         </button>
     </div>
 
@@ -2320,7 +2321,12 @@ async function loadSurveillanceEvents() {
     } catch(e) { showEmpty(container,'Error loading events'); }
 }
 
+var _cameraModalStreaming = false;
+var _cameraModalEntityId = null;
+
 function openCameraModal(entityId, name, state) {
+    _cameraModalEntityId = entityId;
+    _cameraModalStreaming = false;
     const modal = document.getElementById('camera-modal');
     document.getElementById('camera-modal-title').textContent = name.toUpperCase();
     const img = document.getElementById('camera-modal-img');
@@ -2329,10 +2335,42 @@ function openCameraModal(entityId, name, state) {
     document.getElementById('camera-modal-refresh').onclick = function(){
         img.src = API+'/surveillance/camera/'+encodeURIComponent(entityId)+'/snapshot?t='+Date.now();
     };
+    // Update stream toggle button
+    var streamBtn = document.getElementById('camera-modal-stream');
+    if (!streamBtn) {
+        streamBtn = document.createElement('button');
+        streamBtn.id = 'camera-modal-stream';
+        streamBtn.className = 'btn btn-sm';
+        streamBtn.style.cssText = 'background:rgba(0,212,255,0.2);border:1px solid rgba(0,212,255,0.4);color:#00d4ff;';
+        document.getElementById('camera-modal-refresh').parentNode.appendChild(streamBtn);
+    }
+    streamBtn.textContent = 'Live Stream';
+    streamBtn.onclick = function(){ toggleCameraStream(); };
     modal.classList.add('active');
 }
 
+function toggleCameraStream() {
+    var img = document.getElementById('camera-modal-img');
+    var btn = document.getElementById('camera-modal-stream');
+    if (_cameraModalStreaming) {
+        // Switch back to snapshot
+        _cameraModalStreaming = false;
+        img.src = API+'/surveillance/camera/'+encodeURIComponent(_cameraModalEntityId)+'/snapshot?t='+Date.now();
+        btn.textContent = 'Live Stream';
+        btn.style.background = 'rgba(0,212,255,0.2)';
+    } else {
+        // Switch to MJPEG stream
+        _cameraModalStreaming = true;
+        img.src = API+'/surveillance/camera/'+encodeURIComponent(_cameraModalEntityId)+'/stream-proxy';
+        btn.textContent = 'Stop Stream';
+        btn.style.background = 'rgba(239,68,68,0.2)';
+    }
+}
+
 function closeCameraModal() {
+    _cameraModalStreaming = false;
+    var img = document.getElementById('camera-modal-img');
+    if (img) img.src = '';
     document.getElementById('camera-modal').classList.remove('active');
 }
 

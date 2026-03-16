@@ -1531,7 +1531,111 @@ def api_dashboard_stats():
     except Exception:
         stats["hostinger"] = {"available": False}
 
-    return jsonify({"success": True, "stats": stats})
+    # Flatten for dashboard JS consumption
+    dns = stats.get("dns", {})
+    cameras = stats.get("cameras", {})
+    agent = stats.get("agent", {})
+    recon = stats.get("recon", {})
+
+    # Build recent activity feed from multiple security sources
+    recent_activity = []
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_conn, _cur):
+            # Security notifications
+            _cur.execute(
+                """SELECT type, title, message, created_at FROM system_notifications
+                   WHERE source = 'security_network' AND is_archived = FALSE
+                   ORDER BY created_at DESC LIMIT 5"""
+            )
+            for row in _cur.fetchall():
+                recent_activity.append(
+                    {
+                        "text": row["title"] or row["message"],
+                        "time": row["created_at"].strftime("%Y-%m-%d %H:%M") if row["created_at"] else "",
+                        "type": row["type"],
+                    }
+                )
+
+            # Recent security scans
+            _cur.execute(
+                """SELECT module_name, target, status, started_at FROM security_recon_scans
+                   ORDER BY started_at DESC LIMIT 3"""
+            )
+            for row in _cur.fetchall():
+                recent_activity.append(
+                    {
+                        "text": f"{row['module_name']} scan on {row['target']} — {row['status']}",
+                        "time": row["started_at"].strftime("%Y-%m-%d %H:%M") if row["started_at"] else "",
+                        "type": "info",
+                    }
+                )
+
+            # Recent IP blocks
+            _cur.execute(
+                """SELECT ip_address, access_type, reason, created_at FROM security_ip_access
+                   ORDER BY created_at DESC LIMIT 3"""
+            )
+            for row in _cur.fetchall():
+                recent_activity.append(
+                    {
+                        "text": f"IP {row['access_type']}: {row['ip_address']} — {row['reason'] or 'manual'}",
+                        "time": row["created_at"].strftime("%Y-%m-%d %H:%M") if row["created_at"] else "",
+                        "type": "warning" if row["access_type"] == "block" else "info",
+                    }
+                )
+
+            # DNS changes
+            _cur.execute(
+                """SELECT action, domain, details, created_at FROM security_dns_changes
+                   ORDER BY created_at DESC LIMIT 3"""
+            )
+            for row in _cur.fetchall():
+                details = row["details"] or {}
+                record_info = details.get("name", row["domain"] or "")
+                recent_activity.append(
+                    {
+                        "text": f"DNS {row['action']}: {record_info}",
+                        "time": row["created_at"].strftime("%Y-%m-%d %H:%M") if row["created_at"] else "",
+                        "type": "info",
+                    }
+                )
+
+        # Sort all by time descending, take top 10
+        recent_activity.sort(key=lambda x: x.get("time", ""), reverse=True)
+        recent_activity = recent_activity[:10]
+    except Exception:
+        pass
+
+    # If still empty, add a status message
+    if not recent_activity:
+        recent_activity.append(
+            {
+                "text": "Security module active — monitoring DNS, cameras, and network",
+                "time": "",
+                "type": "info",
+            }
+        )
+
+    return jsonify(
+        {
+            "success": True,
+            "dns_queries_24h": dns.get("total_queries", 0),
+            "dns_blocked_24h": dns.get("blocked_queries", 0),
+            "camera_count": cameras.get("total", 0),
+            "pending_suggestions": agent.get("pending_suggestions", 0),
+            "recent_activity": recent_activity,
+            "services": {
+                "adguard": dns.get("available", False),
+                "hostinger": stats.get("hostinger", {}).get("available", False),
+                "surveillance": cameras.get("available", False),
+                "argus": recon.get("available", False),
+                "agent": agent.get("available", False),
+            },
+            "stats": stats,
+        }
+    )
 
 
 # ============================================================================
@@ -2095,6 +2199,46 @@ def api_surveillance_stream(entity_id):
         return jsonify({"success": True, "stream_url": stream_url})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/surveillance/camera/<path:entity_id>/stream-proxy")
+@login_required
+@admin_required
+def api_surveillance_stream_proxy(entity_id):
+    """Proxy MJPEG stream from HA through ARCHIE (avoids exposing HA token to browser)"""
+    if not SURVEILLANCE_SERVICE_AVAILABLE or not surveillance_service:
+        return jsonify({"success": False, "error": "Surveillance not configured"}), 503
+
+    if not entity_id.startswith("camera."):
+        return jsonify({"success": False, "error": "Invalid entity"}), 400
+
+    import requests as req
+
+    ha_url = surveillance_service.base_url
+    token = surveillance_service.token
+
+    def generate():
+        try:
+            r = req.get(
+                f"{ha_url}/api/camera_proxy_stream/{entity_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                stream=True,
+                timeout=30,
+            )
+            for chunk in r.iter_content(chunk_size=4096):
+                if chunk:
+                    yield chunk
+        except Exception:
+            pass
+
+    return Response(
+        generate(),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-cache, no-store",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @security_network_bp.route("/api/surveillance/status")

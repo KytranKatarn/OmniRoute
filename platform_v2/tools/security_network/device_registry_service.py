@@ -206,7 +206,7 @@ class DeviceRegistryService:
             last_seen_at = datetime.fromisoformat(last_seen_at)
         if last_seen_at.tzinfo is None:
             last_seen_at = last_seen_at.replace(tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         return (now - last_seen_at) < timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
 
     def _get_dns_active_clients(self) -> dict:
@@ -307,7 +307,7 @@ class DeviceRegistryService:
             conditions.append("status = %s")
             params.append(status)
         if online is not None:
-            threshold = datetime.now(timezone.utc) - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
+            threshold = datetime.utcnow() - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
             if online:
                 conditions.append("last_seen_at >= %s")
             else:
@@ -345,7 +345,7 @@ class DeviceRegistryService:
 
         with get_db_cursor(commit=False) as (conn, cur):
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            threshold = datetime.now(timezone.utc) - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
+            threshold = datetime.utcnow() - timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
 
             cur.execute("SELECT COUNT(*) AS total FROM network_devices WHERE status = 'active'")
             total = cur.fetchone()["total"]

@@ -23,6 +23,7 @@ VALID_ALERT_TYPES = {
     "dns_change",
     "motion",
     "scan_result",
+    "new_device",
 }
 
 

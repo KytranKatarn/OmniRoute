@@ -403,6 +403,14 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._discover_network_devices),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_network_discovery",
+            name="Agent Loop: Network Device Discovery",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._update_performance_rankings),
             trigger=IntervalTrigger(minutes=15),
             id="agent_performance_rankings",
@@ -2297,6 +2305,32 @@ class AgentLoop:
                 logger.info(f"Notification archiver: archived {archived} stale notifications")
         except Exception as e:
             logger.debug(f"Notification archiver failed: {e}")
+
+    def _discover_network_devices(self):
+        """Discover new network devices via AdGuard + ARP (every 5 min)."""
+        try:
+            from tools.security_network.device_registry_service import DeviceRegistryService
+            from tools.security_network.security_alerts import create_security_alert
+
+            svc = DeviceRegistryService()
+            new_devices = svc.discover_devices()
+
+            for device in new_devices:
+                ip = device.get("ip_address", "?")
+                mac = device.get("mac_address", "?")
+                mfr = device.get("manufacturer", "Unknown")
+                create_security_alert(
+                    "new_device",
+                    f"New device detected: {mfr}",
+                    f"IP: {ip} | MAC: {mac} | Manufacturer: {mfr}",
+                    priority="high",
+                    telegram=True,
+                )
+
+            if new_devices:
+                logger.info(f"Network discovery: {len(new_devices)} new devices found")
+        except Exception as e:
+            logger.debug(f"Network discovery failed: {e}")
 
     def _track_agent_hr(self):
         """

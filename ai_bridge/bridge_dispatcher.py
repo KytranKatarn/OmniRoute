@@ -5176,6 +5176,120 @@ class BridgeDispatcher:
             "stations": stations,
         }
 
+    # ========================================================================
+    # AGENTS-AS-TOOLS — Lightweight hierarchical delegation (Task #959)
+    # ========================================================================
+
+    def delegate_subtask(
+        self, parent_job_id: int, capability: str, prompt: str, timeout: int = 60
+    ) -> Dict[str, Any]:
+        """Delegate a subtask to another agent without creating a full Bridge job.
+
+        Used for quick agent-to-agent delegation within a workflow.
+        E.g. an analyst agent can ask a scanner agent for a quick nmap check.
+
+        Returns the result directly (synchronous within timeout).
+        """
+        try:
+            import requests
+
+            # Find the right station for this capability
+            station = self._resolve_station(capability)
+
+            # Get an active agent model for this station
+            from database import get_db_cursor
+            from psycopg2.extras import RealDictCursor
+
+            model = None
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT a.model FROM agents a
+                    JOIN station_assignments sa ON sa.agent_id = a.id
+                    JOIN bridge_stations bs ON bs.id = sa.station_id
+                    WHERE bs.station_code = %s
+                      AND sa.is_active = true
+                      AND a.shift_state = 'active'
+                    LIMIT 1
+                    """,
+                    (station,),
+                )
+                row = cur.fetchone()
+                if row:
+                    model = row["model"]
+
+            if not model:
+                return {
+                    "success": False,
+                    "error": f"No available agent for capability={capability} (station={station})",
+                }
+
+            # Call Ollama directly for quick delegation (bypasses full job lifecycle)
+            ollama_host = os.getenv(
+                "OLLAMA_HOST", "http://host.docker.internal:11434"
+            )
+            if not ollama_host.startswith("http"):
+                ollama_host = f"http://{ollama_host}"
+
+            resp = requests.post(
+                f"{ollama_host}/api/generate",
+                json={"model": model, "prompt": prompt, "stream": False},
+                timeout=timeout,
+            )
+
+            if resp.status_code == 200:
+                result = resp.json()
+                logger.info(
+                    f"Subtask delegated: parent_job={parent_job_id}, "
+                    f"capability={capability}, model={model}"
+                )
+
+                # Track delegation in parent job metadata
+                try:
+                    from psycopg2.extras import Json
+
+                    with get_db_cursor(commit=True) as (conn, cur):
+                        cur.execute(
+                            """
+                            UPDATE bridge_jobs
+                            SET metadata = jsonb_set(
+                                COALESCE(metadata, '{}'),
+                                '{delegations}',
+                                COALESCE(metadata->'delegations', '[]'::jsonb) || %s::jsonb
+                            )
+                            WHERE id = %s
+                            """,
+                            (
+                                Json(
+                                    [
+                                        {
+                                            "capability": capability,
+                                            "model": model,
+                                            "timestamp": datetime.now().isoformat(),
+                                        }
+                                    ]
+                                ),
+                                parent_job_id,
+                            ),
+                        )
+                except Exception:
+                    pass
+
+                return {
+                    "success": True,
+                    "response": result.get("response", ""),
+                    "model": model,
+                }
+
+            return {
+                "success": False,
+                "error": f"Ollama returned {resp.status_code}",
+            }
+        except Exception as e:
+            logger.debug(f"Subtask delegation failed: {e}")
+            return {"success": False, "error": str(e)}
+
 
 # ============================================================================
 # SINGLETON INSTANCE

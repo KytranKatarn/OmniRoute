@@ -6805,6 +6805,29 @@ def api_resume_job(job_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@bridge_bp.route("/api/bridge/jobs/<int:job_id>/delegate", methods=["POST"])
+@login_required
+def api_delegate_subtask(job_id):
+    """Delegate a subtask to another agent within a job context."""
+    data = request.get_json() or {}
+    capability = data.get("capability")
+    prompt = data.get("prompt")
+    timeout = data.get("timeout", 60)
+
+    if not capability or not prompt:
+        return jsonify({"success": False, "error": "capability and prompt required"}), 400
+
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        result = dispatcher.delegate_subtask(job_id, capability, prompt, timeout)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error delegating subtask for job {job_id}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # CREW MANIFEST — Live agent roster with status/wellness/jobs/stats
 # ============================================================================

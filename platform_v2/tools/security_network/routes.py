@@ -10,7 +10,10 @@ from functools import wraps
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 import os
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from . import security_network_bp
 from .security_alerts import create_security_alert
@@ -52,7 +55,8 @@ def get_system_health():
             "memory": {"percent": psutil.virtual_memory().percent},
             "disk": {"percent": psutil.disk_usage("/").percent},
         }
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to get system health metrics: %s", e)
         return {"cpu": {"percent": 0}, "memory": {"percent": 0}, "disk": {"percent": 0}}
 
 
@@ -92,7 +96,7 @@ def index():
         active_sessions = result["count"] if result else 0
 
     except Exception as e:
-        print(f"Error getting security stats: {e}")
+        logger.warning("Error getting security stats: %s", e)
 
     finally:
         try:
@@ -148,6 +152,7 @@ def api_stats():
             }
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
@@ -194,6 +199,7 @@ def audit_log():
 
         return jsonify({"success": True, "entries": [dict(e) for e in entries]})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
@@ -333,7 +339,8 @@ try:
 
     device_registry = DeviceRegistryService()
     DEVICE_REGISTRY_AVAILABLE = True
-except Exception:
+except Exception as e:
+    logger.debug("Device registry service unavailable: %s", e)
     device_registry = None
     DEVICE_REGISTRY_AVAILABLE = False
 
@@ -353,6 +360,7 @@ def network_overview():
         overview = get_network_overview()
         return jsonify({"success": True, "data": overview})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -371,6 +379,7 @@ def security_threats():
         threats = check_security_threats()
         return jsonify({"success": True, "threats": threats})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -389,6 +398,7 @@ def security_auto_block():
         blocked = auto_block_threats()
         return jsonify({"success": True, "blocked": blocked})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -506,7 +516,7 @@ def docker_security():
                 )
 
             except Exception as e:
-                print(f"Error processing container {container.name}: {e}")
+                logger.warning("Error processing container %s: %s", container.name, e)
                 continue
 
         # Sort by security score (lowest first)
@@ -528,6 +538,7 @@ def docker_security():
     except ImportError:
         return jsonify({"success": False, "error": "Docker SDK not available"}), 503
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -719,8 +730,8 @@ def run_nmap_scan():
             conn.commit()
             cur.close()
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to log security scan to audit_log: %s", e)
 
         # Security alert for scan completion
         create_security_alert(
@@ -733,6 +744,7 @@ def run_nmap_scan():
 
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
@@ -770,6 +782,7 @@ def run_nikto_scan():
 
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -792,6 +805,7 @@ def run_nuclei_scan():
         result = scanner_service.run_nuclei_scan(target, templates)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -813,6 +827,7 @@ def run_ssl_scan():
         result = scanner_service.run_ssl_scan(domain)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -835,6 +850,7 @@ def run_zap_scan():
         result = scanner_service.start_zap_scan(target, scan_type)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -858,6 +874,7 @@ def scanner_status():
             }
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -910,6 +927,7 @@ def list_scans():
 
         return jsonify({"success": True, "scans": scans[:50]})  # Limit to 50
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -946,6 +964,7 @@ def get_scan_result(filename):
 
         return jsonify({"success": True, "filename": filename, "content": content})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -968,6 +987,7 @@ def adguard_stats():
             return jsonify({"success": True, "stats": stats})
         return jsonify({"success": False, "error": "Could not connect to AdGuard"}), 503
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -991,6 +1011,7 @@ def adguard_block_domain():
             return jsonify({"success": True, "message": f"Domain {domain} blocked"})
         return jsonify({"success": False, "error": "Failed to block domain"}), 500
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1014,6 +1035,7 @@ def api_firewall_status():
         status = get_firewall_status()
         return jsonify({"success": True, "firewall": status})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1032,6 +1054,7 @@ def api_active_connections():
         connections = get_active_connections()
         return jsonify({"success": True, "connections": connections})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1056,6 +1079,7 @@ def api_ip_access_list():
         whitelisted = get_whitelisted_ips()
         return jsonify({"success": True, "blocked": blocked, "whitelisted": whitelisted})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1089,6 +1113,7 @@ def api_block_ip():
             )
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1113,6 +1138,7 @@ def api_unblock_ip():
         result = unblock_ip(ip_address, current_user.id)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1136,6 +1162,7 @@ def api_auto_block_settings():
         settings = get_auto_block_settings()
         return jsonify({"success": True, "settings": settings})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1158,6 +1185,7 @@ def api_update_auto_block_settings():
             return jsonify({"success": True, "message": "Settings updated"})
         return jsonify({"success": False, "error": "Failed to update settings"}), 500
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1178,6 +1206,7 @@ def api_analyze_threats():
         analysis = analyze_failed_logins(hours)
         return jsonify({"success": True, "analysis": analysis})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1205,6 +1234,7 @@ def api_execute_auto_block():
             )
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1233,6 +1263,7 @@ def api_security_events():
         events = get_security_events(status, severity, event_type, limit)
         return jsonify({"success": True, "events": events})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1254,6 +1285,7 @@ def api_resolve_event(event_id):
         result = resolve_security_event(event_id, current_user.id, notes)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1284,6 +1316,7 @@ def api_check_ssl():
         result = check_ssl_certificate(domain, port)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1302,6 +1335,7 @@ def api_ssl_monitors():
         monitors = get_ssl_monitors()
         return jsonify({"success": True, "monitors": monitors})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1327,6 +1361,7 @@ def api_add_ssl_monitor():
         result = add_ssl_monitor(domain, current_user.id, alert_days)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1345,6 +1380,7 @@ def api_refresh_ssl_monitors():
         result = refresh_ssl_monitors()
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1392,11 +1428,12 @@ def api_list_reports():
                 for fr in list_reports():
                     fr["source"] = "file"
                     file_reports.append(fr)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to list filesystem reports: %s", e)
 
         return jsonify({"success": True, "reports": db_reports, "file_reports": file_reports})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1446,6 +1483,7 @@ def api_generate_report():
 
         return jsonify({"success": True, "id": report_id, "title": title})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1484,6 +1522,7 @@ def api_view_report(report_id):
                 }
             )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1499,6 +1538,7 @@ def api_generate_scan_report(filename):
         result = generate_scan_report(filename)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1522,6 +1562,7 @@ def api_generate_assessment_report():
         result = generate_assessment_report(scan_files, client_name, assessment_name)
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1549,6 +1590,7 @@ def api_export_vulnerabilities(filename):
 
         return jsonify(result)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1576,6 +1618,7 @@ def api_download_report(filename):
 
         return send_file(filepath, as_attachment=True)
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1613,7 +1656,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                     dp,
                 )
                 content["events_by_severity"] = [{"severity": r[0], "count": r[1]} for r in cur.fetchall()]
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (events_by_severity): %s", e)
                 conn.rollback()
                 content["events_by_severity"] = []
 
@@ -1635,7 +1679,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                     }
                     for r in cur.fetchall()
                 ]
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (recent_events): %s", e)
                 conn.rollback()
                 content["recent_events"] = []
 
@@ -1657,7 +1702,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                         daily[day_str] = {}
                     daily[day_str][r[1]] = r[2]
                 content["daily_breakdown"] = daily
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (daily_breakdown): %s", e)
                 conn.rollback()
                 content["daily_breakdown"] = {}
 
@@ -1667,7 +1713,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                     dp,
                 )
                 content["total_events"] = cur.fetchone()[0]
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (total_events): %s", e)
                 conn.rollback()
                 content["total_events"] = 0
 
@@ -1680,7 +1727,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                     dp,
                 )
                 content["scan_findings"] = [{"severity": r[0], "count": r[1]} for r in cur.fetchall()]
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (scan_findings): %s", e)
                 conn.rollback()
                 content["scan_findings"] = []
 
@@ -1706,7 +1754,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                     for r in cur.fetchall()
                 ]
                 content["total_devices"] = len(content["devices"])
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (devices): %s", e)
                 conn.rollback()
                 content["devices"] = []
                 content["total_devices"] = 0
@@ -1718,7 +1767,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                        GROUP BY security_zone ORDER BY COUNT(*) DESC"""
                 )
                 content["zone_summary"] = [{"zone": r[0], "count": r[1]} for r in cur.fetchall()]
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (zone_summary): %s", e)
                 conn.rollback()
                 content["zone_summary"] = []
 
@@ -1744,7 +1794,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                     }
                     for r in cur.fetchall()
                 ]
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (dns_changes): %s", e)
                 conn.rollback()
                 content["dns_changes"] = []
 
@@ -1755,7 +1806,8 @@ def _gather_report_content(report_type, date_start=None, date_end=None):
                        FROM dns_providers ORDER BY provider_name"""
                 )
                 content["dns_providers"] = [{"name": r[0], "type": r[1], "active": r[2]} for r in cur.fetchall()]
-            except Exception:
+            except Exception as e:
+                logger.debug("Report query failed (dns_providers): %s", e)
                 conn.rollback()
                 content["dns_providers"] = []
 
@@ -1775,7 +1827,8 @@ def _check_npm_health():
         npm_url = os.getenv("NPM_API_URL", "http://192.168.1.200:81/api")
         r = req.get(f"{npm_url.rstrip('/api')}/", timeout=3)
         return r.status_code < 500
-    except Exception:
+    except Exception as e:
+        logger.debug("NPM health check failed: %s", e)
         return False
 
 
@@ -1789,7 +1842,8 @@ def _check_ssh_health():
         s.connect(("192.168.1.200", 22))
         s.close()
         return True
-    except Exception:
+    except Exception as e:
+        logger.debug("SSH health check failed: %s", e)
         return False
 
 
@@ -1803,7 +1857,8 @@ def _check_fail2ban_health():
         # (we installed it alongside SSH hardening)
         age = time.time() - os.path.getmtime(log_file)
         return age < 120  # host_monitor updates every ~60s
-    except Exception:
+    except Exception as e:
+        logger.debug("fail2ban health check failed: %s", e)
         return False
 
 
@@ -1815,7 +1870,8 @@ def _check_ddns_health():
             return False
         age = time.time() - os.path.getmtime(ip_file)
         return age < 600  # Updated within last 10 minutes
-    except Exception:
+    except Exception as e:
+        logger.debug("DDNS health check failed: %s", e)
         return False
 
 
@@ -1844,7 +1900,8 @@ def api_dashboard_stats():
             }
         else:
             stats["dns"] = {"available": False}
-    except Exception:
+    except Exception as e:
+        logger.debug("Dashboard DNS stats failed: %s", e)
         stats["dns"] = {"available": False}
 
     # Surveillance camera count
@@ -1859,7 +1916,8 @@ def api_dashboard_stats():
             }
         else:
             stats["cameras"] = {"available": False}
-    except Exception:
+    except Exception as e:
+        logger.debug("Dashboard camera stats failed: %s", e)
         stats["cameras"] = {"available": False}
 
     # Agent automation pending suggestions
@@ -1875,7 +1933,8 @@ def api_dashboard_stats():
             }
         else:
             stats["agent"] = {"available": False}
-    except Exception:
+    except Exception as e:
+        logger.debug("Dashboard agent stats failed: %s", e)
         stats["agent"] = {"available": False}
 
     # Argus recent scan count
@@ -1889,7 +1948,8 @@ def api_dashboard_stats():
             }
         else:
             stats["recon"] = {"available": False}
-    except Exception:
+    except Exception as e:
+        logger.debug("Dashboard recon stats failed: %s", e)
         stats["recon"] = {"available": False}
 
     # Hostinger DNS
@@ -1898,7 +1958,8 @@ def api_dashboard_stats():
             stats["hostinger"] = {"available": True}
         else:
             stats["hostinger"] = {"available": False}
-    except Exception:
+    except Exception as e:
+        logger.debug("Dashboard hostinger stats failed: %s", e)
         stats["hostinger"] = {"available": False}
 
     # Flatten for dashboard JS consumption
@@ -1975,8 +2036,8 @@ def api_dashboard_stats():
         # Sort all by time descending, take top 10
         recent_activity.sort(key=lambda x: x.get("time", ""), reverse=True)
         recent_activity = recent_activity[:10]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to fetch recent activity for dashboard: %s", e)
 
     # If still empty, add a status message
     if not recent_activity:
@@ -2039,6 +2100,7 @@ def api_dns_adguard_stats():
             }
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2061,6 +2123,7 @@ def api_dns_adguard_querylog():
             return jsonify({"success": False, "error": "Could not fetch query log"}), 503
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2085,6 +2148,7 @@ def api_dns_adguard_filters_get():
             }
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2110,6 +2174,7 @@ def api_dns_adguard_filters_add():
             return jsonify({"success": False, "error": "Failed to add filter"}), 500
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2130,6 +2195,7 @@ def api_dns_adguard_filters_toggle(url):
             return jsonify({"success": False, "error": "Failed to toggle filter"}), 500
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2147,6 +2213,7 @@ def api_dns_adguard_filters_remove(url):
             return jsonify({"success": False, "error": "Failed to remove filter"}), 500
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2164,6 +2231,7 @@ def api_dns_adguard_filters_refresh():
             return jsonify({"success": False, "error": "Failed to refresh filters"}), 500
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2181,6 +2249,7 @@ def api_dns_adguard_rewrites_get():
             return jsonify({"success": False, "error": "Could not fetch rewrites"}), 503
         return jsonify({"success": True, "rewrites": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2205,6 +2274,7 @@ def api_dns_adguard_rewrites_add():
             return jsonify({"success": False, "error": "Failed to add rewrite"}), 500
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2229,6 +2299,7 @@ def api_dns_adguard_rewrites_delete():
             return jsonify({"success": False, "error": "Failed to delete rewrite"}), 500
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2246,6 +2317,7 @@ def api_dns_adguard_clients():
             return jsonify({"success": False, "error": "Could not fetch clients"}), 503
         return jsonify({"success": True, "clients": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2268,6 +2340,7 @@ def api_dns_adguard_rules_get():
         rules_text = "\n".join(rules_list)
         return jsonify({"success": True, "rules": rules_text})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2295,6 +2368,7 @@ def api_dns_adguard_rules_set():
             return jsonify({"success": False, "error": "Failed to set rules"}), 500
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2331,6 +2405,7 @@ def api_dns_adguard_block():
             return jsonify({"success": True, "message": f"Domain {domain} blocked"})
         return jsonify({"success": False, "error": "Failed to block domain"}), 500
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2354,6 +2429,7 @@ def api_dns_adguard_unblock():
             return jsonify({"success": True, "message": f"Domain {domain} unblocked"})
         return jsonify({"success": False, "error": "Failed to unblock domain"}), 500
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2374,6 +2450,7 @@ def api_dns_adguard_protection():
             return jsonify({"success": False, "error": "Failed to toggle protection"}), 500
         return jsonify({"success": True, "protection_enabled": enabled})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2400,6 +2477,7 @@ def api_dns_hostinger_records_get():
             return jsonify({"success": False, "error": result["error"]}), 500
         return jsonify({"success": True, "records": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2445,11 +2523,12 @@ def api_dns_hostinger_records_add():
             conn.commit()
             cur.close()
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to log DNS add change: %s", e)
 
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2507,11 +2586,12 @@ def api_dns_hostinger_records_update(record_id):
             conn.commit()
             cur.close()
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to log DNS update change: %s", e)
 
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2545,11 +2625,12 @@ def api_dns_hostinger_records_delete(record_id):
             conn.commit()
             cur.close()
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to log DNS delete change: %s", e)
 
         return jsonify({"success": True, "data": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2569,6 +2650,7 @@ def api_dns_hostinger_domains():
             return jsonify({"success": False, "error": result["error"]}), 500
         return jsonify({"success": True, "domains": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2599,6 +2681,7 @@ def api_surveillance_cameras():
             }
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2626,6 +2709,7 @@ def api_surveillance_snapshot(entity_id):
             headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2649,6 +2733,7 @@ def api_surveillance_stream(entity_id):
             )
         return jsonify({"success": True, "stream_url": stream_url})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2679,8 +2764,8 @@ def api_surveillance_stream_proxy(entity_id):
             for chunk in r.iter_content(chunk_size=4096):
                 if chunk:
                     yield chunk
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Camera stream interrupted for %s: %s", entity_id, e)
 
     return Response(
         generate(),
@@ -2713,6 +2798,7 @@ def api_surveillance_status():
         health = surveillance_service.check_health()
         return jsonify({"success": True, "status": health})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2736,6 +2822,7 @@ def api_surveillance_arm():
             500,
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2759,6 +2846,7 @@ def api_surveillance_disarm():
             500,
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2779,6 +2867,7 @@ def api_surveillance_events():
         events = surveillance_service.get_recent_events(hours)
         return jsonify({"success": True, "events": events})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2805,6 +2894,7 @@ def api_recon_modules():
             }
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2831,6 +2921,7 @@ def api_recon_start_scan():
             return jsonify({"success": False, "error": "Failed to start scan"}), 500
         return jsonify({"success": True, "scan_id": scan_id, "message": "Scan started"})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2848,6 +2939,7 @@ def api_recon_scan_status(scan_id):
             return jsonify({"success": False, "error": "Scan not found"}), 404
         return jsonify({"success": True, "scan": scan})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2865,6 +2957,7 @@ def api_recon_history():
         history = argus_service.get_scan_history(limit)
         return jsonify({"success": True, "history": history})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2887,6 +2980,7 @@ def api_recon_delete_scan(scan_id):
             return jsonify({"success": False, "error": "Scan not found"}), 404
         return jsonify({"success": True, "message": f"Scan {scan_id} deleted"})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:
@@ -2913,6 +3007,7 @@ def api_agent_config_get():
         config = agent_automation_service.get_config()
         return jsonify({"success": True, "config": config})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2945,6 +3040,7 @@ def api_agent_config_update():
             return jsonify({"success": True, "config": config})
         return jsonify({"success": False, "error": "Failed to save configuration"}), 500
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2963,6 +3059,7 @@ def api_agent_suggestions():
         suggestions = agent_automation_service.get_pending_suggestions(category, limit)
         return jsonify({"success": True, "suggestions": suggestions})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2980,6 +3077,7 @@ def api_agent_approve_suggestion(suggestion_id):
             return jsonify({"success": True, "message": f"Suggestion {suggestion_id} approved"})
         return jsonify({"success": False, "error": "Suggestion not found or already processed"}), 404
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3000,6 +3098,7 @@ def api_agent_dismiss_suggestion(suggestion_id):
             return jsonify({"success": True, "message": f"Suggestion {suggestion_id} dismissed"})
         return jsonify({"success": False, "error": "Suggestion not found or already processed"}), 404
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3017,6 +3116,7 @@ def api_agent_action_history():
         actions = agent_automation_service.get_action_history(limit)
         return jsonify({"success": True, "actions": actions})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3034,6 +3134,7 @@ def api_agent_pause():
             return jsonify({"success": True, "message": "Agent automation paused"})
         return jsonify({"success": False, "error": "Failed to pause automation"}), 500
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3051,6 +3152,7 @@ def api_agent_resume():
             return jsonify({"success": True, "message": "Agent automation resumed"})
         return jsonify({"success": False, "error": "Failed to resume automation"}), 500
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3071,6 +3173,7 @@ def api_domains_proxy_hosts_list():
         hosts = npm_service.list_proxy_hosts()
         return jsonify({"success": True, "proxy_hosts": hosts})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3102,6 +3205,7 @@ def api_domains_proxy_hosts_create():
             return jsonify({"success": False, "error": result["error"]}), 500
         return jsonify({"success": True, "proxy_host": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3119,6 +3223,7 @@ def api_domains_proxy_hosts_delete(host_id):
             return jsonify({"success": False, "error": result["error"]}), 500
         return jsonify({"success": True, "message": f"Proxy host {host_id} deleted"})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3144,6 +3249,7 @@ def api_domains_proxy_hosts_update(host_id):
             return jsonify({"success": False, "error": result["error"]}), 500
         return jsonify({"success": True, "message": f"Proxy host {host_id} updated"})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3158,8 +3264,8 @@ def api_domains_overview():
     if HOSTINGER_SERVICE_AVAILABLE and hostinger_service:
         try:
             result["public_ip"] = hostinger_service.get_public_ip()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to get public IP: %s", e)
 
     # Get DNS records
     if HOSTINGER_SERVICE_AVAILABLE and hostinger_service:
@@ -3167,8 +3273,8 @@ def api_domains_overview():
             records = hostinger_service.get_dns_records()
             if isinstance(records, list):
                 result["dns_records"] = records
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to get DNS records for domain overview: %s", e)
 
     # Get NPM proxy hosts
     if NPM_SERVICE_AVAILABLE and npm_service:
@@ -3176,8 +3282,8 @@ def api_domains_overview():
             hosts = npm_service.list_proxy_hosts()
             if isinstance(hosts, list):
                 result["proxy_hosts"] = hosts
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to get NPM proxy hosts for domain overview: %s", e)
 
     return jsonify({"success": True, **result})
 
@@ -3281,6 +3387,7 @@ def api_devices_list():
         )
         return jsonify({"success": True, "devices": devices})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3295,6 +3402,7 @@ def api_devices_stats():
         stats = device_registry.get_stats()
         return jsonify({"success": True, "stats": stats})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3309,6 +3417,7 @@ def api_devices_unregistered():
         unregistered = device_registry.get_unregistered()
         return jsonify({"success": True, "devices": unregistered})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3325,6 +3434,7 @@ def api_devices_get(device_id):
             return jsonify({"success": False, "error": "Device not found"}), 404
         return jsonify({"success": True, "device": device})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3347,6 +3457,7 @@ def api_devices_register():
         )
         return jsonify({"success": True, "device": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3364,6 +3475,7 @@ def api_devices_update(device_id):
             return jsonify({"success": False, "error": "Device not found"}), 404
         return jsonify({"success": True, "device": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3380,6 +3492,7 @@ def api_devices_delete(device_id):
             return jsonify({"success": False, "error": "Device not found"}), 404
         return jsonify({"success": True, "message": f"Device {device_id} deleted"})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3394,6 +3507,7 @@ def api_devices_sync():
         result = device_registry.sync()
         return jsonify({"success": True, "sync": result})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3423,6 +3537,7 @@ def api_device_dns_report(device_id):
             }
         )
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3442,6 +3557,7 @@ def api_get_alert_config():
         config = _get_alert_config()
         return jsonify({"success": True, "config": config})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3500,4 +3616,5 @@ def api_update_alert_config():
 
         return jsonify({"success": True, "config": config})
     except Exception as e:
+        logger.exception("Route error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500

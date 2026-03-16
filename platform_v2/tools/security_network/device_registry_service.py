@@ -233,8 +233,8 @@ class DeviceRegistryService:
             for entry in resp.json().get("top_clients", []):
                 for ip, count in entry.items():
                     active[ip] = {"count": count, "last_query": None}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to fetch AdGuard stats for DNS active clients: %s", e)
 
         # Get last query timestamp per client from query log
         try:
@@ -252,8 +252,8 @@ class DeviceRegistryService:
                         active[client] = {"count": 0, "last_query": ts}
                     elif active[client]["last_query"] is None:
                         active[client]["last_query"] = ts
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to fetch AdGuard query log: %s", e)
 
         self._dns_active_cache = active
         self._dns_active_cache_ts = now
@@ -293,7 +293,8 @@ class DeviceRegistryService:
                     diff_mins = (datetime.utcnow() - last_q).total_seconds() / 60
                     d["dns_active"] = diff_mins <= 15
                     dns_online = diff_mins <= 5
-                except Exception:
+                except Exception as e:
+                    logger.debug("Failed to parse dns_last_query timestamp: %s", e)
                     d["dns_active"] = False
             else:
                 d["dns_active"] = False
@@ -399,8 +400,8 @@ class DeviceRegistryService:
                     try:
                         lq = client_info["last_query"].replace("Z", "").split(".")[0]
                         dns_online = datetime.fromisoformat(lq) >= dns_threshold
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Failed to parse DNS last_query for stats: %s", e)
                 if seen_recently or dns_online:
                     online += 1
 

@@ -64,8 +64,8 @@ class AgentAutomationService:
             if result:
                 self._config = json.loads(result["setting_value"])
                 return self._config
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to load agent config from DB: %s", e)
         finally:
             try:
                 cur.close()
@@ -90,7 +90,8 @@ class AgentAutomationService:
             conn.commit()
             self._config = config
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to save agent config: %s", e)
             return False
         finally:
             try:
@@ -142,7 +143,8 @@ class AgentAutomationService:
             action_id = cur.fetchone()[0]
             conn.commit()
             return action_id
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to create suggestion: %s", e)
             return None
         finally:
             try:
@@ -166,7 +168,8 @@ class AgentAutomationService:
             affected = cur.rowcount
             conn.commit()
             return affected > 0
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to approve suggestion %s: %s", suggestion_id, e)
             return False
         finally:
             try:
@@ -190,7 +193,8 @@ class AgentAutomationService:
             affected = cur.rowcount
             conn.commit()
             return affected > 0
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to dismiss suggestion %s: %s", suggestion_id, e)
             return False
         finally:
             try:
@@ -223,7 +227,8 @@ class AgentAutomationService:
                 )
             results = cur.fetchall()
             return [dict(r) for r in results]
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to get pending suggestions: %s", e)
             return []
         finally:
             try:
@@ -245,7 +250,8 @@ class AgentAutomationService:
             )
             results = cur.fetchall()
             return [dict(r) for r in results]
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to get action history: %s", e)
             return []
         finally:
             try:
@@ -272,7 +278,8 @@ class AgentAutomationService:
             action_id = cur.fetchone()[0]
             conn.commit()
             return action_id
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to log auto action: %s", e)
             return None
         finally:
             try:
@@ -300,7 +307,8 @@ class AgentAutomationService:
                 (suggestion_type,),
             )
             return cur.fetchone() is not None
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed to check pending suggestion '%s': %s", suggestion_type, e)
             return False
         finally:
             try:

@@ -1699,8 +1699,8 @@
                     <p style="font-size:0.75rem;color:rgba(239,68,68,0.6);margin:0;">This will add the domain to AdGuard's block list. All devices using AdGuard DNS will be unable to access it.</p>
                 </div>
                 <div class="bm-actions">
-                    <button class="btn-cancel" onclick="closeBlockDomainModal()">Cancel</button>
-                    <button class="btn-danger" onclick="submitBlockDomain()">Block Domain</button>
+                    <button type="button" class="btn-cancel" onclick="closeBlockDomainModal()">Cancel</button>
+                    <button type="button" class="btn-submit" style="background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.5);color:#ef4444;" id="block-domain-submit" onclick="submitBlockDomain()">Block Domain</button>
                 </div>
                 <div class="bm-footer">
                     <div class="bm-footer-strip">
@@ -2207,7 +2207,7 @@ function closeBlockDomainModal() {
 function submitBlockDomain() {
     var domain = document.getElementById('block-domain-input').value.trim();
     if(!domain) return showToast('error','Enter a domain');
-    var btn = document.querySelector('#block-domain-modal .btn-danger');
+    var btn = document.getElementById('block-domain-submit');
     if (btn) btn.textContent = 'Blocking...';
     fetch(API+'/dns/adguard/block',{
         method:'POST',headers:{'Content-Type':'application/json'},

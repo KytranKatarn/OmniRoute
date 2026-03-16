@@ -2193,9 +2193,11 @@ function quickToggleProtection() {
 }
 
 function openBlockDomainModal() {
-    document.getElementById('block-domain-input').value = '';
+    var input = document.getElementById('block-domain-input');
+    input.value = '';
     document.getElementById('block-domain-modal').classList.add('active');
-    document.getElementById('block-domain-input').focus();
+    // Delay focus to allow modal animation to complete
+    setTimeout(function() { input.focus(); }, 300);
 }
 
 function closeBlockDomainModal() {
@@ -2205,16 +2207,32 @@ function closeBlockDomainModal() {
 function submitBlockDomain() {
     var domain = document.getElementById('block-domain-input').value.trim();
     if(!domain) return showToast('error','Enter a domain');
+    var btn = document.querySelector('#block-domain-modal .btn-danger');
+    if (btn) btn.textContent = 'Blocking...';
     fetch(API+'/dns/adguard/block',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({domain:domain})
     }).then(function(r){return r.json();}).then(function(d){
+        if (btn) btn.textContent = 'Block Domain';
         if(d.success) {
             showToast('success',domain+' blocked');
             closeBlockDomainModal();
         } else showToast('error',d.error||'Failed');
-    }).catch(function(e){showToast('error',e.message);});
+    }).catch(function(e){
+        if (btn) btn.textContent = 'Block Domain';
+        showToast('error',e.message);
+    });
 }
+
+// Enter key submits block domain modal
+document.addEventListener('DOMContentLoaded', function() {
+    var blockInput = document.getElementById('block-domain-input');
+    if (blockInput) {
+        blockInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); submitBlockDomain(); }
+        });
+    }
+});
 
 /* ========== DNS Management ========== */
 async function loadDNSOverview() {

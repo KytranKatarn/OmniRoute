@@ -3364,7 +3364,7 @@ body.light-mode .bridge-zone-unstaffed {
     transform: translate(50%, -50%) rotate(10deg);
 }
 
-.iso-zone-support {
+.iso-zone-security {
     top: 82%;
     left: 14%;
     transform: translate(-50%, -50%) rotate(-5deg);
@@ -3514,7 +3514,7 @@ body.light-mode .bridge-zone-unstaffed {
 .iso-zone-engineering    { animation-delay: 1.0s; }
 .iso-zone-operations     { animation-delay: 1.15s; }
 .iso-zone-analytics      { animation-delay: 1.15s; }
-.iso-zone-support        { animation-delay: 1.3s; }
+.iso-zone-security        { animation-delay: 1.3s; }
 .iso-zone-qa             { animation-delay: 1.3s; }
 .iso-zone-command        { animation-delay: 1.45s; }
 
@@ -3560,7 +3560,7 @@ body.light-mode .bridge-zone-unstaffed {
     .iso-zone-engineering { top: 12%; right: 14%; }
     .iso-zone-operations { top: 34%; left: 8%; }
     .iso-zone-analytics { top: 34%; right: 8%; }
-    .iso-zone-support { top: 50%; left: 14%; }
+    .iso-zone-security { top: 50%; left: 14%; }
     .iso-zone-qa { top: 50%; right: 14%; }
     .iso-zone-command { top: 64%; }
 }
@@ -3606,7 +3606,7 @@ body.light-mode .bridge-zone-unstaffed {
     .iso-zone-engineering { top: 14%; right: 14%; }
     .iso-zone-operations { top: 38%; left: 8%; }
     .iso-zone-analytics { top: 38%; right: 8%; }
-    .iso-zone-support { top: 58%; left: 14%; }
+    .iso-zone-security { top: 58%; left: 14%; }
     .iso-zone-qa { top: 58%; right: 14%; }
     .iso-zone-command { top: 66%; }
 
@@ -3737,7 +3737,7 @@ body.light-mode .bridge-zone-unstaffed {
 .iso-bridge-room.warp-active .iso-zone-engineering   { animation-delay: 1.8s !important; }
 .iso-bridge-room.warp-active .iso-zone-operations    { animation-delay: 1.95s !important; }
 .iso-bridge-room.warp-active .iso-zone-analytics     { animation-delay: 1.95s !important; }
-.iso-bridge-room.warp-active .iso-zone-support       { animation-delay: 2.1s !important; }
+.iso-bridge-room.warp-active .iso-zone-security       { animation-delay: 2.1s !important; }
 .iso-bridge-room.warp-active .iso-zone-qa            { animation-delay: 2.1s !important; }
 .iso-bridge-room.warp-active .iso-zone-command       { animation-delay: 2.25s !important; }
 
@@ -10331,8 +10331,8 @@ const ISOMETRIC_ZONE_MAP = {
     'RESEARCH':      { stations: ['RESEARCH'],            color: '#6495ED', label: 'Research',      abbr: 'RES' },
     'DOCUMENTATION': { stations: ['DOCUMENTATION'],       color: '#8B5CF6', label: 'Documentation', abbr: 'DOC' },
     'RND_AI':        { stations: ['RND_AI'],              color: '#06B6D4', label: 'R&D - AI',      abbr: 'R&D' },
-    'QA':            { stations: ['QA'],                  color: '#10B981', label: 'QA',            abbr: 'QA'  },
-    'SECURITY':      { stations: ['SECURITY'],            color: '#F43F5E', label: 'Security',      abbr: 'SEC' }
+    'SECURITY':      { stations: ['SECURITY'],            color: '#F43F5E', label: 'Security',      abbr: 'SEC' },
+    'QA':            { stations: ['QA'],                  color: '#10B981', label: 'QA',            abbr: 'QA'  }
 };
 
 // Reverse lookup: station code → zone name

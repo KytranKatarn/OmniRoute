@@ -2216,8 +2216,8 @@ function submitBlockDomain() {
         return r.json();
     }).then(function(d){
         if (btn) btn.textContent = 'Block Domain';
-        closeBlockDomainModal();
         if(d.success) {
+            closeBlockDomainModal();
             showToast('success',domain+' blocked — added to Rules');
             var dnsBtn = document.querySelector('.tab-btn[data-tab="dns"]');
             if (dnsBtn) dnsBtn.click();
@@ -2226,11 +2226,11 @@ function submitBlockDomain() {
                 if (rulesBtn) rulesBtn.click();
             }, 200);
         } else {
+            // Keep modal open, show error, let user fix or cancel
             showToast('error', d.error || 'Failed to block domain');
         }
     }).catch(function(e){
         if (btn) btn.textContent = 'Block Domain';
-        closeBlockDomainModal();
         showToast('error','Error: ' + e.message);
     });
 }

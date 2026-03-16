@@ -3767,6 +3767,8 @@ async function saveDevice() {
         notes: document.getElementById('dev-edit-notes').value.trim()
     };
     if (!payload.friendly_name) return showToast('error', 'Device name is required');
+    // Include device ID for registration
+    if (_deviceEditId) payload.id = _deviceEditId;
     try {
         var url, method;
         if (_deviceIsRegistered && _deviceEditId) {

@@ -366,6 +366,26 @@ class DeviceRegistryService:
             except Exception as e:
                 logger.debug("AdGuard client poll failed (continuing with ARP): %s", e)
 
+            # 1b) Also pull top clients from AdGuard stats (real LAN IPs appear here)
+            try:
+                resp = requests.get(
+                    f"{self.adguard_base}/control/stats",
+                    auth=self._adguard_auth(),
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                stats_data = resp.json()
+                for entry in stats_data.get("top_clients", []):
+                    for ip in entry:
+                        if ip and not self._should_skip_ip(ip) and ip not in discovered:
+                            discovered[ip] = {
+                                "ip": ip,
+                                "mac": "",
+                                "hostname": "",
+                            }
+            except Exception as e:
+                logger.debug("AdGuard stats poll failed: %s", e)
+
             # 2) ARP scan
             arp_entries = self._parse_arp_table()
             for entry in arp_entries:
@@ -412,6 +432,7 @@ class DeviceRegistryService:
                             continue
 
                     # Phase 2: IP-based upsert (new or returning device)
+                    # Always update last_seen_at; only overwrite name/MAC/mfr on unregistered
                     cur.execute(
                         """
                         INSERT INTO network_devices
@@ -420,10 +441,15 @@ class DeviceRegistryService:
                         VALUES (%s, %s, %s, %s, NOW(), NOW())
                         ON CONFLICT (ip_address) DO UPDATE SET
                             last_seen_at = NOW(),
-                            mac_address = COALESCE(EXCLUDED.mac_address, network_devices.mac_address),
-                            hostname = COALESCE(EXCLUDED.hostname, network_devices.hostname),
-                            manufacturer = COALESCE(EXCLUDED.manufacturer, network_devices.manufacturer)
-                        WHERE NOT network_devices.is_registered
+                            mac_address = CASE WHEN network_devices.is_registered
+                                THEN COALESCE(network_devices.mac_address, EXCLUDED.mac_address)
+                                ELSE COALESCE(EXCLUDED.mac_address, network_devices.mac_address) END,
+                            hostname = CASE WHEN network_devices.is_registered
+                                THEN network_devices.hostname
+                                ELSE COALESCE(EXCLUDED.hostname, network_devices.hostname) END,
+                            manufacturer = CASE WHEN network_devices.is_registered
+                                THEN network_devices.manufacturer
+                                ELSE COALESCE(EXCLUDED.manufacturer, network_devices.manufacturer) END
                         RETURNING id, ip_address, mac_address, hostname, manufacturer,
                                   (xmax = 0) AS was_inserted
                         """,
@@ -474,16 +500,16 @@ class DeviceRegistryService:
 
     @staticmethod
     def _should_skip_ip(ip: str) -> bool:
-        """Filter out Docker, localhost, multicast, link-local, this server."""
+        """Filter out Docker, localhost, multicast, link-local, IPv6, this server."""
         if ip in SKIP_IPS:
             return True
         if ip.startswith("172."):
             return True
-        if ip.startswith("fe80:"):
+        # Skip all IPv6 — we only track IPv4 LAN devices
+        if ":" in ip:
             return True
-        if ip.startswith("ff00:") or ip.startswith("ff02:"):
-            return True
-        if ip == "::1":
+        # Skip non-routable
+        if ip.startswith("169.254."):
             return True
         return False
 

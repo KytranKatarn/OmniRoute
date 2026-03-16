@@ -59,6 +59,8 @@ services:
       NPM_API_URL: http://192.168.1.200:81/api
       NPM_ADMIN_EMAIL: ${NPM_ADMIN_EMAIL}
       NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
+      HOSTINGER_API_KEY: ${HOSTINGER_API_KEY:-}
+      HOSTINGER_DOMAIN: ${HOSTINGER_DOMAIN:-kytranempowerment.com}
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-hub}
       OLLAMA_MODELS: /mnt/llm_drive/ollama/models
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}

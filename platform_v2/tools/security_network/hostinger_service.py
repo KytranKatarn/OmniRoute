@@ -41,58 +41,102 @@ class HostingerService:
 
     # --- DNS Records ---
     def get_dns_records(self, domain: str = None) -> Optional[Any]:
+        """Get all DNS records for a domain zone."""
         domain = domain or self.domain
-        return self._request("GET", f"dns/v1/domains/{domain}/dns-records")
+        return self._request("GET", f"dns/v1/zones/{domain}")
+
+    def get_a_records(self, domain: str = None) -> List[Dict]:
+        """Get only A records, formatted for display."""
+        records = self.get_dns_records(domain)
+        if not records or isinstance(records, dict) and "error" in records:
+            return []
+        return [r for r in records if r.get("type") == "A"]
 
     def add_dns_record(
-        self, record_type: str, name: str, value: str, ttl: int = 3600, domain: str = None
+        self, record_type: str, name: str, value: str, ttl: int = 300, domain: str = None
     ) -> Optional[Any]:
-        domain = domain or self.domain
-        return self._request(
-            "POST",
-            f"dns/v1/domains/{domain}/dns-records",
-            {
-                "type": record_type,
-                "name": name,
-                "content": value,
-                "ttl": ttl,
-            },
-        )
-
-    def update_dns_records(self, records: List[Dict], overwrite: bool = False, domain: str = None) -> Optional[Any]:
+        """Add a DNS record (non-destructive, overwrite=false)."""
         domain = domain or self.domain
         return self._request(
             "PUT",
-            f"dns/v1/domains/{domain}/dns-records",
+            f"dns/v1/zones/{domain}",
             {
-                "overwrite": overwrite,
-                "records": records,
+                "zone": [
+                    {
+                        "name": name,
+                        "type": record_type,
+                        "ttl": ttl,
+                        "records": [{"content": value}],
+                    }
+                ],
+                "overwrite": False,
             },
         )
 
-    def delete_dns_records(self, record_type: str = None, name: str = None, domain: str = None) -> Optional[Any]:
+    def update_dns_record(
+        self, record_type: str, name: str, value: str, ttl: int = 300, domain: str = None
+    ) -> Optional[Any]:
+        """Update an existing DNS record (overwrites matching name+type)."""
         domain = domain or self.domain
-        params = {}
-        if record_type:
-            params["type"] = record_type
-        if name:
-            params["name"] = name
-        return self._request("DELETE", f"dns/v1/domains/{domain}/dns-records", params)
+        return self._request(
+            "PUT",
+            f"dns/v1/zones/{domain}",
+            {
+                "zone": [
+                    {
+                        "name": name,
+                        "type": record_type,
+                        "ttl": ttl,
+                        "records": [{"content": value}],
+                    }
+                ],
+                "overwrite": True,
+            },
+        )
 
-    def validate_dns_records(self, records: List[Dict], domain: str = None) -> Optional[Any]:
+    def update_dns_records_bulk(self, records: List[Dict], overwrite: bool = True, domain: str = None) -> Optional[Any]:
+        """Bulk update DNS records. Each record: {name, type, ttl, content}."""
         domain = domain or self.domain
-        return self._request("POST", f"dns/v1/domains/{domain}/dns-records/validate", {"records": records})
+        zone = []
+        for r in records:
+            zone.append(
+                {
+                    "name": r["name"],
+                    "type": r.get("type", "A"),
+                    "ttl": r.get("ttl", 300),
+                    "records": [{"content": r["content"]}],
+                }
+            )
+        return self._request(
+            "PUT",
+            f"dns/v1/zones/{domain}",
+            {"zone": zone, "overwrite": overwrite},
+        )
 
-    def reset_dns_zone(self, domain: str = None) -> Optional[Any]:
+    def delete_dns_zone(self, domain: str = None) -> Optional[Any]:
+        """Delete entire DNS zone (use with caution)."""
         domain = domain or self.domain
-        return self._request("POST", f"dns/v1/domains/{domain}/dns-records/reset")
+        return self._request("DELETE", f"dns/v1/zones/{domain}")
 
     # --- Domain Info ---
     def get_domain_list(self) -> Optional[Any]:
+        """List all domains in portfolio."""
         return self._request("GET", "domains/v1/portfolio")
 
+    def get_public_ip(self) -> Optional[str]:
+        """Get current public IP address."""
+        try:
+            resp = requests.get("https://api.ipify.org", timeout=10)
+            ip = resp.text.strip()
+            if ip and all(c.isdigit() or c == "." for c in ip):
+                return ip
+        except Exception:
+            pass
+        return None
+
     def check_health(self) -> bool:
+        """Verify Hostinger API connectivity."""
         if not self.available:
             return False
-        result = self.get_domain_list()
-        return result is not None and "error" not in (result if isinstance(result, dict) else {})
+        result = self.get_dns_records()
+        return isinstance(result, list)

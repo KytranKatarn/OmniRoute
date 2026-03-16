@@ -387,6 +387,14 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._archive_stale_notifications),
+            trigger=IntervalTrigger(hours=6),
+            id="agent_notification_cleanup",
+            name="Agent Loop: Stale Notification Archiver",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._volunteer_idle_agents),
             trigger=IntervalTrigger(minutes=5),
             id="agent_idle_volunteering",
@@ -2269,6 +2277,26 @@ class AgentLoop:
                 logger.info(f"Stale job reaper: cleaned {reaped} orphaned jobs")
         except Exception as e:
             logger.debug(f"Stale job reaper failed: {e}")
+
+    def _archive_stale_notifications(self):
+        """Archive notifications older than 30 days (every 6 hours)."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE system_notifications
+                    SET is_archived = TRUE
+                    WHERE is_archived = FALSE
+                      AND created_at < NOW() - INTERVAL '30 days'
+                    """
+                )
+                archived = cur.rowcount
+            if archived:
+                logger.info(f"Notification archiver: archived {archived} stale notifications")
+        except Exception as e:
+            logger.debug(f"Notification archiver failed: {e}")
 
     def _track_agent_hr(self):
         """

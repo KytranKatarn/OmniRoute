@@ -2330,6 +2330,67 @@ def notification_mark_read(notification_id):
             pass
 
 
+@archie_chat_bp.route("/api/notifications/read-all", methods=["POST"])
+@login_required
+def notifications_mark_all_read():
+    """Mark all unread notifications as read for current user."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO notification_reads (notification_id, user_id, read_at)
+            SELECT sn.id, %s, NOW()
+            FROM system_notifications sn
+            LEFT JOIN notification_reads nr ON nr.notification_id = sn.id AND nr.user_id = %s
+            WHERE nr.notification_id IS NULL AND sn.is_archived = FALSE
+            ON CONFLICT (notification_id, user_id) DO NOTHING
+            """,
+            (current_user.id, current_user.id),
+        )
+        count = cur.rowcount
+        conn.commit()
+        return jsonify({"ok": True, "marked": count})
+    except Exception as e:
+        logger.error("notifications_mark_all_read error: %s", e)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@archie_chat_bp.route("/api/notifications/archive-stale", methods=["POST"])
+@login_required
+def notifications_archive_stale():
+    """Auto-archive notifications older than 30 days."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE system_notifications
+            SET is_archived = TRUE
+            WHERE is_archived = FALSE
+              AND created_at < NOW() - INTERVAL '30 days'
+            """
+        )
+        count = cur.rowcount
+        conn.commit()
+        return jsonify({"ok": True, "archived": count})
+    except Exception as e:
+        logger.error("notifications_archive_stale error: %s", e)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
 @archie_chat_bp.route("/api/briefings/generate-now", methods=["POST"])
 @login_required
 def briefing_generate_now():

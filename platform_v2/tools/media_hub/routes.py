@@ -297,15 +297,57 @@ def index():
 
 @media_hub_bp.route("/api/health")
 def api_health():
-    """Health check endpoint for module registry"""
-    return jsonify(
-        {
-            "module": "media_hub",
-            "status": "active",
-            "healthy": True,
-            "message": "Media Hub module operational",
-        }
-    )
+    """Health check endpoint — queries real service status from DB"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT service_type, health_status, health_message, last_health_check
+               FROM media_hub_services WHERE is_enabled = true"""
+        )
+        columns = [desc[0] for desc in cur.description] if cur.description else []
+        services = [dict(zip(columns, row)) for row in cur.fetchall()]
+
+        if not services:
+            return jsonify(
+                {
+                    "module": "media_hub",
+                    "status": "active",
+                    "healthy": True,
+                    "message": "No services configured",
+                    "services": [],
+                }
+            )
+
+        unhealthy = [s for s in services if s["health_status"] != "healthy"]
+        healthy = len(unhealthy) == 0
+        service_summary = [
+            {
+                "type": s["service_type"],
+                "status": s["health_status"],
+                "message": s["health_message"],
+            }
+            for s in services
+        ]
+
+        return jsonify(
+            {
+                "module": "media_hub",
+                "status": "active",
+                "healthy": healthy,
+                "message": f"{len(services) - len(unhealthy)}/{len(services)} services healthy",
+                "services": service_summary,
+            }
+        )
+    except Exception as e:
+        return jsonify(
+            {
+                "module": "media_hub",
+                "status": "error",
+                "healthy": False,
+                "message": str(e),
+            }
+        )
 
 
 @media_hub_bp.route("/api/status")

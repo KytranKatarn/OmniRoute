@@ -688,6 +688,159 @@
         .camera-grid { grid-template-columns: 1fr; }
         .tab-btn i { display: none; }
     }
+/* ─── LCARS Tablet Modal (bm-) ─── */
+.bm-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 1000;
+    justify-content: center; align-items: center;
+}
+.bm-overlay.active { display: flex; }
+.bm-shell {
+    background: #06060c; border: none; border-radius: 24px;
+    width: 90%; max-width: 500px; max-height: 85vh; overflow: hidden;
+    display: flex; flex-direction: row;
+    box-shadow: 0 0 0 2px #1e1e35, 0 0 0 4px rgba(var(--bm-accent-rgb),0.12),
+        0 24px 80px rgba(0,0,0,0.8), 0 0 60px rgba(var(--bm-accent-rgb),0.06);
+    animation: bmTabletIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes bmTabletIn {
+    from { opacity: 0; transform: scale(0.9) translateY(20px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.bm-frame {
+    flex-shrink: 0; width: 48px; display: flex; flex-direction: column;
+    gap: 3px; padding: 0; background: transparent;
+}
+.bm-frame-elbow-top {
+    height: 52px; background: var(--bm-accent); border-radius: 20px 0 0 0; position: relative;
+}
+.bm-frame-elbow-top::after {
+    content: ''; position: absolute; bottom: 0; right: 0;
+    width: 18px; height: 18px; background: #06060c; border-radius: 0 10px 0 0;
+}
+.bm-frame-seg {
+    height: 28px; border-radius: 0 8px 8px 0; margin-right: 6px; background: var(--bm-accent);
+}
+.bm-frame-seg.dim { opacity: 0.6; }
+.bm-frame-seg.purple { background: #8b5cf6; }
+.bm-frame-light {
+    width: 10px; height: 10px; border-radius: 50%; margin: 4px auto;
+    animation: bmLightPulse 2s ease-in-out infinite;
+}
+.bm-frame-light.on { background: #10b981; box-shadow: 0 0 8px #10b981; }
+.bm-frame-light.amber { background: #FFAA00; box-shadow: 0 0 8px #FFAA00; animation-delay: 0.7s; }
+@keyframes bmLightPulse { 0%, 100% { opacity: 1; } 40%, 60% { opacity: 0.3; } }
+.bm-frame-fill {
+    flex: 1; background: rgba(var(--bm-accent-rgb),0.25);
+    border-radius: 0 8px 0 0; margin-right: 6px; min-height: 20px;
+}
+.bm-frame-elbow-bottom {
+    height: 36px; background: var(--bm-accent); border-radius: 0 0 0 20px; position: relative;
+}
+.bm-frame-elbow-bottom::after {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 18px; height: 14px; background: #06060c; border-radius: 0 0 0 10px;
+}
+.bm-content {
+    flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0;
+}
+.bm-header {
+    display: flex; align-items: stretch; gap: 3px; min-height: 44px; flex-shrink: 0;
+}
+.bm-header-title {
+    display: flex; align-items: center; gap: 8px; padding: 0 18px;
+    background: var(--bm-accent); font-family: 'Antonio', sans-serif;
+    font-size: 0.9rem; font-weight: 600; letter-spacing: 0.15em;
+    text-transform: uppercase; color: #fff; white-space: nowrap;
+}
+.bm-header-strip {
+    flex: 1; background: rgba(var(--bm-accent-rgb),0.18);
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 8px; border-radius: 0 20px 0 0; gap: 6px;
+}
+.bm-header-pip { height: 8px; border-radius: 4px; flex-shrink: 0; }
+.bm-header-pip.w1 { width: 20px; background: rgba(var(--bm-accent-rgb),0.35); }
+.bm-header-pip.w2 { width: 35px; background: rgba(255,170,0,0.3); }
+.bm-header-pip.w3 { width: 14px; background: rgba(0,212,255,0.3); }
+.bm-close {
+    background: rgba(var(--bm-accent-rgb),0.15); border: 1px solid rgba(var(--bm-accent-rgb),0.3);
+    color: rgba(255,255,255,0.6); font-size: 1rem; width: 30px; height: 30px;
+    border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+.bm-close:hover { background: rgba(var(--bm-accent-rgb),0.3); color: #fff; }
+.bm-body {
+    padding: 20px 24px; overflow-y: auto; flex: 1; font-family: 'Antonio', sans-serif;
+}
+.bm-body * { font-family: 'Antonio', sans-serif; }
+.bm-body::-webkit-scrollbar { width: 4px; }
+.bm-body::-webkit-scrollbar-thumb { background: rgba(var(--bm-accent-rgb),0.3); border-radius: 2px; }
+.bm-body label {
+    font-family: 'Antonio', sans-serif !important; letter-spacing: 0.1em !important;
+    text-transform: uppercase; font-size: 0.72rem !important;
+    color: rgba(var(--bm-accent-rgb),0.6) !important; display: block; margin-bottom: 4px;
+}
+.bm-body input[type="text"], .bm-body input[type="number"], .bm-body select, .bm-body textarea {
+    width: 100%; padding: 8px 10px;
+    background: rgba(var(--bm-accent-rgb),0.06) !important;
+    border: 1px solid rgba(var(--bm-accent-rgb),0.2) !important;
+    border-radius: 8px !important; color: #fff !important;
+    font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important;
+    margin-bottom: 12px; box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.bm-body input:focus, .bm-body select:focus {
+    outline: none; border-color: var(--bm-accent) !important;
+    box-shadow: 0 0 12px rgba(var(--bm-accent-rgb),0.15);
+}
+.bm-actions {
+    display: flex; gap: 10px; padding: 10px 24px;
+    border-top: 1px solid rgba(var(--bm-accent-rgb),0.12);
+    background: rgba(0,0,0,0.2); flex-shrink: 0; flex-wrap: wrap;
+}
+.bm-actions button {
+    padding: 10px 16px; border-radius: 6px; font-family: 'Antonio', sans-serif;
+    font-size: 0.8rem; cursor: pointer; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.bm-actions .btn-cancel {
+    background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--archie-text-muted);
+}
+.bm-actions .btn-cancel:hover { background: rgba(255,255,255,0.05); }
+.bm-actions .btn-submit {
+    background: rgba(var(--bm-accent-rgb),0.2); border: 1px solid rgba(var(--bm-accent-rgb),0.5); color: #fff;
+}
+.bm-actions .btn-submit:hover {
+    background: rgba(var(--bm-accent-rgb),0.35); box-shadow: 0 0 16px rgba(var(--bm-accent-rgb),0.2);
+}
+.bm-actions .btn-danger {
+    background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); color: #ef4444;
+}
+.bm-actions .btn-danger:hover { background: rgba(239,68,68,0.3); }
+.bm-footer {
+    display: flex; align-items: stretch; min-height: 14px; flex-shrink: 0; gap: 3px;
+}
+.bm-footer-strip {
+    flex: 1; background: rgba(var(--bm-accent-rgb),0.18);
+    border-radius: 0 0 20px 0; display: flex; align-items: center; padding: 0 12px; gap: 4px;
+}
+.bm-footer-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.bm-footer-dot.cyan { background: rgba(0,212,255,0.4); }
+.bm-footer-dot.gold { background: rgba(255,170,0,0.4); }
+.bm-footer-dot.green { background: rgba(16,185,129,0.4); }
+/* clickable table rows */
+#domains-unified-body tr, #domains-dns-body tr, #domains-proxy-body tr {
+    cursor: pointer; transition: background 0.15s;
+}
+#domains-unified-body tr:hover, #domains-dns-body tr:hover, #domains-proxy-body tr:hover {
+    background: rgba(var(--bm-accent-rgb, 0,212,255),0.08);
+}
+@media (max-width: 768px) {
+    .bm-shell { width: 95%; max-height: 90vh; border-radius: 16px; }
+    .bm-frame { width: 32px; }
+    .bm-frame-elbow-top { height: 38px; border-radius: 14px 0 0 0; }
+    .bm-frame-elbow-bottom { height: 26px; border-radius: 0 0 0 14px; }
+    .bm-body { padding: 16px; }
+}
 </style>
 {% endblock %}
 
@@ -758,6 +911,10 @@
         <button class="tab-btn" data-tab="reports">
             <i data-lucide="file-text" style="width:16px;height:16px"></i>
             Reports
+        </button>
+        <button class="tab-btn" data-tab="domains">
+            <i data-lucide="globe" style="width:14px;height:14px"></i>
+            <span data-i18n="security_network.domains">Domains</span>
         </button>
     </div>
 
@@ -831,7 +988,6 @@
             <button class="subtab-btn" data-subtab="dns-querylog"><span data-i18n="security_network.query_log">Query Log</span></button>
             <button class="subtab-btn" data-subtab="dns-filters"><span data-i18n="security_network.filters">Filters</span></button>
             <button class="subtab-btn" data-subtab="dns-rewrites"><span data-i18n="security_network.rewrites">Rewrites</span></button>
-            <button class="subtab-btn" data-subtab="dns-hostinger"><span data-i18n="security_network.hostinger_2">Hostinger</span></button>
             <button class="subtab-btn" data-subtab="dns-rules"><span data-i18n="security_network.rules">Rules</span></button>
         </div>
 
@@ -939,47 +1095,6 @@
             </div>
             <div id="rewrites-list">
                 <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_rewrites"> Loading rewrites...</span></div>
-            </div>
-        </div>
-
-        <div id="subtab-dns-hostinger" class="subtab-content">
-            <div class="card" id="hostinger-not-configured" style="display:none">
-                <div class="empty-state">
-                    <i data-lucide="key" style="width:32px;height:32px"></i>
-                    <p><span data-i18n="security_network.hostinger_api_not_configured_set_hostinger_api_key">Hostinger API not configured. Set HOSTINGER_API_KEY in environment.</span></p>
-                </div>
-            </div>
-            <div id="hostinger-configured">
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title"><span data-i18n="security_network.add_dns_record">Add DNS Record</span></span>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group" style="max-width:120px">
-                            <label class="form-label"><span data-i18n="security_network.type">Type</span></label>
-                            <select class="form-select" id="host-type">
-                                <option>A</option><option><span data-i18n="security_network.aaaa">AAAA</span></option><option><span data-i18n="security_network.cname">CNAME</span></option>
-                                <option>MX</option><option><span data-i18n="security_network.txt">TXT</span></option><option>NS</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label"><span data-i18n="security_network.name_2">Name</span></label>
-                            <input type="text" class="form-input" id="host-name" placeholder="subdomain">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label"><span data-i18n="security_network.content">Content</span></label>
-                            <input type="text" class="form-input" id="host-content" placeholder="IP or value">
-                        </div>
-                        <div class="form-group" style="max-width:100px">
-                            <label class="form-label"><span data-i18n="security_network.ttl">TTL</span></label>
-                            <input type="number" class="form-input" id="host-ttl" value="3600">
-                        </div>
-                        <button class="btn btn-primary btn-sm" onclick="addHostingerRecord()"><span data-i18n="security_network.add_3">Add</span></button>
-                    </div>
-                </div>
-                <div id="hostinger-records">
-                    <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_dns_records"> Loading DNS records...</span></div>
-                </div>
             </div>
         </div>
 
@@ -1240,10 +1355,287 @@
         </div>
     </div>
 
+    <!-- ==================== TAB: DOMAINS ==================== -->
+    <div id="tab-domains" class="tab-content">
+        <!-- Domain subtabs -->
+        <div class="subtab-bar">
+            <button class="subtab-btn active" data-subtab="domains-overview">Overview</button>
+            <button class="subtab-btn" data-subtab="domains-dns">DNS Records</button>
+            <button class="subtab-btn" data-subtab="domains-proxy">Proxy Hosts</button>
+            <button class="subtab-btn" data-subtab="domains-setup">Quick Setup</button>
+        </div>
+
+        <!-- Subtab: Overview -->
+        <div id="subtab-domains-overview" class="subtab-content active">
+            <div class="stats-grid" id="domains-stats">
+                <div class="stat-card">
+                    <div class="stat-label">Public IP</div>
+                    <div class="stat-value" id="domains-public-ip">--</div>
+                    <div class="stat-subtitle"><a href="#" onclick="refreshPublicIP();return false" style="color:var(--accent)">Refresh</a></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Domain</div>
+                    <div class="stat-value" style="font-size:1rem" id="domains-root">kytranempowerment.com</div>
+                    <div class="stat-subtitle">Root domain</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">DNS Records</div>
+                    <div class="stat-value" id="domains-dns-count">--</div>
+                    <div class="stat-subtitle">Total records</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Proxy Hosts</div>
+                    <div class="stat-value" id="domains-proxy-count">--</div>
+                    <div class="stat-subtitle">NPM managed</div>
+                </div>
+            </div>
+
+            <h3 style="margin:20px 0 10px;color:#fff">Subdomain Map</h3>
+            <div style="overflow-x:auto">
+                <table class="data-table" id="domains-unified-table">
+                    <thead>
+                        <tr>
+                            <th>Subdomain</th>
+                            <th>DNS IP</th>
+                            <th>NPM Target</th>
+                            <th>SSL</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="domains-unified-body">
+                        <tr><td colspan="5" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Subtab: DNS Records -->
+        <div id="subtab-domains-dns" class="subtab-content">
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+                <button class="btn" onclick="loadDomainDnsRecords()">
+                    <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
+                </button>
+            </div>
+
+            <!-- Add DNS Record form -->
+            <div class="card" style="padding:16px;margin-bottom:16px">
+                <h4 style="margin:0 0 12px;color:#fff">Add DNS Record</h4>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                    <div>
+                        <label style="font-size:0.75rem;color:#ccc">Type</label>
+                        <select id="dns-add-type" class="input" style="width:100px">
+                            <option value="A">A</option>
+                            <option value="CNAME">CNAME</option>
+                            <option value="TXT">TXT</option>
+                            <option value="MX">MX</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:#ccc">Name</label>
+                        <input type="text" id="dns-add-name" class="input" placeholder="subdomain" style="width:160px">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:#ccc">Content</label>
+                        <input type="text" id="dns-add-content" class="input" placeholder="IP or value" style="width:200px">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:#ccc">TTL</label>
+                        <input type="number" id="dns-add-ttl" class="input" value="3600" style="width:80px">
+                    </div>
+                    <button class="btn btn-primary" onclick="addDomainDnsRecord()">Add Record</button>
+                </div>
+            </div>
+
+            <div style="overflow-x:auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Name</th>
+                            <th>Content</th>
+                            <th>TTL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="domains-dns-body">
+                        <tr><td colspan="4" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Subtab: Proxy Hosts -->
+        <div id="subtab-domains-proxy" class="subtab-content">
+            <div style="display:flex;gap:8px;margin-bottom:16px">
+                <button class="btn" onclick="loadDomainProxyHosts()">
+                    <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
+                </button>
+            </div>
+
+            <div style="overflow-x:auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Domain</th>
+                            <th>Forward Target</th>
+                            <th>SSL</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="domains-proxy-body">
+                        <tr><td colspan="5" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Subtab: Quick Setup -->
+        <div id="subtab-domains-setup" class="subtab-content">
+            <div class="card" style="padding:20px;max-width:500px">
+                <h3 style="margin:0 0 16px;color:#fff">
+                    <i data-lucide="zap" style="width:18px;height:18px;vertical-align:middle"></i>
+                    One-Click Subdomain Setup
+                </h3>
+                <p style="color:#ccc;font-size:0.85rem;margin:0 0 16px">
+                    Creates a DNS A record, NPM proxy host, and provisions SSL certificate in one step.
+                </p>
+
+                <div style="display:flex;flex-direction:column;gap:12px">
+                    <div>
+                        <label style="font-size:0.75rem;color:#ccc">Subdomain</label>
+                        <div style="display:flex;align-items:center;gap:4px">
+                            <input type="text" id="qs-subdomain" class="input" placeholder="myapp" style="flex:1">
+                            <span style="color:#fff">.kytranempowerment.com</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:#ccc">Forward Host</label>
+                        <input type="text" id="qs-forward-host" class="input" value="192.168.1.200" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75rem;color:#ccc">Forward Port</label>
+                        <input type="number" id="qs-forward-port" class="input" value="3000" style="width:100%">
+                    </div>
+                    <button class="btn btn-primary" onclick="quickSetupDomain()" id="qs-btn" style="margin-top:8px">
+                        <i data-lucide="rocket" style="width:14px;height:14px"></i> Create Subdomain
+                    </button>
+                </div>
+
+                <div id="qs-result" style="display:none;margin-top:16px;padding:12px;border-radius:6px;background:rgba(255,255,255,0.05)">
+                </div>
+            </div>
+        </div>
+    </div>
+
             </div><!-- /lcars-body -->
             <div class="lcars-footer-bar"></div>
         </div><!-- /lcars-content -->
     </div><!-- /lcars-frame -->
+
+    <!-- ==================== DNS RECORD EDIT MODAL ==================== -->
+    <div class="bm-overlay" id="dns-edit-modal" style="--bm-accent:#00d4ff;--bm-accent-rgb:0,212,255;">
+        <div class="bm-shell" style="max-width:480px;">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div>
+                <div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div>
+                <div class="bm-frame-light on"></div>
+                <div class="bm-frame-light amber"></div>
+                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-fill"></div>
+                <div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <span class="bm-header-title" id="dns-modal-title">EDIT DNS RECORD</span>
+                    <div class="bm-header-strip">
+                        <div class="bm-header-pip w1"></div>
+                        <div class="bm-header-pip w2"></div>
+                        <div class="bm-header-pip w3"></div>
+                        <button class="bm-close" onclick="closeDnsModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="bm-body">
+                    <label>Type</label>
+                    <select id="dns-edit-type">
+                        <option value="A">A</option>
+                        <option value="CNAME">CNAME</option>
+                        <option value="TXT">TXT</option>
+                        <option value="MX">MX</option>
+                        <option value="AAAA">AAAA</option>
+                        <option value="NS">NS</option>
+                    </select>
+                    <label>Name</label>
+                    <input type="text" id="dns-edit-name" placeholder="subdomain">
+                    <label>Content</label>
+                    <input type="text" id="dns-edit-content" placeholder="IP address or value">
+                    <label>TTL (seconds)</label>
+                    <input type="number" id="dns-edit-ttl" value="300">
+                </div>
+                <div class="bm-actions">
+                    <button class="btn-cancel" onclick="closeDnsModal()">Cancel</button>
+                    <button class="btn-submit" onclick="saveDnsRecord()">Save Record</button>
+                    <button class="btn-danger" onclick="deleteDnsRecord()" id="dns-delete-btn" style="margin-left:auto">Delete</button>
+                </div>
+                <div class="bm-footer">
+                    <div class="bm-footer-strip">
+                        <div class="bm-footer-dot cyan"></div>
+                        <div class="bm-footer-dot gold"></div>
+                        <div class="bm-footer-dot green"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== PROXY HOST EDIT MODAL ==================== -->
+    <div class="bm-overlay" id="proxy-edit-modal" style="--bm-accent:#FFAA00;--bm-accent-rgb:255,170,0;">
+        <div class="bm-shell" style="max-width:480px;">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div>
+                <div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div>
+                <div class="bm-frame-light on"></div>
+                <div class="bm-frame-light amber"></div>
+                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-fill"></div>
+                <div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <span class="bm-header-title">PROXY HOST</span>
+                    <div class="bm-header-strip">
+                        <div class="bm-header-pip w1"></div>
+                        <div class="bm-header-pip w2"></div>
+                        <div class="bm-header-pip w3"></div>
+                        <button class="bm-close" onclick="closeProxyModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="bm-body">
+                    <label>Domain</label>
+                    <input type="text" id="proxy-edit-domain" placeholder="subdomain.kytranempowerment.com" readonly style="opacity:0.6">
+                    <label>Forward Host</label>
+                    <input type="text" id="proxy-edit-host" placeholder="192.168.1.200">
+                    <label>Forward Port</label>
+                    <input type="number" id="proxy-edit-port" value="3000">
+                    <label>SSL Status</label>
+                    <input type="text" id="proxy-edit-ssl" readonly style="opacity:0.6">
+                </div>
+                <div class="bm-actions">
+                    <button class="btn-cancel" onclick="closeProxyModal()">Cancel</button>
+                    <button class="btn-submit" onclick="saveProxyHost()">Save Changes</button>
+                    <button class="btn-danger" onclick="deleteProxyFromModal()" style="margin-left:auto">Delete</button>
+                </div>
+                <div class="bm-footer">
+                    <div class="bm-footer-strip">
+                        <div class="bm-footer-dot cyan"></div>
+                        <div class="bm-footer-dot gold"></div>
+                        <div class="bm-footer-dot green"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ==================== AGENT AUTOMATION PANEL ==================== -->
     <button class="agent-fab" id="agent-fab" onclick="toggleAgentPanel()">
@@ -1369,6 +1761,7 @@ function showEmpty(el, msg) {
 /* ========== Tab Management ========== */
 let dnsTabLoaded = false, survTabLoaded = false, reconTabLoaded = false;
 let scanTabLoaded = false, accessTabLoaded = false, reportsTabLoaded = false;
+let domainsTabLoaded = false;
 let qlOffset = 0, activeScannerType = 'nmap';
 
 function initTabs() {
@@ -1385,6 +1778,7 @@ function initTabs() {
             if (tab === 'scanning' && !scanTabLoaded) { scanTabLoaded = true; loadScanResults(); loadSSLMonitors(); }
             if (tab === 'access' && !accessTabLoaded) { accessTabLoaded = true; loadFirewall(); loadIPAccess(); loadAutoBlockSettings(); loadSecurityEvents(); loadConnections(); }
             if (tab === 'reports' && !reportsTabLoaded) { reportsTabLoaded = true; loadReports(); }
+            if (tab === 'domains' && !domainsTabLoaded) { domainsTabLoaded = true; loadDomainsOverview(); }
             lucide.createIcons();
         });
     });
@@ -1402,8 +1796,10 @@ function initSubtabs() {
             if (st === 'dns-querylog') loadQueryLog(0);
             if (st === 'dns-filters') loadFilters();
             if (st === 'dns-rewrites') loadRewrites();
-            if (st === 'dns-hostinger') loadHostingerRecords();
             if (st === 'dns-rules') loadUserRules();
+            if (st === 'domains-overview') loadDomainsOverview();
+            if (st === 'domains-dns') loadDomainDnsRecords();
+            if (st === 'domains-proxy') loadDomainProxyHosts();
             lucide.createIcons();
         });
     });
@@ -2345,6 +2741,489 @@ function toggleAgentPause() {
         else showToast('error',d.error||'Failed');
     }).catch(e=>showToast('error',e.message));
 }
+
+/* ========== Domain Management ========== */
+async function loadDomainsOverview() {
+    try {
+        const r = await fetch(API + '/domains/overview');
+        const d = await r.json();
+        if (!d.success) { showToast('error', d.error || 'Failed to load domains overview'); return; }
+
+        document.getElementById('domains-public-ip').textContent = d.public_ip || 'Unknown';
+        document.getElementById('domains-dns-count').textContent = Array.isArray(d.dns_records) ? d.dns_records.length : '--';
+        document.getElementById('domains-proxy-count').textContent = Array.isArray(d.proxy_hosts) ? d.proxy_hosts.length : '--';
+
+        // Build unified subdomain map
+        const dnsRecords = Array.isArray(d.dns_records) ? d.dns_records : [];
+        const proxyHosts = Array.isArray(d.proxy_hosts) ? d.proxy_hosts : [];
+
+        // Index proxy hosts by domain name
+        const proxyMap = {};
+        proxyHosts.forEach(function(h) {
+            (h.domain_names || []).forEach(function(dn) { proxyMap[dn] = h; });
+        });
+
+        // Build rows from DNS A records + proxy hosts
+        const subdomains = {};
+        dnsRecords.filter(function(r) { return r.type === 'A'; }).forEach(function(r) {
+            const name = r.name || '@';
+            if (!subdomains[name]) subdomains[name] = {};
+            subdomains[name].dnsIP = (r.records && r.records[0] && r.records[0].content) || r.content || '--';
+            subdomains[name].ttl = r.ttl;
+        });
+
+        // Match proxy hosts
+        proxyHosts.forEach(function(h) {
+            (h.domain_names || []).forEach(function(dn) {
+                const parts = dn.split('.');
+                const sub = parts.length > 2 ? parts[0] : '@';
+                if (!subdomains[sub]) subdomains[sub] = {};
+                subdomains[sub].npmTarget = h.forward_host + ':' + h.forward_port;
+                subdomains[sub].ssl = h.ssl_forced ? 'Active' : (h.certificate_id ? 'Cert Only' : 'None');
+                subdomains[sub].proxyId = h.id;
+                subdomains[sub].fullDomain = dn;
+            });
+        });
+
+        const tbody = document.getElementById('domains-unified-body');
+        const keys = Object.keys(subdomains).sort();
+        if (keys.length === 0) {
+            tbody.textContent = '';
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 5;
+            td.style.textAlign = 'center';
+            td.style.color = 'var(--text-dim)';
+            td.textContent = 'No subdomains found';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+
+        tbody.textContent = '';
+        keys.forEach(function(name) {
+            const s = subdomains[name];
+            const tr = document.createElement('tr');
+
+            const tdName = document.createElement('td');
+            const strong = document.createElement('strong');
+            strong.textContent = name;
+            tdName.appendChild(strong);
+            tr.appendChild(tdName);
+
+            const tdDns = document.createElement('td');
+            tdDns.textContent = s.dnsIP || '--';
+            tr.appendChild(tdDns);
+
+            const tdNpm = document.createElement('td');
+            tdNpm.textContent = s.npmTarget || '--';
+            tr.appendChild(tdNpm);
+
+            const tdSsl = document.createElement('td');
+            const sslSpan = document.createElement('span');
+            if (s.ssl === 'Active') { sslSpan.style.color = '#22c55e'; sslSpan.textContent = '\u25CF Active'; }
+            else if (s.ssl === 'Cert Only') { sslSpan.style.color = '#f59e0b'; sslSpan.textContent = '\u25CF Cert Only'; }
+            else { sslSpan.style.color = 'var(--text-dim)'; sslSpan.textContent = '\u25CF None'; }
+            tdSsl.appendChild(sslSpan);
+            tr.appendChild(tdSsl);
+
+            const tdActions = document.createElement('td');
+            if (s.proxyId) {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-sm btn-danger';
+                btn.textContent = 'Delete Proxy';
+                btn.addEventListener('click', function() { deleteProxyHost(s.proxyId); });
+                tdActions.appendChild(btn);
+            }
+            tr.appendChild(tdActions);
+
+            tbody.appendChild(tr);
+        });
+
+        lucide.createIcons();
+    } catch (e) {
+        showToast('error', 'Failed to load domains overview: ' + e.message);
+    }
+}
+
+async function refreshPublicIP() {
+    try {
+        const r = await fetch(API + '/domains/overview');
+        const d = await r.json();
+        if (d.success && d.public_ip) {
+            document.getElementById('domains-public-ip').textContent = d.public_ip;
+            showToast('success', 'Public IP refreshed');
+        }
+    } catch (e) { showToast('error', e.message); }
+}
+
+async function loadDomainDnsRecords() {
+    try {
+        const r = await fetch(API + '/dns/hostinger/records');
+        const d = await r.json();
+        if (!d.success) { showToast('error', d.error || 'Failed'); return; }
+
+        const records = Array.isArray(d.records) ? d.records : [];
+        const tbody = document.getElementById('domains-dns-body');
+        tbody.textContent = '';
+
+        if (records.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 4; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
+            td.textContent = 'No DNS records';
+            tr.appendChild(td); tbody.appendChild(tr);
+            return;
+        }
+
+        records.forEach(function(rec) {
+            const tr = document.createElement('tr');
+            tr.addEventListener('click', function() { openDnsModal(rec); });
+
+            const tdType = document.createElement('td');
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = rec.type || '--';
+            tdType.appendChild(badge);
+            tr.appendChild(tdType);
+
+            const tdName = document.createElement('td');
+            tdName.textContent = rec.name || '--';
+            tr.appendChild(tdName);
+
+            const tdContent = document.createElement('td');
+            tdContent.style.wordBreak = 'break-all';
+            const content = (rec.records && rec.records.map(function(x){return x.content;}).join(', ')) || rec.content || '--';
+            tdContent.textContent = content;
+            tr.appendChild(tdContent);
+
+            const tdTtl = document.createElement('td');
+            tdTtl.textContent = rec.ttl || '--';
+            tr.appendChild(tdTtl);
+
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        showToast('error', 'Failed to load DNS records: ' + e.message);
+    }
+}
+
+async function addDomainDnsRecord() {
+    const record_type = document.getElementById('dns-add-type').value;
+    const name = document.getElementById('dns-add-name').value.trim();
+    const content = document.getElementById('dns-add-content').value.trim();
+    const ttl = parseInt(document.getElementById('dns-add-ttl').value) || 3600;
+
+    if (!name || !content) { showToast('error', 'Name and content are required'); return; }
+
+    try {
+        const r = await fetch(API + '/dns/hostinger/records', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({record_type: record_type, name: name, content: content, ttl: ttl})
+        });
+        const d = await r.json();
+        if (d.success) {
+            showToast('success', 'DNS record added');
+            document.getElementById('dns-add-name').value = '';
+            document.getElementById('dns-add-content').value = '';
+            loadDomainDnsRecords();
+        } else {
+            showToast('error', d.error || 'Failed to add record');
+        }
+    } catch (e) { showToast('error', e.message); }
+}
+
+async function loadDomainProxyHosts() {
+    try {
+        const r = await fetch(API + '/domains/proxy-hosts');
+        const d = await r.json();
+        if (!d.success) { showToast('error', d.error || 'Failed'); return; }
+
+        const hosts = Array.isArray(d.proxy_hosts) ? d.proxy_hosts : [];
+        const tbody = document.getElementById('domains-proxy-body');
+        tbody.textContent = '';
+
+        if (hosts.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 5; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
+            td.textContent = 'No proxy hosts';
+            tr.appendChild(td); tbody.appendChild(tr);
+            return;
+        }
+
+        hosts.forEach(function(h) {
+            const tr = document.createElement('tr');
+            tr.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') return;
+                openProxyModal(h);
+            });
+
+            const tdDomain = document.createElement('td');
+            tdDomain.textContent = (h.domain_names || []).join(', ');
+            tr.appendChild(tdDomain);
+
+            const tdTarget = document.createElement('td');
+            tdTarget.textContent = (h.forward_scheme || 'http') + '://' + h.forward_host + ':' + h.forward_port;
+            tr.appendChild(tdTarget);
+
+            const tdSsl = document.createElement('td');
+            const sslSpan = document.createElement('span');
+            if (h.ssl_forced) { sslSpan.style.color = '#22c55e'; sslSpan.textContent = '\u25CF Forced'; }
+            else if (h.certificate_id) { sslSpan.style.color = '#f59e0b'; sslSpan.textContent = '\u25CF Cert Only'; }
+            else { sslSpan.style.color = 'var(--text-dim)'; sslSpan.textContent = '\u25CF None'; }
+            tdSsl.appendChild(sslSpan);
+            tr.appendChild(tdSsl);
+
+            const tdStatus = document.createElement('td');
+            const statusSpan = document.createElement('span');
+            if (h.enabled !== false) { statusSpan.style.color = '#22c55e'; statusSpan.textContent = 'Active'; }
+            else { statusSpan.style.color = 'var(--text-dim)'; statusSpan.textContent = 'Disabled'; }
+            tdStatus.appendChild(statusSpan);
+            tr.appendChild(tdStatus);
+
+            const tdActions = document.createElement('td');
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn btn-sm btn-danger';
+            delBtn.textContent = 'Delete';
+            delBtn.addEventListener('click', function(e) { e.stopPropagation(); deleteProxyHost(h.id); });
+            tdActions.appendChild(delBtn);
+            tr.appendChild(tdActions);
+
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        showToast('error', 'Failed to load proxy hosts: ' + e.message);
+    }
+}
+
+async function deleteProxyHost(id) {
+    if (!confirm('Delete this proxy host? This cannot be undone.')) return;
+    try {
+        const r = await fetch(API + '/domains/proxy-hosts/' + id, {method: 'DELETE'});
+        const d = await r.json();
+        if (d.success) {
+            showToast('success', 'Proxy host deleted');
+            loadDomainProxyHosts();
+            loadDomainsOverview();
+        } else {
+            showToast('error', d.error || 'Failed to delete');
+        }
+    } catch (e) { showToast('error', e.message); }
+}
+
+async function quickSetupDomain() {
+    const subdomain = document.getElementById('qs-subdomain').value.trim();
+    const forward_host = document.getElementById('qs-forward-host').value.trim();
+    const forward_port = parseInt(document.getElementById('qs-forward-port').value) || 3000;
+
+    if (!subdomain) { showToast('error', 'Subdomain is required'); return; }
+
+    const btn = document.getElementById('qs-btn');
+    btn.disabled = true;
+    btn.textContent = 'Setting up...';
+    const resultDiv = document.getElementById('qs-result');
+    resultDiv.style.display = 'none';
+
+    try {
+        const r = await fetch(API + '/domains/quick-setup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({subdomain: subdomain, forward_host: forward_host, forward_port: forward_port})
+        });
+        const d = await r.json();
+
+        resultDiv.style.display = 'block';
+        resultDiv.textContent = '';
+
+        if (d.success) {
+            showToast('success', d.message || 'Subdomain created!');
+            const heading = document.createElement('div');
+            heading.style.cssText = 'color:#22c55e;font-weight:bold;margin-bottom:8px';
+            heading.textContent = '\u2713 Setup Complete';
+            resultDiv.appendChild(heading);
+
+            const domainInfo = document.createElement('div');
+            domainInfo.style.color = 'var(--text)';
+            domainInfo.textContent = 'Domain: ' + (d.domain || '');
+            resultDiv.appendChild(domainInfo);
+
+            if (d.steps) {
+                const stepsInfo = document.createElement('div');
+                stepsInfo.style.cssText = 'margin-top:8px;font-size:0.8rem;color:var(--text-dim)';
+                stepsInfo.textContent = 'DNS: ' + (d.steps.dns && d.steps.dns.success ? '\u2713' : '\u2717')
+                    + ' | Proxy: ' + (d.steps.proxy && d.steps.proxy.success ? '\u2713' : '\u2717')
+                    + ' | SSL: ' + (d.steps.ssl && d.steps.ssl.success ? '\u2713' : '\u2717');
+                resultDiv.appendChild(stepsInfo);
+            }
+
+            document.getElementById('qs-subdomain').value = '';
+            domainsTabLoaded = false;
+            loadDomainsOverview();
+        } else {
+            showToast('error', d.error || 'Setup failed');
+            const heading = document.createElement('div');
+            heading.style.cssText = 'color:#ef4444;font-weight:bold';
+            heading.textContent = '\u2717 Setup Failed';
+            resultDiv.appendChild(heading);
+
+            const errInfo = document.createElement('div');
+            errInfo.style.cssText = 'color:var(--text-dim);font-size:0.85rem';
+            errInfo.textContent = d.error || 'Unknown error';
+            resultDiv.appendChild(errInfo);
+        }
+    } catch (e) {
+        showToast('error', 'Setup failed: ' + e.message);
+        resultDiv.style.display = 'block';
+        resultDiv.textContent = 'Error: ' + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '';
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'rocket');
+        icon.style.cssText = 'width:14px;height:14px';
+        btn.appendChild(icon);
+        btn.appendChild(document.createTextNode(' Create Subdomain'));
+        lucide.createIcons();
+    }
+}
+
+/* ========== DNS Record Modal ========== */
+let dnsEditState = { name: null, type: null, isNew: false };
+
+function openDnsModal(record) {
+    dnsEditState.name = record ? record.name : null;
+    dnsEditState.type = record ? record.type : null;
+    dnsEditState.isNew = !record;
+
+    const title = document.getElementById('dns-modal-title');
+    const delBtn = document.getElementById('dns-delete-btn');
+    title.textContent = record ? 'EDIT DNS RECORD' : 'ADD DNS RECORD';
+    delBtn.style.display = record ? '' : 'none';
+
+    document.getElementById('dns-edit-type').value = record ? record.type : 'A';
+    document.getElementById('dns-edit-name').value = record ? record.name : '';
+    document.getElementById('dns-edit-content').value = record ? ((record.records && record.records[0]) ? record.records[0].content : record.content || '') : '';
+    document.getElementById('dns-edit-ttl').value = record ? (record.ttl || 300) : 300;
+
+    document.getElementById('dns-edit-modal').classList.add('active');
+}
+
+function closeDnsModal() {
+    document.getElementById('dns-edit-modal').classList.remove('active');
+}
+
+async function saveDnsRecord() {
+    const type = document.getElementById('dns-edit-type').value;
+    const name = document.getElementById('dns-edit-name').value.trim();
+    const content = document.getElementById('dns-edit-content').value.trim();
+    const ttl = parseInt(document.getElementById('dns-edit-ttl').value) || 300;
+
+    if (!name || !content) { showToast('error', 'Name and content are required'); return; }
+
+    try {
+        const r = await fetch(API + '/dns/hostinger/records', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ type: type, name: name, content: content, ttl: ttl })
+        });
+        const d = await r.json();
+        if (d.success) {
+            showToast('success', 'DNS record saved');
+            closeDnsModal();
+            loadDomainDnsRecords();
+            loadDomainsOverview();
+        } else {
+            showToast('error', d.error || 'Failed to save');
+        }
+    } catch (e) { showToast('error', e.message); }
+}
+
+async function deleteDnsRecord() {
+    if (!dnsEditState.name) return;
+    if (!confirm('Delete DNS record "' + dnsEditState.name + '"?')) return;
+
+    try {
+        const r = await fetch(API + '/dns/hostinger/records/' + encodeURIComponent(dnsEditState.name), {
+            method: 'DELETE'
+        });
+        const d = await r.json();
+        if (d.success) {
+            showToast('success', 'DNS record deleted');
+            closeDnsModal();
+            loadDomainDnsRecords();
+            loadDomainsOverview();
+        } else {
+            showToast('error', d.error || 'Failed to delete');
+        }
+    } catch (e) { showToast('error', e.message); }
+}
+
+/* ========== Proxy Host Modal ========== */
+let proxyEditState = { id: null };
+
+function openProxyModal(host) {
+    proxyEditState.id = host ? host.id : null;
+
+    const domains = (host && host.domain_names) ? host.domain_names.join(', ') : '';
+    document.getElementById('proxy-edit-domain').value = domains;
+    document.getElementById('proxy-edit-host').value = host ? (host.forward_host || '') : '192.168.1.200';
+    document.getElementById('proxy-edit-port').value = host ? (host.forward_port || 3000) : 3000;
+    document.getElementById('proxy-edit-ssl').value = host ? (host.ssl_forced ? 'Active (Forced)' : host.certificate_id ? 'Certificate Only' : 'None') : 'None';
+
+    document.getElementById('proxy-edit-modal').classList.add('active');
+}
+
+function closeProxyModal() {
+    document.getElementById('proxy-edit-modal').classList.remove('active');
+}
+
+async function saveProxyHost() {
+    if (!proxyEditState.id) return;
+    const host = document.getElementById('proxy-edit-host').value.trim();
+    const port = parseInt(document.getElementById('proxy-edit-port').value) || 3000;
+
+    try {
+        const r = await fetch(API + '/domains/proxy-hosts/' + proxyEditState.id, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ forward_host: host, forward_port: port })
+        });
+        const d = await r.json();
+        if (d.success) {
+            showToast('success', 'Proxy host updated');
+            closeProxyModal();
+            loadDomainProxyHosts();
+            loadDomainsOverview();
+        } else {
+            showToast('error', d.error || 'Failed to update');
+        }
+    } catch (e) { showToast('error', e.message); }
+}
+
+async function deleteProxyFromModal() {
+    if (!proxyEditState.id) return;
+    if (!confirm('Delete this proxy host?')) return;
+
+    try {
+        const r = await fetch(API + '/domains/proxy-hosts/' + proxyEditState.id, { method: 'DELETE' });
+        const d = await r.json();
+        if (d.success) {
+            showToast('success', 'Proxy host deleted');
+            closeProxyModal();
+            loadDomainProxyHosts();
+            loadDomainsOverview();
+        } else {
+            showToast('error', d.error || 'Failed to delete');
+        }
+    } catch (e) { showToast('error', e.message); }
+}
+
+/* Close modals on Escape */
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { closeDnsModal(); closeProxyModal(); }
+});
 
 /* ========== Init ========== */
 document.addEventListener('DOMContentLoaded', function() {

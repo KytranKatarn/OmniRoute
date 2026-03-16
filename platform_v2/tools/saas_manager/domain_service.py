@@ -7,6 +7,14 @@ Automates domain setup:
 2. Proxy host creation via Nginx Proxy Manager API
 3. SSL certificate provisioning (Let's Encrypt via NPM)
 4. DNS propagation verification
+
+Known SSE/streaming endpoints (require proxy_buffering off):
+  - /api/chat           (archie_core)
+  - /api/dispatch       (bridge)
+  - /api/proposals/stream (cursor_api)
+  - /api/knowledge/stream (consciousness)
+  - /api/projects/<id>/stream (app_builder)
+  - /api/pull           (team_management - Ollama proxy)
 """
 
 import os
@@ -43,8 +51,16 @@ class NPMClient:
         self._auth()
         return {"Authorization": f"Bearer {self.token}"}
 
-    def create_proxy_host(self, domain, forward_host, forward_port, ssl=True):
-        """Create a proxy host in NPM."""
+    STREAMING_ADVANCED_CONFIG = "proxy_buffering off;\n" "proxy_request_buffering off;\n" "proxy_cache off;"
+
+    def create_proxy_host(self, domain, forward_host, forward_port, ssl=True, streaming=False):
+        """Create a proxy host in NPM.
+
+        Args:
+            streaming: If True, disables proxy buffering/caching for SSE/WebSocket endpoints.
+        """
+        advanced_config = self.STREAMING_ADVANCED_CONFIG if streaming else ""
+
         payload = {
             "domain_names": [domain],
             "forward_scheme": "http",
@@ -56,7 +72,7 @@ class NPMClient:
             "certificate_id": 0,
             "ssl_forced": False,
             "meta": {"letsencrypt_agree": True},
-            "advanced_config": "",
+            "advanced_config": advanced_config,
             "locations": [],
             "http2_support": True,
             "hsts_enabled": False,

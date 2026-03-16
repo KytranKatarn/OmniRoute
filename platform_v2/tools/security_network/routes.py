@@ -285,6 +285,16 @@ except ImportError:
     hostinger_service = None
     HOSTINGER_SERVICE_AVAILABLE = False
 
+# Import NPM (Nginx Proxy Manager) service
+try:
+    from .npm_service import NPMService
+
+    npm_service = NPMService()
+    NPM_SERVICE_AVAILABLE = npm_service.available
+except ImportError:
+    npm_service = None
+    NPM_SERVICE_AVAILABLE = False
+
 # Import Home Assistant Surveillance service
 try:
     from .ha_surveillance_service import HASurveillanceService
@@ -639,6 +649,7 @@ def health_check():
             "surveillance_service_available": SURVEILLANCE_SERVICE_AVAILABLE,
             "argus_service_available": ARGUS_SERVICE_AVAILABLE,
             "agent_automation_available": AGENT_AUTOMATION_AVAILABLE,
+            "npm_service_available": NPM_SERVICE_AVAILABLE,
         }
     )
 
@@ -2336,3 +2347,201 @@ def api_agent_resume():
         return jsonify({"success": False, "error": "Failed to resume automation"}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# DOMAIN MANAGEMENT - NPM PROXY HOSTS
+# ============================================================================
+
+
+@security_network_bp.route("/api/domains/proxy-hosts")
+@login_required
+@admin_required
+def api_domains_proxy_hosts_list():
+    """List all NPM proxy hosts"""
+    if not NPM_SERVICE_AVAILABLE or not npm_service:
+        return jsonify({"success": False, "error": "NPM service not available"}), 503
+
+    try:
+        hosts = npm_service.list_proxy_hosts()
+        return jsonify({"success": True, "proxy_hosts": hosts})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/domains/proxy-hosts", methods=["POST"])
+@login_required
+@admin_required
+def api_domains_proxy_hosts_create():
+    """Create a new NPM proxy host"""
+    if not NPM_SERVICE_AVAILABLE or not npm_service:
+        return jsonify({"success": False, "error": "NPM service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+    forward_host = data.get("forward_host", "192.168.1.200")
+    forward_port = data.get("forward_port", 3000)
+    ssl = data.get("ssl", True)
+
+    if not domain:
+        return jsonify({"success": False, "error": "Domain is required"}), 400
+
+    try:
+        result = npm_service.create_proxy_host(
+            domain=domain,
+            forward_host=forward_host,
+            forward_port=int(forward_port),
+            ssl=ssl,
+        )
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 500
+        return jsonify({"success": True, "proxy_host": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/domains/proxy-hosts/<int:host_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def api_domains_proxy_hosts_delete(host_id):
+    """Delete a NPM proxy host"""
+    if not NPM_SERVICE_AVAILABLE or not npm_service:
+        return jsonify({"success": False, "error": "NPM service not available"}), 503
+
+    try:
+        result = npm_service.delete_proxy_host(host_id)
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 500
+        return jsonify({"success": True, "message": f"Proxy host {host_id} deleted"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/domains/proxy-hosts/<int:host_id>", methods=["PUT"])
+@login_required
+@admin_required
+def api_domains_proxy_hosts_update(host_id):
+    """Update a NPM proxy host"""
+    if not NPM_SERVICE_AVAILABLE or not npm_service:
+        return jsonify({"success": False, "error": "NPM service not available"}), 503
+
+    try:
+        data = request.get_json()
+        update_data = {}
+        if "forward_host" in data:
+            update_data["forward_host"] = data["forward_host"]
+        if "forward_port" in data:
+            update_data["forward_port"] = int(data["forward_port"])
+        if not update_data:
+            return jsonify({"success": False, "error": "No fields to update"}), 400
+        result = npm_service.update_proxy_host(host_id, update_data)
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 500
+        return jsonify({"success": True, "message": f"Proxy host {host_id} updated"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/domains/overview")
+@login_required
+@admin_required
+def api_domains_overview():
+    """Combined domain overview: DNS records + NPM proxy hosts + public IP"""
+    result = {"dns_records": [], "proxy_hosts": [], "public_ip": None}
+
+    # Get public IP via Hostinger service
+    if HOSTINGER_SERVICE_AVAILABLE and hostinger_service:
+        try:
+            result["public_ip"] = hostinger_service.get_public_ip()
+        except Exception:
+            pass
+
+    # Get DNS records
+    if HOSTINGER_SERVICE_AVAILABLE and hostinger_service:
+        try:
+            records = hostinger_service.get_dns_records()
+            if isinstance(records, list):
+                result["dns_records"] = records
+        except Exception:
+            pass
+
+    # Get NPM proxy hosts
+    if NPM_SERVICE_AVAILABLE and npm_service:
+        try:
+            hosts = npm_service.list_proxy_hosts()
+            if isinstance(hosts, list):
+                result["proxy_hosts"] = hosts
+        except Exception:
+            pass
+
+    return jsonify({"success": True, **result})
+
+
+@security_network_bp.route("/api/domains/quick-setup", methods=["POST"])
+@login_required
+@admin_required
+def api_domains_quick_setup():
+    """One-click subdomain setup: DNS A record + NPM proxy + SSL"""
+    if not HOSTINGER_SERVICE_AVAILABLE or not hostinger_service:
+        return jsonify({"success": False, "error": "Hostinger service not available"}), 503
+    if not NPM_SERVICE_AVAILABLE or not npm_service:
+        return jsonify({"success": False, "error": "NPM service not available"}), 503
+
+    data = request.get_json() or {}
+    subdomain = data.get("subdomain", "").strip()
+    forward_host = data.get("forward_host", "192.168.1.200").strip()
+    forward_port = data.get("forward_port", 3000)
+
+    if not subdomain:
+        return jsonify({"success": False, "error": "Subdomain is required"}), 400
+
+    root_domain = hostinger_service.domain
+    full_domain = f"{subdomain}.{root_domain}"
+    steps = {"dns": None, "proxy": None, "ssl": None}
+
+    # Step 1: Get public IP
+    public_ip = hostinger_service.get_public_ip()
+    if not public_ip:
+        return jsonify({"success": False, "error": "Could not determine public IP"}), 500
+
+    # Step 2: Create DNS A record
+    try:
+        dns_result = hostinger_service.add_dns_record(
+            record_type="A",
+            name=subdomain,
+            value=public_ip,
+            ttl=3600,
+        )
+        if isinstance(dns_result, dict) and "error" in dns_result:
+            steps["dns"] = {"success": False, "error": dns_result["error"]}
+            return jsonify({"success": False, "error": f"DNS failed: {dns_result['error']}", "steps": steps}), 500
+        steps["dns"] = {"success": True, "record": f"{subdomain} A {public_ip}"}
+    except Exception as e:
+        steps["dns"] = {"success": False, "error": str(e)}
+        return jsonify({"success": False, "error": f"DNS failed: {e}", "steps": steps}), 500
+
+    # Step 3: Create NPM proxy host (with SSL)
+    try:
+        proxy_result = npm_service.create_proxy_host(
+            domain=full_domain,
+            forward_host=forward_host,
+            forward_port=int(forward_port),
+            ssl=True,
+        )
+        if isinstance(proxy_result, dict) and "error" in proxy_result:
+            steps["proxy"] = {"success": False, "error": proxy_result["error"]}
+            return jsonify({"success": False, "error": f"Proxy failed: {proxy_result['error']}", "steps": steps}), 500
+        steps["proxy"] = {"success": True, "proxy_host_id": proxy_result.get("id")}
+        steps["ssl"] = {"success": True}
+    except Exception as e:
+        steps["proxy"] = {"success": False, "error": str(e)}
+        return jsonify({"success": False, "error": f"Proxy failed: {e}", "steps": steps}), 500
+
+    return jsonify(
+        {
+            "success": True,
+            "message": f"Subdomain {full_domain} created successfully",
+            "domain": full_domain,
+            "steps": steps,
+        }
+    )

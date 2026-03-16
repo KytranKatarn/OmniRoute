@@ -1,9 +1,15 @@
 """
-Mission Manager — Profile loading, activation, scheduling, and event triggers.
-Project #146: Station Operations / Task #953
+Mission Manager — Profile loading, activation, scheduling, event triggers,
+and event-driven flow routing (conditional branching for mission profiles).
+
+Project #146: Station Operations / Task #953, #957
 
 Manages 6 mission profiles that dynamically reconfigure Bridge dispatcher
 routing, station priorities, agent warmup, and IAAE welfare thresholds.
+
+Flow Router (Task #957): Inspired by CrewAI Flows. Predefined workflow
+flows allow the completion of one job to automatically trigger the next
+job in a chain, with conditional branching based on job results.
 
 Profiles: standard_operations, security_audit, feature_sprint,
           content_push, maintenance, emergency_response
@@ -480,3 +486,299 @@ class MissionManager:
         """Return active profile's loop_job_config."""
         profile = self.get_active_profile()
         return profile.get("loop_job_config", {}) or {}
+
+    # ------------------------------------------------------------------
+    # Flow Router — Event-driven conditional branching (Task #957)
+    # ------------------------------------------------------------------
+
+    def start_flow(
+        self, flow_name: str, initial_data: Optional[Dict] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Start a workflow flow, creating the first job.
+
+        Args:
+            flow_name: Key in WORKFLOW_FLOWS.
+            initial_data: Arbitrary data passed through the flow steps.
+
+        Returns:
+            Dict with flow_name, job_id, step, total on success; None if
+            flow_name is unknown or job creation fails.
+        """
+        flow = WORKFLOW_FLOWS.get(flow_name)
+        if not flow:
+            logger.warning(f"Unknown flow: {flow_name}")
+            return None
+
+        first_step = flow["steps"][0]
+        metadata = {
+            "flow_name": flow_name,
+            "flow_step": 0,
+            "flow_total": len(flow["steps"]),
+            "flow_data": initial_data or {},
+        }
+
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        job_id = dispatcher.create_job(
+            job_type=first_step["job_type"],
+            module_source="flow_engine",
+            description=f"Flow: {flow['name']} - Step 1/{len(flow['steps'])}",
+            total_steps=1,
+            metadata=metadata,
+        )
+
+        if not job_id:
+            logger.error(f"Failed to create first job for flow {flow_name}")
+            return None
+
+        logger.info(
+            f"Flow started: {flow['name']} (job {job_id}, "
+            f"step 1/{len(flow['steps'])})"
+        )
+        return {
+            "flow_name": flow_name,
+            "job_id": job_id,
+            "step": 1,
+            "total": len(flow["steps"]),
+        }
+
+    def advance_flow(
+        self, job_id: int, job_result: Optional[Dict] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Called when a flow job completes — advance to next step or end.
+
+        Reads flow metadata from the completed job, evaluates any
+        conditional gate, and creates the next job if appropriate.
+
+        Args:
+            job_id: The bridge_jobs.id that just completed.
+            job_result: Result data from the completed job (used for
+                        conditional evaluation).
+
+        Returns:
+            Dict with status ('completed', 'skipped', 'advanced') and
+            details, or None if the job has no flow metadata.
+        """
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    "SELECT metadata FROM bridge_jobs WHERE id = %s",
+                    (job_id,),
+                )
+                row = cur.fetchone()
+        except Exception as e:
+            logger.error(f"Failed to read flow metadata for job {job_id}: {e}")
+            return None
+
+        if not row or not row.get("metadata"):
+            return None
+
+        meta = row["metadata"]
+        if isinstance(meta, str):
+            import json
+
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                return None
+
+        flow_name = meta.get("flow_name")
+        step_idx = meta.get("flow_step", 0)
+
+        if not flow_name:
+            return None
+
+        flow = WORKFLOW_FLOWS.get(flow_name)
+        if not flow:
+            logger.warning(f"Flow {flow_name} not found in WORKFLOW_FLOWS")
+            return None
+
+        current_step = flow["steps"][step_idx]
+        next_idx = step_idx + 1
+
+        # Check if flow is complete
+        if current_step.get("on_complete") == "end" or next_idx >= len(
+            flow["steps"]
+        ):
+            logger.info(f"Flow completed: {flow['name']} at step {step_idx + 1}")
+            return {"status": "completed", "flow_name": flow_name}
+
+        # Check conditional gate
+        if current_step.get("on_complete") == "conditional":
+            condition = current_step.get("condition", {})
+            if not self._evaluate_flow_condition(condition, job_result):
+                reason = (
+                    f"{condition.get('field')} {condition.get('operator')} "
+                    f"{condition.get('value')}"
+                )
+                logger.info(
+                    f"Flow skipped: {flow['name']} — condition not met ({reason})"
+                )
+                return {
+                    "status": "skipped",
+                    "flow_name": flow_name,
+                    "reason": f"Condition not met: {reason}",
+                }
+
+        # Create next job
+        next_step = flow["steps"][next_idx]
+        next_meta = {
+            "flow_name": flow_name,
+            "flow_step": next_idx,
+            "flow_total": len(flow["steps"]),
+            "flow_data": meta.get("flow_data", {}),
+        }
+
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        next_job_id = dispatcher.create_job(
+            job_type=next_step["job_type"],
+            module_source="flow_engine",
+            description=(
+                f"Flow: {flow['name']} - "
+                f"Step {next_idx + 1}/{len(flow['steps'])}"
+            ),
+            total_steps=1,
+            metadata=next_meta,
+        )
+
+        if not next_job_id:
+            logger.error(
+                f"Failed to create next job for flow {flow_name} step {next_idx + 1}"
+            )
+            return {
+                "status": "error",
+                "flow_name": flow_name,
+                "error": "Failed to create next job",
+            }
+
+        logger.info(
+            f"Flow advanced: {flow['name']} → step {next_idx + 1}/"
+            f"{len(flow['steps'])} (job {next_job_id})"
+        )
+        return {
+            "status": "advanced",
+            "flow_name": flow_name,
+            "next_job_id": next_job_id,
+            "step": next_idx + 1,
+            "total": len(flow["steps"]),
+        }
+
+    @staticmethod
+    def _evaluate_flow_condition(
+        condition: Dict[str, Any], job_result: Optional[Dict]
+    ) -> bool:
+        """
+        Evaluate a conditional gate for flow routing.
+
+        Supported operators: gt, gte, lt, lte, eq, ne.
+        """
+        if not condition:
+            return True
+
+        field = condition.get("field")
+        operator = condition.get("operator")
+        value = condition.get("value")
+
+        if not field or not operator:
+            return True
+
+        result_value = (job_result or {}).get(field, 0)
+
+        if operator == "gt":
+            return result_value > value
+        elif operator == "gte":
+            return result_value >= value
+        elif operator == "lt":
+            return result_value < value
+        elif operator == "lte":
+            return result_value <= value
+        elif operator == "eq":
+            return result_value == value
+        elif operator == "ne":
+            return result_value != value
+
+        logger.warning(f"Unknown flow condition operator: {operator}")
+        return False
+
+    def get_available_flows(self) -> Dict[str, Any]:
+        """Return all predefined workflow flows."""
+        return WORKFLOW_FLOWS
+
+
+# ======================================================================
+# Predefined Workflow Flows (Task #957)
+# ======================================================================
+# Each flow is a sequence of steps routed through stations.
+# on_complete: "next" (always advance), "conditional" (check gate), "end"
+
+WORKFLOW_FLOWS: Dict[str, Any] = {
+    "security_scan_flow": {
+        "name": "Security Scan Flow",
+        "description": "Scan for vulnerabilities, analyse threats, then review code.",
+        "steps": [
+            {
+                "job_type": "vulnerability_scan",
+                "station": "SECURITY",
+                "on_complete": "next",
+            },
+            {
+                "job_type": "threat_analysis",
+                "station": "SECURITY",
+                "on_complete": "conditional",
+                "condition": {
+                    "field": "findings_count",
+                    "operator": "gt",
+                    "value": 0,
+                },
+            },
+            {
+                "job_type": "code_review",
+                "station": "ENGINEERING",
+                "on_complete": "end",
+            },
+        ],
+    },
+    "content_pipeline": {
+        "name": "Content Pipeline",
+        "description": "Write content then send for engineering review.",
+        "steps": [
+            {
+                "job_type": "content_writing",
+                "station": "CREATIVE",
+                "on_complete": "next",
+            },
+            {
+                "job_type": "code_review",
+                "station": "ENGINEERING",
+                "on_complete": "end",
+            },
+        ],
+    },
+    "incident_response": {
+        "name": "Incident Response",
+        "description": "Analyse threat, respond to incident, produce DNS report.",
+        "steps": [
+            {
+                "job_type": "threat_analysis",
+                "station": "SECURITY",
+                "on_complete": "next",
+            },
+            {
+                "job_type": "incident_response",
+                "station": "SECURITY",
+                "on_complete": "next",
+            },
+            {
+                "job_type": "dns_report",
+                "station": "SECURITY",
+                "on_complete": "end",
+            },
+        ],
+    },
+}

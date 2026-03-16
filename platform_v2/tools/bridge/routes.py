@@ -10354,6 +10354,93 @@ def api_mission_schedule_delete(schedule_id):
 
 
 # ============================================================================
+# FLOW ROUTER API ROUTES (Task #957)
+# ============================================================================
+
+
+@bridge_bp.route("/api/flows")
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def api_list_flows():
+    """List available workflow flows."""
+    try:
+        from ai_bridge.mission_manager import WORKFLOW_FLOWS
+
+        flows = []
+        for key, flow in WORKFLOW_FLOWS.items():
+            flows.append(
+                {
+                    "key": key,
+                    "name": flow["name"],
+                    "description": flow.get("description", ""),
+                    "steps": len(flow["steps"]),
+                    "stations": list(dict.fromkeys(s["station"] for s in flow["steps"])),
+                }
+            )
+        return jsonify({"success": True, "flows": flows})
+    except Exception as e:
+        logger.exception("Failed to list flows")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/flows/<flow_name>/start", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def api_start_flow(flow_name):
+    """Start a workflow flow."""
+    try:
+        from ai_bridge.mission_manager import MissionManager
+
+        data = request.get_json(silent=True) or {}
+        initial_data = data.get("initial_data", {})
+
+        mgr = MissionManager()
+        result = mgr.start_flow(flow_name, initial_data=initial_data)
+
+        if result is None:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Unknown flow or job creation failed: {flow_name}",
+                    }
+                ),
+                400,
+            )
+
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.exception("Failed to start flow")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/flows/advance/<int:job_id>", methods=["POST"])
+@login_required
+@require_permission(Permission.ADMIN_ACCESS)
+def api_advance_flow(job_id):
+    """Advance a workflow flow after a job completes."""
+    try:
+        from ai_bridge.mission_manager import MissionManager
+
+        data = request.get_json(silent=True) or {}
+        job_result = data.get("job_result", {})
+
+        mgr = MissionManager()
+        result = mgr.advance_flow(job_id, job_result=job_result)
+
+        if result is None:
+            return (
+                jsonify({"success": False, "error": "Job has no flow metadata"}),
+                404,
+            )
+
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.exception("Failed to advance flow")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # MESH CLUSTER API ROUTES
 # ============================================================================
 try:

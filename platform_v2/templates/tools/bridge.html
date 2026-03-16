@@ -10321,9 +10321,10 @@ const STATION_COLORS = {
     'SUPPORT': '#F43F5E'
 };
 
-// ── Isometric zone grouping (10 active stations → 10 zones) ──
+// ── Isometric zone grouping (11 active stations → 11 zones) ──
 const ISOMETRIC_ZONE_MAP = {
     'COMMAND':       { stations: ['COMMAND'],             color: '#FFD700', label: 'Command',       abbr: 'CMD' },
+    'SECURITY':      { stations: ['SECURITY'],            color: '#EF4444', label: 'Security',      abbr: 'SEC' },
     'CREATIVE':      { stations: ['CREATIVE'],            color: '#FF69B4', label: 'Creative',      abbr: 'CRE' },
     'ENGINEERING':   { stations: ['ENGINEERING'],         color: '#32CD32', label: 'Engineering',   abbr: 'ENG' },
     'OPERATIONS':    { stations: ['OPERATIONS'],          color: '#FF8C00', label: 'Operations',    abbr: 'OPS' },
@@ -10332,8 +10333,7 @@ const ISOMETRIC_ZONE_MAP = {
     'DOCUMENTATION': { stations: ['DOCUMENTATION'],       color: '#8B5CF6', label: 'Documentation', abbr: 'DOC' },
     'RND_AI':        { stations: ['RND_AI'],              color: '#06B6D4', label: 'R&D - AI',      abbr: 'R&D' },
     'SUPPORT':       { stations: ['SUPPORT'],             color: '#F43F5E', label: 'Support',       abbr: 'SUP' },
-    'QA':            { stations: ['QA'],                  color: '#10B981', label: 'QA',            abbr: 'QA'  },
-    'SECURITY':      { stations: ['SECURITY'],            color: '#EF4444', label: 'Security',      abbr: 'SEC' }
+    'QA':            { stations: ['QA'],                  color: '#10B981', label: 'QA',            abbr: 'QA'  }
 };
 
 // Reverse lookup: station code → zone name

@@ -1257,6 +1257,19 @@ class BridgeDispatcher:
 
         return (round(composite, 4), None)
 
+    def _resolve_station(self, capability: str) -> str:
+        """Resolve station for capability, checking mission profile overrides first."""
+        try:
+            from ai_bridge.mission_manager import MissionManager
+
+            mm = MissionManager()
+            overrides = mm.get_routing_overrides()
+            if overrides and capability in overrides:
+                return overrides[capability]
+        except Exception:
+            pass
+        return CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+
     def _resolve_module_station(self, module_id: str) -> Optional[str]:
         """Look up the home station for a module from bridge_stations.modules."""
         now = time.time()
@@ -3064,8 +3077,8 @@ class BridgeDispatcher:
         except Exception as busy_err:
             logger.debug(f"[BridgeDispatcher] Busy agents refresh failed: {busy_err}")
 
-        # 1. Map capability → station (home-first strategy)
-        capability_station = CAPABILITY_STATION_MAP.get(capability, "COMMAND")
+        # 1. Map capability → station (home-first, mission-profile-aware)
+        capability_station = self._resolve_station(capability)
         home_station = self._resolve_module_station(module_id)
 
         agent = None
@@ -4169,7 +4182,7 @@ class BridgeDispatcher:
 
             # Resolve agent name from capability→station→agent mapping (home-first)
             cap_key = capability or job_type.split("_")[0]
-            capability_station = CAPABILITY_STATION_MAP.get(cap_key, "COMMAND")
+            capability_station = self._resolve_station(cap_key)
             home_station = self._resolve_module_station(module_source)
 
             agent = None

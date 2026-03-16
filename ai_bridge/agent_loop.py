@@ -555,9 +555,16 @@ class AgentLoop:
             name="Agent Loop: Auto-Block Pipeline",
             replace_existing=True,
         )
+        self.scheduler.add_job(
+            with_app_context(self._check_mission_schedule),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_mission_schedule",
+            name="Agent Loop: Mission Profile Schedule",
+            replace_existing=True,
+        )
 
         self._running = True
-        logger.info("Agent loop started with 38 jobs")
+        logger.info("Agent loop started with 39 jobs")
 
     def _update_stock_prices(self):
         """Job #27: Refresh cached stock prices, check price alerts, and auto-scan watchlist every 5 minutes."""
@@ -3594,6 +3601,16 @@ class AgentLoop:
 
         except Exception as e:
             logger.debug(f"SSH login monitor failed: {e}")
+
+    def _check_mission_schedule(self):
+        """Check and apply scheduled mission profile changes (every 5 min)."""
+        try:
+            from ai_bridge.mission_manager import MissionManager
+
+            mm = MissionManager()
+            mm.check_schedule()
+        except Exception as e:
+            logger.debug(f"Mission schedule check failed: {e}")
 
     def _run_security_audit(self):
         """Weekly security configuration audit — verify nothing has drifted."""

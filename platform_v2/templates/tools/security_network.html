@@ -1700,7 +1700,7 @@
                 </div>
                 <div class="bm-actions">
                     <button type="button" class="btn-cancel" onclick="closeBlockDomainModal()">Cancel</button>
-                    <button type="button" class="btn-submit" style="background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.5);color:#ef4444;" id="block-domain-submit" onclick="submitBlockDomain()">Block Domain</button>
+                    <button type="button" class="btn-submit" style="background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.5);color:#ef4444;" id="block-domain-submit">Block Domain</button>
                 </div>
                 <div class="bm-footer">
                     <div class="bm-footer-strip">
@@ -2235,8 +2235,16 @@ function submitBlockDomain() {
     });
 }
 
-// Enter key submits block domain modal
+// Block domain modal — button click + Enter key
 document.addEventListener('DOMContentLoaded', function() {
+    var blockBtn = document.getElementById('block-domain-submit');
+    if (blockBtn) {
+        blockBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            submitBlockDomain();
+        });
+    }
     var blockInput = document.getElementById('block-domain-input');
     if (blockInput) {
         blockInput.addEventListener('keydown', function(e) {

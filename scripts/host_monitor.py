@@ -2731,6 +2731,10 @@ COMMAND_REGISTRY = {
             "action": {"required": True, "regex": r"^(allow|deny)$"},
         },
     },
+    "arp_scan": {
+        "handler": "handle_arp_scan",
+        "params": {},
+    },
 }
 
 
@@ -2794,6 +2798,43 @@ def validate_command(cmd_data):
 # ============================================================================
 # COMMAND HANDLERS
 # ============================================================================
+
+
+def handle_arp_scan(params):
+    """Return the host ARP table — IP to MAC mappings for LAN devices."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["ip", "neigh", "show"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        entries = []
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            ip = parts[0]
+            # Skip non-LAN IPs
+            if not ip.startswith("192.168.") and not ip.startswith("10."):
+                continue
+            # Find MAC (comes after "lladdr")
+            mac = ""
+            if "lladdr" in parts:
+                mac_idx = parts.index("lladdr") + 1
+                if mac_idx < len(parts):
+                    mac = parts[mac_idx]
+            state = parts[-1] if parts[-1] in ("REACHABLE", "STALE", "DELAY", "PROBE", "FAILED", "INCOMPLETE") else "unknown"
+            if state == "FAILED" or state == "INCOMPLETE":
+                continue
+            entries.append({"ip": ip, "mac": mac, "state": state})
+        return {"success": True, "entries": entries, "count": len(entries)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 def handle_service_control(params):

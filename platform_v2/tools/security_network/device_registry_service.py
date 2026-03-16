@@ -467,7 +467,31 @@ class DeviceRegistryService:
         return new_devices
 
     def _parse_arp_table(self) -> List[Dict]:
-        """Parse `ip neigh show` output into [{ip, mac, state}]."""
+        """Get ARP table from the HOST via host_command_client.
+
+        Falls back to container's own `ip neigh show` if host queue unavailable.
+        """
+        # Try host command queue first (gets real LAN MACs)
+        try:
+            from tools.system_operations.host_command_client import (
+                submit_and_wait,
+                is_queue_available,
+            )
+
+            if is_queue_available():
+                result = submit_and_wait("arp_scan", {}, timeout=15, submitted_by="device_registry")
+                if result and result.get("result", {}).get("success"):
+                    entries = result["result"]["entries"]
+                    # Normalize MAC to uppercase
+                    for e in entries:
+                        if e.get("mac"):
+                            e["mac"] = e["mac"].upper()
+                    logger.debug("Host ARP scan: %d entries", len(entries))
+                    return entries
+        except Exception as e:
+            logger.debug("Host ARP scan failed, falling back to container: %s", e)
+
+        # Fallback: container's own ARP (only sees Docker bridge IPs)
         entries = []
         try:
             result = subprocess.run(
@@ -485,12 +509,10 @@ class DeviceRegistryService:
                 ip = parts[0]
                 mac = ""
                 state = parts[-1] if parts else ""
-                # Find MAC address (format xx:xx:xx:xx:xx:xx)
                 for part in parts:
                     if re.match(r"^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$", part):
                         mac = part.upper()
                         break
-                # Skip FAILED/INCOMPLETE entries (no valid connection)
                 if state in ("FAILED", "INCOMPLETE"):
                     continue
                 entries.append({"ip": ip, "mac": mac, "state": state})

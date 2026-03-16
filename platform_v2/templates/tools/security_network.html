@@ -1226,16 +1226,17 @@
                     <span id="surv-ha-version" style="font-size:0.72rem;color:var(--archie-text-muted)"></span>
                     <span id="surv-cam-count" style="font-size:0.72rem;color:var(--archie-text-muted)"></span>
                 </div>
-                <div style="display:flex;gap:8px">
-                    <button class="btn btn-success btn-sm" onclick="armSystem()">
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button class="btn btn-success btn-sm" id="surv-arm-btn" onclick="armSystem()">
                         <i data-lucide="shield" style="width:12px;height:12px"></i> Arm
                     </button>
-                    <button class="btn btn-danger btn-sm" onclick="disarmSystem()">
+                    <button class="btn btn-danger btn-sm" id="surv-disarm-btn" onclick="disarmSystem()">
                         <i data-lucide="shield-off" style="width:12px;height:12px"></i> Disarm
                     </button>
-                    <button class="btn btn-sm" onclick="loadSurveillance()">
+                    <button class="btn btn-sm" id="surv-refresh-btn" onclick="refreshSurveillance()">
                         <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
                     </button>
+                    <span id="surv-alarm-badge" style="font-size:0.72rem;padding:2px 8px;border-radius:4px;display:none"></span>
                 </div>
             </div>
             <div class="camera-grid" id="camera-grid">
@@ -2662,6 +2663,10 @@ async function loadSurveillance() {
         }
         document.getElementById('surv-not-configured').style.display='none';
         document.getElementById('surv-configured').style.display='block';
+        // Update alarm badge from camera response
+        if (d.alarm && d.alarm.state) {
+            _updateAlarmBadge(d.alarm.state);
+        }
         const grid = document.getElementById('camera-grid');
         grid.textContent='';
         if(d.success && d.cameras && d.cameras.length) {
@@ -2805,18 +2810,54 @@ function closeCameraModal() {
     document.getElementById('camera-modal').classList.remove('active');
 }
 
+function _updateAlarmBadge(state) {
+    var badge = document.getElementById('surv-alarm-badge');
+    if (!badge) return;
+    badge.style.display = 'inline-block';
+    if (state === 'armed_away' || state === 'armed_home') {
+        badge.textContent = 'ARMED';
+        badge.style.cssText = 'font-size:0.72rem;padding:2px 8px;border-radius:4px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);';
+    } else {
+        badge.textContent = 'DISARMED';
+        badge.style.cssText = 'font-size:0.72rem;padding:2px 8px;border-radius:4px;background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);';
+    }
+}
+
 function armSystem() {
-    if(!confirm('Arm all cameras?')) return;
-    fetch(API+'/surveillance/system/arm',{method:'POST'}).then(r=>r.json()).then(d=>{
-        if(d.success) showToast('success','System armed'); else showToast('error',d.error||'Failed');
-    }).catch(e=>showToast('error',e.message));
+    var btn = document.getElementById('surv-arm-btn');
+    if (btn) btn.textContent = 'Arming...';
+    fetch(API+'/surveillance/system/arm',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+        if (btn) btn.innerHTML = '<i data-lucide="shield" style="width:12px;height:12px"></i> Arm';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        if(d.success) {
+            showToast('success','System armed — all cameras active');
+            _updateAlarmBadge('armed_away');
+        } else showToast('error',d.error||'Failed to arm');
+    }).catch(function(e){
+        if (btn) btn.innerHTML = '<i data-lucide="shield" style="width:12px;height:12px"></i> Arm';
+        showToast('error','Error: '+e.message);
+    });
 }
 
 function disarmSystem() {
-    if(!confirm('Disarm all cameras?')) return;
-    fetch(API+'/surveillance/system/disarm',{method:'POST'}).then(r=>r.json()).then(d=>{
-        if(d.success) showToast('success','System disarmed'); else showToast('error',d.error||'Failed');
-    }).catch(e=>showToast('error',e.message));
+    var btn = document.getElementById('surv-disarm-btn');
+    if (btn) btn.textContent = 'Disarming...';
+    fetch(API+'/surveillance/system/disarm',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+        if (btn) btn.innerHTML = '<i data-lucide="shield-off" style="width:12px;height:12px"></i> Disarm';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        if(d.success) {
+            showToast('success','System disarmed');
+            _updateAlarmBadge('disarmed');
+        } else showToast('error',d.error||'Failed to disarm');
+    }).catch(function(e){
+        if (btn) btn.innerHTML = '<i data-lucide="shield-off" style="width:12px;height:12px"></i> Disarm';
+        showToast('error','Error: '+e.message);
+    });
+}
+
+function refreshSurveillance() {
+    showToast('success','Refreshing cameras...');
+    loadSurveillance();
 }
 
 /* ========== Reconnaissance ========== */

@@ -956,7 +956,7 @@
             <div class="stn-ops-body">
                 <div id="secOpsAgents"></div>
                 <div id="secOpsJobs"></div>
-                <div id="secOpsActions"></div>
+                <div id="secOpsCommands"></div>
             </div>
         </div>
 
@@ -3898,12 +3898,19 @@ function initSecurityStation() {
         moduleSource: 'security_network',
         agentsElId: 'secOpsAgents',
         jobsElId: 'secOpsJobs',
-        actionsElId: 'secOpsActions',
-        statusElId: 'secOpsOnline'
+        commandsElId: 'secOpsCommands',
+        statusElId: 'secOpsOnline',
+        commands: [
+            { label: 'NMAP SCAN', cls: 'red', fn: "switchToTab('recon')", id: 'secCmdNmap' },
+            { label: 'SSL CHECK', cls: 'green', fn: "switchToTab('scanning')", id: 'secCmdSsl' },
+            { label: 'DEVICE AUDIT', cls: 'cyan', fn: "loadDeviceClients()", id: 'secCmdDevices' },
+            { label: 'DNS REPORT', cls: 'blue', fn: "switchToTab('dns')", id: 'secCmdDns' }
+        ]
     });
-    _secOps.renderAgents();
-    _secOps.renderJobs();
-    _secOps.renderActionPanel();
+    _secOps.checkJobs().then(function(result) {
+        _secOps.renderAgents(result && result.myJobs ? result.myJobs : null);
+        _secOps.renderJobs(result && result.myJobs ? result.myJobs : null);
+    });
 }
 
 /* ========== Device Registry ========== */

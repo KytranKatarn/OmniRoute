@@ -1416,13 +1416,47 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
             <div class="card">
                 <div class="card-header">
-                    <span class="card-title"><span data-i18n="security_network.firewall_status">Firewall Status</span></span>
-                    <button class="btn btn-sm" onclick="loadFirewall()">
-                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
-                    </button>
+                    <span class="card-title">UFW Firewall</span>
+                    <div style="display:flex;gap:6px">
+                        <button class="btn btn-success btn-sm" onclick="toggleFirewall(true)">Enable</button>
+                        <button class="btn btn-danger btn-sm" onclick="toggleFirewall(false)">Disable</button>
+                        <button class="btn btn-sm" onclick="loadFirewall()">
+                            <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="firewall-panel">
-                    <div class="loading-state"><span class="spinner"></span><span data-i18n="security_network.loading_2"> Loading...</span></div>
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+                <div style="margin-top:12px">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
+                        <div>
+                            <label style="font-size:0.72rem;color:#ccc">Port</label>
+                            <input type="number" class="form-input" id="fw-port" placeholder="443" style="width:80px">
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem;color:#ccc">Protocol</label>
+                            <select class="form-input" id="fw-proto" style="width:80px">
+                                <option value="tcp">TCP</option>
+                                <option value="udp">UDP</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem;color:#ccc">Action</label>
+                            <select class="form-input" id="fw-action" style="width:90px">
+                                <option value="allow">Allow</option>
+                                <option value="deny">Deny</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:0.72rem;color:#ccc">From (optional)</label>
+                            <input type="text" class="form-input" id="fw-from" placeholder="192.168.1.0/24" style="width:150px">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="addFirewallRule()">Add Rule</button>
+                    </div>
+                </div>
+                <div id="firewall-rules">
+                    <div class="loading-state"><span class="spinner"></span> Loading rules...</div>
                 </div>
             </div>
             <div class="card">
@@ -3111,34 +3145,97 @@ function refreshSSLMonitors() {
 }
 
 /* ========== Access Control ========== */
+var SYSOPS_API = '/tools/system-operations/api';
+
 async function loadFirewall() {
-    const panel = document.getElementById('firewall-panel');
+    var panel = document.getElementById('firewall-panel');
+    var rulesDiv = document.getElementById('firewall-rules');
     try {
-        const r = await fetch(API+'/firewall/status');
-        const d = await r.json();
-        if(d.success && d.firewall) {
-            const fw = d.firewall;
+        var r = await fetch(SYSOPS_API+'/firewall/status');
+        var d = await r.json();
+        if(d.success) {
+            var fw = d.firewall || d;
             panel.textContent='';
-            const wrap = document.createElement('div');
+            var wrap = document.createElement('div');
             wrap.style.cssText='display:flex;gap:16px;flex-wrap:wrap';
-            [
+            var items = [
                 {label:'STATUS', badge:fw.active?'Active':'Inactive', type:fw.active?'success':'danger'},
-                {label:'RULES', text:String(fw.rules_count||0)},
-                {label:'DEFAULT', text:fw.default_policy||'-'}
-            ].forEach(item=>{
-                const d = document.createElement('div');
-                const lbl = document.createElement('span');
+                {label:'RULES', text:String(fw.rules_count||fw.rule_count||0)},
+                {label:'DEFAULT', text:fw.default_policy||fw.default_incoming||'-'}
+            ];
+            items.forEach(function(item){
+                var cell = document.createElement('div');
+                var lbl = document.createElement('span');
                 lbl.style.cssText='font-size:0.72rem;color:var(--archie-text-muted)';
                 lbl.textContent = item.label;
-                d.appendChild(lbl);
-                d.appendChild(document.createElement('br'));
-                if(item.badge){d.appendChild(createBadge(item.badge,item.type));}
-                else{const v=document.createElement('span');v.style.cssText='font-family:var(--archie-font-mono);color:var(--archie-text-primary)';v.textContent=item.text;d.appendChild(v);}
-                wrap.appendChild(d);
+                cell.appendChild(lbl);
+                cell.appendChild(document.createElement('br'));
+                if(item.badge){cell.appendChild(createBadge(item.badge,item.type));}
+                else{var v=document.createElement('span');v.style.cssText='font-family:var(--archie-font-mono);color:var(--archie-text-primary)';v.textContent=item.text;cell.appendChild(v);}
+                wrap.appendChild(cell);
             });
             panel.appendChild(wrap);
         } else { showEmpty(panel,'Firewall status unavailable'); }
     } catch(e) { showEmpty(panel,'Error loading firewall'); }
+
+    // Load rules
+    try {
+        var r2 = await fetch(SYSOPS_API+'/firewall/rules');
+        var d2 = await r2.json();
+        rulesDiv.textContent='';
+        var rules = d2.rules || [];
+        if(rules.length === 0) { showEmpty(rulesDiv,'No firewall rules'); return; }
+        var rows = rules.map(function(rule) {
+            var delBtn = document.createElement('button');
+            delBtn.className = 'btn btn-danger btn-sm';
+            delBtn.textContent = 'Delete';
+            delBtn.addEventListener('click', function(){ deleteFirewallRule(rule.number || rule.id); });
+            return [
+                rule.number || rule.id || '-',
+                createBadge(rule.action || 'allow', (rule.action||'allow')==='allow'?'success':'danger'),
+                rule.to || rule.port || '-',
+                rule.from || 'Anywhere',
+                rule.protocol || '-',
+                rule.comment || '-',
+                delBtn
+            ];
+        });
+        rulesDiv.appendChild(buildTable(['#','Action','Port','From','Proto','Comment',''], rows));
+    } catch(e) { showEmpty(rulesDiv,'Error loading rules'); }
+}
+
+function toggleFirewall(enable) {
+    var endpoint = enable ? '/firewall/enable' : '/firewall/disable';
+    showToast('success', enable ? 'Enabling firewall...' : 'Disabling firewall...');
+    fetch(SYSOPS_API+endpoint,{method:'POST',headers:{'Content-Type':'application/json'}})
+    .then(function(r){return r.json();}).then(function(d){
+        if(d.success) { showToast('success','Firewall '+(enable?'enabled':'disabled')); loadFirewall(); }
+        else showToast('error',d.error||'Failed');
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+function addFirewallRule() {
+    var port = document.getElementById('fw-port').value.trim();
+    var proto = document.getElementById('fw-proto').value;
+    var action = document.getElementById('fw-action').value;
+    var from = document.getElementById('fw-from').value.trim();
+    if(!port) return showToast('error','Port is required');
+    var body = {port:parseInt(port), protocol:proto, action:action};
+    if(from) body.from = from;
+    fetch(SYSOPS_API+'/firewall/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(function(r){return r.json();}).then(function(d){
+        if(d.success) { showToast('success','Rule added'); document.getElementById('fw-port').value=''; document.getElementById('fw-from').value=''; loadFirewall(); }
+        else showToast('error',d.error||'Failed');
+    }).catch(function(e){showToast('error',e.message);});
+}
+
+function deleteFirewallRule(ruleNumber) {
+    if(!confirm('Delete firewall rule #'+ruleNumber+'?')) return;
+    fetch(SYSOPS_API+'/firewall/delete',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({rule_number:ruleNumber})})
+    .then(function(r){return r.json();}).then(function(d){
+        if(d.success) { showToast('success','Rule deleted'); loadFirewall(); }
+        else showToast('error',d.error||'Failed');
+    }).catch(function(e){showToast('error',e.message);});
 }
 
 async function loadAutoBlockSettings() {

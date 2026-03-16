@@ -108,6 +108,7 @@ try:
                 "icon": "terminal",
                 "color_class": "amber",
                 "sort_order": 60,
+                "endpoint_path": "/tools/security-network/api/security/alert-config",
                 "creates_job": True,
                 "job_type": "ssh_audit",
             },

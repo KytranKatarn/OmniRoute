@@ -1898,7 +1898,10 @@ def api_dns_adguard_rules_get():
         if result is None:
             return jsonify({"success": False, "error": "Could not fetch rules"}), 503
         # JS expects d.rules as a string (newline-separated)
-        rules_text = "\n".join(result) if isinstance(result, list) else (result or "")
+        rules_list = (
+            result.get("rules", []) if isinstance(result, dict) else (result if isinstance(result, list) else [])
+        )
+        rules_text = "\n".join(rules_list)
         return jsonify({"success": True, "rules": rules_text})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

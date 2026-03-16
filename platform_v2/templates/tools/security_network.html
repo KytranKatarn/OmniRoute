@@ -2215,8 +2215,15 @@ function submitBlockDomain() {
     }).then(function(r){return r.json();}).then(function(d){
         if (btn) btn.textContent = 'Block Domain';
         if(d.success) {
-            showToast('success',domain+' blocked');
+            showToast('success',domain+' blocked — added to Rules');
             closeBlockDomainModal();
+            // Switch to AdGuard DNS tab → Rules subtab to show the result
+            var dnsBtn = document.querySelector('.tab-btn[data-tab="dns"]');
+            if (dnsBtn) dnsBtn.click();
+            setTimeout(function() {
+                var rulesBtn = document.querySelector('.subtab-btn[data-subtab="dns-rules"]');
+                if (rulesBtn) rulesBtn.click();
+            }, 200);
         } else showToast('error',d.error||'Failed');
     }).catch(function(e){
         if (btn) btn.textContent = 'Block Domain';

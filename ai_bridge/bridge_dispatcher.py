@@ -4625,7 +4625,8 @@ class BridgeDispatcher:
                           completed_steps, failed_steps, total_steps,
                           job_type,
                           (EXTRACT(EPOCH FROM (NOW() - created_at)) * 1000)::int,
-                          station_code
+                          station_code,
+                          metadata
                 """,
                 (status, job_id),
             )
@@ -4634,6 +4635,37 @@ class BridgeDispatcher:
             cur.close()
             conn.close()
             logger.info(f"[BridgeDispatcher] Job #{job_id} → {status}")
+
+            # ── Schema validation: soft-validate output if schema specified ──
+            if row and row[9]:
+                try:
+                    job_meta = (
+                        row[9]
+                        if isinstance(row[9], dict)
+                        else json.loads(row[9])
+                    )
+                    output_schema = job_meta.get("output_schema")
+                    output_data = job_meta.get("output_data")
+                    if output_schema and output_data:
+                        is_valid, schema_errors = _validate_handoff_schema(
+                            output_data, output_schema
+                        )
+                        if not is_valid:
+                            logger.warning(
+                                f"[BridgeDispatcher] Job #{job_id} output schema "
+                                f"'{output_schema}' validation failed: "
+                                f"{schema_errors}"
+                            )
+                        else:
+                            logger.debug(
+                                f"[BridgeDispatcher] Job #{job_id} output "
+                                f"validated against '{output_schema}'"
+                            )
+                except Exception as schema_err:
+                    logger.debug(
+                        f"[BridgeDispatcher] Job #{job_id} output schema "
+                        f"check skipped: {schema_err}"
+                    )
 
             # ── IAAE governance: log job completion for Vigil overwatch ──
             if row:

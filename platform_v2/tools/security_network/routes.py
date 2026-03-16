@@ -1711,7 +1711,14 @@ def api_dns_adguard_filters_get():
         result = adguard_service.get_filtering_status()
         if result is None:
             return jsonify({"success": False, "error": "Could not fetch filters"}), 503
-        return jsonify({"success": True, "data": result})
+        return jsonify(
+            {
+                "success": True,
+                "filters": result.get("filters", []),
+                "user_rules": result.get("user_rules", []),
+                "enabled": result.get("enabled", False),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1889,7 +1896,9 @@ def api_dns_adguard_rules_get():
         result = adguard_service.get_user_rules()
         if result is None:
             return jsonify({"success": False, "error": "Could not fetch rules"}), 503
-        return jsonify({"success": True, "data": result})
+        # JS expects d.rules as a string (newline-separated)
+        rules_text = "\n".join(result) if isinstance(result, list) else (result or "")
+        return jsonify({"success": True, "rules": rules_text})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

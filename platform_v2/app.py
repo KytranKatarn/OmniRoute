@@ -3203,6 +3203,16 @@ def blocked_page():
     return render_template("block_page.html", domain=domain)
 
 
+@app.route("/competitors")
+def competitors_page():
+    """Public page comparing ARCHIE against 25+ AI agent frameworks."""
+    from datetime import datetime
+
+    now = datetime.utcnow()
+    stardate = f"{now.year}.{now.strftime('%j')}"
+    return render_template("competitors.html", stardate=stardate)
+
+
 @app.errorhandler(404)
 def not_found(e):
     """Handle 404 errors — also catches blocked domain requests from AdGuard DNS."""

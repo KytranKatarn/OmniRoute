@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A.R.C.H.I.E. vs The Competition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@300;400;500;600&family=Antonio:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --lcars-orange: #FF9C00;
+            --lcars-purple: #CC99FF;
+            --lcars-blue: #99CCFF;
+            --lcars-beige: #F4E4C1;
+            --lcars-cyan: #00d4ff;
+            --lcars-green: #00ff65;
+            --lcars-red: #ff4444;
+            --lcars-dim: #555;
+            --bg-primary: #111217;
+            --bg-card: #1a1b23;
+            --bg-card-hover: #22232e;
+            --border-color: #2a2b36;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: #e0e0e0;
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ── LCARS Frame ─────────────────────────────── */
+        .lcars-frame {
+            min-height: 100vh;
+            padding: 0;
+        }
+        .lcars-header {
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+            padding: 0;
+            margin-bottom: 2rem;
+        }
+        .lcars-elbow {
+            width: 120px;
+            min-height: 80px;
+            background: var(--lcars-orange);
+            border-radius: 0 0 0 40px;
+            flex-shrink: 0;
+        }
+        .lcars-bar {
+            flex: 1;
+            background: var(--lcars-orange);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding: 0 2rem;
+            min-height: 80px;
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 30px 100%);
+        }
+        .lcars-bar-label {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.1rem;
+            color: var(--bg-primary);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 600;
+        }
+        .lcars-sidebar {
+            width: 120px;
+            position: fixed;
+            left: 0;
+            top: 80px;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding-top: 1rem;
+            z-index: 10;
+        }
+        .lcars-pill {
+            width: 100px;
+            height: 32px;
+            border-radius: 0 16px 16px 0;
+            margin-left: 0;
+        }
+        .lcars-pill.orange { background: var(--lcars-orange); }
+        .lcars-pill.purple { background: var(--lcars-purple); }
+        .lcars-pill.blue { background: var(--lcars-blue); }
+        .lcars-pill.beige { background: var(--lcars-beige); }
+        .lcars-pill.cyan { background: var(--lcars-cyan); }
+        .lcars-pill-spacer { flex: 1; }
+        .lcars-pill-end {
+            width: 100px;
+            height: 60px;
+            background: var(--lcars-purple);
+            border-radius: 0 30px 0 0;
+        }
+
+        .content-area {
+            margin-left: 140px;
+            padding: 0 2rem 4rem 1rem;
+            max-width: 1400px;
+        }
+
+        /* ── Hero ─────────────────────────────────────── */
+        .hero {
+            text-align: center;
+            padding: 3rem 1rem 2rem;
+        }
+        .hero h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1.8rem, 4vw, 3.2rem);
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--lcars-orange), var(--lcars-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+        .hero .subtitle {
+            font-family: 'Antonio', sans-serif;
+            font-size: clamp(1rem, 2vw, 1.4rem);
+            color: var(--lcars-purple);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 2.5rem;
+        }
+
+        /* ── Hero Stats ───────────────────────────────── */
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        .stat-block {
+            text-align: center;
+        }
+        .stat-number {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 900;
+            line-height: 1;
+        }
+        .stat-number.orange { color: var(--lcars-orange); }
+        .stat-number.cyan { color: var(--lcars-cyan); }
+        .stat-label {
+            font-family: 'Antonio', sans-serif;
+            font-size: 0.95rem;
+            color: var(--lcars-beige);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 0.25rem;
+        }
+
+        /* ── Section Headers ──────────────────────────── */
+        .section-header {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+            font-weight: 700;
+            color: var(--lcars-orange);
+            margin: 3rem 0 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--lcars-orange);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .section-header .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--lcars-orange);
+            flex-shrink: 0;
+        }
+
+        /* ── Feature Matrix Table ─────────────────────── */
+        .matrix-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+        }
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .matrix-table thead th {
+            background: #1e1f2a;
+            font-family: 'Antonio', sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 12px 14px;
+            border-bottom: 2px solid var(--lcars-orange);
+            color: var(--lcars-beige);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        .matrix-table thead th:first-child {
+            text-align: left;
+            min-width: 220px;
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background: #1e1f2a;
+        }
+        .matrix-table thead th.archie-col {
+            color: var(--lcars-cyan);
+            border-bottom-color: var(--lcars-cyan);
+        }
+        .matrix-table tbody td {
+            padding: 10px 14px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .matrix-table tbody td:first-child {
+            text-align: left;
+            font-weight: 500;
+            color: var(--lcars-beige);
+            position: sticky;
+            left: 0;
+            background: var(--bg-card);
+            z-index: 1;
+        }
+        .matrix-table tbody tr:hover td {
+            background: var(--bg-card-hover);
+        }
+        .matrix-table tbody tr:hover td:first-child {
+            background: var(--bg-card-hover);
+        }
+        .check { color: var(--lcars-green); font-size: 1.1rem; }
+        .cross { color: var(--lcars-dim); font-size: 1.1rem; }
+        .archie-check { color: var(--lcars-cyan); font-size: 1.2rem; font-weight: bold; }
+
+        /* ── Category Cards ───────────────────────────── */
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.25rem;
+        }
+        .cat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .cat-card:hover {
+            border-color: var(--lcars-orange);
+            transform: translateY(-2px);
+        }
+        .cat-card h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        .cat-card h3.orch { color: var(--lcars-orange); }
+        .cat-card h3.work { color: var(--lcars-purple); }
+        .cat-card h3.code { color: var(--lcars-cyan); }
+        .cat-card h3.ent { color: var(--lcars-beige); }
+        .cat-card .competitors {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 0.75rem;
+            font-style: italic;
+        }
+        .cat-card p {
+            font-size: 0.85rem;
+            color: #bbb;
+            margin-bottom: 0.75rem;
+        }
+        .cat-card .archie-edge {
+            font-size: 0.8rem;
+            color: var(--lcars-cyan);
+            border-top: 1px solid var(--border-color);
+            padding-top: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        .cat-card .archie-edge strong {
+            color: var(--lcars-orange);
+        }
+
+        /* ── Stack Section ────────────────────────────── */
+        .stack-section {
+            text-align: center;
+            padding: 2rem 0;
+        }
+        .stack-section .intro {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.1rem;
+            color: var(--lcars-purple);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 2rem;
+        }
+        .stack-vs {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+        .stack-archie {
+            background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(255,156,0,0.1));
+            border: 2px solid var(--lcars-cyan);
+            border-radius: 12px;
+            padding: 2rem 2.5rem;
+            text-align: center;
+            min-width: 200px;
+        }
+        .stack-archie .name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--lcars-cyan);
+            margin-bottom: 0.25rem;
+        }
+        .stack-archie .desc {
+            font-size: 0.8rem;
+            color: #999;
+        }
+        .vs-badge {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 900;
+            color: var(--lcars-orange);
+        }
+        .stack-others {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 0.6rem;
+            max-width: 700px;
+        }
+        .stack-tool {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.7rem 0.5rem;
+            text-align: center;
+            font-size: 0.75rem;
+        }
+        .stack-tool .tool-name {
+            font-weight: 600;
+            color: var(--lcars-beige);
+            display: block;
+            margin-bottom: 2px;
+        }
+        .stack-tool .tool-role {
+            color: #777;
+            font-size: 0.7rem;
+        }
+
+        /* ── Footer ───────────────────────────────────── */
+        .comp-footer {
+            text-align: center;
+            padding: 3rem 1rem;
+            margin-top: 3rem;
+            border-top: 2px solid var(--lcars-orange);
+        }
+        .comp-footer .tagline {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            color: var(--lcars-orange);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+        .comp-footer .full-name {
+            font-size: 0.8rem;
+            color: #777;
+            margin-bottom: 1.5rem;
+        }
+        .comp-footer a {
+            display: inline-block;
+            font-family: 'Antonio', sans-serif;
+            font-size: 1rem;
+            color: var(--bg-primary);
+            background: var(--lcars-orange);
+            padding: 0.6rem 2rem;
+            border-radius: 20px;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: background 0.2s;
+        }
+        .comp-footer a:hover {
+            background: var(--lcars-cyan);
+        }
+
+        /* ── Responsive ───────────────────────────────── */
+        @media (max-width: 900px) {
+            .lcars-sidebar { display: none; }
+            .content-area { margin-left: 0; padding: 0 1rem 3rem; }
+            .lcars-elbow { width: 60px; min-height: 50px; border-radius: 0 0 0 20px; }
+            .lcars-bar { min-height: 50px; clip-path: polygon(0 0, 100% 0, 100% 100%, 15px 100%); }
+            .hero-stats { gap: 1.5rem; }
+            .stack-vs { flex-direction: column; }
+        }
+        @media (max-width: 600px) {
+            .category-grid { grid-template-columns: 1fr; }
+            .matrix-table { font-size: 0.75rem; }
+            .matrix-table thead th, .matrix-table tbody td { padding: 8px 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="lcars-frame">
+        <!-- LCARS Top Bar -->
+        <div class="lcars-header">
+            <div class="lcars-elbow"></div>
+            <div class="lcars-bar">
+                <span class="lcars-bar-label">Competitive Analysis &bull; Stardate {{ stardate }}</span>
+            </div>
+        </div>
+
+        <!-- LCARS Sidebar -->
+        <div class="lcars-sidebar">
+            <div class="lcars-pill orange"></div>
+            <div class="lcars-pill purple"></div>
+            <div class="lcars-pill blue"></div>
+            <div class="lcars-pill orange"></div>
+            <div class="lcars-pill beige"></div>
+            <div class="lcars-pill cyan"></div>
+            <div class="lcars-pill purple"></div>
+            <div class="lcars-pill orange"></div>
+            <div class="lcars-pill-spacer"></div>
+            <div class="lcars-pill blue"></div>
+            <div class="lcars-pill purple"></div>
+            <div class="lcars-pill-end"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content-area">
+
+            <!-- HERO -->
+            <section class="hero">
+                <h1>A.R.C.H.I.E. vs The Competition</h1>
+                <p class="subtitle">It takes 7+ tools to match what ARCHIE does in one platform</p>
+                <div class="hero-stats">
+                    <div class="stat-block">
+                        <div class="stat-number orange">25+</div>
+                        <div class="stat-label">Competitors Analyzed</div>
+                    </div>
+                    <div class="stat-block">
+                        <div class="stat-number cyan">12</div>
+                        <div class="stat-label">Unique Features No One Else Has</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FEATURE MATRIX -->
+            <div class="section-header"><span class="dot"></span>Feature Matrix</div>
+            <div class="matrix-wrap">
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th class="archie-col">ARCHIE</th>
+                            <th>CrewAI</th>
+                            <th>AutoGen</th>
+                            <th>LangGraph</th>
+                            <th>MetaGPT</th>
+                            <th>OpenAI Swarm</th>
+                            <th>Claw-Empire</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Multi-agent orchestration</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Station-based dispatch</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>GPU/VRAM-aware routing</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Agent welfare (IAAE ethics)</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Warm-boot model lifecycle</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>5-step escalation chain</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Cross-station assists</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Mission profiles</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Physical security (cameras, DNS, SSH)</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Self-improvement pipeline</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Distributed GPU node fleet</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Durable execution (checkpoints)</td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Structured agent schemas</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Event-driven flow router</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Agents-as-tools delegation</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Telegram human-in-the-loop</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                        <tr>
+                            <td>Visual station map</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="check">&#10003;</span></td>
+                        </tr>
+                        <tr>
+                            <td>39 autonomous loop jobs</td>
+                            <td><span class="archie-check">&#10003;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                            <td><span class="cross">&#10007;</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- CATEGORY COMPARISON -->
+            <div class="section-header"><span class="dot"></span>Category Comparison</div>
+            <div class="category-grid">
+                <div class="cat-card">
+                    <h3 class="orch">Orchestration Frameworks</h3>
+                    <div class="competitors">CrewAI &bull; AutoGen &bull; LangGraph &bull; MetaGPT &bull; OpenAI Agents SDK</div>
+                    <p>Libraries for building multi-agent systems. You write code, define roles, and wire agents together. Great for developers who want full control over agent behavior and workflows.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> These are libraries you build with. ARCHIE is a running system &mdash; GPU-aware routing, warm-boot lifecycle, physical security, and 39 autonomous background jobs out of the box. No assembly required.</div>
+                </div>
+                <div class="cat-card">
+                    <h3 class="work">Workflow Builders</h3>
+                    <div class="competitors">Langflow &bull; n8n &bull; Dify &bull; Flowise</div>
+                    <p>Visual drag-and-drop platforms for connecting LLMs to tools and data sources. Strong for no-code teams and rapid prototyping of AI-powered automations.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> Workflow builders connect things. ARCHIE orchestrates a fleet of 23 autonomous agents with station-based dispatch, VRAM-aware model management, and self-improvement &mdash; capabilities no visual builder offers.</div>
+                </div>
+                <div class="cat-card">
+                    <h3 class="code">Autonomous Coding Agents</h3>
+                    <div class="competitors">Devin &bull; Cursor &bull; Windsurf &bull; Claude Code</div>
+                    <p>AI-powered coding tools that write, edit, and debug code. From full IDEs to terminal agents, they excel at software engineering tasks but focus exclusively on code.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> Coding agents write code. ARCHIE is a multi-domain operations platform &mdash; it manages physical security, monitors network devices, runs background intelligence, and self-evolves its own codebase through an automated pipeline.</div>
+                </div>
+                <div class="cat-card">
+                    <h3 class="ent">Enterprise Platforms</h3>
+                    <div class="competitors">Semantic Kernel &bull; Haystack &bull; Relevance AI &bull; Dust.tt &bull; OpenAI Assistants</div>
+                    <p>Production-grade platforms backed by major vendors. Cloud-first, enterprise-scale, with managed infrastructure and broad integration ecosystems.</p>
+                    <div class="archie-edge"><strong>ARCHIE's edge:</strong> Enterprise platforms are cloud-dependent. ARCHIE runs entirely on local hardware (128GB RAM, Quadro M4000), with agent welfare governance, physical-digital convergence, and zero cloud lock-in.</div>
+                </div>
+            </div>
+
+            <!-- HOW MANY TOOLS TO MATCH -->
+            <div class="section-header"><span class="dot"></span>How Many Tools to Match A.R.C.H.I.E.?</div>
+            <section class="stack-section">
+                <p class="intro">One platform vs. a patchwork of seven</p>
+                <div class="stack-vs">
+                    <div class="stack-archie">
+                        <div class="name">A.R.C.H.I.E.</div>
+                        <div class="desc">One unified platform</div>
+                    </div>
+                    <div class="vs-badge">VS</div>
+                    <div class="stack-others">
+                        <div class="stack-tool">
+                            <span class="tool-name">CrewAI</span>
+                            <span class="tool-role">Agent orchestration</span>
+                        </div>
+                        <div class="stack-tool">
+                            <span class="tool-name">Ollama</span>
+                            <span class="tool-role">Local model serving</span>
+                        </div>
+                        <div class="stack-tool">
+                            <span class="tool-name">n8n</span>
+                            <span class="tool-role">Workflow automation</span>
+                        </div>
+                        <div class="stack-tool">
+                            <span class="tool-name">Frigate NVR</span>
+                            <span class="tool-role">Camera security</span>
+                        </div>
+                        <div class="stack-tool">
+                            <span class="tool-name">AdGuard Home</span>
+                            <span class="tool-role">DNS protection</span>
+                        </div>
+                        <div class="stack-tool">
+                            <span class="tool-name">Grafana</span>
+                            <span class="tool-role">Monitoring &amp; dashboards</span>
+                        </div>
+                        <div class="stack-tool">
+                            <span class="tool-name">Custom Scripts</span>
+                            <span class="tool-role">Glue code &amp; cron jobs</span>
+                        </div>
+                    </div>
+                </div>
+                <p style="color:#777; font-size:0.85rem; max-width:600px; margin:0 auto;">
+                    And you'd still be missing agent welfare, warm-boot lifecycle, station-based dispatch, mission profiles, self-improvement, and Telegram escalation.
+                </p>
+            </section>
+
+            <!-- FOOTER -->
+            <footer class="comp-footer">
+                <div class="tagline">A.R.C.H.I.E.</div>
+                <div class="full-name">Autonomous Resource &amp; Cognitive Hyperintelligence Engine</div>
+                <a href="/">Enter the Platform</a>
+            </footer>
+        </div>
+    </div>
+</body>
+</html>

@@ -152,6 +152,58 @@ class AdGuardService:
             return result is not None
         return True
 
+    # --- Per-client report ---
+    def get_client_report(self, client_ip: str, limit: int = 200) -> Dict:
+        """Get per-client DNS report: query count, blocked count, top domains, top blocked."""
+        querylog = self.get_query_log(limit=limit, search=client_ip)
+        if not querylog or not isinstance(querylog, dict):
+            return {
+                "total": 0,
+                "blocked": 0,
+                "top_domains": [],
+                "top_blocked": [],
+                "recent": [],
+            }
+
+        entries = querylog.get("data", [])
+        total = len(entries)
+        blocked_entries = [e for e in entries if e.get("reason", "") not in ("NotFilteredNotFound", "")]
+        blocked = len(blocked_entries)
+
+        # Count domain frequencies
+        domain_counts: Dict[str, int] = {}
+        blocked_counts: Dict[str, int] = {}
+        for e in entries:
+            domain = e.get("question", {}).get("name", "")
+            if domain:
+                domain_counts[domain] = domain_counts.get(domain, 0) + 1
+                if e.get("reason", "") not in ("NotFilteredNotFound", ""):
+                    blocked_counts[domain] = blocked_counts.get(domain, 0) + 1
+
+        top_domains = sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        top_blocked = sorted(blocked_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
+        recent = []
+        for e in entries[:20]:
+            q = e.get("question", {})
+            recent.append(
+                {
+                    "domain": q.get("name", ""),
+                    "type": q.get("type", ""),
+                    "blocked": e.get("reason", "") not in ("NotFilteredNotFound", ""),
+                    "reason": e.get("reason", ""),
+                    "time": e.get("time", ""),
+                }
+            )
+
+        return {
+            "total": total,
+            "blocked": blocked,
+            "top_domains": [{"domain": d, "count": c} for d, c in top_domains],
+            "top_blocked": [{"domain": d, "count": c} for d, c in top_blocked],
+            "recent": recent,
+        }
+
     # --- Protection ---
     def set_protection(self, enabled: bool) -> Optional[Dict]:
         return self._request("POST", "dns_config", {"protection_enabled": enabled})

@@ -2965,6 +2965,35 @@ def api_devices_sync():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@security_network_bp.route("/api/devices/<int:device_id>/dns-report")
+@login_required
+@admin_required
+def api_device_dns_report(device_id):
+    """Per-device DNS activity report"""
+    if not DEVICE_REGISTRY_AVAILABLE or not device_registry:
+        return jsonify({"success": False, "error": "Device registry not available"}), 503
+    if not ADGUARD_SERVICE_AVAILABLE or not adguard_service:
+        return jsonify({"success": False, "error": "AdGuard service not available"}), 503
+    try:
+        device = device_registry.get_device(device_id)
+        if not device:
+            return jsonify({"success": False, "error": "Device not found"}), 404
+        ip_address = device.get("ip_address", "")
+        if not ip_address:
+            return jsonify({"success": False, "error": "Device has no IP address"}), 400
+        report = adguard_service.get_client_report(ip_address)
+        return jsonify(
+            {
+                "success": True,
+                "device_name": device.get("friendly_name") or device.get("hostname", "Unknown"),
+                "ip_address": ip_address,
+                "report": report,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # SECURITY ALERT CONFIGURATION
 # ============================================================================

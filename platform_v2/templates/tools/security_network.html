@@ -1845,7 +1845,48 @@
                 <div class="bm-actions">
                     <button class="btn-cancel" onclick="closeDeviceModal()">Cancel</button>
                     <button class="btn-submit" onclick="saveDevice()">Save Device</button>
+                    <button class="btn-submit" id="dev-report-btn" onclick="viewDeviceReport(_deviceEditId)" style="margin-left:8px;background:#3b82f6;display:none">DNS Report</button>
                     <button class="btn-danger" onclick="deleteDeviceFromModal()" id="dev-delete-btn" style="margin-left:auto">Delete</button>
+                </div>
+                <div class="bm-footer">
+                    <div class="bm-footer-strip">
+                        <div class="bm-footer-dot cyan"></div>
+                        <div class="bm-footer-dot gold"></div>
+                        <div class="bm-footer-dot green"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== DEVICE DNS REPORT MODAL ==================== -->
+    <div class="bm-overlay" id="device-report-modal" style="--bm-accent:#3b82f6;--bm-accent-rgb:59,130,246;">
+        <div class="bm-shell" style="max-width:700px;">
+            <div class="bm-frame">
+                <div class="bm-frame-elbow-top"></div>
+                <div class="bm-frame-seg"></div>
+                <div class="bm-frame-seg dim"></div>
+                <div class="bm-frame-light on"></div>
+                <div class="bm-frame-light amber"></div>
+                <div class="bm-frame-seg purple"></div>
+                <div class="bm-frame-fill"></div>
+                <div class="bm-frame-elbow-bottom"></div>
+            </div>
+            <div class="bm-content">
+                <div class="bm-header">
+                    <span class="bm-header-title" id="dns-report-title">DNS REPORT</span>
+                    <div class="bm-header-strip">
+                        <div class="bm-header-pip w1"></div>
+                        <div class="bm-header-pip w2"></div>
+                        <div class="bm-header-pip w3"></div>
+                        <button class="bm-close" onclick="closeReportModal()">&times;</button>
+                    </div>
+                </div>
+                <div class="bm-body" id="dns-report-body" style="max-height:70vh;overflow-y:auto;">
+                    <p style="color:var(--archie-text-muted)">Loading report...</p>
+                </div>
+                <div class="bm-actions">
+                    <button class="btn-cancel" onclick="closeReportModal()">Close</button>
                 </div>
                 <div class="bm-footer">
                     <div class="bm-footer-strip">
@@ -3739,6 +3780,7 @@ function openDeviceModal(device) {
     // Show/hide status row and delete button for unregistered devices
     document.getElementById('dev-edit-status-row').style.display = _deviceIsRegistered ? '' : 'none';
     document.getElementById('dev-delete-btn').style.display = _deviceIsRegistered ? '' : 'none';
+    document.getElementById('dev-report-btn').style.display = _deviceIsRegistered ? '' : 'none';
 
     // Set accent color based on zone
     var zone = device ? (device.security_zone || 'guest') : 'guest';
@@ -3822,6 +3864,115 @@ async function syncDevicesToAdguard() {
     } catch(e) {
         showToast('error', 'Error: ' + e.message);
     }
+}
+
+/* ========== DNS Report ========== */
+function closeReportModal() {
+    document.getElementById('device-report-modal').classList.remove('active');
+}
+
+async function viewDeviceReport(deviceId) {
+    if (!deviceId) return showToast('error', 'No device selected');
+    var modal = document.getElementById('device-report-modal');
+    var body = document.getElementById('dns-report-body');
+    var title = document.getElementById('dns-report-title');
+    body.innerHTML = '<p style="color:var(--archie-text-muted)">Loading report...</p>';
+    modal.classList.add('active');
+
+    try {
+        var res = await fetch(API + '/devices/' + deviceId + '/dns-report');
+        var data = await res.json();
+        if (!data.success) {
+            body.innerHTML = '<p style="color:#ef4444">' + (data.error || 'Failed to load report') + '</p>';
+            return;
+        }
+        var r = data.report;
+        title.textContent = 'DNS REPORT — ' + (data.device_name || 'DEVICE').toUpperCase();
+        var blockRate = r.total > 0 ? ((r.blocked / r.total) * 100).toFixed(1) : '0.0';
+
+        var html = '';
+        // Device info
+        html += '<div style="margin-bottom:12px;color:var(--archie-text-muted);font-size:0.82rem">';
+        html += '<span style="color:#3b82f6;font-weight:600">' + escapeHtml(data.device_name) + '</span>';
+        html += ' &nbsp;|&nbsp; ' + escapeHtml(data.ip_address);
+        html += '</div>';
+
+        // Stats row
+        html += '<div style="display:flex;gap:16px;margin-bottom:18px">';
+        html += '<div style="flex:1;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:12px;text-align:center">';
+        html += '<div style="font-size:1.6rem;font-weight:700;color:#3b82f6">' + r.total + '</div>';
+        html += '<div style="font-size:0.72rem;color:var(--archie-text-muted)">TOTAL QUERIES</div></div>';
+        html += '<div style="flex:1;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:6px;padding:12px;text-align:center">';
+        html += '<div style="font-size:1.6rem;font-weight:700;color:#ef4444">' + r.blocked + '</div>';
+        html += '<div style="font-size:0.72rem;color:var(--archie-text-muted)">BLOCKED</div></div>';
+        html += '<div style="flex:1;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3);border-radius:6px;padding:12px;text-align:center">';
+        html += '<div style="font-size:1.6rem;font-weight:700;color:#eab308">' + blockRate + '%</div>';
+        html += '<div style="font-size:0.72rem;color:var(--archie-text-muted)">BLOCK RATE</div></div>';
+        html += '</div>';
+
+        // Top Domains
+        if (r.top_domains && r.top_domains.length > 0) {
+            html += '<div style="margin-bottom:14px">';
+            html += '<div style="font-size:0.78rem;font-weight:600;color:#3b82f6;margin-bottom:6px;text-transform:uppercase">Top Domains</div>';
+            html += '<table style="width:100%;font-size:0.78rem;border-collapse:collapse">';
+            html += '<thead><tr style="border-bottom:1px solid rgba(59,130,246,0.2)"><th style="text-align:left;padding:4px 8px;color:var(--archie-text-muted)">Domain</th><th style="text-align:right;padding:4px 8px;color:var(--archie-text-muted)">Count</th></tr></thead><tbody>';
+            for (var i = 0; i < r.top_domains.length; i++) {
+                var d = r.top_domains[i];
+                html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05)"><td style="padding:4px 8px;word-break:break-all">' + escapeHtml(d.domain) + '</td><td style="text-align:right;padding:4px 8px;font-weight:600">' + d.count + '</td></tr>';
+            }
+            html += '</tbody></table></div>';
+        }
+
+        // Top Blocked
+        if (r.top_blocked && r.top_blocked.length > 0) {
+            html += '<div style="margin-bottom:14px">';
+            html += '<div style="font-size:0.78rem;font-weight:600;color:#ef4444;margin-bottom:6px;text-transform:uppercase">Top Blocked Domains</div>';
+            html += '<table style="width:100%;font-size:0.78rem;border-collapse:collapse">';
+            html += '<thead><tr style="border-bottom:1px solid rgba(239,68,68,0.2)"><th style="text-align:left;padding:4px 8px;color:var(--archie-text-muted)">Domain</th><th style="text-align:right;padding:4px 8px;color:var(--archie-text-muted)">Count</th></tr></thead><tbody>';
+            for (var j = 0; j < r.top_blocked.length; j++) {
+                var b = r.top_blocked[j];
+                html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05)"><td style="padding:4px 8px;word-break:break-all;color:#ef4444">' + escapeHtml(b.domain) + '</td><td style="text-align:right;padding:4px 8px;font-weight:600">' + b.count + '</td></tr>';
+            }
+            html += '</tbody></table></div>';
+        }
+
+        // Recent Queries
+        if (r.recent && r.recent.length > 0) {
+            html += '<div>';
+            html += '<div style="font-size:0.78rem;font-weight:600;color:var(--archie-text-muted);margin-bottom:6px;text-transform:uppercase">Recent Queries</div>';
+            html += '<table style="width:100%;font-size:0.75rem;border-collapse:collapse">';
+            html += '<thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1)"><th style="text-align:left;padding:4px 6px;color:var(--archie-text-muted)">Time</th><th style="text-align:left;padding:4px 6px;color:var(--archie-text-muted)">Domain</th><th style="text-align:left;padding:4px 6px;color:var(--archie-text-muted)">Type</th><th style="text-align:center;padding:4px 6px;color:var(--archie-text-muted)">Status</th></tr></thead><tbody>';
+            for (var k = 0; k < r.recent.length; k++) {
+                var q = r.recent[k];
+                var badge = q.blocked
+                    ? '<span style="background:rgba(239,68,68,0.2);color:#ef4444;padding:2px 6px;border-radius:3px;font-size:0.7rem">BLOCKED</span>'
+                    : '<span style="background:rgba(34,197,94,0.2);color:#22c55e;padding:2px 6px;border-radius:3px;font-size:0.7rem">OK</span>';
+                var timeStr = q.time ? formatTime(q.time) : '';
+                html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05)">';
+                html += '<td style="padding:4px 6px;white-space:nowrap;color:var(--archie-text-muted)">' + escapeHtml(timeStr) + '</td>';
+                html += '<td style="padding:4px 6px;word-break:break-all">' + escapeHtml(q.domain) + '</td>';
+                html += '<td style="padding:4px 6px">' + escapeHtml(q.type) + '</td>';
+                html += '<td style="text-align:center;padding:4px 6px">' + badge + '</td>';
+                html += '</tr>';
+            }
+            html += '</tbody></table></div>';
+        }
+
+        if (r.total === 0) {
+            html += '<p style="color:var(--archie-text-muted);text-align:center;margin-top:20px">No DNS queries found for this device.</p>';
+        }
+
+        body.innerHTML = html;
+    } catch(e) {
+        body.innerHTML = '<p style="color:#ef4444">Error: ' + e.message + '</p>';
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
 }
 
 /* ========== Init ========== */

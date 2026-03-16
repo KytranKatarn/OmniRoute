@@ -24,6 +24,8 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
+from schemas.agent_schemas import validate_schema as _validate_handoff_schema
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -4433,6 +4435,24 @@ class BridgeDispatcher:
                 f"({total_steps} steps, agent={agent_name}, station={station_code})"
             )
 
+            # ── Schema validation: soft-validate input if schema specified ──
+            input_schema = enriched_meta.get("input_schema")
+            input_data = enriched_meta.get("input_data")
+            if input_schema and input_data:
+                is_valid, schema_errors = _validate_handoff_schema(
+                    input_data, input_schema
+                )
+                if not is_valid:
+                    logger.warning(
+                        f"[BridgeDispatcher] Job #{job_id} input schema "
+                        f"'{input_schema}' validation failed: {schema_errors}"
+                    )
+                else:
+                    logger.debug(
+                        f"[BridgeDispatcher] Job #{job_id} input validated "
+                        f"against '{input_schema}'"
+                    )
+
             # ── Capacity event logging (ADR-055) ──
             cap_event_type = "primary_dispatch"
             if is_cross_station:
@@ -4692,6 +4712,92 @@ class BridgeDispatcher:
                     conn.close()
                 except Exception:
                     pass
+
+    # ========================================================================
+    # DURABLE EXECUTION — CHECKPOINTS (Task #955)
+    # ========================================================================
+
+    def save_checkpoint(self, job_id, step, total_steps, state=None):
+        """Save checkpoint for a running job so it can be resumed on failure."""
+        try:
+            from database import get_db_cursor
+            from psycopg2.extras import Json
+
+            checkpoint = {
+                "step": step,
+                "total_steps": total_steps,
+                "state": state or {},
+                "checkpointed_at": datetime.now().isoformat(),
+            }
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE bridge_jobs
+                       SET metadata = jsonb_set(COALESCE(metadata, '{}'), '{checkpoint}', %s)
+                       WHERE id = %s""",
+                    (Json(checkpoint), job_id),
+                )
+            logger.debug(f"[BridgeDispatcher] Checkpoint saved for job #{job_id} at step {step}/{total_steps}")
+        except Exception as e:
+            logger.debug(f"Checkpoint save failed for job {job_id}: {e}")
+
+    def get_checkpoint(self, job_id):
+        """Get checkpoint data for a job, or None if no checkpoint exists."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    "SELECT metadata->'checkpoint' as checkpoint FROM bridge_jobs WHERE id = %s",
+                    (job_id,),
+                )
+                row = cur.fetchone()
+                return row[0] if row and row[0] else None
+        except Exception:
+            return None
+
+    def resume_job(self, job_id):
+        """Resume a failed job from its last checkpoint.
+
+        Returns dict with resume info on success, None if job not resumable.
+        """
+        try:
+            from database import get_db_cursor
+            from psycopg2.extras import RealDictCursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    "SELECT * FROM bridge_jobs WHERE id = %s AND status = 'failed'",
+                    (job_id,),
+                )
+                job = cur.fetchone()
+                if not job:
+                    return None
+
+                checkpoint = (job.get("metadata") or {}).get("checkpoint")
+                if not checkpoint:
+                    return None
+
+                # Reset job to running, keep checkpoint intact for the executor
+                cur.execute(
+                    """UPDATE bridge_jobs
+                       SET status = 'running', error_message = NULL,
+                           completed_at = NULL, updated_at = NOW()
+                       WHERE id = %s""",
+                    (job_id,),
+                )
+
+            logger.info(
+                f"[BridgeDispatcher] Job #{job_id} resumed from step {checkpoint.get('step')}"
+            )
+            return {
+                "job_id": job_id,
+                "resume_from_step": checkpoint.get("step"),
+                "state": checkpoint.get("state"),
+            }
+        except Exception as e:
+            logger.debug(f"Resume job failed for {job_id}: {e}")
+            return None
 
     # ========================================================================
     # STALE JOB REAPER

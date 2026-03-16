@@ -6784,6 +6784,28 @@ def get_bridge_job_detail(job_id):
 
 
 # ============================================================================
+# DURABLE EXECUTION — Resume failed jobs from checkpoint (Task #955)
+# ============================================================================
+
+
+@bridge_bp.route("/api/bridge/jobs/<int:job_id>/resume", methods=["POST"])
+@login_required
+def api_resume_job(job_id):
+    """Resume a failed job from its last checkpoint."""
+    try:
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        result = dispatcher.resume_job(job_id)
+        if result:
+            return jsonify({"success": True, "resumed": result})
+        return jsonify({"success": False, "error": "No checkpoint found or job not failed"}), 404
+    except Exception as e:
+        logger.error(f"Error resuming job {job_id}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # CREW MANIFEST — Live agent roster with status/wellness/jobs/stats
 # ============================================================================
 

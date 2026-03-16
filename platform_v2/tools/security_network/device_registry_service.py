@@ -279,25 +279,29 @@ class DeviceRegistryService:
             if key in d and d[key] is not None:
                 d[key] = d[key].isoformat() if hasattr(d[key], "isoformat") else d[key]
         # Tag whether this device is using AdGuard DNS
+        dns_online = False
         if dns_active_clients is not None:
             ip = d.get("ip_address", "")
             client_info = dns_active_clients.get(ip, {})
-            d["dns_active"] = ip in dns_active_clients
             d["dns_query_count"] = client_info.get("count", 0) if isinstance(client_info, dict) else 0
             d["dns_last_query"] = client_info.get("last_query") if isinstance(client_info, dict) else None
+            # Protected = has made a DNS query in the last 15 minutes
+            if d.get("dns_last_query"):
+                try:
+                    lq = d["dns_last_query"].replace("Z", "").split(".")[0]
+                    last_q = datetime.fromisoformat(lq)
+                    diff_mins = (datetime.utcnow() - last_q).total_seconds() / 60
+                    d["dns_active"] = diff_mins <= 15
+                    dns_online = diff_mins <= 5
+                except Exception:
+                    d["dns_active"] = False
+            else:
+                d["dns_active"] = False
         else:
             d["dns_active"] = False
             d["dns_query_count"] = 0
             d["dns_last_query"] = None
-        # Online = last DNS query within 5 minutes OR last_seen within 15 minutes
-        dns_online = False
-        if d.get("dns_last_query"):
-            try:
-                lq = d["dns_last_query"].replace("Z", "").split(".")[0]
-                last_q = datetime.fromisoformat(lq)
-                dns_online = (datetime.utcnow() - last_q) < timedelta(minutes=5)
-            except Exception:
-                pass
+        # Online = last DNS query within 5 min OR last_seen within 15 min
         d["is_online"] = dns_online or DeviceRegistryService._is_online(row.get("last_seen_at"))
         return d
 

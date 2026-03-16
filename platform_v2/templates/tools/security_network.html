@@ -1081,14 +1081,14 @@
                         <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh All
                     </button>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                    <div>
                         <label class="form-label"><span data-i18n="security_network.name">Name</span></label>
-                        <input type="text" class="form-input" id="filter-name" placeholder="Filter name">
+                        <input type="text" class="form-input" id="filter-name" placeholder="Filter name" style="width:180px">
                     </div>
-                    <div class="form-group" style="flex:2">
+                    <div>
                         <label class="form-label"><span data-i18n="security_network.url">URL</span></label>
-                        <input type="text" class="form-input" id="filter-url" placeholder="https://...">
+                        <input type="text" class="form-input" id="filter-url" placeholder="https://..." style="width:360px">
                     </div>
                     <button class="btn btn-primary btn-sm" onclick="addFilter()"><span data-i18n="security_network.add">Add</span></button>
                 </div>
@@ -1103,14 +1103,14 @@
                 <div class="card-header">
                     <span class="card-title"><span data-i18n="security_network.add_dns_rewrite">Add DNS Rewrite</span></span>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                    <div>
                         <label class="form-label"><span data-i18n="security_network.domain_2">Domain</span></label>
-                        <input type="text" class="form-input" id="rw-domain" placeholder="local.example.com">
+                        <input type="text" class="form-input" id="rw-domain" placeholder="local.example.com" style="width:240px">
                     </div>
-                    <div class="form-group">
+                    <div>
                         <label class="form-label"><span data-i18n="security_network.answer_ip">Answer (IP)</span></label>
-                        <input type="text" class="form-input" id="rw-answer" placeholder="192.168.1.100">
+                        <input type="text" class="form-input" id="rw-answer" placeholder="192.168.1.100" style="width:180px">
                     </div>
                     <button class="btn btn-primary btn-sm" onclick="addRewrite()"><span data-i18n="security_network.add_2">Add</span></button>
                 </div>
@@ -1125,10 +1125,10 @@
                 <div class="card-header">
                     <span class="card-title">Quick Block / Unblock</span>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                    <div>
                         <label class="form-label">Domain</label>
-                        <input type="text" class="form-input" id="dns-quick-domain" placeholder="example.com">
+                        <input type="text" class="form-input" id="dns-quick-domain" placeholder="example.com" style="width:280px">
                     </div>
                     <button class="btn btn-danger btn-sm" onclick="dnsBlockDomain()">Block</button>
                     <button class="btn btn-success btn-sm" onclick="dnsUnblockDomain()">Unblock</button>
